@@ -315,6 +315,63 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /questionnaireTemplates/{templateId} {
+      allow read: if isStudioOperator(resource.data.tenantId);
+      allow write: if false;
+    }
+    match /questionnaireResponses/{responseId} {
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+        || (
+          isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+          && hasRole(resource.data.tenantId, ["studio_coordinator","client"])
+        );
+      allow write: if false;
+    }
+    match /vendors/{vendorId} {
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+        || (
+          hasRole(resource.data.tenantId, ["studio_coordinator","staff_photographer"])
+          && resource.data.projectIds.hasAny(membership(resource.data.tenantId).projectIds)
+        );
+      allow write: if false;
+    }
+    match /insuranceRequirements/{requirementId} {
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+        || (
+          isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+          && hasRole(resource.data.tenantId, ["studio_coordinator"])
+        );
+      allow write: if false;
+    }
+    match /insuranceRequests/{requestId} {
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+        || (
+          isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+          && hasRole(resource.data.tenantId, ["studio_coordinator"])
+        );
+      allow write: if false;
+    }
+    match /schedules/{scheduleId} {
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+        || (
+          isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+          && (
+            hasRole(resource.data.tenantId, ["studio_coordinator","staff_photographer","subcontractor"])
+            || (hasRole(resource.data.tenantId, ["client"]) && resource.data.status in ["client_review","approved","published"])
+          )
+        );
+      allow write: if false;
+    }
+    match /aiJobs/{jobId} {
+      allow read: if isPlatformAdmin() || hasRole(resource.data.tenantId, ["studio_owner","studio_admin"]);
+      allow write: if false;
+    }
+
     match /commandExecutions/{commandId} {
       allow read, write: if false;
     }

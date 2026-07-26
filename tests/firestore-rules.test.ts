@@ -153,6 +153,10 @@ test(
           tenantId: "tenant-a",
           provider: "quickbooks",
         });
+        await setDoc(doc(adminDb, "questionnaireResponses/questionnaire-a"), { tenantId: "tenant-a", projectId: "project-a" });
+        await setDoc(doc(adminDb, "vendors/vendor-a"), { tenantId: "tenant-a", projectIds: ["project-a"] });
+        await setDoc(doc(adminDb, "insuranceRequests/coi-a"), { tenantId: "tenant-a", projectId: "project-a" });
+        await setDoc(doc(adminDb, "schedules/schedule-a"), { tenantId: "tenant-a", projectId: "project-a", status: "client_review" });
       });
 
       const userDb = environment.authenticatedContext("user-a").firestore();
@@ -170,6 +174,9 @@ test(
       );
       await assertFails(getDoc(doc(userDb, "consultations/consultation-a")));
       await assertFails(getDoc(doc(userDb, "invoiceReferences/invoice-a")));
+      await assertSucceeds(getDoc(doc(userDb, "schedules/schedule-a")));
+      await assertSucceeds(getDoc(doc(userDb, "vendors/vendor-a")));
+      await assertFails(getDoc(doc(userDb, "insuranceRequests/coi-a")));
 
       const clientDb = environment.authenticatedContext("client-a").firestore();
       await assertSucceeds(getDoc(doc(clientDb, "projects/project-a")));
@@ -188,6 +195,10 @@ test(
       await assertFails(getDoc(doc(clientDb, "documents/document-studio")));
       await assertFails(getDoc(doc(clientDb, "integrationConnections/connection-a")));
       await assertSucceeds(getDoc(doc(clientDb, "consultations/consultation-a")));
+      await assertSucceeds(getDoc(doc(clientDb, "questionnaireResponses/questionnaire-a")));
+      await assertSucceeds(getDoc(doc(clientDb, "schedules/schedule-a")));
+      await assertFails(getDoc(doc(clientDb, "insuranceRequests/coi-a")));
+      await assertFails(updateDoc(doc(clientDb, "schedules/schedule-a"), { status: "approved" }));
 
       const ownerDb = environment.authenticatedContext("owner-a").firestore();
       await assertSucceeds(getDoc(doc(ownerDb, "workflowTemplates/workflow-a")));

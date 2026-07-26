@@ -889,6 +889,39 @@ for (const provider of ["google_calendar", "zoom", "docusign", "quickbooks", "dr
   });
 }
 
+batch.set(firestore.doc("questionnaireResponses/wedding-booked-planning"), {
+  ...audit, id: "wedding-booked-planning", tenantId, projectId: "wedding-booked",
+  templateId: "wedding-planning-v1", templateVersion: 1, status: "in_progress",
+  answers: { planner: "Gather & Grace", ceremonyTime: "16:30" },
+  completionPercent: 82, submittedAt: null, archivedAt: null,
+});
+batch.set(firestore.doc("vendors/vendor-foundry"), {
+  ...audit, id: "vendor-foundry", tenantId, company: "The Foundry", contactName: "Elena Cruz",
+  email: "venue@example.test", phone: null, type: "venue", website: null,
+  address: "42-38 9th Street, Long Island City, NY", notes: null,
+  projectIds: ["wedding-booked"], archivedAt: null,
+});
+batch.set(firestore.doc("insuranceRequests/coi-wedding-booked"), {
+  ...audit, id: "coi-wedding-booked", tenantId, projectId: "wedding-booked",
+  requirementId: "wedding-booked", status: "under_review",
+  replyTokenHash: "demo-reply-token-hash", inboundMessageId: "sendgrid-demo-coi",
+  documentId: "document-coi-wedding-booked",
+  extractedData: { certificateHolder: "The Foundry", generalLiability: 2000000 },
+  discrepancies: [{ field: "additionalInsuredWording", expected: "The Foundry LLC", extracted: "The Foundry", severity: "warning" }],
+  humanDecision: "pending", requestedAt: "2026-07-20T14:00:00.000Z", receivedAt: now, archivedAt: null,
+});
+batch.set(firestore.doc("schedules/wedding-booked-v4"), {
+  ...audit, id: "wedding-booked-v4", tenantId, projectId: "wedding-booked",
+  version: 4, status: "client_review", timezone: "America/New_York",
+  items: [
+    { id: "details", startAt: "2026-08-15T15:30:00.000Z", endAt: "2026-08-15T16:15:00.000Z", title: "Details & establishing photographs", description: "", location: "The Boro Hotel", address: null, travelMinutes: 0, photographerIds: [ownerId], participants: [], vendorContactIds: [], equipment: [], notes: null, visibility: "crew", blockingIssues: [] },
+    { id: "ceremony", startAt: "2026-08-15T20:30:00.000Z", endAt: "2026-08-15T21:10:00.000Z", title: "Ceremony", description: "", location: "The Foundry", address: null, travelMinutes: 0, photographerIds: [ownerId], participants: [], vendorContactIds: ["vendor-foundry"], equipment: [], notes: null, visibility: "shared", blockingIssues: [] },
+  ],
+  approvalState: "client_pending", publishedAt: now, approvedBy: null,
+  pdfDocumentId: null, dropboxDocumentId: null, supersedesId: "wedding-booked-v3",
+  immutable: true, archivedAt: null,
+});
+
 await batch.commit();
 
 console.info(

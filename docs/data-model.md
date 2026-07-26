@@ -133,6 +133,16 @@ references, never OAuth refresh-token plaintext. `webhookEvents`,
 `bookingGateRuns`, `providerJobs`, and `pdfJobs` are server-only operational
 records used for deduplication, evidence, retries, and isolated rendering.
 
+## Milestone 5 collections
+
+`questionnaireTemplates` and `questionnaireResponses` preserve template versions
+and structured answers. `vendors` support multi-project associations.
+`insuranceRequirements` and `insuranceRequests` separate venue requirements,
+inbound evidence, AI extraction, discrepancies, and human decisions. `schedules`
+embed structured items and preserve immutable published versions. `aiJobs` stores
+server-only extraction and schedule-draft work; AI output is never approval
+evidence.
+
 ## Immutability and deletion
 
 - package snapshots and audit events are append-only

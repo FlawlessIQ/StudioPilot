@@ -22,6 +22,8 @@ import {
   UsersRound,
   Workflow,
   BadgeCheck,
+  ClipboardList,
+  GanttChartSquare,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { cn } from "@/lib/utils";
@@ -39,6 +41,9 @@ const navItems = [
   { label: "Contracts", href: "/studio/contracts", icon: FileSignature },
   { label: "Invoices", href: "/studio/invoices", icon: ReceiptText },
   { label: "Booking", href: "/studio/booking", icon: BadgeCheck },
+  { label: "Questionnaires", href: "/studio/questionnaires", icon: ClipboardList },
+  { label: "Insurance", href: "/studio/insurance", icon: ShieldCheck },
+  { label: "Schedules", href: "/studio/schedules", icon: GanttChartSquare },
   { label: "Workflows", href: "/studio/workflows", icon: Workflow },
   { label: "Tasks", href: "/studio/tasks", icon: ListTodo },
   { label: "Readiness", href: "/studio/readiness", icon: ShieldCheck },

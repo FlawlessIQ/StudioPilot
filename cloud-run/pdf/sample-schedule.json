@@ -1,0 +1,17 @@
+{
+  "project": "Maya & Theo Johnson",
+  "project_id": "PRJ-2048",
+  "event_date": "August 15, 2026",
+  "timezone": "America/New_York",
+  "version": 4,
+  "generated_at": "July 26, 2026 at 6:30 PM ET",
+  "items": [
+    {"start":"11:30 AM","end":"12:15 PM","title":"Details & establishing photographs","location":"The Boro Hotel","crew":"Conor"},
+    {"start":"12:15 PM","end":"1:30 PM","title":"Getting ready coverage","location":"The Boro Hotel","crew":"Conor, Jordan"},
+    {"start":"1:45 PM","end":"2:15 PM","title":"First look","location":"Gantry Plaza","crew":"Conor, Jordan"},
+    {"start":"2:15 PM","end":"3:10 PM","title":"Wedding party & family portraits","location":"Gantry Plaza","crew":"Conor, Jordan"},
+    {"start":"4:30 PM","end":"5:10 PM","title":"Ceremony","location":"The Foundry","crew":"Conor, Jordan"},
+    {"start":"5:15 PM","end":"6:10 PM","title":"Cocktail hour","location":"The Foundry","crew":"Jordan"},
+    {"start":"6:15 PM","end":"9:30 PM","title":"Reception coverage","location":"The Foundry","crew":"Conor, Jordan"}
+  ]
+}

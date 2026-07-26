@@ -1,0 +1,4 @@
+import { MapPin } from "lucide-react";
+import { PortalShell } from "@/components/layout/portal-shell";
+import { scheduleItems } from "@/config/planning-demo-data";
+export default function ClientSchedulePage(){return <PortalShell active="Schedule"><div className="client-booking-page"><p className="eyebrow">Version 4 · Review requested</p><h1>Your wedding-day schedule</h1><p>Times are shown in America/New_York.</p><section className="mobile-schedule">{scheduleItems.map(i=><article key={i.title}><span><strong>{i.time}</strong><small>{i.end}</small></span><div><h2>{i.title}</h2><p><MapPin size={14}/>{i.location}</p></div></article>)}</section><div className="schedule-client-actions"><a className="button button-dark" href="mailto:studio@example.test?subject=Schedule%20approval">Approve by email</a><a className="button button-light" href="mailto:studio@example.test?subject=Schedule%20changes">Request changes</a></div></div></PortalShell>}

@@ -89,3 +89,18 @@ test("booking operations expose provider evidence and client-safe payment bounda
   await page.goto("/client/payments");
   await expect(page.getByText("StudioHub never receives your card or bank details.")).toBeVisible();
 });
+
+test("planning operations preserve human approval and schedule versions", async ({ page }) => {
+  await page.goto("/studio/questionnaires");
+  await expect(page.getByRole("heading", { name: "Questionnaires" })).toBeVisible();
+  await expect(page.getByText("Family photo list")).toBeVisible();
+  await page.goto("/studio/insurance");
+  await expect(page.getByText("Legal sufficiency is never automated.")).toBeVisible();
+  await expect(page.getByText("Human review required")).toBeVisible();
+  await page.goto("/studio/schedules/wedding-booked-v4");
+  await expect(page.getByText("Version 3 remains preserved.")).toBeVisible();
+  await expect(page.getByText("Ceremony")).toBeVisible();
+  await page.goto("/client/schedule");
+  await expect(page.getByRole("heading", { name: "Your wedding-day schedule" })).toBeVisible();
+  await expect(page.getByText("America/New_York")).toBeVisible();
+});

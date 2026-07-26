@@ -50,6 +50,9 @@ Browser clients cannot write or delete audit events. Trusted services append eve
 - clients see only client/shared checkpoints; subcontractors see only crew/shared checkpoints on assigned projects
 - AI output cannot resolve checkpoints or alter readiness
 - `PLANNING → READY` requires the same-tenant canonical readiness assessment to pass
+- inbound COI routes use hashed project reply tokens and restricted PDF validation
+- AI can extract COI fields but cannot write the human decision
+- published schedules are immutable and browser clients cannot directly approve or replace them
 
 ## Retention, export, and deletion
 

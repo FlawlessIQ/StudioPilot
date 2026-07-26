@@ -29,6 +29,7 @@ Milestone 4 Booking Platform:
 - consultation scheduling, immutable proposals, provider evidence, and a deterministic booking gate
 - Google Calendar, Zoom, Docusign, QuickBooks, and Dropbox adapter contracts with explicit mocks
 - branded proposal PDF generation and client package, contract, and hosted-payment surfaces
+- questionnaires, vendors, human-approved COI operations, immutable schedules, AI draft validation, and schedule PDFs
 
 Later product milestones are tracked in [docs/build-progress.md](docs/build-progress.md).
 
@@ -108,4 +109,5 @@ See [docs/architecture.md](docs/architecture.md), [docs/data-model.md](docs/data
 [docs/booking-integrations.md](docs/booking-integrations.md),
 [docs/webhooks.md](docs/webhooks.md),
 [docs/pdf-generation.md](docs/pdf-generation.md),
+[docs/planning-platform.md](docs/planning-platform.md),
 [docs/security.md](docs/security.md), and [docs/product-spec.md](docs/product-spec.md).

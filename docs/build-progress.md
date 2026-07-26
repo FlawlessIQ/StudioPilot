@@ -107,7 +107,7 @@ Milestone 4 may begin without carrying a broken build forward.
 
 ## Milestone 4 — Booking
 
-Status: implementation complete; final release validation pending.
+Status: implementation complete; final release validation complete.
 
 Delivered:
 
@@ -142,7 +142,36 @@ Milestone 5 may begin without carrying a broken build forward.
 
 ## Milestone 5 — Planning
 
-Pending: questionnaire builder, vendors, complete COI flow, inbound SendGrid processing, schedule builder/versioning, AI schedule draft, approvals, PDFs.
+Status: implementation complete; final release validation complete.
+
+Delivered:
+
+- versioned questionnaire templates/responses with conditional and locked field contracts
+- reusable vendor and venue records with multi-project associations
+- complete COI requirement/request state, hashed reply routing, inbound PDF validation, extraction jobs, discrepancy review, and mandatory human decisions
+- structured, immutable run-of-show versions with conflict, travel, assignment, location, and coverage checks
+- client review and approval state plus renewed crew acknowledgement on publication
+- strict Vertex AI schedule draft schema separating items, assumptions, missing facts, conflicts, risks, and questions
+- trusted planning command and SendGrid inbound endpoints
+- studio Questionnaire, Vendor, COI, Schedule list, and timeline experiences
+- client questionnaire and mobile schedule experiences
+- branded schedule PDF fixture and planning seed data
+- narrowed Firestore rules/indexes, automated tests, and planning documentation
+
+Validation record:
+
+- strict TypeScript: passed
+- unit and policy suite: 47 passed
+- Firestore Emulator rules suite: passed, including client schedule/questionnaire access, studio-only insurance, and server-only planning mutations
+- Playwright end-to-end suite: 10 passed across desktop and mobile Chromium
+- Cloud Functions TypeScript build: passed
+- ESLint: passed with zero warnings
+- production web build: passed
+- expanded Firebase emulator seed: executed successfully
+- schedule PDF: one-page Letter render visually inspected and logical text/page checks passed
+- production dependency audit: no high or critical runtime advisories; inherited Google Cloud UUID advisories remain moderate and tracked
+
+Milestone 6 may begin without carrying a broken build forward.
 
 ## Milestone 6 — Crew
 
