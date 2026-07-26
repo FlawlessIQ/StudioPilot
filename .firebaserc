@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "studiohub-dev",
+    "development": "studiohub-dev",
+    "production": "studiohub-prod"
+  }
+}

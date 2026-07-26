@@ -1,0 +1,46 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function membershipId(tenantId) {
+      return tenantId + "_" + request.auth.uid;
+    }
+
+    function membership(tenantId) {
+      return firestore.get(
+        /databases/(default)/documents/memberships/$(membershipId(tenantId))
+      ).data;
+    }
+
+    function activeMember(tenantId) {
+      return signedIn()
+        && membership(tenantId).tenantId == tenantId
+        && membership(tenantId).status == "active";
+    }
+
+    function safeUpload() {
+      return request.resource.size < 25 * 1024 * 1024
+        && request.resource.contentType.matches(
+          "application/pdf|image/jpeg|image/png|application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        );
+    }
+
+    match /tenants/{tenantId}/projects/{projectId}/{allPaths=**} {
+      allow read: if activeMember(tenantId)
+        && (
+          membership(tenantId).role in ["studio_owner", "studio_admin", "studio_coordinator"]
+          || projectId in membership(tenantId).projectIds
+        );
+      allow create, update: if activeMember(tenantId) && safeUpload();
+      allow delete: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

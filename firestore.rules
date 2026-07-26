@@ -1,0 +1,106 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isPlatformAdmin() {
+      return signedIn() && request.auth.token.platformAdmin == true;
+    }
+
+    function membershipId(tenantId) {
+      return tenantId + "_" + request.auth.uid;
+    }
+
+    function membership(tenantId) {
+      return get(/databases/$(database)/documents/memberships/$(membershipId(tenantId))).data;
+    }
+
+    function isActiveMember(tenantId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/memberships/$(membershipId(tenantId)))
+        && membership(tenantId).tenantId == tenantId
+        && membership(tenantId).status == "active";
+    }
+
+    function hasRole(tenantId, roles) {
+      return isActiveMember(tenantId) && membership(tenantId).role in roles;
+    }
+
+    function canManageTenant(tenantId) {
+      return isPlatformAdmin() || hasRole(tenantId, ["studio_owner"]);
+    }
+
+    function canManageProjects(tenantId) {
+      return isPlatformAdmin()
+        || hasRole(tenantId, ["studio_owner", "studio_admin", "studio_coordinator"]);
+    }
+
+    function isAssignedToProject(tenantId, projectId) {
+      return isActiveMember(tenantId)
+        && projectId in membership(tenantId).projectIds;
+    }
+
+    function tenantUnchanged() {
+      return request.resource.data.tenantId == resource.data.tenantId;
+    }
+
+    match /users/{userId} {
+      allow read: if isPlatformAdmin() || (signedIn() && request.auth.uid == userId);
+      allow create: if signedIn() && request.auth.uid == userId;
+      allow update: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(["displayName", "photoUrl", "phone", "updatedAt", "updatedBy"]);
+      allow delete: if false;
+    }
+
+    match /tenants/{tenantId} {
+      allow read: if isPlatformAdmin() || isActiveMember(tenantId);
+      allow create: if signedIn()
+        && request.resource.data.tenantId == tenantId
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update: if canManageTenant(tenantId) && tenantUnchanged();
+      allow delete: if false;
+    }
+
+    match /memberships/{membershipDocumentId} {
+      allow read: if isPlatformAdmin()
+        || (signedIn() && resource.data.userId == request.auth.uid)
+        || canManageTenant(resource.data.tenantId);
+      allow create: if canManageTenant(request.resource.data.tenantId)
+        && membershipDocumentId == request.resource.data.tenantId + "_" + request.resource.data.userId;
+      allow update: if canManageTenant(resource.data.tenantId) && tenantUnchanged();
+      allow delete: if false;
+    }
+
+    match /projects/{projectId} {
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+        || isAssignedToProject(resource.data.tenantId, projectId);
+      allow create: if canManageProjects(request.resource.data.tenantId)
+        && request.resource.data.projectId == projectId;
+      allow update: if canManageProjects(resource.data.tenantId) && tenantUnchanged();
+      allow delete: if false;
+    }
+
+    match /auditEvents/{auditId} {
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
+      allow write: if false;
+    }
+
+    match /{collectionName}/{documentId} {
+      allow read: if resource.data.tenantId is string
+        && (isPlatformAdmin() || isActiveMember(resource.data.tenantId));
+      allow create: if request.resource.data.tenantId is string
+        && canManageProjects(request.resource.data.tenantId);
+      allow update: if resource.data.tenantId is string
+        && canManageProjects(resource.data.tenantId)
+        && tenantUnchanged();
+      allow delete: if false;
+    }
+  }
+}
