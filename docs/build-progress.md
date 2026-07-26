@@ -38,7 +38,36 @@ Milestone 2 may begin without carrying a broken build forward.
 
 ## Milestone 2 — Core CRM
 
-Pending: contacts, lead intake, client records, complete project CRUD, event types, package versioning/snapshots, and deeper dashboard actions.
+Status: implementation complete; final release validation recorded below.
+
+Delivered:
+
+- typed, tenant-scoped contact, lead, event-type, project, package, and package-snapshot schemas
+- tenant-scoped Firestore repositories and service-layer authorization boundaries
+- branded public inquiry form with React Hook Form, Zod, App Check, spam field, rate limiting, duplicate detection, contact reuse, audit logging, and honest mock preview mode
+- authenticated, App Check protected CRM command endpoint for contacts, projects, state transitions, packages, and immutable package selection
+- idempotent command execution records and optimistic project state versions
+- exact integer-cent package calculations with basis-point discounts, taxes, and retainers
+- dedicated responsive Leads, Projects, Project Detail, Clients, and Packages areas
+- Wedding, Corporate, and Sports event-type seed records
+- representative contacts, lead, package, and immutable snapshots in the emulator seed
+- narrowed browser rules for CRM data, assigned-job contact access, and immutable snapshots
+- composite indexes for lead intake, contact lookup, package browsing, snapshots, and tenant inquiry URLs
+- Core CRM data-model documentation and automated lead/package tests
+- desktop and mobile Playwright coverage for inquiry submission and CRM filtering
+
+Validation record:
+
+- strict TypeScript: passed
+- Core CRM and existing unit/policy suite: 19 passed
+- Firestore Emulator rules suite: passed, including client CRM denial, job-scoped contact access, cross-tenant denial, and snapshot immutability
+- Playwright end-to-end suite: 4 passed across desktop and mobile Chromium
+- Cloud Functions TypeScript build: passed
+- ESLint: passed with zero warnings
+- production web build: passed
+- production dependency audit: no high or critical runtime advisories; inherited Google Cloud UUID advisories remain moderate and tracked
+
+Milestone 3 may begin without carrying a broken build forward.
 
 ## Milestone 3 — Workflow Platform
 

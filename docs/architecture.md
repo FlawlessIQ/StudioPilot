@@ -79,6 +79,12 @@ The strategy requires every repository query to include `tenantId`. Repositories
 
 Major collections include users, tenants, memberships, tenantInvitations, contacts, leads, projects, eventTypeTemplates, packages, packageSnapshots, proposals, contracts, invoiceReferences, questionnaireTemplates, questionnaireResponses, workflowTemplates, workflowRuns, checkpoints, tasks, schedules, scheduleItems, vendors, insuranceRequirements, insuranceRequests, crewProfiles, crewAssignments, documents, messages, messageTemplates, integrationConnections, webhookEvents, automationRuns, auditEvents, subscriptions, featureFlags, notifications, reviewRequests, and deliveryRecords.
 
+The implemented Core CRM model and access patterns are documented in
+[`docs/data-model.md`](./data-model.md). Public lead intake and authenticated CRM
+commands run through Cloud Functions; browsers have no direct create permission for
+leads, packages, package snapshots, command executions, rate-limit counters, or
+audit events.
+
 Immutable/versioned records:
 
 - package snapshots

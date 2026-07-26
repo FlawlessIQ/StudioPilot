@@ -38,6 +38,25 @@ service cloud.firestore {
         || hasRole(tenantId, ["studio_owner", "studio_admin", "studio_coordinator"]);
     }
 
+    function isStudioOperator(tenantId) {
+      return isPlatformAdmin()
+        || hasRole(tenantId, [
+          "studio_owner",
+          "studio_admin",
+          "studio_coordinator",
+          "staff_photographer"
+        ]);
+    }
+
+    function canReadContact(tenantId, projectIds) {
+      return canManageProjects(tenantId)
+        || (
+          hasRole(tenantId, ["staff_photographer"])
+          && projectIds is list
+          && projectIds.hasAny(membership(tenantId).projectIds)
+        );
+    }
+
     function isAssignedToProject(tenantId, projectId) {
       return isActiveMember(tenantId)
         && projectId in membership(tenantId).projectIds;
@@ -86,21 +105,58 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /contacts/{contactId} {
+      allow read: if canReadContact(resource.data.tenantId, resource.data.projectIds);
+      allow create: if canManageProjects(request.resource.data.tenantId);
+      allow update: if canManageProjects(resource.data.tenantId) && tenantUnchanged();
+      allow delete: if false;
+    }
+
+    match /leads/{leadId} {
+      allow read: if canManageProjects(resource.data.tenantId);
+      allow create: if false;
+      allow update: if canManageProjects(resource.data.tenantId) && tenantUnchanged();
+      allow delete: if false;
+    }
+
+    match /eventTypeTemplates/{templateId} {
+      allow read: if isStudioOperator(resource.data.tenantId);
+      allow create: if hasRole(request.resource.data.tenantId, ["studio_owner", "studio_admin"]);
+      allow update: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+        && tenantUnchanged();
+      allow delete: if false;
+    }
+
+    match /packages/{packageId} {
+      allow read: if canManageProjects(resource.data.tenantId);
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    match /packageSnapshots/{snapshotId} {
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+        || isAssignedToProject(resource.data.tenantId, resource.data.projectId);
+      allow write: if false;
+    }
+
     match /auditEvents/{auditId} {
       allow read: if isPlatformAdmin()
         || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
       allow write: if false;
     }
 
+    match /commandExecutions/{commandId} {
+      allow read, write: if false;
+    }
+
+    match /publicRateLimits/{limitId} {
+      allow read, write: if false;
+    }
+
     match /{collectionName}/{documentId} {
-      allow read: if resource.data.tenantId is string
-        && (isPlatformAdmin() || isActiveMember(resource.data.tenantId));
-      allow create: if request.resource.data.tenantId is string
-        && canManageProjects(request.resource.data.tenantId);
-      allow update: if resource.data.tenantId is string
-        && canManageProjects(resource.data.tenantId)
-        && tenantUnchanged();
-      allow delete: if false;
+      allow read, write: if false;
     }
   }
 }

@@ -2,7 +2,8 @@
 
 StudioHub is a multi-tenant photography operations OS. It coordinates the complete client and event lifecycle—from inquiry and booking through readiness, event-day execution, delivery, review, and closeout.
 
-This repository currently contains the Milestone 1 foundation:
+This repository currently contains the validated Milestone 1 foundation and
+Milestone 2 Core CRM:
 
 - Next.js App Router application with strict TypeScript and responsive product shells
 - Firebase Authentication client and secure Cloud Functions session architecture
@@ -12,6 +13,12 @@ This repository currently contains the Milestone 1 foundation:
 - Typed provider-adapter contracts and a development mock provider
 - Firebase Emulator configuration and representative demo seeding
 - Unit, permission, state-machine, entitlement, provider, and Firestore rules tests
+- public lead intake with Zod, App Check, rate limiting, duplicate detection, and audit events
+- tenant-scoped contacts, clients, event types, leads, projects, and packages
+- deterministic, optimistic-concurrency project transitions
+- immutable package-selection snapshots with integer-cent calculations
+- authenticated and idempotent CRM Cloud Function commands
+- dedicated Leads, Projects, Clients, Packages, and public inquiry interfaces
 
 Later product milestones are tracked in [docs/build-progress.md](docs/build-progress.md).
 
@@ -45,7 +52,15 @@ The seed command is deliberately restricted to emulator mode. It creates:
 - client: `client@studiohub.test`
 - subcontractor: `crew@studiohub.test`
 
-All seeded users use the `SEED_DEMO_PASSWORD` you supply. The seed also creates seven projects across wedding, corporate, and sports workflows, plus a package, workflow template, questionnaire, schedule, COI requirement, and crew assignment.
+All seeded users use the `SEED_DEMO_PASSWORD` you supply. The seed also creates
+seven projects across wedding, corporate, and sports workflows, their contacts,
+a lead, three event types, a versioned package, immutable package snapshots,
+a workflow template, questionnaire, schedule, COI requirement, and crew assignment.
+
+The public inquiry is available at `http://localhost:3000/inquiry`. Its live
+submission target is `NEXT_PUBLIC_CRM_FUNCTIONS_URL`. When that value is omitted,
+the page clearly operates in non-persisting preview mode. Production submissions
+require Firebase App Check.
 
 ## Commands
 
@@ -73,4 +88,5 @@ The browser is never trusted to authorize sensitive work. Firebase identifies th
 
 Audit records are immutable to browser clients. Destructive business deletion is modeled as an archive or controlled retention workflow.
 
-See [docs/architecture.md](docs/architecture.md), [docs/security.md](docs/security.md), and [docs/product-spec.md](docs/product-spec.md).
+See [docs/architecture.md](docs/architecture.md), [docs/data-model.md](docs/data-model.md),
+[docs/security.md](docs/security.md), and [docs/product-spec.md](docs/product-spec.md).

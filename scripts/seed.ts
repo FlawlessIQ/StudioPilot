@@ -93,6 +93,8 @@ const batch = firestore.batch();
 batch.set(firestore.doc(`tenants/${tenantId}`), {
   ...audit,
   id: tenantId,
+  tenantId,
+  slug: "alder-and-muse",
   businessName: "Alder & Muse Photography",
   legalName: "Alder & Muse Photography LLC",
   brandName: "Alder & Muse",
@@ -101,6 +103,8 @@ batch.set(firestore.doc(`tenants/${tenantId}`), {
   dateFormat: "MMM d, yyyy",
   status: "trial",
   subscriptionPlan: "studio",
+  defaultEventTypeId: "wedding",
+  defaultLeadAssigneeId: ownerId,
 });
 
 for (let index = 0; index < demoUsers.length; index += 1) {
@@ -142,6 +146,7 @@ for (let index = 0; index < demoUsers.length; index += 1) {
 }
 
 for (const project of projectSeeds) {
+  const contactId = `contact-${project.id}`;
   batch.set(firestore.doc(`projects/${project.id}`), {
     ...audit,
     id: project.id,
@@ -149,12 +154,45 @@ for (const project of projectSeeds) {
     projectId: project.id,
     name: project.name,
     eventType: project.type,
+    eventTypeId: project.type.toLowerCase(),
     eventDate: project.date,
     timezone: "America/New_York",
     state: project.state,
-    clientContactIds: [`contact-${project.id}`],
+    stateVersion: 0,
+    clientContactIds: [contactId],
     leadPhotographerId: userByKey.get("photographer")?.uid ?? null,
-    readiness: project.readiness,
+    leadId: project.id === "wedding-lead" ? "lead-lena-chris" : null,
+    packageSnapshotId:
+      ["wedding-booked", "wedding-risk", "wedding-ready"].includes(project.id)
+        ? `snapshot-${project.id}`
+        : null,
+    venueName: project.id === "wedding-booked" ? "The Foundry" : null,
+    city: "New York",
+    readinessScore: project.readiness,
+    nextAction: project.readiness === 100 ? "Complete event-day briefing" : "Review project blockers",
+    archivedAt: null,
+  });
+
+  const [firstName, ...lastNameParts] = project.name.replaceAll("&", "").split(" ").filter(Boolean);
+  const lastName = lastNameParts.at(-1) ?? "Client";
+  batch.set(firestore.doc(`contacts/${contactId}`), {
+    ...audit,
+    id: contactId,
+    tenantId,
+    firstName,
+    lastName,
+    displayName: project.name,
+    email: `${project.id}@studiohub.test`,
+    normalizedEmail: `${project.id}@studiohub.test`,
+    phone: "+12125550110",
+    normalizedPhone: "12125550110",
+    company: project.type === "Wedding" ? null : project.name,
+    contactTypes: ["client"],
+    projectIds: [project.id],
+    portalUserId: project.id === "wedding-booked" ? userByKey.get("client")?.uid ?? null : null,
+    marketingConsent: false,
+    notes: null,
+    archivedAt: null,
   });
 }
 
@@ -163,17 +201,122 @@ batch.set(firestore.doc("packages/signature-wedding"), {
   id: "signature-wedding",
   tenantId,
   name: "The Signature Collection",
-  eventType: "Wedding",
+  description: "Eight hours of wedding coverage with two photographers and a complete digital gallery.",
+  eventTypeId: "wedding",
+  eventTypeLabel: "Wedding",
   basePriceCents: packagePriceCents,
   currency: "USD",
-  retainerType: "percentage",
-  retainerValue: 30,
-  coverageHours: 8,
+  retainerRule: { type: "percentage", basisPoints: 3000 },
+  includedCoverageMinutes: 480,
   includedPhotographers: 2,
   includedDeliverables: ["Online gallery", "High-resolution downloads", "Printing rights"],
+  includedTravelArea: "Within 50 miles of New York City",
+  addOns: [
+    {
+      id: "engagement-session",
+      name: "Engagement session",
+      description: "Ninety-minute engagement portrait session.",
+      unitPriceCents: 85000,
+      taxable: false,
+      active: true,
+    },
+  ],
+  taxRateBasisPoints: 0,
+  terms: "Coverage and deliverables are governed by the completed studio agreement.",
   active: true,
+  publicVisible: true,
+  displayOrder: 1,
+  internalNotes: null,
   version: 1,
+  archivedAt: null,
 });
+
+for (const eventType of [
+  { id: "wedding", name: "Wedding Photography", category: "wedding" },
+  { id: "corporate", name: "Corporate Photography", category: "corporate" },
+  { id: "sports", name: "Sports Photography", category: "sports" },
+] as const) {
+  batch.set(firestore.doc(`eventTypeTemplates/${eventType.id}`), {
+    ...audit,
+    id: eventType.id,
+    tenantId,
+    name: eventType.name,
+    slug: eventType.id,
+    category: eventType.category,
+    description: `${eventType.name} lifecycle and project defaults.`,
+    active: true,
+    requiresGuardian: eventType.category === "sports",
+    displayOrder: eventType.category === "wedding" ? 1 : eventType.category === "corporate" ? 2 : 3,
+    defaultWorkflowTemplateId: `${eventType.category}-v1`,
+    defaultQuestionnaireTemplateId:
+      eventType.category === "wedding" ? "wedding-planning-v1" : null,
+    archivedAt: null,
+  });
+}
+
+batch.set(firestore.doc("leads/lead-lena-chris"), {
+  ...audit,
+  id: "lead-lena-chris",
+  tenantId,
+  projectId: "wedding-lead",
+  primaryContactId: "contact-wedding-lead",
+  status: "new",
+  eventTypeId: "wedding",
+  eventTypeLabel: "Wedding",
+  eventDate: "2026-10-03",
+  venue: "Prospect Park Boathouse",
+  city: "Brooklyn",
+  estimatedGuestCount: 145,
+  servicesRequested: ["photography", "engagement_session"],
+  budgetRange: "$5,000–$8,000",
+  referralSource: "Venue referral",
+  message: "We are planning an intimate fall wedding and care most about candid documentary coverage.",
+  assignedUserId: userByKey.get("coordinator")?.uid ?? ownerId,
+  duplicateKey: "lena@example.test|12125550121|2026-10-03",
+  duplicateOfLeadId: null,
+  availabilityStatus: "unknown",
+  aiSummary: null,
+  missingInformation: [],
+  suggestedConsultationQuestions: [],
+  consentRecordedAt: now,
+  source: "public_inquiry",
+  archivedAt: null,
+});
+
+for (const project of projectSeeds.filter((seed) =>
+  ["wedding-booked", "wedding-risk", "wedding-ready"].includes(seed.id),
+)) {
+  const snapshotId = `snapshot-${project.id}`;
+  const basePriceCents = packagePriceCents;
+  const retainerCents = Math.round(basePriceCents * 0.3);
+  batch.set(firestore.doc(`packageSnapshots/${snapshotId}`), {
+    id: snapshotId,
+    tenantId,
+    projectId: project.id,
+    packageId: "signature-wedding",
+    packageVersion: 1,
+    packageName: "The Signature Collection",
+    description: "Eight hours of wedding coverage with two photographers and a complete digital gallery.",
+    currency: "USD",
+    basePriceCents,
+    addOns: [],
+    discountCents: 0,
+    subtotalCents: basePriceCents,
+    taxCents: 0,
+    retainerCents,
+    totalCents: basePriceCents,
+    includedCoverageMinutes: 480,
+    includedPhotographers: 2,
+    includedDeliverables: ["Online gallery", "High-resolution downloads", "Printing rights"],
+    includedTravelArea: "Within 50 miles of New York City",
+    terms: "Coverage and deliverables are governed by the completed studio agreement.",
+    selectionDate: now,
+    selectedBy: ownerId,
+    immutable: true,
+    createdAt: now,
+    createdBy: ownerId,
+  });
+}
 
 batch.set(firestore.doc("workflowTemplates/wedding-v1"), {
   ...audit,
