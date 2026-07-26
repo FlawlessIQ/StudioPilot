@@ -1,0 +1,20 @@
+{
+  "tenant_name": "Alder & Muse Photography",
+  "project_id": "PRJ-2037",
+  "proposal_id": "PROP-204",
+  "version": 3,
+  "client_name": "Priya Shah & Jordan Lee",
+  "event_summary": "Wedding | September 19, 2026 | The Foundry, Long Island City",
+  "package_name": "The Signature Collection",
+  "package_description": "Ten hours of documentary coverage with two photographers, full-resolution gallery delivery, and an engagement session.",
+  "line_items": [
+    {"description": "Signature Collection", "amount": "$6,500.00"},
+    {"description": "Engagement session", "amount": "$650.00"},
+    {"description": "Tax", "amount": "$490.00"}
+  ],
+  "total": "$7,640.00",
+  "retainer": "$1,910.00",
+  "balance": "$5,730.00",
+  "expires_on": "July 30, 2026",
+  "generated_at": "July 26, 2026 at 5:30 PM ET"
+}

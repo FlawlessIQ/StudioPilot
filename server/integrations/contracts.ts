@@ -20,6 +20,68 @@ export type ProviderConnectionResult = {
   connectedAt: string;
 };
 
+export type OAuthConnectionRequest = {
+  authorizationCode: string;
+  redirectUri: string;
+};
+
+export type AvailabilityWindow = {
+  startsAt: string;
+  endsAt: string;
+  available: boolean;
+};
+
+export type CalendarEventInput = {
+  title: string;
+  description: string;
+  startsAt: string;
+  endsAt: string;
+  timezone: string;
+  location: string | null;
+  attendeeEmails: readonly string[];
+  remindersMinutes: readonly number[];
+};
+
+export type MeetingInput = {
+  topic: string;
+  startsAt: string;
+  durationMinutes: number;
+  timezone: string;
+  waitingRoom: boolean;
+  passwordRequired: boolean;
+};
+
+export type CustomerInput = {
+  displayName: string;
+  primaryEmail: string;
+  phone: string | null;
+};
+
+export type InvoiceInput = {
+  customerId: string;
+  projectId: string;
+  currency: string;
+  dueDate: string;
+  memo: string;
+  lineItems: readonly {
+    description: string;
+    quantity: number;
+    unitAmountCents: number;
+  }[];
+};
+
+export type EnvelopeInput = {
+  templateId: string;
+  subject: string;
+  mergeFields: Readonly<Record<string, string>>;
+  signers: readonly {
+    name: string;
+    email: string;
+    role: string;
+    order: number;
+  }[];
+};
+
 export type NormalizedProviderError = {
   code: string;
   message: string;
@@ -37,28 +99,43 @@ export interface ProviderAdapter {
 }
 
 export interface AccountingProvider extends ProviderAdapter {
-  createCustomer(context: ProviderContext, input: Record<string, unknown>): Promise<{ id: string }>;
+  searchCustomers(context: ProviderContext, email: string): Promise<readonly { id: string; displayName: string }[]>;
+  createCustomer(context: ProviderContext, input: CustomerInput): Promise<{ id: string }>;
   createInvoice(
     context: ProviderContext,
-    input: Record<string, unknown>,
+    input: InvoiceInput,
     idempotencyKey: string,
   ): Promise<{ id: string; hostedUrl: string | null }>;
+  getInvoice(context: ProviderContext, invoiceId: string): Promise<{
+    id: string;
+    status: string;
+    amountCents: number;
+    balanceCents: number;
+  }>;
 }
 
 export interface CalendarProvider extends ProviderAdapter {
+  getAvailability(
+    context: ProviderContext,
+    input: { startsAt: string; endsAt: string; timezone: string },
+  ): Promise<readonly AvailabilityWindow[]>;
   createEvent(
     context: ProviderContext,
-    input: Record<string, unknown>,
+    input: CalendarEventInput,
     idempotencyKey: string,
   ): Promise<{ id: string; htmlLink: string | null }>;
+  updateEvent(context: ProviderContext, eventId: string, input: CalendarEventInput): Promise<void>;
+  cancelEvent(context: ProviderContext, eventId: string): Promise<void>;
 }
 
 export interface MeetingProvider extends ProviderAdapter {
   createMeeting(
     context: ProviderContext,
-    input: Record<string, unknown>,
+    input: MeetingInput,
     idempotencyKey: string,
   ): Promise<{ id: string; joinUrl: string; startUrl: string }>;
+  updateMeeting(context: ProviderContext, meetingId: string, input: MeetingInput): Promise<void>;
+  cancelMeeting(context: ProviderContext, meetingId: string): Promise<void>;
 }
 
 export interface StorageProvider extends ProviderAdapter {
@@ -72,14 +149,23 @@ export interface StorageProvider extends ProviderAdapter {
     input: { path: string; bytes: Uint8Array; contentType: string },
     idempotencyKey: string,
   ): Promise<{ id: string; revision: string; canonicalPath: string }>;
+  downloadFile(context: ProviderContext, fileId: string): Promise<Uint8Array>;
+  temporaryLink(context: ProviderContext, fileId: string): Promise<{ url: string; expiresAt: string }>;
 }
 
 export interface SignatureProvider extends ProviderAdapter {
   createEnvelope(
     context: ProviderContext,
-    input: Record<string, unknown>,
+    input: EnvelopeInput,
     idempotencyKey: string,
   ): Promise<{ id: string; status: string }>;
+  getEnvelope(context: ProviderContext, envelopeId: string): Promise<{ id: string; status: string }>;
+  resendEnvelope(context: ProviderContext, envelopeId: string): Promise<void>;
+  voidEnvelope(context: ProviderContext, envelopeId: string, reason: string): Promise<void>;
+  downloadCompletedDocuments(context: ProviderContext, envelopeId: string): Promise<{
+    signedPdf: Uint8Array;
+    completionCertificate: Uint8Array;
+  }>;
 }
 
 export interface EmailProvider extends ProviderAdapter {

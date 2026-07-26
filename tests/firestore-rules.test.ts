@@ -120,6 +120,39 @@ test(
           tenantId: "tenant-a",
           status: "succeeded",
         });
+        await setDoc(doc(adminDb, "consultations/consultation-a"), {
+          tenantId: "tenant-a",
+          projectId: "project-a",
+        });
+        await setDoc(doc(adminDb, "proposals/proposal-a"), {
+          tenantId: "tenant-a",
+          projectId: "project-a",
+          status: "sent",
+        });
+        await setDoc(doc(adminDb, "contracts/contract-a"), {
+          tenantId: "tenant-a",
+          projectId: "project-a",
+          status: "partially_signed",
+        });
+        await setDoc(doc(adminDb, "invoiceReferences/invoice-a"), {
+          tenantId: "tenant-a",
+          projectId: "project-a",
+          status: "sent",
+        });
+        await setDoc(doc(adminDb, "documents/document-client"), {
+          tenantId: "tenant-a",
+          projectId: "project-a",
+          visibility: "client",
+        });
+        await setDoc(doc(adminDb, "documents/document-studio"), {
+          tenantId: "tenant-a",
+          projectId: "project-a",
+          visibility: "studio",
+        });
+        await setDoc(doc(adminDb, "integrationConnections/connection-a"), {
+          tenantId: "tenant-a",
+          provider: "quickbooks",
+        });
       });
 
       const userDb = environment.authenticatedContext("user-a").firestore();
@@ -135,6 +168,8 @@ test(
       await assertFails(
         updateDoc(doc(userDb, "checkpoints/studio-a"), { status: "complete" }),
       );
+      await assertFails(getDoc(doc(userDb, "consultations/consultation-a")));
+      await assertFails(getDoc(doc(userDb, "invoiceReferences/invoice-a")));
 
       const clientDb = environment.authenticatedContext("client-a").firestore();
       await assertSucceeds(getDoc(doc(clientDb, "projects/project-a")));
@@ -146,10 +181,21 @@ test(
       await assertFails(getDoc(doc(clientDb, "checkpoints/studio-a")));
       await assertFails(getDoc(doc(clientDb, "tasks/task-a")));
       await assertFails(getDoc(doc(clientDb, "readinessAssessments/project-a")));
+      await assertSucceeds(getDoc(doc(clientDb, "proposals/proposal-a")));
+      await assertSucceeds(getDoc(doc(clientDb, "contracts/contract-a")));
+      await assertSucceeds(getDoc(doc(clientDb, "invoiceReferences/invoice-a")));
+      await assertSucceeds(getDoc(doc(clientDb, "documents/document-client")));
+      await assertFails(getDoc(doc(clientDb, "documents/document-studio")));
+      await assertFails(getDoc(doc(clientDb, "integrationConnections/connection-a")));
+      await assertSucceeds(getDoc(doc(clientDb, "consultations/consultation-a")));
 
       const ownerDb = environment.authenticatedContext("owner-a").firestore();
       await assertSucceeds(getDoc(doc(ownerDb, "workflowTemplates/workflow-a")));
       await assertSucceeds(getDoc(doc(ownerDb, "automationRuns/run-a")));
+      await assertSucceeds(getDoc(doc(ownerDb, "integrationConnections/connection-a")));
+      await assertFails(
+        updateDoc(doc(ownerDb, "contracts/contract-a"), { status: "completed" }),
+      );
       await assertFails(
         updateDoc(doc(ownerDb, "workflowTemplates/workflow-a"), { status: "archived" }),
       );

@@ -3,7 +3,8 @@
 StudioHub is a multi-tenant photography operations OS. It coordinates the complete client and event lifecycle—from inquiry and booking through readiness, event-day execution, delivery, review, and closeout.
 
 This repository currently contains the validated Milestone 1 foundation,
-Milestone 2 Core CRM, and Milestone 3 Workflow Platform:
+Milestone 2 Core CRM, Milestone 3 Workflow Platform, and the implemented
+Milestone 4 Booking Platform:
 
 - Next.js App Router application with strict TypeScript and responsive product shells
 - Firebase Authentication client and secure Cloud Functions session architecture
@@ -25,6 +26,9 @@ Milestone 2 Core CRM, and Milestone 3 Workflow Platform:
 - idempotent automation runs with retry and approval state
 - deterministic readiness enforced by project state transitions
 - dedicated Workflows, Tasks, Readiness, Automation Runs, and Audit interfaces
+- consultation scheduling, immutable proposals, provider evidence, and a deterministic booking gate
+- Google Calendar, Zoom, Docusign, QuickBooks, and Dropbox adapter contracts with explicit mocks
+- branded proposal PDF generation and client package, contract, and hosted-payment surfaces
 
 Later product milestones are tracked in [docs/build-progress.md](docs/build-progress.md).
 
@@ -100,4 +104,8 @@ Audit records are immutable to browser clients. Destructive business deletion is
 See [docs/architecture.md](docs/architecture.md), [docs/data-model.md](docs/data-model.md),
 [docs/workflow-engine.md](docs/workflow-engine.md),
 [docs/readiness-engine.md](docs/readiness-engine.md),
+[docs/booking-gate.md](docs/booking-gate.md),
+[docs/booking-integrations.md](docs/booking-integrations.md),
+[docs/webhooks.md](docs/webhooks.md),
+[docs/pdf-generation.md](docs/pdf-generation.md),
 [docs/security.md](docs/security.md), and [docs/product-spec.md](docs/product-spec.md).

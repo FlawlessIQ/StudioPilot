@@ -107,7 +107,38 @@ Milestone 4 may begin without carrying a broken build forward.
 
 ## Milestone 4 — Booking
 
-Pending: consultation scheduler; live Google Calendar, Zoom, Docusign, QuickBooks, and Dropbox adapters; proposal PDFs; booking gate; client activation.
+Status: implementation complete; final release validation pending.
+
+Delivered:
+
+- timezone-aware consultation scheduling with conflict and Calendar availability checks
+- Zoom meeting and Google Calendar event orchestration with stable provider IDs
+- immutable proposal versions with exact client, event, package, pricing, payment, and terms snapshots
+- branded proposal preview plus isolated Cloud Run PDF service and visually verified fixture
+- Docusign envelope references, signer ordering, completion evidence, and signed-file download contract
+- QuickBooks customer/invoice contracts, hosted payment references, balance sync, and configurable final-invoice dates
+- Dropbox folder/file contracts using IDs, revisions, canonical paths, and scoped temporary links
+- deterministic booking gate with explicit retainer exceptions and idempotent completion steps
+- App Check and Firebase Auth protected booking command endpoint
+- signature-verified, idempotent Docusign and QuickBooks webhook endpoints
+- studio Calendar, Proposals, Contracts, Invoices, Booking, and Integration Health areas
+- client Package, Contract, and QuickBooks-hosted Payments areas
+- provider mock mode, booking seeds, Firestore rules/indexes, tests, and operational documentation
+
+Validation record:
+
+- strict TypeScript: passed
+- unit and policy suite: 41 passed
+- Firestore Emulator rules suite: passed, including client booking visibility, staff financial denial, server-only provider state, and integration isolation
+- Playwright end-to-end suite: 8 passed across desktop and mobile Chromium
+- Cloud Functions TypeScript build: passed
+- ESLint: passed with zero warnings
+- production web build: passed
+- expanded Firebase emulator seed: executed successfully
+- proposal PDF: one-page Letter render visually inspected and logical text/page checks passed
+- production dependency audit: no high or critical runtime advisories; inherited Google Cloud UUID advisories remain moderate and tracked
+
+Milestone 5 may begin without carrying a broken build forward.
 
 ## Milestone 5 — Planning
 

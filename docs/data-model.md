@@ -119,6 +119,20 @@ Canonical current project projection used by dashboards and the Ready transition
 gate. It contains deterministic score, blockers, risk, overdue items, responsible
 party, next action, and rules version.
 
+## Milestone 4 collections
+
+`consultations` store timezone-safe appointment state and provider meeting/event
+IDs. `proposals` are immutable, superseding versions containing client, event,
+package, pricing, payment, and terms snapshots. `contracts` and
+`invoiceReferences` store normalized Docusign and QuickBooks evidence without
+containing signature secrets or payment credentials.
+
+`documents` reference provider file IDs, revisions, hashes, paths, content type,
+and visibility. `integrationConnections` store status and Secret Manager
+references, never OAuth refresh-token plaintext. `webhookEvents`,
+`bookingGateRuns`, `providerJobs`, and `pdfJobs` are server-only operational
+records used for deduplication, evidence, retries, and isolated rendering.
+
 ## Immutability and deletion
 
 - package snapshots and audit events are append-only
@@ -133,4 +147,5 @@ party, next action, and rules version.
 Indexes are defined for tenant-scoped project dates, lead duplicate and recency
 queries, normalized contact lookup, active package ordering, project snapshots,
 workflow versions and active runs, open tasks, automation idempotency and failures,
-and tenant slug resolution. `tenantId` leads business-record indexes.
+consultation dates, proposal versions, project contract/invoice status, integration
+health, and tenant slug resolution. `tenantId` leads business-record indexes.

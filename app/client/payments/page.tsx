@@ -1,0 +1,5 @@
+import { ExternalLink, LockKeyhole } from "lucide-react";
+import { PortalShell } from "@/components/layout/portal-shell";
+export default function ClientPaymentsPage() {
+  return <PortalShell active="Payments"><div className="client-booking-page"><p className="eyebrow">Payments</p><h1>Your payment schedule</h1><p>Secure payment is handled by QuickBooks Online.</p><section className="panel client-payment-card"><div><span><small>Retainer</small><strong>$1,910.00</strong></span><span className="payment-due">Due July 30</span></div><p>Invoice INV-941 · Balance $1,910.00</p><a className="button button-dark" href="https://quickbooks.intuit.com/" rel="noreferrer" target="_blank">Pay securely in QuickBooks <ExternalLink size={15}/></a><footer><LockKeyhole size={15}/> StudioHub never receives your card or bank details.</footer></section><section className="panel client-payment-card paid"><div><span><small>Final balance</small><strong>$5,730.00</strong></span><span>Scheduled</span></div><p>Invoice creates automatically 28 days before your event and is due 14 days before.</p></section></div></PortalShell>;
+}

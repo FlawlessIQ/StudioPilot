@@ -6,6 +6,8 @@ import { z } from "zod";
 export { crmCommand } from "./crm/commands.js";
 export { publicLeadIntake } from "./crm/public-lead.js";
 export { workflowCommand } from "./workflow/commands.js";
+export { bookingCommand } from "./booking/commands.js";
+export { docusignWebhook, quickbooksWebhook } from "./booking/webhooks.js";
 
 if (getApps().length === 0) {
   initializeApp();

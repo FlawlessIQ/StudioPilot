@@ -24,6 +24,8 @@ Every sensitive operation is denied unless authentication, tenant membership, pe
 - webhook HMAC/signature verification before parsing
 - raw provider events stored idempotently by provider event ID/hash
 - all provider errors normalized before reaching clients
+- provider account or realm IDs resolve the tenant connection before contract or invoice queries
+- Docusign completion and QuickBooks zero-balance evidence cannot be written by browsers or AI
 
 ## Data and files
 

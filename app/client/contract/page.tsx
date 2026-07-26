@@ -1,0 +1,5 @@
+import { CheckCircle2, ExternalLink, ShieldCheck } from "lucide-react";
+import { PortalShell } from "@/components/layout/portal-shell";
+export default function ClientContractPage() {
+  return <PortalShell active="Contract"><div className="client-booking-page"><p className="eyebrow">Agreement</p><h1>Photography services agreement</h1><p>Docusign envelope 6f3…a81</p><section className="panel client-contract-card"><ShieldCheck/><div><h2>Waiting for one signature</h2><p>Your signature is complete. Jordan still needs to sign before the agreement can be marked completed.</p><div className="client-signer"><span><CheckCircle2/> Priya Shah</span><strong>Signed</strong></div><div className="client-signer pending"><span>Jordan Lee</span><strong>Pending</strong></div><a className="button button-dark" href="https://www.docusign.com/" rel="noreferrer" target="_blank">Open secure Docusign <ExternalLink size={15}/></a></div></section><p className="source-note">StudioHub only marks this contract complete after Docusign confirms every required signature.</p></div></PortalShell>;
+}

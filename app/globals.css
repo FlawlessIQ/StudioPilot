@@ -4916,6 +4916,134 @@ textarea:focus-visible {
   }
 }
 
+/* Milestone 4: booking operations */
+.booking-page { display: grid; gap: 24px; max-width: 1440px; margin: 0 auto; }
+.booking-summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.booking-summary-grid article { display: flex; gap: 14px; align-items: center; padding: 18px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); }
+.booking-summary-grid svg { color: var(--accent); }
+.booking-summary-grid span, .booking-list article > span:nth-child(2) { display: grid; gap: 3px; }
+.booking-summary-grid small, .booking-list small, .booking-table small { color: var(--muted); }
+.booking-summary-grid strong { font: 600 24px/1.1 var(--font-display); }
+.booking-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(340px, .8fr); gap: 20px; align-items: start; }
+.booking-list { display: grid; }
+.booking-list article { display: grid; grid-template-columns: 84px 1fr auto; gap: 16px; align-items: center; padding: 16px 0; border-top: 1px solid var(--border); }
+.booking-list article:first-child { border-top: 0; }
+.booking-date { display: grid; gap: 2px; border-right: 1px solid var(--border); }
+.booking-form { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.booking-form label { display: grid; gap: 7px; font-size: 13px; font-weight: 650; }
+.booking-form input, .booking-form select { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 11px 12px; background: var(--surface); color: var(--ink); font: inherit; }
+.booking-form-wide, .booking-form .form-notice { grid-column: 1 / -1; }
+.booking-form .button { justify-self: start; }
+.booking-table { display: grid; }
+.booking-table > div, .booking-table > a { display: grid; grid-template-columns: minmax(220px, 2fr) repeat(4, minmax(100px, 1fr)); gap: 16px; align-items: center; padding: 15px 4px; border-top: 1px solid var(--border); color: inherit; text-decoration: none; }
+.booking-table > :not(.booking-table-head):hover { background: color-mix(in srgb, var(--surface) 85%, var(--accent) 15%); }
+.booking-table .booking-table-head { color: var(--muted); text-transform: uppercase; font-size: 10px; letter-spacing: .1em; border-top: 0; padding-top: 0; }
+.booking-table span:first-child { display: grid; gap: 3px; }
+.proposal-detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
+.proposal-sheet { padding: 34px; }
+.proposal-brand { display: flex; align-items: center; gap: 13px; margin-bottom: 54px; }
+.proposal-brand > span { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: var(--ink); color: white; font-family: var(--font-display); }
+.proposal-brand div { display: grid; text-transform: uppercase; letter-spacing: .12em; font-size: 10px; }
+.proposal-sheet > h2 { max-width: 620px; font: 500 clamp(30px, 4vw, 48px)/1.08 var(--font-display); letter-spacing: -.035em; }
+.proposal-sheet > p { max-width: 660px; color: var(--muted); font-size: 16px; line-height: 1.7; }
+.proposal-pricing { display: grid; margin-top: 34px; border-top: 1px solid var(--border); }
+.proposal-pricing span { display: flex; justify-content: space-between; padding: 13px 0; border-bottom: 1px solid var(--border); }
+.proposal-pricing small, .proposal-payment small { color: var(--muted); }
+.proposal-pricing .proposal-total { font-size: 18px; }
+.proposal-payment { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 24px; }
+.proposal-payment span { display: grid; gap: 4px; padding: 15px; border-radius: 12px; background: var(--soft); }
+.proposal-controls { display: grid; gap: 13px; position: sticky; top: 90px; }
+.proposal-controls .button { justify-content: center; }
+.evidence-note { display: flex; gap: 10px; padding-top: 14px; border-top: 1px solid var(--border); }
+.evidence-note span { display: grid; gap: 4px; }
+.evidence-note small { color: var(--muted); line-height: 1.45; }
+.evidence-banner { display: flex; gap: 14px; align-items: center; padding: 16px 18px; border: 1px solid #b9d5c0; background: #edf7ef; border-radius: 14px; color: #285c35; }
+.evidence-banner p { margin: 3px 0 0; }
+.sync-label { display: inline-flex; gap: 7px; align-items: center; color: var(--muted); font-size: 13px; }
+.source-note { color: var(--muted); font-size: 13px; margin: 0; }
+.booking-gate-grid, .integration-health-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.booking-gate-card { display: grid; gap: 18px; }
+.booking-gate-card > div:first-child { display: flex; justify-content: space-between; gap: 12px; }
+.booking-gate-card h2 { margin: 4px 0 0; font: 500 21px/1.2 var(--font-display); }
+.booking-gate-card small { color: var(--muted); }
+.gate-score { display: flex; align-items: center; gap: 12px; }
+.gate-score > span { height: 7px; border-radius: 999px; background: var(--soft); flex: 1; overflow: hidden; }
+.gate-score i { display: block; height: 100%; background: var(--accent); }
+.booking-gate-card ul { display: grid; gap: 10px; list-style: none; padding: 0; margin: 0; font-size: 13px; }
+.booking-gate-card li, .booking-gate-card footer { display: flex; gap: 8px; align-items: center; }
+.booking-gate-card li svg { color: var(--accent); }
+.booking-gate-card footer { padding-top: 14px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+.integration-health-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.integration-health-card { display: grid; grid-template-columns: auto 1fr auto; gap: 13px; align-items: start; }
+.integration-mark { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: var(--soft); color: var(--accent); }
+.integration-health-card h2 { margin: 0; font-size: 16px; }
+.integration-health-card p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.integration-health-card dl, .integration-health-card footer { grid-column: 1 / -1; }
+.integration-health-card dl { display: grid; grid-template-columns: 1fr 1fr; margin: 5px 0 0; padding-top: 13px; border-top: 1px solid var(--border); }
+.integration-health-card dt { color: var(--muted); font-size: 11px; }
+.integration-health-card dd { margin: 3px 0 0; font-size: 13px; }
+.integration-health-card footer { display: flex; gap: 7px; align-items: center; color: var(--muted); font-size: 12px; }
+.integration-health-card footer svg:last-child { margin-left: auto; }
+.client-booking-page { max-width: 850px; margin: 0 auto; padding: 46px 32px; }
+.client-booking-page > h1 { margin: 6px 0 8px; font: 500 clamp(36px, 6vw, 58px)/1 var(--font-display); letter-spacing: -.04em; }
+.client-booking-page > p:not(.eyebrow), .client-payment-card > p { color: var(--muted); }
+.client-package-card, .client-contract-card, .client-payment-card { margin-top: 28px; padding: 28px; }
+.client-package-card > div:first-child, .client-payment-card > div:first-child { display: flex; justify-content: space-between; gap: 18px; align-items: center; }
+.client-package-card > div strong { font: 500 30px var(--font-display); }
+.client-package-card ul { list-style: none; padding: 20px 0; margin: 20px 0; border-block: 1px solid var(--border); display: grid; gap: 12px; }
+.client-package-card li { display: flex; gap: 9px; align-items: center; }
+.client-package-card li svg, .client-contract-card > svg { color: var(--accent); width: 17px; }
+.immutable-note { display: flex !important; justify-content: flex-start !important; gap: 10px; }
+.immutable-note span { display: grid; gap: 3px; }
+.immutable-note small { color: var(--muted); }
+.client-contract-card { display: grid; grid-template-columns: auto 1fr; gap: 16px; }
+.client-signer { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.client-signer span { display: flex; gap: 8px; align-items: center; }
+.client-signer strong { color: #2d6b3e; }
+.client-signer.pending strong, .payment-due { color: #9b6a1f; }
+.client-contract-card .button { margin-top: 18px; }
+.client-payment-card footer { display: flex; gap: 8px; margin-top: 18px; color: var(--muted); font-size: 12px; }
+.client-payment-card.paid { opacity: .76; }
+.pdf-preview { max-width: 900px; min-height: 1160px; margin: 40px auto; padding: 70px; background: #fff; color: #1d211f; box-shadow: 0 18px 60px rgba(24,31,28,.15); font-family: Arial, sans-serif; }
+.pdf-preview header { display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: center; padding-bottom: 34px; border-bottom: 1px solid #d8d8d2; }
+.pdf-preview header > span { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: #1e2a25; color: white; }
+.pdf-preview header div { display: grid; gap: 3px; }
+.pdf-preview header p, .pdf-preview header small { font-size: 10px; letter-spacing: .12em; }
+.pdf-preview section { padding: 54px 0; border-bottom: 1px solid #d8d8d2; }
+.pdf-preview h1 { font: 500 50px/1.05 Georgia, serif; }
+.pdf-preview h2 { font: 500 28px Georgia, serif; }
+.pdf-preview table { width: 100%; margin-top: 30px; border-collapse: collapse; }
+.pdf-preview td { padding: 13px 0; border-top: 1px solid #e5e5df; }
+.pdf-preview td:last-child { text-align: right; font-weight: 700; }
+.pdf-preview tr.total { font-size: 18px; }
+.pdf-terms > div { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.pdf-terms span { display: grid; gap: 5px; padding: 16px; background: #f3f2ed; }
+.pdf-preview footer { display: flex; justify-content: space-between; padding-top: 30px; color: #6f756f; font-size: 10px; }
+
+@media (max-width: 1000px) {
+  .booking-layout, .proposal-detail-grid { grid-template-columns: 1fr; }
+  .booking-gate-grid { grid-template-columns: 1fr 1fr; }
+  .proposal-controls { position: static; }
+}
+@media (max-width: 720px) {
+  .booking-summary-grid, .booking-gate-grid, .integration-health-grid { grid-template-columns: 1fr; }
+  .booking-form { grid-template-columns: 1fr; }
+  .booking-form label, .booking-form .form-notice { grid-column: 1; }
+  .booking-table { overflow-x: auto; }
+  .booking-table > div, .booking-table > a { min-width: 720px; }
+  .booking-list article { grid-template-columns: 70px 1fr; }
+  .booking-list article > :last-child { grid-column: 2; justify-self: start; }
+  .proposal-sheet, .client-package-card, .client-contract-card, .client-payment-card { padding: 20px; }
+  .proposal-payment, .pdf-terms > div { grid-template-columns: 1fr; }
+  .client-booking-page { padding: 32px 18px; }
+  .pdf-preview { margin: 0; padding: 32px 22px; min-height: 100vh; }
+  .pdf-preview header { grid-template-columns: auto 1fr; }
+  .pdf-preview header p { grid-column: 1 / -1; }
+}
+@media print {
+  .pdf-preview { margin: 0; box-shadow: none; max-width: none; min-height: auto; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

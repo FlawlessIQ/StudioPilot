@@ -7,11 +7,13 @@ import {
   CircleGauge,
   ContactRound,
   FileStack,
+  FileSignature,
   FolderKanban,
   Handshake,
   LayoutTemplate,
   Menu,
   Package,
+  ReceiptText,
   Search,
   Settings,
   ShieldCheck,
@@ -19,6 +21,7 @@ import {
   ListTodo,
   UsersRound,
   Workflow,
+  BadgeCheck,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { cn } from "@/lib/utils";
@@ -32,6 +35,10 @@ const navItems = [
   { label: "Vendors", href: "/studio/vendors", icon: Handshake },
   { label: "Crew", href: "/studio/crew", icon: Aperture },
   { label: "Packages", href: "/studio/packages", icon: Package },
+  { label: "Proposals", href: "/studio/proposals", icon: FileStack },
+  { label: "Contracts", href: "/studio/contracts", icon: FileSignature },
+  { label: "Invoices", href: "/studio/invoices", icon: ReceiptText },
+  { label: "Booking", href: "/studio/booking", icon: BadgeCheck },
   { label: "Workflows", href: "/studio/workflows", icon: Workflow },
   { label: "Tasks", href: "/studio/tasks", icon: ListTodo },
   { label: "Readiness", href: "/studio/readiness", icon: ShieldCheck },

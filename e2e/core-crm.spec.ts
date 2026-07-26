@@ -62,3 +62,30 @@ test("workflow operations expose immutable versions, task filters, and readiness
   await expect(page.getByText("AI may explain risk, but only verified checkpoint rules determine this view.")).toBeVisible();
   await expect(page.getByText("Not ready").first()).toBeVisible();
 });
+
+test("booking operations expose provider evidence and client-safe payment boundaries", async ({
+  page,
+}) => {
+  await page.goto("/studio/calendar");
+  await expect(page.getByRole("heading", { name: "Calendar & consultations" })).toBeVisible();
+  await page.getByRole("button", { name: "Schedule consultation" }).click();
+  await expect(page.getByText(/Development preview: availability/)).toBeVisible();
+
+  await page.goto("/studio/proposals/PROP-204");
+  await expect(page.getByText("Version locked")).toBeVisible();
+  await expect(page.getByText("Later package edits cannot change this proposal.")).toBeVisible();
+
+  await page.goto("/studio/contracts");
+  await expect(page.getByText("No signature inference")).toBeVisible();
+  await expect(page.getByText("Partially signed")).toBeVisible();
+
+  await page.goto("/studio/invoices");
+  await expect(page.getByText("QuickBooks Online remains the accounting and payment system of record.")).toBeVisible();
+
+  await page.goto("/studio/booking");
+  await expect(page.getByRole("heading", { name: "Booking readiness" })).toBeVisible();
+  await expect(page.getByText("Booking side effects completed idempotently")).toBeVisible();
+
+  await page.goto("/client/payments");
+  await expect(page.getByText("StudioHub never receives your card or bank details.")).toBeVisible();
+});

@@ -16,19 +16,20 @@ import {
 import { Logo } from "@/components/brand/logo";
 
 const portalNav = [
-  { label: "Home", icon: Home },
-  { label: "Project details", icon: CalendarDays },
-  { label: "Contract", icon: FileText },
-  { label: "Payments", icon: CreditCard },
-  { label: "Questionnaires", icon: ClipboardList },
-  { label: "Schedule", icon: CalendarDays },
-  { label: "Documents", icon: FolderOpen },
-  { label: "Messages", icon: MessageCircle },
-  { label: "Delivery", icon: Images },
-  { label: "Reviews", icon: Star },
+  { label: "Home", icon: Home, href: "/client" },
+  { label: "Project details", icon: CalendarDays, href: "/client#project-details" },
+  { label: "Package", icon: FileText, href: "/client/package" },
+  { label: "Contract", icon: FileText, href: "/client/contract" },
+  { label: "Payments", icon: CreditCard, href: "/client/payments" },
+  { label: "Questionnaires", icon: ClipboardList, href: "/client#questionnaires" },
+  { label: "Schedule", icon: CalendarDays, href: "/client#schedule" },
+  { label: "Documents", icon: FolderOpen, href: "/client#documents" },
+  { label: "Messages", icon: MessageCircle, href: "/client#messages" },
+  { label: "Delivery", icon: Images, href: "/client#delivery" },
+  { label: "Reviews", icon: Star, href: "/client#reviews" },
 ] as const;
 
-export function PortalShell({ children }: { children: React.ReactNode }) {
+export function PortalShell({ children, active = "Home" }: { children: React.ReactNode; active?: string }) {
   return (
     <div className="portal-frame">
       <aside className="portal-sidebar" id="portal-navigation">
@@ -39,12 +40,12 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
           <span>August 15, 2026</span>
         </div>
         <nav aria-label="Client portal navigation">
-          {portalNav.map((item, index) => {
+          {portalNav.map((item) => {
             const Icon = item.icon;
             return (
               <Link
-                href={index === 0 ? "/client" : `/client#${item.label.toLowerCase().replace(" ", "-")}`}
-                className={index === 0 ? "portal-nav-active" : ""}
+                href={item.href}
+                className={item.label === active ? "portal-nav-active" : ""}
                 key={item.label}
               >
                 <Icon size={17} />

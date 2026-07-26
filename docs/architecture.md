@@ -132,6 +132,14 @@ The implemented workflow and readiness boundaries are described in
 [`docs/readiness-engine.md`](./readiness-engine.md), and
 [`docs/background-jobs.md`](./background-jobs.md).
 
+Milestone 4 adds typed consultation, proposal, contract, invoice-reference,
+document, integration-connection, and booking-gate boundaries. Google Calendar,
+Zoom, Docusign, QuickBooks Online, and Dropbox use normalized adapters with
+explicit development mocks. Signature-verified provider events are the only
+external completion evidence accepted by the deterministic booking gate.
+Proposal rendering runs in isolated Cloud Run infrastructure from immutable
+snapshots; signed Docusign files are never regenerated.
+
 ## Observability
 
 Structured logging includes correlation, tenant, project, automation run, provider, severity, and outcome without logging secrets or raw sensitive documents. Sentry captures web and function failures. Audit events record business actions; operational logs record system execution. These are separate concerns and retention policies.
