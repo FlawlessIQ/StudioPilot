@@ -32,6 +32,7 @@ Validation record:
 - Firestore Emulator rules suite: 1 passed, including assigned-project access and cross-tenant denial
 - Cloud Functions TypeScript build: passed
 - production web build: passed
+- production dependency audit: no high or critical runtime advisories; remaining inherited Google Cloud UUID advisories are moderate and tracked
 
 Milestone 2 may begin without carrying a broken build forward.
 
