@@ -53,6 +53,13 @@ test(
           role: "studio_coordinator",
           projectIds: ["project-a"],
         });
+        await setDoc(doc(adminDb, "memberships/tenant-a_crew-a"), {
+          tenantId: "tenant-a",
+          userId: "crew-a",
+          status: "active",
+          role: "subcontractor",
+          projectIds: ["project-a"],
+        });
         await setDoc(doc(adminDb, "projects/project-a"), {
           tenantId: "tenant-a",
           projectId: "project-a",
@@ -157,6 +164,11 @@ test(
         await setDoc(doc(adminDb, "vendors/vendor-a"), { tenantId: "tenant-a", projectIds: ["project-a"] });
         await setDoc(doc(adminDb, "insuranceRequests/coi-a"), { tenantId: "tenant-a", projectId: "project-a" });
         await setDoc(doc(adminDb, "schedules/schedule-a"), { tenantId: "tenant-a", projectId: "project-a", status: "client_review" });
+        await setDoc(doc(adminDb, "crewProfiles/profile-a"), { tenantId: "tenant-a", userId: "crew-a" });
+        await setDoc(doc(adminDb, "crewProfiles/profile-private"), { tenantId: "tenant-a", userId: "crew-private" });
+        await setDoc(doc(adminDb, "crewAssignments/assignment-a"), { tenantId: "tenant-a", projectId: "project-a", userId: "crew-a", status: "accepted" });
+        await setDoc(doc(adminDb, "crewAssignments/assignment-private"), { tenantId: "tenant-a", projectId: "project-a", userId: "crew-private", status: "accepted" });
+        await setDoc(doc(adminDb, "crewAvailability/availability-a"), { tenantId: "tenant-a", crewProfileId: "profile-a", userId: "crew-a" });
       });
 
       const userDb = environment.authenticatedContext("user-a").firestore();
@@ -199,6 +211,16 @@ test(
       await assertSucceeds(getDoc(doc(clientDb, "schedules/schedule-a")));
       await assertFails(getDoc(doc(clientDb, "insuranceRequests/coi-a")));
       await assertFails(updateDoc(doc(clientDb, "schedules/schedule-a"), { status: "approved" }));
+
+      const crewDb = environment.authenticatedContext("crew-a").firestore();
+      await assertSucceeds(getDoc(doc(crewDb, "projects/project-a")));
+      await assertSucceeds(getDoc(doc(crewDb, "crewProfiles/profile-a")));
+      await assertFails(getDoc(doc(crewDb, "crewProfiles/profile-private")));
+      await assertSucceeds(getDoc(doc(crewDb, "crewAssignments/assignment-a")));
+      await assertFails(getDoc(doc(crewDb, "crewAssignments/assignment-private")));
+      await assertSucceeds(getDoc(doc(crewDb, "crewAvailability/availability-a")));
+      await assertFails(updateDoc(doc(crewDb, "crewAssignments/assignment-a"), { status: "completed" }));
+      await assertFails(getDoc(doc(crewDb, "invoiceReferences/invoice-a")));
 
       const ownerDb = environment.authenticatedContext("owner-a").firestore();
       await assertSucceeds(getDoc(doc(ownerDb, "workflowTemplates/workflow-a")));

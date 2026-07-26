@@ -6,18 +6,17 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    function membershipId(tenantId) {
-      return tenantId + "_" + request.auth.uid;
-    }
-
     function membership(tenantId) {
       return firestore.get(
-        /databases/(default)/documents/memberships/$(membershipId(tenantId))
+        /databases/(default)/documents/memberships/$(tenantId + "_" + request.auth.uid)
       ).data;
     }
 
     function activeMember(tenantId) {
       return signedIn()
+        && firestore.exists(
+          /databases/(default)/documents/memberships/$(tenantId + "_" + request.auth.uid)
+        )
         && membership(tenantId).tenantId == tenantId
         && membership(tenantId).status == "active";
     }
@@ -29,13 +28,32 @@ service firebase.storage {
         );
     }
 
+    match /tenants/{tenantId}/projects/{projectId}/crew/{userId}/{allPaths=**} {
+      allow read: if activeMember(tenantId)
+        && (
+          membership(tenantId).role in ["studio_owner", "studio_admin", "studio_coordinator"]
+          || (
+            request.auth.uid == userId
+            && projectId in membership(tenantId).projectIds
+          )
+        );
+      allow write: if activeMember(tenantId)
+        && request.auth.uid == userId
+        && membership(tenantId).role == "subcontractor"
+        && projectId in membership(tenantId).projectIds
+        && resource == null
+        && safeUpload();
+    }
+
     match /tenants/{tenantId}/projects/{projectId}/{allPaths=**} {
       allow read: if activeMember(tenantId)
         && (
           membership(tenantId).role in ["studio_owner", "studio_admin", "studio_coordinator"]
           || projectId in membership(tenantId).projectIds
         );
-      allow create, update: if activeMember(tenantId) && safeUpload();
+      allow create, update: if activeMember(tenantId)
+        && membership(tenantId).role in ["studio_owner", "studio_admin", "studio_coordinator"]
+        && safeUpload();
       allow delete: if false;
     }
 

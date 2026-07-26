@@ -66,12 +66,24 @@ export const planningCommand = onRequest({ cors: [/localhost/, /\.studiohub\.app
       const priorSchedule = schedules.docs[0];
       const version = Number(priorSchedule?.get("version") ?? 0) + 1;
       const id = stable("schedule", parsed.tenantId, parsed.idempotencyKey);
+      const acceptedAssignments = await db.collection("crewAssignments")
+        .where("tenantId", "==", parsed.tenantId)
+        .where("projectId", "==", parsed.input.projectId)
+        .where("status", "==", "accepted")
+        .get();
       const batch = db.batch();
       if (priorSchedule) batch.update(priorSchedule.ref, { status: "superseded", updatedAt: now, updatedBy: identity.uid });
       batch.create(db.doc(`schedules/${id}`), { id, tenantId: parsed.tenantId, projectId: parsed.input.projectId, version, status: "published", timezone: parsed.input.timezone, items: parsed.input.items, approvalState: "client_pending", publishedAt: now, approvedBy: null, pdfDocumentId: null, dropboxDocumentId: null, supersedesId: priorSchedule?.id ?? null, immutable: true, createdAt: now, updatedAt: now, createdBy: identity.uid, updatedBy: identity.uid, archivedAt: null });
       batch.create(db.doc(`pdfJobs/schedule_${id}`), { tenantId: parsed.tenantId, projectId: parsed.input.projectId, scheduleId: id, type: "schedule_pdf", status: "queued", createdAt: now });
+      for (const assignment of acceptedAssignments.docs) {
+        batch.update(assignment.ref, {
+          currentScheduleId: id, currentScheduleVersion: version,
+          acknowledgedScheduleVersion: null, scheduleAcknowledgedAt: null,
+          updatedAt: now, updatedBy: identity.uid,
+        });
+      }
       await batch.commit();
-      result = { scheduleId: id, version, acknowledgementReset: true };
+      result = { scheduleId: id, version, acknowledgementReset: true, crewNotified: acceptedAssignments.size };
     } else {
       const reference = db.doc(`schedules/${parsed.input.scheduleId}`);
       const current = await reference.get();

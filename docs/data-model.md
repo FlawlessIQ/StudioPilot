@@ -143,6 +143,20 @@ embed structured items and preserve immutable published versions. `aiJobs` store
 server-only extraction and schedule-draft work; AI output is never approval
 evidence.
 
+## Milestone 6 collections
+
+`crewProfiles` store tenant-scoped reusable collaborator relationships, service
+areas, rates, equipment, compliance references, and an optional portal user.
+`crewAssignments` are project-scoped snapshots of invitation terms, role,
+compensation visibility, responsibilities, locations, requirements, calendar
+evidence, and current schedule acknowledgement. `crewAvailability` stores
+user-owned availability windows used for shortlisting. `emailJobs` is
+server-only and carries short-lived invitation delivery work.
+
+Files remain in Cloud Storage under a tenant, project, and user-prefixed path.
+Assignment requirements store file references and review evidence, never raw
+file bytes.
+
 ## Immutability and deletion
 
 - package snapshots and audit events are append-only
@@ -158,4 +172,5 @@ Indexes are defined for tenant-scoped project dates, lead duplicate and recency
 queries, normalized contact lookup, active package ordering, project snapshots,
 workflow versions and active runs, open tasks, automation idempotency and failures,
 consultation dates, proposal versions, project contract/invoice status, integration
-health, and tenant slug resolution. `tenantId` leads business-record indexes.
+health, crew availability, assignment status and dates, and tenant slug
+resolution. `tenantId` leads business-record indexes.

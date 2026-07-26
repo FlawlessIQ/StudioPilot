@@ -104,3 +104,21 @@ test("planning operations preserve human approval and schedule versions", async 
   await expect(page.getByRole("heading", { name: "Your wedding-day schedule" })).toBeVisible();
   await expect(page.getByText("America/New_York")).toBeVisible();
 });
+
+test("crew operations enforce scoped briefs and current schedule acknowledgement", async ({ page }) => {
+  await page.goto("/studio/crew");
+  await expect(page.getByRole("heading", { name: "Crew operations" })).toBeVisible();
+  await expect(page.getByText("v4 acknowledgement due")).toBeVisible();
+
+  await page.goto("/crew/pending");
+  await expect(page.getByRole("heading", { name: "Pending jobs" })).toBeVisible();
+  await page.getByRole("button", { name: "Accept job" }).click();
+  await expect(page.getByText(/Development preview: assignment accepted/)).toBeVisible();
+
+  await page.goto("/crew/schedule");
+  await expect(page.getByRole("heading", { name: "Event-day schedule" })).toBeVisible();
+  await expect(page.getByText("This schedule changed after your last acknowledgement.")).toBeVisible();
+  await page.getByRole("button", { name: "Acknowledge current schedule" }).click();
+  await expect(page.getByText(/Development preview: schedule version 4 acknowledged/)).toBeVisible();
+  await expect(page.getByText("Package pricing, invoices, and unrelated project information remain hidden.")).toHaveCount(0);
+});

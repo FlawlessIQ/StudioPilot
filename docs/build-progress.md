@@ -175,7 +175,37 @@ Milestone 6 may begin without carrying a broken build forward.
 
 ## Milestone 6 — Crew
 
-Pending: crew profiles/invitations, assignments, acceptance, document requirements, calendar and current-schedule acknowledgement, full mobile event-day mode.
+Status: implementation complete; final release validation complete.
+
+Delivered:
+
+- typed crew profiles, availability, assignment terms, requirements, and status lifecycle
+- explicit assignment transitions with acceptance and decline evidence
+- idempotent, App Check protected crew commands with role, project, and exact assignment ownership checks
+- expiring, one-way hashed invitation tokens and server-only email delivery jobs
+- calendar file download plus authoritative calendar acknowledgement
+- current schedule ID/version acknowledgement and automatic reset on every new publication
+- deterministic crew-assignment readiness blockers
+- secure project/user-scoped uploads with MIME, size, create-only, and human-review boundaries
+- studio crew directory, assignment monitoring, readiness, and requirement evidence screens
+- subcontractor pending/accepted jobs, schedule, requirements, documents, profile, and availability areas
+- mobile event-day brief with scoped contacts, locations, directions, responsibilities, and persistent action bar
+- narrowed Firestore and Storage rules, composite indexes, representative seeds, automated tests, and operations documentation
+
+Validation record:
+
+- strict TypeScript: passed
+- unit and policy suite: 51 passed
+- Firestore Emulator rules suite: passed, including exact subcontractor ownership, assigned-project access, financial denial, and server-only mutation
+- Storage Emulator rules suite: passed, including own-user path, assigned-project, create-only, and MIME denial checks
+- Playwright end-to-end suite: 12 passed across desktop and mobile Chromium
+- Cloud Functions TypeScript build: passed
+- ESLint: passed with zero warnings
+- production web build: passed
+- expanded Firebase Auth and Firestore emulator seed: executed successfully
+- production dependency audit: no high or critical runtime advisories; inherited Google Cloud UUID advisories remain moderate and tracked
+
+Milestone 7 may begin without carrying a broken build forward.
 
 ## Milestone 7 — Post-Event
 

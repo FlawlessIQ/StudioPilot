@@ -10,6 +10,7 @@ export { bookingCommand } from "./booking/commands.js";
 export { docusignWebhook, quickbooksWebhook } from "./booking/webhooks.js";
 export { planningCommand } from "./planning/commands.js";
 export { sendgridInboundCoi } from "./planning/inbound.js";
+export { crewCommand } from "./crew/commands.js";
 
 if (getApps().length === 0) {
   initializeApp();

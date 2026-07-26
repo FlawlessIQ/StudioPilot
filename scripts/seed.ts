@@ -241,7 +241,9 @@ for (let index = 0; index < demoUsers.length; index += 1) {
       projectIds:
         seed.role === "studio_owner" || seed.role === "studio_coordinator"
           ? projectSeeds.map((project) => project.id)
-          : ["wedding-booked"],
+          : seed.role === "subcontractor"
+            ? ["wedding-booked", "wedding-ready"]
+            : ["wedding-booked"],
       status: "active",
     });
   }
@@ -725,16 +727,117 @@ batch.set(firestore.doc("insuranceRequirements/wedding-booked"), {
   aiApproved: false,
 });
 
+batch.set(firestore.doc("crewProfiles/crew-jordan"), {
+  ...audit,
+  id: "crew-jordan",
+  tenantId,
+  userId: userByKey.get("subcontractor")?.uid ?? null,
+  name: "Jordan Reid",
+  email: "crew@studiohub.test",
+  phone: "+12125550145",
+  specialties: ["weddings", "events"],
+  serviceAreas: ["New York City", "Hudson Valley"],
+  travelRadiusMiles: 75,
+  rateType: "event",
+  rateCents: 80000,
+  currency: "USD",
+  equipment: ["Dual camera bodies", "70-200mm f/2.8", "On-camera flash"],
+  w9Status: "verified",
+  insuranceStatus: "verified",
+  contractStatus: "completed",
+  emergencyContact: { name: "Alex Reid", phone: "+12125550146", relationship: "Partner" },
+  notes: "Documentary wedding specialist.",
+  active: true,
+  archivedAt: null,
+});
+
 batch.set(firestore.doc("crewAssignments/wedding-booked-second"), {
   ...audit,
   id: "wedding-booked-second",
   tenantId,
   projectId: "wedding-booked",
-  crewProfileId: userByKey.get("subcontractor")?.uid,
+  crewProfileId: "crew-jordan",
+  userId: userByKey.get("subcontractor")?.uid ?? null,
   role: "Second photographer",
+  compensationCents: 80000,
+  compensationType: "event",
+  currency: "USD",
+  compensationVisibleToCrew: true,
+  arrivalAt: "2026-08-15T17:15:00.000Z",
+  departureAt: "2026-08-16T01:30:00.000Z",
+  locations: [
+    { name: "The Boro Hotel", address: "38-28 27th Street, Long Island City, NY" },
+    { name: "The Foundry", address: "42-38 9th Street, Long Island City, NY" },
+  ],
+  responsibilities: ["Getting-ready candids", "Ceremony reactions", "Cocktail-hour coverage"],
+  scheduleItemIds: ["details", "ceremony"],
+  notes: "Meet lead photographer in the hotel lobby.",
   status: "accepted",
-  currentScheduleVersion: 3,
-  acknowledgedScheduleVersion: 2,
+  invitationSentAt: "2026-07-20T14:00:00.000Z",
+  viewedAt: "2026-07-20T14:20:00.000Z",
+  respondedAt: "2026-07-20T14:22:00.000Z",
+  calendarStatus: "added",
+  calendarAcknowledgedAt: "2026-07-20T14:24:00.000Z",
+  currentScheduleId: "wedding-booked-v4",
+  currentScheduleVersion: 4,
+  acknowledgedScheduleVersion: 3,
+  scheduleAcknowledgedAt: "2026-07-22T12:00:00.000Z",
+  requirements: [
+    { id: "w9", name: "Verified W-9", kind: "w9", required: true, status: "complete", dueAt: null, documentId: "document-jordan-w9", completedAt: "2026-07-20T14:00:00.000Z", completedBy: ownerId, notes: null },
+    { id: "equipment", name: "Confirm event-day equipment", kind: "equipment", required: true, status: "complete", dueAt: "2026-08-08T17:00:00.000Z", documentId: null, completedAt: "2026-07-21T14:00:00.000Z", completedBy: userByKey.get("subcontractor")?.uid ?? null, notes: null },
+  ],
+  inviteTokenHash: "seeded-token-not-usable".padEnd(64, "0"),
+  inviteExpiresAt: "2026-07-27T14:00:00.000Z",
+  archivedAt: null,
+});
+
+batch.set(firestore.doc("crewAssignments/wedding-ready-assistant"), {
+  ...audit,
+  id: "wedding-ready-assistant",
+  tenantId,
+  projectId: "wedding-ready",
+  crewProfileId: "crew-jordan",
+  userId: userByKey.get("subcontractor")?.uid ?? null,
+  role: "Lighting assistant",
+  compensationCents: 45000,
+  compensationType: "event",
+  currency: "USD",
+  compensationVisibleToCrew: true,
+  arrivalAt: "2026-08-22T18:00:00.000Z",
+  departureAt: "2026-08-23T00:00:00.000Z",
+  locations: [{ name: "Cedar Lakes Estate", address: "1 Team USA Way, Port Jervis, NY" }],
+  responsibilities: ["Reception lighting", "Equipment management"],
+  scheduleItemIds: [],
+  notes: null,
+  status: "invited",
+  invitationSentAt: now,
+  viewedAt: null,
+  respondedAt: null,
+  calendarStatus: "not_added",
+  calendarAcknowledgedAt: null,
+  currentScheduleId: null,
+  currentScheduleVersion: 0,
+  acknowledgedScheduleVersion: null,
+  scheduleAcknowledgedAt: null,
+  requirements: [
+    { id: "contract", name: "Subcontractor agreement", kind: "contract", required: true, status: "complete", dueAt: null, documentId: "document-jordan-contract", completedAt: now, completedBy: ownerId, notes: null },
+  ],
+  inviteTokenHash: "seeded-pending-token".padEnd(64, "0"),
+  inviteExpiresAt: "2026-08-02T12:00:00.000Z",
+  archivedAt: null,
+});
+
+batch.set(firestore.doc("crewAvailability/crew-jordan-august-15"), {
+  ...audit,
+  id: "crew-jordan-august-15",
+  tenantId,
+  crewProfileId: "crew-jordan",
+  userId: userByKey.get("subcontractor")?.uid ?? "",
+  startsAt: "2026-08-15T12:00:00.000Z",
+  endsAt: "2026-08-16T04:00:00.000Z",
+  status: "available",
+  notes: null,
+  archivedAt: null,
 });
 
 batch.set(firestore.doc("packageSnapshots/snapshot-wedding-contract"), {

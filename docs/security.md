@@ -53,6 +53,11 @@ Browser clients cannot write or delete audit events. Trusted services append eve
 - inbound COI routes use hashed project reply tokens and restricted PDF validation
 - AI can extract COI fields but cannot write the human decision
 - published schedules are immutable and browser clients cannot directly approve or replace them
+- crew assignment writes are server-only; commands recheck tenant membership, project access, role, and assignment ownership
+- crew invitation tokens are random, expiring, and one-way hashed on assignment records
+- subcontractors can read only their own profile, availability, assignments, scoped documents, and assigned schedule
+- publishing a new schedule clears accepted crew acknowledgements so obsolete versions cannot satisfy readiness
+- crew uploads are user/project path-bound, create-only, type and size validated, and remain under studio review
 
 ## Retention, export, and deletion
 
