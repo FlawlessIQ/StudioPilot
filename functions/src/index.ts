@@ -5,6 +5,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 export { crmCommand } from "./crm/commands.js";
 export { publicLeadIntake } from "./crm/public-lead.js";
+export { workflowCommand } from "./workflow/commands.js";
 
 if (getApps().length === 0) {
   initializeApp();

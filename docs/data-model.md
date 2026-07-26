@@ -84,9 +84,45 @@ effects.
 Server-only fixed-window lead-intake counters based on a one-way request
 fingerprint. The browser cannot inspect or change them.
 
+## Milestone 3 collections
+
+### `workflowTemplates`
+
+Published, immutable definitions scoped by tenant and event type. Each version
+embeds checkpoint templates and normalized automation rules. New versions
+supersede prior active versions without changing active project runs.
+
+### `workflowRuns`
+
+Project instances containing the exact workflow version, input snapshot, template
+snapshot, checkpoint IDs, start/completion state, and failure evidence.
+
+### `checkpoints`
+
+Project-specific workflow and readiness gates with resolved due dates, dependency
+IDs, completion method, evidence requirements, status, waiver authority, evidence,
+and completion actor.
+
+### `tasks`
+
+Owned studio work with project/run/checkpoint relationships, due date, priority,
+blocking flag, status, and completion evidence.
+
+### `automationRuns`
+
+Idempotent executions with workflow version, trigger, input snapshot, attempts,
+normalized errors, retry state, result, and manual-rerun lineage.
+
+### `readinessAssessments`
+
+Canonical current project projection used by dashboards and the Ready transition
+gate. It contains deterministic score, blockers, risk, overdue items, responsible
+party, next action, and rules version.
+
 ## Immutability and deletion
 
 - package snapshots and audit events are append-only
+- published workflow versions and active-run template snapshots are immutable
 - project state changes use optimistic versions
 - packages are versioned rather than rewritten for existing projects
 - lead, contact, package, event-type, and project history uses archival fields
@@ -95,6 +131,6 @@ fingerprint. The browser cannot inspect or change them.
 ## Required indexes
 
 Indexes are defined for tenant-scoped project dates, lead duplicate and recency
-queries, normalized contact lookup, active package ordering, project snapshots, and
-tenant slug resolution. `tenantId` is the leading field for business-record
-indexes.
+queries, normalized contact lookup, active package ordering, project snapshots,
+workflow versions and active runs, open tasks, automation idempotency and failures,
+and tenant slug resolution. `tenantId` leads business-record indexes.

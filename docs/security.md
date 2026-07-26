@@ -39,6 +39,16 @@ Every sensitive operation is denied unless authentication, tenant membership, pe
 
 Browser clients cannot write or delete audit events. Trusted services append events with before/after snapshots, actor, entity, correlation, provider event, and automation run references. Support access is explicit, time-bounded, and audited; routine impersonation is prohibited.
 
+## Workflow and readiness authority
+
+- browsers cannot mutate workflow versions, runs, checkpoints, tasks, automation runs, or readiness assessments directly
+- published workflow versions and active-run snapshots are immutable
+- checkpoint evidence and dependencies are verified in trusted transactions
+- default waiver authority is restricted to the Studio Owner and requires a reason
+- clients see only client/shared checkpoints; subcontractors see only crew/shared checkpoints on assigned projects
+- AI output cannot resolve checkpoints or alter readiness
+- `PLANNING → READY` requires the same-tenant canonical readiness assessment to pass
+
 ## Retention, export, and deletion
 
 Business deletion is a two-step archive and retention workflow. Tenant export runs as an audited background job and produces a time-limited encrypted archive. Destructive deletion requires owner authorization, a retention check, a second confirmation, and deletion evidence. Backups follow Google Cloud and Firebase recovery procedures and are tested periodically.

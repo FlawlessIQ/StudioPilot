@@ -2,8 +2,8 @@
 
 StudioHub is a multi-tenant photography operations OS. It coordinates the complete client and event lifecycle—from inquiry and booking through readiness, event-day execution, delivery, review, and closeout.
 
-This repository currently contains the validated Milestone 1 foundation and
-Milestone 2 Core CRM:
+This repository currently contains the validated Milestone 1 foundation,
+Milestone 2 Core CRM, and Milestone 3 Workflow Platform:
 
 - Next.js App Router application with strict TypeScript and responsive product shells
 - Firebase Authentication client and secure Cloud Functions session architecture
@@ -19,6 +19,12 @@ Milestone 2 Core CRM:
 - immutable package-selection snapshots with integer-cent calculations
 - authenticated and idempotent CRM Cloud Function commands
 - dedicated Leads, Projects, Clients, Packages, and public inquiry interfaces
+- immutable workflow versions and project workflow snapshots
+- deterministic relative dates, checkpoint dependencies, tasks, and evidence
+- expiring owner-authorized waivers and append-only audit events
+- idempotent automation runs with retry and approval state
+- deterministic readiness enforced by project state transitions
+- dedicated Workflows, Tasks, Readiness, Automation Runs, and Audit interfaces
 
 Later product milestones are tracked in [docs/build-progress.md](docs/build-progress.md).
 
@@ -62,6 +68,9 @@ submission target is `NEXT_PUBLIC_CRM_FUNCTIONS_URL`. When that value is omitted
 the page clearly operates in non-persisting preview mode. Production submissions
 require Firebase App Check.
 
+Authenticated workflow mutations use `NEXT_PUBLIC_WORKFLOW_FUNCTIONS_URL`. When
+omitted, creation forms disclose non-persisting preview behavior.
+
 ## Commands
 
 ```bash
@@ -89,4 +98,6 @@ The browser is never trusted to authorize sensitive work. Firebase identifies th
 Audit records are immutable to browser clients. Destructive business deletion is modeled as an archive or controlled retention workflow.
 
 See [docs/architecture.md](docs/architecture.md), [docs/data-model.md](docs/data-model.md),
+[docs/workflow-engine.md](docs/workflow-engine.md),
+[docs/readiness-engine.md](docs/readiness-engine.md),
 [docs/security.md](docs/security.md), and [docs/product-spec.md](docs/product-spec.md).

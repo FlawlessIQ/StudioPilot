@@ -71,7 +71,39 @@ Milestone 3 may begin without carrying a broken build forward.
 
 ## Milestone 3 — Workflow Platform
 
-Pending: workflow templates/runs, checkpoint/task engines, relative-date resolution, automation runs, append-only audit service, and readiness calculation.
+Status: implementation complete; final release validation recorded below.
+
+Delivered:
+
+- typed workflow-template, workflow-run, checkpoint, task, automation-run, and readiness-assessment models
+- immutable published workflow versions and exact template snapshots on project runs
+- deterministic relative dates across event, booking, project-created, and workflow-start anchors
+- dependency-aware workflow instantiation with idempotent active-run protection
+- evidence-gated checkpoint completion and owner-only default waiver authority
+- expiring waivers that stop satisfying readiness
+- deterministic score, blocker, overdue, at-risk, owner, and next-action calculation
+- readiness enforcement in project service and authenticated state-transition commands
+- normalized automation conditions, typed action handlers, idempotency, retry scheduling, and approval-required actions
+- tenant-scoped repositories and append-only audit repository
+- App Check protected workflow commands for template creation, instantiation, checkpoint resolution, task operations, and readiness recalculation
+- narrowed Firestore rules for role, project assignment, checkpoint visibility, and server-only mutations
+- Wedding, Corporate, and Sports workflow seeds; Wedding contains the complete readiness baseline
+- responsive Workflow Templates, Workflow Detail, Tasks, Readiness, Automation Runs, and Audit Log experiences
+- workflow, readiness, background-job, and data-model documentation
+- automated relative-date, snapshot, idempotency, dependency, evidence, waiver, readiness, and automation coverage
+
+Validation record:
+
+- strict TypeScript: passed
+- unit and policy suite: 31 passed
+- Firestore Emulator rules suite: passed, including workflow visibility, assigned-project access, server-only mutation, and cross-tenant denial
+- Playwright end-to-end suite: 6 passed across desktop and mobile Chromium
+- Cloud Functions TypeScript build: passed
+- ESLint: passed with zero warnings
+- production web build: passed
+- production dependency audit: no high or critical runtime advisories; inherited Google Cloud UUID advisories remain moderate and tracked
+
+Milestone 4 may begin without carrying a broken build forward.
 
 ## Milestone 4 — Booking
 

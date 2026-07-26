@@ -262,6 +262,21 @@ export const crmCommand = onRequest(
           if (!transitions[project.state].includes(command.input.targetState)) {
             throw new Error("INVALID_TRANSITION");
           }
+          if (command.input.targetState === "READY") {
+            const readinessSnapshot = await transaction.get(
+              db.doc(`readinessAssessments/${command.input.projectId}`),
+            );
+            const readiness = readinessSnapshot.data() as
+              | { tenantId: string; ready: boolean }
+              | undefined;
+            if (
+              !readiness ||
+              readiness.tenantId !== command.tenantId ||
+              !readiness.ready
+            ) {
+              throw new Error("READINESS_BLOCKED");
+            }
+          }
           transaction.update(projectReference, {
             state: command.input.targetState,
             stateVersion: project.stateVersion + 1,

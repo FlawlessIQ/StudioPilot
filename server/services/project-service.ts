@@ -18,12 +18,17 @@ export interface AuditStore {
   append(event: AuditEvent): Promise<void>;
 }
 
+export interface ProjectReadinessStore {
+  isReady(tenantId: string, projectId: string): Promise<boolean>;
+}
+
 export class ProjectService {
   constructor(
     private readonly projects: ProjectStore,
     private readonly audits: AuditStore,
     private readonly createId: () => string,
     private readonly now: () => string = () => new Date().toISOString(),
+    private readonly readiness?: ProjectReadinessStore,
   ) {}
 
   async create(
@@ -90,6 +95,11 @@ export class ProjectService {
     const current = await this.projects.getById(context.tenantId, projectId);
     if (!current) throw new Error("Project not found.");
     assertProjectTransition(current.state, targetState);
+    if (targetState === "READY") {
+      if (!this.readiness || !(await this.readiness.isReady(context.tenantId, projectId))) {
+        throw new Error("Project has unresolved readiness blockers.");
+      }
+    }
     const timestamp = this.now();
     const updated = await this.projects.updateWithVersion(
       context.tenantId,

@@ -5,6 +5,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { ReadinessMeter } from "@/components/ui/readiness-meter";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { crmProjects } from "@/config/crm-demo-data";
+import { workflowStages } from "@/config/workflow-demo-data";
 
 export const metadata: Metadata = { title: "Project · StudioHub" };
 
@@ -44,6 +45,19 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
             <Link className="button button-light" href="/studio/leads">Review action</Link>
           </aside>
         </div>
+        <section className="panel project-checkpoints-panel">
+          <div className="panel-heading"><div><h2>Readiness checkpoints</h2><p>Verified rules from Wedding Photography v7</p></div><Link href="/studio/readiness">Open readiness view</Link></div>
+          <div className="project-checkpoint-list">
+            {workflowStages.flatMap((stage) => stage.checkpoints).map((checkpoint) => (
+              <article key={checkpoint.name}>
+                <span className={checkpoint.status === "Complete" ? "checkpoint-state complete" : "checkpoint-state"}>{checkpoint.status === "Complete" ? <CheckCircle2 size={15} /> : <i />}</span>
+                <span><strong>{checkpoint.name}</strong><small>{checkpoint.owner} · {checkpoint.due}</small></span>
+                <StatusBadge tone={checkpoint.blocking ? "warning" : "neutral"}>{checkpoint.blocking ? "Affects readiness" : "Non-blocking"}</StatusBadge>
+                <StatusBadge tone={checkpoint.status === "Complete" ? "success" : checkpoint.status === "Under review" ? "info" : "neutral"}>{checkpoint.status}</StatusBadge>
+              </article>
+            ))}
+          </div>
+        </section>
       </div>
     </AppShell>
   );

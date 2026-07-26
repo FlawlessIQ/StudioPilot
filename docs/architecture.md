@@ -127,6 +127,11 @@ Model output is advisory. The schedule generator produces a draft with assumptio
 
 All jobs include correlation ID, tenant, attempts, input snapshot, status, error, and timestamps. Dead-letter jobs appear in platform administration and support a guarded manual rerun.
 
+The implemented workflow and readiness boundaries are described in
+[`docs/workflow-engine.md`](./workflow-engine.md),
+[`docs/readiness-engine.md`](./readiness-engine.md), and
+[`docs/background-jobs.md`](./background-jobs.md).
+
 ## Observability
 
 Structured logging includes correlation, tenant, project, automation run, provider, severity, and outcome without logging secrets or raw sensitive documents. Sentry captures web and function failures. Audit events record business actions; operational logs record system execution. These are separate concerns and retention policies.

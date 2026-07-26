@@ -14,7 +14,9 @@ import {
   Package,
   Search,
   Settings,
+  ShieldCheck,
   Sparkles,
+  ListTodo,
   UsersRound,
   Workflow,
 } from "lucide-react";
@@ -31,6 +33,8 @@ const navItems = [
   { label: "Crew", href: "/studio/crew", icon: Aperture },
   { label: "Packages", href: "/studio/packages", icon: Package },
   { label: "Workflows", href: "/studio/workflows", icon: Workflow },
+  { label: "Tasks", href: "/studio/tasks", icon: ListTodo },
+  { label: "Readiness", href: "/studio/readiness", icon: ShieldCheck },
   { label: "Documents", href: "/studio/documents", icon: FileStack },
   { label: "Integrations", href: "/studio/integrations", icon: LayoutTemplate },
 ] as const;

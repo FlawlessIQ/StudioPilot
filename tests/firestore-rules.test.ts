@@ -39,6 +39,20 @@ test(
           role: "client",
           projectIds: ["project-a"],
         });
+        await setDoc(doc(adminDb, "memberships/tenant-a_owner-a"), {
+          tenantId: "tenant-a",
+          userId: "owner-a",
+          status: "active",
+          role: "studio_owner",
+          projectIds: ["project-a"],
+        });
+        await setDoc(doc(adminDb, "memberships/tenant-a_coordinator-a"), {
+          tenantId: "tenant-a",
+          userId: "coordinator-a",
+          status: "active",
+          role: "studio_coordinator",
+          projectIds: ["project-a"],
+        });
         await setDoc(doc(adminDb, "projects/project-a"), {
           tenantId: "tenant-a",
           projectId: "project-a",
@@ -46,6 +60,11 @@ test(
         await setDoc(doc(adminDb, "projects/project-b"), {
           tenantId: "tenant-b",
           projectId: "project-b",
+        });
+        await setDoc(doc(adminDb, "projects/project-unassigned"), {
+          tenantId: "tenant-a",
+          projectId: "project-unassigned",
+          updatedAt: "before",
         });
         await setDoc(doc(adminDb, "contacts/contact-a"), {
           tenantId: "tenant-a",
@@ -67,6 +86,40 @@ test(
           totalCents: 680000,
           immutable: true,
         });
+        await setDoc(doc(adminDb, "workflowTemplates/workflow-a"), {
+          tenantId: "tenant-a",
+          status: "active",
+        });
+        await setDoc(doc(adminDb, "workflowRuns/run-a"), {
+          tenantId: "tenant-a",
+          projectId: "project-a",
+        });
+        await setDoc(doc(adminDb, "checkpoints/shared-a"), {
+          tenantId: "tenant-a",
+          projectId: "project-a",
+          visibility: "shared",
+          status: "ready",
+        });
+        await setDoc(doc(adminDb, "checkpoints/studio-a"), {
+          tenantId: "tenant-a",
+          projectId: "project-a",
+          visibility: "studio",
+          status: "ready",
+        });
+        await setDoc(doc(adminDb, "tasks/task-a"), {
+          tenantId: "tenant-a",
+          projectId: "project-a",
+          status: "not_started",
+        });
+        await setDoc(doc(adminDb, "readinessAssessments/project-a"), {
+          tenantId: "tenant-a",
+          projectId: "project-a",
+          ready: false,
+        });
+        await setDoc(doc(adminDb, "automationRuns/run-a"), {
+          tenantId: "tenant-a",
+          status: "succeeded",
+        });
       });
 
       const userDb = environment.authenticatedContext("user-a").firestore();
@@ -76,6 +129,12 @@ test(
       await assertFails(getDoc(doc(userDb, "contacts/contact-private")));
       await assertSucceeds(getDoc(doc(userDb, "packageSnapshots/snapshot-a")));
       await assertFails(updateDoc(doc(userDb, "packageSnapshots/snapshot-a"), { totalCents: 1 }));
+      await assertSucceeds(getDoc(doc(userDb, "checkpoints/studio-a")));
+      await assertSucceeds(getDoc(doc(userDb, "tasks/task-a")));
+      await assertSucceeds(getDoc(doc(userDb, "readinessAssessments/project-a")));
+      await assertFails(
+        updateDoc(doc(userDb, "checkpoints/studio-a"), { status: "complete" }),
+      );
 
       const clientDb = environment.authenticatedContext("client-a").firestore();
       await assertSucceeds(getDoc(doc(clientDb, "projects/project-a")));
@@ -83,6 +142,27 @@ test(
       await assertFails(getDoc(doc(clientDb, "contacts/contact-a")));
       await assertFails(getDoc(doc(clientDb, "packages/package-a")));
       await assertSucceeds(getDoc(doc(clientDb, "packageSnapshots/snapshot-a")));
+      await assertSucceeds(getDoc(doc(clientDb, "checkpoints/shared-a")));
+      await assertFails(getDoc(doc(clientDb, "checkpoints/studio-a")));
+      await assertFails(getDoc(doc(clientDb, "tasks/task-a")));
+      await assertFails(getDoc(doc(clientDb, "readinessAssessments/project-a")));
+
+      const ownerDb = environment.authenticatedContext("owner-a").firestore();
+      await assertSucceeds(getDoc(doc(ownerDb, "workflowTemplates/workflow-a")));
+      await assertSucceeds(getDoc(doc(ownerDb, "automationRuns/run-a")));
+      await assertFails(
+        updateDoc(doc(ownerDb, "workflowTemplates/workflow-a"), { status: "archived" }),
+      );
+
+      const coordinatorDb = environment.authenticatedContext("coordinator-a").firestore();
+      await assertSucceeds(
+        updateDoc(doc(coordinatorDb, "projects/project-a"), { updatedAt: "after" }),
+      );
+      await assertFails(
+        updateDoc(doc(coordinatorDb, "projects/project-unassigned"), {
+          updatedAt: "after",
+        }),
+      );
       assert.ok(true);
     } finally {
       await environment.cleanup();

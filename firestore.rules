@@ -38,6 +38,15 @@ service cloud.firestore {
         || hasRole(tenantId, ["studio_owner", "studio_admin", "studio_coordinator"]);
     }
 
+    function canManageProject(tenantId, projectId) {
+      return isPlatformAdmin()
+        || hasRole(tenantId, ["studio_owner", "studio_admin"])
+        || (
+          hasRole(tenantId, ["studio_coordinator"])
+          && isAssignedToProject(tenantId, projectId)
+        );
+    }
+
     function isStudioOperator(tenantId) {
       return isPlatformAdmin()
         || hasRole(tenantId, [
@@ -64,6 +73,19 @@ service cloud.firestore {
 
     function tenantUnchanged() {
       return request.resource.data.tenantId == resource.data.tenantId;
+    }
+
+    function canReadCheckpoint(tenantId, projectId, visibility) {
+      return isPlatformAdmin()
+        || hasRole(tenantId, ["studio_owner", "studio_admin"])
+        || (
+          isAssignedToProject(tenantId, projectId)
+          && (
+            hasRole(tenantId, ["studio_coordinator", "staff_photographer"])
+            || (hasRole(tenantId, ["client"]) && visibility in ["client", "shared"])
+            || (hasRole(tenantId, ["subcontractor"]) && visibility in ["crew", "shared"])
+          )
+        );
     }
 
     match /users/{userId} {
@@ -101,7 +123,7 @@ service cloud.firestore {
         || isAssignedToProject(resource.data.tenantId, projectId);
       allow create: if canManageProjects(request.resource.data.tenantId)
         && request.resource.data.projectId == projectId;
-      allow update: if canManageProjects(resource.data.tenantId) && tenantUnchanged();
+      allow update: if canManageProject(resource.data.tenantId, projectId) && tenantUnchanged();
       allow delete: if false;
     }
 
@@ -138,6 +160,64 @@ service cloud.firestore {
       allow read: if isPlatformAdmin()
         || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
         || isAssignedToProject(resource.data.tenantId, resource.data.projectId);
+      allow write: if false;
+    }
+
+    match /workflowTemplates/{templateId} {
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, [
+          "studio_owner",
+          "studio_admin",
+          "studio_coordinator"
+        ]);
+      allow write: if false;
+    }
+
+    match /workflowRuns/{runId} {
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+        || isAssignedToProject(resource.data.tenantId, resource.data.projectId);
+      allow write: if false;
+    }
+
+    match /checkpoints/{checkpointId} {
+      allow read: if canReadCheckpoint(
+        resource.data.tenantId,
+        resource.data.projectId,
+        resource.data.visibility
+      );
+      allow write: if false;
+    }
+
+    match /tasks/{taskId} {
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+        || (
+          isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+          && hasRole(resource.data.tenantId, [
+            "studio_coordinator",
+            "staff_photographer"
+          ])
+        );
+      allow write: if false;
+    }
+
+    match /automationRuns/{runId} {
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
+      allow write: if false;
+    }
+
+    match /readinessAssessments/{projectId} {
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+        || (
+          isAssignedToProject(resource.data.tenantId, projectId)
+          && hasRole(resource.data.tenantId, [
+            "studio_coordinator",
+            "staff_photographer"
+          ])
+        );
       allow write: if false;
     }
 

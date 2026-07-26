@@ -41,3 +41,24 @@ test("core CRM routes expose operational data and filtering", async ({ page }) =
     "/studio/packages/new",
   );
 });
+
+test("workflow operations expose immutable versions, task filters, and readiness", async ({
+  page,
+}) => {
+  await page.goto("/studio/workflows");
+  await expect(page.getByRole("heading", { name: "Workflow templates" })).toBeVisible();
+  await expect(page.getByText("Wedding Photography").first()).toBeVisible();
+
+  await page.goto("/studio/workflows/wedding-v7");
+  await expect(page.getByText("Published version locked")).toBeVisible();
+  await expect(page.getByText("AI cannot close these gates.")).toBeVisible();
+
+  await page.goto("/studio/tasks?priority=urgent");
+  await expect(page.getByText("Review Johnson schedule comments")).toBeVisible();
+  await expect(page.getByText("Request Northstar final shot list")).toHaveCount(0);
+
+  await page.goto("/studio/readiness");
+  await expect(page.getByRole("heading", { name: "Event readiness" })).toBeVisible();
+  await expect(page.getByText("AI may explain risk, but only verified checkpoint rules determine this view.")).toBeVisible();
+  await expect(page.getByText("Not ready").first()).toBeVisible();
+});
