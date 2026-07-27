@@ -113,6 +113,7 @@ export const billingCommand = onRequest(
   {
     cors: studioHubCors,
     invoker: "private",
+    secrets: ["STRIPE_SECRET_KEY"],
   },
   async (request, response) => {
     if (request.method !== "POST") {
@@ -208,7 +209,11 @@ export const billingCommand = onRequest(
 );
 
 export const stripeWebhook = onRequest(
-  { cors: false, invoker: "private" },
+  {
+    cors: false,
+    invoker: "private",
+    secrets: ["STRIPE_WEBHOOK_SECRET"],
+  },
   async (request, response) => {
     if (request.method !== "POST") {
       response.status(405).send("METHOD_NOT_ALLOWED");

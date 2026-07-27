@@ -25,5 +25,6 @@ export const operationsJobScheduler=onSchedule({
     "DROPBOX_CLIENT_SECRET",
     "DOCUSIGN_CLIENT_SECRET",
     "QUICKBOOKS_CLIENT_SECRET",
+    "SENTRY_DSN",
   ],
 },async()=>{for(const document of await due("providerJobs"))await finish(document,()=>providerJob(document));for(const document of await due("emailJobs"))await finish(document,()=>sendEmail(document));for(const document of await due("aiJobs"))await finish(document,()=>runAiJob(document));for(const document of await due("pdfJobs"))await finish(document,()=>runPdfJob(document))});

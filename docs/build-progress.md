@@ -334,6 +334,27 @@ Validation record:
 Provider sandbox certification and production credentials/configuration remain
 operational release gates; see `docs/production-readiness.md`.
 
+## Production Secret Manager activation
+
+Status: secret containers and least-privilege runtime bindings prepared.
+
+Delivered:
+
+- repeatable production secret provisioning and metadata-only status commands
+- automatic-replication containers for implemented and reserved provider
+  credentials
+- resource-level `secretAccessor` grants for the Functions runtime only on
+  secrets consumed by implemented code
+- idempotent, non-disclosing generation of the application-owned SendGrid
+  Inbound Parse token
+- no project-wide secret accessor role and no provider access for App Hosting,
+  PDF, or file-safety runtimes
+- explicit Stripe and Sentry Function secret declarations
+- direct Google Cloud credential-entry, activation, and rotation runbook
+
+Provider mode remains mocked until required secret versions, nonsecret provider
+identifiers, provider-side callbacks, and sandbox certification are complete.
+
 ## Production activation — Phase 1
 
 Status: deployed and ready for App Hosting rollout.

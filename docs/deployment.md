@@ -96,6 +96,13 @@ runtime boundaries and worker URLs. Copy it to the ignored
 `functions/.env.studiohub-prod` before a production Functions deployment.
 Provider credentials must remain Secret Manager bindings.
 
+Run `npm run secrets:provision` to create the production secret containers and
+resource-level Functions access without adding any values. Credentials are
+entered directly in Google Cloud, and `npm run secrets:status` verifies
+existence, enabled-version counts, and access without reading values. See
+[production-secrets.md](production-secrets.md) for the complete inventory,
+credential-entry workflow, and rotation procedure.
+
 ## Required public endpoints
 
 - Stripe webhook

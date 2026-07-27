@@ -19,6 +19,9 @@
     "test:e2e": "playwright test",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "seed": "tsx scripts/seed.ts",
+    "secrets:provision": "bash scripts/configure-production-secrets.sh studiohub-prod provision",
+    "secrets:initialize": "bash scripts/initialize-production-owned-secrets.sh studiohub-prod",
+    "secrets:status": "bash scripts/configure-production-secrets.sh studiohub-prod status",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
