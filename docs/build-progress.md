@@ -1,5 +1,26 @@
 # StudioHub Build Progress
 
+## Firebase production foundation — 2026-07-27
+
+Status: provisioned; initial App Hosting release in progress.
+
+Delivered:
+
+- Firebase project `studiohub-prod` and Firebase web application
+- Blaze billing through the selected third billing account
+- email/password Authentication and email-enumeration protection
+- Firestore Native database in `nam7` with delete protection
+- Cloud Storage bucket in `us-east1`
+- deployed Firestore rules, indexes, and Storage rules
+- native Next.js App Hosting build configuration for `us-east4`
+- cost-conscious zero-minimum-instance runtime configuration
+- production integration mock mode until App Check and provider secrets are
+  configured
+
+Production provider Functions and third-party connections remain intentionally
+undeployed until their App Check registration, least-privilege credentials,
+webhook signatures, callback URLs, and Secret Manager bindings are available.
+
 Last updated: 2026-07-26
 
 ## Milestone 1 — Foundation

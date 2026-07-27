@@ -3,6 +3,27 @@
 StudioHub uses separate Google Cloud/Firebase projects for development and
 production. Never copy `.env.local` into production.
 
+## Provisioned production foundation
+
+The production Firebase project is `studiohub-prod` (project number
+`988256939236`). It is linked to a Blaze billing account and uses:
+
+- Firebase App Hosting in `us-east4`
+- Firestore Native, Standard edition in `nam7`
+- Cloud Storage in `us-east1`
+- Firebase Authentication with email/password enabled
+
+Firestore and Storage rules and Firestore indexes are deployed from this
+repository. Firestore delete protection is enabled. The initial App Hosting
+release uses `NEXT_PUBLIC_INTEGRATION_MODE=mock` and `PROVIDER_MOCK_MODE=true`;
+do not switch these to live until App Check, production Functions, Secret
+Manager values, and provider callbacks have passed the release gate below.
+
+The App Hosting runtime is configured by `apphosting.yaml`. Its Firebase web
+configuration is public client configuration, not a provider credential.
+Provider secrets, OAuth refresh tokens, signing keys, and service-account
+credentials must never be added to that file.
+
 ## Provisioning checklist
 
 1. Create the production Firebase project, web app, Authentication providers,
@@ -60,10 +81,12 @@ the production web build. Verify a test subscription, provider webhook replay,
 dead-letter alert, support-access expiry, tenant isolation, backup restore, and
 tenant export/deletion drill.
 
-This repository is connected to a Sites hosting project through
-`.openai/hosting.json`. Publishing is a separate external action: source must be
-pushed, saved as an immutable version, and only that version deployed. A local
-milestone commit does not change production.
+The legacy Sites connection metadata in `.openai/hosting.json` is retained for
+traceability, but the production web application is deployed through Firebase
+App Hosting from the GitHub `main` branch. The `dev:sites`, `build:sites`, and
+`start:sites` scripts preserve local compatibility with that earlier runtime.
+The primary `dev`, `build`, and `start` scripts use native Next.js for Firebase
+App Hosting.
 
 See [production-readiness.md](production-readiness.md) for the complete
 activation checklist and known pilot limitations.

@@ -250,13 +250,6 @@
       ]
     },
     {
-      "collectionGroup": "insuranceRequests",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "replyTokenHash", "order": "ASCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "schedules",
       "queryScope": "COLLECTION",
       "fields": [
