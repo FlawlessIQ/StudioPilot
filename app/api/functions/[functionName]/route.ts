@@ -45,7 +45,11 @@ async function proxy(
     );
   }
 
-  const target = `${origin.replace(/\/$/, "")}/${functionName}`;
+  const target =
+    functionName === "integrationOAuth" &&
+    process.env.INTEGRATION_OAUTH_FUNCTION_URL
+      ? process.env.INTEGRATION_OAUTH_FUNCTION_URL
+      : `${origin.replace(/\/$/, "")}/${functionName}`;
   const identityClient = await googleAuth.getIdTokenClient(target);
   const identityHeaders = await identityClient.getRequestHeaders(target);
   const serviceAuthorization = identityHeaders.get("authorization");

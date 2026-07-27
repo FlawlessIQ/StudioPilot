@@ -21,15 +21,18 @@ export async function GET(request: Request): Promise<Response> {
     return Response.json({ error: "OAUTH_CALLBACK_INVALID" }, { status: 400 });
   }
 
+  const integrationUrl = process.env.INTEGRATION_OAUTH_FUNCTION_URL;
   const origin = process.env.FUNCTIONS_HTTPS_ORIGIN;
-  if (!origin) {
+  if (!integrationUrl && !origin) {
     return Response.json(
       { error: "FUNCTION_PROXY_NOT_CONFIGURED" },
       { status: 503 },
     );
   }
 
-  const target = `${origin.replace(/\/$/, "")}/integrationOAuth`;
+  const target =
+    integrationUrl ??
+    `${origin?.replace(/\/$/, "")}/integrationOAuth`;
   const authorization = await serviceAuthorization(target);
   if (!authorization) {
     return Response.json(

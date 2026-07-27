@@ -394,6 +394,7 @@ Delivered:
   production Function configuration
 - Calendar read and event-write scopes with offline refresh-token support
 - shared, bounded OAuth callback relay and private `integrationOAuth` handler
+- private Run service URL used as the exact Google ID-token audience
 - provider-specific UI activation alongside Dropbox without enabling unfinished
   providers
 
