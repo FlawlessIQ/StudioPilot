@@ -40,8 +40,8 @@ env:
     value: "true"
     availability:
       - RUNTIME
-  - variable: FUNCTIONS_RUN_URL_SUFFIX
-    value: -yehtrtcieq-uk.a.run.app
+  - variable: FUNCTIONS_HTTPS_ORIGIN
+    value: https://us-east4-studiohub-prod.cloudfunctions.net
     availability:
       - RUNTIME
   - variable: NEXT_PUBLIC_CRM_FUNCTIONS_URL

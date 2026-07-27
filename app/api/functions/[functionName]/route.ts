@@ -3,28 +3,28 @@ import { GoogleAuth } from "google-auth-library";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const services = {
-  bookingCommand: "bookingcommand",
-  createSession: "createsession",
-  crewCommand: "crewcommand",
-  crmCommand: "crmcommand",
-  planningCommand: "planningcommand",
-  postEventCommand: "posteventcommand",
-  publicLeadIntake: "publicleadintake",
-  saasAdminCommand: "saasadmincommand",
-  supportTenantSummary: "supporttenantsummary",
-  tenantDataCommand: "tenantdatacommand",
-  tenantExportDownload: "tenantexportdownload",
-  tenantOnboardingCommand: "tenantonboardingcommand",
-  workflowCommand: "workflowcommand",
-} as const;
+const functionNames = [
+  "bookingCommand",
+  "createSession",
+  "crewCommand",
+  "crmCommand",
+  "planningCommand",
+  "postEventCommand",
+  "publicLeadIntake",
+  "saasAdminCommand",
+  "supportTenantSummary",
+  "tenantDataCommand",
+  "tenantExportDownload",
+  "tenantOnboardingCommand",
+  "workflowCommand",
+] as const;
 
-type FunctionName = keyof typeof services;
+type FunctionName = (typeof functionNames)[number];
 
 const googleAuth = new GoogleAuth();
 
 function isFunctionName(value: string): value is FunctionName {
-  return Object.hasOwn(services, value);
+  return functionNames.some((name) => name === value);
 }
 
 async function proxy(
@@ -36,15 +36,15 @@ async function proxy(
     return Response.json({ error: "FUNCTION_NOT_FOUND" }, { status: 404 });
   }
 
-  const suffix = process.env.FUNCTIONS_RUN_URL_SUFFIX;
-  if (!suffix) {
+  const origin = process.env.FUNCTIONS_HTTPS_ORIGIN;
+  if (!origin) {
     return Response.json(
       { error: "FUNCTION_PROXY_NOT_CONFIGURED" },
       { status: 503 },
     );
   }
 
-  const target = `https://${services[functionName]}${suffix}`;
+  const target = `${origin.replace(/\/$/, "")}/${functionName}`;
   const identityClient = await googleAuth.getIdTokenClient(target);
   const identityHeaders = await identityClient.getRequestHeaders(target);
   const serviceAuthorization = identityHeaders.get("authorization");
