@@ -1,5 +1,10 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { connectAuthEmulator, getAuth, type Auth } from "firebase/auth";
+import {
+  initializeAppCheck,
+  ReCaptchaEnterpriseProvider,
+  type AppCheck,
+} from "firebase/app-check";
 import { connectFirestoreEmulator, getFirestore, type Firestore } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -12,11 +17,13 @@ const firebaseConfig = {
 };
 
 let emulatorConnected = false;
+let appCheck: AppCheck | null = null;
 
 export function getFirebaseClient(): {
   app: FirebaseApp;
   auth: Auth;
   firestore: Firestore;
+  appCheck: AppCheck | null;
 } {
   const missing = Object.entries(firebaseConfig)
     .filter(([, value]) => !value)
@@ -29,9 +36,22 @@ export function getFirebaseClient(): {
   const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const firestore = getFirestore(app);
+  const useEmulators =
+    process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true";
+
+  if (!useEmulators && !appCheck) {
+    const siteKey = process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY;
+    if (!siteKey) {
+      throw new Error("Firebase App Check is not configured.");
+    }
+    appCheck = initializeAppCheck(app, {
+      provider: new ReCaptchaEnterpriseProvider(siteKey),
+      isTokenAutoRefreshEnabled: true,
+    });
+  }
 
   if (
-    process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true" &&
+    useEmulators &&
     !emulatorConnected
   ) {
     connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
@@ -39,5 +59,5 @@ export function getFirebaseClient(): {
     emulatorConnected = true;
   }
 
-  return { app, auth, firestore };
+  return { app, auth, firestore, appCheck };
 }

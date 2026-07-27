@@ -371,3 +371,16 @@ Validation record:
 
 External providers remain in mock mode. Stripe, provider OAuth, signed webhooks,
 inbound email, and secret-dependent workers have not been deployed.
+
+Secret-free production operations activated:
+
+- integration/dead-letter health checks every 15 minutes
+- tenant export processing every 5 minutes
+- review-request scheduling every 60 minutes
+- final-invoice scheduling daily at 06:00 UTC
+- authenticated Scheduler-to-Function invocation
+- successful manual operations-health execution with Firestore persistence
+- daily Firestore backups retained for 14 days
+- Sunday Firestore backups retained for 12 weeks
+- project-scoped `$100 USD` monthly budget with 50%, 80%, 100%, and forecast
+  notifications on billing account `016B2F-16CC53-B5EEA1`

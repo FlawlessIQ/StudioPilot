@@ -52,6 +52,17 @@ obtains a Google service identity token, while the Function separately verifies
 the forwarded Firebase user token and App Check evidence. Do not disable the
 Cloud Run invoker IAM check on application APIs.
 
+Firebase Function revisions reset service-level invoker policies in this
+organization. After every production Function deployment, run:
+
+```bash
+./scripts/configure-production-function-invokers.sh studiohub-prod us-east4
+```
+
+The script grants the App Hosting runtime account access only to browser-facing
+application APIs and grants the Functions runtime account access only to the
+four Scheduler-backed services.
+
 ## Provisioning checklist
 
 1. Create the production Firebase project, web app, Authentication providers,
