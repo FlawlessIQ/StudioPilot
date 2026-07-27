@@ -16,6 +16,7 @@ app_services=(
   posteventcommand
   publicleadintake
   saasadmincommand
+  stripewebhook
   supporttenantsummary
   tenantdatacommand
   tenantexportdownload

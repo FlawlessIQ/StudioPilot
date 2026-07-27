@@ -11,3 +11,25 @@ the raw body, rejects stale signatures, maps configured price IDs to normalized
 plan/cadence values, and snapshots entitlements. A deterministic
 `stripe_{eventId}` record prevents duplicate subscription side effects. Unknown
 or tenantless events are retained as ignored evidence rather than guessed.
+
+The production Stripe destination is:
+
+```text
+https://studiohub--studiohub-prod.us-east4.hosted.app/api/webhooks/stripe
+```
+
+This dedicated App Hosting route is the only public Stripe surface. It requires
+the `Stripe-Signature` header, rejects bodies over 1 MiB, preserves the raw body
+bytes, obtains a Google service identity token, and forwards only to the private
+`stripeWebhook` Function. The private handler performs the authoritative
+signature and timestamp validation using `STRIPE_WEBHOOK_SECRET`.
+
+Subscribe the Stripe account destination only to:
+
+- `customer.subscription.created`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+
+After deploying the Function, reapply service-level IAM with
+`scripts/configure-production-function-invokers.sh` so only the App Hosting
+runtime can invoke `stripewebhook`.

@@ -355,6 +355,20 @@ Delivered:
 Provider mode remains mocked until required secret versions, nonsecret provider
 identifiers, provider-side callbacks, and sandbox certification are complete.
 
+## Stripe webhook relay
+
+Status: public relay implemented; private handler activation awaits the Stripe
+endpoint signing secret.
+
+Delivered:
+
+- dedicated App Hosting `POST /api/webhooks/stripe` route
+- exact raw-body preservation for Stripe signature verification
+- required signature-header and 1 MiB payload-boundary checks
+- Google service-identity forwarding to the private `stripeWebhook` Function
+- private invoker restoration for the Stripe Function after deployment
+- production endpoint URL and minimum subscription-event inventory
+
 ## Production activation — Phase 1
 
 Status: deployed and ready for App Hosting rollout.
