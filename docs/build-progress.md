@@ -406,6 +406,26 @@ Required before external pilot access:
 - move the Google OAuth audience from Testing to In production
 - submit the OAuth brand and Calendar scopes for Google verification
 
+## Zoom OAuth staging
+
+Status: development credentials configured; public activation is intentionally
+held until the Zoom app scope inventory is complete.
+
+Configured least-privilege user-managed scopes:
+
+- `meeting:write:meeting`
+- `meeting:read:meeting`
+- `meeting:update:meeting`
+- `meeting:delete:meeting`
+- `meeting:read:list_meetings`
+
+Required before activation:
+
+- add the delete-meeting and list-meetings scopes in the Zoom development app
+- add a clear scope-use and encrypted-storage description
+- verify the exact OAuth redirect and allow-list URL
+- deploy and complete a local-test OAuth connection
+
 ## Production activation — Phase 1
 
 Status: deployed and ready for App Hosting rollout.

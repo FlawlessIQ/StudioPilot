@@ -47,7 +47,13 @@ const config = (provider: Provider): Config => {
     zoom: {
       authorizeUrl: "https://zoom.us/oauth/authorize",
       tokenUrl: "https://zoom.us/oauth/token",
-      scopes: ["meeting:write:admin", "user:read:admin"],
+      scopes: [
+        "meeting:write:meeting",
+        "meeting:read:meeting",
+        "meeting:update:meeting",
+        "meeting:delete:meeting",
+        "meeting:read:list_meetings",
+      ],
       extra: {},
     },
     dropbox: {
@@ -173,6 +179,7 @@ export const integrationOAuth = onRequest(
     secrets: [
       "DROPBOX_CLIENT_SECRET",
       "GOOGLE_CALENDAR_CLIENT_SECRET",
+      "ZOOM_CLIENT_SECRET",
     ],
   },
   async (request, response) => {
