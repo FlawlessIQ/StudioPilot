@@ -384,3 +384,13 @@ Secret-free production operations activated:
 - Sunday Firestore backups retained for 12 weeks
 - project-scoped `$100 USD` monthly budget with 50%, 80%, 100%, and forecast
   notifications on billing account `016B2F-16CC53-B5EEA1`
+- private branded PDF worker in `us-east4`
+- private ClamAV file-signature and malware-scanning worker colocated with
+  Storage in `us-east1`
+- production Functions environment pinned to provider mock mode with private
+  worker URLs
+- Storage finalize trigger deployed in `us-east1` with Eventarc authentication
+- end-to-end safe PDF scan passed: trigger 200, worker 200, PDF signature valid,
+  ClamAV clean, and object metadata promoted from pending to clean
+- malware scanner tuned to 2 GiB and concurrency two after production memory
+  telemetry; the exact isolated test object was removed after validation

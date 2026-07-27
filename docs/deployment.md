@@ -91,6 +91,11 @@ The included private services are `cloud-run/pdf` and
 `MALWARE_SCAN_SERVICE_URL` only after granting the Functions runtime identity
 `roles/run.invoker`. Scanner unavailability is fail-closed.
 
+The checked-in `functions/.env.studiohub-prod.example` contains only nonsecret
+runtime boundaries and worker URLs. Copy it to the ignored
+`functions/.env.studiohub-prod` before a production Functions deployment.
+Provider credentials must remain Secret Manager bindings.
+
 ## Required public endpoints
 
 - Stripe webhook

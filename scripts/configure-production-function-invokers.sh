@@ -48,4 +48,25 @@ for service_name in "${scheduler_services[@]}"; do
     --quiet >/dev/null
 done
 
+gcloud run services add-iam-policy-binding studiohub-pdf \
+  --region=us-east4 \
+  --project="${project_id}" \
+  --member="serviceAccount:${functions_service_account}" \
+  --role=roles/run.invoker \
+  --quiet >/dev/null
+
+gcloud run services add-iam-policy-binding studiohub-file-safety \
+  --region=us-east1 \
+  --project="${project_id}" \
+  --member="serviceAccount:${functions_service_account}" \
+  --role=roles/run.invoker \
+  --quiet >/dev/null
+
+gcloud run services add-iam-policy-binding filesafetyonfinalize \
+  --region=us-east1 \
+  --project="${project_id}" \
+  --member="serviceAccount:${functions_service_account}" \
+  --role=roles/run.invoker \
+  --quiet >/dev/null
+
 echo "Configured private Function invokers for ${project_id} in ${region}."
