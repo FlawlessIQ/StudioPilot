@@ -398,6 +398,14 @@ Delivered:
 - provider-specific UI activation alongside Dropbox without enabling unfinished
   providers
 
+Required before external pilot access:
+
+- complete one real OAuth connection using `conor@flawlessiq.com`
+- verify availability lookup and create, update, and cancel a test event
+- verify reconnecting does not create duplicate events
+- move the Google OAuth audience from Testing to In production
+- submit the OAuth brand and Calendar scopes for Google verification
+
 ## Production activation — Phase 1
 
 Status: deployed and ready for App Hosting rollout.
