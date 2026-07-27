@@ -383,6 +383,20 @@ Delivered:
 - Dropbox-only UI activation without enabling unfinished providers
 - App Folder access model with offline refresh-token architecture
 
+## Google Calendar OAuth activation
+
+Status: production credentials configured and Calendar activation implemented.
+
+Delivered:
+
+- Google Calendar and People APIs enabled in `studiohub-prod`
+- OAuth client secret stored in Secret Manager and client ID kept in ignored
+  production Function configuration
+- Calendar read and event-write scopes with offline refresh-token support
+- shared, bounded OAuth callback relay and private `integrationOAuth` handler
+- provider-specific UI activation alongside Dropbox without enabling unfinished
+  providers
+
 ## Production activation — Phase 1
 
 Status: deployed and ready for App Hosting rollout.

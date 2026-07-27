@@ -95,7 +95,7 @@ env:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_ENABLED_OAUTH_PROVIDERS
-    value: dropbox
+    value: dropbox,google_calendar
     availability:
       - BUILD
       - RUNTIME
