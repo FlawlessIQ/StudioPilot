@@ -19,6 +19,24 @@ release uses `NEXT_PUBLIC_INTEGRATION_MODE=mock` and `PROVIDER_MOCK_MODE=true`;
 do not switch these to live until App Check, production Functions, Secret
 Manager values, and provider callbacks have passed the release gate below.
 
+The following production Google APIs are enabled:
+
+- Vertex AI and the Gemini Developer API
+- Cloud Functions, Cloud Run, Cloud Tasks, Cloud Scheduler, Eventarc, and
+  Pub/Sub
+- Firebase App Check and reCAPTCHA Enterprise
+- Secret Manager, Cloud KMS, Certificate Manager, and IAM Credentials
+- Cloud Build, Artifact Registry, Container Analysis, and On-Demand Scanning
+- Cloud Logging, Monitoring, Trace, Error Reporting, and Profiler
+- Google Calendar, Cloud Asset Inventory, Cloud Quotas, and Billing Budgets
+
+Google-managed service identities are initialized for Vertex AI, Functions,
+Eventarc, Tasks, Scheduler, and App Check. The Firebase web app is registered
+with a domain-restricted reCAPTCHA Enterprise score key using a one-hour token
+TTL and the default `0.5` minimum valid score. App Check enforcement remains a
+release-gate action: enable it only after the hosted app and production command
+endpoints successfully emit and validate tokens.
+
 The App Hosting runtime is configured by `apphosting.yaml`. Its Firebase web
 configuration is public client configuration, not a provider credential.
 Provider secrets, OAuth refresh tokens, signing keys, and service-account

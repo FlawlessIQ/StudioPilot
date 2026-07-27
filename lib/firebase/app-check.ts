@@ -1,7 +1,7 @@
 import {
   getToken,
   initializeAppCheck,
-  ReCaptchaV3Provider,
+  ReCaptchaEnterpriseProvider,
   type AppCheck,
 } from "firebase/app-check";
 import { getFirebaseClient } from "./client";
@@ -15,7 +15,7 @@ export async function getAppCheckToken(): Promise<string | null> {
 
   const { app } = getFirebaseClient();
   appCheck ??= initializeAppCheck(app, {
-    provider: new ReCaptchaV3Provider(siteKey),
+    provider: new ReCaptchaEnterpriseProvider(siteKey),
     isTokenAutoRefreshEnabled: true,
   });
   return (await getToken(appCheck)).token;

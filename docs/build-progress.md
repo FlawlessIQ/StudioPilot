@@ -16,6 +16,10 @@ Delivered:
 - cost-conscious zero-minimum-instance runtime configuration
 - production integration mock mode until App Check and provider secrets are
   configured
+- Vertex AI/Gemini, serverless compute, job orchestration, App Check, security,
+  observability, Calendar, artifact-scanning, quota, budget, and asset APIs
+- initialized Google-managed service identities for runtime dependencies
+- domain-restricted reCAPTCHA Enterprise registration for Firebase App Check
 
 Production provider Functions and third-party connections remain intentionally
 undeployed until their App Check registration, least-privilege credentials,
