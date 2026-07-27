@@ -28,6 +28,7 @@ import {
   Star,
   ChartNoAxesColumn,
   WandSparkles,
+  CreditCard,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { cn } from "@/lib/utils";
@@ -57,6 +58,7 @@ const navItems = [
   { label: "Readiness", href: "/studio/readiness", icon: ShieldCheck },
   { label: "Documents", href: "/studio/documents", icon: FileStack },
   { label: "Integrations", href: "/studio/integrations", icon: LayoutTemplate },
+  { label: "Subscription", href: "/studio/subscription", icon: CreditCard },
 ] as const;
 
 export function AppShell({

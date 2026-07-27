@@ -1096,6 +1096,46 @@ batch.set(firestore.doc("projectCloseouts/wedding-delivered"), {
   ],
   completedAt: null, completedBy: null, summaryDocumentId: null, archivedAt: null,
 });
+const studioEntitlements = {
+  maxInternalUsers: 5, maxBrands: 1, maxActiveSubcontractors: null,
+  aiActionsMonthly: 2500, smsEnabled: true, coiEnabled: true,
+  customWorkflowsEnabled: true, advancedReportingEnabled: true,
+  apiAccessEnabled: false, prioritySupportEnabled: true,
+};
+batch.set(firestore.doc(`subscriptions/${tenantId}`), {
+  ...audit, id: tenantId, tenantId, plan: "studio", cadence: "monthly",
+  status: "trialing", stripeCustomerId: "cus_mock_alder", stripeSubscriptionId: "sub_mock_alder",
+  stripePriceId: "price_mock_studio_monthly", currentPeriodStart: "2026-07-01T00:00:00.000Z",
+  currentPeriodEnd: "2026-08-01T00:00:00.000Z", cancelAtPeriodEnd: false,
+  entitlements: studioEntitlements, internalUserCount: 3, brandCount: 1,
+  activeSubcontractorCount: 3, archivedAt: null,
+});
+batch.set(firestore.doc(`usageCounters/${tenantId}_2026-07`), {
+  ...audit, id: `${tenantId}_2026-07`, tenantId, period: "2026-07",
+  aiActions: 1842, smsSegments: 326, apiRequests: 0, lastAiActionAt: now,
+});
+batch.set(firestore.doc("featureFlags/ai-event-copilot"), {
+  ...audit, id: "ai-event-copilot", key: "ai-event-copilot", enabled: true,
+  tenantIds: [tenantId], description: "Permission-aware tenant event copilot.",
+  archivedAt: null,
+});
+for (const [component, status, failureCount] of [
+  ["quickbooks", "healthy", 0], ["docusign", "healthy", 0],
+  ["dropbox", "healthy", 0], ["sendgrid", "degraded", 2],
+] as const) {
+  batch.set(firestore.doc(`systemHealth/${tenantId}_${component}`), {
+    ...audit, id: `${tenantId}_${component}`, tenantId, category: "integration",
+    component, status, checkedAt: now, latencyMs: status === "healthy" ? 142 : 890,
+    message: status === "healthy" ? null : "Two delayed delivery events",
+    failureCount,
+  });
+}
+batch.set(firestore.doc("providerJobs/demo-failed-sendgrid"), {
+  id: "demo-failed-sendgrid", tenantId, projectId: "wedding-delivered",
+  provider: "sendgrid", type: "review_request", status: "dead_letter",
+  attempts: 5, error: { code: "PROVIDER_TIMEOUT", message: "Delivery event timed out", retryable: true },
+  createdAt: now, updatedAt: now,
+});
 
 await batch.commit();
 

@@ -447,6 +447,32 @@ service cloud.firestore {
         || hasRole(resource.data.tenantId, ["studio_owner","studio_admin"]);
       allow write: if false;
     }
+    match /subscriptions/{subscriptionId} {
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, ["studio_owner"]);
+      allow write: if false;
+    }
+    match /usageCounters/{counterId} {
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, ["studio_owner","studio_admin"]);
+      allow write: if false;
+    }
+    match /featureFlags/{flagId} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    match /supportAccess/{accessId} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    match /systemHealth/{healthId} {
+      allow read: if isPlatformAdmin()
+        || (
+          resource.data.tenantId != null
+          && hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+        );
+      allow write: if false;
+    }
 
     match /commandExecutions/{commandId} {
       allow read, write: if false;

@@ -13,6 +13,9 @@ export { sendgridInboundCoi } from "./planning/inbound.js";
 export { crewCommand } from "./crew/commands.js";
 export { postEventCommand } from "./post-event/commands.js";
 export { reviewRequestScheduler } from "./post-event/jobs.js";
+export { billingCommand, stripeWebhook } from "./saas/stripe.js";
+export { saasAdminCommand } from "./saas/admin.js";
+export { operationsHealthScheduler } from "./saas/jobs.js";
 
 if (getApps().length === 0) {
   initializeApp();

@@ -2,9 +2,8 @@
 
 StudioHub is a multi-tenant photography operations OS. It coordinates the complete client and event lifecycle—from inquiry and booking through readiness, event-day execution, delivery, review, and closeout.
 
-This repository currently contains the validated Milestone 1 foundation,
-Milestone 2 Core CRM, Milestone 3 Workflow Platform, and the implemented
-Milestone 4 Booking Platform:
+This repository contains the validated Milestones 1–8 foundation, CRM,
+workflow, booking, planning, crew, post-event, and SaaS operations platform:
 
 - Next.js App Router application with strict TypeScript and responsive product shells
 - Firebase Authentication client and secure Cloud Functions session architecture
@@ -30,6 +29,9 @@ Milestone 4 Booking Platform:
 - Google Calendar, Zoom, Docusign, QuickBooks, and Dropbox adapter contracts with explicit mocks
 - branded proposal PDF generation and client package, contract, and hosted-payment surfaces
 - questionnaires, vendors, human-approved COI operations, immutable schedules, AI draft validation, and schedule PDFs
+- crew assignments, scoped subcontractor portal, current schedule acknowledgement, and mobile event-day briefs
+- post-production, delivery, review requests, project closeout, and tenant-scoped reporting
+- Stripe subscription references, entitlement snapshots, AI quotas, health checks, failed-job operations, feature flags, and audited support access
 
 Later product milestones are tracked in [docs/build-progress.md](docs/build-progress.md).
 
@@ -76,6 +78,11 @@ require Firebase App Check.
 Authenticated workflow mutations use `NEXT_PUBLIC_WORKFLOW_FUNCTIONS_URL`. When
 omitted, creation forms disclose non-persisting preview behavior.
 
+Stripe Checkout/Portal and platform operations use
+`NEXT_PUBLIC_BILLING_FUNCTIONS_URL` and
+`NEXT_PUBLIC_SAAS_ADMIN_FUNCTIONS_URL`. Omitting them keeps the interfaces in
+explicit non-persisting preview mode.
+
 ## Commands
 
 ```bash
@@ -112,4 +119,6 @@ See [docs/architecture.md](docs/architecture.md), [docs/data-model.md](docs/data
 [docs/planning-platform.md](docs/planning-platform.md),
 [docs/crew-operations.md](docs/crew-operations.md),
 [docs/post-event-operations.md](docs/post-event-operations.md),
+[docs/saas-operations.md](docs/saas-operations.md),
+[docs/deployment.md](docs/deployment.md),
 [docs/security.md](docs/security.md), and [docs/product-spec.md](docs/product-spec.md).

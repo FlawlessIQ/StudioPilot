@@ -173,6 +173,11 @@ test(
         await setDoc(doc(adminDb, "deliveryRecords/delivery-a"), { tenantId: "tenant-a", projectId: "project-a", status: "sent" });
         await setDoc(doc(adminDb, "reviewRequests/review-a"), { tenantId: "tenant-a", projectId: "project-a", status: "clicked" });
         await setDoc(doc(adminDb, "projectCloseouts/closeout-a"), { tenantId: "tenant-a", projectId: "project-a", status: "blocked" });
+        await setDoc(doc(adminDb, "subscriptions/tenant-a"), { tenantId: "tenant-a", plan: "studio", status: "active" });
+        await setDoc(doc(adminDb, "usageCounters/tenant-a_2026-07"), { tenantId: "tenant-a", period: "2026-07", aiActions: 1200 });
+        await setDoc(doc(adminDb, "featureFlags/advanced-ai"), { key: "advanced-ai", enabled: true, tenantIds: ["tenant-a"] });
+        await setDoc(doc(adminDb, "supportAccess/support-a"), { tenantId: "tenant-a", platformUserId: "platform-a", status: "active" });
+        await setDoc(doc(adminDb, "systemHealth/health-a"), { tenantId: "tenant-a", status: "healthy" });
       });
 
       const userDb = environment.authenticatedContext("user-a").firestore();
@@ -222,6 +227,8 @@ test(
       await assertSucceeds(getDoc(doc(clientDb, "reviewRequests/review-a")));
       await assertFails(getDoc(doc(clientDb, "projectCloseouts/closeout-a")));
       await assertFails(updateDoc(doc(clientDb, "reviewRequests/review-a"), { status: "client_confirmed" }));
+      await assertFails(getDoc(doc(clientDb, "subscriptions/tenant-a")));
+      await assertFails(getDoc(doc(clientDb, "usageCounters/tenant-a_2026-07")));
 
       const crewDb = environment.authenticatedContext("crew-a").firestore();
       await assertSucceeds(getDoc(doc(crewDb, "projects/project-a")));
@@ -243,6 +250,14 @@ test(
       await assertFails(
         updateDoc(doc(ownerDb, "workflowTemplates/workflow-a"), { status: "archived" }),
       );
+      await assertSucceeds(getDoc(doc(ownerDb, "subscriptions/tenant-a")));
+      await assertSucceeds(getDoc(doc(ownerDb, "usageCounters/tenant-a_2026-07")));
+      await assertSucceeds(getDoc(doc(ownerDb, "systemHealth/health-a")));
+      await assertFails(getDoc(doc(ownerDb, "featureFlags/advanced-ai")));
+
+      const platformDb = environment.authenticatedContext("platform-a", { platformAdmin: true }).firestore();
+      await assertSucceeds(getDoc(doc(platformDb, "featureFlags/advanced-ai")));
+      await assertSucceeds(getDoc(doc(platformDb, "supportAccess/support-a")));
 
       const coordinatorDb = environment.authenticatedContext("coordinator-a").firestore();
       await assertSucceeds(

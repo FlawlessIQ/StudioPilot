@@ -1,0 +1,21 @@
+import { randomUUID } from "node:crypto";
+import { getFirestore } from "firebase-admin/firestore";
+import { onRequest } from "firebase-functions/v2/https";
+import { z } from "zod";
+import { requireAppCheck,requireIdentity } from "../crm/security.js";
+const command=z.discriminatedUnion("type",[
+  z.object({type:z.literal("setFeatureFlag"),input:z.object({key:z.string().min(1),enabled:z.boolean(),tenantIds:z.array(z.string()),description:z.string().max(1000)})}),
+  z.object({type:z.literal("suspendTenant"),input:z.object({tenantId:z.string(),reason:z.string().min(10)})}),
+  z.object({type:z.literal("grantSupportAccess"),input:z.object({tenantId:z.string(),reason:z.string().min(10),durationMinutes:z.number().int().min(5).max(60)})}),
+  z.object({type:z.literal("rerunJob"),input:z.object({jobId:z.string().min(1)})}),
+]);
+export const saasAdminCommand=onRequest({cors:[/localhost/,/\.studiohub\.app$/, /\.flawlessiq\.chatgpt\.site$/],invoker:"public"},async(request,response)=>{
+  if(request.method!=="POST"){response.status(405).json({error:"METHOD_NOT_ALLOWED"});return}
+  try{await requireAppCheck(request);const identity=await requireIdentity(request);if(identity.platformAdmin!==true)throw new Error("FORBIDDEN");const parsed=command.parse(request.body);const db=getFirestore();const now=new Date().toISOString();let result:Record<string,unknown>;
+    if(parsed.type==="setFeatureFlag"){await db.doc(`featureFlags/${parsed.input.key}`).set({id:parsed.input.key,...parsed.input,createdAt:now,updatedAt:now,createdBy:identity.uid,updatedBy:identity.uid,archivedAt:null},{merge:true});result={key:parsed.input.key,enabled:parsed.input.enabled}}
+    else if(parsed.type==="suspendTenant"){await db.doc(`tenants/${parsed.input.tenantId}`).update({status:"suspended",suspensionReason:parsed.input.reason,updatedAt:now,updatedBy:identity.uid});result={tenantId:parsed.input.tenantId,status:"suspended"}}
+    else if(parsed.type==="grantSupportAccess"){const id=`support_${parsed.input.tenantId}_${Date.now()}`;const expiresAt=new Date(Date.now()+parsed.input.durationMinutes*60000).toISOString();await db.doc(`supportAccess/${id}`).create({id,tenantId:parsed.input.tenantId,platformUserId:identity.uid,reason:parsed.input.reason,status:"active",expiresAt,revokedAt:null,createdAt:now,updatedAt:now,createdBy:identity.uid,updatedBy:identity.uid});result={tenantId:parsed.input.tenantId,supportAccessId:id,expiresAt}}
+    else{const jobReference=db.doc(`providerJobs/${parsed.input.jobId}`);const job=await jobReference.get();if(!job.exists)throw new Error("JOB_NOT_FOUND");if(!["dead_letter","failed"].includes(String(job.get("status"))))throw new Error("JOB_NOT_RERUNNABLE");await jobReference.update({status:"queued",nextAttemptAt:now,manualRerunBy:identity.uid,updatedAt:now});result={tenantId:String(job.get("tenantId")),jobId:parsed.input.jobId,status:"queued"}}
+    await db.collection("auditEvents").add({tenantId:String(result.tenantId??"platform"),projectId:null,actorId:identity.uid,actorType:"platform_admin",action:`platform.${parsed.type}`,entityType:"platform_operation",entityId:String(result.tenantId??result.key??result.supportAccessId??result.jobId),timestamp:now,before:null,after:result,ipAddress:request.ip??null,userAgent:request.get("user-agent")??null,correlationId:request.get("x-correlation-id")??randomUUID(),automationRunId:null,providerEventId:null});response.status(200).json(result)
+  }catch(caught:unknown){const message=caught instanceof Error?caught.message:"ADMIN_COMMAND_FAILED";response.status(message==="FORBIDDEN"?403:400).json({error:message})}
+});

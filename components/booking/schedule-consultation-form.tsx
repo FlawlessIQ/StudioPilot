@@ -41,7 +41,6 @@ export function ScheduleConsultationForm() {
     try {
       const result = await sendBookingCommand({
         type: "scheduleConsultation",
-        tenantId: "demo-tenant",
         idempotencyKey: crypto.randomUUID(),
         input: {
           ...values,

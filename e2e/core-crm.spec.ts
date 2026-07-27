@@ -147,3 +147,31 @@ test("post-event operations preserve delivery evidence and explicit review confi
   await page.getByRole("button", { name: "I’ve completed my review" }).click();
   await expect(page.getByText(/Development preview: review confirmed/)).toBeVisible();
 });
+
+test("SaaS operations expose entitlements, monitored failures, and audited support boundaries", async ({ page }) => {
+  await page.goto("/studio/subscription");
+  await expect(page.getByRole("heading", { name: "Subscription" })).toBeVisible();
+  await expect(page.getByText("1,842 / 2,500")).toBeVisible();
+  await page.getByRole("button", { name: "Open customer portal" }).click();
+  await expect(page.getByText(/Development preview: Stripe Checkout was not opened/)).toBeVisible();
+
+  await page.goto("/platform-admin/subscriptions");
+  await expect(page.getByRole("heading", { name: "Subscriptions" })).toBeVisible();
+  await expect(page.getByText("Payment instruments remain in Stripe.")).toBeVisible();
+
+  await page.goto("/platform-admin/failed-jobs");
+  await expect(page.getByText("job-SG-1842")).toBeVisible();
+  await page.getByRole("button", { name: "Rerun dead-letter job" }).click();
+  await expect(page.getByText(/Development preview: Dead-letter job queued/)).toBeVisible();
+
+  await page.goto("/platform-admin/support");
+  await expect(page.getByRole("heading", { name: "Support access" })).toBeVisible();
+  await page.getByLabel("Tenant ID").fill("tenant-a");
+  await page.getByLabel("Business reason").fill("Investigate customer-reported reconciliation failure.");
+  await page.getByRole("button", { name: "Grant 30-minute access" }).click();
+  await expect(page.getByText(/Development preview: temporary access was validated/)).toBeVisible();
+
+  await page.goto("/platform-admin/system-health");
+  await expect(page.getByRole("heading", { name: "System health" })).toBeVisible();
+  await expect(page.getByText("Sentry receives unhandled failures without business-document payloads.")).toBeVisible();
+});

@@ -242,4 +242,33 @@ Milestone 8 may begin without carrying a broken build forward.
 
 ## Milestone 8 — SaaS Operations
 
-Pending: live Stripe billing, usage accounting, AI quotas, integration health/monitoring, support tools, production observability, and operational runbooks.
+Status: implementation complete; final release validation complete.
+
+Delivered:
+
+- Stripe Checkout and Customer Portal command with owner membership, Firebase Auth, and App Check enforcement
+- raw-body, timestamped HMAC Stripe webhook validation with provider-event idempotency
+- normalized subscription snapshots, configured price mapping, and immutable entitlement snapshots
+- deterministic internal-user, brand, subcontractor, and monthly AI quota enforcement
+- tenant/month AI, SMS, and API usage schemas plus quota projections
+- 15-minute integration health scheduler with normalized operational snapshots
+- platform-admin commands protected by custom claim and App Check
+- audited feature flags, tenant suspension, expiring support access, and controlled dead-letter reruns
+- studio Subscription and Usage experience with explicit Stripe payment boundary
+- platform Tenants, Users, Subscriptions, Integrations, Failed Jobs, Feature Flags, Audit Logs, Support, and System Health experiences
+- server-only Firestore rules, composite indexes, representative subscription/usage/health/failure seed data, and production environment references
+- SaaS operations, webhook, background-job, security, data-model, and production deployment runbooks
+
+Validation record:
+
+- strict TypeScript: passed
+- unit and policy suite: 59 passed
+- Firestore Emulator rules suite: passed, including subscription/usage role boundaries and platform-only feature/support records
+- Storage Emulator rules regression suite: passed
+- Playwright end-to-end suite: 16 passed across desktop and mobile Chromium
+- Cloud Functions TypeScript build: passed
+- ESLint: passed with zero warnings
+- production web build: passed
+- expanded Firebase Auth and Firestore emulator seed: executed successfully
+
+All eight planned build milestones are complete without carrying a broken build state.

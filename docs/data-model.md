@@ -167,6 +167,17 @@ sequence item and its engagement or explicit confirmation state.
 `projectCloseouts` snapshot deterministic closeout gates and completion
 evidence. `reportJobs` is server-only asynchronous CSV work.
 
+## Milestone 8 collections
+
+`subscriptions` contain Stripe references, normalized state, billing period,
+resource counts, and an exact entitlement snapshot. `usageCounters` are
+tenant/month projections for AI actions, SMS segments, and API requests.
+`featureFlags` are platform-owned rollout controls and never replace entitlement
+or permission checks. `supportAccess` records reasoned, expiring platform access.
+`systemHealth` stores normalized tenant/provider and platform component checks.
+`providerJobs` carries attempts, normalized error, dead-letter state, and manual
+rerun evidence.
+
 ## Immutability and deletion
 
 - package snapshots and audit events are append-only

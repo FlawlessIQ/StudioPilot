@@ -1,0 +1,11 @@
+import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
+import test from "node:test";
+import { planEntitlements } from "../features/subscriptions/entitlements";
+import { subscriptionSchema,usageCounterSchema } from "../features/subscriptions/schema";
+import { assertSubscriptionCapacity,consumeAiAction,remainingAiActions,verifyStripeSignature } from "../server/services/saas-operations-service";
+const audit={createdAt:"2026-07-01T00:00:00.000Z",updatedAt:"2026-07-01T00:00:00.000Z",createdBy:"owner",updatedBy:"owner"};
+const subscription=subscriptionSchema.parse({...audit,id:"sub-a",tenantId:"tenant-a",plan:"solo",cadence:"monthly",status:"active",stripeCustomerId:"cus_a",stripeSubscriptionId:"sub_a",stripePriceId:"price_a",currentPeriodStart:audit.createdAt,currentPeriodEnd:"2026-08-01T00:00:00.000Z",cancelAtPeriodEnd:false,entitlements:planEntitlements.solo,internalUserCount:1,brandCount:1,activeSubcontractorCount:4,archivedAt:null});
+test("plan capacity uses entitlement values rather than plan-name branches",()=>{assert.throws(()=>assertSubscriptionCapacity(subscription,"internal_user"));assert.doesNotThrow(()=>assertSubscriptionCapacity(subscription,"subcontractor"))});
+test("AI quota consumption is deterministic and rejects overage",()=>{const usage=usageCounterSchema.parse({...audit,id:"tenant-a_2026-07",tenantId:"tenant-a",period:"2026-07",aiActions:499,smsSegments:0,apiRequests:0,lastAiActionAt:null});const final=consumeAiAction(usage,planEntitlements.solo,"2026-07-26T00:00:00.000Z");assert.equal(remainingAiActions(final,planEntitlements.solo),0);assert.throws(()=>consumeAiAction(final,planEntitlements.solo,final.updatedAt))});
+test("Stripe signatures require valid HMAC and a fresh timestamp",()=>{const body='{"id":"evt_1"}';const secret="whsec_test";const timestamp=1000;const signature=createHmac("sha256",secret).update(`${timestamp}.${body}`).digest("hex");assert.equal(verifyStripeSignature(body,`t=${timestamp},v1=${signature}`,secret,1100),true);assert.equal(verifyStripeSignature(body,`t=${timestamp},v1=${signature}`,secret,2000),false);assert.equal(verifyStripeSignature(body,`t=${timestamp},v1=bad`,secret,1100),false)});

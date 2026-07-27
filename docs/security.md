@@ -41,6 +41,17 @@ Every sensitive operation is denied unless authentication, tenant membership, pe
 
 Browser clients cannot write or delete audit events. Trusted services append events with before/after snapshots, actor, entity, correlation, provider event, and automation run references. Support access is explicit, time-bounded, and audited; routine impersonation is prohibited.
 
+Platform operations require a Firebase `platformAdmin` custom claim in addition
+to App Check. Support grants require an exact tenant, a business reason, and an
+expiry of no more than 60 minutes. Expired grants must be denied at read time;
+their presence in Firestore is not authorization. Stripe Checkout and Customer
+Portal require an active owner membership. Stripe webhooks verify raw-body HMAC,
+freshness, and provider event idempotency before subscription state changes.
+Payment instruments never enter StudioHub.
+
+Subscription limits and AI quotas are deterministic trusted-service checks.
+Feature flags cannot bypass an entitlement, role, project assignment, or quota.
+
 ## Workflow and readiness authority
 
 - browsers cannot mutate workflow versions, runs, checkpoints, tasks, automation runs, or readiness assessments directly
