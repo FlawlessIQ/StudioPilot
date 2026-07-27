@@ -1,0 +1,19 @@
+{
+  "name": "StudioHub Photography Operations",
+  "short_name": "StudioHub",
+  "description": "Event-ready operations for professional photography teams.",
+  "start_url": "/studio",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f2ec",
+  "theme_color": "#1e2a25",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

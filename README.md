@@ -2,8 +2,8 @@
 
 StudioHub is a multi-tenant photography operations OS. It coordinates the complete client and event lifecycle—from inquiry and booking through readiness, event-day execution, delivery, review, and closeout.
 
-This repository contains the validated Milestones 1–8 foundation, CRM,
-workflow, booking, planning, crew, post-event, and SaaS operations platform:
+This repository contains the validated Milestones 1–8 product and the current
+production-hardening pass:
 
 - Next.js App Router application with strict TypeScript and responsive product shells
 - Firebase Authentication client and secure Cloud Functions session architecture
@@ -32,8 +32,13 @@ workflow, booking, planning, crew, post-event, and SaaS operations platform:
 - crew assignments, scoped subcontractor portal, current schedule acknowledgement, and mobile event-day briefs
 - post-production, delivery, review requests, project closeout, and tenant-scoped reporting
 - Stripe subscription references, entitlement snapshots, AI quotas, health checks, failed-job operations, feature flags, and audited support access
+- OAuth PKCE, Secret Manager token rotation, provider job consumers, final
+  invoice scheduling, quarantine-first uploads, tenant data controls, PWA
+  event-day access, and privacy-safe Sentry reporting
 
-Later product milestones are tracked in [docs/build-progress.md](docs/build-progress.md).
+Build history is tracked in [docs/build-progress.md](docs/build-progress.md).
+Read [docs/production-readiness.md](docs/production-readiness.md) before enabling
+live integrations or admitting pilot customers.
 
 ## Local setup
 
@@ -91,6 +96,8 @@ npm run typecheck    # strict TypeScript
 npm run lint         # ESLint
 npm test             # fast unit and policy tests
 npm run test:rules   # Firestore rules tests via emulator
+npm run test:storage-rules # Firestore + Storage rules tests
+npm run test:e2e     # desktop and mobile Playwright suite
 npm run build        # production build
 npm run seed         # emulator-only demo data
 ```

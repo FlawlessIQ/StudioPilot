@@ -240,7 +240,8 @@ export const bookingCommand = onRequest(
       } else if (command.type === "createEnvelope") {
         const contractId = stableId("contract", command.tenantId, command.idempotencyKey);
         const envelopeId = `envelope_${command.idempotencyKey}`;
-        await firestore.doc(`contracts/${contractId}`).create({
+        const batch=firestore.batch();
+        batch.create(firestore.doc(`contracts/${contractId}`), {
           id: contractId,
           tenantId: command.tenantId,
           projectId: command.input.projectId,
@@ -264,13 +265,16 @@ export const bookingCommand = onRequest(
           updatedBy: identity.uid,
           archivedAt: null,
         });
+        if(!mockMode)batch.create(firestore.doc(`providerJobs/contract_${contractId}`),{tenantId:command.tenantId,projectId:command.input.projectId,type:"create_docusign_envelope",contractId,idempotencyKey:command.idempotencyKey,status:"queued",attempts:0,createdAt:timestamp,updatedAt:timestamp});
+        await batch.commit();
         result = { contractId, envelopeId, providerState: mockMode ? "completed_mock" : "queued" };
       } else if (command.type === "createRetainerInvoice") {
         const packageSnapshot = await firestore.doc(`packageSnapshots/${command.input.packageSnapshotId}`).get();
         if (!packageSnapshot.exists || packageSnapshot.get("tenantId") !== command.tenantId) throw new Error("PACKAGE_SNAPSHOT_NOT_FOUND");
         const invoiceId = stableId("invoice", command.tenantId, command.idempotencyKey);
         const providerInvoiceId = `qbo_invoice_${command.idempotencyKey}`;
-        await firestore.doc(`invoiceReferences/${invoiceId}`).create({
+        const batch=firestore.batch();
+        batch.create(firestore.doc(`invoiceReferences/${invoiceId}`), {
           id: invoiceId,
           tenantId: command.tenantId,
           projectId: command.input.projectId,
@@ -293,6 +297,8 @@ export const bookingCommand = onRequest(
           updatedBy: identity.uid,
           archivedAt: null,
         });
+        if(!mockMode)batch.create(firestore.doc(`providerJobs/invoice_${invoiceId}`),{tenantId:command.tenantId,projectId:command.input.projectId,type:"create_quickbooks_invoice",invoiceId,idempotencyKey:command.idempotencyKey,status:"queued",attempts:0,createdAt:timestamp,updatedAt:timestamp});
+        await batch.commit();
         result = { invoiceId, providerInvoiceId, providerState: mockMode ? "completed_mock" : "queued" };
       } else {
         result = await firestore.runTransaction(async (transaction) => {

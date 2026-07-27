@@ -48,6 +48,38 @@ class ProposalRequest(BaseModel):
     generated_at: str = Field(min_length=1, max_length=80)
 
 
+class ScheduleItem(BaseModel):
+    start: str = Field(min_length=1, max_length=80)
+    end: str = Field(min_length=1, max_length=80)
+    title: str = Field(min_length=1, max_length=240)
+    location: str = Field(max_length=300)
+
+
+class ScheduleRequest(BaseModel):
+    tenant_name: str = Field(min_length=1, max_length=160)
+    project_id: str = Field(min_length=1, max_length=120)
+    schedule_id: str = Field(min_length=1, max_length=120)
+    version: int = Field(ge=1)
+    timezone: str = Field(min_length=1, max_length=80)
+    items: list[ScheduleItem] = Field(min_length=1, max_length=250)
+    generated_at: str = Field(min_length=1, max_length=80)
+
+
+class CloseoutRequirement(BaseModel):
+    label: str = Field(min_length=1, max_length=240)
+    complete: bool
+    evidence_id: str | None = Field(default=None, max_length=160)
+
+
+class CloseoutRequest(BaseModel):
+    tenant_name: str = Field(min_length=1, max_length=160)
+    project_id: str = Field(min_length=1, max_length=120)
+    closeout_id: str = Field(min_length=1, max_length=120)
+    project_name: str = Field(min_length=1, max_length=200)
+    requirements: list[CloseoutRequirement] = Field(min_length=1, max_length=100)
+    generated_at: str = Field(min_length=1, max_length=80)
+
+
 def build_proposal_pdf(data: ProposalRequest) -> bytes:
     buffer = BytesIO()
     ink = HexColor("#1E2A25")
@@ -127,6 +159,57 @@ def build_proposal_pdf(data: ProposalRequest) -> bytes:
     return buffer.getvalue()
 
 
+def build_operations_pdf(
+    *,
+    title: str,
+    tenant_name: str,
+    project_id: str,
+    version_label: str,
+    generated_at: str,
+    rows: list[list[str]],
+) -> bytes:
+    buffer = BytesIO()
+    ink = HexColor("#1E2A25")
+    muted = HexColor("#67706B")
+    line = HexColor("#D9DDD8")
+    soft = HexColor("#F1F3EF")
+    styles = getSampleStyleSheet()
+    body = ParagraphStyle(name="OpsBody", parent=styles["BodyText"], fontName="Helvetica", fontSize=9, leading=13, textColor=ink)
+    meta = ParagraphStyle(name="OpsMeta", parent=body, fontSize=7.5, textColor=muted)
+    heading = ParagraphStyle(name="OpsHeading", parent=styles["Heading1"], fontName="Times-Roman", fontSize=28, leading=32, textColor=ink)
+    doc = SimpleDocTemplate(buffer, pagesize=LETTER, rightMargin=.55*inch, leftMargin=.55*inch, topMargin=.55*inch, bottomMargin=.62*inch, title=title, author="StudioHub")
+
+    def footer(canvas: Any, document: Any) -> None:
+        canvas.saveState()
+        canvas.setStrokeColor(line)
+        canvas.line(doc.leftMargin, .45*inch, LETTER[0]-doc.rightMargin, .45*inch)
+        canvas.setFont("Helvetica", 7)
+        canvas.setFillColor(muted)
+        canvas.drawString(doc.leftMargin, .27*inch, f"Generated {generated_at}  |  Project {project_id}")
+        canvas.drawRightString(LETTER[0]-doc.rightMargin, .27*inch, f"Page {document.page}")
+        canvas.restoreState()
+
+    story = [
+        Paragraph(tenant_name.upper(), meta),
+        Spacer(1, .12*inch),
+        Paragraph(title, heading),
+        Paragraph(version_label, meta),
+        Spacer(1, .32*inch),
+    ]
+    table_rows = [[Paragraph(cell, body) for cell in row] for row in rows]
+    table = Table(table_rows, repeatRows=1, colWidths=[1.1*inch, 1.1*inch, 2.5*inch, 2.2*inch])
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), soft),
+        ("LINEBELOW", (0, 0), (-1, -1), .5, line),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+    ]))
+    story.append(table)
+    doc.build(story, onFirstPage=footer, onLaterPages=footer)
+    return buffer.getvalue()
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"service": "studiohub-pdf", "status": "ok"}
@@ -139,3 +222,33 @@ def proposal_pdf(data: ProposalRequest) -> Response:
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     return Response(content=payload, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{data.proposal_id}.pdf"'})
+
+
+@app.post("/v1/schedules/pdf")
+def schedule_pdf(data: ScheduleRequest) -> Response:
+    rows = [["START", "END", "ITEM", "LOCATION"]]
+    rows.extend([[item.start, item.end, item.title, item.location or "—"] for item in data.items])
+    payload = build_operations_pdf(
+        title="Run of Show",
+        tenant_name=data.tenant_name,
+        project_id=data.project_id,
+        version_label=f"Schedule {data.schedule_id} · Version {data.version} · {data.timezone}",
+        generated_at=data.generated_at,
+        rows=rows,
+    )
+    return Response(content=payload, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{data.schedule_id}.pdf"'})
+
+
+@app.post("/v1/closeouts/pdf")
+def closeout_pdf(data: CloseoutRequest) -> Response:
+    rows = [["STATUS", "REQUIREMENT", "EVIDENCE", "PROJECT"]]
+    rows.extend([["Complete" if item.complete else "Open", item.label, item.evidence_id or "—", data.project_name] for item in data.requirements])
+    payload = build_operations_pdf(
+        title="Project Closeout",
+        tenant_name=data.tenant_name,
+        project_id=data.project_id,
+        version_label=f"Closeout {data.closeout_id}",
+        generated_at=data.generated_at,
+        rows=rows,
+    )
+    return Response(content=payload, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{data.closeout_id}.pdf"'})

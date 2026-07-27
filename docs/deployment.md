@@ -26,6 +26,11 @@ production. Never copy `.env.local` into production.
 10. Seed commercial Stripe products/prices deliberately; do not run the demo
     seed against production.
 
+The included private services are `cloud-run/pdf` and
+`cloud-run/file-safety`. Set `PDF_SERVICE_URL` and
+`MALWARE_SCAN_SERVICE_URL` only after granting the Functions runtime identity
+`roles/run.invoker`. Scanner unavailability is fail-closed.
+
 ## Required public endpoints
 
 - Stripe webhook
@@ -40,6 +45,13 @@ production. Never copy `.env.local` into production.
 Each endpoint must use its exact production URL, provider-specific signature
 secret, narrow CORS policy where relevant, and idempotency storage.
 
+Configure SendGrid Inbound Parse at
+`https://REGION-PROJECT.cloudfunctions.net/sendgridInboundCoi?token=SECRET`.
+COI reply addresses use `coi+REPLY_TOKEN@INBOUND_DOMAIN`; the shared URL secret
+authenticates the provider while the hashed reply token resolves only one
+insurance request. Attachments stay quarantined until the private scanner marks
+them clean.
+
 ## Release gate
 
 Before production promotion, run type checking, linting, unit/policy tests,
@@ -53,3 +65,5 @@ This repository is connected to a Sites hosting project through
 pushed, saved as an immutable version, and only that version deployed. A local
 milestone commit does not change production.
 
+See [production-readiness.md](production-readiness.md) for the complete
+activation checklist and known pilot limitations.

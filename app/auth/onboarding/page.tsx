@@ -1,0 +1,3 @@
+import { Logo } from "@/components/brand/logo";
+import { OnboardingForm } from "@/features/auth/onboarding-form";
+export default function OnboardingPage(){return <main className="auth-page"><section className="auth-brand-panel"><div className="auth-quote"><Logo/><blockquote>Your first workspace starts with secure tenant boundaries and a deterministic trial entitlement snapshot.</blockquote></div></section><section className="auth-form-panel"><div className="auth-form-wrap"><span className="eyebrow">Studio setup</span><h1>Create your workspace</h1><p>This account becomes the audited Studio Owner.</p><OnboardingForm/></div></section></main>}

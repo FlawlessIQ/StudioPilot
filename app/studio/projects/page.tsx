@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Filter, Plus } from "lucide-react";
+import { Filter, Plus } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
-import { ReadinessMeter } from "@/components/ui/readiness-meter";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { crmProjects } from "@/config/crm-demo-data";
+import { LiveProjectRows } from "@/components/live/tenant-records";
 
 export const metadata: Metadata = { title: "Projects · StudioHub" };
 
@@ -14,9 +12,6 @@ export default async function ProjectsPage({
   searchParams: Promise<{ view?: string; type?: string }>;
 }) {
   const { view = "active", type = "all" } = await searchParams;
-  const visibleProjects = view === "archived"
-    ? []
-    : crmProjects.filter((project) => type === "all" || project.event.toLowerCase() === type);
   return (
     <AppShell active="Projects">
       <div className="crm-page">
@@ -31,16 +26,7 @@ export default async function ProjectsPage({
           </div>
           <div className="crm-table crm-projects-table">
             <div className="crm-table-head"><span>Project</span><span>Date & venue</span><span>State</span><span>Readiness</span><span>Next action</span><span /></div>
-            {visibleProjects.map((project) => (
-              <article key={project.id}>
-                <span className="crm-primary"><strong>{project.name}</strong><small>{project.id} · {project.event}</small></span>
-                <span><strong>{project.date}</strong><small>{project.venue}</small></span>
-                <span><StatusBadge tone={project.state === "READY" ? "success" : project.state === "CONTRACT_PENDING" ? "warning" : "info"}>{project.state.replaceAll("_", " ")}</StatusBadge></span>
-                <span className="readiness-cell"><ReadinessMeter value={project.readiness} size="sm" /><small>{project.readiness === 100 ? "Ready" : "Not ready"}</small></span>
-                <span><strong>{project.nextAction}</strong><small>{project.owner}</small></span>
-                <Link href={`/studio/projects/${project.id}`} aria-label={`Open ${project.name}`}><ArrowRight size={16} /></Link>
-              </article>
-            ))}
+            <LiveProjectRows type={type} view={view}/>
           </div>
         </section>
       </div>

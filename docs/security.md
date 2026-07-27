@@ -61,7 +61,10 @@ Feature flags cannot bypass an entitlement, role, project assignment, or quota.
 - clients see only client/shared checkpoints; subcontractors see only crew/shared checkpoints on assigned projects
 - AI output cannot resolve checkpoints or alter readiness
 - `PLANNING → READY` requires the same-tenant canonical readiness assessment to pass
-- inbound COI routes use hashed project reply tokens and restricted PDF validation
+- inbound COI routes use a shared provider secret plus hashed,
+  project-specific reply tokens
+- inbound attachments are quarantined; MIME allowlisting, magic-byte
+  verification, and ClamAV must pass before AI extraction is queued
 - AI can extract COI fields but cannot write the human decision
 - published schedules are immutable and browser clients cannot directly approve or replace them
 - crew assignment writes are server-only; commands recheck tenant membership, project access, role, and assignment ownership
@@ -77,7 +80,12 @@ Feature flags cannot bypass an entitlement, role, project assignment, or quota.
 
 ## Retention, export, and deletion
 
-Business deletion is a two-step archive and retention workflow. Tenant export runs as an audited background job and produces a time-limited encrypted archive. Destructive deletion requires owner authorization, a retention check, a second confirmation, and deletion evidence. Backups follow Google Cloud and Firebase recovery procedures and are tested periodically.
+Business deletion is a controlled retention workflow. Tenant export runs as an
+audited background job and produces a time-limited archive. Owner confirmation
+starts a 30-day cooling-off period; platform approval requires a completed
+export. Physical erasure remains a separately controlled production operation
+so it cannot occur through a casual browser action. Backups follow Google Cloud
+and Firebase recovery procedures and must be tested periodically.
 
 ## Sports and minors
 

@@ -60,7 +60,7 @@ export default function MarketingHome() {
           <Link className="text-link" href="/auth/login">
             Sign in
           </Link>
-          <Link className="button button-dark button-sm" href="/auth/login?mode=trial">
+          <Link className="button button-dark button-sm" href="/auth/register">
             Start free trial
           </Link>
         </div>
@@ -84,7 +84,7 @@ export default function MarketingHome() {
               crossed fingers.
             </p>
             <div className="hero-actions">
-              <Link className="button button-dark" href="/auth/login?mode=trial">
+              <Link className="button button-dark" href="/auth/register">
                 Start your free trial <ArrowRight size={17} />
               </Link>
               <Link className="button button-light" href="/studio">

@@ -14,6 +14,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
+import { AuthBoundary,SignOutButton } from "@/features/auth/auth-boundary";
 
 const portalNav = [
   { label: "Home", icon: Home, href: "/client" },
@@ -30,7 +31,7 @@ const portalNav = [
 ] as const;
 
 export function PortalShell({ children, active = "Home", projectName = "Maya & Theo", projectDate = "August 15, 2026" }: { children: React.ReactNode; active?: string; projectName?: string; projectDate?: string }) {
-  return (
+  return <AuthBoundary area="client">
     <div className="portal-frame">
       <aside className="portal-sidebar" id="portal-navigation">
         <Link href="/client"><Logo /></Link>
@@ -67,10 +68,10 @@ export function PortalShell({ children, active = "Home", projectName = "Maya & T
             <Menu size={20} />
           </a>
           <span>Alder &amp; Muse Photography</span>
-          <Link href="/auth/login">Sign out</Link>
+          <SignOutButton />
         </header>
         {children}
       </main>
     </div>
-  );
+  </AuthBoundary>;
 }

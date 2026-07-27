@@ -44,24 +44,26 @@ test(
       );
       await assertSucceeds(uploadBytes(ownPath, new Uint8Array([37, 80, 68, 70]), {
         contentType: "application/pdf",
+        customMetadata: { scanStatus: "pending" },
       }));
       await assertFails(uploadBytes(ownPath, new Uint8Array([37, 80, 68, 70]), {
         contentType: "application/pdf",
+        customMetadata: { scanStatus: "pending" },
       }));
       await assertFails(uploadBytes(
         ref(crewStorage, "tenants/tenant-a/projects/project-a/crew/other-user/file.pdf"),
         new Uint8Array([37, 80, 68, 70]),
-        { contentType: "application/pdf" },
+        { contentType: "application/pdf", customMetadata: { scanStatus: "pending" } },
       ));
       await assertFails(uploadBytes(
         ref(crewStorage, "tenants/tenant-a/projects/project-private/crew/crew-a/file.pdf"),
         new Uint8Array([37, 80, 68, 70]),
-        { contentType: "application/pdf" },
+        { contentType: "application/pdf", customMetadata: { scanStatus: "pending" } },
       ));
       await assertFails(uploadBytes(
         ref(crewStorage, "tenants/tenant-a/projects/project-a/crew/crew-a/script.html"),
         new TextEncoder().encode("<script>alert(1)</script>"),
-        { contentType: "text/html" },
+        { contentType: "text/html", customMetadata: { scanStatus: "pending" } },
       ));
     } finally {
       await environment.cleanup();

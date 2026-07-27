@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
+import { collection,getDocs,limit,query,where } from "firebase/firestore";
 import { ArrowRight, Eye, EyeOff, LoaderCircle } from "lucide-react";
 import { getFirebaseClient } from "@/lib/firebase/client";
 
@@ -34,9 +35,12 @@ export function SignInForm() {
     }
 
     try {
-      const { auth } = getFirebaseClient();
+      const { auth,firestore } = getFirebaseClient();
       await signInWithEmailAndPassword(auth, email, password);
-      router.push("/studio");
+      const token=await auth.currentUser?.getIdTokenResult();
+      if(token?.claims.platformAdmin===true){router.push("/platform-admin");return}
+      const memberships=await getDocs(query(collection(firestore,"memberships"),where("userId","==",auth.currentUser?.uid??""),where("status","==","active"),limit(1)));
+      router.push(memberships.empty?"/auth/onboarding":"/studio");
     } catch {
       setFormState({
         status: "error",
@@ -135,7 +139,7 @@ export function SignInForm() {
         )}
       </button>
       <p className="sign-up-copy">
-        New to StudioHub? <Link href="/auth/login?mode=trial">Start a free trial</Link>
+        New to StudioHub? <Link href="/auth/register">Start a free trial</Link>
       </p>
     </form>
   );

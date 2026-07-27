@@ -72,7 +72,7 @@ export async function uploadCrewRequirement(input: {
   const path = `tenants/${tenantId}/projects/${input.projectId}/crew/${user.uid}/${input.assignmentId}/${crypto.randomUUID()}-${safeName}`;
   await uploadBytes(ref(storage, path), input.file, {
     contentType: input.file.type,
-    customMetadata: { assignmentId: input.assignmentId, requirementId: input.requirementId },
+    customMetadata: { assignmentId: input.assignmentId, requirementId: input.requirementId, scanStatus: "pending" },
   });
   return sendCrewCommand("submitRequirement", {
     projectId: input.projectId, assignmentId: input.assignmentId,

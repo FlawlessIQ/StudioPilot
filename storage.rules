@@ -23,13 +23,15 @@ service firebase.storage {
 
     function safeUpload() {
       return request.resource.size < 25 * 1024 * 1024
+        && request.resource.metadata.scanStatus == "pending"
         && request.resource.contentType.matches(
           "application/pdf|image/jpeg|image/png|application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         );
     }
 
     match /tenants/{tenantId}/projects/{projectId}/crew/{userId}/{allPaths=**} {
-      allow read: if activeMember(tenantId)
+      allow read: if resource.metadata.scanStatus == "clean"
+        && activeMember(tenantId)
         && (
           membership(tenantId).role in ["studio_owner", "studio_admin", "studio_coordinator"]
           || (
@@ -46,7 +48,8 @@ service firebase.storage {
     }
 
     match /tenants/{tenantId}/projects/{projectId}/{allPaths=**} {
-      allow read: if activeMember(tenantId)
+      allow read: if resource.metadata.scanStatus == "clean"
+        && activeMember(tenantId)
         && (
           membership(tenantId).role in ["studio_owner", "studio_admin", "studio_coordinator"]
           || projectId in membership(tenantId).projectIds

@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowUpRight, Filter, Inbox, Plus, Search } from "lucide-react";
+import { Filter, Inbox, Plus, Search } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { crmLeads } from "@/config/crm-demo-data";
+import { LiveLeadRows } from "@/components/live/tenant-records";
 
 export const metadata: Metadata = { title: "Leads · StudioHub" };
 
@@ -13,10 +12,6 @@ export default async function LeadsPage({
   searchParams: Promise<{ view?: string; q?: string }>;
 }) {
   const { view = "open", q = "" } = await searchParams;
-  const visibleLeads =
-    view === "open"
-      ? crmLeads.filter((lead) => lead.name.toLowerCase().includes(q.toLowerCase()))
-      : [];
   return (
     <AppShell active="Leads">
       <div className="crm-page">
@@ -37,18 +32,8 @@ export default async function LeadsPage({
           </div>
           <div className="crm-table crm-leads-table">
             <div className="crm-table-head"><span>Lead</span><span>Event</span><span>Source</span><span>Owner</span><span>Status</span><span /></div>
-            {visibleLeads.map((lead) => (
-              <article key={lead.id}>
-                <span className="crm-primary"><strong>{lead.name}</strong><small>{lead.id} · received {lead.age} ago</small></span>
-                <span><strong>{lead.event} · {lead.date}</strong><small>{lead.venue}</small></span>
-                <span>{lead.source}</span>
-                <span>{lead.assigned}</span>
-                <span><StatusBadge tone={lead.status === "New" ? "info" : "warning"} dot>{lead.status}</StatusBadge>{lead.missing > 0 ? <small>{lead.missing} detail{lead.missing > 1 ? "s" : ""} missing</small> : null}</span>
-                <Link href={`/studio/leads/${lead.id}`} aria-label={`Open ${lead.name}`}><ArrowUpRight size={16} /></Link>
-              </article>
-            ))}
+            <LiveLeadRows view={view} q={q}/>
           </div>
-          {visibleLeads.length === 0 ? <div className="crm-list-empty"><Inbox size={20} /><strong>No {view} leads</strong><span>Try another view or search.</span></div> : null}
           <div className="crm-empty-hint"><Inbox size={15} /><span>Public submissions are rate-limited, duplicate-checked, and tenant-scoped.</span></div>
         </section>
       </div>

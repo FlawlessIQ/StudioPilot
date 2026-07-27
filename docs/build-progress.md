@@ -272,3 +272,35 @@ Validation record:
 - expanded Firebase Auth and Firestore emulator seed: executed successfully
 
 All eight planned build milestones are complete without carrying a broken build state.
+
+## Production hardening pass
+
+Status: implementation complete; final release validation is recorded below.
+
+Delivered:
+
+- verified account registration and idempotent studio onboarding
+- role-aware route boundaries and sign-out across application shells
+- live tenant-scoped project, lead, dashboard, questionnaire, crew, integration,
+  and data-control paths with explicit preview fallbacks
+- OAuth PKCE, Secret Manager credential storage/refresh, provider consumers,
+  stable idempotency, retry, and dead-letter processing
+- daily final-invoice and overdue scheduling
+- private PDF/AI consumers and quarantine-first COI file safety
+- paginated tenant exports, deletion controls, and audited expiring support access
+- PWA/offline event-day access and privacy-safe Sentry reporting
+
+Validation record:
+
+- strict TypeScript: passed
+- unit and policy suite: 59 passed
+- Firestore Emulator rules suite: passed
+- Storage Emulator rules suite: passed
+- Cloud Functions TypeScript build: passed
+- Python worker syntax validation: passed
+- ESLint: passed with zero warnings
+- production web build: passed
+- Playwright end-to-end suite: 16 passed across desktop and mobile Chromium
+
+Provider sandbox certification and production credentials/configuration remain
+operational release gates; see `docs/production-readiness.md`.

@@ -16,6 +16,13 @@ export { reviewRequestScheduler } from "./post-event/jobs.js";
 export { billingCommand, stripeWebhook } from "./saas/stripe.js";
 export { saasAdminCommand } from "./saas/admin.js";
 export { operationsHealthScheduler } from "./saas/jobs.js";
+export { tenantOnboardingCommand } from "./saas/onboarding.js";
+export { operationsJobScheduler } from "./operations/jobs.js";
+export { fileSafetyOnFinalize } from "./operations/file-safety.js";
+export { integrationOAuth } from "./integrations/oauth.js";
+export { tenantDataCommand,tenantExportDownload,tenantExportScheduler } from "./saas/data-lifecycle.js";
+export { supportTenantSummary } from "./saas/support.js";
+export { finalInvoiceScheduler } from "./operations/invoice-scheduler.js";
 
 if (getApps().length === 0) {
   initializeApp();

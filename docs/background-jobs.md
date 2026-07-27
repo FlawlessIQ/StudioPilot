@@ -48,3 +48,16 @@ The hourly review scheduler selects due `scheduled` review records and creates
 an idempotent server-only email job. The communications worker and SendGrid
 events remain authoritative for sent and delivered state. Explicit client or
 studio confirmation marks remaining scheduled sequence items `skipped`.
+
+## Pilot consumers
+
+The production-hardening pass adds bounded Scheduler consumers for provider,
+email, AI, PDF, final-invoice, export, review, and health work. Each operation
+is claimed transactionally, retried with exponential backoff, and moved to
+`dead_letter` after exhaustion. Provider credentials are resolved and refreshed
+from Secret Manager inside trusted compute.
+
+Inbound COI files follow a separate safety gate: Storage finalize invokes the
+private signature/ClamAV scanner, and only a clean result may consume quota and
+enqueue Vertex AI extraction. Cloud Tasks and Pub/Sub remain the scale target
+for higher-volume, per-tenant delivery and fan-out.

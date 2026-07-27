@@ -4,15 +4,13 @@ import {
   CalendarDays,
   ChevronRight,
   CircleAlert,
-  CircleCheck,
-  Clock3,
   Plus,
   TrendingUp,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
-import { ReadinessMeter } from "@/components/ui/readiness-meter";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { demoProjects, riskItems, todayItems } from "@/config/demo-data";
+import { riskItems, todayItems } from "@/config/demo-data";
+import { LiveUpcomingRows } from "@/components/live/tenant-records";
 
 const pipeline = [
   { label: "New inquiries", value: 12, color: "sand" },
@@ -144,46 +142,7 @@ export function StudioDashboard() {
             <span role="columnheader">Readiness</span>
             <span role="columnheader">Main blocker</span>
           </div>
-          {demoProjects.map((project) => (
-            <Link
-              className="project-table-row"
-              role="row"
-              href={`/studio/projects/${project.id}`}
-              key={project.id}
-            >
-              <span className="project-name" role="cell">
-                <span className={`project-avatar avatar-${project.tone}`}>
-                  {project.client.charAt(0)}
-                </span>
-                <span>
-                  <strong>{project.client}</strong>
-                  <small>{project.event}</small>
-                </span>
-              </span>
-              <time role="cell">{project.date}</time>
-              <span role="cell">
-                <StatusBadge tone={project.state === "READY" ? "success" : "neutral"} dot>
-                  {project.state.replaceAll("_", " ")}
-                </StatusBadge>
-              </span>
-              <span className="readiness-cell" role="cell">
-                <ReadinessMeter value={project.readiness} size="sm" />
-                <strong>{project.readiness}%</strong>
-              </span>
-              <span className="blocker-cell" role="cell">
-                {project.readiness === 100 ? (
-                  <CircleCheck size={16} className="text-success" />
-                ) : (
-                  <Clock3 size={16} />
-                )}
-                <span>
-                  <strong>{project.blocker}</strong>
-                  <small>{project.owner}</small>
-                </span>
-                <ChevronRight size={16} />
-              </span>
-            </Link>
-          ))}
+          <LiveUpcomingRows/>
         </div>
       </section>
 

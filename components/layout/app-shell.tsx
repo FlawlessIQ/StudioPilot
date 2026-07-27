@@ -32,6 +32,8 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { cn } from "@/lib/utils";
+import { AuthBoundary } from "@/features/auth/auth-boundary";
+import { SignOutButton } from "@/features/auth/auth-boundary";
 
 const navItems = [
   { label: "Dashboard", href: "/studio", icon: CircleGauge },
@@ -68,7 +70,7 @@ export function AppShell({
   children: React.ReactNode;
   active?: string;
 }) {
-  return (
+  return <AuthBoundary area="studio">
     <div className="app-frame">
       <aside className="sidebar" id="studio-navigation">
         <div className="sidebar-brand">
@@ -79,7 +81,7 @@ export function AppShell({
               <strong>Alder & Muse</strong>
               <small>Studio plan</small>
             </span>
-            <ChevronDown size={15} />
+            <SignOutButton className="shell-signout" />
           </Link>
         </div>
 
@@ -140,5 +142,5 @@ export function AppShell({
         <main className="app-content">{children}</main>
       </div>
     </div>
-  );
+  </AuthBoundary>;
 }

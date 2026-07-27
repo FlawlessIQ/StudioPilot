@@ -30,17 +30,15 @@ service cloud.firestore {
     }
 
     function canManageTenant(tenantId) {
-      return isPlatformAdmin() || hasRole(tenantId, ["studio_owner"]);
+      return hasRole(tenantId, ["studio_owner"]);
     }
 
     function canManageProjects(tenantId) {
-      return isPlatformAdmin()
-        || hasRole(tenantId, ["studio_owner", "studio_admin", "studio_coordinator"]);
+      return hasRole(tenantId, ["studio_owner", "studio_admin", "studio_coordinator"]);
     }
 
     function canManageProject(tenantId, projectId) {
-      return isPlatformAdmin()
-        || hasRole(tenantId, ["studio_owner", "studio_admin"])
+      return hasRole(tenantId, ["studio_owner", "studio_admin"])
         || (
           hasRole(tenantId, ["studio_coordinator"])
           && isAssignedToProject(tenantId, projectId)
@@ -48,8 +46,7 @@ service cloud.firestore {
     }
 
     function isStudioOperator(tenantId) {
-      return isPlatformAdmin()
-        || hasRole(tenantId, [
+      return hasRole(tenantId, [
           "studio_owner",
           "studio_admin",
           "studio_coordinator",
@@ -76,8 +73,7 @@ service cloud.firestore {
     }
 
     function canReadCheckpoint(tenantId, projectId, visibility) {
-      return isPlatformAdmin()
-        || hasRole(tenantId, ["studio_owner", "studio_admin"])
+      return hasRole(tenantId, ["studio_owner", "studio_admin"])
         || (
           isAssignedToProject(tenantId, projectId)
           && (
@@ -100,9 +96,7 @@ service cloud.firestore {
 
     match /tenants/{tenantId} {
       allow read: if isPlatformAdmin() || isActiveMember(tenantId);
-      allow create: if signedIn()
-        && request.resource.data.tenantId == tenantId
-        && request.resource.data.createdBy == request.auth.uid;
+      allow create: if false;
       allow update: if canManageTenant(tenantId) && tenantUnchanged();
       allow delete: if false;
     }
@@ -118,8 +112,7 @@ service cloud.firestore {
     }
 
     match /projects/{projectId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
         || isAssignedToProject(resource.data.tenantId, projectId);
       allow create: if canManageProjects(request.resource.data.tenantId)
         && request.resource.data.projectId == projectId;
@@ -157,15 +150,13 @@ service cloud.firestore {
     }
 
     match /packageSnapshots/{snapshotId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
         || isAssignedToProject(resource.data.tenantId, resource.data.projectId);
       allow write: if false;
     }
 
     match /workflowTemplates/{templateId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, [
+      allow read: if hasRole(resource.data.tenantId, [
           "studio_owner",
           "studio_admin",
           "studio_coordinator"
@@ -174,8 +165,7 @@ service cloud.firestore {
     }
 
     match /workflowRuns/{runId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
         || isAssignedToProject(resource.data.tenantId, resource.data.projectId);
       allow write: if false;
     }
@@ -190,8 +180,7 @@ service cloud.firestore {
     }
 
     match /tasks/{taskId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && hasRole(resource.data.tenantId, [
@@ -203,14 +192,12 @@ service cloud.firestore {
     }
 
     match /automationRuns/{runId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
       allow write: if false;
     }
 
     match /readinessAssessments/{projectId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, projectId)
           && hasRole(resource.data.tenantId, [
@@ -228,8 +215,7 @@ service cloud.firestore {
     }
 
     match /consultations/{consultationId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && hasRole(resource.data.tenantId, ["studio_coordinator", "client"])
@@ -238,8 +224,7 @@ service cloud.firestore {
     }
 
     match /proposals/{proposalId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && hasRole(resource.data.tenantId, ["studio_coordinator", "client"])
@@ -248,8 +233,7 @@ service cloud.firestore {
     }
 
     match /contracts/{contractId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && hasRole(resource.data.tenantId, ["studio_coordinator", "client"])
@@ -258,8 +242,7 @@ service cloud.firestore {
     }
 
     match /invoiceReferences/{invoiceId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && hasRole(resource.data.tenantId, ["studio_coordinator", "client"])
@@ -268,8 +251,7 @@ service cloud.firestore {
     }
 
     match /documents/{documentId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && (
@@ -288,8 +270,7 @@ service cloud.firestore {
     }
 
     match /bookingGateRuns/{runId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && hasRole(resource.data.tenantId, ["studio_coordinator"])
@@ -320,8 +301,7 @@ service cloud.firestore {
       allow write: if false;
     }
     match /questionnaireResponses/{responseId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && hasRole(resource.data.tenantId, ["studio_coordinator","client"])
@@ -329,8 +309,7 @@ service cloud.firestore {
       allow write: if false;
     }
     match /vendors/{vendorId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (
           hasRole(resource.data.tenantId, ["studio_coordinator","staff_photographer"])
           && resource.data.projectIds.hasAny(membership(resource.data.tenantId).projectIds)
@@ -338,8 +317,7 @@ service cloud.firestore {
       allow write: if false;
     }
     match /insuranceRequirements/{requirementId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && hasRole(resource.data.tenantId, ["studio_coordinator"])
@@ -347,8 +325,7 @@ service cloud.firestore {
       allow write: if false;
     }
     match /insuranceRequests/{requestId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && hasRole(resource.data.tenantId, ["studio_coordinator"])
@@ -356,8 +333,7 @@ service cloud.firestore {
       allow write: if false;
     }
     match /schedules/{scheduleId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && (
@@ -372,8 +348,7 @@ service cloud.firestore {
       allow write: if false;
     }
     match /crewProfiles/{profileId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner","studio_admin","studio_coordinator"])
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin","studio_coordinator"])
         || (
           hasRole(resource.data.tenantId, ["subcontractor"])
           && resource.data.userId == request.auth.uid
@@ -381,8 +356,7 @@ service cloud.firestore {
       allow write: if false;
     }
     match /crewAssignments/{assignmentId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (
           hasRole(resource.data.tenantId, ["studio_coordinator"])
           && isAssignedToProject(resource.data.tenantId, resource.data.projectId)
@@ -395,8 +369,7 @@ service cloud.firestore {
       allow write: if false;
     }
     match /crewAvailability/{availabilityId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner","studio_admin","studio_coordinator"])
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin","studio_coordinator"])
         || (
           hasRole(resource.data.tenantId, ["subcontractor"])
           && resource.data.userId == request.auth.uid
@@ -407,8 +380,7 @@ service cloud.firestore {
       allow read, write: if false;
     }
     match /postProductionRecords/{recordId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && hasRole(resource.data.tenantId, ["studio_coordinator","staff_photographer"])
@@ -416,8 +388,7 @@ service cloud.firestore {
       allow write: if false;
     }
     match /deliveryRecords/{deliveryId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && hasRole(resource.data.tenantId, ["studio_coordinator","client"])
@@ -425,8 +396,7 @@ service cloud.firestore {
       allow write: if false;
     }
     match /reviewRequests/{requestId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && hasRole(resource.data.tenantId, ["studio_coordinator","client"])
@@ -434,8 +404,7 @@ service cloud.firestore {
       allow write: if false;
     }
     match /projectCloseouts/{closeoutId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && hasRole(resource.data.tenantId, ["studio_coordinator"])
@@ -443,8 +412,7 @@ service cloud.firestore {
       allow write: if false;
     }
     match /reportJobs/{jobId} {
-      allow read: if isPlatformAdmin()
-        || hasRole(resource.data.tenantId, ["studio_owner","studio_admin"]);
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"]);
       allow write: if false;
     }
     match /subscriptions/{subscriptionId} {
@@ -475,6 +443,31 @@ service cloud.firestore {
     }
 
     match /commandExecutions/{commandId} {
+      allow read, write: if false;
+    }
+
+    match /tenantOnboarding/{userId} {
+      allow read, write: if false;
+    }
+
+    match /fileScans/{scanId} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+
+    match /exportJobs/{jobId} {
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, ["studio_owner"]);
+      allow write: if false;
+    }
+
+    match /deletionRequests/{requestId} {
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, ["studio_owner"]);
+      allow write: if false;
+    }
+
+    match /oauthStates/{stateId} {
       allow read, write: if false;
     }
 

@@ -258,6 +258,8 @@ test(
       const platformDb = environment.authenticatedContext("platform-a", { platformAdmin: true }).firestore();
       await assertSucceeds(getDoc(doc(platformDb, "featureFlags/advanced-ai")));
       await assertSucceeds(getDoc(doc(platformDb, "supportAccess/support-a")));
+      await assertFails(getDoc(doc(platformDb, "projects/project-a")));
+      await assertFails(getDoc(doc(platformDb, "contacts/contact-a")));
 
       const coordinatorDb = environment.authenticatedContext("coordinator-a").firestore();
       await assertSucceeds(

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { RegisterServiceWorker } from "@/components/pwa/register-service-worker";
+import { ErrorReporter } from "@/components/observability/error-reporter";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -21,6 +23,7 @@ export const metadata: Metadata = {
   description:
     "StudioHub coordinates clients, payments, documents, schedules, crew, and event readiness for professional photography teams.",
   applicationName: "StudioHub",
+  manifest: "/manifest.webmanifest",
   openGraph: {
     title: "StudioHub · Every project, genuinely ready.",
     description:
@@ -56,6 +59,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <ErrorReporter />
+        <RegisterServiceWorker />
         {children}
       </body>
     </html>
