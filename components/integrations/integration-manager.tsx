@@ -56,6 +56,15 @@ const definitions: ReadonlyArray<{
     scope: "Authorized studio account",
   },
 ];
+const enabledOAuthProviders = new Set(
+  (process.env.NEXT_PUBLIC_ENABLED_OAUTH_PROVIDERS ?? "")
+    .split(",")
+    .map((provider) => provider.trim())
+    .filter(Boolean),
+);
+const oauthEnabled = (provider: Provider) =>
+  providersAreLive || enabledOAuthProviders.has(provider);
+
 export function IntegrationManager() {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
@@ -118,7 +127,7 @@ export function IntegrationManager() {
     };
   }, []);
   async function connect(provider: Provider) {
-    if (!providersAreLive) {
+    if (!oauthEnabled(provider)) {
       setNotice(
         "Provider connections remain in safe mock mode until production credentials are configured.",
       );
@@ -179,7 +188,7 @@ export function IntegrationManager() {
               (value) => value.provider === definition.provider,
             );
             const connected = connection?.status === "connected";
-          const mock = connection?.mockMode ?? !providersAreLive;
+            const mock = connection?.mockMode ?? !oauthEnabled(definition.provider);
             return (
               <article
                 className="panel integration-health-card"

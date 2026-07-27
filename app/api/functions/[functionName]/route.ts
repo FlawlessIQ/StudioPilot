@@ -8,6 +8,7 @@ const functionNames = [
   "createSession",
   "crewCommand",
   "crmCommand",
+  "integrationOAuth",
   "planningCommand",
   "postEventCommand",
   "publicLeadIntake",

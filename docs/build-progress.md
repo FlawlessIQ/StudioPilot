@@ -369,6 +369,20 @@ Delivered:
 - private invoker restoration for the Stripe Function after deployment
 - production endpoint URL and minimum subscription-event inventory
 
+## Dropbox OAuth activation
+
+Status: callback relay and Dropbox-only activation implemented.
+
+Delivered:
+
+- Dropbox app secret stored in Secret Manager and app key kept in ignored
+  production Function configuration
+- exact public OAuth callback route with state/code bounds and same-origin
+  redirect enforcement
+- private Google service-identity forwarding to `integrationOAuth`
+- Dropbox-only UI activation without enabling unfinished providers
+- App Folder access model with offline refresh-token architecture
+
 ## Production activation — Phase 1
 
 Status: deployed and ready for App Hosting rollout.

@@ -170,13 +170,7 @@ export const integrationOAuth = onRequest(
   {
     cors: studioHubCors,
     invoker: "private",
-    secrets: [
-      "GOOGLE_CALENDAR_CLIENT_SECRET",
-      "ZOOM_CLIENT_SECRET",
-      "DROPBOX_CLIENT_SECRET",
-      "DOCUSIGN_CLIENT_SECRET",
-      "QUICKBOOKS_CLIENT_SECRET",
-    ],
+    secrets: ["DROPBOX_CLIENT_SECRET"],
   },
   async (request, response) => {
     const db = getFirestore();

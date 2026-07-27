@@ -12,6 +12,7 @@ app_services=(
   createsession
   crewcommand
   crmcommand
+  integrationoauth
   planningcommand
   posteventcommand
   publicleadintake

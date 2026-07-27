@@ -33,3 +33,15 @@ Subscribe the Stripe account destination only to:
 After deploying the Function, reapply service-level IAM with
 `scripts/configure-production-function-invokers.sh` so only the App Hosting
 runtime can invoke `stripewebhook`.
+
+Provider OAuth callbacks use:
+
+```text
+https://studiohub--studiohub-prod.us-east4.hosted.app/api/integrations/oauth/callback
+```
+
+The public callback validates bounded state/code parameters, forwards to the
+private `integrationOAuth` Function with Google service identity, and permits
+redirects only back to the configured StudioHub application origin. Dropbox is
+the first independently enabled OAuth provider; activating another provider
+requires adding its Function secret binding and public activation flag.

@@ -89,6 +89,16 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: NEXT_PUBLIC_INTEGRATION_FUNCTIONS_URL
+    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_ENABLED_OAUTH_PROVIDERS
+    value: dropbox
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: NEXT_PUBLIC_USE_FIREBASE_EMULATORS
     value: "false"
     availability:
