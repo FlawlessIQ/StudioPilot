@@ -3,6 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
+import { studioHubCors } from "../security/cors.js";
 
 const commandSchema = z.discriminatedUnion("type", [
   z.object({
@@ -39,12 +40,16 @@ const commandSchema = z.discriminatedUnion("type", [
       projectId: z.string().min(1),
       proposalId: z.string().min(1),
       templateId: z.string().min(1),
-      signers: z.array(z.object({
-        name: z.string().min(1),
-        email: z.string().email(),
-        role: z.string().min(1),
-        order: z.number().int().positive(),
-      })).min(1),
+      signers: z
+        .array(
+          z.object({
+            name: z.string().min(1),
+            email: z.string().email(),
+            role: z.string().min(1),
+            order: z.number().int().positive(),
+          }),
+        )
+        .min(1),
     }),
   }),
   z.object({
@@ -72,31 +77,50 @@ const commandSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
-const permittedRoles = new Set(["studio_owner", "studio_admin", "studio_coordinator"]);
+const permittedRoles = new Set([
+  "studio_owner",
+  "studio_admin",
+  "studio_coordinator",
+]);
 
-function stableId(scope: string, tenantId: string, idempotencyKey: string): string {
+function stableId(
+  scope: string,
+  tenantId: string,
+  idempotencyKey: string,
+): string {
   return `${scope}_${createHash("sha256").update(`${tenantId}:${idempotencyKey}`).digest("hex").slice(0, 32)}`;
 }
 
 async function membershipFor(tenantId: string, userId: string) {
-  const snapshot = await getFirestore().doc(`memberships/${tenantId}_${userId}`).get();
-  if (!snapshot.exists || snapshot.get("status") !== "active" || !permittedRoles.has(String(snapshot.get("role")))) {
+  const snapshot = await getFirestore()
+    .doc(`memberships/${tenantId}_${userId}`)
+    .get();
+  if (
+    !snapshot.exists ||
+    snapshot.get("status") !== "active" ||
+    !permittedRoles.has(String(snapshot.get("role")))
+  ) {
     throw new Error("FORBIDDEN");
   }
   return snapshot.data() ?? {};
 }
 
-function assertProjectAccess(membership: Record<string, unknown>, projectId: string) {
+function assertProjectAccess(
+  membership: Record<string, unknown>,
+  projectId: string,
+) {
   const role = String(membership.role);
   if (role === "studio_owner" || role === "studio_admin") return;
-  const projectIds = Array.isArray(membership.projectIds) ? membership.projectIds : [];
+  const projectIds = Array.isArray(membership.projectIds)
+    ? membership.projectIds
+    : [];
   if (!projectIds.includes(projectId)) throw new Error("FORBIDDEN");
 }
 
 export const bookingCommand = onRequest(
   {
-    cors: [/^https?:\/\/localhost(:\d+)?$/, /\.studiohub\.app$/, /\.flawlessiq\.chatgpt\.site$/],
-    invoker: "public",
+    cors: studioHubCors,
+    invoker: "private",
   },
   async (request, response) => {
     if (request.method !== "POST") {
@@ -110,8 +134,14 @@ export const bookingCommand = onRequest(
       const membership = await membershipFor(command.tenantId, identity.uid);
       assertProjectAccess(membership, command.input.projectId);
       const firestore = getFirestore();
-      const executionId = stableId("booking", command.tenantId, command.idempotencyKey);
-      const executionReference = firestore.doc(`commandExecutions/${executionId}`);
+      const executionId = stableId(
+        "booking",
+        command.tenantId,
+        command.idempotencyKey,
+      );
+      const executionReference = firestore.doc(
+        `commandExecutions/${executionId}`,
+      );
       const prior = await executionReference.get();
       if (prior.exists) {
         response.status(200).json(prior.get("result"));
@@ -124,10 +154,21 @@ export const bookingCommand = onRequest(
       if (command.type === "scheduleConsultation") {
         const start = new Date(command.input.startsAt);
         const end = new Date(command.input.endsAt);
-        if (!Number.isFinite(start.valueOf()) || end <= start) throw new Error("INVALID_TIME_RANGE");
-        const consultationId = stableId("consultation", command.tenantId, command.idempotencyKey);
-        const meetingId = command.input.mode === "zoom" ? `zoom_${command.idempotencyKey}` : null;
-        const joinUrl = meetingId && mockMode ? `https://zoom.example.test/j/${meetingId}` : null;
+        if (!Number.isFinite(start.valueOf()) || end <= start)
+          throw new Error("INVALID_TIME_RANGE");
+        const consultationId = stableId(
+          "consultation",
+          command.tenantId,
+          command.idempotencyKey,
+        );
+        const meetingId =
+          command.input.mode === "zoom"
+            ? `zoom_${command.idempotencyKey}`
+            : null;
+        const joinUrl =
+          meetingId && mockMode
+            ? `https://zoom.example.test/j/${meetingId}`
+            : null;
         const calendarEventId = `gcal_${command.idempotencyKey}`;
         await firestore.doc(`consultations/${consultationId}`).create({
           id: consultationId,
@@ -141,7 +182,9 @@ export const bookingCommand = onRequest(
           timezone: command.input.timezone,
           location: joinUrl ?? command.input.location,
           calendarEventId,
-          calendarHtmlLink: mockMode ? `https://calendar.example.test/${calendarEventId}` : null,
+          calendarHtmlLink: mockMode
+            ? `https://calendar.example.test/${calendarEventId}`
+            : null,
           meetingId,
           joinUrl,
           providerState: mockMode ? "completed_mock" : "queued",
@@ -155,35 +198,58 @@ export const bookingCommand = onRequest(
           archivedAt: null,
         });
         if (!mockMode) {
-          await firestore.doc(`providerJobs/consultation_${consultationId}`).create({
-            tenantId: command.tenantId,
-            projectId: command.input.projectId,
-            type: "create_consultation_resources",
-            idempotencyKey: command.idempotencyKey,
-            status: "queued",
-            createdAt: timestamp,
-          });
+          await firestore
+            .doc(`providerJobs/consultation_${consultationId}`)
+            .create({
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              type: "create_consultation_resources",
+              idempotencyKey: command.idempotencyKey,
+              status: "queued",
+              createdAt: timestamp,
+            });
         }
-        result = { consultationId, providerState: mockMode ? "completed_mock" : "queued" };
+        result = {
+          consultationId,
+          providerState: mockMode ? "completed_mock" : "queued",
+        };
       } else if (command.type === "createProposal") {
-        const [projectSnapshot, packageSnapshot, priorVersions] = await Promise.all([
-          firestore.doc(`projects/${command.input.projectId}`).get(),
-          firestore.doc(`packageSnapshots/${command.input.packageSnapshotId}`).get(),
-          firestore.collection("proposals")
-            .where("tenantId", "==", command.tenantId)
-            .where("projectId", "==", command.input.projectId)
-            .orderBy("version", "desc")
-            .limit(1)
-            .get(),
-        ]);
-        if (!projectSnapshot.exists || !packageSnapshot.exists) throw new Error("BOOKING_DATA_NOT_FOUND");
-        if (projectSnapshot.get("tenantId") !== command.tenantId || packageSnapshot.get("tenantId") !== command.tenantId) throw new Error("FORBIDDEN");
+        const [projectSnapshot, packageSnapshot, priorVersions] =
+          await Promise.all([
+            firestore.doc(`projects/${command.input.projectId}`).get(),
+            firestore
+              .doc(`packageSnapshots/${command.input.packageSnapshotId}`)
+              .get(),
+            firestore
+              .collection("proposals")
+              .where("tenantId", "==", command.tenantId)
+              .where("projectId", "==", command.input.projectId)
+              .orderBy("version", "desc")
+              .limit(1)
+              .get(),
+          ]);
+        if (!projectSnapshot.exists || !packageSnapshot.exists)
+          throw new Error("BOOKING_DATA_NOT_FOUND");
+        if (
+          projectSnapshot.get("tenantId") !== command.tenantId ||
+          packageSnapshot.get("tenantId") !== command.tenantId
+        )
+          throw new Error("FORBIDDEN");
         const packageData = packageSnapshot.data() ?? {};
         const version = Number(priorVersions.docs[0]?.get("version") ?? 0) + 1;
-        const proposalId = stableId("proposal", command.tenantId, command.idempotencyKey);
+        const proposalId = stableId(
+          "proposal",
+          command.tenantId,
+          command.idempotencyKey,
+        );
         const priorId = priorVersions.docs[0]?.id ?? null;
         const batch = firestore.batch();
-        if (priorId) batch.update(firestore.doc(`proposals/${priorId}`), { status: "superseded", updatedAt: timestamp, updatedBy: identity.uid });
+        if (priorId)
+          batch.update(firestore.doc(`proposals/${priorId}`), {
+            status: "superseded",
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
         batch.create(firestore.doc(`proposals/${proposalId}`), {
           id: proposalId,
           tenantId: command.tenantId,
@@ -191,7 +257,10 @@ export const bookingCommand = onRequest(
           packageSnapshotId: command.input.packageSnapshotId,
           version,
           status: "draft",
-          clientSnapshot: { displayName: command.input.clientName, email: command.input.clientEmail },
+          clientSnapshot: {
+            displayName: command.input.clientName,
+            email: command.input.clientEmail,
+          },
           eventSnapshot: {
             name: projectSnapshot.get("name"),
             eventType: projectSnapshot.get("eventType"),
@@ -207,11 +276,28 @@ export const bookingCommand = onRequest(
             taxCents: packageData.taxCents,
             retainerCents: packageData.retainerCents,
             totalCents: packageData.totalCents,
-            lineItems: [{ description: packageData.packageName, quantity: 1, unitPriceCents: packageData.basePriceCents, totalCents: packageData.basePriceCents }],
+            lineItems: [
+              {
+                description: packageData.packageName,
+                quantity: 1,
+                unitPriceCents: packageData.basePriceCents,
+                totalCents: packageData.basePriceCents,
+              },
+            ],
           },
           paymentSchedule: [
-            { label: "Retainer", amountCents: packageData.retainerCents, dueDate: null },
-            { label: "Final balance", amountCents: Number(packageData.totalCents) - Number(packageData.retainerCents), dueDate: null },
+            {
+              label: "Retainer",
+              amountCents: packageData.retainerCents,
+              dueDate: null,
+            },
+            {
+              label: "Final balance",
+              amountCents:
+                Number(packageData.totalCents) -
+                Number(packageData.retainerCents),
+              dueDate: null,
+            },
           ],
           expiresAt: command.input.expiresAt,
           notes: null,
@@ -238,9 +324,13 @@ export const bookingCommand = onRequest(
         await batch.commit();
         result = { proposalId, version, pdfState: "queued" };
       } else if (command.type === "createEnvelope") {
-        const contractId = stableId("contract", command.tenantId, command.idempotencyKey);
+        const contractId = stableId(
+          "contract",
+          command.tenantId,
+          command.idempotencyKey,
+        );
         const envelopeId = `envelope_${command.idempotencyKey}`;
-        const batch=firestore.batch();
+        const batch = firestore.batch();
         batch.create(firestore.doc(`contracts/${contractId}`), {
           id: contractId,
           tenantId: command.tenantId,
@@ -250,7 +340,10 @@ export const bookingCommand = onRequest(
           provider: "docusign",
           providerEnvelopeId: envelopeId,
           templateId: command.input.templateId,
-          signers: command.input.signers.map((signer) => ({ ...signer, status: "sent" })),
+          signers: command.input.signers.map((signer) => ({
+            ...signer,
+            status: "sent",
+          })),
           sentAt: timestamp,
           completedAt: null,
           signedDocumentId: null,
@@ -265,15 +358,40 @@ export const bookingCommand = onRequest(
           updatedBy: identity.uid,
           archivedAt: null,
         });
-        if(!mockMode)batch.create(firestore.doc(`providerJobs/contract_${contractId}`),{tenantId:command.tenantId,projectId:command.input.projectId,type:"create_docusign_envelope",contractId,idempotencyKey:command.idempotencyKey,status:"queued",attempts:0,createdAt:timestamp,updatedAt:timestamp});
+        if (!mockMode)
+          batch.create(firestore.doc(`providerJobs/contract_${contractId}`), {
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            type: "create_docusign_envelope",
+            contractId,
+            idempotencyKey: command.idempotencyKey,
+            status: "queued",
+            attempts: 0,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          });
         await batch.commit();
-        result = { contractId, envelopeId, providerState: mockMode ? "completed_mock" : "queued" };
+        result = {
+          contractId,
+          envelopeId,
+          providerState: mockMode ? "completed_mock" : "queued",
+        };
       } else if (command.type === "createRetainerInvoice") {
-        const packageSnapshot = await firestore.doc(`packageSnapshots/${command.input.packageSnapshotId}`).get();
-        if (!packageSnapshot.exists || packageSnapshot.get("tenantId") !== command.tenantId) throw new Error("PACKAGE_SNAPSHOT_NOT_FOUND");
-        const invoiceId = stableId("invoice", command.tenantId, command.idempotencyKey);
+        const packageSnapshot = await firestore
+          .doc(`packageSnapshots/${command.input.packageSnapshotId}`)
+          .get();
+        if (
+          !packageSnapshot.exists ||
+          packageSnapshot.get("tenantId") !== command.tenantId
+        )
+          throw new Error("PACKAGE_SNAPSHOT_NOT_FOUND");
+        const invoiceId = stableId(
+          "invoice",
+          command.tenantId,
+          command.idempotencyKey,
+        );
         const providerInvoiceId = `qbo_invoice_${command.idempotencyKey}`;
-        const batch=firestore.batch();
+        const batch = firestore.batch();
         batch.create(firestore.doc(`invoiceReferences/${invoiceId}`), {
           id: invoiceId,
           tenantId: command.tenantId,
@@ -287,7 +405,9 @@ export const bookingCommand = onRequest(
           amountCents: packageSnapshot.get("retainerCents"),
           balanceCents: packageSnapshot.get("retainerCents"),
           dueDate: command.input.dueDate,
-          hostedUrl: mockMode ? `https://pay.example.test/${providerInvoiceId}` : null,
+          hostedUrl: mockMode
+            ? `https://pay.example.test/${providerInvoiceId}`
+            : null,
           lastSyncedAt: timestamp,
           lastProviderEventId: null,
           providerState: mockMode ? "completed_mock" : "queued",
@@ -297,22 +417,60 @@ export const bookingCommand = onRequest(
           updatedBy: identity.uid,
           archivedAt: null,
         });
-        if(!mockMode)batch.create(firestore.doc(`providerJobs/invoice_${invoiceId}`),{tenantId:command.tenantId,projectId:command.input.projectId,type:"create_quickbooks_invoice",invoiceId,idempotencyKey:command.idempotencyKey,status:"queued",attempts:0,createdAt:timestamp,updatedAt:timestamp});
+        if (!mockMode)
+          batch.create(firestore.doc(`providerJobs/invoice_${invoiceId}`), {
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            type: "create_quickbooks_invoice",
+            invoiceId,
+            idempotencyKey: command.idempotencyKey,
+            status: "queued",
+            attempts: 0,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          });
         await batch.commit();
-        result = { invoiceId, providerInvoiceId, providerState: mockMode ? "completed_mock" : "queued" };
+        result = {
+          invoiceId,
+          providerInvoiceId,
+          providerState: mockMode ? "completed_mock" : "queued",
+        };
       } else {
         result = await firestore.runTransaction(async (transaction) => {
-          const projectReference = firestore.doc(`projects/${command.input.projectId}`);
+          const projectReference = firestore.doc(
+            `projects/${command.input.projectId}`,
+          );
           const [project, contracts, invoices] = await Promise.all([
             transaction.get(projectReference),
-            firestore.collection("contracts").where("tenantId", "==", command.tenantId).where("projectId", "==", command.input.projectId).where("status", "==", "completed").limit(1).get(),
-            firestore.collection("invoiceReferences").where("tenantId", "==", command.tenantId).where("projectId", "==", command.input.projectId).where("kind", "==", "retainer").limit(5).get(),
+            firestore
+              .collection("contracts")
+              .where("tenantId", "==", command.tenantId)
+              .where("projectId", "==", command.input.projectId)
+              .where("status", "==", "completed")
+              .limit(1)
+              .get(),
+            firestore
+              .collection("invoiceReferences")
+              .where("tenantId", "==", command.tenantId)
+              .where("projectId", "==", command.input.projectId)
+              .where("kind", "==", "retainer")
+              .limit(5)
+              .get(),
           ]);
-          if (!project.exists || project.get("tenantId") !== command.tenantId) throw new Error("PROJECT_NOT_FOUND");
-          if (project.get("stateVersion") !== command.input.expectedProjectVersion) throw new Error("PROJECT_VERSION_CONFLICT");
+          if (!project.exists || project.get("tenantId") !== command.tenantId)
+            throw new Error("PROJECT_NOT_FOUND");
+          if (
+            project.get("stateVersion") !== command.input.expectedProjectVersion
+          )
+            throw new Error("PROJECT_VERSION_CONFLICT");
           const invoiceCreated = !invoices.empty;
-          const retainerPaid = invoices.docs.some((invoice) => invoice.get("status") === "paid" && invoice.get("balanceCents") === 0);
-          const exceptionApproved = command.input.approvedRetainerExceptionId !== null;
+          const retainerPaid = invoices.docs.some(
+            (invoice) =>
+              invoice.get("status") === "paid" &&
+              invoice.get("balanceCents") === 0,
+          );
+          const exceptionApproved =
+            command.input.approvedRetainerExceptionId !== null;
           const checks = {
             contractCompleted: !contracts.empty,
             retainerInvoiceCreated: invoiceCreated,
@@ -320,8 +478,14 @@ export const bookingCommand = onRequest(
             eventDateAvailable: command.input.eventDateAvailable,
             requiredContactsComplete: command.input.requiredContactsComplete,
           };
-          const blockers = Object.entries(checks).filter(([, passed]) => !passed).map(([key]) => key);
-          const gateId = stableId("gate", command.tenantId, command.idempotencyKey);
+          const blockers = Object.entries(checks)
+            .filter(([, passed]) => !passed)
+            .map(([key]) => key);
+          const gateId = stableId(
+            "gate",
+            command.tenantId,
+            command.idempotencyKey,
+          );
           transaction.create(firestore.doc(`bookingGateRuns/${gateId}`), {
             id: gateId,
             tenantId: command.tenantId,
@@ -334,7 +498,8 @@ export const bookingCommand = onRequest(
             createdBy: identity.uid,
           });
           if (blockers.length === 0) {
-            if (project.get("state") !== "RETAINER_PENDING") throw new Error("INVALID_BOOKING_STATE");
+            if (project.get("state") !== "RETAINER_PENDING")
+              throw new Error("INVALID_BOOKING_STATE");
             transaction.update(projectReference, {
               state: "BOOKED",
               stateVersion: command.input.expectedProjectVersion + 1,
@@ -343,17 +508,30 @@ export const bookingCommand = onRequest(
               updatedAt: timestamp,
               updatedBy: identity.uid,
             });
-            transaction.create(firestore.doc(`providerJobs/booking_${command.input.projectId}`), {
-              tenantId: command.tenantId,
-              projectId: command.input.projectId,
-              type: "complete_booking_side_effects",
-              idempotencyKey: command.idempotencyKey,
-              status: "queued",
-              steps: ["dropbox_folders", "production_calendar", "workflow", "checkpoints", "confirmation"],
-              createdAt: timestamp,
-            });
+            transaction.create(
+              firestore.doc(`providerJobs/booking_${command.input.projectId}`),
+              {
+                tenantId: command.tenantId,
+                projectId: command.input.projectId,
+                type: "complete_booking_side_effects",
+                idempotencyKey: command.idempotencyKey,
+                status: "queued",
+                steps: [
+                  "dropbox_folders",
+                  "production_calendar",
+                  "workflow",
+                  "checkpoints",
+                  "confirmation",
+                ],
+                createdAt: timestamp,
+              },
+            );
           }
-          return { bookingGateId: gateId, passed: blockers.length === 0, blockers };
+          return {
+            bookingGateId: gateId,
+            passed: blockers.length === 0,
+            blockers,
+          };
         });
       }
 
@@ -367,8 +545,11 @@ export const bookingCommand = onRequest(
       });
       response.status(200).json(result);
     } catch (caught: unknown) {
-      const message = caught instanceof Error ? caught.message : "BOOKING_COMMAND_FAILED";
-      response.status(message === "FORBIDDEN" ? 403 : 400).json({ error: message });
+      const message =
+        caught instanceof Error ? caught.message : "BOOKING_COMMAND_FAILED";
+      response
+        .status(message === "FORBIDDEN" ? 403 : 400)
+        .json({ error: message });
     }
   },
 );

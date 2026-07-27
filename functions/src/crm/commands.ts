@@ -3,6 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "./security.js";
+import { studioHubCors } from "../security/cors.js";
 
 const projectStates = [
   "LEAD",
@@ -23,7 +24,9 @@ const projectStates = [
   "ARCHIVED",
 ] as const;
 
-const transitions: Readonly<Record<(typeof projectStates)[number], readonly string[]>> = {
+const transitions: Readonly<
+  Record<(typeof projectStates)[number], readonly string[]>
+> = {
   LEAD: ["CONSULTATION", "CANCELLED", "ARCHIVED"],
   CONSULTATION: ["PROPOSAL", "CANCELLED", "POSTPONED"],
   PROPOSAL: ["CONTRACT_PENDING", "CANCELLED", "POSTPONED"],
@@ -95,21 +98,29 @@ const commandSchema = z.discriminatedUnion("type", [
       basePriceCents: z.number().int().nonnegative().safe(),
       currency: z.string().length(3),
       retainerRule: z.discriminatedUnion("type", [
-        z.object({ type: z.literal("fixed"), amountCents: z.number().int().nonnegative().safe() }),
-        z.object({ type: z.literal("percentage"), basisPoints: z.number().int().min(0).max(10000) }),
+        z.object({
+          type: z.literal("fixed"),
+          amountCents: z.number().int().nonnegative().safe(),
+        }),
+        z.object({
+          type: z.literal("percentage"),
+          basisPoints: z.number().int().min(0).max(10000),
+        }),
       ]),
       includedCoverageMinutes: z.number().int().positive(),
       includedPhotographers: z.number().int().positive(),
       includedDeliverables: z.array(z.string().min(1)).min(1),
       includedTravelArea: z.string().max(500),
-      addOns: z.array(z.object({
-        id: z.string().min(1),
-        name: z.string().min(1).max(120),
-        description: z.string().max(1000),
-        unitPriceCents: z.number().int().nonnegative().safe(),
-        taxable: z.boolean(),
-        active: z.boolean(),
-      })),
+      addOns: z.array(
+        z.object({
+          id: z.string().min(1),
+          name: z.string().min(1).max(120),
+          description: z.string().max(1000),
+          unitPriceCents: z.number().int().nonnegative().safe(),
+          taxable: z.boolean(),
+          active: z.boolean(),
+        }),
+      ),
       taxRateBasisPoints: z.number().int().min(0).max(10000),
       terms: z.string().min(10).max(5000),
       active: z.boolean(),
@@ -125,14 +136,22 @@ const commandSchema = z.discriminatedUnion("type", [
     input: z.object({
       projectId: z.string().min(1),
       packageId: z.string().min(1),
-      selectedAddOns: z.array(z.object({
-        addOnId: z.string().min(1),
-        quantity: z.number().int().positive().max(100),
-      })),
+      selectedAddOns: z.array(
+        z.object({
+          addOnId: z.string().min(1),
+          quantity: z.number().int().positive().max(100),
+        }),
+      ),
       discount: z.discriminatedUnion("type", [
         z.object({ type: z.literal("none") }),
-        z.object({ type: z.literal("fixed"), amountCents: z.number().int().nonnegative().safe() }),
-        z.object({ type: z.literal("percentage"), basisPoints: z.number().int().min(0).max(10000) }),
+        z.object({
+          type: z.literal("fixed"),
+          amountCents: z.number().int().nonnegative().safe(),
+        }),
+        z.object({
+          type: z.literal("percentage"),
+          basisPoints: z.number().int().min(0).max(10000),
+        }),
       ]),
     }),
   }),
@@ -142,8 +161,8 @@ const allowedRoles = ["studio_owner", "studio_admin", "studio_coordinator"];
 
 export const crmCommand = onRequest(
   {
-    cors: [/^https?:\/\/localhost(:\d+)?$/, /\.studiohub\.app$/, /\.chatgpt\.site$/],
-    invoker: "public",
+    cors: studioHubCors,
+    invoker: "private",
   },
   async (request, response) => {
     if (request.method !== "POST") {
@@ -197,7 +216,8 @@ export const crmCommand = onRequest(
     try {
       const result = await db.runTransaction(async (transaction) => {
         const execution = await transaction.get(commandReference);
-        if (execution.exists) return execution.data()?.result as Record<string, unknown>;
+        if (execution.exists)
+          return execution.data()?.result as Record<string, unknown>;
 
         if (command.type === "createProject") {
           const projectId = randomUUID();
@@ -248,10 +268,16 @@ export const crmCommand = onRequest(
         }
 
         if (command.type === "transitionProject") {
-          const projectReference = db.doc(`projects/${command.input.projectId}`);
+          const projectReference = db.doc(
+            `projects/${command.input.projectId}`,
+          );
           const projectSnapshot = await transaction.get(projectReference);
           const project = projectSnapshot.data() as
-            | { tenantId: string; state: (typeof projectStates)[number]; stateVersion: number }
+            | {
+                tenantId: string;
+                state: (typeof projectStates)[number];
+                stateVersion: number;
+              }
             | undefined;
           if (!project || project.tenantId !== command.tenantId) {
             throw new Error("PROJECT_NOT_FOUND");
@@ -294,7 +320,10 @@ export const crmCommand = onRequest(
             entityType: "project",
             entityId: command.input.projectId,
             timestamp,
-            before: { state: project.state, stateVersion: project.stateVersion },
+            before: {
+              state: project.state,
+              stateVersion: project.stateVersion,
+            },
             after: {
               state: command.input.targetState,
               stateVersion: project.stateVersion + 1,
@@ -366,8 +395,12 @@ export const crmCommand = onRequest(
         }
 
         if (command.type === "selectPackage") {
-          const projectReference = db.doc(`projects/${command.input.projectId}`);
-          const packageReference = db.doc(`packages/${command.input.packageId}`);
+          const projectReference = db.doc(
+            `projects/${command.input.projectId}`,
+          );
+          const packageReference = db.doc(
+            `packages/${command.input.packageId}`,
+          );
           const [projectDocument, packageDocument] = await Promise.all([
             transaction.get(projectReference),
             transaction.get(packageReference),
@@ -408,40 +441,56 @@ export const crmCommand = onRequest(
           if (project.packageSnapshotId) {
             throw new Error("PACKAGE_ALREADY_SELECTED");
           }
-          if (!studioPackage || studioPackage.tenantId !== command.tenantId || !studioPackage.active) {
+          if (
+            !studioPackage ||
+            studioPackage.tenantId !== command.tenantId ||
+            !studioPackage.active
+          ) {
             throw new Error("PACKAGE_NOT_FOUND");
           }
 
-          const selectedLines = command.input.selectedAddOns.map((selection) => {
-            const addOn = studioPackage.addOns.find(
-              (candidate) => candidate.id === selection.addOnId && candidate.active,
-            );
-            if (!addOn) throw new Error("ADD_ON_NOT_FOUND");
-            return {
-              addOnId: addOn.id,
-              name: addOn.name,
-              quantity: selection.quantity,
-              unitPriceCents: addOn.unitPriceCents,
-              lineTotalCents: addOn.unitPriceCents * selection.quantity,
-              taxable: addOn.taxable,
-            };
-          });
-          const addOnTotal = selectedLines.reduce((sum, line) => sum + line.lineTotalCents, 0);
+          const selectedLines = command.input.selectedAddOns.map(
+            (selection) => {
+              const addOn = studioPackage.addOns.find(
+                (candidate) =>
+                  candidate.id === selection.addOnId && candidate.active,
+              );
+              if (!addOn) throw new Error("ADD_ON_NOT_FOUND");
+              return {
+                addOnId: addOn.id,
+                name: addOn.name,
+                quantity: selection.quantity,
+                unitPriceCents: addOn.unitPriceCents,
+                lineTotalCents: addOn.unitPriceCents * selection.quantity,
+                taxable: addOn.taxable,
+              };
+            },
+          );
+          const addOnTotal = selectedLines.reduce(
+            (sum, line) => sum + line.lineTotalCents,
+            0,
+          );
           const preDiscount = studioPackage.basePriceCents + addOnTotal;
           const requestedDiscount =
             command.input.discount.type === "none"
               ? 0
               : command.input.discount.type === "fixed"
                 ? command.input.discount.amountCents
-                : Math.round(preDiscount * command.input.discount.basisPoints / 10000);
+                : Math.round(
+                    (preDiscount * command.input.discount.basisPoints) / 10000,
+                  );
           const discountCents = Math.min(preDiscount, requestedDiscount);
           const subtotalCents = preDiscount - discountCents;
-          const taxCents = Math.round(subtotalCents * studioPackage.taxRateBasisPoints / 10000);
+          const taxCents = Math.round(
+            (subtotalCents * studioPackage.taxRateBasisPoints) / 10000,
+          );
           const totalCents = subtotalCents + taxCents;
           const retainerCents =
             studioPackage.retainerRule.type === "fixed"
               ? Math.min(totalCents, studioPackage.retainerRule.amountCents)
-              : Math.round(totalCents * studioPackage.retainerRule.basisPoints / 10000);
+              : Math.round(
+                  (totalCents * studioPackage.retainerRule.basisPoints) / 10000,
+                );
           const packageSnapshotId = randomUUID();
           transaction.create(db.doc(`packageSnapshots/${packageSnapshotId}`), {
             id: packageSnapshotId,
@@ -509,7 +558,8 @@ export const crmCommand = onRequest(
         }
 
         const contactId = randomUUID();
-        const normalizedEmail = command.input.email?.trim().toLowerCase() ?? null;
+        const normalizedEmail =
+          command.input.email?.trim().toLowerCase() ?? null;
         transaction.create(db.doc(`contacts/${contactId}`), {
           id: contactId,
           tenantId: command.tenantId,
@@ -539,7 +589,12 @@ export const crmCommand = onRequest(
       response.status(200).json(result);
     } catch (error) {
       const code = error instanceof Error ? error.message : "COMMAND_FAILED";
-      const status = code === "VERSION_CONFLICT" ? 409 : code === "PROJECT_NOT_FOUND" ? 404 : 422;
+      const status =
+        code === "VERSION_CONFLICT"
+          ? 409
+          : code === "PROJECT_NOT_FOUND"
+            ? 404
+            : 422;
       response.status(status).json({ error: code });
     }
   },

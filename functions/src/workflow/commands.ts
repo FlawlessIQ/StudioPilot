@@ -8,6 +8,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
+import { studioHubCors } from "../security/cors.js";
 
 type CheckpointStatus =
   | "not_started"
@@ -26,7 +27,12 @@ const dueDateRuleSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("absolute"), date: z.string().date() }),
   z.object({
     type: z.literal("relative"),
-    anchor: z.enum(["event_date", "project_created", "booking_date", "workflow_started"]),
+    anchor: z.enum([
+      "event_date",
+      "project_created",
+      "booking_date",
+      "workflow_started",
+    ]),
     offsetDays: z.number().int().min(-3650).max(3650),
   }),
 ]);
@@ -55,15 +61,29 @@ const checkpointTemplateSchema = z.object({
     "system_rule",
   ]),
   requiredEvidence: z.array(z.string().min(1).max(120)),
-  reminderRules: z.array(z.object({
-    daysBeforeDue: z.number().int().nonnegative().max(365),
-    channel: z.enum(["email", "sms", "internal"]),
-    recipient: z.enum(["studio", "client", "vendor", "subcontractor", "system"]),
-  })),
-  escalationRules: z.array(z.object({
-    daysOverdue: z.number().int().nonnegative().max(365),
-    notifyRole: z.enum(["studio_owner", "studio_admin", "studio_coordinator"]),
-  })),
+  reminderRules: z.array(
+    z.object({
+      daysBeforeDue: z.number().int().nonnegative().max(365),
+      channel: z.enum(["email", "sms", "internal"]),
+      recipient: z.enum([
+        "studio",
+        "client",
+        "vendor",
+        "subcontractor",
+        "system",
+      ]),
+    }),
+  ),
+  escalationRules: z.array(
+    z.object({
+      daysOverdue: z.number().int().nonnegative().max(365),
+      notifyRole: z.enum([
+        "studio_owner",
+        "studio_admin",
+        "studio_coordinator",
+      ]),
+    }),
+  ),
   waiverAllowed: z.boolean(),
 });
 
@@ -71,17 +91,23 @@ const automationRuleSchema = z.object({
   key: z.string().regex(/^[a-z0-9-]+$/),
   name: z.string().min(2).max(160),
   trigger: z.string().min(2).max(120),
-  conditions: z.array(z.object({
-    field: z.string().min(1),
-    operator: z.string().min(1),
-    value: z.unknown(),
-  })),
-  actions: z.array(z.object({
-    key: z.string().min(1),
-    type: z.string().min(1),
-    configuration: z.record(z.string(), z.unknown()),
-    requiresApproval: z.boolean(),
-  })).min(1),
+  conditions: z.array(
+    z.object({
+      field: z.string().min(1),
+      operator: z.string().min(1),
+      value: z.unknown(),
+    }),
+  ),
+  actions: z
+    .array(
+      z.object({
+        key: z.string().min(1),
+        type: z.string().min(1),
+        configuration: z.record(z.string(), z.unknown()),
+        requiresApproval: z.boolean(),
+      }),
+    )
+    .min(1),
   active: z.boolean(),
 });
 
@@ -119,11 +145,19 @@ const commandSchema = z.discriminatedUnion("type", [
       resolution: z.enum(["complete", "waived"]),
       reason: z.string().trim().max(2000).nullable(),
       waiverExpiresAt: z.string().datetime().nullable(),
-      evidence: z.array(z.object({
-        type: z.enum(["document", "form", "provider_event", "manual_note", "system_rule"]),
-        referenceId: z.string().min(1),
-        label: z.string().min(1).max(160),
-      })),
+      evidence: z.array(
+        z.object({
+          type: z.enum([
+            "document",
+            "form",
+            "provider_event",
+            "manual_note",
+            "system_rule",
+          ]),
+          referenceId: z.string().min(1),
+          label: z.string().min(1).max(160),
+        }),
+      ),
       notes: z.string().max(5000).nullable(),
     }),
   }),
@@ -198,8 +232,10 @@ const managerRoles = ["studio_owner", "studio_admin"];
 const operatorRoles = [...managerRoles, "studio_coordinator"];
 
 function hasProjectAccess(membership: Membership, projectId: string): boolean {
-  return managerRoles.includes(membership.role)
-    || membership.projectIds?.includes(projectId) === true;
+  return (
+    managerRoles.includes(membership.role) ||
+    membership.projectIds?.includes(projectId) === true
+  );
 }
 
 function addUtcDays(date: string, days: number): string {
@@ -230,10 +266,15 @@ function resolveDueDate(
   return addUtcDays(anchor, rule.offsetDays);
 }
 
-function checkpointSatisfied(checkpoint: CheckpointDocument, timestamp: string): boolean {
+function checkpointSatisfied(
+  checkpoint: CheckpointDocument,
+  timestamp: string,
+): boolean {
   if (checkpoint.status === "complete") return true;
-  return checkpoint.status === "waived"
-    && (!checkpoint.waiverExpiresAt || checkpoint.waiverExpiresAt > timestamp);
+  return (
+    checkpoint.status === "waived" &&
+    (!checkpoint.waiverExpiresAt || checkpoint.waiverExpiresAt > timestamp)
+  );
 }
 
 function readinessItem(
@@ -275,23 +316,28 @@ function calculateReadiness(
   const overdueItems = checkpoints
     .filter(
       (checkpoint) =>
-        !checkpointSatisfied(checkpoint, timestamp)
-        && checkpoint.resolvedDueDate !== null
-        && checkpoint.resolvedDueDate < today,
+        !checkpointSatisfied(checkpoint, timestamp) &&
+        checkpoint.resolvedDueDate !== null &&
+        checkpoint.resolvedDueDate < today,
     )
-    .map((checkpoint) => readinessItem(checkpoint, "Past its resolved due date"));
+    .map((checkpoint) =>
+      readinessItem(checkpoint, "Past its resolved due date"),
+    );
   const atRiskItems = checkpoints
     .filter(
       (checkpoint) =>
-        !checkpointSatisfied(checkpoint, timestamp)
-        && checkpoint.resolvedDueDate !== null
-        && checkpoint.resolvedDueDate >= today
-        && checkpoint.resolvedDueDate <= riskThrough,
+        !checkpointSatisfied(checkpoint, timestamp) &&
+        checkpoint.resolvedDueDate !== null &&
+        checkpoint.resolvedDueDate >= today &&
+        checkpoint.resolvedDueDate <= riskThrough,
     )
     .map((checkpoint) => readinessItem(checkpoint, "Due within seven days"));
   const primary = overdueItems[0] ?? blockingItems[0] ?? atRiskItems[0];
   return {
-    score: required.length === 0 ? 100 : Math.round((satisfied.length / required.length) * 100),
+    score:
+      required.length === 0
+        ? 100
+        : Math.round((satisfied.length / required.length) * 100),
     ready: blockingItems.length === 0,
     totalRequired: required.length,
     satisfiedRequired: satisfied.length,
@@ -382,8 +428,8 @@ async function writeReadiness(
 
 export const workflowCommand = onRequest(
   {
-    cors: [/^https?:\/\/localhost(:\d+)?$/, /\.studiohub\.app$/, /\.chatgpt\.site$/],
-    invoker: "public",
+    cors: studioHubCors,
+    invoker: "private",
   },
   async (request, response) => {
     if (request.method !== "POST") {
@@ -423,16 +469,16 @@ export const workflowCommand = onRequest(
       return;
     }
     if (
-      command.type === "createWorkflowTemplate"
-      && !managerRoles.includes(membership.role)
+      command.type === "createWorkflowTemplate" &&
+      !managerRoles.includes(membership.role)
     ) {
       response.status(403).json({ error: "FORBIDDEN" });
       return;
     }
     if (
-      command.type === "resolveCheckpoint"
-      && command.input.resolution === "waived"
-      && membership.role !== "studio_owner"
+      command.type === "resolveCheckpoint" &&
+      command.input.resolution === "waived" &&
+      membership.role !== "studio_owner"
     ) {
       response.status(403).json({ error: "WAIVER_PERMISSION_REQUIRED" });
       return;
@@ -460,13 +506,15 @@ export const workflowCommand = onRequest(
 
         if (command.type === "createWorkflowTemplate") {
           const versions = await transaction.get(
-            db.collection("workflowTemplates")
+            db
+              .collection("workflowTemplates")
               .where("tenantId", "==", command.tenantId)
               .where("name", "==", command.input.name)
               .orderBy("version", "desc")
               .limit(20),
           );
-          const version = (versions.docs[0]?.data().version as number | undefined ?? 0) + 1;
+          const version =
+            ((versions.docs[0]?.data().version as number | undefined) ?? 0) + 1;
           if (command.input.status === "active") {
             for (const document of versions.docs) {
               if (document.data().status === "active") {
@@ -486,7 +534,8 @@ export const workflowCommand = onRequest(
             version,
             immutable: command.input.status === "active",
             publishedAt: command.input.status === "active" ? timestamp : null,
-            publishedBy: command.input.status === "active" ? identity.uid : null,
+            publishedBy:
+              command.input.status === "active" ? identity.uid : null,
             createdAt: timestamp,
             updatedAt: timestamp,
             createdBy: identity.uid,
@@ -530,21 +579,25 @@ export const workflowCommand = onRequest(
           if (!hasProjectAccess(membership, command.input.projectId)) {
             throw new Error("PROJECT_ACCESS_DENIED");
           }
-          const projectReference = db.doc(`projects/${command.input.projectId}`);
+          const projectReference = db.doc(
+            `projects/${command.input.projectId}`,
+          );
           const templateReference = db.doc(
             `workflowTemplates/${command.input.workflowTemplateId}`,
           );
-          const [projectSnapshot, templateSnapshot, activeRuns] = await Promise.all([
-            transaction.get(projectReference),
-            transaction.get(templateReference),
-            transaction.get(
-              db.collection("workflowRuns")
-                .where("tenantId", "==", command.tenantId)
-                .where("projectId", "==", command.input.projectId)
-                .where("status", "==", "active")
-                .limit(1),
-            ),
-          ]);
+          const [projectSnapshot, templateSnapshot, activeRuns] =
+            await Promise.all([
+              transaction.get(projectReference),
+              transaction.get(templateReference),
+              transaction.get(
+                db
+                  .collection("workflowRuns")
+                  .where("tenantId", "==", command.tenantId)
+                  .where("projectId", "==", command.input.projectId)
+                  .where("status", "==", "active")
+                  .limit(1),
+              ),
+            ]);
           const project = projectSnapshot.data() as
             | {
                 tenantId: string;
@@ -611,7 +664,8 @@ export const workflowCommand = onRequest(
               if (!checkpointId) throw new Error("CHECKPOINT_ID_FAILED");
               const dependencyIds = definition.dependencies.map((key) => {
                 const dependencyId = checkpointIds.get(key);
-                if (!dependencyId) throw new Error("INVALID_CHECKPOINT_DEPENDENCY");
+                if (!dependencyId)
+                  throw new Error("INVALID_CHECKPOINT_DEPENDENCY");
                 return dependencyId;
               });
               return {
@@ -677,7 +731,9 @@ export const workflowCommand = onRequest(
               checkpointTemplates: template.checkpointTemplates,
               automationRules: template.automationRules,
             },
-            checkpointIds: checkpointDocuments.map((checkpoint) => checkpoint.id),
+            checkpointIds: checkpointDocuments.map(
+              (checkpoint) => checkpoint.id,
+            ),
             startedAt: timestamp,
             completedAt: null,
             failureReason: null,
@@ -688,7 +744,10 @@ export const workflowCommand = onRequest(
             archivedAt: null,
           });
           for (const checkpoint of checkpointDocuments) {
-            transaction.create(db.doc(`checkpoints/${checkpoint.id}`), checkpoint);
+            transaction.create(
+              db.doc(`checkpoints/${checkpoint.id}`),
+              checkpoint,
+            );
           }
           const projection = await writeReadiness(transaction, db, {
             tenantId: command.tenantId,
@@ -752,33 +811,38 @@ export const workflowCommand = onRequest(
             throw new Error("PROJECT_ACCESS_DENIED");
           }
           if (
-            command.input.resolution === "waived"
-            && (!checkpoint.waiverAllowed || (command.input.reason?.length ?? 0) < 10)
+            command.input.resolution === "waived" &&
+            (!checkpoint.waiverAllowed ||
+              (command.input.reason?.length ?? 0) < 10)
           ) {
             throw new Error("INVALID_WAIVER");
           }
           if (
-            command.input.resolution === "complete"
-            && checkpoint.requiredEvidence.length > 0
-            && command.input.evidence.length === 0
+            command.input.resolution === "complete" &&
+            checkpoint.requiredEvidence.length > 0 &&
+            command.input.evidence.length === 0
           ) {
             throw new Error("EVIDENCE_REQUIRED");
           }
-          const checkpointsQuery = db.collection("checkpoints")
+          const checkpointsQuery = db
+            .collection("checkpoints")
             .where("tenantId", "==", command.tenantId)
             .where("projectId", "==", checkpoint.projectId)
             .where("archivedAt", "==", null);
           const checkpointsSnapshot = await transaction.get(checkpointsQuery);
-          const allCheckpoints = checkpointsSnapshot.docs.map((document) => ({
-            id: document.id,
-            ...document.data(),
-          } as CheckpointDocument));
+          const allCheckpoints = checkpointsSnapshot.docs.map(
+            (document) =>
+              ({
+                id: document.id,
+                ...document.data(),
+              }) as CheckpointDocument,
+          );
           const dependencies = checkpoint.dependencyIds.map((id) =>
             allCheckpoints.find((candidate) => candidate.id === id),
           );
           if (
-            command.input.resolution === "complete"
-            && dependencies.some(
+            command.input.resolution === "complete" &&
+            dependencies.some(
               (dependency) =>
                 !dependency || !checkpointSatisfied(dependency, timestamp),
             )
@@ -798,7 +862,9 @@ export const workflowCommand = onRequest(
             })),
             notes: command.input.notes,
             waiverReason:
-              command.input.resolution === "waived" ? command.input.reason : null,
+              command.input.resolution === "waived"
+                ? command.input.reason
+                : null,
             waiverExpiresAt:
               command.input.resolution === "waived"
                 ? command.input.waiverExpiresAt
@@ -816,8 +882,8 @@ export const workflowCommand = onRequest(
           );
           const unlocked = projected.map((candidate) => {
             if (
-              candidate.status === "not_started"
-              && candidate.dependencyIds.every((id) => satisfiedIds.has(id))
+              candidate.status === "not_started" &&
+              candidate.dependencyIds.every((id) => satisfiedIds.has(id))
             ) {
               return {
                 ...candidate,
@@ -829,10 +895,12 @@ export const workflowCommand = onRequest(
             return candidate;
           });
           for (const candidate of unlocked) {
-            const original = allCheckpoints.find((item) => item.id === candidate.id);
+            const original = allCheckpoints.find(
+              (item) => item.id === candidate.id,
+            );
             if (
-              candidate.id === checkpoint.id
-              || original?.status !== candidate.status
+              candidate.id === checkpoint.id ||
+              original?.status !== candidate.status
             ) {
               transaction.set(db.doc(`checkpoints/${candidate.id}`), candidate);
             }
@@ -894,7 +962,10 @@ export const workflowCommand = onRequest(
           const project = await transaction.get(
             db.doc(`projects/${command.input.projectId}`),
           );
-          if (!project.exists || project.data()?.tenantId !== command.tenantId) {
+          if (
+            !project.exists ||
+            project.data()?.tenantId !== command.tenantId
+          ) {
             throw new Error("PROJECT_NOT_FOUND");
           }
           const taskId = randomUUID();
@@ -958,20 +1029,29 @@ export const workflowCommand = onRequest(
         if (!hasProjectAccess(membership, projectId)) {
           throw new Error("PROJECT_ACCESS_DENIED");
         }
-        const projectSnapshot = await transaction.get(db.doc(`projects/${projectId}`));
-        if (!projectSnapshot.exists || projectSnapshot.data()?.tenantId !== command.tenantId) {
+        const projectSnapshot = await transaction.get(
+          db.doc(`projects/${projectId}`),
+        );
+        if (
+          !projectSnapshot.exists ||
+          projectSnapshot.data()?.tenantId !== command.tenantId
+        ) {
           throw new Error("PROJECT_NOT_FOUND");
         }
         const checkpointsSnapshot = await transaction.get(
-          db.collection("checkpoints")
+          db
+            .collection("checkpoints")
             .where("tenantId", "==", command.tenantId)
             .where("projectId", "==", projectId)
             .where("archivedAt", "==", null),
         );
-        const checkpoints = checkpointsSnapshot.docs.map((document) => ({
-          id: document.id,
-          ...document.data(),
-        } as CheckpointDocument));
+        const checkpoints = checkpointsSnapshot.docs.map(
+          (document) =>
+            ({
+              id: document.id,
+              ...document.data(),
+            }) as CheckpointDocument,
+        );
         const workflowRunId = checkpoints[0]?.workflowRunId ?? null;
         const projection = await writeReadiness(transaction, db, {
           tenantId: command.tenantId,
@@ -999,12 +1079,15 @@ export const workflowCommand = onRequest(
       });
       response.status(200).json(result);
     } catch (caught: unknown) {
-      const code = caught instanceof Error ? caught.message : "WORKFLOW_COMMAND_FAILED";
-      const status =
-        code.endsWith("_NOT_FOUND") ? 404
-          : code.includes("ACCESS") || code.includes("PERMISSION") ? 403
-            : code === "EVIDENCE_REQUIRED" || code === "INVALID_WAIVER" ? 422
-              : 409;
+      const code =
+        caught instanceof Error ? caught.message : "WORKFLOW_COMMAND_FAILED";
+      const status = code.endsWith("_NOT_FOUND")
+        ? 404
+        : code.includes("ACCESS") || code.includes("PERMISSION")
+          ? 403
+          : code === "EVIDENCE_REQUIRED" || code === "INVALID_WAIVER"
+            ? 422
+            : 409;
       response.status(status).json({ error: code });
     }
   },

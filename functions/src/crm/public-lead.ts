@@ -3,6 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requestFingerprint, requireAppCheck } from "./security.js";
+import { studioHubCors } from "../security/cors.js";
 
 const serviceSchema = z.enum([
   "photography",
@@ -17,7 +18,12 @@ const serviceSchema = z.enum([
 ]);
 
 const intakeSchema = z.object({
-  tenantSlug: z.string().trim().min(2).max(80).regex(/^[a-z0-9-]+$/),
+  tenantSlug: z
+    .string()
+    .trim()
+    .min(2)
+    .max(80)
+    .regex(/^[a-z0-9-]+$/),
   firstName: z.string().trim().min(1).max(80),
   lastName: z.string().trim().min(1).max(80),
   partnerName: z.string().trim().max(120).nullable().default(null),
@@ -27,7 +33,13 @@ const intakeSchema = z.object({
   eventType: z.string().trim().min(2).max(80),
   venue: z.string().trim().max(160).nullable().default(null),
   city: z.string().trim().min(2).max(120),
-  estimatedGuestCount: z.number().int().min(1).max(100000).nullable().default(null),
+  estimatedGuestCount: z
+    .number()
+    .int()
+    .min(1)
+    .max(100000)
+    .nullable()
+    .default(null),
   servicesRequested: z.array(serviceSchema).min(1),
   budgetRange: z.string().trim().max(80).nullable().default(null),
   referralSource: z.string().trim().max(120).nullable().default(null),
@@ -48,8 +60,8 @@ const missingFields = (input: z.infer<typeof intakeSchema>): string[] => {
 
 export const publicLeadIntake = onRequest(
   {
-    cors: [/^https?:\/\/localhost(:\d+)?$/, /\.studiohub\.app$/, /\.chatgpt\.site$/],
-    invoker: "public",
+    cors: studioHubCors,
+    invoker: "private",
   },
   async (request, response) => {
     if (request.method !== "POST") {
@@ -77,7 +89,7 @@ export const publicLeadIntake = onRequest(
     const db = getFirestore();
     const tenantResult = await db
       .collection("tenants")
-      .where("slug", "==", input.tenantSlug)
+      .where("publicSlug", "==", input.tenantSlug)
       .where("status", "in", ["trial", "active"])
       .limit(1)
       .get();

@@ -20,7 +20,7 @@ const docusignPayload = z.object({
 });
 
 export const docusignWebhook = onRequest(
-  { cors: false, invoker: "public", secrets: ["DOCUSIGN_WEBHOOK_HMAC_SECRET"] },
+  { cors: false, invoker: "private", secrets: ["DOCUSIGN_WEBHOOK_HMAC_SECRET"] },
   async (request, response) => {
     if (request.method !== "POST" || !verify(request.rawBody, request.header("x-docusign-signature-1"), process.env.DOCUSIGN_WEBHOOK_HMAC_SECRET)) {
       response.status(401).json({ error: "INVALID_SIGNATURE" });
@@ -78,7 +78,7 @@ const quickbooksPayload = z.object({
 });
 
 export const quickbooksWebhook = onRequest(
-  { cors: false, invoker: "public", secrets: ["QUICKBOOKS_WEBHOOK_VERIFIER_TOKEN"] },
+  { cors: false, invoker: "private", secrets: ["QUICKBOOKS_WEBHOOK_VERIFIER_TOKEN"] },
   async (request, response) => {
     if (request.method !== "POST" || !verify(request.rawBody, request.header("intuit-signature"), process.env.QUICKBOOKS_WEBHOOK_VERIFIER_TOKEN)) {
       response.status(401).json({ error: "INVALID_SIGNATURE" });

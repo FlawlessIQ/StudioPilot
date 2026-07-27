@@ -11,7 +11,9 @@ export async function requireAppCheck(request: Request): Promise<void> {
 }
 
 export async function requireIdentity(request: Request): Promise<DecodedIdToken> {
-  const authorization = request.header("authorization");
+  const authorization =
+    request.header("x-studiohub-user-authorization") ??
+    request.header("authorization");
   if (!authorization?.startsWith("Bearer ")) {
     throw new Error("AUTHENTICATION_REQUIRED");
   }

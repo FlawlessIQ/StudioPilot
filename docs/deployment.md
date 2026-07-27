@@ -16,10 +16,10 @@ The production Firebase project is `studiohub-prod` (project number
 - Firebase Authentication with email/password enabled
 
 Firestore and Storage rules and Firestore indexes are deployed from this
-repository. Firestore delete protection is enabled. The initial App Hosting
-release uses `NEXT_PUBLIC_INTEGRATION_MODE=mock` and `PROVIDER_MOCK_MODE=true`;
-do not switch these to live until App Check, production Functions, Secret
-Manager values, and provider callbacks have passed the release gate below.
+repository. Firestore delete protection is enabled. Firebase Authentication and
+Firestore-backed product data are live. External providers remain isolated in
+mock mode with `NEXT_PUBLIC_PROVIDER_MODE=mock` and
+`PROVIDER_MOCK_MODE=true`.
 
 The following production Google APIs are enabled:
 
@@ -43,6 +43,14 @@ The App Hosting runtime is configured by `apphosting.yaml`. Its Firebase web
 configuration is public client configuration, not a provider credential.
 Provider secrets, OAuth refresh tokens, signing keys, and service-account
 credentials must never be added to that file.
+
+The organization policy does not permit anonymous `allUsers` IAM bindings.
+Core HTTP Functions therefore remain private Cloud Run services. The App
+Hosting runtime service account alone has `roles/run.invoker`, and browsers call
+the allowlisted same-origin `/api/functions/[functionName]` proxy. The proxy
+obtains a Google service identity token, while the Function separately verifies
+the forwarded Firebase user token and App Check evidence. Do not disable the
+Cloud Run invoker IAM check on application APIs.
 
 ## Provisioning checklist
 

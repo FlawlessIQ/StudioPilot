@@ -1,8 +1,10 @@
+import "./runtime.js";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { getAppCheck } from "firebase-admin/app-check";
 import { getAuth } from "firebase-admin/auth";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
+import { studioHubCors } from "./security/cors.js";
 export { crmCommand } from "./crm/commands.js";
 export { publicLeadIntake } from "./crm/public-lead.js";
 export { workflowCommand } from "./workflow/commands.js";
@@ -20,7 +22,11 @@ export { tenantOnboardingCommand } from "./saas/onboarding.js";
 export { operationsJobScheduler } from "./operations/jobs.js";
 export { fileSafetyOnFinalize } from "./operations/file-safety.js";
 export { integrationOAuth } from "./integrations/oauth.js";
-export { tenantDataCommand,tenantExportDownload,tenantExportScheduler } from "./saas/data-lifecycle.js";
+export {
+  tenantDataCommand,
+  tenantExportDownload,
+  tenantExportScheduler,
+} from "./saas/data-lifecycle.js";
 export { supportTenantSummary } from "./saas/support.js";
 export { finalInvoiceScheduler } from "./operations/invoice-scheduler.js";
 
@@ -36,8 +42,8 @@ const fiveDaysMs = 5 * 24 * 60 * 60 * 1000;
 
 export const createSession = onRequest(
   {
-    cors: [/^https?:\/\/localhost(:\d+)?$/, /\.studiohub\.app$/],
-    invoker: "public",
+    cors: studioHubCors,
+    invoker: "private",
   },
   async (request, response) => {
     if (request.method !== "POST") {
@@ -79,9 +85,12 @@ export const createSession = onRequest(
         return;
       }
 
-      const sessionCookie = await getAuth().createSessionCookie(parsed.data.idToken, {
-        expiresIn: fiveDaysMs,
-      });
+      const sessionCookie = await getAuth().createSessionCookie(
+        parsed.data.idToken,
+        {
+          expiresIn: fiveDaysMs,
+        },
+      );
       response.setHeader(
         "Set-Cookie",
         `__Host-studiohub_session=${sessionCookie}; Max-Age=${fiveDaysMs / 1000}; Path=/; HttpOnly; Secure; SameSite=Lax`,
@@ -94,7 +103,7 @@ export const createSession = onRequest(
 );
 
 export const health = onRequest(
-  { cors: false, invoker: "public" },
+  { cors: false, invoker: "private" },
   (_request, response) => {
     response.status(200).json({
       service: "studiohub-functions",

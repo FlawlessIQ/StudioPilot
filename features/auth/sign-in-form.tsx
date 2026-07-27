@@ -7,6 +7,7 @@ import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/aut
 import { collection,getDocs,limit,query,where } from "firebase/firestore";
 import { ArrowRight, Eye, EyeOff, LoaderCircle } from "lucide-react";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { authIsLive } from "@/lib/runtime-mode";
 
 type FormState = {
   status: "idle" | "submitting" | "error";
@@ -23,7 +24,7 @@ export function SignInForm() {
     message: "",
   });
 
-  const mockMode = process.env.NEXT_PUBLIC_INTEGRATION_MODE !== "live";
+  const mockMode = !authIsLive;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

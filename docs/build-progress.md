@@ -333,3 +333,41 @@ Validation record:
 
 Provider sandbox certification and production credentials/configuration remain
 operational release gates; see `docs/production-readiness.md`.
+
+## Production activation — Phase 1
+
+Status: deployed and ready for App Hosting rollout.
+
+Delivered:
+
+- independent runtime controls for Firebase Authentication, Firestore-backed UI,
+  and external providers
+- production configuration with live Firebase auth/data and provider mock mode
+- Firebase Authentication authorized-domain registration for the App Hosting URL
+- 14 Node.js 22 second-generation Functions in `us-east4`, including a health
+  canary and 13 core application APIs
+- private Cloud Run IAM on application APIs, with invocation restricted to the
+  App Hosting runtime service account
+- same-origin App Hosting proxy that obtains a Google service identity token,
+  forwards Firebase user identity and App Check evidence, and uses an explicit
+  function allowlist
+- exact production CORS allowlist for direct-call compatibility
+- Functions build source-bucket read access, build logging, and artifact
+  repository publishing with scoped IAM grants
+- production Function artifact cleanup policy
+- corrected public lead lookup against the tenant `publicSlug`
+- Function placement in `us-east4`, with the Storage safety trigger explicitly
+  pinned to the `us-east1` bucket region
+
+Validation record:
+
+- strict TypeScript: passed
+- unit and policy suite: 59 passed
+- Cloud Functions TypeScript build: passed
+- ESLint: passed
+- production web build: passed, including the private function proxy route
+- direct anonymous calls to private application APIs: blocked with HTTP 403
+- production health Function: HTTP 200
+
+External providers remain in mock mode. Stripe, provider OAuth, signed webhooks,
+inbound email, and secret-dependent workers have not been deployed.

@@ -72,7 +72,7 @@ function parseMultipart(request: Request) {
 
 export const sendgridInboundCoi = onRequest({
   cors: false,
-  invoker: "public",
+  invoker: "private",
   secrets: ["SENDGRID_INBOUND_TOKEN"],
   memory: "512MiB",
   timeoutSeconds: 60,

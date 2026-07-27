@@ -6,6 +6,14 @@ The browser is untrusted. Firebase Authentication proves identity; server middle
 
 Every sensitive operation is denied unless authentication, tenant membership, permission, and relevant project access pass. Tenant IDs supplied by the browser are never accepted without comparison to the active membership.
 
+Production application APIs also sit behind Cloud Run IAM. Direct anonymous
+invocation is denied. Only the Firebase App Hosting runtime service account can
+invoke them; its same-origin proxy uses a Google identity token and forwards the
+browser's Firebase ID token in a separate internal header. Functions still
+perform all user, tenant, role, permission, and App Check validation. The proxy
+uses a fixed function-name allowlist and cannot route to provider webhooks or
+arbitrary services.
+
 ## Authentication
 
 - verified email required before a server session

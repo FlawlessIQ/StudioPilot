@@ -21,9 +21,73 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: NEXT_PUBLIC_AUTH_MODE
+    value: live
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_DATA_MODE
+    value: live
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_PROVIDER_MODE
+    value: mock
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: PROVIDER_MOCK_MODE
     value: "true"
     availability:
+      - RUNTIME
+  - variable: FUNCTIONS_RUN_URL_SUFFIX
+    value: -yehtrtcieq-uk.a.run.app
+    availability:
+      - RUNTIME
+  - variable: NEXT_PUBLIC_CRM_FUNCTIONS_URL
+    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_WORKFLOW_FUNCTIONS_URL
+    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_BOOKING_FUNCTIONS_URL
+    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_PLANNING_FUNCTIONS_URL
+    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_CREW_FUNCTIONS_URL
+    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_POST_EVENT_FUNCTIONS_URL
+    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_SAAS_ADMIN_FUNCTIONS_URL
+    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_ONBOARDING_FUNCTIONS_URL
+    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_DATA_FUNCTIONS_URL
+    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    availability:
+      - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_USE_FIREBASE_EMULATORS
     value: "false"

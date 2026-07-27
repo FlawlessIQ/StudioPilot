@@ -1,4 +1,99 @@
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
-import { requireAppCheck,requireIdentity } from "../crm/security.js";
-export const supportTenantSummary=onRequest({cors:[/localhost/,/\.studiohub\.app$/, /\.flawlessiq\.chatgpt\.site$/],invoker:"public"},async(request,response)=>{try{await requireAppCheck(request);const identity=await requireIdentity(request);if(identity.platformAdmin!==true)throw new Error("FORBIDDEN");const accessId=String(request.query.accessId??"");const tenantId=String(request.query.tenantId??"");const db=getFirestore();const access=await db.doc(`supportAccess/${accessId}`).get();if(!access.exists||access.get("platformUserId")!==identity.uid||access.get("tenantId")!==tenantId||access.get("status")!=="active"||new Date(String(access.get("expiresAt")))<=new Date())throw new Error("SUPPORT_ACCESS_REQUIRED");const[tenant,subscription,connections,failedJobs]=await Promise.all([db.doc(`tenants/${tenantId}`).get(),db.doc(`subscriptions/${tenantId}`).get(),db.collection("integrationConnections").where("tenantId","==",tenantId).get(),db.collection("providerJobs").where("tenantId","==",tenantId).where("status","in",["failed","dead_letter"]).limit(25).get()]);const result={tenant:{id:tenantId,businessName:tenant.get("businessName"),status:tenant.get("status")},subscription:{plan:subscription.get("plan"),status:subscription.get("status"),periodEnd:subscription.get("currentPeriodEnd")},integrations:connections.docs.map(item=>({provider:item.get("provider"),status:item.get("status"),lastError:item.get("lastError")})),failedJobs:failedJobs.docs.map(item=>({id:item.id,type:item.get("type"),status:item.get("status"),error:item.get("error")}))};const now=new Date().toISOString();await db.collection("auditEvents").add({tenantId,projectId:null,actorId:identity.uid,actorType:"platform_admin",action:"support.summary_viewed",entityType:"tenant",entityId:tenantId,timestamp:now,before:null,after:{supportAccessId:accessId},ipAddress:request.ip??null,userAgent:request.get("user-agent")??null,correlationId:accessId,automationRunId:null,providerEventId:null});response.status(200).json(result)}catch(caught:unknown){const message=caught instanceof Error?caught.message:"SUPPORT_SUMMARY_FAILED";response.status(message==="FORBIDDEN"||message==="SUPPORT_ACCESS_REQUIRED"?403:400).json({error:message})}});
+import { requireAppCheck, requireIdentity } from "../crm/security.js";
+import { studioHubCors } from "../security/cors.js";
+export const supportTenantSummary = onRequest(
+  {
+    cors: studioHubCors,
+    invoker: "private",
+  },
+  async (request, response) => {
+    try {
+      await requireAppCheck(request);
+      const identity = await requireIdentity(request);
+      if (identity.platformAdmin !== true) throw new Error("FORBIDDEN");
+      const accessId = String(request.query.accessId ?? "");
+      const tenantId = String(request.query.tenantId ?? "");
+      const db = getFirestore();
+      const access = await db.doc(`supportAccess/${accessId}`).get();
+      if (
+        !access.exists ||
+        access.get("platformUserId") !== identity.uid ||
+        access.get("tenantId") !== tenantId ||
+        access.get("status") !== "active" ||
+        new Date(String(access.get("expiresAt"))) <= new Date()
+      )
+        throw new Error("SUPPORT_ACCESS_REQUIRED");
+      const [tenant, subscription, connections, failedJobs] = await Promise.all(
+        [
+          db.doc(`tenants/${tenantId}`).get(),
+          db.doc(`subscriptions/${tenantId}`).get(),
+          db
+            .collection("integrationConnections")
+            .where("tenantId", "==", tenantId)
+            .get(),
+          db
+            .collection("providerJobs")
+            .where("tenantId", "==", tenantId)
+            .where("status", "in", ["failed", "dead_letter"])
+            .limit(25)
+            .get(),
+        ],
+      );
+      const result = {
+        tenant: {
+          id: tenantId,
+          businessName: tenant.get("businessName"),
+          status: tenant.get("status"),
+        },
+        subscription: {
+          plan: subscription.get("plan"),
+          status: subscription.get("status"),
+          periodEnd: subscription.get("currentPeriodEnd"),
+        },
+        integrations: connections.docs.map((item) => ({
+          provider: item.get("provider"),
+          status: item.get("status"),
+          lastError: item.get("lastError"),
+        })),
+        failedJobs: failedJobs.docs.map((item) => ({
+          id: item.id,
+          type: item.get("type"),
+          status: item.get("status"),
+          error: item.get("error"),
+        })),
+      };
+      const now = new Date().toISOString();
+      await db
+        .collection("auditEvents")
+        .add({
+          tenantId,
+          projectId: null,
+          actorId: identity.uid,
+          actorType: "platform_admin",
+          action: "support.summary_viewed",
+          entityType: "tenant",
+          entityId: tenantId,
+          timestamp: now,
+          before: null,
+          after: { supportAccessId: accessId },
+          ipAddress: request.ip ?? null,
+          userAgent: request.get("user-agent") ?? null,
+          correlationId: accessId,
+          automationRunId: null,
+          providerEventId: null,
+        });
+      response.status(200).json(result);
+    } catch (caught: unknown) {
+      const message =
+        caught instanceof Error ? caught.message : "SUPPORT_SUMMARY_FAILED";
+      response
+        .status(
+          message === "FORBIDDEN" || message === "SUPPORT_ACCESS_REQUIRED"
+            ? 403
+            : 400,
+        )
+        .json({ error: message });
+    }
+  },
+);

@@ -1,33 +1,360 @@
-import { createHash,randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
-import { requireAppCheck,requireIdentity } from "../crm/security.js";
+import { requireAppCheck, requireIdentity } from "../crm/security.js";
+import { studioHubCors } from "../security/cors.js";
 
-const providerSchema=z.enum(["google_calendar","zoom","dropbox","docusign","quickbooks"]);
-type Provider=z.infer<typeof providerSchema>;
-const startSchema=z.object({provider:providerSchema,tenantId:z.string().min(1)});
-type Config={clientId:string;clientSecret:string;authorizeUrl:string;tokenUrl:string;scopes:string[];extra:Record<string,string>};
-const environment=(provider:Provider,key:"CLIENT_ID"|"CLIENT_SECRET")=>process.env[`${provider==="google_calendar"?"GOOGLE_CALENDAR":provider.toUpperCase()}_${key}`]??"";
-const config=(provider:Provider):Config=>{const clientId=environment(provider,"CLIENT_ID");const clientSecret=environment(provider,"CLIENT_SECRET");if(!clientId||!clientSecret)throw new Error("OAUTH_PROVIDER_NOT_CONFIGURED");const configs:Record<Provider,Omit<Config,"clientId"|"clientSecret">>={
-  google_calendar:{authorizeUrl:"https://accounts.google.com/o/oauth2/v2/auth",tokenUrl:"https://oauth2.googleapis.com/token",scopes:["https://www.googleapis.com/auth/calendar.readonly","https://www.googleapis.com/auth/calendar.events"],extra:{access_type:"offline",prompt:"consent"}},
-  zoom:{authorizeUrl:"https://zoom.us/oauth/authorize",tokenUrl:"https://zoom.us/oauth/token",scopes:["meeting:write:admin","user:read:admin"],extra:{}},
-  dropbox:{authorizeUrl:"https://www.dropbox.com/oauth2/authorize",tokenUrl:"https://api.dropboxapi.com/oauth2/token",scopes:["files.content.write","files.content.read","files.metadata.write","files.metadata.read"],extra:{token_access_type:"offline"}},
-  docusign:{authorizeUrl:"https://account-d.docusign.com/oauth/auth",tokenUrl:"https://account-d.docusign.com/oauth/token",scopes:["signature","extended"],extra:{}},
-  quickbooks:{authorizeUrl:"https://appcenter.intuit.com/connect/oauth2",tokenUrl:"https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer",scopes:["com.intuit.quickbooks.accounting"],extra:{}},
-};return{clientId,clientSecret,...configs[provider]}};
-const sha256=(value:string)=>createHash("sha256").update(value).digest();
-const base64url=(value:Buffer)=>value.toString("base64url");
-async function runtimeToken(){const response=await fetch("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",{headers:{"Metadata-Flavor":"Google"}});const body=await response.json() as{access_token?:string};if(!response.ok||!body.access_token)throw new Error("SECRET_MANAGER_IDENTITY_UNAVAILABLE");return body.access_token}
-async function saveCredential(tenantId:string,provider:Provider,value:Record<string,unknown>){const project=process.env.GOOGLE_CLOUD_PROJECT;if(!project)throw new Error("GOOGLE_CLOUD_PROJECT_REQUIRED");const token=await runtimeToken();const secretId=`studiohub-${tenantId}-${provider}`.replace(/[^a-zA-Z0-9_-]/g,"-").slice(0,240);const parent=`projects/${project}`;const create=await fetch(`https://secretmanager.googleapis.com/v1/${parent}/secrets?secretId=${encodeURIComponent(secretId)}`,{method:"POST",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({replication:{automatic:{}}})});if(!create.ok&&create.status!==409)throw new Error("SECRET_MANAGER_CREATE_FAILED");const name=`${parent}/secrets/${secretId}`;const add=await fetch(`https://secretmanager.googleapis.com/v1/${name}:addVersion`,{method:"POST",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({payload:{data:Buffer.from(JSON.stringify(value)).toString("base64")}})});if(!add.ok)throw new Error("SECRET_MANAGER_WRITE_FAILED");return`${name}/versions/latest`}
-function basic(clientId:string,clientSecret:string){return`Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`}
-async function exchange(provider:Provider,code:string,verifier:string,redirectUri:string){const current=config(provider);const params=new URLSearchParams({grant_type:"authorization_code",code,redirect_uri:redirectUri,code_verifier:verifier});const headers:Record<string,string>={"content-type":"application/x-www-form-urlencoded"};if(provider==="google_calendar"){params.set("client_id",current.clientId);params.set("client_secret",current.clientSecret)}else headers.authorization=basic(current.clientId,current.clientSecret);const response=await fetch(current.tokenUrl,{method:"POST",headers,body:params});const body=await response.json() as Record<string,unknown>;if(!response.ok||typeof body.access_token!=="string")throw new Error("OAUTH_TOKEN_EXCHANGE_FAILED");return body}
-
-export const integrationOAuth=onRequest({cors:[/localhost/,/\.studiohub\.app$/, /\.flawlessiq\.chatgpt\.site$/],invoker:"public",secrets:["GOOGLE_CALENDAR_CLIENT_SECRET","ZOOM_CLIENT_SECRET","DROPBOX_CLIENT_SECRET","DOCUSIGN_CLIENT_SECRET","QUICKBOOKS_CLIENT_SECRET"]},async(request,response)=>{
-  const db=getFirestore();const redirectUri=process.env.OAUTH_CALLBACK_URL;if(!redirectUri){response.status(503).json({error:"OAUTH_CALLBACK_URL_REQUIRED"});return}
-  try{if(request.method==="POST"){await requireAppCheck(request);const identity=await requireIdentity(request);const input=startSchema.parse(request.body);const membership=await db.doc(`memberships/${input.tenantId}_${identity.uid}`).get();if(!membership.exists||membership.get("status")!=="active"||!["studio_owner","studio_admin"].includes(String(membership.get("role"))))throw new Error("FORBIDDEN");const current=config(input.provider);const verifier=base64url(randomBytes(48));const state=base64url(randomBytes(32));const challenge=base64url(sha256(verifier));const now=new Date();await db.doc(`oauthStates/${createHash("sha256").update(state).digest("hex")}`).create({tenantId:input.tenantId,userId:identity.uid,provider:input.provider,verifier,redirectUri,expiresAt:new Date(now.valueOf()+10*60000).toISOString(),createdAt:now.toISOString()});const url=new URL(current.authorizeUrl);url.searchParams.set("response_type","code");url.searchParams.set("client_id",current.clientId);url.searchParams.set("redirect_uri",redirectUri);url.searchParams.set("scope",current.scopes.join(" "));url.searchParams.set("state",state);url.searchParams.set("code_challenge",challenge);url.searchParams.set("code_challenge_method","S256");for(const[key,value]of Object.entries(current.extra))url.searchParams.set(key,value);response.status(200).json({url:url.toString()});return}
-    if(request.method!=="GET"){response.status(405).json({error:"METHOD_NOT_ALLOWED"});return}const state=String(request.query.state??"");const code=String(request.query.code??"");if(!state||!code)throw new Error("OAUTH_CALLBACK_INVALID");const stateReference=db.doc(`oauthStates/${createHash("sha256").update(state).digest("hex")}`);const saved=await stateReference.get();if(!saved.exists||new Date(String(saved.get("expiresAt")))<new Date())throw new Error("OAUTH_STATE_INVALID");const provider=providerSchema.parse(saved.get("provider"));const tenantId=String(saved.get("tenantId"));const token=await exchange(provider,code,String(saved.get("verifier")),String(saved.get("redirectUri")));const expiresIn=Number(token.expires_in??3600);const credential:Record<string,unknown>={accessToken:token.access_token,refreshToken:token.refresh_token??null,expiresAt:new Date(Date.now()+expiresIn*1000).toISOString()};let accountId=String(request.query.realmId??"");let displayName:string=provider;
-    if(provider==="docusign"){const userInfo=await fetch("https://account-d.docusign.com/oauth/userinfo",{headers:{authorization:`Bearer ${String(token.access_token)}`}});const body=await userInfo.json() as{accounts?:Array<{account_id?:string;base_uri?:string;account_name?:string;is_default?:boolean}>};const account=body.accounts?.find(value=>value.is_default)??body.accounts?.[0];accountId=account?.account_id??"";credential.accountId=accountId;credential.baseUrl=account?.base_uri;displayName=account?.account_name??provider}else if(provider==="quickbooks"){credential.realmId=accountId}
-    const credentialReference=await saveCredential(tenantId,provider,credential);const now=new Date().toISOString();const connectionId=`${tenantId}_${provider}`;const batch=db.batch();batch.set(db.doc(`integrationConnections/${connectionId}`),{id:connectionId,tenantId,provider,status:"connected",providerAccountId:accountId||null,displayName,encryptedCredentialRef:credentialReference,selectedResourceId:null,scopes:config(provider).scopes,connectedAt:now,lastHealthCheckAt:now,lastError:null,mockMode:false,createdAt:now,updatedAt:now,createdBy:String(saved.get("userId")),updatedBy:String(saved.get("userId")),archivedAt:null},{merge:true});batch.delete(stateReference);batch.create(db.doc(`auditEvents/oauth_${stateReference.id}`),{id:`oauth_${stateReference.id}`,tenantId,projectId:null,actorId:String(saved.get("userId")),actorType:"user",action:"integration.connect",entityType:"integrationConnection",entityId:connectionId,timestamp:now,before:null,after:{provider,status:"connected"},ipAddress:request.ip??null,userAgent:request.get("user-agent")??null,correlationId:stateReference.id,automationRunId:null,providerEventId:null});await batch.commit();response.redirect(`${process.env.NEXT_PUBLIC_APP_URL??"https://studiohub.app"}/studio/integrations?connected=${provider}`)
-  }catch(caught:unknown){const message=caught instanceof Error?caught.message:"OAUTH_FAILED";if(request.method==="GET"){response.redirect(`${process.env.NEXT_PUBLIC_APP_URL??"https://studiohub.app"}/studio/integrations?error=${encodeURIComponent(message)}`);return}response.status(message==="FORBIDDEN"?403:400).json({error:message})}
+const providerSchema = z.enum([
+  "google_calendar",
+  "zoom",
+  "dropbox",
+  "docusign",
+  "quickbooks",
+]);
+type Provider = z.infer<typeof providerSchema>;
+const startSchema = z.object({
+  provider: providerSchema,
+  tenantId: z.string().min(1),
 });
+type Config = {
+  clientId: string;
+  clientSecret: string;
+  authorizeUrl: string;
+  tokenUrl: string;
+  scopes: string[];
+  extra: Record<string, string>;
+};
+const environment = (provider: Provider, key: "CLIENT_ID" | "CLIENT_SECRET") =>
+  process.env[
+    `${provider === "google_calendar" ? "GOOGLE_CALENDAR" : provider.toUpperCase()}_${key}`
+  ] ?? "";
+const config = (provider: Provider): Config => {
+  const clientId = environment(provider, "CLIENT_ID");
+  const clientSecret = environment(provider, "CLIENT_SECRET");
+  if (!clientId || !clientSecret)
+    throw new Error("OAUTH_PROVIDER_NOT_CONFIGURED");
+  const configs: Record<Provider, Omit<Config, "clientId" | "clientSecret">> = {
+    google_calendar: {
+      authorizeUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+      tokenUrl: "https://oauth2.googleapis.com/token",
+      scopes: [
+        "https://www.googleapis.com/auth/calendar.readonly",
+        "https://www.googleapis.com/auth/calendar.events",
+      ],
+      extra: { access_type: "offline", prompt: "consent" },
+    },
+    zoom: {
+      authorizeUrl: "https://zoom.us/oauth/authorize",
+      tokenUrl: "https://zoom.us/oauth/token",
+      scopes: ["meeting:write:admin", "user:read:admin"],
+      extra: {},
+    },
+    dropbox: {
+      authorizeUrl: "https://www.dropbox.com/oauth2/authorize",
+      tokenUrl: "https://api.dropboxapi.com/oauth2/token",
+      scopes: [
+        "files.content.write",
+        "files.content.read",
+        "files.metadata.write",
+        "files.metadata.read",
+      ],
+      extra: { token_access_type: "offline" },
+    },
+    docusign: {
+      authorizeUrl: "https://account-d.docusign.com/oauth/auth",
+      tokenUrl: "https://account-d.docusign.com/oauth/token",
+      scopes: ["signature", "extended"],
+      extra: {},
+    },
+    quickbooks: {
+      authorizeUrl: "https://appcenter.intuit.com/connect/oauth2",
+      tokenUrl: "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer",
+      scopes: ["com.intuit.quickbooks.accounting"],
+      extra: {},
+    },
+  };
+  return { clientId, clientSecret, ...configs[provider] };
+};
+const sha256 = (value: string) => createHash("sha256").update(value).digest();
+const base64url = (value: Buffer) => value.toString("base64url");
+async function runtimeToken() {
+  const response = await fetch(
+    "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
+    { headers: { "Metadata-Flavor": "Google" } },
+  );
+  const body = (await response.json()) as { access_token?: string };
+  if (!response.ok || !body.access_token)
+    throw new Error("SECRET_MANAGER_IDENTITY_UNAVAILABLE");
+  return body.access_token;
+}
+async function saveCredential(
+  tenantId: string,
+  provider: Provider,
+  value: Record<string, unknown>,
+) {
+  const project = process.env.GOOGLE_CLOUD_PROJECT;
+  if (!project) throw new Error("GOOGLE_CLOUD_PROJECT_REQUIRED");
+  const token = await runtimeToken();
+  const secretId = `studiohub-${tenantId}-${provider}`
+    .replace(/[^a-zA-Z0-9_-]/g, "-")
+    .slice(0, 240);
+  const parent = `projects/${project}`;
+  const create = await fetch(
+    `https://secretmanager.googleapis.com/v1/${parent}/secrets?secretId=${encodeURIComponent(secretId)}`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ replication: { automatic: {} } }),
+    },
+  );
+  if (!create.ok && create.status !== 409)
+    throw new Error("SECRET_MANAGER_CREATE_FAILED");
+  const name = `${parent}/secrets/${secretId}`;
+  const add = await fetch(
+    `https://secretmanager.googleapis.com/v1/${name}:addVersion`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        payload: {
+          data: Buffer.from(JSON.stringify(value)).toString("base64"),
+        },
+      }),
+    },
+  );
+  if (!add.ok) throw new Error("SECRET_MANAGER_WRITE_FAILED");
+  return `${name}/versions/latest`;
+}
+function basic(clientId: string, clientSecret: string) {
+  return `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`;
+}
+async function exchange(
+  provider: Provider,
+  code: string,
+  verifier: string,
+  redirectUri: string,
+) {
+  const current = config(provider);
+  const params = new URLSearchParams({
+    grant_type: "authorization_code",
+    code,
+    redirect_uri: redirectUri,
+    code_verifier: verifier,
+  });
+  const headers: Record<string, string> = {
+    "content-type": "application/x-www-form-urlencoded",
+  };
+  if (provider === "google_calendar") {
+    params.set("client_id", current.clientId);
+    params.set("client_secret", current.clientSecret);
+  } else headers.authorization = basic(current.clientId, current.clientSecret);
+  const response = await fetch(current.tokenUrl, {
+    method: "POST",
+    headers,
+    body: params,
+  });
+  const body = (await response.json()) as Record<string, unknown>;
+  if (!response.ok || typeof body.access_token !== "string")
+    throw new Error("OAUTH_TOKEN_EXCHANGE_FAILED");
+  return body;
+}
+
+export const integrationOAuth = onRequest(
+  {
+    cors: studioHubCors,
+    invoker: "private",
+    secrets: [
+      "GOOGLE_CALENDAR_CLIENT_SECRET",
+      "ZOOM_CLIENT_SECRET",
+      "DROPBOX_CLIENT_SECRET",
+      "DOCUSIGN_CLIENT_SECRET",
+      "QUICKBOOKS_CLIENT_SECRET",
+    ],
+  },
+  async (request, response) => {
+    const db = getFirestore();
+    const redirectUri = process.env.OAUTH_CALLBACK_URL;
+    if (!redirectUri) {
+      response.status(503).json({ error: "OAUTH_CALLBACK_URL_REQUIRED" });
+      return;
+    }
+    try {
+      if (request.method === "POST") {
+        await requireAppCheck(request);
+        const identity = await requireIdentity(request);
+        const input = startSchema.parse(request.body);
+        const membership = await db
+          .doc(`memberships/${input.tenantId}_${identity.uid}`)
+          .get();
+        if (
+          !membership.exists ||
+          membership.get("status") !== "active" ||
+          !["studio_owner", "studio_admin"].includes(
+            String(membership.get("role")),
+          )
+        )
+          throw new Error("FORBIDDEN");
+        const current = config(input.provider);
+        const verifier = base64url(randomBytes(48));
+        const state = base64url(randomBytes(32));
+        const challenge = base64url(sha256(verifier));
+        const now = new Date();
+        await db
+          .doc(
+            `oauthStates/${createHash("sha256").update(state).digest("hex")}`,
+          )
+          .create({
+            tenantId: input.tenantId,
+            userId: identity.uid,
+            provider: input.provider,
+            verifier,
+            redirectUri,
+            expiresAt: new Date(now.valueOf() + 10 * 60000).toISOString(),
+            createdAt: now.toISOString(),
+          });
+        const url = new URL(current.authorizeUrl);
+        url.searchParams.set("response_type", "code");
+        url.searchParams.set("client_id", current.clientId);
+        url.searchParams.set("redirect_uri", redirectUri);
+        url.searchParams.set("scope", current.scopes.join(" "));
+        url.searchParams.set("state", state);
+        url.searchParams.set("code_challenge", challenge);
+        url.searchParams.set("code_challenge_method", "S256");
+        for (const [key, value] of Object.entries(current.extra))
+          url.searchParams.set(key, value);
+        response.status(200).json({ url: url.toString() });
+        return;
+      }
+      if (request.method !== "GET") {
+        response.status(405).json({ error: "METHOD_NOT_ALLOWED" });
+        return;
+      }
+      const state = String(request.query.state ?? "");
+      const code = String(request.query.code ?? "");
+      if (!state || !code) throw new Error("OAUTH_CALLBACK_INVALID");
+      const stateReference = db.doc(
+        `oauthStates/${createHash("sha256").update(state).digest("hex")}`,
+      );
+      const saved = await stateReference.get();
+      if (
+        !saved.exists ||
+        new Date(String(saved.get("expiresAt"))) < new Date()
+      )
+        throw new Error("OAUTH_STATE_INVALID");
+      const provider = providerSchema.parse(saved.get("provider"));
+      const tenantId = String(saved.get("tenantId"));
+      const token = await exchange(
+        provider,
+        code,
+        String(saved.get("verifier")),
+        String(saved.get("redirectUri")),
+      );
+      const expiresIn = Number(token.expires_in ?? 3600);
+      const credential: Record<string, unknown> = {
+        accessToken: token.access_token,
+        refreshToken: token.refresh_token ?? null,
+        expiresAt: new Date(Date.now() + expiresIn * 1000).toISOString(),
+      };
+      let accountId = String(request.query.realmId ?? "");
+      let displayName: string = provider;
+      if (provider === "docusign") {
+        const userInfo = await fetch(
+          "https://account-d.docusign.com/oauth/userinfo",
+          {
+            headers: { authorization: `Bearer ${String(token.access_token)}` },
+          },
+        );
+        const body = (await userInfo.json()) as {
+          accounts?: Array<{
+            account_id?: string;
+            base_uri?: string;
+            account_name?: string;
+            is_default?: boolean;
+          }>;
+        };
+        const account =
+          body.accounts?.find((value) => value.is_default) ??
+          body.accounts?.[0];
+        accountId = account?.account_id ?? "";
+        credential.accountId = accountId;
+        credential.baseUrl = account?.base_uri;
+        displayName = account?.account_name ?? provider;
+      } else if (provider === "quickbooks") {
+        credential.realmId = accountId;
+      }
+      const credentialReference = await saveCredential(
+        tenantId,
+        provider,
+        credential,
+      );
+      const now = new Date().toISOString();
+      const connectionId = `${tenantId}_${provider}`;
+      const batch = db.batch();
+      batch.set(
+        db.doc(`integrationConnections/${connectionId}`),
+        {
+          id: connectionId,
+          tenantId,
+          provider,
+          status: "connected",
+          providerAccountId: accountId || null,
+          displayName,
+          encryptedCredentialRef: credentialReference,
+          selectedResourceId: null,
+          scopes: config(provider).scopes,
+          connectedAt: now,
+          lastHealthCheckAt: now,
+          lastError: null,
+          mockMode: false,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: String(saved.get("userId")),
+          updatedBy: String(saved.get("userId")),
+          archivedAt: null,
+        },
+        { merge: true },
+      );
+      batch.delete(stateReference);
+      batch.create(db.doc(`auditEvents/oauth_${stateReference.id}`), {
+        id: `oauth_${stateReference.id}`,
+        tenantId,
+        projectId: null,
+        actorId: String(saved.get("userId")),
+        actorType: "user",
+        action: "integration.connect",
+        entityType: "integrationConnection",
+        entityId: connectionId,
+        timestamp: now,
+        before: null,
+        after: { provider, status: "connected" },
+        ipAddress: request.ip ?? null,
+        userAgent: request.get("user-agent") ?? null,
+        correlationId: stateReference.id,
+        automationRunId: null,
+        providerEventId: null,
+      });
+      await batch.commit();
+      response.redirect(
+        `${process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app"}/studio/integrations?connected=${provider}`,
+      );
+    } catch (caught: unknown) {
+      const message = caught instanceof Error ? caught.message : "OAUTH_FAILED";
+      if (request.method === "GET") {
+        response.redirect(
+          `${process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app"}/studio/integrations?error=${encodeURIComponent(message)}`,
+        );
+        return;
+      }
+      response
+        .status(message === "FORBIDDEN" ? 403 : 400)
+        .json({ error: message });
+    }
+  },
+);
