@@ -9,6 +9,8 @@ The production Firebase project is `studiohub-prod` (project number
 `988256939236`). It is linked to a Blaze billing account and uses:
 
 - Firebase App Hosting in `us-east4`
+- Production URL:
+  `https://studiohub--studiohub-prod.us-east4.hosted.app`
 - Firestore Native, Standard edition in `nam7`
 - Cloud Storage in `us-east1`
 - Firebase Authentication with email/password enabled
@@ -101,7 +103,8 @@ tenant export/deletion drill.
 
 The legacy Sites connection metadata in `.openai/hosting.json` is retained for
 traceability, but the production web application is deployed through Firebase
-App Hosting from the GitHub `main` branch. The `dev:sites`, `build:sites`, and
+App Hosting from the GitHub `main` branch. Automatic rollouts are enabled for
+new commits on that branch. The `dev:sites`, `build:sites`, and
 `start:sites` scripts preserve local compatibility with that earlier runtime.
 The primary `dev`, `build`, and `start` scripts use native Next.js for Firebase
 App Hosting.

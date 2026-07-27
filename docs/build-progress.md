@@ -2,7 +2,7 @@
 
 ## Firebase production foundation — 2026-07-27
 
-Status: provisioned; initial App Hosting release in progress.
+Status: provisioned; initial App Hosting release deployed successfully.
 
 Delivered:
 
@@ -20,6 +20,10 @@ Delivered:
   observability, Calendar, artifact-scanning, quota, budget, and asset APIs
 - initialized Google-managed service identities for runtime dependencies
 - domain-restricted reCAPTCHA Enterprise registration for Firebase App Check
+- GitHub Developer Connect link scoped to `FlawlessIQ/StudioPilot`
+- successful production rollout from GitHub commit `2706c25`
+- automatic production rollouts from the `main` branch
+- verified public homepage and health endpoint
 
 Production provider Functions and third-party connections remain intentionally
 undeployed until their App Check registration, least-privilege credentials,

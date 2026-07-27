@@ -6,6 +6,11 @@ runConfig:
   memoryMiB: 512
 
 env:
+  - variable: NEXT_PUBLIC_APP_URL
+    value: https://studiohub--studiohub-prod.us-east4.hosted.app
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: NEXT_PUBLIC_APP_VERSION
     value: firebase-production
     availability:
