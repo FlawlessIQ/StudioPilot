@@ -157,6 +157,16 @@ Files remain in Cloud Storage under a tenant, project, and user-prefixed path.
 Assignment requirements store file references and review evidence, never raw
 file bytes.
 
+## Milestone 7 collections
+
+`postProductionRecords` contain evidence-backed completion state for backup,
+culling, editing, gallery readiness, delivery, download, and archive.
+`deliveryRecords` normalize gallery provider references, access metadata, and
+sent/viewed/downloaded evidence. `reviewRequests` preserve each scheduled
+sequence item and its engagement or explicit confirmation state.
+`projectCloseouts` snapshot deterministic closeout gates and completion
+evidence. `reportJobs` is server-only asynchronous CSV work.
+
 ## Immutability and deletion
 
 - package snapshots and audit events are append-only

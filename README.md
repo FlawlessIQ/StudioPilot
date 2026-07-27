@@ -111,4 +111,5 @@ See [docs/architecture.md](docs/architecture.md), [docs/data-model.md](docs/data
 [docs/pdf-generation.md](docs/pdf-generation.md),
 [docs/planning-platform.md](docs/planning-platform.md),
 [docs/crew-operations.md](docs/crew-operations.md),
+[docs/post-event-operations.md](docs/post-event-operations.md),
 [docs/security.md](docs/security.md), and [docs/product-spec.md](docs/product-spec.md).

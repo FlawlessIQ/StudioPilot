@@ -78,6 +78,8 @@ const projectSeeds = [
   { id: "wedding-ready", name: "Sofia & Miles Carter", type: "Wedding", state: "READY", date: "2026-08-22", readiness: 100 },
   { id: "corporate", name: "Northstar Annual Summit", type: "Corporate", state: "BOOKED", date: "2026-09-04", readiness: 46 },
   { id: "sports", name: "Hudson Valley Fall Media Day", type: "Sports", state: "CONTRACT_PENDING", date: "2026-09-12", readiness: 24 },
+  { id: "wedding-delivered", name: "Nora & James Ellis", type: "Wedding", state: "DELIVERED", date: "2026-06-20", readiness: 100 },
+  { id: "wedding-post", name: "Emma & Noah Reed", type: "Wedding", state: "POST_PRODUCTION", date: "2026-06-28", readiness: 100 },
 ] as const;
 
 const audit = {
@@ -207,6 +209,13 @@ batch.set(firestore.doc(`tenants/${tenantId}`), {
   subscriptionPlan: "studio",
   defaultEventTypeId: "wedding",
   defaultLeadAssigneeId: ownerId,
+  reviewLinks: {
+    google: "https://example.com/alder-muse-google-review",
+    weddingwire: "https://example.com/alder-muse-weddingwire-review",
+    theKnot: null,
+    facebook: null,
+    custom: null,
+  },
 });
 
 for (let index = 0; index < demoUsers.length; index += 1) {
@@ -1023,6 +1032,69 @@ batch.set(firestore.doc("schedules/wedding-booked-v4"), {
   approvalState: "client_pending", publishedAt: now, approvedBy: null,
   pdfDocumentId: null, dropboxDocumentId: null, supersedesId: "wedding-booked-v3",
   immutable: true, archivedAt: null,
+});
+
+const postProductionSteps = {
+  backup_complete: { complete: true, completedAt: "2026-06-21T12:00:00.000Z", completedBy: ownerId, evidenceId: "backup-log-ellis", notes: null },
+  cull_complete: { complete: true, completedAt: "2026-06-25T12:00:00.000Z", completedBy: ownerId, evidenceId: null, notes: null },
+  editing_started: { complete: true, completedAt: "2026-06-26T12:00:00.000Z", completedBy: ownerId, evidenceId: null, notes: null },
+  editing_complete: { complete: true, completedAt: "2026-07-15T12:00:00.000Z", completedBy: ownerId, evidenceId: null, notes: null },
+  gallery_ready: { complete: true, completedAt: "2026-07-16T12:00:00.000Z", completedBy: ownerId, evidenceId: "gallery-ellis", notes: null },
+  album_proof_ready: { complete: false, completedAt: null, completedBy: null, evidenceId: null, notes: null },
+  delivery_sent: { complete: true, completedAt: "2026-07-18T14:00:00.000Z", completedBy: ownerId, evidenceId: "delivery-ellis", notes: null },
+  client_downloaded: { complete: true, completedAt: "2026-07-20T16:00:00.000Z", completedBy: userByKey.get("client")?.uid ?? ownerId, evidenceId: "delivery-download-ellis", notes: null },
+  project_archived: { complete: false, completedAt: null, completedBy: null, evidenceId: null, notes: null },
+};
+batch.set(firestore.doc("postProductionRecords/wedding-delivered"), {
+  ...audit, id: "wedding-delivered", tenantId, projectId: "wedding-delivered",
+  steps: postProductionSteps, currentStep: "project_archived",
+  targetDeliveryDate: "2026-07-18", archivedAt: null,
+});
+batch.set(firestore.doc("postProductionRecords/wedding-post"), {
+  ...audit, id: "wedding-post", tenantId, projectId: "wedding-post",
+  steps: {
+    ...postProductionSteps,
+    delivery_sent: { complete: false, completedAt: null, completedBy: null, evidenceId: null, notes: null },
+    client_downloaded: { complete: false, completedAt: null, completedBy: null, evidenceId: null, notes: null },
+    project_archived: { complete: false, completedAt: null, completedBy: null, evidenceId: null, notes: null },
+  },
+  currentStep: "delivery_sent", targetDeliveryDate: "2026-07-28", archivedAt: null,
+});
+batch.set(firestore.doc("deliveryRecords/delivery-ellis"), {
+  ...audit, id: "delivery-ellis", tenantId, projectId: "wedding-delivered",
+  provider: "manual", galleryUrl: "https://gallery.example.test/nora-james",
+  accessCode: "ELLIS", expirationDate: "2027-07-18", deliveryDate: "2026-07-18",
+  notes: "Full wedding gallery and printing rights.", status: "downloaded",
+  sentAt: "2026-07-18T14:00:00.000Z", viewedAt: "2026-07-18T15:20:00.000Z",
+  downloadedAt: "2026-07-20T16:00:00.000Z", providerDeliveryId: null, archivedAt: null,
+});
+batch.set(firestore.doc("reviewRequests/review-ellis-1"), {
+  ...audit, id: "review-ellis-1", tenantId, projectId: "wedding-delivered",
+  deliveryRecordId: "delivery-ellis", channel: "email", destinationLabel: "google",
+  destinationUrl: "https://example.com/alder-muse-google-review", status: "clicked",
+  sequence: 1, scheduledAt: "2026-07-21T12:00:00.000Z",
+  sentAt: "2026-07-21T12:00:00.000Z", deliveredAt: "2026-07-21T12:01:00.000Z",
+  openedAt: "2026-07-21T14:00:00.000Z", clickedAt: "2026-07-21T14:02:00.000Z",
+  confirmedAt: null, confirmedBy: null, messageId: "sendgrid-review-ellis-1", archivedAt: null,
+});
+batch.set(firestore.doc("reviewRequests/review-ellis-2"), {
+  ...audit, id: "review-ellis-2", tenantId, projectId: "wedding-delivered",
+  deliveryRecordId: "delivery-ellis", channel: "email", destinationLabel: "google",
+  destinationUrl: "https://example.com/alder-muse-google-review", status: "scheduled",
+  sequence: 2, scheduledAt: "2026-07-28T12:00:00.000Z",
+  sentAt: null, deliveredAt: null, openedAt: null, clickedAt: null,
+  confirmedAt: null, confirmedBy: null, messageId: null, archivedAt: null,
+});
+batch.set(firestore.doc("projectCloseouts/wedding-delivered"), {
+  ...audit, id: "wedding-delivered", tenantId, projectId: "wedding-delivered", status: "blocked",
+  requirements: [
+    { key: "delivery", label: "Delivery sent", complete: true, evidenceId: "delivery-ellis" },
+    { key: "download", label: "Client download recorded", complete: true, evidenceId: "delivery-download-ellis" },
+    { key: "balance", label: "Final balance settled", complete: true, evidenceId: "invoice-final-ellis" },
+    { key: "crew", label: "Crew assignments completed", complete: true, evidenceId: "crew-closeout-ellis" },
+    { key: "review", label: "Review workflow resolved", complete: false, evidenceId: null },
+  ],
+  completedAt: null, completedBy: null, summaryDocumentId: null, archivedAt: null,
 });
 
 await batch.commit();

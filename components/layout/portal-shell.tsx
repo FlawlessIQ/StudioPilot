@@ -25,19 +25,19 @@ const portalNav = [
   { label: "Schedule", icon: CalendarDays, href: "/client/schedule" },
   { label: "Documents", icon: FolderOpen, href: "/client#documents" },
   { label: "Messages", icon: MessageCircle, href: "/client#messages" },
-  { label: "Delivery", icon: Images, href: "/client#delivery" },
-  { label: "Reviews", icon: Star, href: "/client#reviews" },
+  { label: "Delivery", icon: Images, href: "/client/delivery" },
+  { label: "Reviews", icon: Star, href: "/client/reviews" },
 ] as const;
 
-export function PortalShell({ children, active = "Home" }: { children: React.ReactNode; active?: string }) {
+export function PortalShell({ children, active = "Home", projectName = "Maya & Theo", projectDate = "August 15, 2026" }: { children: React.ReactNode; active?: string; projectName?: string; projectDate?: string }) {
   return (
     <div className="portal-frame">
       <aside className="portal-sidebar" id="portal-navigation">
         <Link href="/client"><Logo /></Link>
         <div className="portal-project">
           <small>Your project</small>
-          <strong>Maya &amp; Theo</strong>
-          <span>August 15, 2026</span>
+          <strong>{projectName}</strong>
+          <span>{projectDate}</span>
         </div>
         <nav aria-label="Client portal navigation">
           {portalNav.map((item) => {

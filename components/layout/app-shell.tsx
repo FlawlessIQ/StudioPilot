@@ -24,6 +24,10 @@ import {
   BadgeCheck,
   ClipboardList,
   GanttChartSquare,
+  Images,
+  Star,
+  ChartNoAxesColumn,
+  WandSparkles,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { cn } from "@/lib/utils";
@@ -44,6 +48,10 @@ const navItems = [
   { label: "Questionnaires", href: "/studio/questionnaires", icon: ClipboardList },
   { label: "Insurance", href: "/studio/insurance", icon: ShieldCheck },
   { label: "Schedules", href: "/studio/schedules", icon: GanttChartSquare },
+  { label: "Post-production", href: "/studio/post-production", icon: WandSparkles },
+  { label: "Delivery", href: "/studio/delivery", icon: Images },
+  { label: "Reviews", href: "/studio/reviews", icon: Star },
+  { label: "Reports", href: "/studio/reports", icon: ChartNoAxesColumn },
   { label: "Workflows", href: "/studio/workflows", icon: Workflow },
   { label: "Tasks", href: "/studio/tasks", icon: ListTodo },
   { label: "Readiness", href: "/studio/readiness", icon: ShieldCheck },

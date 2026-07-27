@@ -122,3 +122,28 @@ test("crew operations enforce scoped briefs and current schedule acknowledgement
   await expect(page.getByText(/Development preview: schedule version 4 acknowledged/)).toBeVisible();
   await expect(page.getByText("Package pricing, invoices, and unrelated project information remain hidden.")).toHaveCount(0);
 });
+
+test("post-event operations preserve delivery evidence and explicit review confirmation", async ({ page }) => {
+  await page.goto("/studio/post-production");
+  await expect(page.getByRole("heading", { name: "Post-production" })).toBeVisible();
+  await expect(page.getByText("Nora & James Ellis")).toBeVisible();
+
+  await page.goto("/studio/post-production/wedding-delivered");
+  await expect(page.getByRole("heading", { name: "Project closeout" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Close project" })).toBeDisabled();
+
+  await page.goto("/studio/delivery");
+  await page.getByRole("button", { name: "Record & send delivery" }).click();
+  await expect(page.getByText(/Development preview: delivery gates passed/)).toBeVisible();
+
+  await page.goto("/studio/reviews");
+  await expect(page.getByText("A click is engagement—not completion.")).toBeVisible();
+
+  await page.goto("/studio/reports");
+  await expect(page.getByRole("heading", { name: "Reports" })).toBeVisible();
+  await expect(page.getByText("QuickBooks sync · Jul 26, 6:12 PM")).toBeVisible();
+
+  await page.goto("/client/reviews");
+  await page.getByRole("button", { name: "I’ve completed my review" }).click();
+  await expect(page.getByText(/Development preview: review confirmed/)).toBeVisible();
+});

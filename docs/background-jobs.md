@@ -33,3 +33,10 @@ the original failure.
 - Cloud Run: PDFs, extraction, file safety, and heavier AI work
 
 Queue payloads contain identifiers and immutable snapshots, not provider secrets.
+
+## Review request scheduling
+
+The hourly review scheduler selects due `scheduled` review records and creates
+an idempotent server-only email job. The communications worker and SendGrid
+events remain authoritative for sent and delivered state. Explicit client or
+studio confirmation marks remaining scheduled sequence items `skipped`.

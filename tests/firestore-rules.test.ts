@@ -169,6 +169,10 @@ test(
         await setDoc(doc(adminDb, "crewAssignments/assignment-a"), { tenantId: "tenant-a", projectId: "project-a", userId: "crew-a", status: "accepted" });
         await setDoc(doc(adminDb, "crewAssignments/assignment-private"), { tenantId: "tenant-a", projectId: "project-a", userId: "crew-private", status: "accepted" });
         await setDoc(doc(adminDb, "crewAvailability/availability-a"), { tenantId: "tenant-a", crewProfileId: "profile-a", userId: "crew-a" });
+        await setDoc(doc(adminDb, "postProductionRecords/post-a"), { tenantId: "tenant-a", projectId: "project-a", currentStep: "editing_started" });
+        await setDoc(doc(adminDb, "deliveryRecords/delivery-a"), { tenantId: "tenant-a", projectId: "project-a", status: "sent" });
+        await setDoc(doc(adminDb, "reviewRequests/review-a"), { tenantId: "tenant-a", projectId: "project-a", status: "clicked" });
+        await setDoc(doc(adminDb, "projectCloseouts/closeout-a"), { tenantId: "tenant-a", projectId: "project-a", status: "blocked" });
       });
 
       const userDb = environment.authenticatedContext("user-a").firestore();
@@ -189,6 +193,8 @@ test(
       await assertSucceeds(getDoc(doc(userDb, "schedules/schedule-a")));
       await assertSucceeds(getDoc(doc(userDb, "vendors/vendor-a")));
       await assertFails(getDoc(doc(userDb, "insuranceRequests/coi-a")));
+      await assertSucceeds(getDoc(doc(userDb, "postProductionRecords/post-a")));
+      await assertFails(getDoc(doc(userDb, "deliveryRecords/delivery-a")));
 
       const clientDb = environment.authenticatedContext("client-a").firestore();
       await assertSucceeds(getDoc(doc(clientDb, "projects/project-a")));
@@ -211,6 +217,11 @@ test(
       await assertSucceeds(getDoc(doc(clientDb, "schedules/schedule-a")));
       await assertFails(getDoc(doc(clientDb, "insuranceRequests/coi-a")));
       await assertFails(updateDoc(doc(clientDb, "schedules/schedule-a"), { status: "approved" }));
+      await assertFails(getDoc(doc(clientDb, "postProductionRecords/post-a")));
+      await assertSucceeds(getDoc(doc(clientDb, "deliveryRecords/delivery-a")));
+      await assertSucceeds(getDoc(doc(clientDb, "reviewRequests/review-a")));
+      await assertFails(getDoc(doc(clientDb, "projectCloseouts/closeout-a")));
+      await assertFails(updateDoc(doc(clientDb, "reviewRequests/review-a"), { status: "client_confirmed" }));
 
       const crewDb = environment.authenticatedContext("crew-a").firestore();
       await assertSucceeds(getDoc(doc(crewDb, "projects/project-a")));

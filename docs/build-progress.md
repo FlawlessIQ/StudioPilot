@@ -209,7 +209,36 @@ Milestone 7 may begin without carrying a broken build forward.
 
 ## Milestone 7 — Post-Event
 
-Pending: post-production checkpoints, delivery, review requests, closeout, and reporting.
+Status: implementation complete; final release validation complete.
+
+Delivered:
+
+- typed post-production steps, delivery records, review requests, and project closeout snapshots
+- deterministic post-production dependencies and delivery gate
+- HTTPS gallery validation and manual provider support with future gallery adapter contracts
+- atomic delivery recording, project state advancement, review scheduling, and audit evidence
+- default review sequence at three and ten days after delivery
+- hourly idempotent review-request scheduler and server-only email jobs
+- explicit review confirmation that stops reminders without treating clicks as posted reviews
+- deterministic closeout requirements, restricted completion, and closeout PDF job
+- tenant-scoped report aggregation, date/project/user filters, CSV export, and print view
+- studio post-production, delivery, reviews, closeout, and reports experiences
+- client delivery and review-confirmation experiences
+- Firestore rules/indexes, representative post-event seed data, automated tests, and operations documentation
+
+Validation record:
+
+- strict TypeScript: passed
+- unit and policy suite: 56 passed
+- Firestore Emulator rules suite: passed, including client delivery/review visibility, post-production denial, closeout denial, and server-only mutation
+- Playwright end-to-end suite: 14 passed across desktop and mobile Chromium
+- Cloud Functions TypeScript build: passed
+- ESLint: passed with zero warnings
+- production web build: passed
+- expanded Firebase Auth and Firestore emulator seed: executed successfully
+- production dependency audit: no high or critical runtime advisories; inherited Google Cloud UUID advisories remain moderate and tracked
+
+Milestone 8 may begin without carrying a broken build forward.
 
 ## Milestone 8 — SaaS Operations
 

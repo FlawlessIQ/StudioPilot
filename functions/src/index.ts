@@ -11,6 +11,8 @@ export { docusignWebhook, quickbooksWebhook } from "./booking/webhooks.js";
 export { planningCommand } from "./planning/commands.js";
 export { sendgridInboundCoi } from "./planning/inbound.js";
 export { crewCommand } from "./crew/commands.js";
+export { postEventCommand } from "./post-event/commands.js";
+export { reviewRequestScheduler } from "./post-event/jobs.js";
 
 if (getApps().length === 0) {
   initializeApp();

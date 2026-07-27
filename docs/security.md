@@ -58,6 +58,11 @@ Browser clients cannot write or delete audit events. Trusted services append eve
 - subcontractors can read only their own profile, availability, assignments, scoped documents, and assigned schedule
 - publishing a new schedule clears accepted crew acknowledgements so obsolete versions cannot satisfy readiness
 - crew uploads are user/project path-bound, create-only, type and size validated, and remain under studio review
+- post-production, delivery, review, and closeout records are server-write-only
+- delivery commands require backup, editing, gallery, project-state, tenant, and permission gates
+- review clicks are engagement evidence only and cannot complete the review workflow
+- closeout requires every deterministic evidence gate and Studio Owner or Admin authority
+- report export jobs are restricted to financial-reporting roles and retain tenant-scoped filters
 
 ## Retention, export, and deletion
 
