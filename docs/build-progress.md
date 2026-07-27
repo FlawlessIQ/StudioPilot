@@ -408,8 +408,8 @@ Required before external pilot access:
 
 ## Zoom OAuth staging
 
-Status: development credentials configured; public activation is intentionally
-held until the Zoom app scope inventory is complete.
+Status: development credentials and required scopes configured; public
+activation enabled for local OAuth testing.
 
 Configured least-privilege user-managed scopes:
 
@@ -419,12 +419,13 @@ Configured least-privilege user-managed scopes:
 - `meeting:delete:meeting`
 - `meeting:read:list_meetings`
 
-Required before activation:
+Required before production publication:
 
-- add the delete-meeting and list-meetings scopes in the Zoom development app
-- add a clear scope-use and encrypted-storage description
-- verify the exact OAuth redirect and allow-list URL
-- deploy and complete a local-test OAuth connection
+- complete a local-test OAuth connection
+- create, retrieve, update, list, and delete one test meeting
+- verify reconnecting does not create duplicate meetings
+- replace development credentials with Zoom production credentials
+- complete Zoom Marketplace production review
 
 ## Production activation — Phase 1
 
