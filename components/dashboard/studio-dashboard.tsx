@@ -1,33 +1,88 @@
+"use client";
+
 import Link from "next/link";
 import {
   ArrowRight,
   CalendarDays,
-  ChevronRight,
   CircleAlert,
   Plus,
-  TrendingUp,
+  ShieldCheck,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
+import { LiveUpcomingRows, useTenantDocuments } from "@/components/live/tenant-records";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { riskItems, todayItems } from "@/config/demo-data";
-import { LiveUpcomingRows } from "@/components/live/tenant-records";
+import { useWorkspace } from "@/features/auth/workspace-context";
 
-const pipeline = [
-  { label: "New inquiries", value: 12, color: "sand" },
-  { label: "Consultations", value: 8, color: "lilac" },
-  { label: "Proposals sent", value: 5, color: "blue" },
-  { label: "Contract pending", value: 3, color: "amber" },
-  { label: "Booked", value: 9, color: "green" },
-];
+const activeStates = new Set([
+  "CONSULTATION",
+  "PROPOSAL",
+  "CONTRACT_PENDING",
+  "RETAINER_PENDING",
+  "BOOKED",
+  "PLANNING",
+  "READY",
+  "EVENT_COMPLETE",
+  "POST_PRODUCTION",
+  "DELIVERED",
+  "REVIEW_REQUESTED",
+]);
 
-export function StudioDashboard() {
+function firstName(value: string) {
+  return value.trim().split(/\s+/)[0] || "there";
+}
+
+function DashboardSummary() {
+  const workspace = useWorkspace();
+  const { records, error, loading } = useTenantDocuments("projects");
+  const current = new Date();
+  const active = (records ?? []).filter((project) =>
+    activeStates.has(String(project.state)),
+  );
+  const eventsThisMonth = active.filter((project) => {
+    const date = new Date(`${String(project.eventDate)}T12:00:00`);
+    return (
+      date.getFullYear() === current.getFullYear() &&
+      date.getMonth() === current.getMonth()
+    );
+  }).length;
+  const ready = active.filter(
+    (project) =>
+      project.state === "READY" || Number(project.readinessScore) === 100,
+  ).length;
+  const atRisk = active.filter(
+    (project) => Number(project.readinessScore ?? 0) < 100,
+  );
+  const pipeline = [
+    ["Consultations", "CONSULTATION"],
+    ["Proposals", "PROPOSAL"],
+    ["Contracts", "CONTRACT_PENDING"],
+    ["Retainers", "RETAINER_PENDING"],
+    ["Booked", "BOOKED"],
+  ].map(([label, state]) => ({
+    label,
+    value: active.filter((project) => project.state === state).length,
+  }));
+  const maxPipeline = Math.max(1, ...pipeline.map((item) => item.value));
+
   return (
-    <AppShell>
+    <>
       <div className="dashboard-heading">
         <div>
-          <p className="eyebrow">Sunday, July 26</p>
-          <h1>Good morning, Conor.</h1>
-          <p>Here’s what needs your attention across Alder &amp; Muse.</p>
+          <p className="eyebrow">
+            {current.toLocaleDateString(undefined, {
+              weekday: "long",
+              month: "long",
+              day: "numeric",
+            })}
+          </p>
+          <h1>Good morning, {firstName(workspace.userName)}.</h1>
+          <p>
+            {loading
+              ? "Loading your operational priorities…"
+              : error
+                ? "Studio data is temporarily unavailable."
+                : `Here is the verified state of ${workspace.tenantName}.`}
+          </p>
         </div>
         <Link className="button button-dark" href="/studio/projects">
           <Plus size={16} /> View projects
@@ -37,27 +92,27 @@ export function StudioDashboard() {
       <section className="metric-grid" aria-label="Studio overview">
         <article className="metric-card">
           <span className="metric-label">Events this month</span>
-          <strong>8</strong>
-          <span className="metric-note positive">
-            <TrendingUp size={14} /> 2 more than June
-          </span>
+          <strong>{loading ? "—" : eventsThisMonth}</strong>
+          <span className="metric-note">From active project dates</span>
         </article>
         <article className="metric-card">
           <span className="metric-label">Projects ready</span>
-          <strong>14 <small>/ 19</small></strong>
-          <span className="metric-note">74% readiness rate</span>
+          <strong>
+            {loading ? "—" : ready} <small>/ {loading ? "—" : active.length}</small>
+          </strong>
+          <span className="metric-note">Deterministic readiness state</span>
         </article>
         <article className="metric-card metric-alert">
-          <span className="metric-label">Blocking items</span>
-          <strong>6</strong>
+          <span className="metric-label">Projects needing action</span>
+          <strong>{loading ? "—" : atRisk.length}</strong>
           <span className="metric-note warning">
-            <CircleAlert size={14} /> 2 overdue
+            <CircleAlert size={14} /> Below 100% readiness
           </span>
         </article>
         <article className="metric-card">
-          <span className="metric-label">Outstanding balance</span>
-          <strong>$18.4k</strong>
-          <span className="metric-note">Synced 12 min ago · QuickBooks</span>
+          <span className="metric-label">Active projects</span>
+          <strong>{loading ? "—" : active.length}</strong>
+          <span className="metric-note">Cancelled and archived excluded</span>
         </article>
       </section>
 
@@ -65,62 +120,71 @@ export function StudioDashboard() {
         <section className="panel today-panel">
           <div className="panel-heading">
             <div>
-              <h2>Today</h2>
-              <p>Your priority activity</p>
+              <h2>Next actions</h2>
+              <p>Highest-priority project guidance</p>
             </div>
-            <Link href="/studio/calendar">View calendar <ArrowRight size={14} /></Link>
+            <Link href="/studio/tasks">
+              Open tasks <ArrowRight size={14} />
+            </Link>
           </div>
           <div className="today-list">
-            {todayItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <article className="today-row" key={item.detail}>
-                  <span className={`today-icon icon-${item.tone}`}>
-                    <Icon size={18} />
+            {atRisk
+              .sort((a, b) =>
+                String(a.eventDate).localeCompare(String(b.eventDate)),
+              )
+              .slice(0, 4)
+              .map((project) => (
+                <Link
+                  className="today-row"
+                  href={`/studio/projects/${project.id}`}
+                  key={project.id}
+                >
+                  <span className="today-icon icon-amber">
+                    <CalendarDays size={18} />
                   </span>
                   <div>
-                    <small>{item.label}</small>
-                    <strong>{item.detail}</strong>
+                    <small>{String(project.name)}</small>
+                    <strong>
+                      {String(project.nextAction ?? "Review project readiness")}
+                    </strong>
                   </div>
-                  <time>{item.time}</time>
-                  <ChevronRight size={16} />
-                </article>
-              );
-            })}
-          </div>
-          <div className="day-divider">
-            <span><CalendarDays size={14} /> Next event</span>
-            <strong>Maya &amp; Theo · The Foundry</strong>
-            <small>20 days away</small>
+                  <time>{String(project.eventDate)}</time>
+                  <ArrowRight size={16} />
+                </Link>
+              ))}
+            {!loading && !atRisk.length ? (
+              <div className="live-record-state">
+                <ShieldCheck size={18} />
+                <span>
+                  <strong>No active readiness blockers</strong>
+                  <small>New required actions will appear here.</small>
+                </span>
+              </div>
+            ) : null}
           </div>
         </section>
-
         <section className="panel risk-panel">
           <div className="panel-heading">
             <div>
-              <h2>At risk</h2>
-              <p>Items affecting readiness</p>
+              <h2>Pipeline</h2>
+              <p>Current projects by booking stage</p>
             </div>
-            <StatusBadge tone="danger">6 open</StatusBadge>
+            <StatusBadge tone="info">Live data</StatusBadge>
           </div>
-          <div className="risk-list">
-            {riskItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <article className="risk-row" key={item.label}>
-                  <span className="risk-icon"><Icon size={18} /></span>
-                  <div>
-                    <strong>{item.label}</strong>
-                    <small>{item.detail}</small>
-                  </div>
-                  <StatusBadge>{item.owner}</StatusBadge>
-                </article>
-              );
-            })}
+          <div className="pipeline-bars">
+            {pipeline.map((stage) => (
+              <div className="pipeline-row" key={stage.label}>
+                <span>{stage.label}</span>
+                <div>
+                  <i
+                    className="bar-green"
+                    style={{ width: `${(stage.value / maxPipeline) * 100}%` }}
+                  />
+                </div>
+                <strong>{loading ? "—" : stage.value}</strong>
+              </div>
+            ))}
           </div>
-          <Link className="panel-footer-link" href="/studio/projects?filter=at-risk">
-            Review all blockers <ArrowRight size={14} />
-          </Link>
         </section>
       </div>
 
@@ -128,11 +192,11 @@ export function StudioDashboard() {
         <div className="panel-heading">
           <div>
             <h2>Upcoming projects</h2>
-            <p>Readiness across your next events</p>
+            <p>Readiness across the next active events</p>
           </div>
-          <div className="table-actions">
-            <StatusBadge tone="info" dot>Live readiness</StatusBadge>
-          </div>
+          <StatusBadge tone="info" dot>
+            Tenant scoped
+          </StatusBadge>
         </div>
         <div className="project-table" role="table" aria-label="Upcoming projects">
           <div className="project-table-head" role="row">
@@ -142,48 +206,17 @@ export function StudioDashboard() {
             <span role="columnheader">Readiness</span>
             <span role="columnheader">Main blocker</span>
           </div>
-          <LiveUpcomingRows/>
+          <LiveUpcomingRows />
         </div>
       </section>
+    </>
+  );
+}
 
-      <section className="dashboard-bottom-grid">
-        <article className="panel pipeline-card">
-          <div className="panel-heading">
-            <div>
-              <h2>Pipeline</h2>
-              <p>Active opportunities by stage</p>
-            </div>
-            <span className="period-pill">Last 30 days</span>
-          </div>
-          <div className="pipeline-bars">
-            {pipeline.map((stage) => (
-              <div className="pipeline-row" key={stage.label}>
-                <span>{stage.label}</span>
-                <div><i className={`bar-${stage.color}`} style={{ width: `${stage.value * 7}%` }} /></div>
-                <strong>{stage.value}</strong>
-              </div>
-            ))}
-          </div>
-        </article>
-        <article className="panel financial-card">
-          <div className="panel-heading">
-            <div>
-              <h2>Financial snapshot</h2>
-              <p>Synced from QuickBooks Online</p>
-            </div>
-            <StatusBadge tone="success" dot>Healthy</StatusBadge>
-          </div>
-          <div className="financial-total">
-            <span>Booked project value</span>
-            <strong>$184,250</strong>
-            <small>+$24,800 this month</small>
-          </div>
-          <div className="financial-split">
-            <span><small>Collected</small><strong>$126,430</strong></span>
-            <span><small>Outstanding</small><strong>$57,820</strong></span>
-          </div>
-        </article>
-      </section>
+export function StudioDashboard() {
+  return (
+    <AppShell>
+      <DashboardSummary />
     </AppShell>
   );
 }

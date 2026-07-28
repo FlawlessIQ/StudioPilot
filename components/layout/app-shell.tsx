@@ -31,6 +31,7 @@ import {
   ChartNoAxesColumn,
   WandSparkles,
   CreditCard,
+  MessageCircle,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { cn } from "@/lib/utils";
@@ -67,6 +68,7 @@ const navItems = [
   { label: "Tasks", href: "/studio/tasks", icon: ListTodo },
   { label: "Readiness", href: "/studio/readiness", icon: ShieldCheck },
   { label: "Documents", href: "/studio/documents", icon: FileStack },
+  { label: "Communications", href: "/studio/messages", icon: MessageCircle },
   { label: "Integrations", href: "/studio/integrations", icon: LayoutTemplate },
   { label: "Team", href: "/studio/team", icon: UsersRound },
   { label: "Subscription", href: "/studio/subscription", icon: CreditCard },
@@ -96,6 +98,33 @@ function StudioShell({
   const workspace = useWorkspace();
   const tenantName = workspace.error ? "Workspace unavailable" : workspace.tenantName;
   const userName = workspace.error ? "Signed-in user" : workspace.userName;
+  const staffAllowed = new Set([
+    "Dashboard",
+    "Projects",
+    "Calendar",
+    "Tasks",
+    "Documents",
+    "Communications",
+    "Schedules",
+    "Readiness",
+  ]);
+  const coordinatorExcluded = new Set([
+    "Packages",
+    "Workflows",
+    "Reports",
+    "Integrations",
+    "Team",
+    "Subscription",
+  ]);
+  const visibleNav = navItems.filter((item) => {
+    if (workspace.role === "staff_photographer")
+      return staffAllowed.has(item.label);
+    if (workspace.role === "studio_coordinator")
+      return !coordinatorExcluded.has(item.label);
+    if (workspace.role === "studio_admin")
+      return !["Team", "Subscription"].includes(item.label);
+    return true;
+  });
   return (
     <div className="app-frame">
       <aside className="sidebar" id="studio-navigation">
@@ -112,7 +141,7 @@ function StudioShell({
         </div>
 
         <nav className="main-nav" aria-label="Studio navigation">
-          {navItems.map((item) => {
+          {visibleNav.map((item) => {
             const Icon = item.icon;
             return (
               <Link
@@ -128,10 +157,12 @@ function StudioShell({
         </nav>
 
         <div className="sidebar-bottom">
-          <Link href="/studio/settings" className="nav-item">
-            <Settings size={18} />
-            <span>Settings</span>
-          </Link>
+          {workspace.role === "studio_owner" ? (
+            <Link href="/studio/settings" className="nav-item">
+              <Settings size={18} />
+              <span>Settings</span>
+            </Link>
+          ) : null}
           <div className="user-card">
             <span className="avatar avatar-ink">{initials(userName)}</span>
             <span className="tenant-copy">
@@ -156,7 +187,6 @@ function StudioShell({
           <div className="topbar-actions">
             <Link className="icon-button" href="/studio/notifications" aria-label="Notifications">
               <Bell size={19} />
-              <span className="notification-dot" />
             </Link>
             <Link href="/studio/copilot" className="copilot-button">
               <Sparkles size={16} />

@@ -1,6 +1,17 @@
-import { CircleAlert,RefreshCw } from "lucide-react";
 import { AdminShell } from "@/components/platform/admin-shell";
-import { AdminCommandAction } from "@/components/saas/admin-actions";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { failedJobs } from "@/config/saas-demo-data";
-export default function FailedJobsPage(){return <AdminShell active="Failed jobs"><header><div><p className="eyebrow">Dead-letter operations</p><h1>Failed jobs</h1><p>Retry state, attempts, and provider context for asynchronous work.</p></div></header><section className="panel ops-table">{failedJobs.map(job=><div className="ops-row failed-job-row" key={job.id}><span><CircleAlert size={17}/><strong>{job.id}</strong><small>{job.tenant}</small></span><span>{job.provider}</span><span>{job.action}</span><span>{job.attempts} attempts</span><StatusBadge tone={job.status==="Dead letter"?"danger":"warning"}>{job.status}</StatusBadge></div>)}</section><section className="panel ops-boundary"><RefreshCw/><div><strong>Manual reruns preserve the original input snapshot and idempotency key.</strong><p>The command rejects nonfailed work, requeues the selected job, and writes an audit event.</p></div><AdminCommandAction label="Rerun dead-letter job" complete="Dead-letter job queued for a controlled rerun." command={{type:"rerunJob",input:{jobId:"demo-failed-sendgrid"}}}/></section></AdminShell>}
+import { LiveAdminCollection } from "@/components/platform/live-admin-data";
+
+export default function FailedJobsPage() {
+  return (
+    <AdminShell active="Failed jobs">
+      <header>
+        <div>
+          <p className="eyebrow">Dead-letter operations</p>
+          <h1>Failed jobs</h1>
+          <p>Manual reruns preserve the original input snapshot and idempotency key.</p>
+        </div>
+      </header>
+      <LiveAdminCollection domain="failed_jobs" />
+    </AdminShell>
+  );
+}

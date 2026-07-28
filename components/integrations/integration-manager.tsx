@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Cable, CheckCircle2, FlaskConical, RefreshCw } from "lucide-react";
-import { collection, getDocs, limit, query, where } from "firebase/firestore";
+import { Cable, CheckCircle2, FlaskConical, RefreshCw, Unplug } from "lucide-react";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive, providersAreLive } from "@/lib/runtime-mode";
+import { activeMembership } from "@/lib/firebase/active-membership";
 type Provider =
   | "quickbooks"
   | "google_calendar"
@@ -80,15 +81,8 @@ export function IntegrationManager() {
         const { auth, firestore } = getFirebaseClient();
         const user = auth.currentUser;
         if (!user) return;
-        const memberships = await getDocs(
-          query(
-            collection(firestore, "memberships"),
-            where("userId", "==", user.uid),
-            where("status", "==", "active"),
-            limit(1),
-          ),
-        );
-        const tenantId = memberships.docs[0]?.data().tenantId;
+        const membership = await activeMembership(firestore, user.uid);
+        const tenantId = membership.data().tenantId;
         if (typeof tenantId !== "string") return;
         const snapshot = await getDocs(
           query(
@@ -142,15 +136,8 @@ export function IntegrationManager() {
       const { auth, firestore } = getFirebaseClient();
       const user = auth.currentUser;
       if (!user) throw new Error("Sign in before connecting an integration.");
-      const memberships = await getDocs(
-        query(
-          collection(firestore, "memberships"),
-          where("userId", "==", user.uid),
-          where("status", "==", "active"),
-          limit(1),
-        ),
-      );
-      const tenantId = memberships.docs[0]?.data().tenantId;
+      const membership = await activeMembership(firestore, user.uid);
+      const tenantId = membership.data().tenantId;
       if (typeof tenantId !== "string")
         throw new Error("No active studio membership was found.");
       const appCheckToken = await getAppCheckToken();
@@ -163,7 +150,7 @@ export function IntegrationManager() {
             authorization: `Bearer ${await user.getIdToken()}`,
             ...(appCheckToken ? { "x-firebase-appcheck": appCheckToken } : {}),
           },
-          body: JSON.stringify({ provider, tenantId }),
+          body: JSON.stringify({ provider, tenantId, action: "connect" }),
         },
       );
       const result = (await response.json()) as {
@@ -177,6 +164,34 @@ export function IntegrationManager() {
       setNotice(
         caught instanceof Error ? caught.message : "OAuth could not start.",
       );
+    }
+  }
+  async function manage(provider: Provider, action: "health" | "disconnect") {
+    const endpoint = process.env.NEXT_PUBLIC_INTEGRATION_FUNCTIONS_URL;
+    if (!endpoint) return setNotice("Integration services are unavailable.");
+    try {
+      const { auth, firestore } = getFirebaseClient();
+      const user = auth.currentUser;
+      if (!user) throw new Error("Sign in before managing an integration.");
+      const membership = await activeMembership(firestore, user.uid);
+      const tenantId = membership.get("tenantId");
+      const appCheckToken = await getAppCheckToken();
+      const response = await fetch(`${endpoint.replace(/\/$/, "")}/integrationOAuth`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${await user.getIdToken()}`,
+          ...(appCheckToken ? { "x-firebase-appcheck": appCheckToken } : {}),
+        },
+        body: JSON.stringify({ provider, tenantId, action }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "Integration action failed.");
+      setNotice(action === "health" ? "Provider health check passed." : "Provider disconnected. Reconnect to authorize it again.");
+      if (action === "disconnect")
+        setConnections((current) => current.map((item) => item.provider === provider ? { ...item, status: "disconnected" } : item));
+    } catch (caught: unknown) {
+      setNotice(caught instanceof Error ? caught.message : "Integration action failed.");
     }
   }
   return (
@@ -243,6 +258,8 @@ export function IntegrationManager() {
                     <RefreshCw size={14} />
                     {connected ? "Reconnect" : "Connect"}
                   </button>
+                  {connected && !mock ? <button type="button" onClick={() => void manage(definition.provider, "health")}><CheckCircle2 /> Test</button> : null}
+                  {connected ? <button type="button" onClick={() => void manage(definition.provider, "disconnect")}><Unplug /> Disconnect</button> : null}
                 </footer>
               </article>
             );

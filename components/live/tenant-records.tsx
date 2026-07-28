@@ -28,13 +28,14 @@ import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { ReadinessMeter } from "@/components/ui/readiness-meter";
 import { StatusBadge } from "@/components/ui/status-badge";
-type Document = Record<string, unknown> & { id: string };
+import { ClientPortalInvite } from "@/components/clients/client-portal-invite";
+export type TenantDocument = Record<string, unknown> & { id: string };
 async function tenantDocuments(
   collectionName: string,
   tenantId: string,
   role: Role | null,
   projectIds: string[],
-): Promise<Document[]> {
+): Promise<TenantDocument[]> {
   const { firestore } = getFirebaseClient();
   if (
     collectionName === "projects" &&
@@ -50,7 +51,7 @@ async function tenantDocuments(
       .filter((document) => document.exists())
       .map(
         (document) =>
-          ({ id: document.id, ...document.data() }) as Document,
+          ({ id: document.id, ...document.data() }) as TenantDocument,
       )
       .filter((document) => document.tenantId === tenantId);
   }
@@ -62,13 +63,13 @@ async function tenantDocuments(
     ),
   );
   return snapshot.docs.map(
-    (document) => ({ id: document.id, ...document.data() }) as Document,
+    (document) => ({ id: document.id, ...document.data() }) as TenantDocument,
   );
 }
 
-function useTenantDocuments(collectionName: string) {
+export function useTenantDocuments(collectionName: string) {
   const workspace = useWorkspace();
-  const [records, setRecords] = useState<Document[] | null>(null);
+  const [records, setRecords] = useState<TenantDocument[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     if (!dataIsLive || workspace.loading) return;
@@ -114,6 +115,114 @@ function useTenantDocuments(collectionName: string) {
       dataIsLive &&
       (workspace.loading || (workspace.tenantId !== null && records === null)),
   };
+}
+
+export function LiveClientCards({
+  q,
+  view,
+}: {
+  q: string;
+  view: string;
+}) {
+  const { records, error, loading } = useTenantDocuments("contacts");
+  const values = (records ?? []).filter((contact) => {
+    const contactTypes = Array.isArray(contact.contactTypes)
+      ? contact.contactTypes.map(String)
+      : [];
+    const archived = Boolean(contact.archivedAt);
+    const matchesView =
+      view === "archived"
+        ? archived
+        : view === "prospects"
+          ? !archived && contactTypes.includes("prospect")
+          : !archived && contactTypes.includes("client");
+    return (
+      matchesView &&
+      String(contact.displayName ?? "")
+        .toLowerCase()
+        .includes(q.toLowerCase())
+    );
+  });
+  if (loading)
+    return (
+      <LiveRecordsState
+        kind="loading"
+        state="Loading clients…"
+        detail="Reading tenant-scoped contact records."
+      />
+    );
+  if (error)
+    return (
+      <LiveRecordsState
+        kind="error"
+        state="Clients could not be loaded"
+        detail={error}
+      />
+    );
+  if (!values.length)
+    return (
+      <LiveRecordsState
+        kind="empty"
+        state="No matching clients"
+        detail="Client contacts will appear here when created or converted from a lead."
+      />
+    );
+  return (
+    <>
+      {values.map((client) => {
+        const name = String(client.displayName ?? "Client");
+        const email =
+          typeof client.email === "string" ? client.email : null;
+        const projectCount = Array.isArray(client.projectIds)
+          ? client.projectIds.length
+          : 0;
+        const projectIds = Array.isArray(client.projectIds)
+          ? client.projectIds.filter(
+              (value): value is string => typeof value === "string",
+            )
+          : [];
+        return (
+          <article key={client.id}>
+            <div className="client-card-head">
+              <span className="avatar avatar-sand">
+                {name
+                  .split(/\s+/)
+                  .slice(0, 2)
+                  .map((part) => part.charAt(0))
+                  .join("")}
+              </span>
+              <StatusBadge tone={client.portalUserId ? "success" : "neutral"}>
+                {client.portalUserId ? "Portal active" : "Not invited"}
+              </StatusBadge>
+            </div>
+            <h2>{name}</h2>
+            <p>{email ?? "No email recorded"}</p>
+            <dl>
+              <div>
+                <dt>Projects</dt>
+                <dd>{projectCount}</dd>
+              </div>
+              <div>
+                <dt>Company</dt>
+                <dd>{String(client.company ?? "—")}</dd>
+              </div>
+            </dl>
+            {email ? (
+              <a href={`mailto:${email}`}>
+                <ArrowUpRight size={15} /> Message client
+              </a>
+            ) : null}
+            {!client.portalUserId && email ? (
+              <ClientPortalInvite
+                contactId={client.id}
+                projectIds={projectIds}
+              />
+            ) : null}
+          </article>
+        );
+      })}
+    </>
+  );
 }
 
 function LiveRecordsState({

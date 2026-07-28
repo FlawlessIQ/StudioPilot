@@ -1,5 +1,62 @@
 # StudioHub Build Progress
 
+## Pilot hardening and live-data completion — 2026-07-27
+
+Status: implementation and local validation complete; production deployment is
+complete for rules, indexes, and trusted Functions. The web release follows the
+GitHub `main` promotion.
+
+Delivered:
+
+- replaced seeded studio, client, crew, and platform-administration operational
+  screens with tenant- and project-scoped Firestore data
+- active-workspace selection is honored consistently by browser command clients
+- live dashboard, project details, subscription usage, reports, CSV export,
+  documents, messages, automation runs, and provider health views
+- secure staff, client, and subcontractor invitation flows using verified email,
+  seven-day expiry, one-way token hashes, project scoping, and audit evidence
+- versioned questionnaire-template builder and project assignment with resolved
+  relative due dates
+- vendor creation and project association
+- complete COI request, unique inbound reply, extraction, deterministic
+  discrepancy comparison, human approval/rejection, correction, venue delivery,
+  and Dropbox archival orchestration
+- permission-aware Vertex AI Copilot with record citations, facts/suggestions
+  separation, quota enforcement, and immutable action audit
+- structured AI schedule generation with strict schema, deterministic conflict
+  validation, editable human-review draft, and explicit publish action
+- live provider health checks plus audited disconnect/reconnect controls
+- SendGrid message history and signature-verified delivery-event webhook
+- public Features, Integrations, Pricing, Wedding, Corporate, Sports, and trial
+  routes aligned to the current $69 / $199 / $399 commercial plan ladder
+- eliminated the generic operational demo catch-all and removed invented unread,
+  financial, health, pipeline, and success metrics
+- production-ready documentation and a separated manual launch checklist
+- deployed Firestore rules/indexes and production Functions for Copilot,
+  schedule generation, client invitations, planning/COI, provider health,
+  SendGrid delivery events, background operations, and file safety
+- granted the Functions runtime Vertex AI access and private relay invocation
+  for the new endpoints
+
+Validation record:
+
+- strict TypeScript: passed
+- ESLint: passed with zero warnings
+- unit/domain suite: 68 passed
+- Firestore rules suite: passed
+- Storage rules suite: passed
+- Playwright acceptance suite: 10 passed across desktop and mobile Chromium
+- Cloud Functions TypeScript build: passed
+- Next.js production build: passed with 86 routes
+
+Safety state:
+
+- outbound email remains in mock mode
+- provider worker operations remain in mock mode
+- Stripe billing remains live
+- switching email or provider execution live requires the manual gates in
+  [`docs/manual-launch-checklist.md`](./manual-launch-checklist.md)
+
 ## Firebase production foundation — 2026-07-27
 
 Status: provisioned; initial App Hosting release deployed successfully.

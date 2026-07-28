@@ -9,13 +9,16 @@ non-production Firebase project.
 
 - verified-email registration and idempotent, server-authorized tenant onboarding
 - role-aware route boundaries for studio, client, crew, and platform surfaces
-- live tenant-scoped lead/project/dashboard reads with explicit preview fallbacks
+- live tenant-scoped studio, client, crew, and platform-administration reads
 - OAuth Authorization Code + PKCE for Calendar, Zoom, Dropbox, Docusign, and QuickBooks
 - OAuth refresh-token rotation in Secret Manager; refresh tokens never enter Firestore or the browser
 - real provider job consumers with bounded exponential retry, dead-letter state, and stable provider idempotency identifiers
 - daily final-invoice scheduling and overdue projection
 - private Cloud Run PDF generation and Vertex AI structured COI extraction
 - SendGrid Inbound Parse handling with unique COI reply tokens
+- signature-verified SendGrid delivery events and normalized message history
+- permission-scoped AI Copilot and human-reviewed AI schedule generation
+- verified-email staff, client, and crew invitation/activation flows
 - quarantine-first file flow: allowlisted type, signature check, ClamAV scan, then AI processing
 - tenant export with paginated collection reads and expiring signed download links
 - deletion cooling-off, cancellation, completed-export prerequisite, and platform approval
@@ -40,12 +43,14 @@ legal determination is supplied by this repository.
 
 ## Known pilot limitations
 
-- Several secondary list/detail/report screens still use representative preview
-  datasets when a live query has not been connected. Enable only live-complete
-  workflows for an initial customer.
-- SendGrid/Twilio delivery-event ingestion, exhaustive provider reconciliation,
-  physical erasure after the deletion approval chain, and a tenant-configurable
-  communications template editor remain release work.
+- SMS remains disabled until Twilio credentials, sender registration, consent,
+  STOP/HELP, quiet-hours, and usage policy are configured.
+- Docusign and QuickBooks require production credentials, exact webhook payload
+  certification, template/resource mapping, and provider acceptance tests.
+- A tenant-configurable visual communications-template editor is not included;
+  transactional message types and delivery history are implemented.
+- Physical erasure after the deletion approval chain remains an operator-owned
+  retention action.
 - Cloud Scheduler is the current durable job poller. Cloud Tasks and Pub/Sub are
   the recommended high-volume scale step.
 - File safety requires current ClamAV definitions. Scanner unavailability is
@@ -60,3 +65,6 @@ Promote one immutable, verified revision. Deploy rules/indexes first, then
 private workers, Functions, and the web application. Run the smoke suite in mock
 mode, provider sandboxes, and finally live mode. Never reuse local environment
 files or demo credentials.
+
+The current external-account and business-approval work is maintained in
+[`docs/manual-launch-checklist.md`](./manual-launch-checklist.md).

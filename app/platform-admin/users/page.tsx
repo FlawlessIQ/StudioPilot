@@ -1,4 +1,17 @@
-import { Users } from "lucide-react";
 import { AdminShell } from "@/components/platform/admin-shell";
-import { StatusBadge } from "@/components/ui/status-badge";
-export default function UsersPage(){return <AdminShell active="Users"><header><div><p className="eyebrow">Identity operations</p><h1>Users</h1><p>Cross-tenant identity references and platform roles. Tenant permissions remain membership-scoped.</p></div></header><section className="panel ops-table">{[["Conor Lawless","Studio owner","Alder & Muse"],["Maya Chen","Studio coordinator","Alder & Muse"],["Priya Shah","Platform administrator","Platform"]].map(row=><div className="ops-row ops-row-users" key={row[0]}><span><Users size={17}/><strong>{row[0]}</strong></span><span>{row[1]}</span><span>{row[2]}</span><StatusBadge tone="success">Verified</StatusBadge></div>)}</section></AdminShell>}
+import { LiveAdminCollection } from "@/components/platform/live-admin-data";
+
+export default function UsersPage() {
+  return (
+    <AdminShell active="Users">
+      <header>
+        <div>
+          <p className="eyebrow">Identity operations</p>
+          <h1>Users</h1>
+          <p>Cross-tenant identity references; tenant permissions remain membership-scoped.</p>
+        </div>
+      </header>
+      <LiveAdminCollection domain="users" />
+    </AdminShell>
+  );
+}

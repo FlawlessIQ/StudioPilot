@@ -1,5 +1,39 @@
 import Link from "next/link";
-import { Activity,ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { AdminShell } from "@/components/platform/admin-shell";
-import { StatusBadge } from "@/components/ui/status-badge";
-export default function PlatformAdminPage(){return <AdminShell active="Overview"><header><div><p className="eyebrow">Platform overview</p><h1>Tenant operations</h1></div><StatusBadge tone="success" dot>All core systems operational</StatusBadge></header><section className="admin-metrics"><article><span>Active tenants</span><strong>148</strong><small>+12 this month</small></article><article><span>Monthly recurring revenue</span><strong>$17.8k</strong><small>4.2% expansion</small></article><article><span>Integration health</span><strong>99.7%</strong><small>Last 24 hours</small></article><article className="warning"><span>Failed jobs</span><strong>3</strong><small>1 dead letter</small></article></section><section className="panel admin-table-panel"><div className="panel-heading"><div><h2>Tenant health</h2><p>Subscription, integration, and operational activity</p></div><Link href="/platform-admin/tenants">View all tenants <ArrowUpRight size={15}/></Link></div><div className="admin-table">{[["Alder & Muse Photography","Studio","Healthy","2 min ago"],["Northlight Creative","Multi-Brand","Healthy","8 min ago"],["Fieldhouse Sports Media","Studio","Attention","22 min ago"],["Morrow Wedding Co.","Solo","Healthy","31 min ago"]].map(([name,plan,health,activity])=><div className="admin-table-row" key={name}><span className="avatar avatar-sand">{name.charAt(0)}</span><span><strong>{name}</strong><small>{plan}</small></span><StatusBadge tone={health==="Healthy"?"success":"warning"} dot>{health}</StatusBadge><span className="activity-cell"><Activity size={14}/>{activity}</span><Link href="/platform-admin/tenants" aria-label={`Open ${name}`}><ArrowUpRight size={16}/></Link></div>)}</div></section></AdminShell>}
+import { LiveAdminCollection } from "@/components/platform/live-admin-data";
+
+export default function PlatformAdminPage() {
+  return (
+    <AdminShell active="Overview">
+      <header>
+        <div>
+          <p className="eyebrow">Platform overview</p>
+          <h1>Tenant operations</h1>
+          <p>Production tenant and service state, never estimated demo metrics.</p>
+        </div>
+        <Link className="button button-dark" href="/platform-admin/system-health">
+          System health <ArrowUpRight size={15} />
+        </Link>
+      </header>
+      <section>
+        <div className="section-heading-row">
+          <div>
+            <p className="eyebrow">Accounts</p>
+            <h2>Tenant fleet</h2>
+          </div>
+        </div>
+        <LiveAdminCollection domain="tenants" />
+      </section>
+      <section>
+        <div className="section-heading-row">
+          <div>
+            <p className="eyebrow">Operations</p>
+            <h2>Current service health</h2>
+          </div>
+        </div>
+        <LiveAdminCollection domain="health" />
+      </section>
+    </AdminShell>
+  );
+}

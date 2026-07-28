@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
-import { getFirestore } from "firebase-admin/firestore";
+import { createHash, randomBytes } from "node:crypto";
+import { getFirestore, type DocumentData } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
@@ -22,6 +22,35 @@ const item = z.object({
   visibility: z.enum(["studio", "client", "crew", "shared"]),
   blockingIssues: z.array(z.string()),
 });
+const questionnaireField = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1).max(200),
+  type: z.enum([
+    "text",
+    "long_text",
+    "email",
+    "phone",
+    "date",
+    "time",
+    "address",
+    "dropdown",
+    "multi_select",
+    "radio",
+    "checkbox",
+    "file",
+    "contact",
+    "repeating_group",
+    "acknowledgement",
+    "information",
+  ]),
+  required: z.boolean(),
+  locked: z.boolean(),
+  internalOnly: z.boolean(),
+  options: z.array(z.string()),
+  conditionalOn: z
+    .object({ fieldId: z.string(), equals: z.unknown() })
+    .nullable(),
+});
 const command = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("saveQuestionnaire"),
@@ -35,6 +64,36 @@ const command = z.discriminatedUnion("type", [
     }),
   }),
   z.object({
+    type: z.literal("createQuestionnaireTemplate"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      name: z.string().min(2).max(160),
+      eventTypeId: z.string().min(1),
+      status: z.enum(["draft", "active"]),
+      sections: z
+        .array(
+          z.object({
+            id: z.string().min(1),
+            title: z.string().min(1).max(160),
+            fields: z.array(questionnaireField).min(1),
+          }),
+        )
+        .min(1),
+      dueDaysBeforeEvent: z.number().int().nonnegative().max(365),
+      reminderDaysBeforeDue: z.array(z.number().int().nonnegative().max(365)),
+    }),
+  }),
+  z.object({
+    type: z.literal("assignQuestionnaire"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      templateId: z.string(),
+    }),
+  }),
+  z.object({
     type: z.literal("createVendor"),
     tenantId: z.string(),
     idempotencyKey: z.string().min(8),
@@ -44,6 +103,27 @@ const command = z.discriminatedUnion("type", [
       contactName: z.string(),
       email: z.string().email().nullable(),
       type: z.string().min(1),
+    }),
+  }),
+  z.object({
+    type: z.literal("createCoiRequest"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      certificateHolder: z.string().min(2).max(300),
+      venueLegalName: z.string().min(2).max(300),
+      venueAddress: z.string().min(5).max(500),
+      eventDate: z.string().date(),
+      coverageTypes: z.array(z.string().min(1)).min(1),
+      requiredLimits: z.record(z.string(), z.number().nonnegative()),
+      additionalInsuredWording: z.string().max(2000).nullable(),
+      waiverOfSubrogation: z.boolean(),
+      primaryNoncontributory: z.boolean(),
+      specialInstructions: z.string().max(3000).nullable(),
+      submissionEmail: z.string().email(),
+      dueDate: z.string().date(),
+      insuranceAgentEmail: z.string().email(),
     }),
   }),
   z.object({
@@ -79,6 +159,15 @@ const command = z.discriminatedUnion("type", [
       notes: z.string().max(2000),
     }),
   }),
+  z.object({
+    type: z.literal("sendCoiToVenue"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      requestId: z.string(),
+    }),
+  }),
 ]);
 const internalRoles = new Set([
   "studio_owner",
@@ -111,10 +200,13 @@ export const planningCommand = onRequest(
         throw new Error("FORBIDDEN");
       const role = String(membership.get("role"));
       const projectIds = membership.get("projectIds") as unknown;
+      const projectId =
+        "projectId" in parsed.input ? parsed.input.projectId : null;
       if (
         !["studio_owner", "studio_admin"].includes(role) &&
-        (!Array.isArray(projectIds) ||
-          !projectIds.includes(parsed.input.projectId))
+        (!projectId ||
+          !Array.isArray(projectIds) ||
+          !projectIds.includes(projectId))
       )
         throw new Error("FORBIDDEN");
       const execution = db.doc(
@@ -152,6 +244,89 @@ export const planningCommand = onRequest(
           responseId: parsed.input.responseId,
           status: parsed.input.submit ? "submitted" : "in_progress",
         };
+      } else if (parsed.type === "createQuestionnaireTemplate") {
+        if (!["studio_owner", "studio_admin"].includes(role))
+          throw new Error("FORBIDDEN");
+        const versions = await db
+          .collection("questionnaireTemplates")
+          .where("tenantId", "==", parsed.tenantId)
+          .where("name", "==", parsed.input.name)
+          .get();
+        const version =
+          Math.max(0, ...versions.docs.map((item) => Number(item.get("version")))) +
+          1;
+        const id = stable(
+          "questionnaire_template",
+          parsed.tenantId,
+          parsed.idempotencyKey,
+        );
+        const batch = db.batch();
+        if (parsed.input.status === "active") {
+          for (const priorTemplate of versions.docs) {
+            if (priorTemplate.get("status") === "active")
+              batch.update(priorTemplate.ref, {
+                status: "archived",
+                archivedAt: now,
+                updatedAt: now,
+                updatedBy: identity.uid,
+              });
+          }
+        }
+        batch.create(db.doc(`questionnaireTemplates/${id}`), {
+          id,
+          tenantId: parsed.tenantId,
+          ...parsed.input,
+          version,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: identity.uid,
+          updatedBy: identity.uid,
+          archivedAt: null,
+        });
+        await batch.commit();
+        result = { templateId: id, version, status: parsed.input.status };
+      } else if (parsed.type === "assignQuestionnaire") {
+        if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
+        const [project, template] = await Promise.all([
+          db.doc(`projects/${parsed.input.projectId}`).get(),
+          db.doc(`questionnaireTemplates/${parsed.input.templateId}`).get(),
+        ]);
+        if (
+          !project.exists ||
+          project.get("tenantId") !== parsed.tenantId ||
+          !template.exists ||
+          template.get("tenantId") !== parsed.tenantId ||
+          template.get("status") !== "active"
+        )
+          throw new Error("QUESTIONNAIRE_ASSIGNMENT_INVALID");
+        const due = new Date(`${String(project.get("eventDate"))}T12:00:00.000Z`);
+        due.setUTCDate(
+          due.getUTCDate() - Number(template.get("dueDaysBeforeEvent") ?? 0),
+        );
+        const id = stable(
+          "questionnaire_response",
+          parsed.tenantId,
+          parsed.idempotencyKey,
+        );
+        await db.doc(`questionnaireResponses/${id}`).create({
+          id,
+          tenantId: parsed.tenantId,
+          projectId: parsed.input.projectId,
+          templateId: parsed.input.templateId,
+          templateVersion: Number(template.get("version")),
+          templateName: String(template.get("name")),
+          status: "not_started",
+          answers: {},
+          completionPercent: 0,
+          dueDate: due.toISOString().slice(0, 10),
+          submittedAt: null,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: identity.uid,
+          updatedBy: identity.uid,
+          archivedAt: null,
+        });
+        result = { responseId: id, status: "not_started" };
       } else if (parsed.type === "createVendor") {
         if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
         const id = stable("vendor", parsed.tenantId, parsed.idempotencyKey);
@@ -177,10 +352,120 @@ export const planningCommand = onRequest(
             archivedAt: null,
           });
         result = { vendorId: id };
+      } else if (parsed.type === "createCoiRequest") {
+        if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
+        const requirementId = stable(
+          "coi_requirement",
+          parsed.tenantId,
+          parsed.idempotencyKey,
+        );
+        const requestId = stable(
+          "coi_request",
+          parsed.tenantId,
+          parsed.idempotencyKey,
+        );
+        const token = randomBytes(32).toString("base64url");
+        const replyDomain = process.env.SENDGRID_INBOUND_DOMAIN;
+        if (!replyDomain) throw new Error("COI_INBOUND_DOMAIN_NOT_CONFIGURED");
+        const replyAddress = `coi+${token}@${replyDomain}`;
+        const batch = db.batch();
+        batch.create(db.doc(`insuranceRequirements/${requirementId}`), {
+          id: requirementId,
+          tenantId: parsed.tenantId,
+          projectId: parsed.input.projectId,
+          status: "requested",
+          certificateHolder: parsed.input.certificateHolder,
+          venueLegalName: parsed.input.venueLegalName,
+          venueAddress: parsed.input.venueAddress,
+          eventDate: parsed.input.eventDate,
+          coverageTypes: parsed.input.coverageTypes,
+          requiredLimits: parsed.input.requiredLimits,
+          additionalInsuredWording: parsed.input.additionalInsuredWording,
+          waiverOfSubrogation: parsed.input.waiverOfSubrogation,
+          primaryNoncontributory: parsed.input.primaryNoncontributory,
+          specialInstructions: parsed.input.specialInstructions,
+          submissionEmail: parsed.input.submissionEmail,
+          dueDate: parsed.input.dueDate,
+          approvedAt: null,
+          approvedBy: null,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: identity.uid,
+          updatedBy: identity.uid,
+          archivedAt: null,
+        });
+        batch.create(db.doc(`insuranceRequests/${requestId}`), {
+          id: requestId,
+          tenantId: parsed.tenantId,
+          projectId: parsed.input.projectId,
+          requirementId,
+          status: "requested",
+          replyTokenHash: createHash("sha256").update(token).digest("hex"),
+          requestEmail: parsed.input.insuranceAgentEmail,
+          venueName: parsed.input.venueLegalName,
+          dueDate: parsed.input.dueDate,
+          inboundMessageId: null,
+          documentId: null,
+          extractedData: null,
+          discrepancies: [],
+          humanDecision: "pending",
+          requestedAt: now,
+          receivedAt: null,
+          sentToVenueAt: null,
+          venueAcknowledgedAt: null,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: identity.uid,
+          updatedBy: identity.uid,
+          archivedAt: null,
+        });
+        batch.create(db.doc(`emailJobs/coi_request_${requestId}`), {
+          id: `coi_request_${requestId}`,
+          tenantId: parsed.tenantId,
+          projectId: parsed.input.projectId,
+          type: "coi_request",
+          requestId,
+          recipient: parsed.input.insuranceAgentEmail,
+          replyAddress,
+          requirement: {
+            certificateHolder: parsed.input.certificateHolder,
+            venueLegalName: parsed.input.venueLegalName,
+            venueAddress: parsed.input.venueAddress,
+            eventDate: parsed.input.eventDate,
+            coverageTypes: parsed.input.coverageTypes,
+            requiredLimits: parsed.input.requiredLimits,
+            dueDate: parsed.input.dueDate,
+          },
+          status: "queued",
+          attempts: 0,
+          createdAt: now,
+          updatedAt: now,
+        });
+        batch.create(db.doc(`auditEvents/coi_request_${requestId}`), {
+          id: `coi_request_${requestId}`,
+          tenantId: parsed.tenantId,
+          projectId: parsed.input.projectId,
+          actorId: identity.uid,
+          actorType: "user",
+          action: "coi.requested",
+          entityType: "insuranceRequest",
+          entityId: requestId,
+          timestamp: now,
+          before: null,
+          after: { status: "requested", requirementId },
+          ipAddress: request.ip ?? null,
+          userAgent: request.get("user-agent") ?? null,
+          correlationId: parsed.idempotencyKey,
+          automationRunId: null,
+          providerEventId: null,
+        });
+        await batch.commit();
+        result = { requestId, requirementId, status: "requested" };
       } else if (parsed.type === "decideCoi") {
         if (!["studio_owner", "studio_admin"].includes(role))
           throw new Error("FORBIDDEN");
         const reference = db.doc(`insuranceRequests/${parsed.input.requestId}`);
+        let currentRequest: DocumentData | null = null;
         await db.runTransaction(async (tx) => {
           const current = await tx.get(reference);
           if (
@@ -190,8 +475,9 @@ export const planningCommand = onRequest(
             !["under_review", "correction_required"].includes(
               String(current.get("status")),
             )
-          )
+            )
             throw new Error("COI_NOT_REVIEWABLE");
+          currentRequest = current.data() ?? null;
           tx.update(reference, {
             status:
               parsed.input.decision === "approved"
@@ -205,10 +491,103 @@ export const planningCommand = onRequest(
             updatedBy: identity.uid,
           });
         });
+        const reviewed = currentRequest as DocumentData | null;
+        if (parsed.input.decision === "rejected" && reviewed) {
+          await db.doc(`emailJobs/coi_correction_${parsed.input.requestId}`).set({
+            id: `coi_correction_${parsed.input.requestId}`,
+            tenantId: parsed.tenantId,
+            projectId: parsed.input.projectId,
+            type: "coi_correction",
+            requestId: parsed.input.requestId,
+            recipient: reviewed.requestEmail,
+            reason: parsed.input.reason,
+            status: "queued",
+            attempts: 0,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+        if (parsed.input.decision === "approved" && reviewed) {
+          const documentId = `coi_${parsed.input.requestId}`;
+          const object = String(reviewed.temporaryObject ?? "");
+          if (!object.startsWith("gs://")) throw new Error("COI_DOCUMENT_MISSING");
+          await db.doc(`documents/${documentId}`).set({
+            id: documentId,
+            tenantId: parsed.tenantId,
+            projectId: parsed.input.projectId,
+            provider: "cloud_storage",
+            providerFileId: object,
+            providerRevision: null,
+            canonicalPath: object,
+            name: String(reviewed.sourceFilename ?? "certificate-of-insurance.pdf"),
+            contentType: "application/pdf",
+            sizeBytes: null,
+            hash: null,
+            visibility: "studio",
+            category: "coi",
+            status: "approved",
+            createdAt: now,
+            updatedAt: now,
+            createdBy: identity.uid,
+            updatedBy: identity.uid,
+            archivedAt: null,
+          });
+          await reference.update({ documentId });
+          await db.doc(`providerJobs/dropbox_coi_${parsed.input.requestId}`).set({
+            id: `dropbox_coi_${parsed.input.requestId}`,
+            tenantId: parsed.tenantId,
+            projectId: parsed.input.projectId,
+            type: "upload_dropbox_document",
+            documentId,
+            targetFolder: "05_COI",
+            status: "queued",
+            attempts: 0,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
         result = {
           requestId: parsed.input.requestId,
           decision: parsed.input.decision,
         };
+      } else if (parsed.type === "sendCoiToVenue") {
+        if (!["studio_owner", "studio_admin"].includes(role))
+          throw new Error("FORBIDDEN");
+        const reference = db.doc(`insuranceRequests/${parsed.input.requestId}`);
+        const current = await reference.get();
+        if (
+          !current.exists ||
+          current.get("tenantId") !== parsed.tenantId ||
+          current.get("projectId") !== parsed.input.projectId ||
+          current.get("status") !== "approved" ||
+          !current.get("documentId")
+        )
+          throw new Error("COI_NOT_APPROVED");
+        const requirement = await db
+          .doc(`insuranceRequirements/${String(current.get("requirementId"))}`)
+          .get();
+        if (!requirement.exists) throw new Error("COI_REQUIREMENT_NOT_FOUND");
+        await db.doc(`emailJobs/coi_venue_${parsed.input.requestId}`).create({
+          id: `coi_venue_${parsed.input.requestId}`,
+          tenantId: parsed.tenantId,
+          projectId: parsed.input.projectId,
+          type: "coi_venue_delivery",
+          requestId: parsed.input.requestId,
+          documentId: current.get("documentId"),
+          recipient: requirement.get("submissionEmail"),
+          venueName: requirement.get("venueLegalName"),
+          status: "queued",
+          attempts: 0,
+          createdAt: now,
+          updatedAt: now,
+        });
+        await reference.update({
+          status: "sent_to_venue",
+          sentToVenueAt: now,
+          updatedAt: now,
+          updatedBy: identity.uid,
+        });
+        result = { requestId: parsed.input.requestId, status: "sent_to_venue" };
       } else if (parsed.type === "publishSchedule") {
         if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
         const schedules = await db

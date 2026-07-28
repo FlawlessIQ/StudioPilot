@@ -13,6 +13,7 @@ import { Download, ShieldAlert } from "lucide-react";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { activeMembership } from "@/lib/firebase/active-membership";
 type Context = { tenantId: string; businessName: string };
 export function DataControls() {
   const [context, setContext] = useState<Context | null>(null);
@@ -28,15 +29,8 @@ export function DataControls() {
         const { auth, firestore } = getFirebaseClient();
         const user = auth.currentUser;
         if (!user) return;
-        const memberships = await getDocs(
-          query(
-            collection(firestore, "memberships"),
-            where("userId", "==", user.uid),
-            where("status", "==", "active"),
-            limit(1),
-          ),
-        );
-        const tenantId = memberships.docs[0]?.data().tenantId;
+        const membership = await activeMembership(firestore, user.uid);
+        const tenantId = membership.data().tenantId;
         if (typeof tenantId !== "string") return;
         const [tenant, jobs] = await Promise.all([
           getDoc(doc(firestore, "tenants", tenantId)),

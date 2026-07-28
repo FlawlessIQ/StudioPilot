@@ -45,8 +45,13 @@ export function SignInForm({ next }: { next?: string }) {
       }
       const token=await auth.currentUser?.getIdTokenResult();
       if(token?.claims.platformAdmin===true){router.push("/platform-admin");return}
-      const memberships=await getDocs(query(collection(firestore,"memberships"),where("userId","==",auth.currentUser?.uid??""),where("status","==","active"),limit(1)));
-      router.push(memberships.empty?"/auth/onboarding":"/studio");
+      const memberships=await getDocs(query(collection(firestore,"memberships"),where("userId","==",auth.currentUser?.uid??""),where("status","==","active"),limit(20)));
+      if(memberships.empty){router.push("/auth/onboarding");return}
+      const preferred=window.localStorage.getItem("studiohub.activeTenantId");
+      const membership=memberships.docs.find((item)=>item.data().tenantId===preferred)??memberships.docs[0];
+      if(membership)window.localStorage.setItem("studiohub.activeTenantId",String(membership.data().tenantId));
+      const role=String(membership?.data().role??"");
+      router.push(role==="client"?"/client":role==="subcontractor"?"/crew":"/studio");
     } catch {
       setFormState({
         status: "error",

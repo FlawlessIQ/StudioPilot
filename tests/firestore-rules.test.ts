@@ -175,6 +175,9 @@ test(
         await setDoc(doc(adminDb, "projectCloseouts/closeout-a"), { tenantId: "tenant-a", projectId: "project-a", status: "blocked" });
         await setDoc(doc(adminDb, "subscriptions/tenant-a"), { tenantId: "tenant-a", plan: "studio", status: "active" });
         await setDoc(doc(adminDb, "tenantInvitations/invite-a"), { tenantId: "tenant-a", email: "staff@example.test", status: "pending" });
+        await setDoc(doc(adminDb, "clientInvitations/client-invite-a"), { tenantId: "tenant-a", projectId: "project-a", tokenHash: "server-only", status: "pending" });
+        await setDoc(doc(adminDb, "messages/message-studio"), { tenantId: "tenant-a", projectId: "project-a", visibility: "studio" });
+        await setDoc(doc(adminDb, "messages/message-shared"), { tenantId: "tenant-a", projectId: "project-a", visibility: "shared" });
         await setDoc(doc(adminDb, "usageCounters/tenant-a_2026-07"), { tenantId: "tenant-a", period: "2026-07", aiActions: 1200 });
         await setDoc(doc(adminDb, "featureFlags/advanced-ai"), { key: "advanced-ai", enabled: true, tenantIds: ["tenant-a"] });
         await setDoc(doc(adminDb, "supportAccess/support-a"), { tenantId: "tenant-a", platformUserId: "platform-a", status: "active" });
@@ -231,6 +234,9 @@ test(
       await assertFails(getDoc(doc(clientDb, "subscriptions/tenant-a")));
       await assertFails(getDoc(doc(clientDb, "usageCounters/tenant-a_2026-07")));
       await assertFails(getDoc(doc(clientDb, "tenantInvitations/invite-a")));
+      await assertFails(getDoc(doc(clientDb, "clientInvitations/client-invite-a")));
+      await assertFails(getDoc(doc(clientDb, "messages/message-studio")));
+      await assertSucceeds(getDoc(doc(clientDb, "messages/message-shared")));
 
       const crewDb = environment.authenticatedContext("crew-a").firestore();
       await assertSucceeds(getDoc(doc(crewDb, "projects/project-a")));
@@ -256,6 +262,8 @@ test(
       await assertSucceeds(getDoc(doc(ownerDb, "usageCounters/tenant-a_2026-07")));
       await assertSucceeds(getDoc(doc(ownerDb, "systemHealth/health-a")));
       await assertSucceeds(getDoc(doc(ownerDb, "tenantInvitations/invite-a")));
+      await assertFails(getDoc(doc(ownerDb, "clientInvitations/client-invite-a")));
+      await assertSucceeds(getDoc(doc(ownerDb, "messages/message-studio")));
       await assertFails(
         updateDoc(doc(ownerDb, "tenantInvitations/invite-a"), { status: "accepted" }),
       );
@@ -268,6 +276,7 @@ test(
       await assertFails(getDoc(doc(platformDb, "contacts/contact-a")));
 
       const coordinatorDb = environment.authenticatedContext("coordinator-a").firestore();
+      await assertSucceeds(getDoc(doc(coordinatorDb, "messages/message-studio")));
       await assertSucceeds(
         updateDoc(doc(coordinatorDb, "projects/project-a"), { updatedAt: "after" }),
       );

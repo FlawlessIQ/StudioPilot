@@ -1,9 +1,9 @@
 "use client";
 
-import { collection, getDocs, limit, query, where } from "firebase/firestore";
 import { connectStorageEmulator, getStorage, ref, uploadBytes } from "firebase/storage";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { activeMembership } from "@/lib/firebase/active-membership";
 
 export async function sendCrewCommand(
   type: string,
@@ -14,14 +14,7 @@ export async function sendCrewCommand(
   const { auth, firestore } = getFirebaseClient();
   const user = auth.currentUser;
   if (!user) throw new Error("Sign in before changing a crew assignment.");
-  const memberships = await getDocs(query(
-    collection(firestore, "memberships"),
-    where("userId", "==", user.uid),
-    where("status", "==", "active"),
-    limit(1),
-  ));
-  const membership = memberships.docs[0];
-  if (!membership) throw new Error("No active studio membership was found.");
+  const membership = await activeMembership(firestore, user.uid);
   const appCheckToken = await getAppCheckToken();
   const response = await fetch(`${endpoint.replace(/\/$/, "")}/crewCommand`, {
     method: "POST",
@@ -54,14 +47,7 @@ export async function uploadCrewRequirement(input: {
   const client = getFirebaseClient();
   const user = client.auth.currentUser;
   if (!user) throw new Error("Sign in before uploading crew documents.");
-  const memberships = await getDocs(query(
-    collection(client.firestore, "memberships"),
-    where("userId", "==", user.uid),
-    where("status", "==", "active"),
-    limit(1),
-  ));
-  const membership = memberships.docs[0];
-  if (!membership) throw new Error("No active studio membership was found.");
+  const membership = await activeMembership(client.firestore, user.uid);
   const tenantId = membership.data().tenantId as string;
   const storage = getStorage(client.app);
   if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true" && !storageEmulatorConnected) {

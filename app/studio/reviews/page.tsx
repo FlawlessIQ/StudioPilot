@@ -1,6 +1,15 @@
-import { CheckCircle2,MousePointerClick,Star } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { reviewRequests } from "@/config/post-event-demo-data";
+import { StudioDomainPage } from "@/components/studio/live-domain-view";
 
-export default function ReviewsPage(){return <AppShell active="Reviews"><div className="post-event-page"><header className="page-heading"><div><p className="eyebrow">Reputation workflow</p><h1>Review requests</h1><p>Send after delivery, stop after explicit confirmation, and never mistake engagement for a posted review.</p></div></header><div className="review-truth-banner"><MousePointerClick/><span><strong>A click is engagement—not completion.</strong><small>Only the client confirmation or a permitted studio confirmation ends the sequence.</small></span></div><section className="review-grid">{reviewRequests.map(item=><article className="panel review-card" key={item.project}><div><Star/><StatusBadge tone={item.status==="Scheduled"?"neutral":"info"}>{item.status}</StatusBadge></div><h2>{item.project}</h2><p>{item.destination} · Sent {item.sent}</p><div><strong>{item.fact}</strong><small>{item.next}</small></div>{item.status==="Clicked"?<span className="review-open"><CheckCircle2 size={15}/> Awaiting explicit confirmation</span>:null}</article>)}</section></div></AppShell>}
+export default function ReviewsPage() {
+  return (
+    <AppShell active="Reviews">
+      <StudioDomainPage
+        domain="reviews"
+        eyebrow="Reputation workflow"
+        title="Review requests"
+        description="Delivery-linked requests that stop only after explicit client or studio confirmation."
+      />
+    </AppShell>
+  );
+}

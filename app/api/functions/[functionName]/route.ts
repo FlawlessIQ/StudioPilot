@@ -4,8 +4,11 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const functionNames = [
+  "aiCopilotCommand",
+  "aiScheduleCommand",
   "bookingCommand",
   "billingCommand",
+  "clientInvitationCommand",
   "createSession",
   "crewCommand",
   "crewInvitationCommand",

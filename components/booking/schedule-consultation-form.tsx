@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { sendBookingCommand } from "@/lib/booking/command-client";
+import { useTenantDocuments } from "@/components/live/tenant-records";
 
 const schema = z.object({
   projectId: z.string().min(1),
@@ -20,15 +21,16 @@ type Values = z.infer<typeof schema>;
 export function ScheduleConsultationForm() {
   const [notice, setNotice] = useState<string | null>(null);
   const [interactive, setInteractive] = useState(false);
+  const { records: projects, loading } = useTenantDocuments("projects");
   const form = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: {
-      projectId: "wedding-contract",
-      contactId: "contact-wedding-contract",
+      projectId: "",
+      contactId: "",
       mode: "zoom",
-      startsAt: "2026-07-29T14:00",
-      endsAt: "2026-07-29T14:45",
-      timezone: "America/New_York",
+      startsAt: "",
+      endsAt: "",
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       location: "",
     },
   });
@@ -36,6 +38,15 @@ export function ScheduleConsultationForm() {
     const frame = requestAnimationFrame(() => setInteractive(true));
     return () => cancelAnimationFrame(frame);
   }, []);
+  useEffect(() => {
+    const first = projects?.find((project) =>
+      Array.isArray(project.clientContactIds) &&
+      project.clientContactIds.some((value) => typeof value === "string"),
+    );
+    if (!first || form.getValues("projectId")) return;
+    form.setValue("projectId", first.id);
+    form.setValue("contactId", String((first.clientContactIds as unknown[])[0]));
+  }, [form, projects]);
   const submit = form.handleSubmit(async (values) => {
     setNotice(null);
     try {
@@ -58,7 +69,11 @@ export function ScheduleConsultationForm() {
   });
   return (
     <form className="booking-form" onSubmit={submit}>
-      <label><span>Project</span><select {...form.register("projectId")}><option value="wedding-contract">Priya &amp; Jordan</option><option value="sports">Hudson Valley Media Day</option></select></label>
+      <label><span>Project</span><select disabled={loading} {...form.register("projectId", { onChange: (event) => {
+        const selected = projects?.find((project) => project.id === event.target.value);
+        const contacts = selected?.clientContactIds;
+        form.setValue("contactId", Array.isArray(contacts) ? String(contacts[0] ?? "") : "");
+      } })}><option value="">{loading ? "Loading projects…" : "Select a project"}</option>{projects?.map((project) => <option value={project.id} key={project.id}>{String(project.name)}</option>)}</select></label>
       <label><span>Meeting type</span><select {...form.register("mode")}><option value="zoom">Zoom</option><option value="in_person">In person</option><option value="phone">Phone</option><option value="custom">Custom</option></select></label>
       <label><span>Starts</span><input type="datetime-local" {...form.register("startsAt")} /></label>
       <label><span>Ends</span><input type="datetime-local" {...form.register("endsAt")} /></label>

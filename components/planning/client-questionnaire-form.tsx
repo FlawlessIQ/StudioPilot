@@ -5,15 +5,29 @@ import { collection, getDocs, limit, query, where } from "firebase/firestore";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
-export function ClientQuestionnaireForm() {
+export function ClientQuestionnaireForm({
+  projectId: assignedProjectId,
+  responseId: assignedResponseId,
+  initialAnswers = {},
+}: {
+  projectId?: string;
+  responseId?: string;
+  initialAnswers?: Record<string, unknown>;
+}) {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [context, setContext] = useState({
-    projectId: "wedding-booked",
-    responseId: "wedding-booked-planning",
-  });
+  const [context, setContext] = useState(
+    assignedProjectId && assignedResponseId
+      ? { projectId: assignedProjectId, responseId: assignedResponseId }
+      : dataIsLive
+        ? null
+        : {
+            projectId: "wedding-booked",
+            responseId: "wedding-booked-planning",
+          },
+  );
   useEffect(() => {
-    if (!dataIsLive) return;
+    if (!dataIsLive || (assignedProjectId && assignedResponseId)) return;
     let active = true;
     void (async () => {
       const { auth, firestore } = getFirebaseClient();
@@ -47,7 +61,7 @@ export function ClientQuestionnaireForm() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [assignedProjectId, assignedResponseId]);
   async function save(form: HTMLFormElement, submitResponse: boolean) {
     setBusy(true);
     setNotice(null);
@@ -59,6 +73,7 @@ export function ClientQuestionnaireForm() {
       accessibilityNeeds: String(data.get("accessibilityNeeds")),
     };
     try {
+      if (!context) throw new Error("No questionnaire is assigned.");
       const response = await sendPlanningCommand("saveQuestionnaire", {
         responseId: context.responseId,
         projectId: context.projectId,
@@ -90,20 +105,21 @@ export function ClientQuestionnaireForm() {
     <form className="planning-form-preview" onSubmit={submit}>
       <label>
         <span>Planner</span>
-        <input name="planner" defaultValue="Morgan Bell · Gather & Grace" />
+        <input name="planner" defaultValue={String(initialAnswers.planner ?? "")} />
       </label>
       <label>
         <span>Ceremony time</span>
-        <input name="ceremonyTime" type="time" defaultValue="16:30" />
+        <input name="ceremonyTime" type="time" defaultValue={String(initialAnswers.ceremonyTime ?? "")} />
       </label>
       <label>
         <span>Family photo list</span>
-        <textarea name="familyPhotoList" placeholder="One group per line" />
+        <textarea name="familyPhotoList" defaultValue={String(initialAnswers.familyPhotoList ?? "")} placeholder="One group per line" />
       </label>
       <label>
         <span>Accessibility needs</span>
         <textarea
           name="accessibilityNeeds"
+          defaultValue={String(initialAnswers.accessibilityNeeds ?? "")}
           placeholder="Share anything the team should plan for"
         />
       </label>

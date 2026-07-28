@@ -1,0 +1,609 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import {
+  ArrowRight,
+  DatabaseZap,
+  Inbox,
+  LoaderCircle,
+  Plus,
+} from "lucide-react";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  query,
+  where,
+  type QueryConstraint,
+} from "firebase/firestore";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { getFirebaseClient } from "@/lib/firebase/client";
+import { dataIsLive } from "@/lib/runtime-mode";
+
+type Value = Record<string, unknown> & { id: string };
+type Domain =
+  | "packages"
+  | "proposals"
+  | "contracts"
+  | "invoices"
+  | "questionnaires"
+  | "vendors"
+  | "insurance"
+  | "schedules"
+  | "crew_profiles"
+  | "crew_assignments"
+  | "tasks"
+  | "readiness"
+  | "post_production"
+  | "delivery"
+  | "reviews"
+  | "workflows"
+  | "audit"
+  | "consultations"
+  | "booking_gates"
+  | "automations"
+  | "documents"
+  | "messages";
+
+type DomainConfig = {
+  collection: string;
+  projectScoped?: boolean;
+  vendorScoped?: boolean;
+  primary: string[];
+  secondary: string[];
+  status: string[];
+  facts: Array<{ label: string; fields: string[]; kind?: "money" | "date" | "count" | "percent" }>;
+  href?: (record: Value) => string;
+};
+
+const configurations: Record<Domain, DomainConfig> = {
+  packages: {
+    collection: "packages",
+    primary: ["name"],
+    secondary: ["description", "eventTypeId"],
+    status: ["active"],
+    facts: [
+      { label: "Base price", fields: ["basePriceCents"], kind: "money" },
+      { label: "Version", fields: ["version"] },
+      { label: "Coverage", fields: ["includedCoverageMinutes"] },
+    ],
+  },
+  proposals: {
+    collection: "proposals",
+    projectScoped: true,
+    primary: ["projectName"],
+    secondary: ["pricingSnapshot.packageName", "id"],
+    status: ["status"],
+    facts: [
+      { label: "Version", fields: ["version"] },
+      { label: "Total", fields: ["pricingSnapshot.totalCents"], kind: "money" },
+      { label: "Expires", fields: ["expiresAt"], kind: "date" },
+    ],
+    href: (record) => `/studio/proposals/${record.id}`,
+  },
+  contracts: {
+    collection: "contracts",
+    projectScoped: true,
+    primary: ["projectName"],
+    secondary: ["providerEnvelopeId", "id"],
+    status: ["status"],
+    facts: [
+      { label: "Signers", fields: ["signers"], kind: "count" },
+      { label: "Sent", fields: ["sentAt"], kind: "date" },
+      { label: "Completed", fields: ["completedAt"], kind: "date" },
+    ],
+  },
+  invoices: {
+    collection: "invoiceReferences",
+    projectScoped: true,
+    primary: ["projectName"],
+    secondary: ["providerInvoiceId", "kind"],
+    status: ["status"],
+    facts: [
+      { label: "Amount", fields: ["amountCents"], kind: "money" },
+      { label: "Balance", fields: ["balanceCents"], kind: "money" },
+      { label: "Due", fields: ["dueDate"], kind: "date" },
+    ],
+  },
+  questionnaires: {
+    collection: "questionnaireResponses",
+    projectScoped: true,
+    primary: ["projectName"],
+    secondary: ["templateName", "templateId", "id"],
+    status: ["status"],
+    facts: [
+      { label: "Progress", fields: ["completionPercent"], kind: "percent" },
+      { label: "Due", fields: ["dueDate"], kind: "date" },
+      { label: "Updated", fields: ["updatedAt"], kind: "date" },
+    ],
+  },
+  vendors: {
+    collection: "vendors",
+    vendorScoped: true,
+    primary: ["company"],
+    secondary: ["contactName", "email"],
+    status: ["type"],
+    facts: [
+      { label: "Projects", fields: ["projectIds"], kind: "count" },
+      { label: "Phone", fields: ["phone"] },
+      { label: "Updated", fields: ["updatedAt"], kind: "date" },
+    ],
+  },
+  insurance: {
+    collection: "insuranceRequests",
+    projectScoped: true,
+    primary: ["projectName"],
+    secondary: ["venueName", "requestEmail", "id"],
+    status: ["status"],
+    facts: [
+      { label: "Due", fields: ["dueDate"], kind: "date" },
+      { label: "Scan", fields: ["scanStatus"] },
+      { label: "Decision", fields: ["humanDecision"] },
+    ],
+  },
+  schedules: {
+    collection: "schedules",
+    projectScoped: true,
+    primary: ["projectName"],
+    secondary: ["timezone", "id"],
+    status: ["status"],
+    facts: [
+      { label: "Version", fields: ["version"] },
+      { label: "Items", fields: ["items"], kind: "count" },
+      { label: "Published", fields: ["publishedAt"], kind: "date" },
+    ],
+    href: (record) => `/studio/schedules/${record.id}`,
+  },
+  crew_profiles: {
+    collection: "crewProfiles",
+    primary: ["name"],
+    secondary: ["email", "serviceAreas"],
+    status: ["active"],
+    facts: [
+      { label: "Specialties", fields: ["specialties"], kind: "count" },
+      { label: "W-9", fields: ["w9Status"] },
+      { label: "Insurance", fields: ["insuranceStatus"] },
+    ],
+    href: (record) => `/studio/crew/${record.id}`,
+  },
+  crew_assignments: {
+    collection: "crewAssignments",
+    projectScoped: true,
+    primary: ["projectName"],
+    secondary: ["role", "crewProfileId"],
+    status: ["status"],
+    facts: [
+      { label: "Arrival", fields: ["arrivalAt"], kind: "date" },
+      { label: "Schedule", fields: ["currentScheduleVersion"] },
+      { label: "Requirements", fields: ["requirements"], kind: "count" },
+    ],
+    href: (record) => `/studio/crew/${record.id}`,
+  },
+  tasks: {
+    collection: "tasks",
+    projectScoped: true,
+    primary: ["title", "name"],
+    secondary: ["projectName", "description"],
+    status: ["status"],
+    facts: [
+      { label: "Due", fields: ["dueDate"], kind: "date" },
+      { label: "Priority", fields: ["priority"] },
+      { label: "Blocking", fields: ["blocking"] },
+    ],
+    href: (record) => `/studio/projects/${String(record.projectId)}`,
+  },
+  readiness: {
+    collection: "readinessAssessments",
+    projectScoped: true,
+    primary: ["projectName"],
+    secondary: ["recommendedNextAction", "id"],
+    status: ["ready"],
+    facts: [
+      { label: "Score", fields: ["score"], kind: "percent" },
+      { label: "Blocking", fields: ["blockingItems"], kind: "count" },
+      { label: "Overdue", fields: ["overdueItems"], kind: "count" },
+    ],
+    href: (record) => `/studio/projects/${String(record.projectId)}`,
+  },
+  post_production: {
+    collection: "postProductionRecords",
+    projectScoped: true,
+    primary: ["projectName"],
+    secondary: ["currentStep", "id"],
+    status: ["currentStep"],
+    facts: [
+      { label: "Target", fields: ["targetDeliveryDate"], kind: "date" },
+      { label: "Updated", fields: ["updatedAt"], kind: "date" },
+      { label: "Project", fields: ["projectId"] },
+    ],
+    href: (record) => `/studio/post-production/${record.id}`,
+  },
+  delivery: {
+    collection: "deliveryRecords",
+    projectScoped: true,
+    primary: ["projectName"],
+    secondary: ["provider", "galleryUrl"],
+    status: ["status"],
+    facts: [
+      { label: "Delivered", fields: ["deliveryDate"], kind: "date" },
+      { label: "Expires", fields: ["expirationDate"], kind: "date" },
+      { label: "Downloaded", fields: ["downloadedAt"], kind: "date" },
+    ],
+  },
+  reviews: {
+    collection: "reviewRequests",
+    projectScoped: true,
+    primary: ["projectName"],
+    secondary: ["destinationLabel", "channel"],
+    status: ["status"],
+    facts: [
+      { label: "Sequence", fields: ["sequence"] },
+      { label: "Scheduled", fields: ["scheduledAt"], kind: "date" },
+      { label: "Confirmed", fields: ["confirmedAt"], kind: "date" },
+    ],
+  },
+  workflows: {
+    collection: "workflowTemplates",
+    primary: ["name"],
+    secondary: ["eventTypeId", "description"],
+    status: ["status"],
+    facts: [
+      { label: "Version", fields: ["version"] },
+      { label: "Checkpoints", fields: ["checkpoints"], kind: "count" },
+      { label: "Automations", fields: ["automations"], kind: "count" },
+    ],
+    href: (record) => `/studio/workflows/${record.id}`,
+  },
+  consultations: {
+    collection: "consultations",
+    projectScoped: true,
+    primary: ["projectName"],
+    secondary: ["mode", "location", "id"],
+    status: ["status"],
+    facts: [
+      { label: "Starts", fields: ["startsAt"], kind: "date" },
+      { label: "Timezone", fields: ["timezone"] },
+      { label: "Provider", fields: ["providerState"] },
+    ],
+  },
+  booking_gates: {
+    collection: "bookingGateRuns",
+    projectScoped: true,
+    primary: ["projectName"],
+    secondary: ["idempotencyKey", "id"],
+    status: ["status"],
+    facts: [
+      { label: "Checks", fields: ["checks"], kind: "count" },
+      { label: "Blockers", fields: ["blockers"], kind: "count" },
+      { label: "Completed", fields: ["completedAt"], kind: "date" },
+    ],
+    href: (record) => `/studio/projects/${String(record.projectId)}`,
+  },
+  automations: {
+    collection: "automationRuns",
+    projectScoped: true,
+    primary: ["trigger.type", "trigger", "workflowVersion"],
+    secondary: ["idempotencyKey", "id"],
+    status: ["status", "result.status"],
+    facts: [
+      { label: "Attempt", fields: ["attemptCount"] },
+      { label: "Created", fields: ["createdAt"], kind: "date" },
+      { label: "Completed", fields: ["completedAt"], kind: "date" },
+    ],
+  },
+  documents: {
+    collection: "documents",
+    projectScoped: true,
+    primary: ["name", "fileName", "kind", "id"],
+    secondary: ["category", "provider", "storagePath"],
+    status: ["status", "scanStatus"],
+    facts: [
+      { label: "Version", fields: ["version"] },
+      { label: "Visibility", fields: ["visibility"] },
+      { label: "Updated", fields: ["updatedAt"], kind: "date" },
+    ],
+  },
+  messages: {
+    collection: "messages",
+    projectScoped: true,
+    primary: ["subject", "templateKey", "id"],
+    secondary: ["recipient", "channel"],
+    status: ["deliveryStatus"],
+    facts: [
+      { label: "Direction", fields: ["direction"] },
+      { label: "Sent", fields: ["sentAt"], kind: "date" },
+      { label: "Mode", fields: ["deliveryMode"] },
+    ],
+  },
+  audit: {
+    collection: "auditEvents",
+    primary: ["action"],
+    secondary: ["entityType", "entityId"],
+    status: ["actorType"],
+    facts: [
+      { label: "Actor", fields: ["actorId"] },
+      { label: "Timestamp", fields: ["timestamp"], kind: "date" },
+      { label: "Correlation", fields: ["correlationId"] },
+    ],
+  },
+};
+
+function nested(record: Value, paths: string[]) {
+  for (const path of paths) {
+    let current: unknown = record;
+    for (const segment of path.split(".")) {
+      if (!current || typeof current !== "object") {
+        current = undefined;
+        break;
+      }
+      current = (current as Record<string, unknown>)[segment];
+    }
+    if (
+      current !== undefined &&
+      current !== null &&
+      current !== "" &&
+      (!Array.isArray(current) || current.length > 0)
+    )
+      return current;
+  }
+  return null;
+}
+
+function display(
+  value: unknown,
+  kind: "money" | "date" | "count" | "percent" | undefined,
+  currency: unknown,
+) {
+  if (value === null || value === undefined || value === "") return "—";
+  if (kind === "money")
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: typeof currency === "string" ? currency : "USD",
+    }).format(Number(value) / 100);
+  if (kind === "date") {
+    const parsed = new Date(String(value));
+    return Number.isNaN(parsed.valueOf())
+      ? "—"
+      : parsed.toLocaleDateString();
+  }
+  if (kind === "count") return Array.isArray(value) ? value.length : Number(value);
+  if (kind === "percent") return `${Number(value)}%`;
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (Array.isArray(value)) return value.map(String).join(", ");
+  return String(value).replaceAll("_", " ");
+}
+
+function tone(value: unknown) {
+  const status = String(value).toLowerCase();
+  if (
+    ["true", "active", "accepted", "approved", "complete", "completed", "paid", "published", "ready", "sent"].includes(status)
+  )
+    return "success" as const;
+  if (
+    ["false", "cancelled", "declined", "error", "failed", "overdue", "revoked"].includes(status)
+  )
+    return "danger" as const;
+  return "warning" as const;
+}
+
+export function LiveDomainView({ domain }: { domain: Domain }) {
+  const workspace = useWorkspace();
+  const config = configurations[domain];
+  const [records, setRecords] = useState<Value[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!dataIsLive || workspace.loading) return;
+    if (!workspace.tenantId) {
+      queueMicrotask(() => {
+        setRecords([]);
+        setError("No active tenant was found.");
+      });
+      return;
+    }
+    let active = true;
+    const { firestore } = getFirebaseClient();
+    const constraints: QueryConstraint[] = [
+      where("tenantId", "==", workspace.tenantId),
+    ];
+    if (
+      config.projectScoped &&
+      !["studio_owner", "studio_admin"].includes(String(workspace.role))
+    ) {
+      if (workspace.projectIds.length === 0) {
+        queueMicrotask(() => {
+          if (active) setRecords([]);
+        });
+        return () => {
+          active = false;
+        };
+      }
+      constraints.push(
+        where("projectId", "in", workspace.projectIds.slice(0, 30)),
+      );
+    }
+    if (
+      config.vendorScoped &&
+      !["studio_owner", "studio_admin"].includes(String(workspace.role))
+    ) {
+      if (workspace.projectIds.length === 0) {
+        queueMicrotask(() => {
+          if (active) setRecords([]);
+        });
+        return () => {
+          active = false;
+        };
+      }
+      constraints.push(
+        where("projectIds", "array-contains-any", workspace.projectIds.slice(0, 30)),
+      );
+    }
+    constraints.push(limit(100));
+    void getDocs(query(collection(firestore, config.collection), ...constraints))
+      .then(async (snapshot) => {
+        const values = snapshot.docs.map(
+          (document) => ({ id: document.id, ...document.data() }) as Value,
+        );
+        const projectIds = Array.from(
+          new Set(
+            values
+              .map((value) => value.projectId)
+              .filter((value): value is string => typeof value === "string"),
+          ),
+        );
+        const projects = await Promise.all(
+          projectIds.map((projectId) =>
+            getDoc(doc(firestore, "projects", projectId)),
+          ),
+        );
+        const names = Object.fromEntries(
+          projects
+            .filter((project) => project.exists())
+            .map((project) => [project.id, String(project.get("name"))]),
+        );
+        if (active)
+          setRecords(
+            values.map((value) => ({
+              ...value,
+              projectName:
+                typeof value.projectId === "string"
+                  ? names[value.projectId] ?? value.projectId
+                  : value.projectName,
+            })),
+          );
+      })
+      .catch((caught: unknown) => {
+        if (!active) return;
+        setRecords([]);
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : `${config.collection} could not be loaded.`,
+        );
+      });
+    return () => {
+      active = false;
+    };
+  }, [
+    config,
+    workspace.loading,
+    workspace.projectIds,
+    workspace.role,
+    workspace.tenantId,
+  ]);
+
+  if (dataIsLive && records === null)
+    return (
+      <section className="panel live-domain-state">
+        <LoaderCircle className="spin" />
+        <span>
+          <strong>Loading records…</strong>
+          <small>Reading tenant-scoped operational data.</small>
+        </span>
+      </section>
+    );
+  if (error)
+    return (
+      <section className="panel live-domain-state live-domain-error">
+        <DatabaseZap />
+        <span>
+          <strong>Records could not be loaded</strong>
+          <small>{error}</small>
+        </span>
+      </section>
+    );
+  if (!records?.length)
+    return (
+      <section className="panel live-domain-state">
+        <Inbox />
+        <span>
+          <strong>No records yet</strong>
+          <small>Validated records will appear here when they are created.</small>
+        </span>
+      </section>
+    );
+
+  return (
+    <section className="panel live-domain-table">
+      {records.map((record) => {
+        const primary = display(
+          nested(record, config.primary),
+          undefined,
+          record.currency,
+        );
+        const secondary = display(
+          nested(record, config.secondary),
+          undefined,
+          record.currency,
+        );
+        const status = nested(record, config.status);
+        const content = (
+          <>
+            <span className="live-domain-primary">
+              <strong>{primary}</strong>
+              <small>{secondary}</small>
+            </span>
+            {config.facts.map((fact) => (
+              <span key={fact.label}>
+                <small>{fact.label}</small>
+                <strong>
+                  {display(
+                    nested(record, fact.fields),
+                    fact.kind,
+                    record.currency,
+                  )}
+                </strong>
+              </span>
+            ))}
+            <StatusBadge tone={tone(status)}>
+              {display(status, undefined, record.currency)}
+            </StatusBadge>
+            {config.href ? <ArrowRight /> : null}
+          </>
+        );
+        return config.href ? (
+          <Link href={config.href(record)} key={record.id}>
+            {content}
+          </Link>
+        ) : (
+          <article key={record.id}>{content}</article>
+        );
+      })}
+    </section>
+  );
+}
+
+export function StudioDomainPage({
+  domain,
+  eyebrow,
+  title,
+  description,
+  action,
+}: {
+  domain: Domain;
+  eyebrow: string;
+  title: string;
+  description: string;
+  action?: { href: string; label: string };
+}) {
+  return (
+    <div className="live-domain-page">
+      <header className="page-heading">
+        <div>
+          <p className="eyebrow">{eyebrow}</p>
+          <h1>{title}</h1>
+          <p>{description}</p>
+        </div>
+        {action ? (
+          <Link className="button button-dark" href={action.href}>
+            <Plus /> {action.label}
+          </Link>
+        ) : null}
+      </header>
+      <LiveDomainView domain={domain} />
+    </div>
+  );
+}

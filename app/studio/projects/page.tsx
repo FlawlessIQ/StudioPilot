@@ -21,7 +21,7 @@ export default async function ProjectsPage({
         </div>
         <section className="panel crm-table-panel">
           <div className="crm-toolbar">
-            <div className="crm-tabs"><Link className={view === "active" ? "active" : ""} href={`?view=active&type=${type}`}>Active <span>12</span></Link><Link className={view === "leads" ? "active" : ""} href={`?view=leads&type=${type}`}>Leads</Link><Link className={view === "archived" ? "active" : ""} href={`?view=archived&type=${type}`}>Archived</Link></div>
+            <div className="crm-tabs"><Link className={view === "active" ? "active" : ""} href={`?view=active&type=${type}`}>Active</Link><Link className={view === "leads" ? "active" : ""} href={`?view=leads&type=${type}`}>Leads</Link><Link className={view === "archived" ? "active" : ""} href={`?view=archived&type=${type}`}>Archived</Link></div>
             <form className="crm-search-form" method="get"><input name="view" type="hidden" value={view} /><Filter size={15} /><select aria-label="Project type" defaultValue={type} name="type"><option value="all">All project types</option><option value="wedding">Wedding</option><option value="corporate">Corporate</option><option value="sports">Sports</option></select><button type="submit">Apply</button></form>
           </div>
           <div className="crm-table crm-projects-table">

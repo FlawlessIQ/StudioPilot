@@ -1,9 +1,9 @@
 "use client";
 
 import { getAuth } from "firebase/auth";
-import { collection, getDocs, limit, query, where } from "firebase/firestore";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { activeMembership } from "@/lib/firebase/active-membership";
 
 export async function sendBookingCommand(input: Record<string, unknown>) {
   const endpoint = process.env.NEXT_PUBLIC_BOOKING_FUNCTIONS_URL;
@@ -11,14 +11,7 @@ export async function sendBookingCommand(input: Record<string, unknown>) {
   const client = getFirebaseClient();
   const user = getAuth(client.app).currentUser;
   if (!user) throw new Error("Sign in before changing booking records.");
-  const memberships = await getDocs(query(
-    collection(client.firestore, "memberships"),
-    where("userId", "==", user.uid),
-    where("status", "==", "active"),
-    limit(1),
-  ));
-  const membership = memberships.docs[0];
-  if (!membership) throw new Error("No active studio membership was found.");
+  const membership = await activeMembership(client.firestore, user.uid);
   const appCheckToken = await getAppCheckToken();
   const response = await fetch(`${endpoint.replace(/\/$/, "")}/bookingCommand`, {
     method: "POST",

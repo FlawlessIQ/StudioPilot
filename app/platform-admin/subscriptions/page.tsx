@@ -1,4 +1,17 @@
-import { CreditCard } from "lucide-react";
 import { AdminShell } from "@/components/platform/admin-shell";
-import { StatusBadge } from "@/components/ui/status-badge";
-export default function SubscriptionsPage(){return <AdminShell active="Subscriptions"><header><div><p className="eyebrow">Stripe references</p><h1>Subscriptions</h1><p>StudioHub stores normalized subscription state and entitlements. Payment instruments remain in Stripe.</p></div><StatusBadge tone="success">Webhook current</StatusBadge></header><section className="admin-metrics"><article><span>Active</span><strong>148</strong><small>6 trials</small></article><article><span>Past due</span><strong>2</strong><small>Grace policy active</small></article><article><span>AI actions</span><strong>84.2k</strong><small>Current period</small></article><article><span>Webhook lag</span><strong>8s</strong><small>p95</small></article></section><section className="panel ops-table">{[["Alder & Muse","Studio","Active","Aug 1, 2026"],["Northlight Creative","Multi-Brand","Active","Aug 8, 2026"],["Fieldhouse Sports","Studio","Past due","Jul 28, 2026"]].map(row=><div className="ops-row" key={row[0]}><span><CreditCard size={17}/><strong>{row[0]}</strong></span><span>{row[1]}</span><StatusBadge tone={row[2]==="Active"?"success":"warning"}>{row[2]}</StatusBadge><span>{row[3]}</span></div>)}</section></AdminShell>}
+import { LiveAdminCollection } from "@/components/platform/live-admin-data";
+
+export default function SubscriptionsPage() {
+  return (
+    <AdminShell active="Subscriptions">
+      <header>
+        <div>
+          <p className="eyebrow">Stripe references</p>
+          <h1>Subscriptions</h1>
+          <p>Normalized subscription state and entitlements; payment instruments remain in Stripe.</p>
+        </div>
+      </header>
+      <LiveAdminCollection domain="subscriptions" />
+    </AdminShell>
+  );
+}

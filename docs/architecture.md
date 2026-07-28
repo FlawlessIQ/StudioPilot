@@ -115,6 +115,43 @@ The `AiProvider` accepts a routing task and a Zod output schema. Structured outp
 
 Model output is advisory. The schedule generator produces a draft with assumptions, missing information, conflicts, risks, and questions. COI extraction highlights discrepancies for human review. No AI call can write legal, payment, signature, permission, or readiness completion fields.
 
+The deployed tenant Copilot retrieves only projects permitted by the active
+membership. Its structured response separates facts from suggestions and may
+cite only application records included in the scoped retrieval set. It does not
+execute actions. AI usage is charged transactionally against the subscription
+entitlement before model execution and every completed interaction creates an
+audit event.
+
+## Portal activation
+
+Staff, client, and crew activation use separate invitation boundaries. Raw
+invitation tokens are returned once and sent through the queued communication
+worker; Firestore stores only their SHA-256 hashes. Acceptance requires a
+Firebase user whose verified email exactly matches the invited record.
+
+- staff invitations create a tenant role but no project access by default
+- client invitations add only the named project and link its contact record
+- crew invitations add only the assignment project and link the crew profile
+
+Tokens expire after seven days. Role conflicts, already-linked records, reused
+tokens, cross-tenant records, and unassociated projects are rejected by the
+trusted command before any membership mutation.
+
+## Communications and insurance
+
+Queued email jobs are processed idempotently by the operations scheduler.
+Successful mock or live sends create a normalized `messages` record; raw
+provider delivery events update that history only after SendGrid signature
+verification. Bounce, drop, spam, delivery, open, and click events remain
+delivery evidence rather than business-completion evidence.
+
+COI requests create a unique project request address backed by a one-way reply
+token. Inbound Parse accepts one bounded PDF, verifies its file signature,
+places it in restricted Cloud Storage, and waits for the file-safety trigger.
+AI extracts and compares fields but always leaves `humanDecision` pending. Only
+authorized studio users can approve/reject and supply a reason. Approval may
+queue Dropbox archival; venue delivery attaches the reviewed source PDF.
+
 ## Runtime and background processing
 
 - Cloud Functions: command endpoints, session exchange, OAuth callbacks, lightweight webhooks

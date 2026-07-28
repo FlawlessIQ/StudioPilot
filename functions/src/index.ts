@@ -12,8 +12,10 @@ export { bookingCommand } from "./booking/commands.js";
 export { docusignWebhook, quickbooksWebhook } from "./booking/webhooks.js";
 export { planningCommand } from "./planning/commands.js";
 export { sendgridInboundCoi } from "./planning/inbound.js";
+export { sendgridEventWebhook } from "./communications/sendgrid-events.js";
 export { crewCommand } from "./crew/commands.js";
 export { crewInvitationCommand } from "./crew/invitations.js";
+export { clientInvitationCommand } from "./client/invitations.js";
 export { postEventCommand } from "./post-event/commands.js";
 export { reviewRequestScheduler } from "./post-event/jobs.js";
 export { billingCommand, stripeWebhook } from "./saas/stripe.js";
@@ -31,6 +33,8 @@ export {
 } from "./saas/data-lifecycle.js";
 export { supportTenantSummary } from "./saas/support.js";
 export { finalInvoiceScheduler } from "./operations/invoice-scheduler.js";
+export { aiCopilotCommand } from "./ai/copilot.js";
+export { aiScheduleCommand } from "./ai/schedule.js";
 
 if (getApps().length === 0) {
   initializeApp();

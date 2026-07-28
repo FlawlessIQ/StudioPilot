@@ -1,8 +1,8 @@
 "use client";
 
-import { collection, getDocs, limit, query, where } from "firebase/firestore";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { activeMembership } from "@/lib/firebase/active-membership";
 
 export async function runWorkflowCommand(
   type: string,
@@ -19,16 +19,7 @@ export async function runWorkflowCommand(
   const { auth, firestore } = getFirebaseClient();
   const user = auth.currentUser;
   if (!user) throw new Error("Sign in before making workflow changes.");
-  const memberships = await getDocs(
-    query(
-      collection(firestore, "memberships"),
-      where("userId", "==", user.uid),
-      where("status", "==", "active"),
-      limit(1),
-    ),
-  );
-  const membership = memberships.docs[0];
-  if (!membership) throw new Error("No active studio membership was found.");
+  const membership = await activeMembership(firestore, user.uid);
   const appCheckToken = await getAppCheckToken();
   const response = await fetch(`${endpoint.replace(/\/$/, "")}/workflowCommand`, {
     method: "POST",

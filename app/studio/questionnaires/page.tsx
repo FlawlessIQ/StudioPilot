@@ -1,5 +1,21 @@
-import { ClipboardCheck, Clock3 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { questionnaires } from "@/config/planning-demo-data";
-export default function QuestionnairesPage(){return <AppShell active="Questionnaires"><div className="planning-page"><header className="page-heading"><div><p className="eyebrow">Client information</p><h1>Questionnaires</h1><p>Versioned, conditional forms with save-and-resume and locked internal fields.</p></div></header><div className="planning-cards">{questionnaires.map(q=><article className="panel" key={q.project}><div><ClipboardCheck/><StatusBadge tone={q.status==="Submitted"?"success":"warning"}>{q.status}</StatusBadge></div><h2>{q.project}</h2><p>{q.template}</p><div className="planning-progress"><span><i style={{width:`${q.progress}%`}}/></span><strong>{q.progress}%</strong></div><footer><Clock3 size={15}/> Due {q.due} · Missing: {q.missing}</footer></article>)}</div></div></AppShell>}
+import { QuestionnaireBuilder } from "@/components/planning/questionnaire-builder";
+import { LiveDomainView } from "@/components/studio/live-domain-view";
+
+export default function QuestionnairesPage() {
+  return (
+    <AppShell active="Questionnaires">
+      <div className="live-domain-page">
+        <header className="page-heading">
+          <div>
+            <p className="eyebrow">Client information</p>
+            <h1>Questionnaires</h1>
+            <p>Versioned templates, project assignments, save-and-resume, and explicit submission state.</p>
+          </div>
+        </header>
+        <LiveDomainView domain="questionnaires" />
+        <QuestionnaireBuilder />
+      </div>
+    </AppShell>
+  );
+}

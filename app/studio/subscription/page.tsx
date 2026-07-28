@@ -1,6 +1,10 @@
-import {BrainCircuit,CheckCircle2,CreditCard,UsersRound} from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
-import { BillingAction } from "@/components/saas/billing-actions";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { planCards } from "@/config/saas-plans";
-export default function SubscriptionPage(){return <AppShell active="Subscription"><div className="saas-page"><header className="page-heading"><div><p className="eyebrow">Plan & usage</p><h1>Subscription</h1><p>Stripe handles payment details. StudioHub enforces capability and usage entitlements from the active subscription snapshot.</p></div><StatusBadge tone="success">Studio trial · 12 days left</StatusBadge></header><section className="usage-grid"><article className="panel"><UsersRound/><span><small>Internal users</small><strong>3 / 5</strong><i><b style={{width:"60%"}}/></i></span></article><article className="panel"><BrainCircuit/><span><small>AI actions · July</small><strong>1,842 / 2,500</strong><i><b style={{width:"74%"}}/></i></span></article><article className="panel"><CheckCircle2/><span><small>Active subcontractors</small><strong>3 · Unlimited</strong><em>Studio entitlement</em></span></article></section><div className="plan-grid">{planCards.map(plan=><article className={`panel plan-card ${plan.highlight?"is-current":""}`} key={plan.key}><div><h2>{plan.name}</h2>{plan.highlight?<StatusBadge tone="success">Recommended</StatusBadge>:null}</div><strong>{plan.monthly}<small>/month</small></strong><p>or {plan.yearly} annually · two months free</p><ul><li>{plan.users}</li><li>{plan.ai}</li>{plan.features.slice(0,2).map(feature=><li key={feature}>{feature}</li>)}</ul><div className="plan-billing-actions"><BillingAction plan={plan.key} cadence="monthly" label={`${plan.name} monthly`}/><BillingAction plan={plan.key} cadence="yearly" label={`${plan.name} annual`}/></div></article>)}</div><section className="panel billing-boundary"><div><CreditCard/><span><strong>Payment details stay with Stripe.</strong><small>StudioHub stores customer, subscription, price, status, and period references—never card or bank credentials.</small></span></div><BillingAction label="Open customer portal"/></section></div></AppShell>}
+import { LiveSubscription } from "@/components/saas/live-subscription";
+
+export default function SubscriptionPage() {
+  return (
+    <AppShell active="Subscription">
+      <LiveSubscription />
+    </AppShell>
+  );
+}

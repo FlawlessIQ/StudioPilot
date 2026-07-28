@@ -4,6 +4,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
+import { checkProviderConnection } from "../operations/provider-runtime.js";
 
 const providerSchema = z.enum([
   "google_calendar",
@@ -16,6 +17,7 @@ type Provider = z.infer<typeof providerSchema>;
 const startSchema = z.object({
   provider: providerSchema,
   tenantId: z.string().min(1),
+  action: z.enum(["connect", "health", "disconnect"]).default("connect"),
 });
 type Config = {
   clientId: string;
@@ -205,6 +207,50 @@ export const integrationOAuth = onRequest(
           )
         )
           throw new Error("FORBIDDEN");
+        if (input.action === "health") {
+          const result = await checkProviderConnection(
+            input.tenantId,
+            input.provider,
+          );
+          response.status(200).json(result);
+          return;
+        }
+        if (input.action === "disconnect") {
+          const connectionId = `${input.tenantId}_${input.provider}`;
+          const reference = db.doc(`integrationConnections/${connectionId}`);
+          const connection = await reference.get();
+          if (!connection.exists) throw new Error("CONNECTION_NOT_FOUND");
+          const now = new Date().toISOString();
+          const batch = db.batch();
+          batch.update(reference, {
+            status: "disconnected",
+            encryptedCredentialRef: null,
+            disconnectedAt: now,
+            lastError: null,
+            updatedAt: now,
+            updatedBy: identity.uid,
+          });
+          batch.create(db.collection("auditEvents").doc(), {
+            tenantId: input.tenantId,
+            projectId: null,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "integration.disconnect",
+            entityType: "integrationConnection",
+            entityId: connectionId,
+            timestamp: now,
+            before: { status: connection.get("status") },
+            after: { provider: input.provider, status: "disconnected" },
+            ipAddress: request.ip ?? null,
+            userAgent: request.get("user-agent") ?? null,
+            correlationId: `disconnect_${Date.now()}`,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          await batch.commit();
+          response.status(200).json({ provider: input.provider, status: "disconnected" });
+          return;
+        }
         const current = config(input.provider);
         const verifier = base64url(randomBytes(48));
         const state = base64url(randomBytes(32));

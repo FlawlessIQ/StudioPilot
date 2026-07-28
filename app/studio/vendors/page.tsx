@@ -1,4 +1,19 @@
-import { Building2, Mail } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
-import { vendors } from "@/config/planning-demo-data";
-export default function VendorsPage(){return <AppShell active="Vendors"><div className="planning-page"><header className="page-heading"><div><p className="eyebrow">Project network</p><h1>Vendors &amp; venues</h1><p>Reusable contacts with project-specific requests, documents, and communication history.</p></div></header><section className="panel planning-table"><div className="planning-table-head"><span>Company</span><span>Type</span><span>Projects</span><span>Next action</span></div>{vendors.map(v=><article key={v.company}><span><Building2/><span><strong>{v.company}</strong><small>{v.contact}</small></span></span><span>{v.type}</span><span>{v.projects}</span><span><Mail size={14}/>{v.action}</span></article>)}</section></div></AppShell>}
+import { StudioDomainPage } from "@/components/studio/live-domain-view";
+import { VendorCreateForm } from "@/components/planning/vendor-create-form";
+
+export default function VendorsPage() {
+  return (
+    <AppShell active="Vendors">
+      <div className="live-domain-page">
+        <StudioDomainPage
+          domain="vendors"
+          eyebrow="Project network"
+          title="Vendors & venues"
+          description="Reusable tenant contacts associated only with the projects the signed-in user can access."
+        />
+        <VendorCreateForm />
+      </div>
+    </AppShell>
+  );
+}

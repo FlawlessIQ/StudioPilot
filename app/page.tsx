@@ -52,10 +52,10 @@ export default function MarketingHome() {
           <Logo />
         </Link>
         <nav aria-label="Main navigation">
-          <Link href="#platform">Platform</Link>
+          <Link href="/features">Features</Link>
           <Link href="#readiness">Readiness</Link>
-          <Link href="#integrations">Integrations</Link>
-          <Link href="#pricing">Pricing</Link>
+          <Link href="/integrations">Integrations</Link>
+          <Link href="/pricing">Pricing</Link>
         </nav>
         <div className="marketing-actions">
           <Link className="text-link" href="/auth/login">

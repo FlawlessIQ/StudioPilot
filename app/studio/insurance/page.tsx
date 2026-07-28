@@ -1,5 +1,27 @@
-import { AlertTriangle, CheckCircle2, ShieldCheck } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { coiCases } from "@/config/planning-demo-data";
-export default function InsurancePage(){return <AppShell active="Insurance"><div className="planning-page"><header className="page-heading"><div><p className="eyebrow">Certificate operations</p><h1>COI workflow</h1><p>AI extracts and compares; a permitted studio reviewer always makes the decision.</p></div></header><div className="human-boundary"><ShieldCheck/><span><strong>Legal sufficiency is never automated.</strong><small>Provider documents, discrepancies, decisions, and venue delivery are fully audited.</small></span></div><div className="coi-grid">{coiCases.map(c=><article className="panel coi-card" key={c.project}><div><span><small>{c.venue}</small><h2>{c.project}</h2></span><StatusBadge tone={c.status==="Approved"?"success":c.status==="Correction required"?"danger":"warning"}>{c.status}</StatusBadge></div><ul>{c.issues.length?c.issues.map(i=><li key={i}><AlertTriangle size={15}/>{i}</li>):<li><CheckCircle2 size={15}/> All reviewed requirements match</li>}</ul><footer><strong>{c.decision}</strong><small>Due {c.due}</small></footer></article>)}</div></div></AppShell>}
+import { CoiWorkflowPanel } from "@/components/planning/coi-workflow-panel";
+import { LiveDomainView } from "@/components/studio/live-domain-view";
+
+export default function InsurancePage() {
+  return (
+    <AppShell active="Insurance">
+      <div className="live-domain-page">
+        <header className="page-heading">
+          <div>
+            <p className="eyebrow">Certificate operations</p>
+            <h1>COI workflow</h1>
+            <p>AI extracts and compares; a permitted studio reviewer always makes the decision.</p>
+          </div>
+        </header>
+        <div className="human-boundary">
+          <span>
+            <strong>Legal sufficiency is never automated.</strong>
+            <small>Extraction and deterministic comparison are review aids only.</small>
+          </span>
+        </div>
+        <LiveDomainView domain="insurance" />
+        <CoiWorkflowPanel />
+      </div>
+    </AppShell>
+  );
+}

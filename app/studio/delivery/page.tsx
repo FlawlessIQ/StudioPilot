@@ -1,7 +1,40 @@
-import { CheckCircle2,ExternalLink,ImageIcon,Send } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { DeliveryForm } from "@/components/post-event/delivery-form";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { deliveryRecords } from "@/config/post-event-demo-data";
+import { LiveDomainView } from "@/components/studio/live-domain-view";
 
-export default function DeliveryPage(){return <AppShell active="Delivery"><div className="post-event-page"><header className="page-heading"><div><p className="eyebrow">Gallery handoff</p><h1>Delivery</h1><p>Record secure gallery links and delivery evidence without becoming an image-editing or gallery platform.</p></div></header><div className="delivery-layout"><section className="panel"><div className="panel-heading"><div><p className="eyebrow">New delivery</p><h2>Ready gallery</h2></div><Send/></div><div className="delivery-gate-note"><CheckCircle2/><span><strong>Delivery gate passed</strong><small>Backup, editing, and gallery-ready evidence are complete.</small></span></div><DeliveryForm/></section><aside className="panel adapter-note"><ImageIcon/><h2>Provider-ready architecture</h2><p>Manual URLs work now. Typed adapters reserve Pixieset, Pic-Time, and ShootProof without pretending those accounts are connected.</p></aside></div><section className="panel"><div className="panel-heading"><div><p className="eyebrow">Delivery history</p><h2>Recent records</h2></div></div><div className="delivery-table">{deliveryRecords.map(item=><article key={item.project}><span><strong>{item.project}</strong><small>{item.provider}</small></span><span><small>Delivered</small>{item.delivered}</span><StatusBadge tone="success">{item.status}</StatusBadge><span><small>Expires</small>{item.expires}</span><ExternalLink size={15}/></article>)}</div></section></div></AppShell>}
+export default function DeliveryPage() {
+  return (
+    <AppShell active="Delivery">
+      <div className="live-domain-page">
+        <header className="page-heading">
+          <div>
+            <p className="eyebrow">Gallery handoff</p>
+            <h1>Delivery</h1>
+            <p>
+              Record a secure gallery only after the deterministic
+              post-production delivery gate passes.
+            </p>
+          </div>
+        </header>
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">New delivery</p>
+              <h2>Record gallery</h2>
+            </div>
+          </div>
+          <DeliveryForm />
+        </section>
+        <section>
+          <div className="section-heading-row">
+            <div>
+              <p className="eyebrow">History</p>
+              <h2>Delivery records</h2>
+            </div>
+          </div>
+          <LiveDomainView domain="delivery" />
+        </section>
+      </div>
+    </AppShell>
+  );
+}

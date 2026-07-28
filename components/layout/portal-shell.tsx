@@ -70,7 +70,6 @@ function ClientPortalShell({ children, active, projectName, projectDate }: { chi
               >
                 <Icon size={17} />
                 <span>{item.label}</span>
-                {item.label === "Questionnaires" ? <i>1</i> : null}
               </Link>
             );
           })}
