@@ -29,6 +29,12 @@ Provider adapters
     └─ Vertex AI
 ```
 
+App Hosting reaches private second-generation HTTP Functions through their
+Cloud Run service URIs. The relay mints a Google ID token whose audience exactly
+matches that URI and forwards the end-user Firebase bearer token separately.
+This avoids making command Functions public while preserving the user identity
+needed by server authorization.
+
 The Next.js project is currently packaged through a Cloudflare-compatible web runtime for preview and deployment. Firebase Admin code is kept outside the browser bundle and runs in Cloud Functions/Cloud Run. This preserves the requested Firebase trust boundary and avoids placing service credentials in the web runtime.
 
 ## Repository structure

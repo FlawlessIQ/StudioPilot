@@ -51,11 +51,14 @@ async function proxy(
     );
   }
 
+  const runHostSuffix = process.env.FUNCTIONS_RUN_HOST_SUFFIX;
   const target =
     functionName === "integrationOAuth" &&
     process.env.INTEGRATION_OAUTH_FUNCTION_URL
       ? process.env.INTEGRATION_OAUTH_FUNCTION_URL
-      : `${origin.replace(/\/$/, "")}/${functionName}`;
+      : runHostSuffix
+        ? `https://${functionName.toLowerCase()}-${runHostSuffix}`
+        : `${origin.replace(/\/$/, "")}/${functionName}`;
   const identityClient = await googleAuth.getIdTokenClient(target);
   const identityHeaders = await identityClient.getRequestHeaders(target);
   const serviceAuthorization = identityHeaders.get("authorization");

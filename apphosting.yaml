@@ -44,6 +44,10 @@ env:
     value: https://us-east4-studiohub-prod.cloudfunctions.net
     availability:
       - RUNTIME
+  - variable: FUNCTIONS_RUN_HOST_SUFFIX
+    value: yehtrtcieq-uk.a.run.app
+    availability:
+      - RUNTIME
   - variable: INTEGRATION_OAUTH_FUNCTION_URL
     value: https://integrationoauth-yehtrtcieq-uk.a.run.app
     availability:
