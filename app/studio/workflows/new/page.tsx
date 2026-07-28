@@ -11,7 +11,7 @@ export default function NewWorkflowPage() {
     <AppShell active="Workflows">
       <div className="crm-form-page">
         <Link className="back-link" href="/studio/workflows"><ArrowLeft size={15} /> Workflow templates</Link>
-        <div className="dashboard-heading"><div><p className="eyebrow">New immutable version</p><h1>Create a workflow</h1><p>Choose deterministic checkpoints and due dates. Published versions never change active runs.</p></div></div>
+        <div className="dashboard-heading"><div><p className="eyebrow">New workflow</p><h1>Create a workflow</h1><p>Choose the steps your team follows and when each one should be complete.</p></div></div>
         <CreateWorkflowForm />
       </div>
     </AppShell>

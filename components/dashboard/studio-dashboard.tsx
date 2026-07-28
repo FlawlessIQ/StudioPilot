@@ -5,10 +5,12 @@ import {
   ArrowRight,
   CalendarDays,
   CircleAlert,
+  FolderKanban,
   Plus,
   ShieldCheck,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
+import { SetupChecklist } from "@/components/dashboard/setup-checklist";
 import { LiveUpcomingRows, useTenantDocuments } from "@/components/live/tenant-records";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -81,13 +83,17 @@ function DashboardSummary() {
               ? "Loading your operational priorities…"
               : error
                 ? "Studio data is temporarily unavailable."
-                : `Here is the verified state of ${workspace.tenantName}.`}
+                : active.length
+                  ? "Here’s what needs your attention today."
+                  : "Let’s set up the essentials for your first project."}
           </p>
         </div>
-        <Link className="button button-dark" href="/studio/projects">
-          <Plus size={16} /> View projects
+        <Link className="button button-dark" href={active.length ? "/studio/projects" : "/studio/projects/new"}>
+          <Plus size={16} /> {active.length ? "View projects" : "Create first project"}
         </Link>
       </div>
+
+      <SetupChecklist />
 
       <section className="metric-grid" aria-label="Studio overview">
         <article className="metric-card">
@@ -100,7 +106,7 @@ function DashboardSummary() {
           <strong>
             {loading ? "—" : ready} <small>/ {loading ? "—" : active.length}</small>
           </strong>
-          <span className="metric-note">Deterministic readiness state</span>
+          <span className="metric-note">Required event checks completed</span>
         </article>
         <article className="metric-card metric-alert">
           <span className="metric-label">Projects needing action</span>
@@ -152,13 +158,23 @@ function DashboardSummary() {
                   <ArrowRight size={16} />
                 </Link>
               ))}
-            {!loading && !atRisk.length ? (
+            {!loading && !atRisk.length && active.length ? (
               <div className="live-record-state">
                 <ShieldCheck size={18} />
                 <span>
                   <strong>No active readiness blockers</strong>
                   <small>New required actions will appear here.</small>
                 </span>
+              </div>
+            ) : null}
+            {!loading && !active.length ? (
+              <div className="dashboard-empty-action">
+                <FolderKanban size={20} />
+                <span>
+                  <strong>Your first project starts here</strong>
+                  <small>Add a client and event date, then StudioCue will guide the next steps.</small>
+                </span>
+                <Link href="/studio/projects/new">Create project <ArrowRight size={14} /></Link>
               </div>
             ) : null}
           </div>
@@ -194,9 +210,7 @@ function DashboardSummary() {
             <h2>Upcoming projects</h2>
             <p>Readiness across the next active events</p>
           </div>
-          <StatusBadge tone="info" dot>
-            Tenant scoped
-          </StatusBadge>
+          <StatusBadge tone="info" dot>Live</StatusBadge>
         </div>
         <div className="project-table" role="table" aria-label="Upcoming projects">
           <div className="project-table-head" role="row">

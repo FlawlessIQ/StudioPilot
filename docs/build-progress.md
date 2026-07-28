@@ -718,3 +718,49 @@ Validation record:
 - 390px mobile visual QA: passed with no horizontal overflow
 - production source compilation: passed; local cache completion deferred to
   Firebase App Hosting because the development Mac was at disk capacity
+
+## StudioCue guided workspace UX — July 28, 2026
+
+Status: implementation complete; production deployment pending.
+
+Delivered:
+
+- reduced routine Studio navigation from a long feature inventory to eight
+  task-oriented destinations: Home, Pipeline, Projects, Calendar, People,
+  Library, Reports, and Studio setup
+- moved platform administration out of routine Studio navigation and into the
+  audited account menu
+- replaced the decorative search box with tenant-scoped project, client, and
+  task search plus useful quick actions
+- replaced the nonfunctional mobile menu link with an accessible, dismissible
+  navigation drawer
+- added a first-run setup checklist with progress, clear next actions, inquiry
+  preview, package creation, calendar connection, project creation, and team
+  invitation steps
+- added Library and Studio setup hubs so reusable resources and administrative
+  settings are easier to find
+- added contextual project navigation and direct actions for tasks and
+  readiness
+- replaced raw client and project identifier entry with record selectors in
+  project and task creation
+- added a real month calendar populated by project dates and consultations
+- replaced questionnaire field syntax with a visual add, remove, reorder, type,
+  and required-field builder
+- moved secondary creation tools behind clear disclosure controls where they
+  no longer compete with the page’s primary record list
+- made the public inquiry page tenant-branded and unavailable without a valid,
+  active studio slug; removed the unrelated sample photography brand
+- rewrote technical, architecture-led interface copy in projects, integrations,
+  booking, readiness, questionnaires, workflow, documents, communications,
+  client portal, and settings areas into task-led language
+- added responsive layouts for the setup checklist, search, hubs, calendar,
+  questionnaire builder, and project workspace navigation
+
+Validation record:
+
+- strict TypeScript: passed
+- ESLint: passed
+- unit and policy suite: 74 passed
+- production Next.js webpack build: passed, including all 89 application routes
+- Chrome-driven final visual sweep pending because the currently selected
+  Chrome profile does not have the ChatGPT Chrome Extension enabled

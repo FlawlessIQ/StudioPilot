@@ -1,4 +1,5 @@
 import { ScheduleConsultationForm } from "@/components/booking/schedule-consultation-form";
+import { StudioCalendar } from "@/components/booking/studio-calendar";
 import { AppShell } from "@/components/layout/app-shell";
 import { LiveDomainView } from "@/components/studio/live-domain-view";
 
@@ -8,11 +9,12 @@ export default function CalendarPage() {
       <div className="live-domain-page">
         <header className="page-heading">
           <div>
-            <p className="eyebrow">Booking operations</p>
-            <h1>Calendar & consultations</h1>
-            <p>Timezone-safe Calendar and Zoom orchestration with provider IDs preventing duplicate events.</p>
+            <p className="eyebrow">Schedule</p>
+            <h1>Calendar</h1>
+            <p>See event dates and consultations, then schedule without calendar conflicts or duplicate meetings.</p>
           </div>
         </header>
+        <StudioCalendar />
         <section>
           <div className="section-heading-row">
             <div>
@@ -22,15 +24,15 @@ export default function CalendarPage() {
           </div>
           <LiveDomainView domain="consultations" />
         </section>
-        <section className="panel booking-form-panel">
-          <div className="panel-heading">
+        <details className="creation-disclosure panel">
+          <summary>
             <div>
               <h2>Schedule consultation</h2>
-              <p>Availability and conflicts are checked before provider resources are queued.</p>
+              <p>Choose a project and meeting type, then confirm the time.</p>
             </div>
-          </div>
-          <ScheduleConsultationForm />
-        </section>
+          </summary>
+          <div className="creation-disclosure-body"><ScheduleConsultationForm /></div>
+        </details>
       </div>
     </AppShell>
   );

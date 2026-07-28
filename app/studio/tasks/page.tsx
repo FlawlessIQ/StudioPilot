@@ -11,7 +11,7 @@ export default function TasksPage() {
         domain="tasks"
         eyebrow="Execution queue"
         title="Tasks"
-        description="Assigned work with due dates, priority, and deterministic readiness impact."
+        description="See assigned work, deadlines, priorities, and which tasks affect event readiness."
         action={{ href: "/studio/tasks/new", label: "Create task" }}
       />
     </AppShell>

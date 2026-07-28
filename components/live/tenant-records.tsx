@@ -148,7 +148,7 @@ export function LiveClientCards({
       <LiveRecordsState
         kind="loading"
         state="Loading clients…"
-        detail="Reading tenant-scoped contact records."
+        detail="Loading your client list."
       />
     );
   if (error)
@@ -164,7 +164,8 @@ export function LiveClientCards({
       <LiveRecordsState
         kind="empty"
         state="No matching clients"
-        detail="Client contacts will appear here when created or converted from a lead."
+        detail="Add a client directly or convert an inquiry when you are ready to book."
+        action={{ href: "/studio/clients/new", label: "Add client" }}
       />
     );
   return (
@@ -229,10 +230,12 @@ function LiveRecordsState({
   kind,
   state,
   detail,
+  action,
 }: {
   kind: "loading" | "error" | "empty";
   state: string;
   detail: string;
+  action?: { href: string; label: string };
 }) {
   const Icon =
     kind === "loading" ? LoaderCircle : kind === "error" ? DatabaseZap : Inbox;
@@ -243,6 +246,11 @@ function LiveRecordsState({
         <strong>{state}</strong>
         <small>{detail}</small>
       </span>
+      {action ? (
+        <Link className="live-state-action" href={action.href}>
+          {action.label} <ArrowRight size={14} />
+        </Link>
+      ) : null}
     </div>
   );
 }
@@ -305,7 +313,8 @@ export function LiveProjectRows({
       <LiveRecordsState
         kind="empty"
         state="No projects in this view"
-        detail="Create a project or change the active filters."
+        detail="Create your first project or change the active filters."
+        action={{ href: "/studio/projects/new", label: "Create project" }}
       />
     );
   }
@@ -396,7 +405,7 @@ export function LiveLeadRows({ view, q }: { view: string; q: string }) {
       <LiveRecordsState
         kind="loading"
         state="Loading leads…"
-        detail="Reading tenant-scoped inquiries."
+        detail="Loading your inquiries."
       />
     );
   }
@@ -413,8 +422,8 @@ export function LiveLeadRows({ view, q }: { view: string; q: string }) {
     return (
       <LiveRecordsState
         kind="empty"
-        state="No leads in this view"
-        detail="New inquiries will appear here after validation."
+        state="No inquiries in this view"
+        detail="Share your studio inquiry form or change the active filter."
       />
     );
   }

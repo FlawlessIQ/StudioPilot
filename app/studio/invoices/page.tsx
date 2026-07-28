@@ -8,7 +8,7 @@ export default function InvoicesPage() {
         domain="invoices"
         eyebrow="QuickBooks references"
         title="Invoices"
-        description="Synced accounting references; QuickBooks remains the payment system of record."
+        description="See retainer and final invoice status synced from QuickBooks."
       />
     </AppShell>
   );

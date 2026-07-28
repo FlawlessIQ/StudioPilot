@@ -4,5 +4,5 @@ import { StudioDomainPage } from "@/components/studio/live-domain-view";
 
 export const metadata: Metadata = { title: "Documents" };
 export default function DocumentsPage() {
-  return <AppShell active="Documents"><StudioDomainPage domain="documents" eyebrow="Evidence and files" title="Documents" description="Secure project files, scan status, visibility, provider references, and immutable versions." /></AppShell>;
+  return <AppShell active="Documents"><StudioDomainPage domain="documents" eyebrow="Project files" title="Documents" description="Find contracts, schedules, insurance certificates, briefs, and other project documents." /></AppShell>;
 }

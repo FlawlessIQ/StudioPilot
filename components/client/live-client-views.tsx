@@ -265,8 +265,7 @@ export function LiveClientHome() {
           </StatusBadge>
           <h2>{text(value.nextAction, "Review your project details")}</h2>
           <p>
-            This action comes from the studio’s deterministic readiness
-            workflow.
+            This is the next required step in your studio’s project plan.
           </p>
         </div>
         <Link className="button button-dark" href="/client/schedule">
@@ -370,7 +369,7 @@ export function LiveClientPackage() {
   if (project.loading || snapshot.loading || project.error || snapshot.error)
     return <PortalState loading={project.loading || snapshot.loading} error={project.error ?? snapshot.error} />;
   if (!snapshot.value)
-    return <PortalState loading={false} error={null} empty="Your selected package will appear after the studio creates its immutable snapshot." />;
+    return <PortalState loading={false} error={null} empty="Your selected package will appear after the studio confirms it for this project." />;
   const value = snapshot.value;
   const included = Array.isArray(value.includedDeliverables)
     ? value.includedDeliverables
@@ -528,8 +527,8 @@ export function LiveClientQuestionnaire() {
       <p className="eyebrow">Project planning</p>
       <h1>Your questionnaire</h1>
       <p>
-        Save and resume securely. Submission creates deterministic completion
-        evidence.
+        Save your progress and return at any time. Your studio will be notified
+        when you submit the completed form.
       </p>
       <section className="panel">
         <ClientQuestionnaireForm

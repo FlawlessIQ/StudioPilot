@@ -10,7 +10,10 @@ export default function QuestionnairesPage() {
           <div>
             <p className="eyebrow">Client information</p>
             <h1>Questionnaires</h1>
-            <p>Versioned templates, project assignments, save-and-resume, and explicit submission state.</p>
+            <p>
+              Collect the details your team needs, without chasing long email
+              threads.
+            </p>
           </div>
         </header>
         <LiveDomainView domain="questionnaires" />

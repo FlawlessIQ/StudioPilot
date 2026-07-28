@@ -70,8 +70,9 @@ export function CopilotWorkspace() {
         <span>
           <strong>Copilot cannot change authoritative status.</strong>
           <small>
-            Payments, signatures, COI approval, permissions, and readiness remain
-            deterministic. Any future action will require confirmation.
+            Payments, signatures, insurance approval, permissions, and readiness
+            follow StudioCue’s project rules. Any future action will require
+            confirmation.
           </small>
         </span>
       </div>

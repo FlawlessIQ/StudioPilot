@@ -174,7 +174,7 @@ export function DataControls() {
         <div>
           <h2>Tenant export</h2>
           <p>
-            Create a compressed, tenant-scoped archive. Download links expire
+            Create a compressed archive of your studio data. Download links expire
             after 15 minutes.
           </p>
         </div>

@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CheckCircle2, LoaderCircle } from "lucide-react";
+import { CheckCircle2, LoaderCircle, UserPlus } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { useTenantDocuments } from "@/components/live/tenant-records";
 import { runCrmCommand } from "@/lib/crm/command-client";
 
 const schema = z.object({
@@ -19,6 +21,8 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export function CreateProjectForm() {
+  const { records: contacts, loading: contactsLoading } =
+    useTenantDocuments("contacts");
   const [outcome, setOutcome] = useState<{ persisted: boolean; reference: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
@@ -51,13 +55,29 @@ export function CreateProjectForm() {
   return (
     <form className="command-form panel" onSubmit={submit}>
       <div className="form-grid">
-        <label className="form-span">Project name<input {...register("name")} /><small>{errors.name?.message}</small></label>
-        <label>Event type<select {...register("eventType")}><option>Wedding</option><option>Corporate</option><option>Sports</option></select></label>
-        <label>Event date<input {...register("eventDate")} type="date" /><small>{errors.eventDate?.message}</small></label>
-        <label>Primary contact ID<input {...register("primaryContactId")} /><small>{errors.primaryContactId?.message}</small></label>
-        <label>Timezone<input {...register("timezone")} /></label>
-        <label>Venue<input {...register("venueName")} /></label>
-        <label>City<input {...register("city")} /></label>
+        <label className="form-span">Project name <span className="required-mark">Required</span><input {...register("name")} autoFocus placeholder="e.g. Johnson wedding" required /><small>{errors.name?.message}</small></label>
+        <label>Event type <span className="required-mark">Required</span><select {...register("eventType")} required><option>Wedding</option><option>Corporate</option><option>Sports</option></select></label>
+        <label>Event date <span className="required-mark">Required</span><input {...register("eventDate")} required type="date" /><small>{errors.eventDate?.message}</small></label>
+        <label className="form-span">
+          Primary client <span className="required-mark">Required</span>
+          <select {...register("primaryContactId")} disabled={contactsLoading} required>
+            <option value="">{contactsLoading ? "Loading clients…" : "Select a client"}</option>
+            {(contacts ?? []).map((contact) => (
+              <option key={contact.id} value={contact.id}>
+                {String(contact.displayName ?? contact.email ?? "Client")}
+              </option>
+            ))}
+          </select>
+          <small>{errors.primaryContactId?.message}</small>
+          {!contactsLoading && !contacts?.length ? (
+            <Link className="inline-form-action" href="/studio/clients/new">
+              <UserPlus size={14} /> Add your first client
+            </Link>
+          ) : null}
+        </label>
+        <label>Timezone <span className="required-mark">Required</span><select {...register("timezone")} required><option>America/New_York</option><option>America/Chicago</option><option>America/Denver</option><option>America/Los_Angeles</option><option>Europe/London</option><option>Australia/Sydney</option></select></label>
+        <label>Venue<input {...register("venueName")} placeholder="Venue name, if known" /></label>
+        <label>City<input {...register("city")} placeholder="Event city" /></label>
       </div>
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       <button className="button button-dark" disabled={isSubmitting} type="submit">{isSubmitting ? <LoaderCircle className="spin" size={16} /> : null}Create project</button>

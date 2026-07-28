@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCircle2, LoaderCircle } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { useTenantDocuments } from "@/components/live/tenant-records";
 import { runWorkflowCommand } from "@/lib/workflows/command-client";
 
 const schema = z.object({
@@ -17,13 +18,15 @@ const schema = z.object({
 });
 type FormValues = z.infer<typeof schema>;
 
-export function CreateTaskForm() {
+export function CreateTaskForm({ initialProjectId = "" }: { initialProjectId?: string }) {
+  const { records: projects, loading: projectsLoading } =
+    useTenantDocuments("projects");
   const [outcome, setOutcome] = useState<{ persisted: boolean; reference: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      projectId: "",
+      projectId: initialProjectId,
       title: "",
       description: "",
       dueDate: "",
@@ -60,10 +63,10 @@ export function CreateTaskForm() {
   return (
     <form className="command-form panel" onSubmit={submit}>
       <div className="form-grid">
-        <label>Project ID<input {...register("projectId")} /><small>{errors.projectId?.message}</small></label>
-        <label>Due date<input {...register("dueDate")} type="date" /><small>{errors.dueDate?.message}</small></label>
-        <label className="form-span">Task title<input {...register("title")} /><small>{errors.title?.message}</small></label>
-        <label className="form-span">Description<textarea {...register("description")} rows={3} /></label>
+        <label>Project <span className="required-mark">Required</span><select {...register("projectId")} disabled={projectsLoading} required><option value="">{projectsLoading ? "Loading projects…" : "Select a project"}</option>{(projects ?? []).map((project) => <option key={project.id} value={project.id}>{String(project.name ?? "Project")}</option>)}</select><small>{errors.projectId?.message}</small></label>
+        <label>Due date <span className="required-mark">Required</span><input {...register("dueDate")} required type="date" /><small>{errors.dueDate?.message}</small></label>
+        <label className="form-span">Task title <span className="required-mark">Required</span><input {...register("title")} placeholder="What needs to be done?" required /><small>{errors.title?.message}</small></label>
+        <label className="form-span">Description<textarea {...register("description")} placeholder="Add instructions, context, or expected evidence." rows={3} /></label>
         <label>Priority<select {...register("priority")}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label>
         <label className="check-control"><input {...register("blocking")} type="checkbox" /><span>Affects readiness</span></label>
       </div>

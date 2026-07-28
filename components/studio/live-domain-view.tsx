@@ -49,6 +49,18 @@ type Domain =
   | "documents"
   | "messages";
 
+const emptyCopy: Partial<Record<Domain, { title: string; detail: string }>> = {
+  packages: { title: "No packages yet", detail: "Create the first offer you want clients to select." },
+  tasks: { title: "No tasks yet", detail: "Create a task when a project needs a clear owner and due date." },
+  workflows: { title: "No workflows yet", detail: "Create a reusable workflow for your most common project type." },
+  consultations: { title: "No consultations scheduled", detail: "Choose a project below to schedule the first consultation." },
+  readiness: { title: "No readiness results yet", detail: "Readiness appears after a project has required checkpoints." },
+  booking_gates: { title: "No booking reviews yet", detail: "Booking requirements are evaluated after a contract and retainer are created." },
+  schedules: { title: "No schedules yet", detail: "Generate a run of show from an active project." },
+  vendors: { title: "No vendors yet", detail: "Add a venue, planner, or project vendor when details are available." },
+  questionnaires: { title: "No questionnaires assigned", detail: "Create a template, then assign it to a project." },
+};
+
 type DomainConfig = {
   collection: string;
   projectScoped?: boolean;
@@ -390,7 +402,13 @@ function tone(value: unknown) {
   return "warning" as const;
 }
 
-export function LiveDomainView({ domain }: { domain: Domain }) {
+export function LiveDomainView({
+  domain,
+  emptyAction,
+}: {
+  domain: Domain;
+  emptyAction?: { href: string; label: string };
+}) {
   const workspace = useWorkspace();
   const config = configurations[domain];
   const [records, setRecords] = useState<Value[] | null>(null);
@@ -501,7 +519,7 @@ export function LiveDomainView({ domain }: { domain: Domain }) {
         <LoaderCircle className="spin" />
         <span>
           <strong>Loading records…</strong>
-          <small>Reading tenant-scoped operational data.</small>
+          <small>Loading your studio records.</small>
         </span>
       </section>
     );
@@ -515,16 +533,26 @@ export function LiveDomainView({ domain }: { domain: Domain }) {
         </span>
       </section>
     );
-  if (!records?.length)
+  if (!records?.length) {
+    const copy = emptyCopy[domain] ?? {
+      title: "Nothing here yet",
+      detail: "Records will appear here after you create or receive them.",
+    };
     return (
       <section className="panel live-domain-state">
         <Inbox />
         <span>
-          <strong>No records yet</strong>
-          <small>Validated records will appear here when they are created.</small>
+          <strong>{copy.title}</strong>
+          <small>{copy.detail}</small>
         </span>
+        {emptyAction ? (
+          <Link className="button button-light button-sm" href={emptyAction.href}>
+            {emptyAction.label}
+          </Link>
+        ) : null}
       </section>
     );
+  }
 
   return (
     <section className="panel live-domain-table">
@@ -603,7 +631,7 @@ export function StudioDomainPage({
           </Link>
         ) : null}
       </header>
-      <LiveDomainView domain={domain} />
+      <LiveDomainView domain={domain} emptyAction={action} />
     </div>
   );
 }

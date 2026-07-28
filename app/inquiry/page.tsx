@@ -3,13 +3,65 @@ import Link from "next/link";
 import { ArrowLeft, LockKeyhole, ShieldCheck } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { LeadIntakeForm } from "@/components/crm/lead-intake-form";
+import { adminFirestore } from "@/server/firebase/admin";
 
-export const metadata: Metadata = {
-  title: "Photography inquiry · Alder & Muse",
-  description: "Tell Alder & Muse about your event and request photography availability.",
+type InquiryStudio = {
+  name: string;
+  slug: string;
 };
 
-export default function InquiryPage() {
+async function studioForSlug(slug: string): Promise<InquiryStudio | null> {
+  if (!/^[a-z0-9-]{2,80}$/.test(slug)) return null;
+  const result = await adminFirestore
+    .collection("tenants")
+    .where("publicSlug", "==", slug)
+    .limit(1)
+    .get();
+  const studio = result.docs[0];
+  if (!studio) return null;
+  const status = studio.get("status");
+  if (status !== "trial" && status !== "active") return null;
+  return {
+    name: String(studio.get("brandName") ?? studio.get("businessName") ?? "Photography studio"),
+    slug,
+  };
+}
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ studio?: string }>;
+}): Promise<Metadata> {
+  const { studio = "" } = await searchParams;
+  const tenant = await studioForSlug(studio);
+  return {
+    title: tenant ? `Photography inquiry · ${tenant.name}` : "Photography inquiry",
+    description: tenant
+      ? `Tell ${tenant.name} about your event and request photography availability.`
+      : "Request photography availability from a StudioCue studio.",
+  };
+}
+
+export default async function InquiryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ studio?: string }>;
+}) {
+  const { studio = "" } = await searchParams;
+  const tenant = await studioForSlug(studio);
+  if (!tenant) {
+    return (
+      <main className="inquiry-page inquiry-unavailable">
+        <header><Logo /><Link href="/"><ArrowLeft size={15} /> Back to StudioCue</Link></header>
+        <section className="panel">
+          <p className="eyebrow">Inquiry form unavailable</p>
+          <h1>Ask the studio for its current inquiry link.</h1>
+          <p>This link is missing a valid studio address or the form is not currently accepting inquiries.</p>
+          <Link className="button button-dark" href="/">Visit StudioCue</Link>
+        </section>
+      </main>
+    );
+  }
   return (
     <main className="inquiry-page">
       <header>
@@ -18,7 +70,7 @@ export default function InquiryPage() {
       </header>
       <div className="inquiry-layout">
         <aside className="inquiry-intro">
-          <p className="eyebrow">Alder &amp; Muse Photography</p>
+          <p className="eyebrow">{tenant.name}</p>
           <h1>Let’s make something worth remembering.</h1>
           <p>
             Share the essentials and our studio will confirm availability, then send a
@@ -29,7 +81,7 @@ export default function InquiryPage() {
             <span><LockKeyhole size={18} /><strong>Private by default</strong><small>Your details stay within this studio workspace.</small></span>
           </div>
         </aside>
-        <LeadIntakeForm />
+        <LeadIntakeForm brandName={tenant.name} tenantSlug={tenant.slug} />
       </div>
     </main>
   );

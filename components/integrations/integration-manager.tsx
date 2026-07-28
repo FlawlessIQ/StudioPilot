@@ -120,11 +120,11 @@ const oauthEnabled = (provider: Provider) =>
 
 const callbackErrors: Record<string, string> = {
   GOOGLE_CLOUD_PROJECT_REQUIRED:
-    "Authorization reached StudioCue, but the credential vault could not identify its Google Cloud project. This configuration has now been corrected; reconnect to finish.",
+    "StudioCue could not finish saving this connection. Reconnect to try again.",
   SECRET_MANAGER_CREATE_FAILED:
-    "Authorization succeeded, but StudioCue could not create the secure tenant credential. The platform credential-vault permission needs attention.",
+    "StudioCue could not create a secure connection record. Contact support before trying again.",
   SECRET_MANAGER_WRITE_FAILED:
-    "Authorization succeeded, but StudioCue could not write the token to the secure credential vault.",
+    "StudioCue could not securely save this connection. Contact support before trying again.",
   OAUTH_TOKEN_EXCHANGE_FAILED:
     "The provider rejected the authorization result. Confirm the production app credentials and exact callback URL, then reconnect.",
   OAUTH_STATE_INVALID:
@@ -364,17 +364,16 @@ export function IntegrationManager() {
               : "Build your connected studio"}
           </h2>
           <p>
-            Connect the services your team already uses. StudioCue coordinates
-            the work while each provider remains the source of truth.
+            Connect the services your team already uses, then manage them from
+            one place.
           </p>
         </div>
         <div className="integration-vault">
           <LockKeyhole />
           <span>
-            <strong>Tenant-isolated credential vault</strong>
+            <strong>Protected connection details</strong>
             <small>
-              Refresh tokens are encrypted in Google Secret Manager and never
-              returned to the browser.
+              Sign-in details are encrypted and are never shown in the browser.
             </small>
           </span>
         </div>
@@ -456,8 +455,8 @@ export function IntegrationManager() {
                     {connected
                       ? connection?.displayName ?? definition.label
                       : available
-                        ? "OAuth available"
-                        : "Provider adapter only"}
+                        ? "Ready to authorize"
+                        : "Setup not finished"}
                   </strong>
                 </span>
                 <span>
@@ -478,11 +477,11 @@ export function IntegrationManager() {
                     </>
                   ) : available ? (
                     <>
-                      <LockKeyhole /> Authorization available
+                      <LockKeyhole /> Secure sign-in available
                     </>
                   ) : (
                     <>
-                      <ShieldCheck /> Safe development adapter
+                      <ShieldCheck /> Awaiting production setup
                     </>
                   )}
                 </span>

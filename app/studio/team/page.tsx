@@ -5,7 +5,7 @@ import { TeamManagement } from "@/components/team/team-management";
 
 export const metadata: Metadata = {
   title: "Team",
-  description: "Manage tenant-scoped StudioCue staff access.",
+  description: "Invite your team and control what each person can see and change.",
 };
 
 export default function TeamPage() {

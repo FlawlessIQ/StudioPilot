@@ -1,39 +1,25 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import {
-  Aperture,
   Bell,
   CalendarDays,
   ChevronDown,
   CircleGauge,
   ContactRound,
-  FileStack,
-  FileSignature,
   FolderKanban,
-  Handshake,
-  LayoutTemplate,
+  LibraryBig,
   Menu,
-  Package,
-  ReceiptText,
-  Search,
   Settings,
-  ShieldCheck,
   Sparkles,
-  ListTodo,
-  UsersRound,
-  Workflow,
-  BadgeCheck,
-  ClipboardList,
-  GanttChartSquare,
-  Images,
-  Star,
   ChartNoAxesColumn,
-  WandSparkles,
-  CreditCard,
-  MessageCircle,
+  SlidersHorizontal,
+  UsersRound,
+  X,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
+import { GlobalSearch } from "@/components/layout/global-search";
 import { PlatformReturnLink } from "@/components/layout/platform-return-link";
 import { cn } from "@/lib/utils";
 import { AuthBoundary } from "@/features/auth/auth-boundary";
@@ -49,71 +35,55 @@ const navSections = [
   {
     label: "Workspace",
     items: [
-      { label: "Dashboard", href: "/studio", icon: CircleGauge },
+      { label: "Home", href: "/studio", icon: CircleGauge },
+      { label: "Pipeline", href: "/studio/leads", icon: ContactRound },
       { label: "Projects", href: "/studio/projects", icon: FolderKanban },
       { label: "Calendar", href: "/studio/calendar", icon: CalendarDays },
-      { label: "Tasks", href: "/studio/tasks", icon: ListTodo },
-    ],
-  },
-  {
-    label: "Client lifecycle",
-    items: [
-      { label: "Leads", href: "/studio/leads", icon: ContactRound },
-      { label: "Clients", href: "/studio/clients", icon: UsersRound },
-      { label: "Packages", href: "/studio/packages", icon: Package },
-      { label: "Proposals", href: "/studio/proposals", icon: FileStack },
-      { label: "Contracts", href: "/studio/contracts", icon: FileSignature },
-      { label: "Invoices", href: "/studio/invoices", icon: ReceiptText },
-      { label: "Booking", href: "/studio/booking", icon: BadgeCheck },
-      {
-        label: "Questionnaires",
-        href: "/studio/questionnaires",
-        icon: ClipboardList,
-      },
-    ],
-  },
-  {
-    label: "Production",
-    items: [
-      { label: "Vendors", href: "/studio/vendors", icon: Handshake },
-      { label: "Crew", href: "/studio/crew", icon: Aperture },
-      { label: "Insurance", href: "/studio/insurance", icon: ShieldCheck },
-      { label: "Schedules", href: "/studio/schedules", icon: GanttChartSquare },
-      { label: "Readiness", href: "/studio/readiness", icon: ShieldCheck },
-      {
-        label: "Post-production",
-        href: "/studio/post-production",
-        icon: WandSparkles,
-      },
-      { label: "Delivery", href: "/studio/delivery", icon: Images },
-      { label: "Reviews", href: "/studio/reviews", icon: Star },
+      { label: "People", href: "/studio/clients", icon: UsersRound },
     ],
   },
   {
     label: "Studio",
     items: [
-      { label: "Workflows", href: "/studio/workflows", icon: Workflow },
-      { label: "Documents", href: "/studio/documents", icon: FileStack },
       {
-        label: "Communications",
-        href: "/studio/messages",
-        icon: MessageCircle,
+        label: "Library",
+        href: "/studio/library",
+        icon: LibraryBig,
       },
       { label: "Reports", href: "/studio/reports", icon: ChartNoAxesColumn },
       {
-        label: "Integrations",
-        href: "/studio/integrations",
-        icon: LayoutTemplate,
-      },
-      { label: "Team", href: "/studio/team", icon: UsersRound },
-      {
-        label: "Subscription",
-        href: "/studio/subscription",
-        icon: CreditCard,
+        label: "Studio setup",
+        href: "/studio/setup",
+        icon: SlidersHorizontal,
       },
     ],
   },
 ] as const;
+
+const activeGroups: Record<string, string[]> = {
+  Home: ["Dashboard"],
+  Pipeline: ["Leads", "Proposals", "Contracts", "Invoices", "Booking"],
+  Projects: [
+    "Projects",
+    "Tasks",
+    "Questionnaires",
+    "Vendors",
+    "Crew",
+    "Insurance",
+    "Schedules",
+    "Readiness",
+    "Post-production",
+    "Delivery",
+    "Reviews",
+    "Documents",
+    "Communications",
+  ],
+  Calendar: ["Calendar"],
+  People: ["Clients"],
+  Library: ["Packages", "Workflows"],
+  Reports: ["Reports"],
+  "Studio setup": ["Integrations", "Team", "Subscription", "Settings"],
+};
 
 export function AppShell({
   children,
@@ -136,34 +106,25 @@ function StudioShell({
   children: React.ReactNode;
   active: string;
 }) {
+  const [navigationOpen, setNavigationOpen] = useState(false);
   const workspace = useWorkspace();
   const tenantName = workspace.error ? "Workspace unavailable" : workspace.tenantName;
   const userName = workspace.error ? "Signed-in user" : workspace.userName;
   const staffAllowed = new Set([
-    "Dashboard",
+    "Home",
     "Projects",
     "Calendar",
-    "Tasks",
-    "Documents",
-    "Communications",
-    "Schedules",
-    "Readiness",
   ]);
   const coordinatorExcluded = new Set([
-    "Packages",
-    "Workflows",
     "Reports",
-    "Integrations",
-    "Team",
-    "Subscription",
+    "Library",
+    "Studio setup",
   ]);
   const canSee = (label: string) => {
     if (workspace.role === "staff_photographer")
       return staffAllowed.has(label);
     if (workspace.role === "studio_coordinator")
       return !coordinatorExcluded.has(label);
-    if (workspace.role === "studio_admin")
-      return !["Team", "Subscription"].includes(label);
     return true;
   };
   const visibleSections = navSections
@@ -172,11 +133,32 @@ function StudioShell({
       items: section.items.filter((item) => canSee(item.label)),
     }))
     .filter((section) => section.items.length);
+  const currentGroup =
+    Object.entries(activeGroups).find(([, values]) => values.includes(active))?.[0] ??
+    "Home";
   return (
-    <div className="app-frame">
-      <aside className="sidebar" id="studio-navigation">
+    <div className={cn("app-frame", navigationOpen && "navigation-is-open")}>
+      <button
+        aria-label="Close navigation"
+        className="navigation-backdrop"
+        onClick={() => setNavigationOpen(false)}
+        type="button"
+      />
+      <aside
+        aria-label="Studio workspace"
+        className={cn("sidebar", navigationOpen && "sidebar-open")}
+        id="studio-navigation"
+      >
         <div className="sidebar-brand">
           <Logo />
+          <button
+            aria-label="Close navigation"
+            className="sidebar-close"
+            onClick={() => setNavigationOpen(false)}
+            type="button"
+          >
+            <X size={19} />
+          </button>
         </div>
         <Link className="tenant-switcher" href="/auth/workspaces" aria-label="Switch workspace">
           <span className="avatar avatar-sand">{initials(tenantName)}</span>
@@ -197,9 +179,10 @@ function StudioShell({
                   <Link
                     href={item.href}
                     key={item.label}
+                    onClick={() => setNavigationOpen(false)}
                     className={cn(
                       "nav-item",
-                      item.label === active && "nav-active",
+                      item.label === currentGroup && "nav-active",
                     )}
                   >
                     <Icon size={17} strokeWidth={1.8} />
@@ -212,35 +195,43 @@ function StudioShell({
         </nav>
 
         <div className="sidebar-bottom">
-          <PlatformReturnLink />
-          {workspace.role === "studio_owner" ? (
-            <Link href="/studio/settings" className="nav-item">
-              <Settings size={18} />
-              <span>Settings</span>
-            </Link>
-          ) : null}
-          <div className="user-card">
-            <span className="avatar avatar-ink">{initials(userName)}</span>
-            <span className="tenant-copy">
-              <strong>{userName}</strong>
-              <small>{workspaceRoleLabel(workspace.role)}</small>
-            </span>
-            <SignOutButton className="shell-signout" />
-          </div>
+          <details className="user-menu">
+            <summary className="user-card">
+              <span className="avatar avatar-ink">{initials(userName)}</span>
+              <span className="tenant-copy">
+                <strong>{userName}</strong>
+                <small>{workspaceRoleLabel(workspace.role)}</small>
+              </span>
+              <ChevronDown size={15} />
+            </summary>
+            <div className="user-menu-popover">
+              <Link href="/auth/workspaces">Switch workspace</Link>
+              {workspace.role === "studio_owner" ? (
+                <Link href="/studio/setup">
+                  <Settings size={16} /> Studio setup
+                </Link>
+              ) : null}
+              <PlatformReturnLink />
+              <SignOutButton className="user-menu-signout" />
+            </div>
+          </details>
         </div>
       </aside>
 
       <div className="app-main">
         <header className="topbar">
-          <a className="mobile-menu" href="#studio-navigation" aria-label="Open navigation">
+          <button
+            aria-controls="studio-navigation"
+            aria-expanded={navigationOpen}
+            aria-label="Open navigation"
+            className="mobile-menu"
+            onClick={() => setNavigationOpen(true)}
+            type="button"
+          >
             <Menu size={20} />
-          </a>
-          <span className="topbar-context">{active}</span>
-          <div className="command-search">
-            <Search size={17} />
-            <span>Search projects, clients, or tasks</span>
-            <kbd>⌘ K</kbd>
-          </div>
+          </button>
+          <span className="topbar-context">{currentGroup}</span>
+          <GlobalSearch />
           <div className="topbar-actions">
             <Link className="icon-button" href="/studio/notifications" aria-label="Notifications">
               <Bell size={19} />

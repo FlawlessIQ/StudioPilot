@@ -16,12 +16,12 @@ export default async function ProjectsPage({
     <AppShell active="Projects">
       <div className="crm-page">
         <div className="dashboard-heading">
-          <div><p className="eyebrow">Operations</p><h1>Projects</h1><p>Dates, project states, owners, and readiness in one operational view.</p></div>
+          <div><p className="eyebrow">Your work</p><h1>Projects</h1><p>See each event date, current stage, readiness, and next action.</p></div>
           <Link className="button button-dark" href="/studio/projects/new"><Plus size={16} /> Create project</Link>
         </div>
         <section className="panel crm-table-panel">
           <div className="crm-toolbar">
-            <div className="crm-tabs"><Link className={view === "active" ? "active" : ""} href={`?view=active&type=${type}`}>Active</Link><Link className={view === "leads" ? "active" : ""} href={`?view=leads&type=${type}`}>Leads</Link><Link className={view === "archived" ? "active" : ""} href={`?view=archived&type=${type}`}>Archived</Link></div>
+            <div className="crm-tabs"><Link className={view === "active" ? "active" : ""} href={`?view=active&type=${type}`}>Active</Link><Link className={view === "archived" ? "active" : ""} href={`?view=archived&type=${type}`}>Archived</Link></div>
             <form className="crm-search-form" method="get"><input name="view" type="hidden" value={view} /><Filter size={15} /><select aria-label="Project type" defaultValue={type} name="type"><option value="all">All project types</option><option value="wedding">Wedding</option><option value="corporate">Corporate</option><option value="sports">Sports</option></select><button type="submit">Apply</button></form>
           </div>
           <div className="crm-table crm-projects-table">

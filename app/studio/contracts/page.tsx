@@ -8,7 +8,7 @@ export default function ContractsPage() {
         domain="contracts"
         eyebrow="Docusign evidence"
         title="Contracts"
-        description="Provider-reported envelope state; only completion satisfies contractual checkpoints."
+        description="Track agreements from draft through signature. A contract is complete only when every required signer has finished."
       />
     </AppShell>
   );

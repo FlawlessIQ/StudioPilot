@@ -8,7 +8,7 @@ export default function SchedulesPage() {
         domain="schedules"
         eyebrow="Run of show"
         title="Schedules"
-        description="Immutable published versions with client approval and current-version crew acknowledgement."
+        description="Build, review, publish, and track approval of each project’s run of show."
         action={{ href: "/studio/schedules/new", label: "Generate schedule" }}
       />
     </AppShell>

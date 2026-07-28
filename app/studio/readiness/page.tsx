@@ -9,9 +9,9 @@ export default function ReadinessPage() {
     <AppShell active="Readiness">
       <StudioDomainPage
         domain="readiness"
-        eyebrow="Deterministic event gate"
+        eyebrow="Event confidence"
         title="Event readiness"
-        description="Blocking checkpoints, responsible parties, deadlines, and the recommended next action."
+        description="See what is complete, what is at risk, who owns each item, and what to do next."
       />
     </AppShell>
   );

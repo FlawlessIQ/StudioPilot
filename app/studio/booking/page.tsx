@@ -6,9 +6,9 @@ export default function BookingPage() {
     <AppShell active="Booking">
       <StudioDomainPage
         domain="booking_gates"
-        eyebrow="Deterministic gate"
+        eyebrow="Booking checklist"
         title="Booking readiness"
-        description="Contract, retainer, availability, and contact evidence must pass exactly once."
+        description="Confirm the contract, retainer, event date, and client details before marking a project booked."
       />
     </AppShell>
   );

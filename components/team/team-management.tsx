@@ -216,7 +216,7 @@ export function TeamManagement() {
         <LoaderCircle className="spin" />
         <span>
           <strong>Loading team access…</strong>
-          <small>Resolving tenant-scoped memberships and invitations.</small>
+          <small>Loading team members and pending invitations.</small>
         </span>
       </section>
     );

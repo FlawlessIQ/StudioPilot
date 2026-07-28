@@ -8,7 +8,7 @@ export default function ProposalsPage() {
         domain="proposals"
         eyebrow="Sales documents"
         title="Proposals"
-        description="Every revision preserves its package, price, terms, and client snapshots."
+        description="Prepare, send, and track client proposals while preserving every accepted version."
       />
     </AppShell>
   );

@@ -9,9 +9,9 @@ export default function WorkflowsPage() {
     <AppShell active="Workflows">
       <StudioDomainPage
         domain="workflows"
-        eyebrow="Automation foundation"
+        eyebrow="Repeatable process"
         title="Workflow templates"
-        description="Immutable versions of checkpoints, relative dates, triggers, conditions, and actions."
+        description="Turn your studio process into reusable steps, deadlines, reminders, and handoffs."
         action={{ href: "/studio/workflows/new", label: "Create workflow" }}
       />
     </AppShell>

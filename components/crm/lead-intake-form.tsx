@@ -17,8 +17,7 @@ type SubmissionResult = {
   missingInformation: string[];
 };
 
-const defaultValues: PublicLeadIntake = {
-  tenantSlug: "alder-and-muse",
+const defaultValues: Omit<PublicLeadIntake, "tenantSlug"> = {
   firstName: "",
   lastName: "",
   partnerName: null,
@@ -38,7 +37,13 @@ const defaultValues: PublicLeadIntake = {
   honeypot: "",
 };
 
-export function LeadIntakeForm() {
+export function LeadIntakeForm({
+  tenantSlug,
+  brandName,
+}: {
+  tenantSlug: string;
+  brandName: string;
+}) {
   const hydrated = useSyncExternalStore(
     () => () => undefined,
     () => true,
@@ -51,7 +56,7 @@ export function LeadIntakeForm() {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<PublicLeadIntakeInput, unknown, PublicLeadIntake>({
-    defaultValues,
+    defaultValues: { ...defaultValues, tenantSlug },
     resolver: zodResolver(publicLeadIntakeSchema),
   });
 
@@ -150,7 +155,7 @@ export function LeadIntakeForm() {
       </div>
       <label className="consent-row">
         <input {...register("consent")} type="checkbox" />
-        <span>I agree that Alder &amp; Muse may contact me about this inquiry.</span>
+        <span>I agree that {brandName} may contact me about this inquiry.</span>
       </label>
       {errors.consent ? <p className="form-error">{errors.consent.message}</p> : null}
       {serverError ? <p className="form-error" role="alert">{serverError}</p> : null}

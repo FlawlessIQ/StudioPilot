@@ -51,7 +51,7 @@ export function LiveSubscription() {
         <div>
           <p className="eyebrow">Plan & usage</p>
           <h1>Subscription</h1>
-          <p>Stripe handles payment details; StudioCue enforces the persisted entitlement snapshot.</p>
+          <p>Manage your plan and billing securely through Stripe.</p>
         </div>
         <StatusBadge tone={["active", "trialing"].includes(status) ? "success" : "warning"}>
           {status.replaceAll("_", " ")} · {plan.replaceAll("_", " ")}

@@ -39,6 +39,7 @@ type WorkspaceState = {
   userEmail: string;
   tenantId: string | null;
   tenantName: string;
+  tenantSlug: string;
   tenantPlan: string;
   role: Role | null;
   projectIds: string[];
@@ -56,6 +57,7 @@ const mockWorkspace: WorkspaceState = {
   userEmail: "owner@example.test",
   tenantId: "demo-tenant",
   tenantName: "StudioCue Demo Studio",
+  tenantSlug: "studiocue-demo-studio",
   tenantPlan: "Studio",
   role: "studio_owner",
   projectIds: [],
@@ -74,6 +76,7 @@ const initialWorkspace: WorkspaceState = authIsLive
       userEmail: "",
       tenantId: null,
       tenantName: "Loading studio…",
+      tenantSlug: "",
       tenantPlan: "",
       role: null,
       projectIds: [],
@@ -217,6 +220,7 @@ export function WorkspaceProvider({
             tenantName: String(
               tenant.brandName ?? tenant.businessName ?? "Your studio",
             ),
+            tenantSlug: String(tenant.publicSlug ?? ""),
             tenantPlan: String(
               tenant.subscriptionPlan
                 ? `${tenant.subscriptionPlan} plan`

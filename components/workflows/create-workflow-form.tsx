@@ -95,10 +95,9 @@ export function CreateWorkflowForm() {
     return (
       <div className="command-success">
         <CheckCircle2 size={23} />
-        <h2>Workflow version prepared</h2>
-        <p>Reference: {outcome.reference}</p>
+        <h2>Workflow saved</h2>
         {!outcome.persisted ? (
-          <small>Preview mode: this workflow was not persisted.</small>
+          <small>This is a preview. Connect the live database to save it.</small>
         ) : null}
       </div>
     );
@@ -110,7 +109,7 @@ export function CreateWorkflowForm() {
         <label className="form-span">Template name<input {...register("name")} /><small>{errors.name?.message}</small></label>
         <label className="form-span">Description<textarea {...register("description")} rows={3} /><small>{errors.description?.message}</small></label>
         <label>Event type<select {...register("eventType")}><option>Wedding</option><option>Corporate</option><option>Sports</option></select></label>
-        <label>Initial state<select {...register("status")}><option value="draft">Draft</option><option value="active">Publish active</option></select></label>
+        <label>Availability<select {...register("status")}><option value="draft">Keep as draft</option><option value="active">Make available now</option></select></label>
       </div>
       <fieldset className="checkpoint-picker">
         <legend>Starting checkpoints</legend>
@@ -128,14 +127,14 @@ export function CreateWorkflowForm() {
               type="checkbox"
             />
             <span><strong>{checkpoint.name}</strong><small>{checkpoint.category} · {Math.abs(checkpoint.offsetDays)} days before event</small></span>
-            {checkpoint.blocking ? <i>Blocking</i> : null}
+            {checkpoint.blocking ? <i>Required for readiness</i> : null}
           </label>
         ))}
       </fieldset>
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       <button className="button button-dark" disabled={isSubmitting} type="submit">
         {isSubmitting ? <LoaderCircle className="spin" size={16} /> : null}
-        Create workflow version
+        Create workflow
       </button>
     </form>
   );

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { LiveClientCards } from "@/components/live/tenant-records";
 
@@ -19,8 +19,9 @@ export default async function ClientsPage({
           <div>
             <p className="eyebrow">Relationships</p>
             <h1>Clients</h1>
-            <p>Tenant contacts and secure project-portal activation.</p>
+            <p>Keep client details, project relationships, and portal access in one place.</p>
           </div>
+          <Link className="button button-dark" href="/studio/clients/new"><Plus size={16} /> Add client</Link>
         </div>
         <section className="panel crm-table-panel">
           <div className="crm-toolbar">

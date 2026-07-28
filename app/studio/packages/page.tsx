@@ -11,7 +11,7 @@ export default function PackagesPage() {
         domain="packages"
         eyebrow="Catalog"
         title="Packages"
-        description="Versioned offerings that create immutable project pricing snapshots."
+        description="Build reusable offers with pricing, coverage, deliverables, and add-ons. Existing project prices never change."
         action={{ href: "/studio/packages/new", label: "Create package" }}
       />
     </AppShell>

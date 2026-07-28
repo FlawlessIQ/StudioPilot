@@ -106,7 +106,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
         <LoaderCircle className="spin" />
         <span>
           <strong>Loading project…</strong>
-          <small>Resolving your tenant and project access.</small>
+          <small>Checking your access and loading project details.</small>
         </span>
       </section>
     );
@@ -124,6 +124,16 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
   const state = String(project.state);
   const stateIndex = states.indexOf(state);
   const readiness = Number(project.readinessScore ?? 0);
+  const workspaceLinks = [
+    { label: "Overview", href: `/studio/projects/${projectId}` },
+    { label: "Tasks", href: `/studio/tasks?project=${projectId}` },
+    { label: "Client details", href: `/studio/questionnaires?project=${projectId}` },
+    { label: "Contracts & payments", href: `/studio/contracts?project=${projectId}` },
+    { label: "Planning", href: `/studio/vendors?project=${projectId}` },
+    { label: "Crew", href: `/studio/crew?project=${projectId}` },
+    { label: "Schedule", href: `/studio/schedules?project=${projectId}` },
+    { label: "Files & delivery", href: `/studio/documents?project=${projectId}` },
+  ];
   return (
     <div className="project-detail-page">
       <Link className="back-link" href="/studio/projects">
@@ -138,11 +148,18 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
             </StatusBadge>
           </div>
           <p>
-            {project.id} · {String(project.eventType)}
+            {String(project.eventType)} photography
           </p>
         </div>
         <ReadinessMeter value={readiness} size="lg" />
       </header>
+      <nav aria-label="Project workspace" className="project-workspace-nav">
+        {workspaceLinks.map((item, index) => (
+          <Link className={index === 0 ? "active" : ""} href={item.href} key={item.label}>
+            {item.label}
+          </Link>
+        ))}
+      </nav>
       <div className="project-facts">
         <span>
           <CalendarDays size={17} />
@@ -157,7 +174,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
         <span>
           <UserRound size={17} />
           <small>Lead photographer</small>
-          <strong>{String(project.leadPhotographerId ?? "Unassigned")}</strong>
+          <strong>{String(project.leadPhotographerName ?? "Unassigned")}</strong>
         </span>
       </div>
       <div className="project-detail-grid">
@@ -165,7 +182,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           <div className="panel-heading">
             <div>
               <h2>Project lifecycle</h2>
-              <p>Transitions follow explicit state rules</p>
+              <p>See where this project is now and what comes next.</p>
             </div>
           </div>
           <div className="state-timeline">
@@ -184,19 +201,20 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           <CircleAlert size={21} />
           <h2>{String(project.nextAction ?? "Review project readiness")}</h2>
           <p>
-            This recommendation is derived from persisted project and checkpoint
-            state.
+            StudioCue selected this from the project’s incomplete requirements and
+            deadlines.
           </p>
-          <Link className="button button-light" href="/studio/readiness">
-            Open readiness
-          </Link>
+          <div className="project-next-actions">
+            <Link className="button button-light" href={`/studio/tasks/new?project=${projectId}`}>Add task</Link>
+            <Link className="button button-light" href={`/studio/readiness?project=${projectId}`}>Review readiness</Link>
+          </div>
         </aside>
       </div>
       <section className="panel project-checkpoints-panel">
         <div className="panel-heading">
           <div>
             <h2>Readiness checkpoints</h2>
-            <p>Deterministic requirements and evidence</p>
+            <p>Requirements that must be completed before the event.</p>
           </div>
           <StatusBadge tone={readiness === 100 ? "success" : "warning"}>
             {readiness}% ready
@@ -235,9 +253,9 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           {!checkpoints.length ? (
             <div className="live-record-state">
               <span>
-                <strong>No checkpoints instantiated</strong>
+                <strong>No readiness steps yet</strong>
                 <small>
-                  Booking or workflow activation will create project checkpoints.
+                  They will appear when a workflow starts for this project.
                 </small>
               </span>
             </div>

@@ -6,6 +6,11 @@ import { CreateTaskForm } from "@/components/workflows/create-task-form";
 
 export const metadata: Metadata = { title: "New task" };
 
-export default function NewTaskPage() {
-  return <AppShell active="Tasks"><div className="crm-form-page"><Link className="back-link" href="/studio/tasks"><ArrowLeft size={15} /> Tasks</Link><div className="dashboard-heading"><div><p className="eyebrow">New work item</p><h1>Create a task</h1><p>Attach an owned, dated action to an authorized project.</p></div></div><CreateTaskForm /></div></AppShell>;
+export default async function NewTaskPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ project?: string }>;
+}) {
+  const { project = "" } = await searchParams;
+  return <AppShell active="Tasks"><div className="crm-form-page"><Link className="back-link" href="/studio/tasks"><ArrowLeft size={15} /> Tasks</Link><div className="dashboard-heading"><div><p className="eyebrow">New task</p><h1>Create a task</h1><p>Choose the project, describe the work, and decide whether it affects event readiness.</p></div></div><CreateTaskForm initialProjectId={project} /></div></AppShell>;
 }

@@ -1,39 +1,78 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { ClipboardPlus, Send } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ClipboardPlus,
+  Plus,
+  Send,
+  Trash2,
+} from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 
-const allowedTypes = new Set([
-  "text",
-  "long_text",
-  "email",
-  "phone",
-  "date",
-  "time",
-  "address",
-  "dropdown",
-  "multi_select",
-  "radio",
-  "checkbox",
-  "file",
-  "contact",
-  "repeating_group",
-  "acknowledgement",
-  "information",
-]);
+const fieldTypes = [
+  ["text", "Short text"],
+  ["long_text", "Long text"],
+  ["email", "Email"],
+  ["phone", "Phone"],
+  ["date", "Date"],
+  ["time", "Time"],
+  ["address", "Address"],
+  ["dropdown", "Dropdown"],
+  ["multi_select", "Multi-select"],
+  ["radio", "Multiple choice"],
+  ["checkbox", "Checkbox"],
+  ["file", "File upload"],
+  ["contact", "Contact"],
+  ["repeating_group", "Repeating group"],
+  ["acknowledgement", "Acknowledgement"],
+  ["information", "Information block"],
+] as const;
+
+type FieldRow = {
+  id: string;
+  label: string;
+  type: (typeof fieldTypes)[number][0];
+  required: boolean;
+};
+
+const startingFields: FieldRow[] = [
+  { id: "planner", label: "Planner", type: "contact", required: false },
+  { id: "ceremony-time", label: "Ceremony time", type: "time", required: true },
+  { id: "family-photo-list", label: "Family photo list", type: "long_text", required: true },
+  { id: "accessibility", label: "Accessibility needs", type: "long_text", required: false },
+];
 
 export function QuestionnaireBuilder() {
   const workspace = useWorkspace();
   const { records: projects } = useTenantDocuments("projects");
   const { records: templates } = useTenantDocuments("questionnaireTemplates");
+  const [mode, setMode] = useState<"create" | "assign">("create");
+  const [fields, setFields] = useState<FieldRow[]>(startingFields);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const canBuild = ["studio_owner", "studio_admin"].includes(
     String(workspace.role),
   );
+
+  function updateField(id: string, value: Partial<FieldRow>) {
+    setFields((current) =>
+      current.map((field) => (field.id === id ? { ...field, ...value } : field)),
+    );
+  }
+
+  function moveField(index: number, direction: -1 | 1) {
+    setFields((current) => {
+      const target = index + direction;
+      if (target < 0 || target >= current.length) return current;
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -41,27 +80,9 @@ export function QuestionnaireBuilder() {
     setNotice(null);
     const form = new FormData(event.currentTarget);
     try {
-      const lines = String(form.get("fields"))
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean);
-      const fields = lines.map((line, index) => {
-        const [label, requestedType = "text", required = "no"] = line
-          .split("|")
-          .map((value) => value.trim());
-        if (!label) throw new Error(`Field line ${index + 1} needs a label.`);
-        const type = allowedTypes.has(requestedType) ? requestedType : "text";
-        return {
-          id: `field-${index + 1}`,
-          label,
-          type,
-          required: ["required", "yes", "true"].includes(required.toLowerCase()),
-          locked: false,
-          internalOnly: false,
-          options: [],
-          conditionalOn: null,
-        };
-      });
+      if (!fields.length) throw new Error("Add at least one field.");
+      if (fields.some((field) => !field.label.trim()))
+        throw new Error("Every field needs a label.");
       await sendPlanningCommand("createQuestionnaireTemplate", {
         name: String(form.get("name")),
         eventTypeId: String(form.get("eventTypeId")),
@@ -70,16 +91,26 @@ export function QuestionnaireBuilder() {
           {
             id: "section-1",
             title: String(form.get("sectionTitle")),
-            fields,
+            fields: fields.map((field, index) => ({
+              id: `field-${index + 1}`,
+              label: field.label.trim(),
+              type: field.type,
+              required: field.required,
+              locked: false,
+              internalOnly: false,
+              options: [],
+              conditionalOn: null,
+            })),
           },
         ],
         dueDaysBeforeEvent: Number(form.get("dueDaysBeforeEvent")),
         reminderDaysBeforeDue: [7, 3, 1],
       });
-      setNotice("Questionnaire template version created.");
+      setNotice("Questionnaire template saved.");
       event.currentTarget.reset();
+      setFields(startingFields);
     } catch (caught: unknown) {
-      setNotice(caught instanceof Error ? caught.message : "Template failed.");
+      setNotice(caught instanceof Error ? caught.message : "Template could not be saved.");
     } finally {
       setBusy(false);
     }
@@ -95,53 +126,65 @@ export function QuestionnaireBuilder() {
         projectId: String(form.get("projectId")),
         templateId: String(form.get("templateId")),
       });
-      setNotice("Questionnaire assigned with a resolved project due date.");
+      setNotice("Questionnaire assigned. Its due date was calculated from the project date.");
       event.currentTarget.reset();
     } catch (caught: unknown) {
-      setNotice(caught instanceof Error ? caught.message : "Assignment failed.");
+      setNotice(caught instanceof Error ? caught.message : "Questionnaire could not be assigned.");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="questionnaire-builder">
-      {canBuild ? (
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Versioned builder</p>
-              <h2>Create template version</h2>
-              <p>One field per line: Label | field_type | required.</p>
-            </div>
-            <ClipboardPlus />
-          </div>
-          <form onSubmit={(event) => void create(event)}>
-            <label>Name<input name="name" required /></label>
+    <section className="questionnaire-workspace panel">
+      <header className="questionnaire-workspace-header">
+        <div>
+          <p className="eyebrow">Questionnaire tools</p>
+          <h2>{mode === "create" ? "Create a reusable template" : "Send a questionnaire"}</h2>
+          <p>{mode === "create" ? "Add fields visually and arrange them in the order clients should see." : "Choose an active project and the template you want the client to complete."}</p>
+        </div>
+        <div className="segmented-control" aria-label="Questionnaire action">
+          {canBuild ? <button className={mode === "create" ? "active" : ""} onClick={() => setMode("create")} type="button"><ClipboardPlus size={15} /> Build template</button> : null}
+          <button className={mode === "assign" ? "active" : ""} onClick={() => setMode("assign")} type="button"><Send size={15} /> Assign to project</button>
+        </div>
+      </header>
+
+      {mode === "create" && canBuild ? (
+        <form className="questionnaire-template-form" onSubmit={(event) => void create(event)}>
+          <div className="form-grid">
+            <label className="form-span">Template name <span className="required-mark">Required</span><input name="name" placeholder="e.g. Wedding planning questionnaire" required /></label>
             <label>Event type<select name="eventTypeId"><option value="wedding">Wedding</option><option value="corporate">Corporate</option><option value="sports">Sports</option></select></label>
             <label>Section title<input name="sectionTitle" defaultValue="Project details" required /></label>
-            <label>Due days before event<input name="dueDaysBeforeEvent" type="number" min="0" max="365" defaultValue="60" required /></label>
+            <label>Due before event<input name="dueDaysBeforeEvent" type="number" min="0" max="365" defaultValue="60" required /></label>
             <label>Status<select name="status"><option value="active">Active</option><option value="draft">Draft</option></select></label>
-            <label className="form-span">Fields<textarea name="fields" required defaultValue={"Planner | contact | no\nCeremony time | time | required\nFamily photo list | long_text | required\nAccessibility needs | long_text | no"} /></label>
-            <button className="button button-dark" disabled={busy} type="submit"><ClipboardPlus /> Create version</button>
-          </form>
-        </section>
-      ) : null}
-      <section className="panel">
-        <div className="panel-heading">
-          <div>
-            <p className="eyebrow">Project assignment</p>
-            <h2>Assign active questionnaire</h2>
           </div>
-          <Send />
-        </div>
-        <form onSubmit={(event) => void assign(event)}>
-          <label>Project<select name="projectId" required><option value="">Select project</option>{projects?.map((project) => <option key={project.id} value={project.id}>{String(project.name)}</option>)}</select></label>
-          <label>Template<select name="templateId" required><option value="">Select template</option>{templates?.filter((template) => template.status === "active").map((template) => <option key={template.id} value={template.id}>{String(template.name)} · v{String(template.version)}</option>)}</select></label>
-          <button className="button button-dark" disabled={busy} type="submit"><Send /> Assign questionnaire</button>
+          <fieldset className="visual-field-builder">
+            <legend>Fields</legend>
+            {fields.map((field, index) => (
+              <div className="visual-field-row" key={field.id}>
+                <span className="field-order">{index + 1}</span>
+                <label>Question or label<input aria-label={`Field ${index + 1} label`} onChange={(event) => updateField(field.id, { label: event.target.value })} value={field.label} /></label>
+                <label>Answer type<select aria-label={`Field ${index + 1} type`} onChange={(event) => updateField(field.id, { type: event.target.value as FieldRow["type"] })} value={field.type}>{fieldTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                <label className="field-required"><input checked={field.required} onChange={(event) => updateField(field.id, { required: event.target.checked })} type="checkbox" /> Required</label>
+                <div className="field-row-actions">
+                  <button aria-label={`Move ${field.label || `field ${index + 1}`} up`} disabled={index === 0} onClick={() => moveField(index, -1)} type="button"><ArrowUp size={15} /></button>
+                  <button aria-label={`Move ${field.label || `field ${index + 1}`} down`} disabled={index === fields.length - 1} onClick={() => moveField(index, 1)} type="button"><ArrowDown size={15} /></button>
+                  <button aria-label={`Remove ${field.label || `field ${index + 1}`}`} onClick={() => setFields((current) => current.filter((item) => item.id !== field.id))} type="button"><Trash2 size={15} /></button>
+                </div>
+              </div>
+            ))}
+            <button className="button button-light button-sm" onClick={() => setFields((current) => [...current, { id: crypto.randomUUID(), label: "", type: "text", required: false }])} type="button"><Plus size={15} /> Add field</button>
+          </fieldset>
+          <button className="button button-dark" disabled={busy} type="submit"><ClipboardPlus size={16} /> {busy ? "Saving…" : "Save template"}</button>
         </form>
-      </section>
+      ) : (
+        <form className="questionnaire-assign-form" onSubmit={(event) => void assign(event)}>
+          <label>Project <span className="required-mark">Required</span><select name="projectId" required><option value="">Select project</option>{projects?.map((project) => <option key={project.id} value={project.id}>{String(project.name)}</option>)}</select></label>
+          <label>Template <span className="required-mark">Required</span><select name="templateId" required><option value="">Select template</option>{templates?.filter((template) => template.status === "active").map((template) => <option key={template.id} value={template.id}>{String(template.name)}</option>)}</select></label>
+          <button className="button button-dark" disabled={busy} type="submit"><Send size={16} /> {busy ? "Assigning…" : "Assign questionnaire"}</button>
+        </form>
+      )}
       {notice ? <p className="form-notice" role="status">{notice}</p> : null}
-    </div>
+    </section>
   );
 }

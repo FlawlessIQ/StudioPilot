@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Filter, Inbox, Plus, Search } from "lucide-react";
+import { Filter, Inbox, Search } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { LiveLeadRows } from "@/components/live/tenant-records";
+import { TenantInquiryLink } from "@/components/crm/tenant-inquiry-link";
 
 export const metadata: Metadata = { title: "Leads" };
 
@@ -16,8 +17,8 @@ export default async function LeadsPage({
     <AppShell active="Leads">
       <div className="crm-page">
         <div className="dashboard-heading">
-          <div><p className="eyebrow">Pipeline</p><h1>Leads</h1><p>Qualify inquiries and move the right clients toward consultation.</p></div>
-          <Link className="button button-dark" href="/inquiry"><Plus size={16} /> Open inquiry form</Link>
+          <div><p className="eyebrow">Pipeline</p><h1>Inquiries</h1><p>Review new inquiries and move the right clients toward consultation.</p></div>
+          <TenantInquiryLink />
         </div>
         <section className="panel crm-table-panel">
           <div className="crm-toolbar">
@@ -28,7 +29,7 @@ export default async function LeadsPage({
             <div className="crm-table-head"><span>Lead</span><span>Event</span><span>Source</span><span>Owner</span><span>Status</span><span /></div>
             <LiveLeadRows view={view} q={q}/>
           </div>
-          <div className="crm-empty-hint"><Inbox size={15} /><span>Public submissions are rate-limited, duplicate-checked, and tenant-scoped.</span></div>
+          <div className="crm-empty-hint"><Inbox size={15} /><span>New inquiries are protected from spam and checked for duplicates.</span></div>
         </section>
       </div>
     </AppShell>

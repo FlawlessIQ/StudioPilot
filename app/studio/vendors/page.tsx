@@ -17,7 +17,10 @@ export default function VendorsPage() {
           </div>
         </header>
         <LiveDomainView domain="vendors" />
-        <VendorCreateForm />
+        <details className="creation-disclosure panel">
+          <summary>Add a vendor or venue</summary>
+          <VendorCreateForm />
+        </details>
       </div>
     </AppShell>
   );
