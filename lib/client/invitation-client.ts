@@ -15,6 +15,18 @@ export async function runClientInvitation(
         type: "accept";
         idempotencyKey: string;
         input: { token: string };
+      }
+    | {
+        type: "status";
+        tenantId: string;
+        idempotencyKey: string;
+        input: { contactId: string };
+      }
+    | {
+        type: "revoke";
+        tenantId: string;
+        idempotencyKey: string;
+        input: { invitationId: string };
       },
 ) {
   const { auth } = getFirebaseClient();

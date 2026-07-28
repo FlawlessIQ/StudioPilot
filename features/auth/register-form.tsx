@@ -3,12 +3,12 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import {
   createUserWithEmailAndPassword,
-  sendEmailVerification,
   signOut,
   updateProfile,
 } from "firebase/auth";
 import { ArrowRight, LoaderCircle } from "lucide-react";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { requestBrandedAuthEmail } from "@/lib/auth/email-client";
 import { authIsLive } from "@/lib/runtime-mode";
 export function RegisterForm({ next }: { next?: string }) {
   const [state, setState] = useState<"idle" | "submitting" | "sent" | "error">(
@@ -39,8 +39,13 @@ export function RegisterForm({ next }: { next?: string }) {
         password,
       );
       await updateProfile(credential.user, { displayName: name });
-      await sendEmailVerification(credential.user, {
-        url: `${window.location.origin}/auth/login?verified=1${safeNext ? `&next=${encodeURIComponent(safeNext)}` : ""}`,
+      await requestBrandedAuthEmail({
+        type: "emailVerification",
+        idempotencyKey: crypto.randomUUID(),
+        input: {
+          email,
+          next: safeNext,
+        },
       });
       await signOut(auth);
       setState("sent");

@@ -274,6 +274,7 @@ export const crewCommand = onRequest(
           type: "crew_invitation",
           assignmentId: id,
           recipient: profile.get("email"),
+          recipientName: profile.get("name"),
           inviteToken,
           inviteUrl,
           status: "queued",

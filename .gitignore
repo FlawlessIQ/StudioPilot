@@ -3,6 +3,7 @@
 # dependencies
 /node_modules
 **/node_modules/
+/functions/node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -51,3 +52,4 @@ functions/lib/
 firebase-debug.log
 firestore-debug.log
 ui-debug.log
+pglite-debug.log

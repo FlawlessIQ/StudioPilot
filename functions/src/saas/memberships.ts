@@ -314,6 +314,7 @@ export const membershipCommand = onRequest(
               type: "staff_invitation",
               invitationId,
               recipient: email,
+              recipientName: parsed.input.displayName,
               inviteUrl,
               status: "queued",
               attempts: 0,

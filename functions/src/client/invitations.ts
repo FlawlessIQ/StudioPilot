@@ -16,6 +16,22 @@ const input = z.discriminatedUnion("type", [
     }),
   }),
   z.object({
+    type: z.literal("status"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      contactId: z.string().min(1),
+    }),
+  }),
+  z.object({
+    type: z.literal("revoke"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      invitationId: z.string().min(1),
+    }),
+  }),
+  z.object({
     type: z.literal("accept"),
     idempotencyKey: z.string().min(8).max(160),
     input: z.object({ token: z.string().min(32).max(200) }),
@@ -29,6 +45,12 @@ const equalHash = (left: string, right: string) => {
   return a.length === b.length && timingSafeEqual(a, b);
 };
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
+const invitationIdFor = (
+  tenantId: string,
+  projectId: string,
+  email: string,
+) =>
+  `client_invite_${hash(`${tenantId}:${projectId}:${email}`).slice(0, 32)}`;
 
 export const clientInvitationCommand = onRequest(
   { cors: studioHubCors, invoker: "private" },
@@ -209,14 +231,117 @@ export const clientInvitationCommand = onRequest(
         .get();
       const role = String(membership.get("role"));
       const assignedProjects = membership.get("projectIds");
-      const mayInvite =
+      const activeOperator =
         membership.exists &&
         membership.get("status") === "active" &&
-        (["studio_owner", "studio_admin"].includes(role) ||
-          (role === "studio_coordinator" &&
-            Array.isArray(assignedProjects) &&
-            assignedProjects.includes(parsed.input.projectId)));
-      if (!mayInvite) throw new Error("FORBIDDEN");
+        ["studio_owner", "studio_admin", "studio_coordinator"].includes(role);
+      const mayAccessProject = (projectId: string) =>
+        ["studio_owner", "studio_admin"].includes(role) ||
+        (role === "studio_coordinator" &&
+          Array.isArray(assignedProjects) &&
+          assignedProjects.includes(projectId));
+      if (!activeOperator) throw new Error("FORBIDDEN");
+
+      if (parsed.type === "status") {
+        const contact = await db
+          .doc(`contacts/${parsed.input.contactId}`)
+          .get();
+        if (
+          !contact.exists ||
+          contact.get("tenantId") !== parsed.tenantId
+        ) {
+          throw new Error("CLIENT_NOT_FOUND");
+        }
+        const projectIds = Array.isArray(contact.get("projectIds"))
+          ? (contact.get("projectIds") as unknown[]).filter(
+              (value): value is string =>
+                typeof value === "string" && mayAccessProject(value),
+            )
+          : [];
+        const email = normalizeEmail(String(contact.get("email") ?? ""));
+        const references = projectIds.map((projectId) =>
+          db.doc(
+            `clientInvitations/${invitationIdFor(parsed.tenantId, projectId, email)}`,
+          ),
+        );
+        const invitationDocuments = references.length
+          ? await db.getAll(...references)
+          : [];
+        const invitations = await Promise.all(
+          invitationDocuments
+            .filter((invitation) => invitation.exists)
+            .map(async (invitation) => {
+              const latestEmailJobId = invitation.get("latestEmailJobId");
+              const emailJob =
+                typeof latestEmailJobId === "string"
+                  ? await db.doc(`emailJobs/${latestEmailJobId}`).get()
+                  : null;
+              return {
+                invitationId: invitation.id,
+                projectId: String(invitation.get("projectId")),
+                status: String(invitation.get("status")),
+                expiresAt: String(invitation.get("expiresAt")),
+                lastSentAt:
+                  invitation.get("lastSentAt") ??
+                  invitation.get("createdAt") ??
+                  null,
+                sendCount: Number(invitation.get("sendCount") ?? 1),
+                deliveryStatus: emailJob?.get("deliveryStatus") ?? null,
+                emailJobStatus: emailJob?.get("status") ?? null,
+              };
+            }),
+        );
+        response.status(200).json({ invitations });
+        return;
+      }
+
+      if (parsed.type === "revoke") {
+        const reference = db.doc(
+          `clientInvitations/${parsed.input.invitationId}`,
+        );
+        const invitation = await reference.get();
+        const projectId = String(invitation.get("projectId") ?? "");
+        if (
+          !invitation.exists ||
+          invitation.get("tenantId") !== parsed.tenantId ||
+          invitation.get("status") !== "pending" ||
+          !mayAccessProject(projectId)
+        ) {
+          throw new Error("INVITATION_NOT_REVOCABLE");
+        }
+        const batch = db.batch();
+        batch.update(reference, {
+          status: "revoked",
+          revokedAt: now,
+          updatedAt: now,
+          updatedBy: identity.uid,
+        });
+        batch.create(db.collection("auditEvents").doc(), {
+          tenantId: parsed.tenantId,
+          projectId,
+          actorId: identity.uid,
+          actorType: "user",
+          action: "client.invitation_revoked",
+          entityType: "client_invitation",
+          entityId: reference.id,
+          timestamp: now,
+          before: { status: "pending" },
+          after: { status: "revoked" },
+          ipAddress: request.ip ?? null,
+          userAgent: request.get("user-agent") ?? null,
+          correlationId: parsed.idempotencyKey,
+          automationRunId: null,
+          providerEventId: null,
+        });
+        await batch.commit();
+        response
+          .status(200)
+          .json({ invitationId: reference.id, status: "revoked" });
+        return;
+      }
+
+      if (!mayAccessProject(parsed.input.projectId))
+        throw new Error("FORBIDDEN");
       const [contact, project] = await Promise.all([
         db.doc(`contacts/${parsed.input.contactId}`).get(),
         db.doc(`projects/${parsed.input.projectId}`).get(),
@@ -239,23 +364,21 @@ export const clientInvitationCommand = onRequest(
       const email = normalizeEmail(String(contact.get("email") ?? ""));
       if (!z.string().email().safeParse(email).success)
         throw new Error("CLIENT_EMAIL_REQUIRED");
-      const invitationId = `client_invite_${hash(
-        `${parsed.tenantId}:${parsed.input.projectId}:${email}`,
-      ).slice(0, 32)}`;
+      const invitationId = invitationIdFor(
+        parsed.tenantId,
+        parsed.input.projectId,
+        email,
+      );
       const reference = db.doc(`clientInvitations/${invitationId}`);
       const existing = await reference.get();
-      if (
-        existing.exists &&
-        existing.get("status") === "pending" &&
-        Date.parse(String(existing.get("expiresAt"))) > Date.now()
-      ) {
-        throw new Error("INVITATION_ALREADY_PENDING");
-      }
+      const isResend =
+        existing.exists && existing.get("status") === "pending";
       const token = randomBytes(32).toString("base64url");
       const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString();
       const appUrl =
         process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app";
       const inviteUrl = `${appUrl}/auth/client-invite?token=${encodeURIComponent(token)}`;
+      const emailJobId = `client_invite_${invitationId}_${Date.now()}`;
       const batch = db.batch();
       batch.set(reference, {
         id: invitationId,
@@ -270,6 +393,9 @@ export const clientInvitationCommand = onRequest(
         acceptedAt: null,
         acceptedBy: null,
         revokedAt: null,
+        lastSentAt: now,
+        sendCount: Number(existing.get("sendCount") ?? 0) + 1,
+        latestEmailJobId: emailJobId,
         createdAt: existing.get("createdAt") ?? now,
         updatedAt: now,
         createdBy: existing.get("createdBy") ?? identity.uid,
@@ -277,13 +403,20 @@ export const clientInvitationCommand = onRequest(
         archivedAt: null,
       });
       batch.create(
-        db.doc(`emailJobs/client_invite_${invitationId}_${Date.now()}`),
+        db.doc(`emailJobs/${emailJobId}`),
         {
+          id: emailJobId,
           tenantId: parsed.tenantId,
           projectId: parsed.input.projectId,
+          contactId: parsed.input.contactId,
           type: "client_invitation",
           invitationId,
           recipient: email,
+          recipientName: String(
+            contact.get("displayName") ??
+              `${contact.get("firstName") ?? ""} ${contact.get("lastName") ?? ""}`,
+          ).trim(),
+          projectName: String(project.get("name") ?? ""),
           inviteUrl,
           status: "queued",
           attempts: 0,
@@ -296,12 +429,17 @@ export const clientInvitationCommand = onRequest(
         projectId: parsed.input.projectId,
         actorId: identity.uid,
         actorType: "user",
-        action: "client.invited",
+        action: isResend ? "client.invitation_resent" : "client.invited",
         entityType: "client_invitation",
         entityId: invitationId,
         timestamp: now,
-        before: null,
-        after: { email, expiresAt },
+        before: isResend ? { status: "pending" } : null,
+        after: {
+          email,
+          expiresAt,
+          deliveryStatus: "queued",
+          sendCount: Number(existing.get("sendCount") ?? 0) + 1,
+        },
         ipAddress: request.ip ?? null,
         userAgent: request.get("user-agent") ?? null,
         correlationId: parsed.idempotencyKey,
@@ -309,9 +447,14 @@ export const clientInvitationCommand = onRequest(
         providerEventId: null,
       });
       await batch.commit();
-      response
-        .status(200)
-        .json({ invitationId, inviteUrl, email, expiresAt });
+      response.status(200).json({
+        invitationId,
+        email,
+        expiresAt,
+        status: "pending",
+        deliveryStatus: "queued",
+        resent: isResend,
+      });
     } catch (caught: unknown) {
       const message =
         caught instanceof Error ? caught.message : "CLIENT_INVITATION_FAILED";

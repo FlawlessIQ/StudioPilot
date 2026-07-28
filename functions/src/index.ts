@@ -22,6 +22,7 @@ export { billingCommand, stripeWebhook } from "./saas/stripe.js";
 export { saasAdminCommand } from "./saas/admin.js";
 export { operationsHealthScheduler } from "./saas/jobs.js";
 export { tenantOnboardingCommand } from "./saas/onboarding.js";
+export { tenantBrandingCommand } from "./saas/branding.js";
 export { membershipCommand } from "./saas/memberships.js";
 export { operationsJobScheduler } from "./operations/jobs.js";
 export { fileSafetyOnFinalize } from "./operations/file-safety.js";
@@ -35,6 +36,7 @@ export { supportTenantSummary } from "./saas/support.js";
 export { finalInvoiceScheduler } from "./operations/invoice-scheduler.js";
 export { aiCopilotCommand } from "./ai/copilot.js";
 export { aiScheduleCommand } from "./ai/schedule.js";
+export { authEmailCommand } from "./auth/emails.js";
 
 if (getApps().length === 0) {
   initializeApp();

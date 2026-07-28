@@ -198,7 +198,7 @@ export function LiveClientCards({
                   .join("")}
               </span>
               <StatusBadge tone={client.portalUserId ? "success" : "neutral"}>
-                {client.portalUserId ? "Portal active" : "Not invited"}
+                {client.portalUserId ? "Portal active" : "Portal inactive"}
               </StatusBadge>
             </div>
             <h2>{name}</h2>

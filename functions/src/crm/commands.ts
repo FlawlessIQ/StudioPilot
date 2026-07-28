@@ -74,6 +74,15 @@ const commandSchema = z.discriminatedUnion("type", [
     }),
   }),
   z.object({
+    type: z.literal("associateClientProject"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      contactId: z.string().min(1),
+      projectId: z.string().min(1),
+    }),
+  }),
+  z.object({
     type: z.literal("createContact"),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
@@ -221,6 +230,22 @@ export const crmCommand = onRequest(
 
         if (command.type === "createProject") {
           const projectId = randomUUID();
+          const contactReferences = command.input.clientContactIds.map(
+            (contactId) => db.doc(`contacts/${contactId}`),
+          );
+          const contactDocuments = await Promise.all(
+            contactReferences.map((reference) => transaction.get(reference)),
+          );
+          if (
+            contactDocuments.some(
+              (contact) =>
+                !contact.exists ||
+                contact.get("tenantId") !== command.tenantId ||
+                contact.get("archivedAt"),
+            )
+          ) {
+            throw new Error("CLIENT_NOT_FOUND");
+          }
           const project = {
             id: projectId,
             projectId,
@@ -238,6 +263,24 @@ export const crmCommand = onRequest(
             archivedAt: null,
           };
           transaction.create(db.doc(`projects/${projectId}`), project);
+          for (const contact of contactDocuments) {
+            const priorProjectIds = contact.get("projectIds");
+            const projectIds = Array.from(
+              new Set([
+                ...(Array.isArray(priorProjectIds)
+                  ? priorProjectIds.filter(
+                      (value): value is string => typeof value === "string",
+                    )
+                  : []),
+                projectId,
+              ]),
+            );
+            transaction.update(contact.ref, {
+              projectIds,
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            });
+          }
           const auditId = randomUUID();
           transaction.create(db.doc(`auditEvents/${auditId}`), {
             id: auditId,
@@ -258,6 +301,106 @@ export const crmCommand = onRequest(
             providerEventId: null,
           });
           const output = { projectId, state: "LEAD" };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        if (command.type === "associateClientProject") {
+          if (
+            membershipData.role === "studio_coordinator" &&
+            !membershipData.projectIds?.includes(command.input.projectId)
+          ) {
+            throw new Error("FORBIDDEN");
+          }
+          const contactReference = db.doc(
+            `contacts/${command.input.contactId}`,
+          );
+          const projectReference = db.doc(
+            `projects/${command.input.projectId}`,
+          );
+          const [contact, project] = await Promise.all([
+            transaction.get(contactReference),
+            transaction.get(projectReference),
+          ]);
+          if (
+            !contact.exists ||
+            contact.get("tenantId") !== command.tenantId ||
+            contact.get("archivedAt")
+          ) {
+            throw new Error("CLIENT_NOT_FOUND");
+          }
+          if (
+            !project.exists ||
+            project.get("tenantId") !== command.tenantId ||
+            project.get("state") === "ARCHIVED"
+          ) {
+            throw new Error("PROJECT_NOT_FOUND");
+          }
+          const priorContactProjects = contact.get("projectIds");
+          const contactProjectIds = Array.from(
+            new Set([
+              ...(Array.isArray(priorContactProjects)
+                ? priorContactProjects.filter(
+                    (value): value is string => typeof value === "string",
+                  )
+                : []),
+              command.input.projectId,
+            ]),
+          );
+          const priorProjectClients = project.get("clientContactIds");
+          const clientContactIds = Array.from(
+            new Set([
+              ...(Array.isArray(priorProjectClients)
+                ? priorProjectClients.filter(
+                    (value): value is string => typeof value === "string",
+                  )
+                : []),
+              command.input.contactId,
+            ]),
+          );
+          transaction.update(contactReference, {
+            projectIds: contactProjectIds,
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          transaction.update(projectReference, {
+            clientContactIds,
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          const auditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${auditId}`), {
+            id: auditId,
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "client.project_associated",
+            entityType: "contact",
+            entityId: command.input.contactId,
+            timestamp,
+            before: {
+              projectIds: Array.isArray(priorContactProjects)
+                ? priorContactProjects
+                : [],
+            },
+            after: { projectIds: contactProjectIds },
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          const output = {
+            contactId: command.input.contactId,
+            projectId: command.input.projectId,
+            associated: true,
+          };
           transaction.create(commandReference, {
             tenantId: command.tenantId,
             idempotencyKey: command.idempotencyKey,

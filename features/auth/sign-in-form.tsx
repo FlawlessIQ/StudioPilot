@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import { collection,getDocs,limit,query,where } from "firebase/firestore";
 import { ArrowRight, Eye, EyeOff, LoaderCircle } from "lucide-react";
 import { getFirebaseClient } from "@/lib/firebase/client";
@@ -68,35 +68,6 @@ export function SignInForm({ next }: { next?: string }) {
     }
   }
 
-  async function handlePasswordReset() {
-    if (!email) {
-      setFormState({ status: "error", message: "Enter your email address first." });
-      return;
-    }
-
-    if (mockMode) {
-      setFormState({
-        status: "error",
-        message: "Password reset is disabled in local demo mode.",
-      });
-      return;
-    }
-
-    try {
-      const { auth } = getFirebaseClient();
-      await sendPasswordResetEmail(auth, email);
-      setFormState({
-        status: "idle",
-        message: "Check your inbox for a secure password reset link.",
-      });
-    } catch {
-      setFormState({
-        status: "error",
-        message: "We couldn’t send a reset email. Please try again.",
-      });
-    }
-  }
-
   return (
     <form className="sign-in-form" onSubmit={handleSubmit}>
       <label>
@@ -113,9 +84,9 @@ export function SignInForm({ next }: { next?: string }) {
       <label>
         <span className="label-row">
           Password
-          <button type="button" onClick={handlePasswordReset}>
+          <Link href="/auth/forgot-password">
             Forgot password?
-          </button>
+          </Link>
         </span>
         <span className="password-field">
           <input

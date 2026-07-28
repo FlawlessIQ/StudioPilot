@@ -20,7 +20,12 @@ arbitrary services.
 - Firebase ID token verified with revocation checking
 - short-lived, `HttpOnly`, `Secure`, `SameSite=Lax`, `__Host-` session cookie
 - CSRF header/cookie comparison on session creation
-- password reset through Firebase
+- branded password-reset and verification messages through the server-owned
+  SendGrid queue, with Firebase remaining authoritative for single-use action
+  codes and password/email state
+- account-recovery responses do not reveal whether an email is registered and
+  repeated requests are rate limited by a one-way email key and request
+  fingerprint
 - App Check enforced on callable/HTTP command surfaces where applicable
 - MFA hooks are reserved in identity policy and can be required per role later
 
@@ -77,6 +82,8 @@ Feature flags cannot bypass an entitlement, role, project assignment, or quota.
 - published schedules are immutable and browser clients cannot directly approve or replace them
 - crew assignment writes are server-only; commands recheck tenant membership, project access, role, and assignment ownership
 - crew invitation tokens are random, expiring, and one-way hashed on assignment records
+- client invitation tokens are random, expire after seven days, are stored only
+  as hashes, rotate on resend, and can be revoked by an authorized studio user
 - subcontractors can read only their own profile, availability, assignments, scoped documents, and assigned schedule
 - publishing a new schedule clears accepted crew acknowledgements so obsolete versions cannot satisfy readiness
 - crew uploads are user/project path-bound, create-only, type and size validated, and remain under studio review

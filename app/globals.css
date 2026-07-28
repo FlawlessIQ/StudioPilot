@@ -140,6 +140,27 @@ textarea:focus-visible {
   color: var(--ink);
 }
 
+.button-secondary {
+  background: #f3f5f2;
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.button-secondary:hover {
+  background: #e9ede9;
+}
+
+.button-quiet {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.button-quiet:hover {
+  background: #f3f5f2;
+  color: var(--ink);
+}
+
 .button-sm {
   min-height: 38px;
   padding: 0 15px;
@@ -1858,7 +1879,8 @@ textarea:focus-visible {
   justify-content: space-between;
 }
 
-.label-row button {
+.label-row button,
+.label-row a {
   background: transparent;
   border: 0;
   color: #476353;
@@ -1866,6 +1888,10 @@ textarea:focus-visible {
   font-size: 10px;
   font-weight: 650;
   padding: 0;
+}
+
+.label-row a {
+  text-decoration: none;
 }
 
 .password-field {
@@ -8791,5 +8817,455 @@ textarea:focus-visible {
 
   .live-detail-list > article {
     padding: 17px 21px;
+  }
+}
+
+/* Branded account recovery and client access */
+.auth-action-page .auth-security-panel {
+  background:
+    radial-gradient(circle at 16% 82%, rgb(122 160 133 / 20%), transparent 31%),
+    #1c231f;
+}
+
+.auth-security-panel .auth-quote {
+  display: grid;
+  gap: 28px;
+}
+
+.auth-security-panel .auth-quote blockquote {
+  margin: 0;
+}
+
+.auth-feature-icon {
+  align-items: center;
+  background: rgb(255 255 255 / 9%);
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 16px;
+  color: #c3dbc9;
+  display: flex;
+  height: 58px;
+  justify-content: center;
+  width: 58px;
+}
+
+.auth-feature-icon svg {
+  height: 25px;
+  width: 25px;
+}
+
+.auth-centered-action {
+  display: grid;
+  grid-template-columns: 1fr;
+  place-items: center;
+}
+
+.auth-centered-action .auth-form-panel {
+  min-height: 100vh;
+  width: min(100%, 620px);
+}
+
+.auth-centered-action .auth-form-wrap > .brand-logo {
+  margin-bottom: 48px;
+}
+
+.auth-completion {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth-completion h2 {
+  font: 600 25px/1.2 var(--font-display);
+  letter-spacing: -.035em;
+  margin: 4px 0 0;
+}
+
+.auth-completion p {
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.auth-completion .button {
+  margin-top: 12px;
+}
+
+.auth-completion-icon {
+  align-items: center;
+  background: #edf6ef;
+  border: 1px solid #c8dfce;
+  border-radius: 14px;
+  color: #397149;
+  display: flex;
+  height: 50px;
+  justify-content: center;
+  width: 50px;
+}
+
+.auth-completion-warning {
+  background: #fbefed;
+  border-color: #e6c7c1;
+  color: #9a473c;
+}
+
+.auth-security-note,
+.auth-account-email {
+  background: #f3f5f2;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 12px;
+  padding: 11px 13px;
+}
+
+.input-with-icon {
+  position: relative;
+}
+
+.input-with-icon > svg {
+  color: var(--muted);
+  left: 13px;
+  pointer-events: none;
+  position: absolute;
+  top: 14px;
+  z-index: 1;
+}
+
+.sign-in-form .input-with-icon > input {
+  padding-left: 40px;
+}
+
+.client-card-grid {
+  grid-template-columns: repeat(2, minmax(320px, 1fr));
+}
+
+.client-card-grid article {
+  align-content: start;
+  display: grid;
+}
+
+.client-access-card {
+  background: #f7f8f6;
+  border: 1px solid #e1e5df;
+  border-radius: 13px;
+  display: grid;
+  gap: 13px;
+  margin-top: 15px;
+  padding: 15px;
+}
+
+.client-access-heading {
+  align-items: flex-start;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto 1fr;
+}
+
+.client-access-heading > span:last-child,
+.client-access-status > span {
+  display: grid;
+  gap: 3px;
+}
+
+.client-access-heading strong {
+  font-size: 12px;
+}
+
+.client-access-heading small,
+.client-access-status small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.client-access-icon {
+  align-items: center;
+  background: #e7f0e9;
+  border-radius: 9px;
+  color: #3c704b;
+  display: flex;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.client-access-card > label {
+  display: grid;
+  font-size: 10px;
+  font-weight: 700;
+  gap: 6px;
+}
+
+.client-access-card select {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--ink);
+  font: inherit;
+  min-height: 40px;
+  padding: 0 10px;
+  width: 100%;
+}
+
+.client-access-status {
+  align-items: flex-start;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+  display: grid;
+  gap: 9px;
+  grid-template-columns: auto 1fr;
+  padding: 11px;
+}
+
+.client-access-status.is-associated {
+  background: #f0f6f1;
+  border-color: #d1e2d4;
+  color: #397149;
+}
+
+.client-access-status strong {
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.client-access-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.client-access-actions .button {
+  flex: 1 1 auto;
+  font-size: 11px;
+  min-height: 38px;
+  padding-inline: 12px;
+}
+
+.client-access-actions .button svg {
+  height: 14px;
+  width: 14px;
+}
+
+.client-access-empty,
+.client-access-notice {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.client-access-notice {
+  border-top: 1px solid var(--line);
+  color: #3d684a;
+  padding-top: 10px;
+}
+
+.email-branding-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  gap: 24px;
+  align-items: stretch;
+  margin-bottom: 28px;
+}
+
+.email-branding-form {
+  display: grid;
+  gap: 28px;
+  padding: 28px;
+}
+
+.email-branding-heading {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.email-branding-heading h2 {
+  margin: 4px 0 8px;
+}
+
+.email-branding-heading p:last-child {
+  max-width: 660px;
+  color: var(--muted);
+}
+
+.email-branding-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.email-branding-fields label {
+  display: grid;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.email-branding-fields label > span:not(.color-field) {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.email-branding-fields input {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink);
+  padding: 0 14px;
+}
+
+.color-field {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.color-field input[type="color"] {
+  padding: 5px;
+  cursor: pointer;
+}
+
+.email-branding-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.email-branding-actions .form-notice {
+  margin: 0;
+}
+
+.email-preview {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+
+.email-preview-accent {
+  height: 7px;
+}
+
+.email-preview-body {
+  flex: 1;
+  padding: 30px;
+}
+
+.email-preview-mark {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 30px;
+  border-radius: 13px;
+  color: #fff;
+  font-weight: 800;
+}
+
+.email-preview h3 {
+  margin: 4px 0 28px;
+  font-size: 1.05rem;
+}
+
+.email-preview-greeting {
+  margin: 0 0 8px;
+  color: var(--muted);
+}
+
+.email-preview h4 {
+  margin: 0 0 10px;
+  font-size: 1.45rem;
+  letter-spacing: -0.025em;
+}
+
+.email-preview h4 + p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.email-preview-button {
+  display: inline-flex;
+  margin: 24px 0;
+  border-radius: 10px;
+  color: #fff;
+  padding: 12px 18px;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.email-preview ul {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.email-preview li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.email-preview li svg {
+  width: 15px;
+  color: var(--green);
+}
+
+.email-preview footer {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--muted);
+  padding: 16px 30px;
+  font-size: 0.75rem;
+}
+
+.email-preview footer svg {
+  width: 15px;
+}
+
+@media (max-width: 900px) {
+  .client-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .email-branding-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .auth-form-panel {
+    padding-inline: 24px;
+  }
+
+  .client-access-actions {
+    display: grid;
+  }
+
+  .email-branding-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .email-branding-form,
+  .email-preview-body {
+    padding: 22px;
   }
 }

@@ -29,7 +29,12 @@ trackers, or support messages.
 - test delivery, bounce, open, click, unsubscribe, a valid COI PDF reply, a
   non-PDF rejection, and an oversize attachment rejection
 - approve the tenant-branded message copy and reply-to behavior
-- only then change `EMAIL_DELIVERY_MODE` from `mock` to `live`
+- configure and save each pilot studio’s name, accent color, HTTPS email logo,
+  and reply-to address in **Studio setup → Settings → Email branding**
+- test the branded client invitation, resend, revoke, verification, forgot
+  password, reset completion, and expired-link paths
+- keep non-production environments in mock mode; production live mode still
+  requires the controlled acceptance tests above before inviting pilot clients
 
 ## 3. OAuth integrations
 

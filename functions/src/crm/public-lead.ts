@@ -237,6 +237,20 @@ export const publicLeadIntake = onRequest(
       automationRunId: null,
       providerEventId: null,
     });
+    batch.create(db.doc(`emailJobs/inquiry_ack_${leadId}`), {
+      id: `inquiry_ack_${leadId}`,
+      tenantId,
+      projectId: null,
+      contactId,
+      leadId,
+      type: "inquiry_acknowledgement",
+      recipient: normalizedEmail,
+      recipientName: `${input.firstName} ${input.lastName}`.trim(),
+      status: "queued",
+      attempts: 0,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
     await batch.commit();
 
     response.status(201).json({

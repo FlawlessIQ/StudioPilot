@@ -852,3 +852,32 @@ Validation record:
 - Chrome project-context audit: passed at desktop and phone widths with no
   horizontal overflow or invisible actions
 - production Next.js webpack build: passed, including all 92 application routes
+
+## July 28, 2026 — branded communications and client access
+
+Status: implementation and validation complete; production deployment pending.
+
+- Added bidirectional client/project association and repaired project creation
+  so the selected client immediately becomes eligible for portal access.
+- Added branded client invitation, resend, revoke, expiry, and SendGrid delivery
+  state handling.
+- Added one responsive tenant-branded HTML and plain-text renderer for the full
+  StudioCue transactional email catalog.
+- Replaced default password-reset and verification delivery with App
+  Check-protected, non-disclosing SendGrid jobs backed by authoritative Firebase
+  action codes.
+- Added branded forgot-password, reset-password, and verification pages.
+- Added a Studio Owner email-branding editor with a live preview, validated
+  HTTPS logo and reply-to settings, an owner-only server command, and audit
+  history.
+- Enabled the authenticated SendGrid domain sender in the production Functions
+  environment after confirming that no legacy queued emails were waiting.
+
+Validation record:
+
+- strict TypeScript: passed
+- ESLint: passed with zero warnings
+- Functions TypeScript build: passed
+- unit and policy suite: 77 passed
+- account-email browser suite: 6 passed across desktop Chromium and Pixel 7
+- production Next.js webpack build: passed, including all 95 application routes
