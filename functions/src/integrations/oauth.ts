@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { getApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
@@ -101,7 +102,10 @@ async function saveCredential(
   provider: Provider,
   value: Record<string, unknown>,
 ) {
-  const project = process.env.GOOGLE_CLOUD_PROJECT;
+  const project =
+    process.env.GOOGLE_CLOUD_PROJECT ??
+    process.env.GCLOUD_PROJECT ??
+    getApp().options.projectId;
   if (!project) throw new Error("GOOGLE_CLOUD_PROJECT_REQUIRED");
   const token = await runtimeToken();
   const secretId = `studiohub-${tenantId}-${provider}`
@@ -187,6 +191,8 @@ export const integrationOAuth = onRequest(
   async (request, response) => {
     const db = getFirestore();
     const redirectUri = process.env.OAUTH_CALLBACK_URL;
+    let failureProvider: string | null = null;
+    let failureTenantId: string | null = null;
     if (!redirectUri) {
       response.status(503).json({ error: "OAUTH_CALLBACK_URL_REQUIRED" });
       return;
@@ -196,6 +202,8 @@ export const integrationOAuth = onRequest(
         await requireAppCheck(request);
         const identity = await requireIdentity(request);
         const input = startSchema.parse(request.body);
+        failureProvider = input.provider;
+        failureTenantId = input.tenantId;
         const membership = await db
           .doc(`memberships/${input.tenantId}_${identity.uid}`)
           .get();
@@ -300,6 +308,8 @@ export const integrationOAuth = onRequest(
         throw new Error("OAUTH_STATE_INVALID");
       const provider = providerSchema.parse(saved.get("provider"));
       const tenantId = String(saved.get("tenantId"));
+      failureProvider = provider;
+      failureTenantId = tenantId;
       const token = await exchange(
         provider,
         code,
@@ -396,6 +406,12 @@ export const integrationOAuth = onRequest(
       );
     } catch (caught: unknown) {
       const message = caught instanceof Error ? caught.message : "OAUTH_FAILED";
+      console.error("integration_oauth_failed", {
+        code: message,
+        method: request.method,
+        provider: failureProvider,
+        tenantId: failureTenantId,
+      });
       if (request.method === "GET") {
         response.redirect(
           `${process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app"}/studio/integrations?error=${encodeURIComponent(message)}`,

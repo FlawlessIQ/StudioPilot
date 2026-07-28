@@ -633,3 +633,33 @@ Validation record:
 - Cloud Functions TypeScript build: passed
 - production Next.js build: passed
 - operations Scheduler manual execution: passed after index readiness
+
+## Studio shell and OAuth recovery — July 28, 2026
+
+Status: implementation complete; production deployment pending.
+
+Delivered:
+
+- redesigned the Studio shell with a compact dark navigation rail, grouped
+  lifecycle navigation, clearer active state, and a single account control
+- redesigned the Integrations area as a responsive connection center with
+  provider-specific identity, capabilities, connection health, and focused
+  actions
+- replaced the misleading `Credentials required` fallback with accurate
+  `Ready to connect`, `Connected`, and `Development mode` states
+- added human-readable, dismissible OAuth callback success and error messages
+- preserved tenant-scoped OAuth tokens in Secret Manager; no refresh token is
+  exposed to the browser or written to Firestore plaintext
+- fixed Firebase runtime project detection for OAuth credential persistence by
+  supporting `GOOGLE_CLOUD_PROJECT`, `GCLOUD_PROJECT`, and Admin SDK project
+  metadata
+- added sanitized OAuth failure logging with provider, tenant, method, and
+  normalized error code, excluding authorization codes and tokens
+
+Validation record:
+
+- strict TypeScript: passed
+- ESLint: passed
+- Cloud Functions TypeScript build: passed
+- desktop integration layout visual QA: passed
+- 390px mobile integration layout visual QA: passed with no horizontal overflow

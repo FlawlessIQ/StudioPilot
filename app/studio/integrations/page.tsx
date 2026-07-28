@@ -2,5 +2,5 @@ import { AppShell } from "@/components/layout/app-shell";
 import { IntegrationManager } from "@/components/integrations/integration-manager";
 
 export default function IntegrationsPage() {
-  return <AppShell active="Integrations"><div className="booking-page"><header className="page-heading"><div><p className="eyebrow">Provider health</p><h1>Integrations</h1><p>Tenant-scoped OAuth connections, least-privilege scopes, Secret Manager credentials, and normalized failures.</p></div></header><IntegrationManager/><p className="source-note">OAuth refresh tokens are written directly to Secret Manager and never returned to the browser or stored in Firestore plaintext.</p></div></AppShell>;
+  return <AppShell active="Integrations"><div className="integrations-page"><header className="integrations-heading"><div><p className="eyebrow">Studio connections</p><h1>Your tools, working as one studio.</h1><p>Connect the platforms behind your calendar, consultations, files, contracts, and accounting.</p></div><span className="integrations-heading-note">OAuth connections are isolated to FlawlessIQ and can be revoked at any time.</span></header><IntegrationManager/></div></AppShell>;
 }

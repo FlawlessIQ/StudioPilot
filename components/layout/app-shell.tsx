@@ -45,34 +45,74 @@ import {
   workspaceRoleLabel,
 } from "@/features/auth/workspace-context";
 
-const navItems = [
-  { label: "Dashboard", href: "/studio", icon: CircleGauge },
-  { label: "Leads", href: "/studio/leads", icon: ContactRound },
-  { label: "Projects", href: "/studio/projects", icon: FolderKanban },
-  { label: "Calendar", href: "/studio/calendar", icon: CalendarDays },
-  { label: "Clients", href: "/studio/clients", icon: UsersRound },
-  { label: "Vendors", href: "/studio/vendors", icon: Handshake },
-  { label: "Crew", href: "/studio/crew", icon: Aperture },
-  { label: "Packages", href: "/studio/packages", icon: Package },
-  { label: "Proposals", href: "/studio/proposals", icon: FileStack },
-  { label: "Contracts", href: "/studio/contracts", icon: FileSignature },
-  { label: "Invoices", href: "/studio/invoices", icon: ReceiptText },
-  { label: "Booking", href: "/studio/booking", icon: BadgeCheck },
-  { label: "Questionnaires", href: "/studio/questionnaires", icon: ClipboardList },
-  { label: "Insurance", href: "/studio/insurance", icon: ShieldCheck },
-  { label: "Schedules", href: "/studio/schedules", icon: GanttChartSquare },
-  { label: "Post-production", href: "/studio/post-production", icon: WandSparkles },
-  { label: "Delivery", href: "/studio/delivery", icon: Images },
-  { label: "Reviews", href: "/studio/reviews", icon: Star },
-  { label: "Reports", href: "/studio/reports", icon: ChartNoAxesColumn },
-  { label: "Workflows", href: "/studio/workflows", icon: Workflow },
-  { label: "Tasks", href: "/studio/tasks", icon: ListTodo },
-  { label: "Readiness", href: "/studio/readiness", icon: ShieldCheck },
-  { label: "Documents", href: "/studio/documents", icon: FileStack },
-  { label: "Communications", href: "/studio/messages", icon: MessageCircle },
-  { label: "Integrations", href: "/studio/integrations", icon: LayoutTemplate },
-  { label: "Team", href: "/studio/team", icon: UsersRound },
-  { label: "Subscription", href: "/studio/subscription", icon: CreditCard },
+const navSections = [
+  {
+    label: "Workspace",
+    items: [
+      { label: "Dashboard", href: "/studio", icon: CircleGauge },
+      { label: "Projects", href: "/studio/projects", icon: FolderKanban },
+      { label: "Calendar", href: "/studio/calendar", icon: CalendarDays },
+      { label: "Tasks", href: "/studio/tasks", icon: ListTodo },
+    ],
+  },
+  {
+    label: "Client lifecycle",
+    items: [
+      { label: "Leads", href: "/studio/leads", icon: ContactRound },
+      { label: "Clients", href: "/studio/clients", icon: UsersRound },
+      { label: "Packages", href: "/studio/packages", icon: Package },
+      { label: "Proposals", href: "/studio/proposals", icon: FileStack },
+      { label: "Contracts", href: "/studio/contracts", icon: FileSignature },
+      { label: "Invoices", href: "/studio/invoices", icon: ReceiptText },
+      { label: "Booking", href: "/studio/booking", icon: BadgeCheck },
+      {
+        label: "Questionnaires",
+        href: "/studio/questionnaires",
+        icon: ClipboardList,
+      },
+    ],
+  },
+  {
+    label: "Production",
+    items: [
+      { label: "Vendors", href: "/studio/vendors", icon: Handshake },
+      { label: "Crew", href: "/studio/crew", icon: Aperture },
+      { label: "Insurance", href: "/studio/insurance", icon: ShieldCheck },
+      { label: "Schedules", href: "/studio/schedules", icon: GanttChartSquare },
+      { label: "Readiness", href: "/studio/readiness", icon: ShieldCheck },
+      {
+        label: "Post-production",
+        href: "/studio/post-production",
+        icon: WandSparkles,
+      },
+      { label: "Delivery", href: "/studio/delivery", icon: Images },
+      { label: "Reviews", href: "/studio/reviews", icon: Star },
+    ],
+  },
+  {
+    label: "Studio",
+    items: [
+      { label: "Workflows", href: "/studio/workflows", icon: Workflow },
+      { label: "Documents", href: "/studio/documents", icon: FileStack },
+      {
+        label: "Communications",
+        href: "/studio/messages",
+        icon: MessageCircle,
+      },
+      { label: "Reports", href: "/studio/reports", icon: ChartNoAxesColumn },
+      {
+        label: "Integrations",
+        href: "/studio/integrations",
+        icon: LayoutTemplate,
+      },
+      { label: "Team", href: "/studio/team", icon: UsersRound },
+      {
+        label: "Subscription",
+        href: "/studio/subscription",
+        icon: CreditCard,
+      },
+    ],
+  },
 ] as const;
 
 export function AppShell({
@@ -117,44 +157,58 @@ function StudioShell({
     "Team",
     "Subscription",
   ]);
-  const visibleNav = navItems.filter((item) => {
+  const canSee = (label: string) => {
     if (workspace.role === "staff_photographer")
-      return staffAllowed.has(item.label);
+      return staffAllowed.has(label);
     if (workspace.role === "studio_coordinator")
-      return !coordinatorExcluded.has(item.label);
+      return !coordinatorExcluded.has(label);
     if (workspace.role === "studio_admin")
-      return !["Team", "Subscription"].includes(item.label);
+      return !["Team", "Subscription"].includes(label);
     return true;
-  });
+  };
+  const visibleSections = navSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => canSee(item.label)),
+    }))
+    .filter((section) => section.items.length);
   return (
     <div className="app-frame">
       <aside className="sidebar" id="studio-navigation">
         <div className="sidebar-brand">
           <Logo />
-          <Link className="tenant-switcher" href="/studio/settings" aria-label="Open studio settings">
-            <span className="avatar avatar-sand">{initials(tenantName)}</span>
-            <span className="tenant-copy">
-              <strong>{tenantName}</strong>
-              <small>{workspace.tenantPlan || "Studio workspace"}</small>
-            </span>
-            <SignOutButton className="shell-signout" />
-          </Link>
         </div>
+        <Link className="tenant-switcher" href="/auth/workspaces" aria-label="Switch workspace">
+          <span className="avatar avatar-sand">{initials(tenantName)}</span>
+          <span className="tenant-copy">
+            <strong>{tenantName}</strong>
+            <small>{workspace.tenantPlan || "Studio workspace"}</small>
+          </span>
+          <ChevronDown size={15} />
+        </Link>
 
         <nav className="main-nav" aria-label="Studio navigation">
-          {visibleNav.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link
-                href={item.href}
-                key={item.label}
-                className={cn("nav-item", item.label === active && "nav-active")}
-              >
-                <Icon size={18} strokeWidth={1.8} />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
+          {visibleSections.map((section) => (
+            <div className="nav-section" key={section.label}>
+              <span className="nav-section-label">{section.label}</span>
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    href={item.href}
+                    key={item.label}
+                    className={cn(
+                      "nav-item",
+                      item.label === active && "nav-active",
+                    )}
+                  >
+                    <Icon size={17} strokeWidth={1.8} />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         <div className="sidebar-bottom">
@@ -171,7 +225,7 @@ function StudioShell({
               <strong>{userName}</strong>
               <small>{workspaceRoleLabel(workspace.role)}</small>
             </span>
-            <ChevronDown size={15} />
+            <SignOutButton className="shell-signout" />
           </div>
         </div>
       </aside>
@@ -181,6 +235,7 @@ function StudioShell({
           <a className="mobile-menu" href="#studio-navigation" aria-label="Open navigation">
             <Menu size={20} />
           </a>
+          <span className="topbar-context">{active}</span>
           <div className="command-search">
             <Search size={17} />
             <span>Search projects, clients, or tasks</span>
