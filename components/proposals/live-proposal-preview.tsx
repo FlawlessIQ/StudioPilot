@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { doc, getDoc } from "firebase/firestore";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
@@ -46,14 +48,17 @@ export function LiveProposalPreview({ id }: { id: string }) {
   const total = Number(snapshot?.totalCents ?? proposal.totalCents ?? 0);
   const retainer = Number(snapshot?.retainerCents ?? proposal.retainerCents ?? 0);
   return (
-    <main className="pdf-preview">
-      <header><span>SH</span><div><small>{workspace.tenantName.toUpperCase()}</small><strong>Photography Proposal</strong></div><p>{id} · VERSION {String(proposal.version ?? 1)}</p></header>
+    <div className="proposal-preview-page">
+      <Link className="back-link" href={`/studio/proposals/${id}`}><ArrowLeft /> Back to proposal</Link>
+      <main className="pdf-preview">
+      <header><span>SC</span><div><small>{workspace.tenantName.toUpperCase()}</small><strong>Photography Proposal</strong></div><p>VERSION {String(proposal.version ?? 1)}</p></header>
       <section><p className="eyebrow">Prepared for</p><h1>{String(nested(proposal, "clientSnapshot.primaryName") ?? proposal.projectName ?? "Client")}</h1><p>{String(proposal.eventType ?? "Photography project")} · {String(proposal.eventDate ?? "Date pending")}</p></section>
       <section><h2>{packageName}</h2><p>{String(snapshot?.description ?? proposal.notes ?? "Scope and deliverables are preserved in this proposal version.")}</p>
         <table><tbody><tr><td>{packageName}</td><td>{money(snapshot?.subtotalCents ?? total, proposal.currency)}</td></tr><tr><td>Discounts and tax</td><td>{money(Number(snapshot?.taxCents ?? 0) - Number(snapshot?.discountCents ?? 0), proposal.currency)}</td></tr><tr className="total"><td>Total</td><td>{money(total, proposal.currency)}</td></tr></tbody></table>
       </section>
       <section className="pdf-terms"><h2>Payment schedule</h2><div><span><small>Retainer</small><strong>{money(retainer, proposal.currency)}</strong></span><span><small>Remaining balance</small><strong>{money(Math.max(0, total - retainer), proposal.currency)}</strong></span></div><p>Final contractual terms are governed only by the completed signature-provider agreement.</p></section>
-      <footer><span>Generated {new Date().toLocaleDateString()}</span><span>StudioCue project {String(proposal.projectId ?? "—")}</span><span>Preview</span></footer>
-    </main>
+      <footer><span>Generated {new Date().toLocaleDateString()}</span><span>{workspace.tenantName}</span><span>Preview</span></footer>
+      </main>
+    </div>
   );
 }

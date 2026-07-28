@@ -14,6 +14,7 @@ import type { Role } from "@/features/auth/roles";
 import { isStudioMembership } from "@/features/auth/workspace-routing";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { dataIsLive } from "@/lib/runtime-mode";
 
 type StudioMembership = {
   tenantId: string;
@@ -30,6 +31,7 @@ export function PlatformWorkspaceSwitcher() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    if (!dataIsLive) return;
     const { auth, firestore } = getFirebaseClient();
     const user = auth.currentUser;
     if (!user) return;

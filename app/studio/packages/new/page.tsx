@@ -7,5 +7,5 @@ import { AppShell } from "@/components/layout/app-shell";
 export const metadata: Metadata = { title: "New package" };
 
 export default function NewPackagePage() {
-  return <AppShell active="Packages"><div className="crm-form-page"><Link className="back-link" href="/studio/packages"><ArrowLeft size={15} /> Packages</Link><div className="dashboard-heading"><div><p className="eyebrow">New offering</p><h1>Create a package</h1><p>Money is stored as integer cents and the first saved record becomes version 1.</p></div></div><CreatePackageForm /></div></AppShell>;
+  return <AppShell active="Packages"><div className="crm-form-page"><Link className="back-link" href="/studio/packages"><ArrowLeft size={15} /> Back to packages</Link><div className="dashboard-heading"><div><p className="eyebrow">New offering</p><h1>Create a package</h1><p>Define the price, coverage, retainer, and deliverables clients can choose.</p></div></div><CreatePackageForm /></div></AppShell>;
 }

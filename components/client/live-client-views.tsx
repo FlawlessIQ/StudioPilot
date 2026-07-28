@@ -8,13 +8,17 @@ import {
   CircleCheck,
   Clock3,
   ExternalLink,
+  FileText,
+  FolderOpen,
   Heart,
   Images,
   LoaderCircle,
   LockKeyhole,
   MapPin,
+  MessageCircle,
   ShieldCheck,
   Star,
+  UserRound,
 } from "lucide-react";
 import {
   collection,
@@ -196,6 +200,31 @@ function PortalState({
   return null;
 }
 
+function PortalPageState({
+  eyebrow,
+  title,
+  description,
+  loading,
+  error,
+  empty,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  loading: boolean;
+  error: string | null;
+  empty?: string;
+}) {
+  return (
+    <div className="client-booking-page">
+      <p className="eyebrow">{eyebrow}</p>
+      <h1>{title}</h1>
+      <p>{description}</p>
+      <PortalState loading={loading} error={error} empty={empty} />
+    </div>
+  );
+}
+
 const text = (value: unknown, fallback = "Pending") =>
   typeof value === "string" && value ? value : fallback;
 const number = (value: unknown) =>
@@ -229,7 +258,10 @@ export function LiveClientHome() {
   const project = useProject();
   if (project.loading || project.error || !project.value)
     return (
-      <PortalState
+      <PortalPageState
+        eyebrow="Your client portal"
+        title={`Hello, ${workspace.userName.split(" ")[0]}.`}
+        description="Your project plan, next steps, and shared files will live here."
         loading={project.loading}
         error={project.error}
         empty={!project.loading && !project.error ? "Project details will appear after assignment." : undefined}
@@ -326,6 +358,143 @@ export function LiveClientHome() {
   );
 }
 
+export function LiveClientProjectDetails() {
+  const project = useProject();
+  if (project.loading || project.error || !project.value)
+    return (
+      <PortalPageState
+        eyebrow="Project overview"
+        title="Your project details"
+        description="The confirmed event information your studio has shared with you."
+        loading={project.loading}
+        error={project.error}
+        empty={!project.loading && !project.error ? "Your project details will appear after the studio assigns your portal." : undefined}
+      />
+    );
+  const value = project.value;
+  return (
+    <div className="client-booking-page">
+      <p className="eyebrow">Project overview</p>
+      <h1>{text(value.name, "Your photography project")}</h1>
+      <p>The confirmed details your studio has shared with you.</p>
+      <section className="client-detail-grid">
+        <article className="panel client-detail-card">
+          <CalendarDays />
+          <span><small>Event date</small><strong>{date(value.eventDate)}</strong></span>
+        </article>
+        <article className="panel client-detail-card">
+          <MapPin />
+          <span><small>Location</small><strong>{text(value.venueName ?? value.city, "Location pending")}</strong></span>
+        </article>
+        <article className="panel client-detail-card">
+          <Images />
+          <span><small>Project type</small><strong>{text(value.eventType, "Photography")}</strong></span>
+        </article>
+        <article className="panel client-detail-card">
+          <UserRound />
+          <span><small>Lead photographer</small><strong>{text(value.leadPhotographerName, "Your studio will confirm this")}</strong></span>
+        </article>
+      </section>
+      <section className="panel client-help-card">
+        <div>
+          <h2>Need to update something?</h2>
+          <p>Send your studio a message so they can review the change and keep the project plan in sync.</p>
+        </div>
+        <Link className="button button-light" href="/client/messages">Message your studio</Link>
+      </section>
+    </div>
+  );
+}
+
+export function LiveClientDocuments() {
+  const documents = useProjectRecords("documents");
+  if (documents.loading || documents.error || documents.value.length === 0)
+    return (
+      <PortalPageState
+        eyebrow="Shared files"
+        title="Your documents"
+        description="Contracts, schedules, and files shared by your studio."
+        loading={documents.loading}
+        error={documents.error}
+        empty={!documents.loading && !documents.error ? "Documents shared by your studio will appear here." : undefined}
+      />
+    );
+  const visible = documents.value.filter((item) => item.clientVisible !== false);
+  if (!visible.length)
+    return <PortalPageState eyebrow="Shared files" title="Your documents" description="Contracts, schedules, and files shared by your studio." loading={false} error={null} empty="Documents shared by your studio will appear here." />;
+  return (
+    <div className="client-booking-page">
+      <p className="eyebrow">Shared files</p>
+      <h1>Your documents</h1>
+      <p>Contracts, schedules, and other files your studio has made available to you.</p>
+      <section className="panel client-document-list">
+        {visible.map((document) => {
+          const href = typeof document.temporaryUrl === "string"
+            ? document.temporaryUrl
+            : typeof document.downloadUrl === "string"
+              ? document.downloadUrl
+              : null;
+          return (
+            <article key={document.id}>
+              <span className="client-document-icon"><FileText /></span>
+              <span>
+                <strong>{text(document.name ?? document.fileName, "Project document")}</strong>
+                <small>{text(document.category, "Shared file").replaceAll("_", " ")}</small>
+              </span>
+              {href ? (
+                <a href={href} rel="noreferrer" target="_blank">Open <ExternalLink /></a>
+              ) : (
+                <StatusBadge tone="neutral">Available soon</StatusBadge>
+              )}
+            </article>
+          );
+        })}
+      </section>
+    </div>
+  );
+}
+
+export function LiveClientMessages() {
+  const workspace = useWorkspace();
+  const messages = useProjectRecords("messages");
+  return (
+    <div className="client-booking-page">
+      <p className="eyebrow">Conversation</p>
+      <h1>Messages</h1>
+      <p>Project updates and requests shared between you and {workspace.tenantName}.</p>
+      {messages.loading || messages.error ? (
+        <PortalState loading={messages.loading} error={messages.error} />
+      ) : messages.value.length ? (
+        <section className="panel client-message-list">
+          {[...messages.value]
+            .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+            .map((message) => (
+              <article key={message.id}>
+                <span className="client-message-icon"><MessageCircle /></span>
+                <span>
+                  <strong>{text(message.subject, "Project update")}</strong>
+                  <p>{text(message.bodyPreview ?? message.body, "Open the email from your studio for full details.")}</p>
+                  <small>{date(message.sentAt ?? message.createdAt)} · {text(message.status, "sent").replaceAll("_", " ")}</small>
+                </span>
+              </article>
+            ))}
+        </section>
+      ) : (
+        <section className="panel client-empty-moment">
+          <FolderOpen />
+          <div>
+            <h2>No messages yet</h2>
+            <p>When your studio sends a project update, it will appear here.</p>
+          </div>
+        </section>
+      )}
+      <Link className="button button-light client-message-button" href="/client/project">
+        <CalendarDays /> Review project details
+      </Link>
+    </div>
+  );
+}
+
 export function LiveClientPackage() {
   const project = useProject();
   const [snapshot, setSnapshot] = useState<Loadable<RecordValue | null>>({
@@ -367,9 +536,9 @@ export function LiveClientPackage() {
     };
   }, [project.error, project.loading, project.value?.packageSnapshotId]);
   if (project.loading || snapshot.loading || project.error || snapshot.error)
-    return <PortalState loading={project.loading || snapshot.loading} error={project.error ?? snapshot.error} />;
+    return <PortalPageState eyebrow="Your selection" title="Your package" description="Coverage, deliverables, and the price preserved for this project." loading={project.loading || snapshot.loading} error={project.error ?? snapshot.error} />;
   if (!snapshot.value)
-    return <PortalState loading={false} error={null} empty="Your selected package will appear after the studio confirms it for this project." />;
+    return <PortalPageState eyebrow="Your selection" title="Your package" description="Coverage, deliverables, and the price preserved for this project." loading={false} error={null} empty="Your selected package will appear after the studio confirms it for this project." />;
   const value = snapshot.value;
   const included = Array.isArray(value.includedDeliverables)
     ? value.includedDeliverables
@@ -425,7 +594,7 @@ export function LiveClientContract() {
     [contracts.value],
   );
   if (contracts.loading || contracts.error || !contract)
-    return <PortalState loading={contracts.loading} error={contracts.error} empty={!contracts.loading && !contracts.error ? "Your agreement will appear after the studio sends it through Docusign." : undefined} />;
+    return <PortalPageState eyebrow="Agreement" title="Your contract" description="Review signature progress and open your secure Docusign request." loading={contracts.loading} error={contracts.error} empty={!contracts.loading && !contracts.error ? "Your agreement will appear after the studio sends it through Docusign." : undefined} />;
   const signers = Array.isArray(contract.signers)
     ? (contract.signers as Array<Record<string, unknown>>)
     : [];
@@ -478,7 +647,7 @@ export function LiveClientContract() {
 export function LiveClientPayments() {
   const invoices = useProjectRecords("invoiceReferences");
   if (invoices.loading || invoices.error || invoices.value.length === 0)
-    return <PortalState loading={invoices.loading} error={invoices.error} empty={!invoices.loading && !invoices.error ? "QuickBooks invoice links will appear when created by the studio." : undefined} />;
+    return <PortalPageState eyebrow="Payments" title="Your payment schedule" description="Review amounts, due dates, and secure QuickBooks payment links." loading={invoices.loading} error={invoices.error} empty={!invoices.loading && !invoices.error ? "QuickBooks invoice links will appear when created by the studio." : undefined} />;
   return (
     <div className="client-booking-page">
       <p className="eyebrow">Payments</p>
@@ -521,7 +690,7 @@ export function LiveClientQuestionnaire() {
   const responses = useProjectRecords("questionnaireResponses");
   const current = responses.value[0];
   if (responses.loading || responses.error || !current)
-    return <PortalState loading={responses.loading} error={responses.error} empty={!responses.loading && !responses.error ? "Your studio has not assigned a questionnaire yet." : undefined} />;
+    return <PortalPageState eyebrow="Project planning" title="Your questionnaire" description="Share the details your studio needs to plan your project." loading={responses.loading} error={responses.error} empty={!responses.loading && !responses.error ? "Your studio has not assigned a questionnaire yet." : undefined} />;
   return (
     <div className="client-booking-page">
       <p className="eyebrow">Project planning</p>
@@ -556,7 +725,7 @@ export function LiveClientSchedule() {
     [schedules.value],
   );
   if (schedules.loading || schedules.error || !schedule)
-    return <PortalState loading={schedules.loading} error={schedules.error} empty={!schedules.loading && !schedules.error ? "The published run of show will appear here when it is ready for you." : undefined} />;
+    return <PortalPageState eyebrow="Event day" title="Your schedule" description="Review the current run of show and respond when your studio requests approval." loading={schedules.loading} error={schedules.error} empty={!schedules.loading && !schedules.error ? "The published run of show will appear here when it is ready for you." : undefined} />;
   const items = Array.isArray(schedule.items)
     ? (schedule.items as Array<Record<string, unknown>>)
     : [];
@@ -638,7 +807,7 @@ export function LiveClientDelivery() {
   const deliveries = useProjectRecords("deliveryRecords");
   const delivery = deliveries.value[0];
   if (deliveries.loading || deliveries.error || !delivery)
-    return <PortalState loading={deliveries.loading} error={deliveries.error} empty={!deliveries.loading && !deliveries.error ? "Your secure gallery details will appear after delivery." : undefined} />;
+    return <PortalPageState eyebrow="Your photographs" title="Delivery" description="Open your gallery and confirm when your download is complete." loading={deliveries.loading} error={deliveries.error} empty={!deliveries.loading && !deliveries.error ? "Your secure gallery details will appear after delivery." : undefined} />;
   return (
     <div className="client-post-event">
       <header>
@@ -693,7 +862,7 @@ export function LiveClientReviews() {
   const reviews = useProjectRecords("reviewRequests");
   const review = reviews.value.find((item) => item.status !== "skipped");
   if (reviews.loading || reviews.error || !review)
-    return <PortalState loading={reviews.loading} error={reviews.error} empty={!reviews.loading && !reviews.error ? "A review request may appear after your gallery is delivered." : undefined} />;
+    return <PortalPageState eyebrow="After delivery" title="Reviews" description="Your studio may invite you to share feedback after delivery." loading={reviews.loading} error={reviews.error} empty={!reviews.loading && !reviews.error ? "A review request may appear after your gallery is delivered." : undefined} />;
   const confirmed = ["client_confirmed", "manually_confirmed"].includes(
     String(review.status),
   );

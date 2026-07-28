@@ -1,8 +1,9 @@
 import { AppShell } from "@/components/layout/app-shell";
-import { LiveDomainView } from "@/components/studio/live-domain-view";
+import { LiveDomainView, ProjectContextBar } from "@/components/studio/live-domain-view";
 import { VendorCreateForm } from "@/components/planning/vendor-create-form";
 
-export default function VendorsPage() {
+export default async function VendorsPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
+  const { project } = await searchParams;
   return (
     <AppShell active="Vendors">
       <div className="live-domain-page">
@@ -16,7 +17,8 @@ export default function VendorsPage() {
             </p>
           </div>
         </header>
-        <LiveDomainView domain="vendors" />
+        {project ? <ProjectContextBar projectId={project} /> : null}
+        <LiveDomainView domain="vendors" projectId={project} />
         <details className="creation-disclosure panel">
           <summary>Add a vendor or venue</summary>
           <VendorCreateForm />

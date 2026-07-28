@@ -47,7 +47,7 @@ const resources = [
 
 export default function LibraryPage() {
   return (
-    <AppShell active="Packages">
+    <AppShell active="Library">
       <div className="hub-page">
         <header className="page-heading">
           <div>

@@ -221,6 +221,33 @@ function CrewState({
   return null;
 }
 
+function CrewPageState({
+  eyebrow,
+  title,
+  description,
+  data,
+  empty,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  data: CrewData;
+  empty?: string;
+}) {
+  return (
+    <div className="crew-mobile-page">
+      <header className="crew-portal-hero">
+        <div>
+          <p className="eyebrow">{eyebrow}</p>
+          <h1>{title}</h1>
+          <p>{description}</p>
+        </div>
+      </header>
+      <CrewState data={data} empty={empty} />
+    </div>
+  );
+}
+
 function projectFor(data: CrewData, assignment: Value) {
   return data.projects[text(assignment.projectId, "")];
 }
@@ -236,7 +263,7 @@ export function LiveCrewHome() {
   const workspace = useWorkspace();
   const data = useCrewData();
   if (data.loading || data.error)
-    return <CrewState data={data} />;
+    return <CrewPageState eyebrow="Crew workspace" title="Your assignments" description="See invitations, accepted work, and anything that needs your attention." data={data} />;
   const pending = data.assignments.filter((assignment) =>
     ["invited", "viewed"].includes(String(assignment.status)),
   );
@@ -318,7 +345,7 @@ export function LiveCrewHome() {
 
 export function LiveCrewPending() {
   const data = useCrewData();
-  if (data.loading || data.error) return <CrewState data={data} />;
+  if (data.loading || data.error) return <CrewPageState eyebrow="Invitation queue" title="Pending jobs" description="Review the job details before you accept or decline." data={data} />;
   const pending = data.assignments.filter((assignment) =>
     ["invited", "viewed"].includes(String(assignment.status)),
   );
@@ -387,7 +414,7 @@ export function LiveCrewPending() {
 
 export function LiveCrewAccepted() {
   const data = useCrewData();
-  if (data.loading || data.error) return <CrewState data={data} />;
+  if (data.loading || data.error) return <CrewPageState eyebrow="Accepted work" title="Job briefs" description="Your assigned logistics, responsibilities, and contacts." data={data} />;
   const accepted = data.assignments.filter(
     (assignment) => assignment.status === "accepted",
   );
@@ -497,10 +524,13 @@ export function LiveCrewSchedule() {
       active = false;
     };
   }, [assignment?.currentScheduleId]);
-  if (data.loading || data.error) return <CrewState data={data} />;
+  if (data.loading || data.error) return <CrewPageState eyebrow="Event day" title="Schedule" description="Your assigned timeline and the version you need to acknowledge." data={data} />;
   if (!assignment || !schedule)
     return (
-      <CrewState
+      <CrewPageState
+        eyebrow="Event day"
+        title="Schedule"
+        description="Your assigned timeline and the version you need to acknowledge."
         data={{ ...data, error: scheduleError }}
         empty="No published schedule is assigned to an accepted job."
       />
@@ -570,12 +600,12 @@ export function LiveCrewSchedule() {
 
 export function LiveCrewRequirements() {
   const data = useCrewData();
-  if (data.loading || data.error) return <CrewState data={data} />;
+  if (data.loading || data.error) return <CrewPageState eyebrow="Assignment checklist" title="Requirements" description="Complete the items your studio needs before event day." data={data} />;
   const assignment =
     data.assignments.find((item) => item.status === "accepted") ??
     data.assignments.find((item) => item.status === "viewed");
   if (!assignment)
-    return <CrewState data={data} empty="Requirements appear after you open an assignment." />;
+    return <CrewPageState eyebrow="Assignment checklist" title="Requirements" description="Complete the items your studio needs before event day." data={data} empty="Requirements appear after you open an assignment." />;
   const requirements = Array.isArray(assignment.requirements)
     ? (assignment.requirements as Array<Record<string, unknown>>)
     : [];
@@ -626,12 +656,12 @@ export function LiveCrewRequirements() {
 
 export function LiveCrewDocuments() {
   const data = useCrewData();
-  if (data.loading || data.error) return <CrewState data={data} />;
+  if (data.loading || data.error) return <CrewPageState eyebrow="Secure files" title="Documents" description="Upload only the files requested for your assignments." data={data} />;
   const assignment = data.assignments.find((item) =>
     ["accepted", "viewed"].includes(String(item.status)),
   );
   if (!assignment)
-    return <CrewState data={data} empty="Document requirements appear with an assignment." />;
+    return <CrewPageState eyebrow="Secure files" title="Documents" description="Upload only the files requested for your assignments." data={data} empty="Document requirements appear with an assignment." />;
   const requirements = Array.isArray(assignment.requirements)
     ? (assignment.requirements as Array<Record<string, unknown>>)
     : [];
@@ -688,7 +718,7 @@ export function LiveCrewDocuments() {
 export function LiveCrewProfile() {
   const data = useCrewData();
   if (data.loading || data.error || !data.profile)
-    return <CrewState data={data} empty={!data.loading && !data.error ? "Your crew profile is not linked yet." : undefined} />;
+    return <CrewPageState eyebrow="Crew profile" title="Your profile" description="Review the professional details your studio has on file." data={data} empty={!data.loading && !data.error ? "Your crew profile is not linked yet." : undefined} />;
   const profile = data.profile;
   const specialties = Array.isArray(profile.specialties)
     ? profile.specialties.map(String)
@@ -775,7 +805,7 @@ export function LiveCrewAvailability() {
   const data = useCrewData();
   const [notice, setNotice] = useState<string | null>(null);
   if (data.loading || data.error || !data.profile)
-    return <CrewState data={data} empty={!data.loading && !data.error ? "Link a crew profile before recording availability." : undefined} />;
+    return <CrewPageState eyebrow="Your calendar" title="Availability" description="Tell the studio when you are available for future assignments." data={data} empty={!data.loading && !data.error ? "Link a crew profile before recording availability." : undefined} />;
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;

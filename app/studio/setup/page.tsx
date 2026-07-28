@@ -46,7 +46,7 @@ const settings = [
 
 export default function SetupPage() {
   return (
-    <AppShell active="Settings">
+    <AppShell active="Studio setup">
       <SetupContent />
     </AppShell>
   );

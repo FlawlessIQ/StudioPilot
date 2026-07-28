@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
+  ArrowLeft,
   ArrowRight,
   DatabaseZap,
   Inbox,
@@ -405,9 +406,11 @@ function tone(value: unknown) {
 export function LiveDomainView({
   domain,
   emptyAction,
+  projectId,
 }: {
   domain: Domain;
   emptyAction?: { href: string; label: string };
+  projectId?: string;
 }) {
   const workspace = useWorkspace();
   const config = configurations[domain];
@@ -427,8 +430,15 @@ export function LiveDomainView({
     const constraints: QueryConstraint[] = [
       where("tenantId", "==", workspace.tenantId),
     ];
+    if (projectId && config.projectScoped) {
+      constraints.push(where("projectId", "==", projectId));
+    }
+    if (projectId && config.vendorScoped) {
+      constraints.push(where("projectIds", "array-contains", projectId));
+    }
     if (
       config.projectScoped &&
+      !projectId &&
       !["studio_owner", "studio_admin"].includes(String(workspace.role))
     ) {
       if (workspace.projectIds.length === 0) {
@@ -445,6 +455,7 @@ export function LiveDomainView({
     }
     if (
       config.vendorScoped &&
+      !projectId &&
       !["studio_owner", "studio_admin"].includes(String(workspace.role))
     ) {
       if (workspace.projectIds.length === 0) {
@@ -507,6 +518,7 @@ export function LiveDomainView({
     };
   }, [
     config,
+    projectId,
     workspace.loading,
     workspace.projectIds,
     workspace.role,
@@ -610,12 +622,14 @@ export function StudioDomainPage({
   title,
   description,
   action,
+  projectId,
 }: {
   domain: Domain;
   eyebrow: string;
   title: string;
   description: string;
   action?: { href: string; label: string };
+  projectId?: string;
 }) {
   return (
     <div className="live-domain-page">
@@ -631,7 +645,37 @@ export function StudioDomainPage({
           </Link>
         ) : null}
       </header>
-      <LiveDomainView domain={domain} emptyAction={action} />
+      {projectId ? <ProjectContextBar projectId={projectId} /> : null}
+      <LiveDomainView domain={domain} emptyAction={action} projectId={projectId} />
     </div>
+  );
+}
+
+export function ProjectContextBar({ projectId }: { projectId: string }) {
+  const workspace = useWorkspace();
+  const [name, setName] = useState("Selected project");
+  useEffect(() => {
+    if (!projectId || workspace.loading) return;
+    let active = true;
+    void getDoc(doc(getFirebaseClient().firestore, "projects", projectId))
+      .then((snapshot) => {
+        if (!active || !snapshot.exists() || snapshot.get("tenantId") !== workspace.tenantId) return;
+        setName(String(snapshot.get("name") ?? "Selected project"));
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [projectId, workspace.loading, workspace.tenantId]);
+  return (
+    <aside className="project-context-bar">
+      <span>
+        <small>Project view</small>
+        <strong>{name}</strong>
+      </span>
+      <Link href={`/studio/projects/${projectId}`}>
+        <ArrowLeft /> Back to project
+      </Link>
+    </aside>
   );
 }

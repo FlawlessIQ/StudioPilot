@@ -61,8 +61,8 @@ const navSections = [
 ] as const;
 
 const activeGroups: Record<string, string[]> = {
-  Home: ["Dashboard"],
-  Pipeline: ["Leads", "Proposals", "Contracts", "Invoices", "Booking"],
+  Home: ["Dashboard", "Notifications", "Copilot"],
+  Pipeline: ["Leads", "Inquiries", "Proposals", "Contracts", "Invoices", "Booking"],
   Projects: [
     "Projects",
     "Tasks",
@@ -80,9 +80,9 @@ const activeGroups: Record<string, string[]> = {
   ],
   Calendar: ["Calendar"],
   People: ["Clients"],
-  Library: ["Packages", "Workflows"],
+  Library: ["Library", "Packages", "Workflows"],
   Reports: ["Reports"],
-  "Studio setup": ["Integrations", "Team", "Subscription", "Settings"],
+  "Studio setup": ["Studio setup", "Integrations", "Team", "Subscription", "Settings"],
 };
 
 export function AppShell({
@@ -230,7 +230,9 @@ function StudioShell({
           >
             <Menu size={20} />
           </button>
-          <span className="topbar-context">{currentGroup}</span>
+          <span className="topbar-context">
+            {active === "Dashboard" ? "Home" : active}
+          </span>
           <GlobalSearch />
           <div className="topbar-actions">
             <Link className="icon-button" href="/studio/notifications" aria-label="Notifications">

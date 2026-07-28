@@ -3,13 +3,18 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
+  ArrowLeft,
   ArrowUpRight,
+  CalendarDays,
   ChevronRight,
   CircleCheck,
   Clock3,
   DatabaseZap,
   Inbox,
   LoaderCircle,
+  Mail,
+  MapPin,
+  Phone,
 } from "lucide-react";
 import {
   collection,
@@ -324,9 +329,7 @@ export function LiveProjectRows({
         <article key={project.id}>
           <span className="crm-primary">
             <strong>{project.name}</strong>
-            <small>
-              {project.id} · {project.event}
-            </small>
+            <small>{project.event}</small>
           </span>
           <span>
             <strong>{project.date}</strong>
@@ -389,7 +392,7 @@ export function LiveLeadRows({ view, q }: { view: string; q: string }) {
           date: String(item.eventDate ?? "Date pending"),
           venue: String(item.venue ?? item.city ?? "Venue pending"),
           source: String(item.referralSource ?? "Direct"),
-          assigned: String(item.assignedUserId ?? "Unassigned"),
+          assigned: String(item.assignedUserName ?? "Unassigned"),
           status: String(item.status ?? "new"),
           missing: Array.isArray(item.missingFields)
             ? item.missingFields.length
@@ -433,9 +436,7 @@ export function LiveLeadRows({ view, q }: { view: string; q: string }) {
         <article key={lead.id}>
           <span className="crm-primary">
             <strong>{lead.name}</strong>
-            <small>
-              {lead.id} · received {lead.age}
-            </small>
+            <small>Received {lead.age}</small>
           </span>
           <span>
             <strong>
@@ -469,6 +470,97 @@ export function LiveLeadRows({ view, q }: { view: string; q: string }) {
         </article>
       ))}
     </>
+  );
+}
+
+export function LiveLeadDetail({ id }: { id: string }) {
+  const { records, error, loading } = useTenantDocuments("leads");
+  const liveLead = records?.find((item) => item.id === id);
+  const demoLead = !dataIsLive
+    ? crmLeads.find((item) => item.id === id)
+    : null;
+  const lead = liveLead ?? (demoLead as TenantDocument | undefined);
+  if (loading)
+    return <LiveRecordsState kind="loading" state="Loading inquiry…" detail="Opening the latest client details." />;
+  if (error)
+    return <LiveRecordsState kind="error" state="Inquiry could not be loaded" detail={error} />;
+  if (!lead)
+    return (
+      <div className="live-detail-page">
+        <Link className="back-link" href="/studio/leads"><ArrowLeft /> Back to inquiries</Link>
+        <LiveRecordsState kind="empty" state="Inquiry not found" detail="It may have been converted, archived, or removed." />
+      </div>
+    );
+  const fullName = String(
+    lead.displayName ??
+      lead.name ??
+      `${lead.firstName ?? ""} ${lead.lastName ?? ""}`,
+  ).trim() || "New inquiry";
+  const missing = Array.isArray(lead.missingFields)
+    ? lead.missingFields.map(String)
+    : [];
+  const questions = Array.isArray(lead.suggestedConsultationQuestions)
+    ? lead.suggestedConsultationQuestions.map(String)
+    : [];
+  const email = typeof lead.email === "string" ? lead.email : "";
+  const phone = typeof lead.phone === "string" ? lead.phone : "";
+  return (
+    <div className="live-detail-page lead-detail-page">
+      <Link className="back-link" href="/studio/leads"><ArrowLeft /> Back to inquiries</Link>
+      <header className="page-heading">
+        <div>
+          <p className="eyebrow">Client inquiry</p>
+          <h1>{fullName}</h1>
+          <p>{String(lead.eventType ?? "Photography")} inquiry for {String(lead.eventDate ?? "a date to be confirmed")}.</p>
+        </div>
+        <StatusBadge tone={String(lead.status).toLowerCase() === "new" ? "info" : "warning"}>
+          {String(lead.status ?? "new").replaceAll("_", " ")}
+        </StatusBadge>
+      </header>
+      <div className="lead-action-row">
+        {email ? <a className="button button-dark" href={`mailto:${email}`}><Mail /> Email client</a> : null}
+        {phone ? <a className="button button-light" href={`tel:${phone}`}><Phone /> Call client</a> : null}
+      </div>
+      <section className="lead-detail-grid">
+        <article className="panel lead-detail-card">
+          <div className="panel-heading"><div><h2>Contact</h2><p>How to follow up</p></div></div>
+          <dl>
+            <div><dt>Email</dt><dd>{email || "Not provided"}</dd></div>
+            <div><dt>Phone</dt><dd>{phone || "Not provided"}</dd></div>
+            <div><dt>Partner or contact</dt><dd>{String(lead.partnerName ?? "Not provided")}</dd></div>
+          </dl>
+        </article>
+        <article className="panel lead-detail-card">
+          <div className="panel-heading"><div><h2>Event</h2><p>What they shared</p></div></div>
+          <dl>
+            <div><dt>Date</dt><dd><CalendarDays /> {String(lead.eventDate ?? "Not provided")}</dd></div>
+            <div><dt>Location</dt><dd><MapPin /> {String(lead.venue ?? lead.city ?? "Not provided")}</dd></div>
+            <div><dt>Budget</dt><dd>{String(lead.budgetRange ?? "Not provided")}</dd></div>
+            <div><dt>Source</dt><dd>{String(lead.referralSource ?? "Direct")}</dd></div>
+          </dl>
+        </article>
+      </section>
+      {typeof lead.message === "string" && lead.message ? (
+        <section className="panel lead-message-card">
+          <div className="panel-heading"><div><h2>Client message</h2><p>Submitted with the inquiry</p></div></div>
+          <p>{lead.message}</p>
+        </section>
+      ) : null}
+      <section className="lead-detail-grid">
+        <article className="panel lead-insight-card">
+          <h2>Before the consultation</h2>
+          {missing.length ? (
+            <ul>{missing.map((item) => <li key={item}>{item.replaceAll("_", " ")}</li>)}</ul>
+          ) : <p>The essential intake details are complete.</p>}
+        </article>
+        <article className="panel lead-insight-card">
+          <h2>Suggested questions</h2>
+          {questions.length ? (
+            <ul>{questions.map((item) => <li key={item}>{item}</li>)}</ul>
+          ) : <p>Ask about priorities, timing, locations, and who will approve the final plan.</p>}
+        </article>
+      </section>
+    </div>
   );
 }
 export function LiveUpcomingRows() {

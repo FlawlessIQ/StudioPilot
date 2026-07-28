@@ -15,6 +15,9 @@ const config: Record<
   {
     collections: string[];
     back: string;
+    backLabel: string;
+    label: string;
+    description: string;
     active: string;
     titleFields: string[];
     statusFields: string[];
@@ -25,6 +28,9 @@ const config: Record<
   proposal: {
     collections: ["proposals"],
     back: "/studio/proposals",
+    backLabel: "proposals",
+    label: "Proposal",
+    description: "A preserved version of the offer shared with this client.",
     active: "Proposals",
     titleFields: ["projectName", "clientSnapshot.primaryName", "id"],
     statusFields: ["status"],
@@ -42,6 +48,9 @@ const config: Record<
   schedule: {
     collections: ["schedules"],
     back: "/studio/schedules",
+    backLabel: "schedules",
+    label: "Schedule",
+    description: "The current event-day plan and its approval history.",
     active: "Schedules",
     titleFields: ["projectName", "id"],
     statusFields: ["status", "approvalState"],
@@ -59,6 +68,9 @@ const config: Record<
   crew: {
     collections: ["crewAssignments", "crewProfiles"],
     back: "/studio/crew",
+    backLabel: "crew",
+    label: "Crew record",
+    description: "Assignment details, requirements, and acknowledgement status.",
     active: "Crew",
     titleFields: ["projectName", "name", "role", "id"],
     statusFields: ["status", "active"],
@@ -81,6 +93,9 @@ const config: Record<
   "post-production": {
     collections: ["postProductionRecords"],
     back: "/studio/post-production",
+    backLabel: "post-production",
+    label: "Post-production",
+    description: "Editing, delivery, and closeout progress for this project.",
     active: "Post-production",
     titleFields: ["projectName", "id"],
     statusFields: ["currentStep"],
@@ -97,6 +112,9 @@ const config: Record<
   workflow: {
     collections: ["workflowTemplates"],
     back: "/studio/workflows",
+    backLabel: "workflows",
+    label: "Workflow",
+    description: "The reusable steps and automations in this workflow version.",
     active: "Workflows",
     titleFields: ["name", "id"],
     statusFields: ["status"],
@@ -189,7 +207,7 @@ export function LiveRecordDetail({
   if (record === undefined)
     return <div className="live-domain-state"><LoaderCircle className="spin" /><span><strong>Loading record…</strong><small>Checking tenant and project access.</small></span></div>;
   if (!record)
-    return <div className="live-domain-state live-domain-error"><DatabaseZap /><span><strong>Record unavailable</strong><small>{error || "It may have been archived, removed, or be outside your access."}</small></span></div>;
+    return <div className="live-detail-page"><Link className="back-link" href={selected.back}><ArrowLeft /> Back to {selected.backLabel}</Link><div className="live-domain-state live-domain-error"><DatabaseZap /><span><strong>Record unavailable</strong><small>{error || "It may have been archived, removed, or be outside your access."}</small></span></div></div>;
   const title = show(nested(record, selected.titleFields), "Title");
   const status = show(nested(record, selected.statusFields), "Status");
   const items = Array.isArray(record.items)
@@ -200,9 +218,9 @@ export function LiveRecordDetail({
     : [];
   return (
     <div className="live-detail-page">
-      <Link className="back-link" href={selected.back}><ArrowLeft /> Back</Link>
+      <Link className="back-link" href={selected.back}><ArrowLeft /> Back to {selected.backLabel}</Link>
       <header className="page-heading">
-        <div><p className="eyebrow">{kind} · {id}</p><h1>{title}</h1><p>Live tenant-scoped operational record</p></div>
+        <div><p className="eyebrow">{selected.label}</p><h1>{title}</h1><p>{selected.description}</p></div>
         <StatusBadge tone={/approved|complete|published|active|accepted/i.test(status) ? "success" : "warning"}>{status}</StatusBadge>
       </header>
       <section className="live-detail-grid">
@@ -212,7 +230,7 @@ export function LiveRecordDetail({
       </section>
       {items.length ? <section className="panel live-detail-list"><div className="panel-heading"><div><h2>Schedule items</h2><p>Current immutable version</p></div></div>{items.map((item, index) => <article key={String(item.id ?? index)}><time>{show(item.startAt, "Arrival")}</time><span><strong>{show(item.title, "Title")}</strong><small>{show(item.location, "Location")}</small></span><small>{show(item.endAt, "Departure")}</small></article>)}</section> : null}
       {requirements.length ? <section className="panel live-detail-list"><div className="panel-heading"><div><h2>Requirements</h2><p>Verified completion evidence</p></div></div>{requirements.map((item, index) => <article key={String(item.id ?? index)}><span><strong>{show(item.name, "Name")}</strong><small>{show(item.kind, "Kind")}</small></span><StatusBadge>{show(item.status, "Status")}</StatusBadge></article>)}</section> : null}
-      <section className="panel live-detail-boundary"><ShieldCheck /><span><strong>Operational boundary</strong><small>{selected.boundary}</small></span></section>
+      <section className="panel live-detail-boundary"><ShieldCheck /><span><strong>How this record works</strong><small>{selected.boundary}</small></span></section>
     </div>
   );
 }

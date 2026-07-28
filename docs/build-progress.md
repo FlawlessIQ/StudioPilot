@@ -764,3 +764,47 @@ Validation record:
 - production Next.js webpack build: passed, including all 89 application routes
 - Chrome-driven final visual sweep pending because the currently selected
   Chrome profile does not have the ChatGPT Chrome Extension enabled
+
+## Authenticated product navigation and usability pass — July 28, 2026
+
+Status: implementation complete; production deployment pending.
+
+Delivered:
+
+- audited every Studio, Client, Crew, and Platform Admin route in code and
+  exercised all authenticated route groups in Chrome at desktop and mobile
+  breakpoints
+- replaced hash-based Client and Crew mobile menus with accessible drawers,
+  backdrops, close controls, and route-change dismissal
+- added a responsive Platform Admin top bar and mobile drawer
+- grouped Client and Crew navigation around the work users are trying to
+  complete instead of presenting an undifferentiated feature list
+- replaced broken Client project, documents, and messages anchors with real,
+  permission-scoped pages
+- added a real Studio inquiry detail route with contact actions, event facts,
+  missing details, and suggested consultation questions
+- corrected Studio top-bar context so each page names itself instead of
+  inheriting a broad navigation-group label
+- made project workspace links preserve project context across tasks,
+  questionnaires, contracts and payments, vendors, crew, schedules,
+  readiness, and documents
+- added visible project-context return bars and repaired detail, preview, and
+  creation-page return paths
+- removed raw record identifiers from routine project, inquiry, detail, and
+  proposal-preview copy
+- gave empty Client and Crew destinations a real page title, purpose, and clear
+  explanation of what will appear next
+- standardized authenticated content widths, margins, top bars, page spacing,
+  and responsive behavior across every shell
+- prevented Platform Admin workspace recovery checks from initializing live
+  Firebase services in mock development mode
+
+Validation record:
+
+- strict TypeScript: passed
+- ESLint: passed
+- unit and policy suite: 74 passed
+- production Next.js webpack build on Node 22: passed, including all 92
+  application routes
+- Chrome route audit: passed for Studio, Client, Crew, and Platform Admin
+- 390px mobile route and drawer audit: passed with no horizontal overflow

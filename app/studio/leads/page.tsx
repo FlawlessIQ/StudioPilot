@@ -14,7 +14,7 @@ export default async function LeadsPage({
 }) {
   const { view = "open", q = "" } = await searchParams;
   return (
-    <AppShell active="Leads">
+    <AppShell active="Inquiries">
       <div className="crm-page">
         <div className="dashboard-heading">
           <div><p className="eyebrow">Pipeline</p><h1>Inquiries</h1><p>Review new inquiries and move the right clients toward consultation.</p></div>

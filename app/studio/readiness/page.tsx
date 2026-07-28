@@ -4,7 +4,8 @@ import { StudioDomainPage } from "@/components/studio/live-domain-view";
 
 export const metadata: Metadata = { title: "Event Readiness" };
 
-export default function ReadinessPage() {
+export default async function ReadinessPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
+  const { project } = await searchParams;
   return (
     <AppShell active="Readiness">
       <StudioDomainPage
@@ -12,6 +13,7 @@ export default function ReadinessPage() {
         eyebrow="Event confidence"
         title="Event readiness"
         description="See what is complete, what is at risk, who owns each item, and what to do next."
+        projectId={project}
       />
     </AppShell>
   );

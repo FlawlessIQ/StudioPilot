@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { UserPlus } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
-import { LiveDomainView } from "@/components/studio/live-domain-view";
+import { LiveDomainView, ProjectContextBar } from "@/components/studio/live-domain-view";
 
-export default function StudioCrewPage() {
+export default async function StudioCrewPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
+  const { project } = await searchParams;
   return (
     <AppShell active="Crew">
       <div className="live-domain-page">
@@ -12,14 +13,15 @@ export default function StudioCrewPage() {
             <p className="eyebrow">People & assignments</p>
             <h1>Crew operations</h1>
             <p>
-              Tenant-scoped collaborators, invitations, requirements, and
-              schedule acknowledgements.
+              Manage your collaborators, project invitations, requirements,
+              and schedule acknowledgements.
             </p>
           </div>
           <Link className="button button-dark" href="/studio/crew/new">
             <UserPlus /> Add crew member
           </Link>
         </header>
+        {project ? <ProjectContextBar projectId={project} /> : null}
         <section>
           <div className="section-heading-row">
             <div>
@@ -27,7 +29,7 @@ export default function StudioCrewPage() {
               <h2>Assignments</h2>
             </div>
           </div>
-          <LiveDomainView domain="crew_assignments" />
+          <LiveDomainView domain="crew_assignments" projectId={project} />
         </section>
         <section>
           <div className="section-heading-row">

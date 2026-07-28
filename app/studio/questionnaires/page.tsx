@@ -1,8 +1,9 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { QuestionnaireBuilder } from "@/components/planning/questionnaire-builder";
-import { LiveDomainView } from "@/components/studio/live-domain-view";
+import { LiveDomainView, ProjectContextBar } from "@/components/studio/live-domain-view";
 
-export default function QuestionnairesPage() {
+export default async function QuestionnairesPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
+  const { project } = await searchParams;
   return (
     <AppShell active="Questionnaires">
       <div className="live-domain-page">
@@ -16,7 +17,8 @@ export default function QuestionnairesPage() {
             </p>
           </div>
         </header>
-        <LiveDomainView domain="questionnaires" />
+        {project ? <ProjectContextBar projectId={project} /> : null}
+        <LiveDomainView domain="questionnaires" projectId={project} />
         <QuestionnaireBuilder />
       </div>
     </AppShell>
