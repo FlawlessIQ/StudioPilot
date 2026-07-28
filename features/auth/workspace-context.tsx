@@ -18,6 +18,7 @@ import {
   where,
 } from "firebase/firestore";
 import type { Role } from "@/features/auth/roles";
+import { getClientPortalProject } from "@/lib/client/portal-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { authIsLive } from "@/lib/runtime-mode";
 
@@ -202,12 +203,17 @@ export function WorkspaceProvider({
               getDoc(doc(firestore, "tenants", membership.tenantId)),
               getDoc(doc(firestore, "users", user.uid)),
               projectId
-                ? getDoc(doc(firestore, "projects", projectId))
+                ? area === "client"
+                  ? getClientPortalProject(membership.tenantId, projectId)
+                  : getDoc(doc(firestore, "projects", projectId))
                 : Promise.resolve(null),
             ]);
           const tenant = tenantDocument.data() ?? {};
           const profile = userDocument.data() ?? {};
-          const project = projectDocument?.data() ?? {};
+          const project =
+            projectDocument && "data" in projectDocument
+              ? projectDocument.data() ?? {}
+              : projectDocument ?? {};
           setState({
             loading: false,
             error: null,

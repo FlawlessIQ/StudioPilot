@@ -1,5 +1,6 @@
 import { applicationDefault, cert, getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
+import { getAppCheck } from "firebase-admin/app-check";
 import { getFirestore } from "firebase-admin/firestore";
 import { z } from "zod";
 
@@ -36,4 +37,5 @@ if (!app) {
 }
 
 export const adminAuth = getAuth(app);
+export const adminAppCheck = getAppCheck(app);
 export const adminFirestore = getFirestore(app);

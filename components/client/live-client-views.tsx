@@ -20,20 +20,17 @@ import {
   Star,
   UserRound,
 } from "lucide-react";
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  query,
-  where,
-} from "firebase/firestore";
 import { ClientQuestionnaireForm } from "@/components/planning/client-questionnaire-form";
 import { PostEventAction } from "@/components/post-event/post-event-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { getFirebaseClient } from "@/lib/firebase/client";
+import {
+  getClientPortalProject,
+  getClientPortalRecords,
+  sendClientPortalMessage,
+  type ClientPortalCollection,
+  type ClientPortalProject,
+} from "@/lib/client/portal-client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
 
@@ -44,16 +41,16 @@ type Loadable<T> = {
   error: string | null;
 };
 
-function useProject(): Loadable<RecordValue | null> {
+function useProject(): Loadable<ClientPortalProject | null> {
   const workspace = useWorkspace();
-  const [state, setState] = useState<Loadable<RecordValue | null>>({
+  const [state, setState] = useState<Loadable<ClientPortalProject | null>>({
     value: null,
     loading: dataIsLive,
     error: null,
   });
   useEffect(() => {
     if (!dataIsLive || workspace.loading) return;
-    if (!workspace.projectId) {
+    if (!workspace.tenantId || !workspace.projectId) {
       queueMicrotask(() =>
         setState({
           value: null,
@@ -64,17 +61,13 @@ function useProject(): Loadable<RecordValue | null> {
       return;
     }
     let active = true;
-    void getDoc(
-      doc(getFirebaseClient().firestore, "projects", workspace.projectId),
-    )
+    void getClientPortalProject(workspace.tenantId, workspace.projectId)
       .then((project) => {
         if (!active) return;
         setState({
-          value: project.exists()
-            ? ({ id: project.id, ...project.data() } as RecordValue)
-            : null,
+          value: project,
           loading: false,
-          error: project.exists() ? null : "The assigned project was not found.",
+          error: null,
         });
       })
       .catch((caught: unknown) => {
@@ -91,11 +84,13 @@ function useProject(): Loadable<RecordValue | null> {
     return () => {
       active = false;
     };
-  }, [workspace.loading, workspace.projectId]);
+  }, [workspace.loading, workspace.projectId, workspace.tenantId]);
   return state;
 }
 
-function useProjectRecords(collectionName: string): Loadable<RecordValue[]> {
+function useProjectRecords(
+  collectionName: ClientPortalCollection,
+): Loadable<RecordValue[]> {
   const workspace = useWorkspace();
   const [state, setState] = useState<Loadable<RecordValue[]>>({
     value: [],
@@ -115,22 +110,15 @@ function useProjectRecords(collectionName: string): Loadable<RecordValue[]> {
       return;
     }
     let active = true;
-    const { firestore } = getFirebaseClient();
-    void getDocs(
-      query(
-        collection(firestore, collectionName),
-        where("tenantId", "==", workspace.tenantId),
-        where("projectId", "==", workspace.projectId),
-        limit(50),
-      ),
+    void getClientPortalRecords(
+      workspace.tenantId,
+      workspace.projectId,
+      collectionName,
     )
-      .then((snapshot) => {
+      .then((result) => {
         if (!active) return;
         setState({
-          value: snapshot.docs.map(
-            (document) =>
-              ({ id: document.id, ...document.data() }) as RecordValue,
-          ),
+          value: result.records as RecordValue[],
           loading: false,
           error: null,
         });
@@ -245,7 +233,10 @@ const money = (cents: unknown, currency: unknown = "USD") =>
     currency: text(currency, "USD"),
   }).format(number(cents) / 100);
 const date = (value: unknown) => {
-  const parsed = new Date(String(value));
+  const raw = String(value);
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+    ? new Date(`${raw}T12:00:00`)
+    : new Date(raw);
   return Number.isNaN(parsed.valueOf())
     ? "Date pending"
     : parsed.toLocaleDateString(undefined, {
@@ -278,12 +269,27 @@ export function LiveClientHome() {
       />
     );
   const value = project.value;
-  const eventDate = new Date(String(value.eventDate));
+  const eventDate = value.eventDate
+    ? new Date(`${value.eventDate}T12:00:00`)
+    : new Date(Number.NaN);
   const days = Math.max(
     0,
-    Math.ceil((eventDate.valueOf() - Date.now()) / 86400000),
+    Number.isNaN(eventDate.valueOf())
+      ? 0
+      : Math.ceil((eventDate.valueOf() - Date.now()) / 86400000),
   );
-  const readiness = number(value.readinessScore);
+  const progress = value.clientProgress;
+  const nextAction = value.nextClientAction;
+  const nextActionName = nextAction?.name ?? "Review your project details";
+  const nextActionHref = /questionnaire|form|family|vendor/i.test(nextActionName)
+    ? "/client/questionnaire"
+    : /schedule|timeline/i.test(nextActionName)
+      ? "/client/schedule"
+      : /contract|agreement|sign/i.test(nextActionName)
+        ? "/client/contract"
+        : /invoice|payment|retainer|balance/i.test(nextActionName)
+          ? "/client/payments"
+          : "/client/project";
   return (
     <>
       <div className="portal-hero">
@@ -302,39 +308,43 @@ export function LiveClientHome() {
           <Clock3 size={25} />
         </span>
         <div>
-          <StatusBadge tone={readiness === 100 ? "success" : "warning"}>
-            {readiness === 100 ? "Project ready" : "Your next action"}
+          <StatusBadge tone={progress === 100 ? "success" : "warning"}>
+            {progress === 100 ? "You’re caught up" : "Your next action"}
           </StatusBadge>
-          <h2>{text(value.nextAction, "Review your project details")}</h2>
+          <h2>{nextActionName}</h2>
           <p>
-            This is the next required step in your studio’s project plan.
+            {nextAction?.description ??
+              "Review the details your studio has shared with you."}
           </p>
         </div>
-        <Link className="button button-dark" href="/client/schedule">
-          Open schedule
+        <Link className="button button-dark" href={nextActionHref}>
+          Continue
         </Link>
       </section>
       <div className="client-grid">
         <section className="panel">
           <div className="panel-heading">
             <div>
-              <h2>Project readiness</h2>
-              <p>Required operational evidence</p>
+              <h2>Your planning progress</h2>
+              <p>
+                {value.clientCheckpointCount
+                  ? `${value.clientCheckpointCount} steps shared with you`
+                  : "Your studio is preparing your next steps"}
+              </p>
             </div>
-            <strong>{readiness}%</strong>
+            <strong>{progress}%</strong>
           </div>
           <div className="progress-track">
-            <i style={{ width: `${readiness}%` }} />
+            <i style={{ width: `${progress}%` }} />
           </div>
           <div className="client-check">
-            <span className={readiness === 100 ? "complete" : "current"}>
-              {readiness === 100 ? <CircleCheck /> : <Clock3 />}
+            <span className={progress === 100 ? "complete" : "current"}>
+              {progress === 100 ? <CircleCheck /> : <Clock3 />}
             </span>
             <span>
-              <strong>{text(value.state).replaceAll("_", " ")}</strong>
+              <strong>{value.clientStage}</strong>
               <small>
-                StudioCue does not infer payment, signature, or insurance
-                completion.
+                You only see the planning steps your studio has shared with you.
               </small>
             </span>
           </div>
@@ -467,6 +477,29 @@ export function LiveClientDocuments() {
 export function LiveClientMessages() {
   const workspace = useWorkspace();
   const messages = useProjectRecords("messages");
+  const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  async function sendMessage() {
+    if (!workspace.tenantId || !workspace.projectId || !body.trim()) return;
+    setSending(true);
+    setNotice(null);
+    try {
+      await sendClientPortalMessage(
+        workspace.tenantId,
+        workspace.projectId,
+        body.trim(),
+      );
+      setBody("");
+      setNotice("Message sent securely to your studio.");
+    } catch (caught: unknown) {
+      setNotice(
+        caught instanceof Error ? caught.message : "Your message could not be sent.",
+      );
+    } finally {
+      setSending(false);
+    }
+  }
   return (
     <div className="client-booking-page">
       <p className="eyebrow">Conversation</p>
@@ -498,58 +531,49 @@ export function LiveClientMessages() {
           </div>
         </section>
       )}
-      <Link className="button button-light client-message-button" href="/client/project">
-        <CalendarDays /> Review project details
-      </Link>
+      <section className="panel client-message-composer">
+        <div>
+          <p className="eyebrow">New message</p>
+          <h2>Message {workspace.tenantName}</h2>
+          <p>
+            Use this for project questions or changes. Your message is saved in
+            this secure project workspace.
+          </p>
+        </div>
+        <label htmlFor="client-message-body">Message</label>
+        <textarea
+          id="client-message-body"
+          maxLength={5000}
+          onChange={(event) => setBody(event.target.value)}
+          placeholder="What would you like your studio to know?"
+          rows={5}
+          value={body}
+        />
+        <div className="client-message-composer-actions">
+          <button
+            className="button button-dark"
+            disabled={sending || !body.trim()}
+            onClick={() => void sendMessage()}
+            type="button"
+          >
+            <MessageCircle />
+            {sending ? "Sending…" : "Send secure message"}
+          </button>
+          {notice ? <p role="status">{notice}</p> : null}
+        </div>
+      </section>
     </div>
   );
 }
 
 export function LiveClientPackage() {
-  const project = useProject();
-  const [snapshot, setSnapshot] = useState<Loadable<RecordValue | null>>({
-    value: null,
-    loading: dataIsLive,
-    error: null,
-  });
-  useEffect(() => {
-    const snapshotId = project.value?.packageSnapshotId;
-    if (!dataIsLive || project.loading || project.error) return;
-    if (typeof snapshotId !== "string" || !snapshotId) {
-      queueMicrotask(() =>
-        setSnapshot({ value: null, loading: false, error: null }),
-      );
-      return;
-    }
-    let active = true;
-    void getDoc(doc(getFirebaseClient().firestore, "packageSnapshots", snapshotId))
-      .then((value) => {
-        if (active)
-          setSnapshot({
-            value: value.exists()
-              ? ({ id: value.id, ...value.data() } as RecordValue)
-              : null,
-            loading: false,
-            error: value.exists() ? null : "Package snapshot was not found.",
-          });
-      })
-      .catch((caught: unknown) => {
-        if (active)
-          setSnapshot({
-            value: null,
-            loading: false,
-            error: caught instanceof Error ? caught.message : "Package could not load.",
-          });
-      });
-    return () => {
-      active = false;
-    };
-  }, [project.error, project.loading, project.value?.packageSnapshotId]);
-  if (project.loading || snapshot.loading || project.error || snapshot.error)
-    return <PortalPageState eyebrow="Your selection" title="Your package" description="Coverage, deliverables, and the price preserved for this project." loading={project.loading || snapshot.loading} error={project.error ?? snapshot.error} />;
-  if (!snapshot.value)
+  const snapshots = useProjectRecords("packageSnapshots");
+  const snapshot = snapshots.value[0];
+  if (snapshots.loading || snapshots.error)
+    return <PortalPageState eyebrow="Your selection" title="Your package" description="Coverage, deliverables, and the price preserved for this project." loading={snapshots.loading} error={snapshots.error} />;
+  if (!snapshot)
     return <PortalPageState eyebrow="Your selection" title="Your package" description="Coverage, deliverables, and the price preserved for this project." loading={false} error={null} empty="Your selected package will appear after the studio confirms it for this project." />;
-  const value = snapshot.value;
+  const value = snapshot;
   const included = Array.isArray(value.includedDeliverables)
     ? value.includedDeliverables
     : Array.isArray(value.deliverables)

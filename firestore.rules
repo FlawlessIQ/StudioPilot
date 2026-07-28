@@ -78,7 +78,6 @@ service cloud.firestore {
           isAssignedToProject(tenantId, projectId)
           && (
             hasRole(tenantId, ["studio_coordinator", "staff_photographer"])
-            || (hasRole(tenantId, ["client"]) && visibility in ["client", "shared"])
             || (hasRole(tenantId, ["subcontractor"]) && visibility in ["crew", "shared"])
           )
         );
@@ -123,7 +122,14 @@ service cloud.firestore {
 
     match /projects/{projectId} {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
-        || isAssignedToProject(resource.data.tenantId, projectId);
+        || (
+          isAssignedToProject(resource.data.tenantId, projectId)
+          && hasRole(resource.data.tenantId, [
+            "studio_coordinator",
+            "staff_photographer",
+            "subcontractor"
+          ])
+        );
       allow create: if canManageProjects(request.resource.data.tenantId)
         && request.resource.data.projectId == projectId;
       allow update: if canManageProject(resource.data.tenantId, projectId) && tenantUnchanged();
@@ -161,7 +167,10 @@ service cloud.firestore {
 
     match /packageSnapshots/{snapshotId} {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
-        || isAssignedToProject(resource.data.tenantId, resource.data.projectId);
+        || (
+          isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+          && hasRole(resource.data.tenantId, ["studio_coordinator"])
+        );
       allow write: if false;
     }
 
@@ -176,7 +185,13 @@ service cloud.firestore {
 
     match /workflowRuns/{runId} {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
-        || isAssignedToProject(resource.data.tenantId, resource.data.projectId);
+        || (
+          isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+          && hasRole(resource.data.tenantId, [
+            "studio_coordinator",
+            "staff_photographer"
+          ])
+        );
       allow write: if false;
     }
 
@@ -246,7 +261,7 @@ service cloud.firestore {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
-          && hasRole(resource.data.tenantId, ["studio_coordinator", "client"])
+          && hasRole(resource.data.tenantId, ["studio_coordinator"])
         );
       allow write: if false;
     }
@@ -255,7 +270,7 @@ service cloud.firestore {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
-          && hasRole(resource.data.tenantId, ["studio_coordinator", "client"])
+          && hasRole(resource.data.tenantId, ["studio_coordinator"])
         );
       allow write: if false;
     }
@@ -266,7 +281,6 @@ service cloud.firestore {
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && (
             hasRole(resource.data.tenantId, ["studio_coordinator", "staff_photographer"])
-            || (hasRole(resource.data.tenantId, ["client"]) && resource.data.visibility in ["client", "shared"])
             || (hasRole(resource.data.tenantId, ["subcontractor"]) && resource.data.visibility in ["crew", "shared"])
           )
         );
@@ -314,7 +328,7 @@ service cloud.firestore {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
-          && hasRole(resource.data.tenantId, ["studio_coordinator","client"])
+          && hasRole(resource.data.tenantId, ["studio_coordinator"])
         );
       allow write: if false;
     }
@@ -348,7 +362,6 @@ service cloud.firestore {
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && (
             hasRole(resource.data.tenantId, ["studio_coordinator","staff_photographer","subcontractor"])
-            || (hasRole(resource.data.tenantId, ["client"]) && resource.data.status in ["client_review","approved","published"])
           )
         );
       allow write: if false;
@@ -395,7 +408,6 @@ service cloud.firestore {
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && (
             hasRole(resource.data.tenantId, ["studio_coordinator"])
-            || (hasRole(resource.data.tenantId, ["client"]) && resource.data.visibility in ["client","shared"])
           )
         );
       allow write: if false;
@@ -412,7 +424,7 @@ service cloud.firestore {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
-          && hasRole(resource.data.tenantId, ["studio_coordinator","client"])
+          && hasRole(resource.data.tenantId, ["studio_coordinator"])
         );
       allow write: if false;
     }
@@ -420,7 +432,7 @@ service cloud.firestore {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
-          && hasRole(resource.data.tenantId, ["studio_coordinator","client"])
+          && hasRole(resource.data.tenantId, ["studio_coordinator"])
         );
       allow write: if false;
     }

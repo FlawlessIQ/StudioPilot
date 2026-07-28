@@ -128,6 +128,15 @@
       ]
     },
     {
+      "collectionGroup": "checkpoints",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tenantId", "order": "ASCENDING" },
+        { "fieldPath": "projectId", "order": "ASCENDING" },
+        { "fieldPath": "visibility", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "tasks",
       "queryScope": "COLLECTION",
       "fields": [
@@ -289,6 +298,15 @@
         { "fieldPath": "tenantId", "order": "ASCENDING" },
         { "fieldPath": "projectId", "order": "ASCENDING" },
         { "fieldPath": "version", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "schedules",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tenantId", "order": "ASCENDING" },
+        { "fieldPath": "projectId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
       ]
     },
     {
@@ -501,11 +519,29 @@
       ]
     },
     {
+      "collectionGroup": "documents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tenantId", "order": "ASCENDING" },
+        { "fieldPath": "projectId", "order": "ASCENDING" },
+        { "fieldPath": "visibility", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "messages",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "tenantId", "order": "ASCENDING" },
         { "fieldPath": "projectId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "messages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tenantId", "order": "ASCENDING" },
+        { "fieldPath": "projectId", "order": "ASCENDING" },
+        { "fieldPath": "visibility", "order": "ASCENDING" }
       ]
     }
   ],

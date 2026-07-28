@@ -7518,6 +7518,63 @@ textarea:focus-visible {
   width: 14px;
 }
 
+.client-message-composer {
+  display: grid;
+  gap: 13px;
+  margin-top: 22px;
+}
+
+.client-message-composer h2 {
+  margin: 3px 0 5px;
+}
+
+.client-message-composer > div:first-child > p:last-child {
+  color: var(--muted);
+  margin: 0;
+}
+
+.client-message-composer label {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.client-message-composer textarea {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--ink);
+  font: inherit;
+  line-height: 1.55;
+  min-height: 132px;
+  padding: 14px;
+  resize: vertical;
+  width: 100%;
+}
+
+.client-message-composer textarea:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgb(52 92 70 / 14%);
+  outline: none;
+}
+
+.client-message-composer-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.client-message-composer-actions p {
+  color: var(--accent);
+  font-size: 12px;
+  margin: 0;
+}
+
+.client-message-composer-actions svg {
+  height: 16px;
+  width: 16px;
+}
+
 @media (max-width: 900px) {
   .portal-sidebar,
   .crew-portal-sidebar,
@@ -7602,6 +7659,28 @@ textarea:focus-visible {
   .client-help-card {
     align-items: flex-start;
     display: grid;
+  }
+
+  .portal-content > header .mobile-menu,
+  .portal-content > header button,
+  .portal-sidebar nav a,
+  .portal-sidebar-close {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .portal-content > header > button:last-child {
+    padding-inline: 10px;
+  }
+
+  .client-help-card,
+  .client-message-composer {
+    padding: 20px;
+  }
+
+  .client-message-composer-actions,
+  .client-message-composer-actions .button {
+    width: 100%;
   }
 
   .client-document-list article {

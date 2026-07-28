@@ -52,7 +52,19 @@ service firebase.storage {
         && activeMember(tenantId)
         && (
           membership(tenantId).role in ["studio_owner", "studio_admin", "studio_coordinator"]
-          || projectId in membership(tenantId).projectIds
+          || (
+            projectId in membership(tenantId).projectIds
+            && (
+              (
+                membership(tenantId).role == "client"
+                && resource.metadata.visibility in ["client", "shared"]
+              )
+              || (
+                membership(tenantId).role in ["staff_photographer", "subcontractor"]
+                && resource.metadata.visibility in ["crew", "shared"]
+              )
+            )
+          )
         );
       allow create, update: if activeMember(tenantId)
         && membership(tenantId).role in ["studio_owner", "studio_admin", "studio_coordinator"]

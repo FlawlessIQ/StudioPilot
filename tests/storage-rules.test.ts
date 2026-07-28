@@ -6,7 +6,7 @@ import {
   initializeTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import { doc, setDoc } from "firebase/firestore";
-import { ref, uploadBytes } from "firebase/storage";
+import { getBytes, ref, uploadBytes } from "firebase/storage";
 
 const firestoreHost = process.env.FIRESTORE_EMULATOR_HOST;
 const storageHost = process.env.FIREBASE_STORAGE_EMULATOR_HOST;
@@ -36,8 +36,57 @@ test(
           tenantId: "tenant-a", userId: "crew-a", status: "active",
           role: "subcontractor", projectIds: ["project-a"],
         });
+        await setDoc(doc(context.firestore(), "memberships/tenant-a_client-a"), {
+          tenantId: "tenant-a", userId: "client-a", status: "active",
+          role: "client", projectIds: ["project-a"],
+        });
+        const storage = context.storage();
+        for (const [name, visibility] of [
+          ["shared.pdf", "shared"],
+          ["client.pdf", "client"],
+          ["crew.pdf", "crew"],
+          ["studio.pdf", "studio"],
+        ] as const) {
+          await uploadBytes(
+            ref(storage, `tenants/tenant-a/projects/project-a/files/${name}`),
+            new Uint8Array([37, 80, 68, 70]),
+            {
+              contentType: "application/pdf",
+              customMetadata: { scanStatus: "clean", visibility },
+            },
+          );
+        }
       });
+      const clientStorage = environment.authenticatedContext("client-a").storage();
+      await assertSucceeds(getBytes(ref(
+        clientStorage,
+        "tenants/tenant-a/projects/project-a/files/shared.pdf",
+      )));
+      await assertSucceeds(getBytes(ref(
+        clientStorage,
+        "tenants/tenant-a/projects/project-a/files/client.pdf",
+      )));
+      await assertFails(getBytes(ref(
+        clientStorage,
+        "tenants/tenant-a/projects/project-a/files/crew.pdf",
+      )));
+      await assertFails(getBytes(ref(
+        clientStorage,
+        "tenants/tenant-a/projects/project-a/files/studio.pdf",
+      )));
       const crewStorage = environment.authenticatedContext("crew-a").storage();
+      await assertSucceeds(getBytes(ref(
+        crewStorage,
+        "tenants/tenant-a/projects/project-a/files/shared.pdf",
+      )));
+      await assertSucceeds(getBytes(ref(
+        crewStorage,
+        "tenants/tenant-a/projects/project-a/files/crew.pdf",
+      )));
+      await assertFails(getBytes(ref(
+        crewStorage,
+        "tenants/tenant-a/projects/project-a/files/client.pdf",
+      )));
       const ownPath = ref(
         crewStorage,
         "tenants/tenant-a/projects/project-a/crew/crew-a/assignment-a/insurance.pdf",

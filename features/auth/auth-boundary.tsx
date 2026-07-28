@@ -56,7 +56,17 @@ export function AuthBoundary({
           allowed[area].includes(String(document.data().role)),
         );
         if (!permitted) {
-          router.replace(area === "studio" ? "/auth/onboarding" : "/studio");
+          const roles = memberships.docs.map((document) =>
+            String(document.data().role),
+          );
+          const destination = roles.includes("client")
+            ? "/client"
+            : roles.includes("subcontractor")
+              ? "/crew"
+              : roles.some((role) => allowed.studio.includes(role))
+                ? "/studio"
+                : "/auth/onboarding";
+          router.replace(destination);
           return;
         }
         setAuthorized(true);

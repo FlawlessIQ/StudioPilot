@@ -189,7 +189,7 @@ test(
       await assertFails(getDoc(doc(userDb, "projects/project-b")));
       await assertSucceeds(getDoc(doc(userDb, "contacts/contact-a")));
       await assertFails(getDoc(doc(userDb, "contacts/contact-private")));
-      await assertSucceeds(getDoc(doc(userDb, "packageSnapshots/snapshot-a")));
+      await assertFails(getDoc(doc(userDb, "packageSnapshots/snapshot-a")));
       await assertFails(updateDoc(doc(userDb, "packageSnapshots/snapshot-a"), { totalCents: 1 }));
       await assertSucceeds(getDoc(doc(userDb, "checkpoints/studio-a")));
       await assertSucceeds(getDoc(doc(userDb, "tasks/task-a")));
@@ -206,29 +206,30 @@ test(
       await assertFails(getDoc(doc(userDb, "deliveryRecords/delivery-a")));
 
       const clientDb = environment.authenticatedContext("client-a").firestore();
-      await assertSucceeds(getDoc(doc(clientDb, "projects/project-a")));
+      await assertFails(getDoc(doc(clientDb, "projects/project-a")));
+      await assertFails(getDoc(doc(clientDb, "workflowRuns/run-a")));
       await assertFails(getDoc(doc(clientDb, "leads/lead-a")));
       await assertFails(getDoc(doc(clientDb, "contacts/contact-a")));
       await assertFails(getDoc(doc(clientDb, "packages/package-a")));
-      await assertSucceeds(getDoc(doc(clientDb, "packageSnapshots/snapshot-a")));
-      await assertSucceeds(getDoc(doc(clientDb, "checkpoints/shared-a")));
+      await assertFails(getDoc(doc(clientDb, "packageSnapshots/snapshot-a")));
+      await assertFails(getDoc(doc(clientDb, "checkpoints/shared-a")));
       await assertFails(getDoc(doc(clientDb, "checkpoints/studio-a")));
       await assertFails(getDoc(doc(clientDb, "tasks/task-a")));
       await assertFails(getDoc(doc(clientDb, "readinessAssessments/project-a")));
       await assertSucceeds(getDoc(doc(clientDb, "proposals/proposal-a")));
-      await assertSucceeds(getDoc(doc(clientDb, "contracts/contract-a")));
-      await assertSucceeds(getDoc(doc(clientDb, "invoiceReferences/invoice-a")));
-      await assertSucceeds(getDoc(doc(clientDb, "documents/document-client")));
+      await assertFails(getDoc(doc(clientDb, "contracts/contract-a")));
+      await assertFails(getDoc(doc(clientDb, "invoiceReferences/invoice-a")));
+      await assertFails(getDoc(doc(clientDb, "documents/document-client")));
       await assertFails(getDoc(doc(clientDb, "documents/document-studio")));
       await assertFails(getDoc(doc(clientDb, "integrationConnections/connection-a")));
       await assertSucceeds(getDoc(doc(clientDb, "consultations/consultation-a")));
-      await assertSucceeds(getDoc(doc(clientDb, "questionnaireResponses/questionnaire-a")));
-      await assertSucceeds(getDoc(doc(clientDb, "schedules/schedule-a")));
+      await assertFails(getDoc(doc(clientDb, "questionnaireResponses/questionnaire-a")));
+      await assertFails(getDoc(doc(clientDb, "schedules/schedule-a")));
       await assertFails(getDoc(doc(clientDb, "insuranceRequests/coi-a")));
       await assertFails(updateDoc(doc(clientDb, "schedules/schedule-a"), { status: "approved" }));
       await assertFails(getDoc(doc(clientDb, "postProductionRecords/post-a")));
-      await assertSucceeds(getDoc(doc(clientDb, "deliveryRecords/delivery-a")));
-      await assertSucceeds(getDoc(doc(clientDb, "reviewRequests/review-a")));
+      await assertFails(getDoc(doc(clientDb, "deliveryRecords/delivery-a")));
+      await assertFails(getDoc(doc(clientDb, "reviewRequests/review-a")));
       await assertFails(getDoc(doc(clientDb, "projectCloseouts/closeout-a")));
       await assertFails(updateDoc(doc(clientDb, "reviewRequests/review-a"), { status: "client_confirmed" }));
       await assertFails(getDoc(doc(clientDb, "subscriptions/tenant-a")));
@@ -236,7 +237,7 @@ test(
       await assertFails(getDoc(doc(clientDb, "tenantInvitations/invite-a")));
       await assertFails(getDoc(doc(clientDb, "clientInvitations/client-invite-a")));
       await assertFails(getDoc(doc(clientDb, "messages/message-studio")));
-      await assertSucceeds(getDoc(doc(clientDb, "messages/message-shared")));
+      await assertFails(getDoc(doc(clientDb, "messages/message-shared")));
 
       const crewDb = environment.authenticatedContext("crew-a").firestore();
       await assertSucceeds(getDoc(doc(crewDb, "projects/project-a")));

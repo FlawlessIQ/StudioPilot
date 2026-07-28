@@ -881,3 +881,36 @@ Validation record:
 - unit and policy suite: 77 passed
 - account-email browser suite: 6 passed across desktop Chromium and Pixel 7
 - production Next.js webpack build: passed, including all 95 application routes
+
+## July 28, 2026 — client portal least-privilege and usability pass
+
+Status: implementation and local validation complete; production deployment pending.
+
+- Replaced raw client reads of operational project records with a
+  membership-verified, App Check-protected, client-specific portal response.
+- Sanitized package, contract, invoice, questionnaire, schedule, document,
+  message, delivery, and review records before they reach the browser.
+- Removed provider identifiers, signer email addresses, internal schedule
+  items, studio-only messages, and non-client documents from portal responses.
+- Added a real audited secure-message composer so “Message your studio” is no
+  longer a dead-end navigation loop.
+- Replaced internal readiness and staff-task language with client-owned progress,
+  lifecycle language, and a destination-aware next action.
+- Corrected date-only timezone rendering on the home page and portal sidebar.
+- Simplified navigation hierarchy, added a clear Files destination, and improved
+  mobile drawer focus, inert state, scroll locking, focus return, and touch targets.
+- Redirected client-only and crew-only accounts to their permitted portal when
+  they attempt a studio or platform route.
+- Tightened Firestore and Storage rules so clients cannot read raw project,
+  workflow, financial, contract, schedule, message, questionnaire, delivery,
+  review, crew, or studio-only file records directly.
+
+Validation record:
+
+- strict TypeScript: passed
+- ESLint: passed with zero warnings
+- unit and policy suite: 77 passed
+- Firestore isolation rules: passed
+- Storage visibility rules: passed
+- serialized client portal route suite: passed on desktop Chromium and Pixel 7
+- Functions TypeScript build: passed
