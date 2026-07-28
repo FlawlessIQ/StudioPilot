@@ -1,5 +1,28 @@
 # StudioHub Build Progress
 
+## Platform-to-tenant workspace access — 2026-07-28
+
+Status: implemented and validated.
+
+Delivered:
+
+- platform administrators with an active studio membership now choose between
+  platform administration and their studio workspace after sign-in
+- the platform sidebar exposes a direct, membership-aware studio switch
+- the studio sidebar exposes a return path for platform administrators
+- onboarding persists the newly created tenant as the active workspace
+- missing owner membership recovery is limited to tenants created by the same
+  authenticated user, refuses suspended or altered memberships, and is audited
+- workspace routing has explicit unit coverage
+
+Validation record:
+
+- strict TypeScript: passed
+- ESLint: passed
+- unit/domain suite: 71 passed
+- Cloud Functions TypeScript build: passed
+- Next.js production build: passed with 87 routes
+
 ## Pilot hardening and live-data completion — 2026-07-27
 
 Status: implementation and local validation complete; production deployment is

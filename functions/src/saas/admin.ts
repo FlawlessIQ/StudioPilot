@@ -19,6 +19,10 @@ const command = z.discriminatedUnion("type", [
     input: z.object({ tenantId: z.string(), reason: z.string().min(10) }),
   }),
   z.object({
+    type: z.literal("repairOwnerMembership"),
+    input: z.object({ tenantId: z.string().min(1) }),
+  }),
+  z.object({
     type: z.literal("grantSupportAccess"),
     input: z.object({
       tenantId: z.string(),
@@ -89,6 +93,56 @@ export const saasAdminCommand = onRequest(
             updatedBy: identity.uid,
           });
         result = { tenantId: parsed.input.tenantId, status: "suspended" };
+      } else if (parsed.type === "repairOwnerMembership") {
+        const tenantReference = db.doc(`tenants/${parsed.input.tenantId}`);
+        const membershipReference = db.doc(
+          `memberships/${parsed.input.tenantId}_${identity.uid}`,
+        );
+        const [tenant, membership] = await Promise.all([
+          tenantReference.get(),
+          membershipReference.get(),
+        ]);
+        if (!tenant.exists) throw new Error("TENANT_NOT_FOUND");
+        if (tenant.get("createdBy") !== identity.uid)
+          throw new Error("OWNER_RECOVERY_NOT_ALLOWED");
+        if (membership.exists) {
+          if (
+            membership.get("tenantId") !== parsed.input.tenantId ||
+            membership.get("userId") !== identity.uid
+          )
+            throw new Error("MEMBERSHIP_IDENTITY_MISMATCH");
+          if (
+            membership.get("role") !== "studio_owner" ||
+            membership.get("status") !== "active"
+          )
+            throw new Error("MEMBERSHIP_REQUIRES_MANUAL_REVIEW");
+          result = {
+            tenantId: parsed.input.tenantId,
+            membershipId: membership.id,
+            repaired: false,
+          };
+        } else {
+          await membershipReference.create({
+            id: membershipReference.id,
+            tenantId: parsed.input.tenantId,
+            userId: identity.uid,
+            role: "studio_owner",
+            explicitPermissions: [],
+            projectIds: [],
+            status: "active",
+            recoverySource: "platform_owner_self_recovery",
+            createdAt: now,
+            updatedAt: now,
+            createdBy: identity.uid,
+            updatedBy: identity.uid,
+            archivedAt: null,
+          });
+          result = {
+            tenantId: parsed.input.tenantId,
+            membershipId: membershipReference.id,
+            repaired: true,
+          };
+        }
       } else if (parsed.type === "grantSupportAccess") {
         const id = `support_${parsed.input.tenantId}_${Date.now()}`;
         const expiresAt = new Date(

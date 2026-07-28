@@ -34,6 +34,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
+import { PlatformReturnLink } from "@/components/layout/platform-return-link";
 import { cn } from "@/lib/utils";
 import { AuthBoundary } from "@/features/auth/auth-boundary";
 import { SignOutButton } from "@/features/auth/auth-boundary";
@@ -157,6 +158,7 @@ function StudioShell({
         </nav>
 
         <div className="sidebar-bottom">
+          <PlatformReturnLink />
           {workspace.role === "studio_owner" ? (
             <Link href="/studio/settings" className="nav-item">
               <Settings size={18} />

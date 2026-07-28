@@ -8,6 +8,10 @@ import { collection,getDocs,limit,query,where } from "firebase/firestore";
 import { ArrowRight, Eye, EyeOff, LoaderCircle } from "lucide-react";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { authIsLive } from "@/lib/runtime-mode";
+import {
+  destinationAfterSignIn,
+  type SignInMembership,
+} from "@/features/auth/workspace-routing";
 
 type FormState = {
   status: "idle" | "submitting" | "error";
@@ -44,14 +48,18 @@ export function SignInForm({ next }: { next?: string }) {
         return;
       }
       const token=await auth.currentUser?.getIdTokenResult();
-      if(token?.claims.platformAdmin===true){router.push("/platform-admin");return}
       const memberships=await getDocs(query(collection(firestore,"memberships"),where("userId","==",auth.currentUser?.uid??""),where("status","==","active"),limit(20)));
-      if(memberships.empty){router.push("/auth/onboarding");return}
       const preferred=window.localStorage.getItem("studiohub.activeTenantId");
       const membership=memberships.docs.find((item)=>item.data().tenantId===preferred)??memberships.docs[0];
       if(membership)window.localStorage.setItem("studiohub.activeTenantId",String(membership.data().tenantId));
-      const role=String(membership?.data().role??"");
-      router.push(role==="client"?"/client":role==="subcontractor"?"/crew":"/studio");
+      const activeMemberships=memberships.docs.map((item)=>({
+        tenantId:String(item.data().tenantId??""),
+        role:String(item.data().role??"") as SignInMembership["role"],
+      })).filter((item)=>Boolean(item.tenantId));
+      router.push(destinationAfterSignIn({
+        memberships:activeMemberships,
+        platformAdmin:token?.claims.platformAdmin===true,
+      }));
     } catch {
       setFormState({
         status: "error",
