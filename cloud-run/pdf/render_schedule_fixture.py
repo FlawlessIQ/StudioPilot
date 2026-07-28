@@ -10,7 +10,7 @@ root = Path(__file__).resolve().parents[2]
 data = json.loads((Path(__file__).parent / "sample-schedule.json").read_text())
 output = root / "output" / "pdf" / "studiohub-sample-schedule.pdf"
 styles = getSampleStyleSheet()
-doc = SimpleDocTemplate(str(output), pagesize=LETTER, leftMargin=.65*inch, rightMargin=.65*inch, topMargin=.55*inch, bottomMargin=.55*inch, title=f"{data['project']} Run of Show v{data['version']}", author="StudioHub")
+doc = SimpleDocTemplate(str(output), pagesize=LETTER, leftMargin=.65*inch, rightMargin=.65*inch, topMargin=.55*inch, bottomMargin=.55*inch, title=f"{data['project']} Run of Show v{data['version']}", author="StudioCue")
 ink, muted, line, soft = HexColor("#1E2A25"), HexColor("#68716C"), HexColor("#D9DDD8"), HexColor("#F1F3EF")
 story = [Paragraph("ALDER & MUSE PHOTOGRAPHY", styles["Heading4"]), Paragraph("EVENT RUN OF SHOW", styles["Normal"]), Spacer(1,.35*inch), Paragraph(data["project"], styles["Title"]), Paragraph(f"{data['event_date']} | {data['timezone']} | Version {data['version']}", styles["Normal"]), Spacer(1,.3*inch)]
 rows = [["TIME", "EVENT", "LOCATION", "CREW"]]

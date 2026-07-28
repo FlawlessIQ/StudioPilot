@@ -55,7 +55,7 @@ expiry of no more than 60 minutes. Expired grants must be denied at read time;
 their presence in Firestore is not authorization. Stripe Checkout and Customer
 Portal require an active owner membership. Stripe webhooks verify raw-body HMAC,
 freshness, and provider event idempotency before subscription state changes.
-Payment instruments never enter StudioHub.
+Payment instruments never enter StudioCue.
 
 Subscription limits and AI quotas are deterministic trusted-service checks.
 Feature flags cannot bypass an entitlement, role, project assignment, or quota.
@@ -97,4 +97,4 @@ and Firebase recovery procedures and must be tested periodically.
 
 ## Sports and minors
 
-StudioHub does not create child accounts, provide direct child messaging, use facial recognition, create public child profiles, or collect unnecessary birthdates. Parents/guardians own accounts and releases. Customers must obtain legal advice before operating child-directed workflows; StudioHub does not claim automatic legal compliance.
+StudioCue does not create child accounts, provide direct child messaging, use facial recognition, create public child profiles, or collect unnecessary birthdates. Parents/guardians own accounts and releases. Customers must obtain legal advice before operating child-directed workflows; StudioCue does not claim automatic legal compliance.

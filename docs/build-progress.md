@@ -1,4 +1,4 @@
-# StudioHub Build Progress
+# StudioCue Build Progress
 
 ## Platform-to-tenant workspace access — 2026-07-28
 
@@ -581,7 +581,7 @@ Delivered:
 - full responsive pricing comparison added to the marketing homepage
 - monthly and annual subscription actions exposed in the studio workspace
 - three live Stripe products and six immutable recurring Price objects
-- StudioHub-specific Stripe Customer Portal configuration for plan changes,
+- StudioCue-specific Stripe Customer Portal configuration for plan changes,
   payment-method updates, invoice history, and end-of-period cancellation
 - duplicate-subscription protection that routes existing subscribers to the
   Customer Portal instead of opening a second Checkout subscription
@@ -685,3 +685,36 @@ Validation record:
 - ESLint: passed
 - Cloud Functions TypeScript build and lint: passed
 - unit and policy suite: 74 passed
+
+## StudioCue brand and workspace design system — July 28, 2026
+
+Status: implementation complete; production deployment pending.
+
+Delivered:
+
+- renamed the customer-facing product from StudioHub to StudioCue across the
+  marketing site, authenticated application, portals, email and PDF copy,
+  seeded content, operational defaults, documentation, and PWA metadata
+- replaced the old favicon with the existing aperture brand mark and updated
+  the Open Graph preview asset and metadata
+- defined the missing shared surface, border, typography, state, and accent
+  design tokens used by newer product areas
+- constrained authenticated workspace content to a calmer operational grid
+  with consistent desktop margins and responsive mobile padding
+- improved page-heading hierarchy, panel radii, section spacing, field
+  visibility, focus states, notices, and action sizing
+- replaced oversized blank-state containers with compact, informative empty
+  states
+- refined Calendar, Questionnaires, Vendors, and Event Copilot layouts,
+  including removal of the nested Vendors page container
+- normalized page metadata so route titles do not repeat the product name
+
+Validation record:
+
+- strict TypeScript: passed
+- ESLint: passed
+- unit and policy suite: 74 passed
+- public marketing desktop visual QA: passed
+- 390px mobile visual QA: passed with no horizontal overflow
+- production source compilation: passed; local cache completion deferred to
+  Firebase App Hosting because the development Mac was at disk capacity

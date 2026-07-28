@@ -1,8 +1,8 @@
-# StudioHub Data Model
+# StudioCue Data Model
 
 ## Collection strategy
 
-StudioHub uses top-level Firestore collections with mandatory `tenantId` fields and
+StudioCue uses top-level Firestore collections with mandatory `tenantId` fields and
 mandatory `projectId` fields on project-scoped records. This supports tenant-wide
 dashboards without collection-group fan-out while keeping repository queries,
 indexes, exports, and retention policies consistent.

@@ -32,6 +32,6 @@ export const integrations = [
   { provider: "QuickBooks Online", description: "Customers, invoices, and payment status", status: "Healthy", sync: "2 min ago", scope: "Accounting source of record", mock: false },
   { provider: "Google Calendar", description: "Availability, consultations, and events", status: "Healthy", sync: "4 min ago", scope: "Alder & Muse Production", mock: false },
   { provider: "Docusign", description: "Templates, envelopes, and completion evidence", status: "Healthy", sync: "8 min ago", scope: "Photography agreements", mock: false },
-  { provider: "Dropbox", description: "Project folders and document storage", status: "Healthy", sync: "11 min ago", scope: "/StudioHub", mock: false },
+  { provider: "Dropbox", description: "Project folders and document storage", status: "Healthy", sync: "11 min ago", scope: "/StudioCue", mock: false },
   { provider: "Zoom", description: "Consultation meetings with waiting room", status: "Mock mode", sync: "Development", scope: "No live credentials", mock: true },
 ] as const;

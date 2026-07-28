@@ -18,4 +18,4 @@ Closeout requires verified delivery, final balance evidence or an approved waive
 
 ## Reporting
 
-Reporting filters by date, project type, and user. CSV export and print views are available. Financial values are integer-cent QuickBooks references with a visible last-sync timestamp; readiness and automation reliability are deterministic StudioHub records. Browser clients cannot create trusted report snapshots or jobs directly.
+Reporting filters by date, project type, and user. CSV export and print views are available. Financial values are integer-cent QuickBooks references with a visible last-sync timestamp; readiness and automation reliability are deterministic StudioCue records. Browser clients cannot create trusted report snapshots or jobs directly.

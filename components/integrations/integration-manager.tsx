@@ -82,7 +82,7 @@ const definitions: ReadonlyArray<Definition> = [
     label: "Dropbox",
     description:
       "Build project folders and archive operational documents automatically.",
-    scope: "StudioHub project root",
+    scope: "StudioCue project root",
     capabilities: ["Project folders", "Documents", "Delivery"],
     icon: HardDrive,
     accent: "dropbox",
@@ -120,11 +120,11 @@ const oauthEnabled = (provider: Provider) =>
 
 const callbackErrors: Record<string, string> = {
   GOOGLE_CLOUD_PROJECT_REQUIRED:
-    "Authorization reached StudioHub, but the credential vault could not identify its Google Cloud project. This configuration has now been corrected; reconnect to finish.",
+    "Authorization reached StudioCue, but the credential vault could not identify its Google Cloud project. This configuration has now been corrected; reconnect to finish.",
   SECRET_MANAGER_CREATE_FAILED:
-    "Authorization succeeded, but StudioHub could not create the secure tenant credential. The platform credential-vault permission needs attention.",
+    "Authorization succeeded, but StudioCue could not create the secure tenant credential. The platform credential-vault permission needs attention.",
   SECRET_MANAGER_WRITE_FAILED:
-    "Authorization succeeded, but StudioHub could not write the token to the secure credential vault.",
+    "Authorization succeeded, but StudioCue could not write the token to the secure credential vault.",
   OAUTH_TOKEN_EXCHANGE_FAILED:
     "The provider rejected the authorization result. Confirm the production app credentials and exact callback URL, then reconnect.",
   OAUTH_STATE_INVALID:
@@ -364,7 +364,7 @@ export function IntegrationManager() {
               : "Build your connected studio"}
           </h2>
           <p>
-            Connect the services your team already uses. StudioHub coordinates
+            Connect the services your team already uses. StudioCue coordinates
             the work while each provider remains the source of truth.
           </p>
         </div>

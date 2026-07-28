@@ -13,4 +13,4 @@ export const userSchema = auditFieldsSchema.extend({
   archivedAt: z.string().datetime().nullable(),
 });
 
-export type StudioHubUser = z.infer<typeof userSchema>;
+export type StudioCueUser = z.infer<typeof userSchema>;

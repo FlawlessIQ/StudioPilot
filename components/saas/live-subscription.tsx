@@ -51,7 +51,7 @@ export function LiveSubscription() {
         <div>
           <p className="eyebrow">Plan & usage</p>
           <h1>Subscription</h1>
-          <p>Stripe handles payment details; StudioHub enforces the persisted entitlement snapshot.</p>
+          <p>Stripe handles payment details; StudioCue enforces the persisted entitlement snapshot.</p>
         </div>
         <StatusBadge tone={["active", "trialing"].includes(status) ? "success" : "warning"}>
           {status.replaceAll("_", " ")} · {plan.replaceAll("_", " ")}
@@ -109,7 +109,7 @@ export function LiveSubscription() {
           <CreditCard />
           <span>
             <strong>Payment details stay with Stripe.</strong>
-            <small>StudioHub stores customer, subscription, price, status, and period references—never card or bank credentials.</small>
+            <small>StudioCue stores customer, subscription, price, status, and period references—never card or bank credentials.</small>
           </span>
         </div>
         <BillingAction label="Open customer portal" />

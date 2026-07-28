@@ -5,7 +5,7 @@ import { Logo } from "@/components/brand/logo";
 import { AcceptCrewInvitation } from "@/features/auth/accept-crew-invitation";
 
 export const metadata: Metadata = {
-  title: "Crew assignment · StudioHub",
+  title: "Crew assignment",
   description: "Open a secure, project-scoped photography assignment.",
 };
 
@@ -19,7 +19,7 @@ export default async function CrewInvitationPage({
     <main className="auth-page">
       <section className="auth-brand-panel">
         <Link href="/" className="auth-back">
-          <ArrowLeft size={16} /> StudioHub
+          <ArrowLeft size={16} /> StudioCue
         </Link>
         <div className="auth-quote">
           <Logo />

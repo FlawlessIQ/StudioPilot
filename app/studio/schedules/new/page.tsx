@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { AppShell } from "@/components/layout/app-shell";
 import { AiScheduleGenerator } from "@/components/planning/ai-schedule-generator";
 
-export const metadata: Metadata = { title: "Generate Schedule · StudioHub" };
+export const metadata: Metadata = { title: "Generate Schedule" };
 
 export default function NewSchedulePage() {
   return (

@@ -71,7 +71,7 @@ export function AcceptInvitation({ token }: { token: string }) {
         <CheckCircle2 />
         <p>{message}</p>
         <Link className="button button-dark" href="/studio">
-          Open StudioHub
+          Open StudioCue
         </Link>
       </div>
     );

@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { CapabilityGrid, MarketingLayout } from "@/components/marketing/marketing-layout";
 
-export const metadata: Metadata = { title: "Features · StudioHub" };
+export const metadata: Metadata = { title: "Features" };
 
 export default function FeaturesPage() {
   return (
-    <MarketingLayout eyebrow="Photography operations OS" title="A connected system from inquiry to closeout." description="StudioHub coordinates the people, evidence, provider state, and next actions behind every photography project.">
+    <MarketingLayout eyebrow="Photography operations OS" title="A connected system from inquiry to closeout." description="StudioCue coordinates the people, evidence, provider state, and next actions behind every photography project.">
       <CapabilityGrid items={[
         { title: "Booking without gaps", text: "Move from consultation to a deterministic booking gate.", points: ["Immutable package snapshots", "Docusign completion evidence", "QuickBooks payment references"] },
         { title: "Event readiness", text: "Know whether the project can actually execute.", points: ["Blocking checkpoints", "COI human approval", "Crew and schedule acknowledgement"] },

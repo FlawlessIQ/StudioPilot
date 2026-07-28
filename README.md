@@ -1,6 +1,6 @@
-# StudioHub
+# StudioCue
 
-StudioHub is a multi-tenant photography operations OS. It coordinates the complete client and event lifecycle—from inquiry and booking through readiness, event-day execution, delivery, review, and closeout.
+StudioCue is a multi-tenant photography operations OS. It coordinates the complete client and event lifecycle—from inquiry and booking through readiness, event-day execution, delivery, review, and closeout.
 
 This repository contains the validated Milestones 1–8 product and the current
 production-hardening pass:

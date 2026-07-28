@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { CapabilityGrid, MarketingLayout } from "@/components/marketing/marketing-layout";
 
-export const metadata: Metadata = { title: "Integrations · StudioHub" };
+export const metadata: Metadata = { title: "Integrations" };
 
 export default function IntegrationsPage() {
   return (
-    <MarketingLayout eyebrow="Provider-connected operations" title="Keep trusted systems authoritative." description="StudioHub coordinates work while accounting, signatures, storage, calendars, meetings, billing, and communications stay with specialist providers.">
+    <MarketingLayout eyebrow="Provider-connected operations" title="Keep trusted systems authoritative." description="StudioCue coordinates work while accounting, signatures, storage, calendars, meetings, billing, and communications stay with specialist providers.">
       <CapabilityGrid items={[
         { title: "QuickBooks Online", text: "Accounting and hosted payment source of record.", points: ["Customer matching", "Retainer and final invoices", "Payment reconciliation"] },
         { title: "Docusign", text: "Provider-reported signature evidence.", points: ["Templates and envelopes", "Multiple signers", "Completed document storage"] },

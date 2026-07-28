@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { AppShell } from "@/components/layout/app-shell";
 import { StudioDomainPage } from "@/components/studio/live-domain-view";
 
-export const metadata: Metadata = { title: "Event Readiness · StudioHub" };
+export const metadata: Metadata = { title: "Event Readiness" };
 
 export default function ReadinessPage() {
   return (

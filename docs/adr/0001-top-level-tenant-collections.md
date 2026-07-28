@@ -5,7 +5,7 @@
 
 ## Context
 
-StudioHub dashboards frequently query records across multiple projects in one tenant. Deep project subcollections simplify some project reads but complicate tenant-wide reporting, operational queues, exports, and consistent repository behavior.
+StudioCue dashboards frequently query records across multiple projects in one tenant. Deep project subcollections simplify some project reads but complicate tenant-wide reporting, operational queues, exports, and consistent repository behavior.
 
 ## Decision
 

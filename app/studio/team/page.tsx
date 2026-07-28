@@ -4,8 +4,8 @@ import { AppShell } from "@/components/layout/app-shell";
 import { TeamManagement } from "@/components/team/team-management";
 
 export const metadata: Metadata = {
-  title: "Team · StudioHub",
-  description: "Manage tenant-scoped StudioHub staff access.",
+  title: "Team",
+  description: "Manage tenant-scoped StudioCue staff access.",
 };
 
 export default function TeamPage() {

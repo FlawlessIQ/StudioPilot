@@ -4,7 +4,7 @@ Public webhook endpoints verify provider signatures against raw request bytes be
 
 Milestone 4 includes `docusignWebhook` using the Docusign HMAC secret and `quickbooksWebhook` using the Intuit verifier token. Each handler writes a deterministic `webhookEvents` ID and applies state in a transaction. Duplicate event IDs do not repeat side effects.
 
-Docusign completion stores provider evidence without changing the signed PDF. QuickBooks updates invoice balance/status references; no payment credentials enter StudioHub.
+Docusign completion stores provider evidence without changing the signed PDF. QuickBooks updates invoice balance/status references; no payment credentials enter StudioCue.
 
 Milestone 8 adds `stripeWebhook`. It verifies Stripe's timestamped HMAC against
 the raw body, rejects stale signatures, maps configured price IDs to normalized
@@ -42,6 +42,6 @@ https://studiohub--studiohub-prod.us-east4.hosted.app/api/integrations/oauth/cal
 
 The public callback validates bounded state/code parameters, forwards to the
 private `integrationOAuth` Function with Google service identity, and permits
-redirects only back to the configured StudioHub application origin. Dropbox is
+redirects only back to the configured StudioCue application origin. Dropbox is
 the first independently enabled OAuth provider; activating another provider
 requires adding its Function secret binding and public activation flag.

@@ -2,7 +2,7 @@
 
 ## Model
 
-StudioHub workflows use:
+StudioCue workflows use:
 
 `Trigger → Conditions → Actions → Completion Evidence`
 

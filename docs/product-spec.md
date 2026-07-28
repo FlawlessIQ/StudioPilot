@@ -1,10 +1,10 @@
-# StudioHub Product Specification
+# StudioCue Product Specification
 
 ## Product definition
 
-StudioHub is an AI-enabled, multi-tenant operations platform for professional photography businesses. Wedding photography is the initial depth market, while the domain model and workflow engine must also support corporate, business, sports, school, and other event-based photography.
+StudioCue is an AI-enabled, multi-tenant operations platform for professional photography businesses. Wedding photography is the initial depth market, while the domain model and workflow engine must also support corporate, business, sports, school, and other event-based photography.
 
-StudioHub is not simply a CRM. It is the operational system coordinating the client, studio team, subcontractors, venues, planners, vendors, and insurance agents. Its core promise is a reliable answer to one question: **is this project genuinely ready to execute?**
+StudioCue is not simply a CRM. It is the operational system coordinating the client, studio team, subcontractors, venues, planners, vendors, and insurance agents. Its core promise is a reliable answer to one question: **is this project genuinely ready to execute?**
 
 ## Product principles
 
@@ -114,7 +114,7 @@ Additional users, brands, SMS, and AI usage are add-ons. Setup and migration ser
 
 ## Safety and privacy
 
-Sports workflows do not create child accounts, message children directly, use facial recognition, publish child profiles, or collect unnecessary birthdates. Parents/guardians manage releases and access. Retention and deletion are configurable. StudioHub must not claim automatic legal compliance; customers should obtain counsel for child-directed workflows.
+Sports workflows do not create child accounts, message children directly, use facial recognition, publish child profiles, or collect unnecessary birthdates. Parents/guardians manage releases and access. Retention and deletion are configurable. StudioCue must not claim automatic legal compliance; customers should obtain counsel for child-directed workflows.
 
 Signed Docusign documents are never modified. Card and bank credentials are never stored. OAuth refresh tokens never reach the browser and are never stored as Firestore plaintext.
 

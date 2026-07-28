@@ -48,7 +48,7 @@ export default function MarketingHome() {
   return (
     <div className="marketing-page">
       <header className="marketing-nav">
-        <Link href="/" aria-label="StudioHub home">
+        <Link href="/" aria-label="StudioCue home">
           <Logo />
         </Link>
         <nav aria-label="Main navigation">
@@ -80,7 +80,7 @@ export default function MarketingHome() {
               genuinely ready.
             </h1>
             <p>
-              StudioHub brings your clients, contracts, payments, schedules, crew, and
+              StudioCue brings your clients, contracts, payments, schedules, crew, and
               documents into one calm operations system—so event day never runs on
               crossed fingers.
             </p>
@@ -105,7 +105,7 @@ export default function MarketingHome() {
             </div>
           </div>
 
-          <div className="hero-product" aria-label="StudioHub project readiness preview">
+          <div className="hero-product" aria-label="StudioCue project readiness preview">
             <div className="window-bar">
               <span className="window-mark">
                 <Logo compact />
@@ -189,7 +189,7 @@ export default function MarketingHome() {
                   <h3>{point.title}</h3>
                   <p>{point.text}</p>
                   <Link href="/studio">
-                    See it in StudioHub <ArrowRight size={15} />
+                    See it in StudioCue <ArrowRight size={15} />
                   </Link>
                 </article>
               );
@@ -202,7 +202,7 @@ export default function MarketingHome() {
             <span className="section-kicker">The readiness engine</span>
             <h2>“Booked” is not the same as ready.</h2>
             <p>
-              StudioHub checks the facts your team defines: signed agreements,
+              StudioCue checks the facts your team defines: signed agreements,
               reconciled payments, approved schedules, accepted crew, confirmed
               locations, insurance, and every blocking checkpoint.
             </p>
@@ -276,7 +276,7 @@ export default function MarketingHome() {
               >
                 <div className="marketing-plan-heading">
                   <span>
-                    <small>{plan.highlight ? "Most popular" : "StudioHub"}</small>
+                    <small>{plan.highlight ? "Most popular" : "StudioCue"}</small>
                     <h3>{plan.name}</h3>
                   </span>
                   {plan.highlight ? <StatusBadge tone="success">Best for teams</StatusBadge> : null}
@@ -307,7 +307,7 @@ export default function MarketingHome() {
           </div>
           <p className="marketing-pricing-note">
             Provider subscriptions, SMS usage, assisted migration, and implementation
-            services are billed separately. StudioHub does not charge a percentage of
+            services are billed separately. StudioCue does not charge a percentage of
             client payments.
           </p>
         </section>
@@ -319,7 +319,7 @@ export default function MarketingHome() {
         <div>
           <Link href="/privacy">Privacy</Link>
           <Link href="/terms">Terms</Link>
-          <span>© 2026 StudioHub</span>
+          <span>© 2026 StudioCue</span>
         </div>
       </footer>
     </div>

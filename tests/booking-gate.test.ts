@@ -41,7 +41,7 @@ test("booking completion side effects execute exactly once", async () => {
   };
   let executions = 0;
   const steps = {
-    async createProjectFolders() { executions += 1; return { id: "folder", path: "/StudioHub/2026/project" }; },
+    async createProjectFolders() { executions += 1; return { id: "folder", path: "/StudioCue/2026/project" }; },
     async createProductionEvent() { executions += 1; return { id: "event" }; },
     async instantiateWorkflow() { executions += 1; return { id: "workflow" }; },
     async activateClientPortal() { executions += 1; return { id: "portal" }; },

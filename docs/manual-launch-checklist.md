@@ -1,4 +1,4 @@
-# StudioHub Manual Launch Checklist
+# StudioCue Manual Launch Checklist
 
 Everything in this list requires an external account decision, provider console
 approval, legal/business judgment, or a real-world acceptance test. The
@@ -86,7 +86,7 @@ SMS should remain disabled until this section is complete.
 - obtain legal review of Privacy, Terms, subscription/cancellation language,
   contract templates, COI workflow wording, electronic-signature wording, data
   retention, deletion, and subcontractor documents
-- obtain specialist legal advice before using sports/minor workflows; StudioHub
+- obtain specialist legal advice before using sports/minor workflows; StudioCue
   does not certify COPPA, FERPA, insurance, tax, or employment compliance
 - choose retention periods and run one tenant export and deletion rehearsal
 

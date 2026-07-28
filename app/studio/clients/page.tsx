@@ -4,7 +4,7 @@ import { Search } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { LiveClientCards } from "@/components/live/tenant-records";
 
-export const metadata: Metadata = { title: "Clients · StudioHub" };
+export const metadata: Metadata = { title: "Clients" };
 
 export default async function ClientsPage({
   searchParams,

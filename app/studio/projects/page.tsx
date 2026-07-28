@@ -4,7 +4,7 @@ import { Filter, Plus } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { LiveProjectRows } from "@/components/live/tenant-records";
 
-export const metadata: Metadata = { title: "Projects · StudioHub" };
+export const metadata: Metadata = { title: "Projects" };
 
 export default async function ProjectsPage({
   searchParams,

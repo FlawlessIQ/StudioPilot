@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { AppShell } from "@/components/layout/app-shell";
 import { LiveProjectDetail } from "@/components/projects/live-project-detail";
 
-export const metadata: Metadata = { title: "Project · StudioHub" };
+export const metadata: Metadata = { title: "Project" };
 
 export default async function ProjectPage({
   params,

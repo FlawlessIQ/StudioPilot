@@ -991,7 +991,7 @@ for (const provider of ["google_calendar", "zoom", "docusign", "quickbooks", "dr
     providerAccountId: `mock_${provider}_${tenantId}`,
     displayName: `${provider} demo connection`,
     encryptedCredentialRef: null,
-    selectedResourceId: provider === "dropbox" ? "/StudioHub" : "demo-resource",
+    selectedResourceId: provider === "dropbox" ? "/StudioCue" : "demo-resource",
     scopes: ["development.mock"],
     connectedAt: now,
     lastHealthCheckAt: now,
@@ -1142,7 +1142,7 @@ await batch.commit();
 console.info(
   JSON.stringify(
     {
-      message: "StudioHub demo seed complete.",
+      message: "StudioCue demo seed complete.",
       tenantId,
       users: demoUsers.map(({ email, role }) => ({ email, role })),
     },

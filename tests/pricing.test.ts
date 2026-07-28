@@ -3,7 +3,7 @@ import test from "node:test";
 import { planCards } from "../config/saas-plans";
 import { planEntitlements } from "../features/subscriptions/entitlements";
 
-test("public StudioHub prices match the approved plan ladder", () => {
+test("public StudioCue prices match the approved plan ladder", () => {
   assert.deepEqual(
     planCards.map(({ key, monthlyCents, yearlyCents }) => ({
       key,
@@ -18,7 +18,7 @@ test("public StudioHub prices match the approved plan ladder", () => {
   );
 });
 
-test("annual StudioHub prices charge for ten months", () => {
+test("annual StudioCue prices charge for ten months", () => {
   for (const plan of planCards) {
     assert.equal(plan.yearlyCents, plan.monthlyCents * 10);
   }

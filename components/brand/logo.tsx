@@ -6,7 +6,7 @@ export function Logo({ compact = false }: { compact?: boolean }) {
       <span className="brand-mark" aria-hidden="true">
         <Aperture size={18} strokeWidth={1.8} />
       </span>
-      {!compact ? <span>StudioHub</span> : null}
+      {!compact ? <span>StudioCue</span> : null}
     </span>
   );
 }

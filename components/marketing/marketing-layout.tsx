@@ -16,7 +16,7 @@ export function MarketingLayout({
   return (
     <div className="marketing-page marketing-subpage">
       <header className="marketing-nav">
-        <Link href="/" aria-label="StudioHub home"><Logo /></Link>
+        <Link href="/" aria-label="StudioCue home"><Logo /></Link>
         <nav aria-label="Main navigation">
           <Link href="/features">Features</Link>
           <Link href="/integrations">Integrations</Link>
@@ -48,7 +48,7 @@ export function MarketingLayout({
         <div>
           <Link href="/privacy">Privacy</Link>
           <Link href="/terms">Terms</Link>
-          <span>© 2026 StudioHub</span>
+          <span>© 2026 StudioCue</span>
         </div>
       </footer>
     </div>

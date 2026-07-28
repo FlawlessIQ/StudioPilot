@@ -158,7 +158,7 @@ export function SignInForm({ next }: { next?: string }) {
         )}
       </button>
       <p className="sign-up-copy">
-        New to StudioHub? <Link href={safeNext ? `/auth/register?next=${encodeURIComponent(safeNext)}` : "/auth/register"}>Start a free trial</Link>
+        New to StudioCue? <Link href={safeNext ? `/auth/register?next=${encodeURIComponent(safeNext)}` : "/auth/register"}>Start a free trial</Link>
       </p>
     </form>
   );

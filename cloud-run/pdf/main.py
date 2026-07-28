@@ -1,4 +1,4 @@
-"""StudioHub branded PDF service.
+"""StudioCue branded PDF service.
 
 Cloud Run receives trusted, validated proposal snapshots. It never reads tenant
 or pricing data from the browser and never modifies signed provider documents.
@@ -23,7 +23,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-app = FastAPI(title="StudioHub PDF Service")
+app = FastAPI(title="StudioCue PDF Service")
 
 
 class LineItem(BaseModel):
@@ -103,7 +103,7 @@ def build_proposal_pdf(data: ProposalRequest) -> bytes:
         topMargin=0.62 * inch,
         bottomMargin=0.62 * inch,
         title=f"{data.tenant_name} Proposal {data.proposal_id}",
-        author="StudioHub",
+        author="StudioCue",
     )
 
     def footer(canvas: Any, document: Any) -> None:
@@ -177,7 +177,7 @@ def build_operations_pdf(
     body = ParagraphStyle(name="OpsBody", parent=styles["BodyText"], fontName="Helvetica", fontSize=9, leading=13, textColor=ink)
     meta = ParagraphStyle(name="OpsMeta", parent=body, fontSize=7.5, textColor=muted)
     heading = ParagraphStyle(name="OpsHeading", parent=styles["Heading1"], fontName="Times-Roman", fontSize=28, leading=32, textColor=ink)
-    doc = SimpleDocTemplate(buffer, pagesize=LETTER, rightMargin=.55*inch, leftMargin=.55*inch, topMargin=.55*inch, bottomMargin=.62*inch, title=title, author="StudioHub")
+    doc = SimpleDocTemplate(buffer, pagesize=LETTER, rightMargin=.55*inch, leftMargin=.55*inch, topMargin=.55*inch, bottomMargin=.62*inch, title=title, author="StudioCue")
 
     def footer(canvas: Any, document: Any) -> None:
         canvas.saveState()

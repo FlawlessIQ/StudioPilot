@@ -4,7 +4,7 @@ The booking gate is deterministic and versioned. AI is not part of the decision.
 
 The default gate requires a completed Docusign envelope, a QuickBooks retainer invoice, that invoice paid with zero balance or an explicitly approved exception, an available production date, and complete required contacts.
 
-Viewed or partially signed envelopes do not pass. Invoice links, views, and StudioHub UI actions do not establish payment. Provider webhooks and reconciliation are the evidence sources.
+Viewed or partially signed envelopes do not pass. Invoice links, views, and StudioCue UI actions do not establish payment. Provider webhooks and reconciliation are the evidence sources.
 
 `BookingGateService` evaluates requirements before side effects. A tenant-scoped idempotency key protects completion. The completion record captures Dropbox folder ID/path, Calendar event ID, workflow run ID, portal-access ID, and time.
 

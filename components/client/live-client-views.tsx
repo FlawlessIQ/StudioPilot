@@ -292,7 +292,7 @@ export function LiveClientHome() {
             <span>
               <strong>{text(value.state).replaceAll("_", " ")}</strong>
               <small>
-                StudioHub does not infer payment, signature, or insurance
+                StudioCue does not infer payment, signature, or insurance
                 completion.
               </small>
             </span>
@@ -510,7 +510,7 @@ export function LiveClientPayments() {
               <p>Payment link pending QuickBooks synchronization.</p>
             )}
             <footer>
-              <LockKeyhole /> StudioHub never receives your card or bank details.
+              <LockKeyhole /> StudioCue never receives your card or bank details.
             </footer>
           </section>
         ))}
@@ -570,8 +570,8 @@ export function LiveClientSchedule() {
         decision,
         notes:
           decision === "approved"
-            ? "Approved by client in the StudioHub portal."
-            : "Client requested schedule changes in the StudioHub portal.",
+            ? "Approved by client in the StudioCue portal."
+            : "Client requested schedule changes in the StudioCue portal.",
       });
       setNotice(
         decision === "approved"
@@ -708,7 +708,7 @@ export function LiveClientReviews() {
         <Heart />
         <h2>Thank you for trusting {workspace.tenantName}.</h2>
         <p>
-          Opening the review site records engagement only. StudioHub never
+          Opening the review site records engagement only. StudioCue never
           claims that a review was posted from a click.
         </p>
         <a className="button button-dark" href={text(review.destinationUrl)} target="_blank" rel="noreferrer">

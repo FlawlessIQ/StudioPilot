@@ -6,7 +6,7 @@ plan names part of domain logic.
 ## Subscription boundary
 
 Stripe Checkout creates subscriptions and Stripe Customer Portal manages
-payment methods, cancellations, and invoices. StudioHub never stores card or
+payment methods, cancellations, and invoices. StudioCue never stores card or
 bank data. It stores only tenant-scoped customer, subscription, price, status,
 billing-period, and cancellation references.
 

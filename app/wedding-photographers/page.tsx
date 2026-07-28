@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { CapabilityGrid, MarketingLayout } from "@/components/marketing/marketing-layout";
 
-export const metadata: Metadata = { title: "For Wedding Photographers · StudioHub" };
+export const metadata: Metadata = { title: "For Wedding Photographers" };
 
 export default function WeddingPhotographersPage() {
   return (

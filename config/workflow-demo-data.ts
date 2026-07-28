@@ -95,7 +95,7 @@ export const automationRuns = [
 
 export const auditEvents = [
   { id: "AUD-901", action: "Checkpoint completed", entity: "Final balance paid", project: "Sofia & Miles Carter", actor: "QuickBooks webhook", type: "Provider", time: "12 min ago" },
-  { id: "AUD-898", action: "Workflow instantiated", entity: "Wedding Photography v7", project: "Priya & Jordan", actor: "StudioHub", type: "System", time: "41 min ago" },
+  { id: "AUD-898", action: "Workflow instantiated", entity: "Wedding Photography v7", project: "Priya & Jordan", actor: "StudioCue", type: "System", time: "41 min ago" },
   { id: "AUD-892", action: "Checkpoint waived", entity: "Parking instructions", project: "Maya & Theo Johnson", actor: "Conor Lawless", type: "User", time: "2 hr ago" },
   { id: "AUD-881", action: "Project state changed", entity: "BOOKED → PLANNING", project: "Northstar Annual Summit", actor: "Reese Morgan", type: "User", time: "Yesterday" },
 ] as const;

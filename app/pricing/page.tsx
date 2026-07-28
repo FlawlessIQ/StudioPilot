@@ -4,7 +4,7 @@ import { ArrowRight, CircleCheck } from "lucide-react";
 import { MarketingLayout } from "@/components/marketing/marketing-layout";
 import { planCards } from "@/config/saas-plans";
 
-export const metadata: Metadata = { title: "Pricing · StudioHub" };
+export const metadata: Metadata = { title: "Pricing" };
 
 export default function PricingPage() {
   return (
@@ -12,7 +12,7 @@ export default function PricingPage() {
       <section className="marketing-pricing-grid marketing-pricing-page">
         {planCards.map((plan) => (
           <article className={`marketing-price-card ${plan.highlight ? "is-featured" : ""}`} key={plan.key}>
-            <div className="marketing-plan-heading"><span><small>{plan.highlight ? "Most popular" : "StudioHub"}</small><h2>{plan.name}</h2></span></div>
+            <div className="marketing-plan-heading"><span><small>{plan.highlight ? "Most popular" : "StudioCue"}</small><h2>{plan.name}</h2></span></div>
             <p>{plan.description}</p>
             <div className="marketing-plan-price"><strong>{plan.monthly}</strong><span>/month</span></div>
             <small className="marketing-annual-price">{plan.yearly}/year · two months free</small>
@@ -27,7 +27,7 @@ export default function PricingPage() {
           </article>
         ))}
       </section>
-      <p className="marketing-pricing-note">Provider subscriptions, SMS usage, assisted migration, and implementation services are separate. StudioHub does not take a percentage of client payments.</p>
+      <p className="marketing-pricing-note">Provider subscriptions, SMS usage, assisted migration, and implementation services are separate. StudioCue does not take a percentage of client payments.</p>
     </MarketingLayout>
   );
 }

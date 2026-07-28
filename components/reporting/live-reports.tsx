@@ -92,7 +92,7 @@ export function LiveReports() {
     );
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `studiohub-project-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.download = `studiocue-project-report-${new Date().toISOString().slice(0, 10)}.csv`;
     anchor.click();
     URL.revokeObjectURL(url);
   }
@@ -171,7 +171,7 @@ export function LiveReports() {
       </div>
       <aside className="panel report-source-note">
         <h2>Financial source boundary</h2>
-        <p>Revenue figures use StudioHub&apos;s latest QuickBooks invoice references and can lag the accounting system. QuickBooks remains authoritative.</p>
+        <p>Revenue figures use StudioCue&apos;s latest QuickBooks invoice references and can lag the accounting system. QuickBooks remains authoritative.</p>
       </aside>
     </div>
   );

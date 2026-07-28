@@ -1,4 +1,4 @@
-"""Isolated file validation and malware scanning service for StudioHub uploads."""
+"""Isolated file validation and malware scanning service for StudioCue uploads."""
 
 import os
 import subprocess
@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException
 from google.cloud import storage
 from pydantic import BaseModel, Field
 
-app = FastAPI(title="StudioHub File Safety")
+app = FastAPI(title="StudioCue File Safety")
 client = storage.Client()
 
 

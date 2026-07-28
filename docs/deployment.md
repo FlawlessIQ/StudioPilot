@@ -1,6 +1,6 @@
 # Production Deployment
 
-StudioHub uses separate Google Cloud/Firebase projects for development and
+StudioCue uses separate Google Cloud/Firebase projects for development and
 production. Never copy `.env.local` into production.
 
 ## Provisioned production foundation

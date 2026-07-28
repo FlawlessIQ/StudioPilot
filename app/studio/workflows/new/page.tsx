@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { CreateWorkflowForm } from "@/components/workflows/create-workflow-form";
 import { AppShell } from "@/components/layout/app-shell";
 
-export const metadata: Metadata = { title: "New workflow · StudioHub" };
+export const metadata: Metadata = { title: "New workflow" };
 
 export default function NewWorkflowPage() {
   return (

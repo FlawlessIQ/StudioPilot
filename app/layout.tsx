@@ -17,30 +17,30 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
   title: {
-    default: "StudioHub · Photography Operations OS",
-    template: "%s · StudioHub",
+    default: "StudioCue · Photography Operations OS",
+    template: "%s · StudioCue",
   },
   description:
-    "StudioHub coordinates clients, payments, documents, schedules, crew, and event readiness for professional photography teams.",
-  applicationName: "StudioHub",
+    "StudioCue coordinates clients, payments, documents, schedules, crew, and event readiness for professional photography teams.",
+  applicationName: "StudioCue",
   manifest: "/manifest.webmanifest",
   openGraph: {
-    title: "StudioHub · Every project, genuinely ready.",
+    title: "StudioCue · Every project, genuinely ready.",
     description:
       "The photography operations OS for calm, confident event execution.",
     type: "website",
     images: [
       {
         url: "/og.png",
-        width: 1792,
-        height: 917,
-        alt: "StudioHub — Every project, genuinely ready.",
+        width: 1756,
+        height: 895,
+        alt: "StudioCue — Every project, genuinely ready.",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "StudioHub · Every project, genuinely ready.",
+    title: "StudioCue · Every project, genuinely ready.",
     description:
       "The photography operations OS for calm, confident event execution.",
     images: ["/og.png"],

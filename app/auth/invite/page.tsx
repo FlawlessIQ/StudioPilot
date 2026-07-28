@@ -5,8 +5,8 @@ import { Logo } from "@/components/brand/logo";
 import { AcceptInvitation } from "@/features/auth/accept-invitation";
 
 export const metadata: Metadata = {
-  title: "Accept invitation · StudioHub",
-  description: "Accept secure, tenant-scoped StudioHub workspace access.",
+  title: "Accept invitation",
+  description: "Accept secure, tenant-scoped StudioCue workspace access.",
 };
 
 export default async function InvitationPage({
@@ -19,7 +19,7 @@ export default async function InvitationPage({
     <main className="auth-page">
       <section className="auth-brand-panel">
         <Link href="/" className="auth-back">
-          <ArrowLeft size={16} /> StudioHub
+          <ArrowLeft size={16} /> StudioCue
         </Link>
         <div className="auth-quote">
           <Logo />

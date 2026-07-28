@@ -4,7 +4,7 @@ import { Filter, Inbox, Plus, Search } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { LiveLeadRows } from "@/components/live/tenant-records";
 
-export const metadata: Metadata = { title: "Leads · StudioHub" };
+export const metadata: Metadata = { title: "Leads" };
 
 export default async function LeadsPage({
   searchParams,

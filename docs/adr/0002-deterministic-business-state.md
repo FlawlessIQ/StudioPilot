@@ -5,7 +5,7 @@
 
 ## Context
 
-StudioHub uses AI for extraction, drafting, schedule generation, and risk explanation. Legal, financial, permission, and event-readiness states require reliable evidence and auditability.
+StudioCue uses AI for extraction, drafting, schedule generation, and risk explanation. Legal, financial, permission, and event-readiness states require reliable evidence and auditability.
 
 ## Decision
 

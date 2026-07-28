@@ -14,7 +14,7 @@ export default function InquiryPage() {
     <main className="inquiry-page">
       <header>
         <Logo />
-        <Link href="/"><ArrowLeft size={15} /> Back to StudioHub</Link>
+        <Link href="/"><ArrowLeft size={15} /> Back to StudioCue</Link>
       </header>
       <div className="inquiry-layout">
         <aside className="inquiry-intro">

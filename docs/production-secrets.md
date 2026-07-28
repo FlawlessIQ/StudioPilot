@@ -1,6 +1,6 @@
 # Production Secrets
 
-StudioHub production uses Google Secret Manager in project `studiohub-prod`.
+StudioCue production uses Google Secret Manager in project `studiohub-prod`.
 Provider credentials must be added directly in Google Cloud. Do not place
 credential values in chat, source control, App Hosting YAML, Firebase client
 configuration, local shell history, or Firestore.
@@ -43,7 +43,7 @@ npm run secrets:status
 
 ## Credential entry
 
-Open the [StudioHub production Secret Manager][secret-manager]. Select a secret,
+Open the [StudioCue production Secret Manager][secret-manager]. Select a secret,
 choose **New version**, paste the exact credential value, and enable the
 version. Tell the deployment operator only the secret name that was populated.
 

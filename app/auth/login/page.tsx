@@ -5,8 +5,8 @@ import { Logo } from "@/components/brand/logo";
 import { SignInForm } from "@/features/auth/sign-in-form";
 
 export const metadata: Metadata = {
-  title: "Sign in · StudioHub",
-  description: "Sign in to your StudioHub photography operations workspace.",
+  title: "Sign in",
+  description: "Sign in to your StudioCue photography operations workspace.",
 };
 
 export default async function LoginPage({
@@ -19,7 +19,7 @@ export default async function LoginPage({
     <main className="auth-page">
       <section className="auth-brand-panel">
         <Link href="/" className="auth-back">
-          <ArrowLeft size={16} /> Back to StudioHub
+          <ArrowLeft size={16} /> Back to StudioCue
         </Link>
         <div className="auth-quote">
           <Logo />

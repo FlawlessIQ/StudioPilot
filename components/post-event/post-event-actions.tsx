@@ -11,7 +11,7 @@ export function PostEventAction({type,input,label,completedLabel}:{type:string;i
 }
 
 export function ReportCsvExport(){
-  const download=()=>{const rows=[["Metric","Value"],["Booking conversion","42%"],["Average booking value","684000 cents"],["Event readiness","86%"],["Automation reliability","98.7%"]];const csv=rows.map(row=>row.join(",")).join("\n");const link=document.createElement("a");link.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));link.download="studiohub-report-2026-07.csv";link.click();URL.revokeObjectURL(link.href)};
+  const download=()=>{const rows=[["Metric","Value"],["Booking conversion","42%"],["Average booking value","684000 cents"],["Event readiness","86%"],["Automation reliability","98.7%"]];const csv=rows.map(row=>row.join(",")).join("\n");const link=document.createElement("a");link.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));link.download="studiocue-report-2026-07.csv";link.click();URL.revokeObjectURL(link.href)};
   return <button className="button button-light" type="button" onClick={download}><Download size={16}/> Export CSV</button>;
 }
 

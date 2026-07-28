@@ -143,7 +143,7 @@ export function WorkspaceChooser() {
         >
           <ShieldCheck />
           <span>
-            <strong>StudioHub platform</strong>
+            <strong>StudioCue platform</strong>
             <small>Platform administration</small>
           </span>
           <span aria-hidden="true">→</span>

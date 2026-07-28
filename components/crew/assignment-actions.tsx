@@ -27,7 +27,7 @@ export function AssignmentActions({
   endsAt,
   projectName = "Photography assignment",
   role = "Crew",
-  location = "See StudioHub brief",
+  location = "See StudioCue brief",
 }: Props) {
   const [status, setStatus] = useState<string>(
     initialStatus === "viewed" ? "invited" : initialStatus,
@@ -65,15 +65,15 @@ export function AssignmentActions({
     const escaped = (value: string) =>
       value.replaceAll("\\", "\\\\").replaceAll(",", "\\,").replaceAll("\n", "\\n");
     const ics = [
-      "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//StudioHub//Crew Assignment//EN",
-      "BEGIN:VEVENT", `UID:${assignmentId}@studiohub`, `DTSTART:${calendarDate(startsAt)}`,
+      "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//StudioCue//Crew Assignment//EN",
+      "BEGIN:VEVENT", `UID:${assignmentId}@studiocue`, `DTSTART:${calendarDate(startsAt)}`,
       `DTEND:${calendarDate(endsAt)}`, `SUMMARY:${escaped(projectName)} — ${escaped(role)}`,
-      `LOCATION:${escaped(location)}`, "DESCRIPTION:StudioHub crew assignment",
+      `LOCATION:${escaped(location)}`, "DESCRIPTION:StudioCue crew assignment",
       "END:VEVENT", "END:VCALENDAR",
     ].join("\r\n");
     const link = document.createElement("a");
     link.href = URL.createObjectURL(new Blob([ics], { type: "text/calendar" }));
-    link.download = `studiohub-${assignmentId}.ics`;
+    link.download = `studiocue-${assignmentId}.ics`;
     link.click();
     URL.revokeObjectURL(link.href);
     await run("acknowledgeCalendar", {}, "Calendar file downloaded and acknowledgement recorded.");

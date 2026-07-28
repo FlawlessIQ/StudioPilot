@@ -1,8 +1,8 @@
-# StudioHub Architecture
+# StudioCue Architecture
 
 ## System overview
 
-StudioHub separates interactive application rendering, trusted business execution, asynchronous orchestration, and provider integration.
+StudioCue separates interactive application rendering, trusted business execution, asynchronous orchestration, and provider integration.
 
 ```text
 Browser / PWA
@@ -71,7 +71,7 @@ Client-side role presentation is convenience only and never the authority.
 
 ## Firestore collection strategy
 
-StudioHub uses top-level collections with mandatory tenant keys rather than deeply nesting all records.
+StudioCue uses top-level collections with mandatory tenant keys rather than deeply nesting all records.
 
 Advantages:
 

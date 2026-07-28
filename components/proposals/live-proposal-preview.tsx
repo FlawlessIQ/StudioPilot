@@ -53,7 +53,7 @@ export function LiveProposalPreview({ id }: { id: string }) {
         <table><tbody><tr><td>{packageName}</td><td>{money(snapshot?.subtotalCents ?? total, proposal.currency)}</td></tr><tr><td>Discounts and tax</td><td>{money(Number(snapshot?.taxCents ?? 0) - Number(snapshot?.discountCents ?? 0), proposal.currency)}</td></tr><tr className="total"><td>Total</td><td>{money(total, proposal.currency)}</td></tr></tbody></table>
       </section>
       <section className="pdf-terms"><h2>Payment schedule</h2><div><span><small>Retainer</small><strong>{money(retainer, proposal.currency)}</strong></span><span><small>Remaining balance</small><strong>{money(Math.max(0, total - retainer), proposal.currency)}</strong></span></div><p>Final contractual terms are governed only by the completed signature-provider agreement.</p></section>
-      <footer><span>Generated {new Date().toLocaleDateString()}</span><span>StudioHub project {String(proposal.projectId ?? "—")}</span><span>Preview</span></footer>
+      <footer><span>Generated {new Date().toLocaleDateString()}</span><span>StudioCue project {String(proposal.projectId ?? "—")}</span><span>Preview</span></footer>
     </main>
   );
 }

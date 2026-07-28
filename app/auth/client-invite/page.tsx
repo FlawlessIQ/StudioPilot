@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { ShieldCheck } from "lucide-react";
 import { AcceptClientInvitation } from "@/features/auth/accept-client-invitation";
 
-export const metadata: Metadata = { title: "Activate client portal · StudioHub" };
+export const metadata: Metadata = { title: "Activate client portal" };
 
 export default async function ClientInvitationPage({
   searchParams,

@@ -15,8 +15,8 @@ async function recipientFor(document:DocumentSnapshot){const direct=document.get
 async function sendEmail(document:DocumentSnapshot):Promise<Result>{
   const recipient=await recipientFor(document);const type=String(document.get("type"));const projectId=String(document.get("projectId")??"");
   const subjects:Record<string,string>={
-    staff_invitation:"You’re invited to a StudioHub workspace",
-    client_invitation:"Your secure StudioHub client portal is ready",
+    staff_invitation:"You’re invited to a StudioCue workspace",
+    client_invitation:"Your secure StudioCue client portal is ready",
     crew_invitation:"Photography assignment invitation",
     booking_confirmation:"Your photography project is booked",
     review_request:"A quick review request",
@@ -26,7 +26,7 @@ async function sendEmail(document:DocumentSnapshot):Promise<Result>{
   };
   const requirement=asEmailRecord(document.get("requirement"));
   const bodies:Record<string,string>={
-    staff_invitation:`A studio invited you to its StudioHub workspace. Accept the invitation: ${String(document.get("inviteUrl")??"")}`,
+    staff_invitation:`A studio invited you to its StudioCue workspace. Accept the invitation: ${String(document.get("inviteUrl")??"")}`,
     client_invitation:`Your photography project portal is ready. Activate secure access with your verified email: ${String(document.get("inviteUrl")??"")}`,
     crew_invitation:`A photography assignment is ready for your review. Open the secure invitation: ${String(document.get("inviteUrl")??"")}`,
     booking_confirmation:"Your booking requirements passed and your client portal is active.",
@@ -37,7 +37,7 @@ async function sendEmail(document:DocumentSnapshot):Promise<Result>{
   };
   if(process.env.EMAIL_DELIVERY_MODE!=="live"){
     const messageId=`mock_email_${document.id}`;
-    await saveMessage(document,recipient,subjects[type]??"StudioHub notification",messageId,"mock");
+    await saveMessage(document,recipient,subjects[type]??"StudioCue notification",messageId,"mock");
     return{messageId,deliveryMode:"mock"};
   }
   const apiKey=process.env.SENDGRID_API_KEY;const from=process.env.SENDGRID_FROM_EMAIL;
@@ -45,8 +45,8 @@ async function sendEmail(document:DocumentSnapshot):Promise<Result>{
   const payload:Record<string,unknown>={
     personalizations:[{to:[{email:recipient}],custom_args:{studioHubJobId:document.id,projectId}}],
     from:{email:from},
-    subject:subjects[type]??"StudioHub notification",
-    content:[{type:"text/plain",value:bodies[type]??"A StudioHub project update is available."}],
+    subject:subjects[type]??"StudioCue notification",
+    content:[{type:"text/plain",value:bodies[type]??"A StudioCue project update is available."}],
   };
   const replyAddress=document.get("replyAddress");
   if(typeof replyAddress==="string"&&replyAddress)payload.reply_to={email:replyAddress};
@@ -64,7 +64,7 @@ async function sendEmail(document:DocumentSnapshot):Promise<Result>{
   const response=await fetch("https://api.sendgrid.com/v3/mail/send",{method:"POST",headers:{authorization:`Bearer ${apiKey}`,"content-type":"application/json"},body:JSON.stringify(payload)});
   if(!response.ok)throw new Error(`SENDGRID_SEND_FAILED:${response.status}`);
   const messageId=response.headers.get("x-message-id")??`sendgrid_${document.id}`;
-  await saveMessage(document,recipient,subjects[type]??"StudioHub notification",messageId,"live");
+  await saveMessage(document,recipient,subjects[type]??"StudioCue notification",messageId,"live");
   if(type==="review_request"&&document.get("reviewRequestId"))await getFirestore().doc(`reviewRequests/${String(document.get("reviewRequestId"))}`).update({status:"sent",sentAt:new Date().toISOString(),messageId,updatedAt:new Date().toISOString(),updatedBy:"email-worker"});
   return{messageId};
 }

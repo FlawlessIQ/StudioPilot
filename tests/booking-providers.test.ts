@@ -19,7 +19,7 @@ test("booking provider mocks return stable provider identifiers", async () => {
     topic: "Consultation", startsAt: "2026-07-29T18:00:00.000Z", durationMinutes: 45,
     timezone: "America/New_York", waitingRoom: true, passwordRequired: true,
   }, "same-key");
-  const folder = await new MockDropboxProvider().createFolder(context, "/StudioHub/2026/project", "same-key");
+  const folder = await new MockDropboxProvider().createFolder(context, "/StudioCue/2026/project", "same-key");
   assert.equal(calendar.id, "gcal_same-key");
   assert.equal(meeting.id, "zoom_same-key");
   assert.equal(folder.id, "dropbox_folder_same-key");

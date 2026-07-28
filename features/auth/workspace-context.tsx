@@ -55,7 +55,7 @@ const mockWorkspace: WorkspaceState = {
   userName: "Demo studio owner",
   userEmail: "owner@example.test",
   tenantId: "demo-tenant",
-  tenantName: "StudioHub Demo Studio",
+  tenantName: "StudioCue Demo Studio",
   tenantPlan: "Studio",
   role: "studio_owner",
   projectIds: [],

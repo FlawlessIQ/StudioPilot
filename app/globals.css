@@ -19,6 +19,14 @@
   --blue-dark: #315a8f;
   --violet: #ebe5f4;
   --violet-dark: #66528a;
+  --surface: var(--paper);
+  --background: var(--canvas);
+  --border: var(--line);
+  --soft: #eef1ed;
+  --accent: #416a50;
+  --success: #2e6b4b;
+  --danger: #9a4545;
+  --font-display: var(--font-geist-sans), Arial, sans-serif;
   --shadow-sm: 0 1px 2px rgb(19 30 23 / 5%), 0 6px 18px rgb(19 30 23 / 4%);
   --shadow-lg: 0 30px 80px rgb(30 37 32 / 13%);
 }
@@ -5261,5 +5269,391 @@ textarea:focus-visible {
   *::after {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* StudioCue workspace system */
+.app-content {
+  max-width: 1480px;
+  padding: 56px clamp(34px, 4.5vw, 68px) 96px;
+  width: 100%;
+}
+
+:is(
+  .live-domain-page,
+  .copilot-workspace,
+  .planning-page,
+  .crew-ops-page,
+  .crm-page,
+  .crm-form-page,
+  .saas-page,
+  .post-event-page,
+  .live-detail-page
+) {
+  margin-inline: auto;
+  max-width: 1240px;
+  width: 100%;
+}
+
+.live-domain-page,
+.copilot-workspace,
+.saas-page {
+  gap: 30px;
+}
+
+.page-heading {
+  align-items: end;
+  display: flex;
+  gap: 32px;
+  justify-content: space-between;
+  min-height: 104px;
+}
+
+.page-heading > div {
+  max-width: 800px;
+}
+
+.page-heading h1 {
+  font: 560 clamp(34px, 3.2vw, 48px) / 1.05 var(--font-display);
+  letter-spacing: -0.045em;
+  margin: 7px 0 12px;
+}
+
+.page-heading > div > p:last-child {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.65;
+  margin: 0;
+  max-width: 760px;
+}
+
+.eyebrow {
+  color: #69736c;
+  font-size: 10px;
+  font-weight: 760;
+  letter-spacing: 0.105em;
+}
+
+.section-heading-row {
+  align-items: end;
+  display: flex;
+  justify-content: space-between;
+  margin: 0 0 13px;
+}
+
+.section-heading-row h2 {
+  font: 580 22px / 1.2 var(--font-display);
+  letter-spacing: -0.03em;
+  margin: 0;
+}
+
+.panel {
+  border-color: #dfe4de;
+  border-radius: 18px;
+  box-shadow:
+    0 1px 2px rgb(24 34 28 / 3%),
+    0 14px 34px rgb(24 34 28 / 5%);
+}
+
+.panel-heading {
+  min-height: auto;
+  padding: 26px 28px 20px;
+}
+
+.panel-heading h2 {
+  font: 590 19px / 1.25 var(--font-display);
+  letter-spacing: -0.025em;
+}
+
+.panel-heading p {
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 6px;
+}
+
+.panel-heading > svg {
+  color: #7a847d;
+  height: 20px;
+  width: 20px;
+}
+
+.live-domain-state {
+  background: #f0f2ee;
+  border-style: dashed;
+  box-shadow: none;
+  justify-content: flex-start;
+  min-height: 122px;
+  padding: 26px 30px;
+}
+
+.live-domain-state > svg {
+  background: #fff;
+  border: 1px solid #dfe4de;
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgb(24 34 28 / 5%);
+  box-sizing: content-box;
+  color: #536059;
+  height: 20px;
+  padding: 11px;
+  width: 20px;
+}
+
+.live-domain-state > span {
+  gap: 6px;
+}
+
+.live-domain-state strong {
+  font: 600 16px / 1.25 var(--font-display);
+}
+
+.live-domain-state small {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.live-domain-table {
+  border-radius: 16px;
+}
+
+.booking-form-panel,
+.vendor-create-panel,
+.questionnaire-builder > .panel {
+  overflow: hidden;
+}
+
+.booking-form,
+.vendor-create-panel form,
+.questionnaire-builder form {
+  padding: 2px 28px 28px;
+}
+
+.booking-form {
+  column-gap: 22px;
+  row-gap: 19px;
+}
+
+.vendor-create-panel {
+  gap: 0;
+}
+
+.vendor-create-panel form {
+  align-items: end;
+  column-gap: 22px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  row-gap: 19px;
+}
+
+.vendor-create-panel .button,
+.questionnaire-builder .button,
+.booking-form .button {
+  min-height: 43px;
+  padding-inline: 18px;
+  width: fit-content;
+}
+
+.questionnaire-builder {
+  gap: 24px;
+  grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.7fr);
+}
+
+.questionnaire-builder form {
+  column-gap: 18px;
+  row-gap: 17px;
+}
+
+.booking-form label,
+.vendor-create-panel label,
+.questionnaire-builder label {
+  color: #38423c;
+  font-size: 12px;
+  font-weight: 650;
+  gap: 8px;
+}
+
+:is(
+  .booking-form,
+  .vendor-create-panel,
+  .questionnaire-builder,
+  .copilot-compose,
+  .crm-form-page,
+  .planning-form-preview,
+  .schedule-generator-form,
+  .coi-request-form,
+  .team-invite-form
+) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea) {
+  background: #fbfcfa;
+  border: 1px solid #d7ddd7;
+  border-radius: 11px;
+  color: var(--ink);
+  min-height: 45px;
+  padding: 10px 12px;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+  width: 100%;
+}
+
+:is(
+  .booking-form,
+  .vendor-create-panel,
+  .questionnaire-builder,
+  .copilot-compose,
+  .crm-form-page,
+  .planning-form-preview,
+  .schedule-generator-form,
+  .coi-request-form,
+  .team-invite-form
+) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea):focus {
+  background: #fff;
+  border-color: #789080;
+  box-shadow: 0 0 0 4px rgb(65 106 80 / 10%);
+  outline: 0;
+}
+
+.questionnaire-builder textarea {
+  line-height: 1.55;
+  min-height: 174px;
+}
+
+.form-notice {
+  background: #edf5ef;
+  border: 1px solid #cfe0d2;
+  border-radius: 11px;
+  color: #315d3c;
+  font-size: 12px;
+  margin: 0 28px 26px;
+  padding: 11px 13px;
+}
+
+.copilot-workspace {
+  max-width: 1040px;
+}
+
+.copilot-boundary {
+  background: #edf4ee;
+  border-color: #c9ddcd;
+  border-radius: 16px;
+  padding: 17px 19px;
+}
+
+.copilot-boundary > svg {
+  flex: 0 0 auto;
+  height: 21px;
+  width: 21px;
+}
+
+.copilot-boundary strong {
+  font-size: 13px;
+}
+
+.copilot-boundary small {
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.copilot-compose {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  gap: 16px;
+}
+
+.copilot-prompts {
+  gap: 7px;
+}
+
+.copilot-prompts button {
+  background: rgb(255 255 255 / 68%);
+  border-color: #dce1dc;
+  color: #4e5952;
+  font-size: 11px;
+  padding: 8px 11px;
+}
+
+.copilot-prompts button:hover {
+  background: #fff;
+  border-color: #aeb9b1;
+}
+
+.copilot-compose form {
+  background: #fff;
+  border: 1px solid #dfe4de;
+  border-radius: 18px;
+  box-shadow:
+    0 1px 2px rgb(24 34 28 / 3%),
+    0 14px 34px rgb(24 34 28 / 5%);
+  gap: 15px;
+  padding: 26px;
+}
+
+.copilot-compose textarea {
+  min-height: 150px;
+}
+
+.copilot-compose .button {
+  min-height: 44px;
+  padding-inline: 19px;
+}
+
+@media (max-width: 980px) {
+  .app-content {
+    padding-inline: 30px;
+  }
+
+  .questionnaire-builder {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-content {
+    padding: 34px 18px 72px;
+  }
+
+  .page-heading {
+    align-items: start;
+    display: grid;
+    min-height: 0;
+  }
+
+  .page-heading h1 {
+    font-size: 34px;
+  }
+
+  .live-domain-page,
+  .copilot-workspace,
+  .saas-page {
+    gap: 23px;
+  }
+
+  .live-domain-state {
+    align-items: flex-start;
+    min-height: 0;
+    padding: 22px;
+  }
+
+  .booking-form,
+  .vendor-create-panel form,
+  .questionnaire-builder form {
+    grid-template-columns: 1fr;
+    padding: 0 20px 22px;
+  }
+
+  .booking-form-wide,
+  .questionnaire-builder .form-span {
+    grid-column: auto;
+  }
+
+  .panel-heading {
+    padding: 22px 20px 18px;
+  }
+
+  .form-notice {
+    margin: 0 20px 22px;
+  }
+
+  .copilot-compose form {
+    padding: 21px;
   }
 }
