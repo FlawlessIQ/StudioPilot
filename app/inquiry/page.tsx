@@ -30,7 +30,7 @@ async function studioForSlug(slug: string): Promise<InquiryStudio | null> {
 export async function generateMetadata({
   searchParams,
 }: {
-  searchParams: Promise<{ studio?: string }>;
+  searchParams: Promise<{ studio?: string; preview?: string }>;
 }): Promise<Metadata> {
   const { studio = "" } = await searchParams;
   const tenant = await studioForSlug(studio);
@@ -45,14 +45,18 @@ export async function generateMetadata({
 export default async function InquiryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ studio?: string }>;
+  searchParams: Promise<{ studio?: string; preview?: string }>;
 }) {
-  const { studio = "" } = await searchParams;
+  const { studio = "", preview = "" } = await searchParams;
+  const backLink =
+    preview === "studio"
+      ? { href: "/studio/setup", label: "Back to Studio setup" }
+      : { href: "/", label: "Back to StudioCue" };
   const tenant = await studioForSlug(studio);
   if (!tenant) {
     return (
       <main className="inquiry-page inquiry-unavailable">
-        <header><Logo /><Link href="/"><ArrowLeft size={15} /> Back to StudioCue</Link></header>
+        <header><Logo /><Link href={backLink.href}><ArrowLeft size={15} /> {backLink.label}</Link></header>
         <section className="panel">
           <p className="eyebrow">Inquiry form unavailable</p>
           <h1>Ask the studio for its current inquiry link.</h1>
@@ -66,7 +70,7 @@ export default async function InquiryPage({
     <main className="inquiry-page">
       <header>
         <Logo />
-        <Link href="/"><ArrowLeft size={15} /> Back to StudioCue</Link>
+        <Link href={backLink.href}><ArrowLeft size={15} /> {backLink.label}</Link>
       </header>
       <div className="inquiry-layout">
         <aside className="inquiry-intro">
