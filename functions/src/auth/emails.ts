@@ -16,6 +16,7 @@ const requestSchema = z.discriminatedUnion("type", [
     idempotencyKey: z.string().min(8).max(160),
     input: z.object({
       email: z.string().email().max(320),
+      next: z.string().max(1000).nullable(),
     }),
   }),
   z.object({
@@ -52,7 +53,11 @@ function appActionUrl(
   return action.toString();
 }
 
-async function tenantForUser(userId: string): Promise<string> {
+async function tenantForAccount(
+  userId: string,
+  email: string,
+): Promise<string> {
+  const db = getFirestore();
   const memberships = await getFirestore()
     .collection("memberships")
     .where("userId", "==", userId)
@@ -60,7 +65,21 @@ async function tenantForUser(userId: string): Promise<string> {
     .limit(1)
     .get();
   const tenantId = memberships.docs[0]?.get("tenantId");
-  return typeof tenantId === "string" && tenantId ? tenantId : "platform";
+  if (typeof tenantId === "string" && tenantId) return tenantId;
+  const invitations = await db
+    .collection("clientInvitations")
+    .where("normalizedEmail", "==", normalizeEmail(email))
+    .limit(20)
+    .get();
+  const invitation = invitations.docs.find(
+    (document) =>
+      document.get("status") === "pending" &&
+      Date.parse(String(document.get("expiresAt"))) > Date.now(),
+  );
+  const invitedTenantId = invitation?.get("tenantId");
+  return typeof invitedTenantId === "string" && invitedTenantId
+    ? invitedTenantId
+    : "platform";
 }
 
 async function withinCooldown(
@@ -143,7 +162,7 @@ export const authEmailCommand = onRequest(
           "/auth/verify-email",
           safeNext(parsed.input.next),
         );
-        tenantId = await tenantForUser(identity.uid);
+        tenantId = await tenantForAccount(identity.uid, email);
         recipientName =
           typeof identity.name === "string" ? identity.name : null;
         templateKey = "email_verification";
@@ -155,8 +174,12 @@ export const authEmailCommand = onRequest(
             url: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app"}/auth/login`,
             handleCodeInApp: true,
           });
-          actionUrl = appActionUrl(generated, "/auth/reset-password");
-          tenantId = await tenantForUser(user.uid);
+          actionUrl = appActionUrl(
+            generated,
+            "/auth/reset-password",
+            safeNext(parsed.input.next),
+          );
+          tenantId = await tenantForAccount(user.uid, email);
           recipientName = user.displayName ?? null;
         } catch {
           // Do not disclose whether an account exists.

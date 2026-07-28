@@ -7,6 +7,11 @@ import { studioHubCors } from "../security/cors.js";
 
 const input = z.discriminatedUnion("type", [
   z.object({
+    type: z.literal("preview"),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ token: z.string().min(32).max(200) }),
+  }),
+  z.object({
     type: z.literal("invite"),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
@@ -45,6 +50,25 @@ const equalHash = (left: string, right: string) => {
   return a.length === b.length && timingSafeEqual(a, b);
 };
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
+const safeAccentColor = (value: unknown) =>
+  typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value)
+    ? value
+    : "#345c46";
+const safeLogoUrl = (value: unknown) => {
+  if (typeof value !== "string") return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+};
+const maskedEmail = (value: string) => {
+  const [local = "", domain = ""] = normalizeEmail(value).split("@");
+  if (!domain) return "the invited email address";
+  const visible = local.slice(0, Math.min(2, local.length));
+  return `${visible}${"•".repeat(Math.max(3, local.length - visible.length))}@${domain}`;
+};
 const invitationIdFor = (
   tenantId: string,
   projectId: string,
@@ -61,10 +85,66 @@ export const clientInvitationCommand = onRequest(
     }
     try {
       await requireAppCheck(request);
-      const identity = await requireIdentity(request);
       const parsed = input.parse(request.body);
       const db = getFirestore();
       const now = new Date().toISOString();
+
+      if (parsed.type === "preview") {
+        const tokenHash = hash(parsed.input.token);
+        const invitations = await db
+          .collection("clientInvitations")
+          .where("tokenHash", "==", tokenHash)
+          .limit(1)
+          .get();
+        const invitation = invitations.docs[0];
+        if (!invitation || !equalHash(String(invitation.get("tokenHash")), tokenHash)) {
+          throw new Error("INVITATION_NOT_FOUND");
+        }
+        const tenantId = String(invitation.get("tenantId"));
+        const projectId = String(invitation.get("projectId"));
+        const [tenant, project] = await Promise.all([
+          db.doc(`tenants/${tenantId}`).get(),
+          db.doc(`projects/${projectId}`).get(),
+        ]);
+        if (!tenant.exists || !project.exists) {
+          throw new Error("INVITATION_NOT_FOUND");
+        }
+        const storedStatus = String(invitation.get("status"));
+        const status: "pending" | "accepted" | "expired" | "revoked" =
+          storedStatus === "pending" &&
+          Date.parse(String(invitation.get("expiresAt"))) <= Date.now()
+            ? "expired"
+            : storedStatus === "accepted"
+              ? "accepted"
+              : storedStatus === "revoked"
+                ? "revoked"
+                : storedStatus === "pending"
+                  ? "pending"
+                  : "expired";
+        response.status(200).json({
+          status,
+          expiresAt: String(invitation.get("expiresAt")),
+          studioName: String(
+            tenant.get("brandName") ??
+              tenant.get("businessName") ??
+              "Your photography studio",
+          ),
+          projectName: String(project.get("name") ?? "Your photography project"),
+          eventDate:
+            typeof project.get("eventDate") === "string"
+              ? project.get("eventDate")
+              : null,
+          brandAccentColor: safeAccentColor(
+            tenant.get("brandAccentColor") ??
+              tenant.get("brandColors")?.primary,
+          ),
+          brandLogoUrl: safeLogoUrl(tenant.get("logoUrl")),
+          maskedEmail: maskedEmail(String(invitation.get("normalizedEmail") ?? "")),
+        });
+        return;
+      }
+
+      const identity = await requireIdentity(request);
 
       if (parsed.type === "accept") {
         if (
@@ -85,11 +165,15 @@ export const clientInvitationCommand = onRequest(
           const invitation = await transaction.get(invitationReference);
           if (
             !invitation.exists ||
-            !equalHash(String(invitation.get("tokenHash")), tokenHash) ||
-            normalizeEmail(identity.email as string) !==
-              String(invitation.get("normalizedEmail"))
+            !equalHash(String(invitation.get("tokenHash")), tokenHash)
           ) {
             throw new Error("INVITATION_NOT_FOUND");
+          }
+          if (
+            normalizeEmail(identity.email as string) !==
+            String(invitation.get("normalizedEmail"))
+          ) {
+            throw new Error("INVITED_EMAIL_MISMATCH");
           }
           if (invitation.get("status") === "accepted") {
             if (invitation.get("acceptedBy") !== identity.uid)
@@ -458,7 +542,14 @@ export const clientInvitationCommand = onRequest(
     } catch (caught: unknown) {
       const message =
         caught instanceof Error ? caught.message : "CLIENT_INVITATION_FAILED";
-      response.status(400).json({ error: message });
+      const status = message === "INVITATION_NOT_FOUND"
+        ? 404
+        : ["AUTHENTICATION_REQUIRED", "VERIFIED_EMAIL_REQUIRED"].includes(message)
+          ? 401
+          : ["FORBIDDEN", "INVITED_EMAIL_MISMATCH"].includes(message)
+            ? 403
+            : 400;
+      response.status(status).json({ error: message });
     }
   },
 );

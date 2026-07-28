@@ -22,7 +22,13 @@ type ResetState =
   | "complete"
   | "invalid";
 
-export function ResetPasswordForm({ oobCode }: { oobCode: string }) {
+export function ResetPasswordForm({
+  oobCode,
+  next = null,
+}: {
+  oobCode: string;
+  next?: string | null;
+}) {
   const [state, setState] = useState<ResetState>(
     authIsLive ? "checking" : "ready",
   );
@@ -98,7 +104,14 @@ export function ResetPasswordForm({ oobCode }: { oobCode: string }) {
         </span>
         <h2>This link is no longer valid</h2>
         <p>Reset links expire and can only be used once.</p>
-        <Link className="button button-dark" href="/auth/forgot-password">
+        <Link
+          className="button button-dark"
+          href={
+            next
+              ? `/auth/forgot-password?next=${encodeURIComponent(next)}`
+              : "/auth/forgot-password"
+          }
+        >
           Request a new link
         </Link>
       </div>
@@ -112,8 +125,15 @@ export function ResetPasswordForm({ oobCode }: { oobCode: string }) {
         </span>
         <h2>Password updated</h2>
         <p>Your new password is ready to use.</p>
-        <Link className="button button-dark" href="/auth/login">
-          Sign in to StudioCue
+        <Link
+          className="button button-dark"
+          href={
+            next
+              ? `/auth/login?next=${encodeURIComponent(next)}`
+              : "/auth/login"
+          }
+        >
+          {next ? "Return to my invitation" : "Sign in to StudioCue"}
         </Link>
       </div>
     );

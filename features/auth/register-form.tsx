@@ -10,7 +10,13 @@ import { ArrowRight, LoaderCircle } from "lucide-react";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { requestBrandedAuthEmail } from "@/lib/auth/email-client";
 import { authIsLive } from "@/lib/runtime-mode";
-export function RegisterForm({ next }: { next?: string }) {
+export function RegisterForm({
+  next,
+  intent = "studio",
+}: {
+  next?: string;
+  intent?: "client" | "studio";
+}) {
   const [state, setState] = useState<"idle" | "submitting" | "sent" | "error">(
     "idle",
   );
@@ -50,7 +56,9 @@ export function RegisterForm({ next }: { next?: string }) {
       await signOut(auth);
       setState("sent");
       setMessage(
-        "Check your email to verify your account. Then sign in to create your studio.",
+        intent === "client"
+          ? "Check your email to verify your account. The secure link will return you to your invitation."
+          : "Check your email to verify your account. Then sign in to create your studio.",
       );
     } catch {
       setState("error");
@@ -72,13 +80,17 @@ export function RegisterForm({ next }: { next?: string }) {
         />
       </label>
       <label>
-        Work email
+        {intent === "client" ? "Invited email" : "Work email"}
         <input
           name="email"
           required
           type="email"
           autoComplete="email"
-          placeholder="you@yourstudio.com"
+          placeholder={
+            intent === "client"
+              ? "The email that received the invitation"
+              : "you@yourstudio.com"
+          }
         />
       </label>
       <label>
@@ -109,7 +121,8 @@ export function RegisterForm({ next }: { next?: string }) {
           <LoaderCircle className="spin" size={17} />
         ) : (
           <>
-            Create account <ArrowRight size={17} />
+            {intent === "client" ? "Create client access" : "Create account"}{" "}
+            <ArrowRight size={17} />
           </>
         )}
       </button>

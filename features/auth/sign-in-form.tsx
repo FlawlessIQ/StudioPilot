@@ -18,7 +18,13 @@ type FormState = {
   message: string;
 };
 
-export function SignInForm({ next }: { next?: string }) {
+export function SignInForm({
+  next,
+  intent = "studio",
+}: {
+  next?: string;
+  intent?: "client" | "studio";
+}) {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
@@ -30,6 +36,9 @@ export function SignInForm({ next }: { next?: string }) {
 
   const mockMode = !authIsLive;
   const safeNext = next?.startsWith("/") && !next.startsWith("//") ? next : null;
+  const forgotPasswordHref = safeNext
+    ? `/auth/forgot-password?next=${encodeURIComponent(safeNext)}`
+    : "/auth/forgot-password";
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -78,13 +87,13 @@ export function SignInForm({ next }: { next?: string }) {
           autoComplete="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          placeholder="you@yourstudio.com"
+          placeholder={intent === "client" ? "The email that received the invitation" : "you@yourstudio.com"}
         />
       </label>
       <label>
         <span className="label-row">
           Password
-          <Link href="/auth/forgot-password">
+          <Link href={forgotPasswordHref}>
             Forgot password?
           </Link>
         </span>
@@ -125,11 +134,14 @@ export function SignInForm({ next }: { next?: string }) {
         {formState.status === "submitting" ? (
           <LoaderCircle size={17} className="spin" />
         ) : (
-          <>Sign in <ArrowRight size={17} /></>
+          <>{intent === "client" ? "Open my project" : "Sign in"} <ArrowRight size={17} /></>
         )}
       </button>
       <p className="sign-up-copy">
-        New to StudioCue? <Link href={safeNext ? `/auth/register?next=${encodeURIComponent(safeNext)}` : "/auth/register"}>Start a free trial</Link>
+        {intent === "client" ? "First time here?" : "New to StudioCue?"}{" "}
+        <Link href={safeNext ? `/auth/register?next=${encodeURIComponent(safeNext)}` : "/auth/register"}>
+          {intent === "client" ? "Create client access" : "Start a free trial"}
+        </Link>
       </p>
     </form>
   );

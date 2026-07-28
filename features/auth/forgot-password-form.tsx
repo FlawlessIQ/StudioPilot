@@ -6,7 +6,13 @@ import { CheckCircle2, LoaderCircle, Mail } from "lucide-react";
 import { requestBrandedAuthEmail } from "@/lib/auth/email-client";
 import { authIsLive } from "@/lib/runtime-mode";
 
-export function ForgotPasswordForm() {
+export function ForgotPasswordForm({
+  next = null,
+  intent = "studio",
+}: {
+  next?: string | null;
+  intent?: "client" | "studio";
+}) {
   const [state, setState] = useState<
     "idle" | "submitting" | "sent" | "error"
   >("idle");
@@ -28,7 +34,7 @@ export function ForgotPasswordForm() {
       await requestBrandedAuthEmail({
         type: "passwordReset",
         idempotencyKey: crypto.randomUUID(),
-        input: { email },
+        input: { email, next },
       });
       setState("sent");
       setMessage(
@@ -54,7 +60,14 @@ export function ForgotPasswordForm() {
           For privacy, this confirmation is the same whether or not an account
           exists.
         </p>
-        <Link className="button button-dark" href="/auth/login">
+        <Link
+          className="button button-dark"
+          href={
+            next
+              ? `/auth/login?next=${encodeURIComponent(next)}`
+              : "/auth/login"
+          }
+        >
           Return to sign in
         </Link>
       </div>
@@ -70,7 +83,11 @@ export function ForgotPasswordForm() {
           <input
             autoComplete="email"
             name="email"
-            placeholder="you@yourstudio.com"
+            placeholder={
+              intent === "client"
+                ? "The email that received the invitation"
+                : "you@yourstudio.com"
+            }
             required
             type="email"
           />
@@ -93,7 +110,16 @@ export function ForgotPasswordForm() {
         )}
       </button>
       <p className="sign-up-copy">
-        Remembered your password? <Link href="/auth/login">Sign in</Link>
+        Remembered your password?{" "}
+        <Link
+          href={
+            next
+              ? `/auth/login?next=${encodeURIComponent(next)}`
+              : "/auth/login"
+          }
+        >
+          Sign in
+        </Link>
       </p>
     </form>
   );

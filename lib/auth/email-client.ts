@@ -7,7 +7,7 @@ type AuthEmailRequest =
   | {
       type: "passwordReset";
       idempotencyKey: string;
-      input: { email: string };
+      input: { email: string; next: string | null };
     }
   | {
       type: "emailVerification";

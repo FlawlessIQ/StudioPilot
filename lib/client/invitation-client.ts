@@ -3,8 +3,24 @@
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 
+export type ClientInvitationPreview = {
+  status: "pending" | "accepted" | "expired" | "revoked";
+  expiresAt: string;
+  studioName: string;
+  projectName: string;
+  eventDate: string | null;
+  brandAccentColor: string;
+  brandLogoUrl: string | null;
+  maskedEmail: string;
+};
+
 export async function runClientInvitation(
   body:
+    | {
+        type: "preview";
+        idempotencyKey: string;
+        input: { token: string };
+      }
     | {
         type: "invite";
         tenantId: string;
@@ -31,13 +47,15 @@ export async function runClientInvitation(
 ) {
   const { auth } = getFirebaseClient();
   const user = auth.currentUser;
-  if (!user) throw new Error("Sign in is required.");
+  if (!user && body.type !== "preview") throw new Error("AUTHENTICATION_REQUIRED");
   const appCheckToken = await getAppCheckToken();
   const response = await fetch("/api/functions/clientInvitationCommand", {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${await user.getIdToken()}`,
+      ...(user
+        ? { authorization: `Bearer ${await user.getIdToken()}` }
+        : {}),
       ...(appCheckToken ? { "x-firebase-appcheck": appCheckToken } : {}),
     },
     body: JSON.stringify(body),
