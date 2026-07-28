@@ -111,6 +111,12 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /tenantInvitations/{invitationId} {
+      allow read: if isPlatformAdmin()
+        || canManageTenant(resource.data.tenantId);
+      allow write: if false;
+    }
+
     match /projects/{projectId} {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
         || isAssignedToProject(resource.data.tenantId, projectId);

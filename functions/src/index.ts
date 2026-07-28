@@ -19,6 +19,7 @@ export { billingCommand, stripeWebhook } from "./saas/stripe.js";
 export { saasAdminCommand } from "./saas/admin.js";
 export { operationsHealthScheduler } from "./saas/jobs.js";
 export { tenantOnboardingCommand } from "./saas/onboarding.js";
+export { membershipCommand } from "./saas/memberships.js";
 export { operationsJobScheduler } from "./operations/jobs.js";
 export { fileSafetyOnFinalize } from "./operations/file-safety.js";
 export { integrationOAuth } from "./integrations/oauth.js";

@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   Aperture,
@@ -34,10 +36,16 @@ import { Logo } from "@/components/brand/logo";
 import { cn } from "@/lib/utils";
 import { AuthBoundary } from "@/features/auth/auth-boundary";
 import { SignOutButton } from "@/features/auth/auth-boundary";
+import {
+  initials,
+  useWorkspace,
+  WorkspaceProvider,
+  workspaceRoleLabel,
+} from "@/features/auth/workspace-context";
 
 const navItems = [
   { label: "Dashboard", href: "/studio", icon: CircleGauge },
-  { label: "Leads", href: "/studio/leads", icon: ContactRound, count: 7 },
+  { label: "Leads", href: "/studio/leads", icon: ContactRound },
   { label: "Projects", href: "/studio/projects", icon: FolderKanban },
   { label: "Calendar", href: "/studio/calendar", icon: CalendarDays },
   { label: "Clients", href: "/studio/clients", icon: UsersRound },
@@ -60,6 +68,7 @@ const navItems = [
   { label: "Readiness", href: "/studio/readiness", icon: ShieldCheck },
   { label: "Documents", href: "/studio/documents", icon: FileStack },
   { label: "Integrations", href: "/studio/integrations", icon: LayoutTemplate },
+  { label: "Team", href: "/studio/team", icon: UsersRound },
   { label: "Subscription", href: "/studio/subscription", icon: CreditCard },
 ] as const;
 
@@ -71,15 +80,32 @@ export function AppShell({
   active?: string;
 }) {
   return <AuthBoundary area="studio">
+    <WorkspaceProvider area="studio">
+      <StudioShell active={active}>{children}</StudioShell>
+    </WorkspaceProvider>
+  </AuthBoundary>;
+}
+
+function StudioShell({
+  children,
+  active,
+}: {
+  children: React.ReactNode;
+  active: string;
+}) {
+  const workspace = useWorkspace();
+  const tenantName = workspace.error ? "Workspace unavailable" : workspace.tenantName;
+  const userName = workspace.error ? "Signed-in user" : workspace.userName;
+  return (
     <div className="app-frame">
       <aside className="sidebar" id="studio-navigation">
         <div className="sidebar-brand">
           <Logo />
           <Link className="tenant-switcher" href="/studio/settings" aria-label="Open studio settings">
-            <span className="avatar avatar-sand">AM</span>
+            <span className="avatar avatar-sand">{initials(tenantName)}</span>
             <span className="tenant-copy">
-              <strong>Alder & Muse</strong>
-              <small>Studio plan</small>
+              <strong>{tenantName}</strong>
+              <small>{workspace.tenantPlan || "Studio workspace"}</small>
             </span>
             <SignOutButton className="shell-signout" />
           </Link>
@@ -96,7 +122,6 @@ export function AppShell({
               >
                 <Icon size={18} strokeWidth={1.8} />
                 <span>{item.label}</span>
-                {"count" in item ? <span className="nav-count">{item.count}</span> : null}
               </Link>
             );
           })}
@@ -108,10 +133,10 @@ export function AppShell({
             <span>Settings</span>
           </Link>
           <div className="user-card">
-            <span className="avatar avatar-ink">CL</span>
+            <span className="avatar avatar-ink">{initials(userName)}</span>
             <span className="tenant-copy">
-              <strong>Conor Lawless</strong>
-              <small>Studio owner</small>
+              <strong>{userName}</strong>
+              <small>{workspaceRoleLabel(workspace.role)}</small>
             </span>
             <ChevronDown size={15} />
           </div>
@@ -142,5 +167,5 @@ export function AppShell({
         <main className="app-content">{children}</main>
       </div>
     </div>
-  </AuthBoundary>;
+  );
 }

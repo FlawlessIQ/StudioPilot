@@ -10,11 +10,12 @@ import {
 import { ArrowRight, LoaderCircle } from "lucide-react";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { authIsLive } from "@/lib/runtime-mode";
-export function RegisterForm() {
+export function RegisterForm({ next }: { next?: string }) {
   const [state, setState] = useState<"idle" | "submitting" | "sent" | "error">(
     "idle",
   );
   const [message, setMessage] = useState("");
+  const safeNext = next?.startsWith("/") && !next.startsWith("//") ? next : null;
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setState("submitting");
@@ -39,7 +40,7 @@ export function RegisterForm() {
       );
       await updateProfile(credential.user, { displayName: name });
       await sendEmailVerification(credential.user, {
-        url: `${window.location.origin}/auth/login?verified=1`,
+        url: `${window.location.origin}/auth/login?verified=1${safeNext ? `&next=${encodeURIComponent(safeNext)}` : ""}`,
       });
       await signOut(auth);
       setState("sent");
@@ -108,7 +109,7 @@ export function RegisterForm() {
         )}
       </button>
       <p className="sign-up-copy">
-        Already registered? <Link href="/auth/login">Sign in</Link>
+        Already registered? <Link href={safeNext ? `/auth/login?next=${encodeURIComponent(safeNext)}` : "/auth/login"}>Sign in</Link>
       </p>
     </form>
   );

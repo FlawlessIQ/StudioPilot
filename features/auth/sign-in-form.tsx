@@ -14,7 +14,7 @@ type FormState = {
   message: string;
 };
 
-export function SignInForm() {
+export function SignInForm({ next }: { next?: string }) {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
@@ -25,19 +25,24 @@ export function SignInForm() {
   });
 
   const mockMode = !authIsLive;
+  const safeNext = next?.startsWith("/") && !next.startsWith("//") ? next : null;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormState({ status: "submitting", message: "" });
 
     if (mockMode) {
-      router.push("/studio");
+      router.push(safeNext ?? "/studio");
       return;
     }
 
     try {
       const { auth,firestore } = getFirebaseClient();
       await signInWithEmailAndPassword(auth, email, password);
+      if (safeNext) {
+        router.push(safeNext);
+        return;
+      }
       const token=await auth.currentUser?.getIdTokenResult();
       if(token?.claims.platformAdmin===true){router.push("/platform-admin");return}
       const memberships=await getDocs(query(collection(firestore,"memberships"),where("userId","==",auth.currentUser?.uid??""),where("status","==","active"),limit(1)));
@@ -140,7 +145,7 @@ export function SignInForm() {
         )}
       </button>
       <p className="sign-up-copy">
-        New to StudioHub? <Link href="/auth/register">Start a free trial</Link>
+        New to StudioHub? <Link href={safeNext ? `/auth/register?next=${encodeURIComponent(safeNext)}` : "/auth/register"}>Start a free trial</Link>
       </p>
     </form>
   );

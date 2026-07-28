@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   CalendarDays,
@@ -15,6 +17,10 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { AuthBoundary,SignOutButton } from "@/features/auth/auth-boundary";
+import {
+  useWorkspace,
+  WorkspaceProvider,
+} from "@/features/auth/workspace-context";
 
 const portalNav = [
   { label: "Home", icon: Home, href: "/client" },
@@ -30,15 +36,28 @@ const portalNav = [
   { label: "Reviews", icon: Star, href: "/client/reviews" },
 ] as const;
 
-export function PortalShell({ children, active = "Home", projectName = "Maya & Theo", projectDate = "August 15, 2026" }: { children: React.ReactNode; active?: string; projectName?: string; projectDate?: string }) {
+export function PortalShell({ children, active = "Home", projectName, projectDate }: { children: React.ReactNode; active?: string; projectName?: string; projectDate?: string }) {
   return <AuthBoundary area="client">
+    <WorkspaceProvider area="client">
+      <ClientPortalShell active={active} projectName={projectName} projectDate={projectDate}>
+        {children}
+      </ClientPortalShell>
+    </WorkspaceProvider>
+  </AuthBoundary>;
+}
+
+function ClientPortalShell({ children, active, projectName, projectDate }: { children: React.ReactNode; active: string; projectName?: string; projectDate?: string }) {
+  const workspace = useWorkspace();
+  const displayedProjectName = projectName ?? workspace.projectName;
+  const displayedProjectDate = projectDate ?? workspace.projectDate;
+  return (
     <div className="portal-frame">
       <aside className="portal-sidebar" id="portal-navigation">
         <Link href="/client"><Logo /></Link>
         <div className="portal-project">
           <small>Your project</small>
-          <strong>{projectName}</strong>
-          <span>{projectDate}</span>
+          <strong>{displayedProjectName}</strong>
+          <span>{displayedProjectDate || "Date pending"}</span>
         </div>
         <nav aria-label="Client portal navigation">
           {portalNav.map((item) => {
@@ -58,7 +77,7 @@ export function PortalShell({ children, active = "Home", projectName = "Maya & T
         </nav>
         <div className="portal-profile">
           <span className="avatar avatar-sand"><UserRound size={16} /></span>
-          <span><strong>Maya Johnson</strong><small>Client</small></span>
+          <span><strong>{workspace.userName}</strong><small>Client</small></span>
           <ChevronRight size={15} />
         </div>
       </aside>
@@ -67,11 +86,11 @@ export function PortalShell({ children, active = "Home", projectName = "Maya & T
           <a className="mobile-menu" href="#portal-navigation" aria-label="Open client navigation">
             <Menu size={20} />
           </a>
-          <span>Alder &amp; Muse Photography</span>
+          <span>{workspace.tenantName}</span>
           <SignOutButton />
         </header>
         {children}
       </main>
     </div>
-  </AuthBoundary>;
+  );
 }

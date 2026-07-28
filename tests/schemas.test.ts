@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { membershipSchema } from "@/features/memberships/schema";
+import {
+  membershipSchema,
+  tenantInvitationSchema,
+} from "@/features/memberships/schema";
 import { tenantSchema } from "@/features/tenants/schema";
 
 const audit = {
@@ -41,4 +44,37 @@ test("membership validation does not allow unknown roles", () => {
     archivedAt: null,
   });
   assert.equal(result.success, false);
+});
+
+test("tenant invitations use expiring one-way tokens and cannot transfer ownership", () => {
+  const invitation = {
+    ...audit,
+    id: "invite-a",
+    tenantId: "tenant-a",
+    email: "coordinator@example.com",
+    normalizedEmail: "coordinator@example.com",
+    displayName: "Casey Morgan",
+    projectIds: [],
+    status: "pending",
+    tokenHash: "a".repeat(64),
+    expiresAt: "2026-08-02T12:00:00.000Z",
+    acceptedAt: null,
+    acceptedBy: null,
+    revokedAt: null,
+    archivedAt: null,
+  };
+  assert.equal(
+    tenantInvitationSchema.safeParse({
+      ...invitation,
+      role: "studio_coordinator",
+    }).success,
+    true,
+  );
+  assert.equal(
+    tenantInvitationSchema.safeParse({
+      ...invitation,
+      role: "studio_owner",
+    }).success,
+    false,
+  );
 });

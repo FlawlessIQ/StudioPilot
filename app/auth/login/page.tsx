@@ -9,7 +9,12 @@ export const metadata: Metadata = {
   description: "Sign in to your StudioHub photography operations workspace.",
 };
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const { next } = await searchParams;
   return (
     <main className="auth-page">
       <section className="auth-brand-panel">
@@ -42,7 +47,7 @@ export default function LoginPage() {
           <span className="eyebrow">Welcome back</span>
           <h1>Sign in to your studio</h1>
           <p>Continue to your projects, clients, and operations workspace.</p>
-          <SignInForm />
+          <SignInForm next={next} />
         </div>
         <p className="auth-legal">
           By continuing, you agree to our <Link href="/terms">Terms</Link> and{" "}

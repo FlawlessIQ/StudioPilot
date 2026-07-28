@@ -117,8 +117,10 @@ credential-entry workflow, and rotation procedure.
 Each endpoint must use its exact production URL, provider-specific signature
 secret, narrow CORS policy where relevant, and idempotency storage.
 
-Configure SendGrid Inbound Parse at
-`https://REGION-PROJECT.cloudfunctions.net/sendgridInboundCoi?token=SECRET`.
+Configure SendGrid Inbound Parse at the App Hosting boundary:
+`https://studiohub--studiohub-prod.us-east4.hosted.app/api/webhooks/sendgrid/inbound?token=SECRET`.
+The route preserves the raw multipart body and authenticates privately to the
+Cloud Function, so the Function itself does not need public IAM access.
 COI reply addresses use `coi+REPLY_TOKEN@INBOUND_DOMAIN`; the shared URL secret
 authenticates the provider while the hashed reply token resolves only one
 insurance request. Attachments stay quarantined until the private scanner marks

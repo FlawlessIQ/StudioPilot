@@ -7,29 +7,53 @@ import {
   ChevronRight,
   CircleCheck,
   Clock3,
+  DatabaseZap,
+  Inbox,
+  LoaderCircle,
 } from "lucide-react";
-import { collection, getDocs, limit, query, where } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  query,
+  where,
+} from "firebase/firestore";
 import { crmLeads, crmProjects } from "@/config/crm-demo-data";
 import { demoProjects } from "@/config/demo-data";
+import type { Role } from "@/features/auth/roles";
+import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { ReadinessMeter } from "@/components/ui/readiness-meter";
 import { StatusBadge } from "@/components/ui/status-badge";
 type Document = Record<string, unknown> & { id: string };
-async function tenantDocuments(collectionName: string): Promise<Document[]> {
-  const { auth, firestore } = getFirebaseClient();
-  const user = auth.currentUser;
-  if (!user) return [];
-  const memberships = await getDocs(
-    query(
-      collection(firestore, "memberships"),
-      where("userId", "==", user.uid),
-      where("status", "==", "active"),
-      limit(1),
-    ),
-  );
-  const tenantId = memberships.docs[0]?.data().tenantId;
-  if (typeof tenantId !== "string") return [];
+async function tenantDocuments(
+  collectionName: string,
+  tenantId: string,
+  role: Role | null,
+  projectIds: string[],
+): Promise<Document[]> {
+  const { firestore } = getFirebaseClient();
+  if (
+    collectionName === "projects" &&
+    role !== "studio_owner" &&
+    role !== "studio_admin"
+  ) {
+    const documents = await Promise.all(
+      projectIds.slice(0, 100).map((projectId) =>
+        getDoc(doc(firestore, "projects", projectId)),
+      ),
+    );
+    return documents
+      .filter((document) => document.exists())
+      .map(
+        (document) =>
+          ({ id: document.id, ...document.data() }) as Document,
+      )
+      .filter((document) => document.tenantId === tenantId);
+  }
   const snapshot = await getDocs(
     query(
       collection(firestore, collectionName),
@@ -41,6 +65,79 @@ async function tenantDocuments(collectionName: string): Promise<Document[]> {
     (document) => ({ id: document.id, ...document.data() }) as Document,
   );
 }
+
+function useTenantDocuments(collectionName: string) {
+  const workspace = useWorkspace();
+  const [records, setRecords] = useState<Document[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!dataIsLive || workspace.loading) return;
+    if (!workspace.tenantId) return;
+    let active = true;
+    void tenantDocuments(
+      collectionName,
+      workspace.tenantId,
+      workspace.role,
+      workspace.projectIds,
+    )
+      .then((value) => {
+        if (active) setRecords(value);
+      })
+      .catch((caught: unknown) => {
+        if (!active) return;
+        setRecords([]);
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : `The ${collectionName} could not be loaded.`,
+        );
+      });
+    return () => {
+      active = false;
+    };
+  }, [
+    collectionName,
+    workspace.error,
+    workspace.loading,
+    workspace.projectIds,
+    workspace.role,
+    workspace.tenantId,
+  ]);
+  return {
+    records,
+    error:
+      error ??
+      (!workspace.loading && !workspace.tenantId
+        ? workspace.error ?? "No active studio was found."
+        : null),
+    loading:
+      dataIsLive &&
+      (workspace.loading || (workspace.tenantId !== null && records === null)),
+  };
+}
+
+function LiveRecordsState({
+  kind,
+  state,
+  detail,
+}: {
+  kind: "loading" | "error" | "empty";
+  state: string;
+  detail: string;
+}) {
+  const Icon =
+    kind === "loading" ? LoaderCircle : kind === "error" ? DatabaseZap : Inbox;
+  return (
+    <div className={`live-record-state live-record-${kind}`} role="row">
+      <Icon aria-hidden="true" size={18} />
+      <span>
+        <strong>{state}</strong>
+        <small>{detail}</small>
+      </span>
+    </div>
+  );
+}
+
 export function LiveProjectRows({
   type,
   view,
@@ -48,17 +145,7 @@ export function LiveProjectRows({
   type: string;
   view: string;
 }) {
-  const [records, setRecords] = useState<Document[] | null>(null);
-  useEffect(() => {
-    if (!dataIsLive) return;
-    let active = true;
-    void tenantDocuments("projects").then((value) => {
-      if (active) setRecords(value);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
+  const { records, error, loading } = useTenantDocuments("projects");
   const values = records
     ? records
         .filter((item) =>
@@ -86,6 +173,33 @@ export function LiveProjectRows({
       : crmProjects.filter(
           (project) => type === "all" || project.event.toLowerCase() === type,
         );
+  if (loading) {
+    return (
+      <LiveRecordsState
+        kind="loading"
+        state="Loading projects…"
+        detail="Reading records from your active studio."
+      />
+    );
+  }
+  if (error) {
+    return (
+      <LiveRecordsState
+        kind="error"
+        state="Projects could not be loaded"
+        detail={error}
+      />
+    );
+  }
+  if (values.length === 0) {
+    return (
+      <LiveRecordsState
+        kind="empty"
+        state="No projects in this view"
+        detail="Create a project or change the active filters."
+      />
+    );
+  }
   return (
     <>
       {values.map((project) => (
@@ -133,17 +247,7 @@ export function LiveProjectRows({
   );
 }
 export function LiveLeadRows({ view, q }: { view: string; q: string }) {
-  const [records, setRecords] = useState<Document[] | null>(null);
-  useEffect(() => {
-    if (!dataIsLive) return;
-    let active = true;
-    void tenantDocuments("leads").then((value) => {
-      if (active) setRecords(value);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
+  const { records, error, loading } = useTenantDocuments("leads");
   const values = records
     ? records
         .filter((item) =>
@@ -178,6 +282,33 @@ export function LiveLeadRows({ view, q }: { view: string; q: string }) {
           lead.name.toLowerCase().includes(q.toLowerCase()),
         )
       : [];
+  if (loading) {
+    return (
+      <LiveRecordsState
+        kind="loading"
+        state="Loading leads…"
+        detail="Reading tenant-scoped inquiries."
+      />
+    );
+  }
+  if (error) {
+    return (
+      <LiveRecordsState
+        kind="error"
+        state="Leads could not be loaded"
+        detail={error}
+      />
+    );
+  }
+  if (values.length === 0) {
+    return (
+      <LiveRecordsState
+        kind="empty"
+        state="No leads in this view"
+        detail="New inquiries will appear here after validation."
+      />
+    );
+  }
   return (
     <>
       {values.map((lead) => (
@@ -223,30 +354,19 @@ export function LiveLeadRows({ view, q }: { view: string; q: string }) {
   );
 }
 export function LiveUpcomingRows() {
-  const [records, setRecords] = useState<Document[] | null>(null);
-  useEffect(() => {
-    if (!dataIsLive) return;
-    let active = true;
-    void tenantDocuments("projects").then((value) => {
-      if (active)
-        setRecords(
-          value
-            .filter(
-              (item) =>
-                !["ARCHIVED", "CANCELLED", "CLOSED"].includes(
-                  String(item.state),
-                ),
-            )
-            .sort((a, b) =>
-              String(a.eventDate).localeCompare(String(b.eventDate)),
-            )
-            .slice(0, 5),
-        );
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
+  const { records: allRecords, error, loading } =
+    useTenantDocuments("projects");
+  const records = allRecords
+    ? allRecords
+        .filter(
+          (item) =>
+            !["ARCHIVED", "CANCELLED", "CLOSED"].includes(String(item.state)),
+        )
+        .sort((a, b) =>
+          String(a.eventDate).localeCompare(String(b.eventDate)),
+        )
+        .slice(0, 5)
+    : null;
   const values = records
     ? records.map((item, index) => ({
         id: item.id,
@@ -260,6 +380,33 @@ export function LiveUpcomingRows() {
         tone: ["sand", "lilac", "blue", "green", "amber"][index % 5],
       }))
     : demoProjects;
+  if (loading) {
+    return (
+      <LiveRecordsState
+        kind="loading"
+        state="Loading upcoming projects…"
+        detail="Calculating your next operational priorities."
+      />
+    );
+  }
+  if (error) {
+    return (
+      <LiveRecordsState
+        kind="error"
+        state="Upcoming projects could not be loaded"
+        detail={error}
+      />
+    );
+  }
+  if (values.length === 0) {
+    return (
+      <LiveRecordsState
+        kind="empty"
+        state="No upcoming projects"
+        detail="Active projects will appear here in event-date order."
+      />
+    );
+  }
   return (
     <>
       {values.map((project) => (
