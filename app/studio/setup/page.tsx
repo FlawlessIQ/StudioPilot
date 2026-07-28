@@ -45,41 +45,47 @@ const settings = [
 ];
 
 export default function SetupPage() {
+  return (
+    <AppShell active="Settings">
+      <SetupContent />
+    </AppShell>
+  );
+}
+
+function SetupContent() {
   const workspace = useWorkspace();
   const availableSettings = settings.filter((setting) =>
     setting.roles.includes(workspace.role ?? ""),
   );
   return (
-    <AppShell active="Settings">
-      <div className="hub-page">
-        <header className="page-heading">
-          <div>
-            <p className="eyebrow">Studio administration</p>
-            <h1>Studio setup</h1>
-            <p>Manage the services, people, and account settings behind your workspace.</p>
-          </div>
-        </header>
-        <section className="setup-inquiry-card">
-          <span><ExternalLink size={20} /></span>
-          <div>
-            <h2>Client inquiry form</h2>
-            <p>Preview the tenant-specific form clients use to contact your studio.</p>
-          </div>
-          <TenantInquiryLink />
-        </section>
-        <section className="hub-grid">
-          {availableSettings.map((setting) => {
-            const Icon = setting.icon;
-            return (
-              <Link href={setting.href} key={setting.title}>
-                <span><Icon size={20} /></span>
-                <div><h2>{setting.title}</h2><p>{setting.description}</p></div>
-                <ArrowRight size={17} />
-              </Link>
-            );
-          })}
-        </section>
-      </div>
-    </AppShell>
+    <div className="hub-page">
+      <header className="page-heading">
+        <div>
+          <p className="eyebrow">Studio administration</p>
+          <h1>Studio setup</h1>
+          <p>Manage the services, people, and account settings behind your workspace.</p>
+        </div>
+      </header>
+      <section className="setup-inquiry-card">
+        <span><ExternalLink size={20} /></span>
+        <div>
+          <h2>Client inquiry form</h2>
+          <p>Preview the tenant-specific form clients use to contact your studio.</p>
+        </div>
+        <TenantInquiryLink />
+      </section>
+      <section className="hub-grid">
+        {availableSettings.map((setting) => {
+          const Icon = setting.icon;
+          return (
+            <Link href={setting.href} key={setting.title}>
+              <span><Icon size={20} /></span>
+              <div><h2>{setting.title}</h2><p>{setting.description}</p></div>
+              <ArrowRight size={17} />
+            </Link>
+          );
+        })}
+      </section>
+    </div>
   );
 }

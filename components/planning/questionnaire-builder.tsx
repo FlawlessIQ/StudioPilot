@@ -165,7 +165,7 @@ export function QuestionnaireBuilder() {
                 <span className="field-order">{index + 1}</span>
                 <label>Question or label<input aria-label={`Field ${index + 1} label`} onChange={(event) => updateField(field.id, { label: event.target.value })} value={field.label} /></label>
                 <label>Answer type<select aria-label={`Field ${index + 1} type`} onChange={(event) => updateField(field.id, { type: event.target.value as FieldRow["type"] })} value={field.type}>{fieldTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-                <label className="field-required"><input checked={field.required} onChange={(event) => updateField(field.id, { required: event.target.checked })} type="checkbox" /> Required</label>
+                <label className="field-required"><input aria-label={`${field.label || `Field ${index + 1}`} required`} checked={field.required} onChange={(event) => updateField(field.id, { required: event.target.checked })} type="checkbox" /> Required</label>
                 <div className="field-row-actions">
                   <button aria-label={`Move ${field.label || `field ${index + 1}`} up`} disabled={index === 0} onClick={() => moveField(index, -1)} type="button"><ArrowUp size={15} /></button>
                   <button aria-label={`Move ${field.label || `field ${index + 1}`} down`} disabled={index === fields.length - 1} onClick={() => moveField(index, 1)} type="button"><ArrowDown size={15} /></button>

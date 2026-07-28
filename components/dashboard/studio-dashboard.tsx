@@ -65,6 +65,10 @@ function DashboardSummary() {
     value: active.filter((project) => project.state === state).length,
   }));
   const maxPipeline = Math.max(1, ...pipeline.map((item) => item.value));
+  const greetingName =
+    workspace.userName === workspace.tenantName
+      ? ""
+      : `, ${firstName(workspace.userName)}`;
 
   return (
     <>
@@ -77,7 +81,7 @@ function DashboardSummary() {
               day: "numeric",
             })}
           </p>
-          <h1>Good morning, {firstName(workspace.userName)}.</h1>
+          <h1>Good morning{greetingName}.</h1>
           <p>
             {loading
               ? "Loading your operational priorities…"
