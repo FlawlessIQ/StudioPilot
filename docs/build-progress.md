@@ -811,7 +811,7 @@ Validation record:
 
 ## July 28, 2026 — authenticated visual and usability pass
 
-Status: implementation and local validation complete; production deployment pending.
+Status: implementation and validation complete; production deployment pending.
 
 - Audited every static Studio, client, crew, and platform-administration route at desktop and mobile widths.
 - Reworked shared page hierarchy, panels, metrics, filters, forms, empty states, and system-of-record disclosures.
@@ -918,7 +918,7 @@ Validation record:
 
 ## July 28, 2026 — client lifecycle and project-switching phase
 
-Status: implementation and local validation complete; production deployment pending.
+Status: implementation, validation, and production deployment complete.
 
 - Added a tenant-scoped multi-project selector that remembers the client’s
   active project and returns them to its home view after switching.
@@ -941,3 +941,7 @@ Validation record:
 - strict TypeScript: passed
 - ESLint: passed with zero warnings
 - unit and policy suite: 82 passed
+- responsive client invitation suite: 4 passed across desktop Chromium and Pixel 7
+- production Next.js build: passed, including all 95 application routes
+- Firebase App Hosting rollout: passed
+- production bundle verification: passed
