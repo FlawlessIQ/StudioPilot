@@ -6,7 +6,17 @@ import { uploadCrewRequirement } from "@/lib/crew/command-client";
 
 const acceptedTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
 
-export function CrewDocumentUpload() {
+export function CrewDocumentUpload({
+  projectId,
+  assignmentId,
+  requirementId,
+  requirementName = "required document",
+}: {
+  projectId: string;
+  assignmentId: string;
+  requirementId: string;
+  requirementName?: string;
+}) {
   const [notice, setNotice] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const selectFile = async (file: File | undefined) => {
@@ -16,8 +26,10 @@ export function CrewDocumentUpload() {
     if (file.size > 10 * 1024 * 1024) { setNotice("Files must be 10 MB or smaller."); return; }
     try {
       const response = await uploadCrewRequirement({
-        projectId: "wedding-booked", assignmentId: "wedding-booked-second",
-        requirementId: "insurance", file,
+        projectId,
+        assignmentId,
+        requirementId,
+        file,
       });
       setSubmitted(true);
       setNotice(response.persisted
@@ -28,7 +40,7 @@ export function CrewDocumentUpload() {
     }
   };
   return <div className="crew-upload-control">
-    <label className={submitted ? "is-submitted" : ""}><UploadCloud size={20}/><span><strong>{submitted?"Submitted for review":"Upload replacement insurance"}</strong><small>PDF, JPEG, or PNG · 10 MB maximum</small></span><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={event=>void selectFile(event.target.files?.[0])}/></label>
+    <label className={submitted ? "is-submitted" : ""}><UploadCloud size={20}/><span><strong>{submitted?"Submitted for review":`Upload ${requirementName}`}</strong><small>PDF, JPEG, or PNG · 10 MB maximum</small></span><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={event=>void selectFile(event.target.files?.[0])}/></label>
     {notice?<p className="form-notice" role="status">{notice}</p>:null}
   </div>;
 }

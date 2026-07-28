@@ -7,16 +7,31 @@ import { sendCrewCommand } from "@/lib/crew/command-client";
 type Props = {
   assignmentId: string;
   projectId: string;
-  initialStatus: "invited" | "accepted";
+  initialStatus: "invited" | "viewed" | "accepted";
   currentScheduleId?: string;
   currentScheduleVersion?: number;
+  startsAt?: string;
+  endsAt?: string;
+  projectName?: string;
+  role?: string;
+  location?: string;
 };
 
 export function AssignmentActions({
-  assignmentId, projectId, initialStatus, currentScheduleId = "wedding-booked-v4",
-  currentScheduleVersion = 4,
+  assignmentId,
+  projectId,
+  initialStatus,
+  currentScheduleId,
+  currentScheduleVersion = 0,
+  startsAt,
+  endsAt,
+  projectName = "Photography assignment",
+  role = "Crew",
+  location = "See StudioHub brief",
 }: Props) {
-  const [status, setStatus] = useState<string>(initialStatus);
+  const [status, setStatus] = useState<string>(
+    initialStatus === "viewed" ? "invited" : initialStatus,
+  );
   const [calendarAdded, setCalendarAdded] = useState(false);
   const [scheduleAcknowledged, setScheduleAcknowledged] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -39,29 +54,41 @@ export function AssignmentActions({
     setStatus(decision);
   };
   const addCalendar = async () => {
+    if (!startsAt || !endsAt)
+      throw new Error("Assignment dates are not available.");
+    const calendarDate = (value: string) =>
+      new Date(value)
+        .toISOString()
+        .replaceAll("-", "")
+        .replaceAll(":", "")
+        .replace(/\.\d{3}Z$/, "Z");
+    const escaped = (value: string) =>
+      value.replaceAll("\\", "\\\\").replaceAll(",", "\\,").replaceAll("\n", "\\n");
     const ics = [
       "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//StudioHub//Crew Assignment//EN",
-      "BEGIN:VEVENT", `UID:${assignmentId}@studiohub`, "DTSTART:20260815T171500Z",
-      "DTEND:20260816T013000Z", "SUMMARY:Maya & Theo Johnson — Second photographer",
-      "LOCATION:The Foundry\\, Long Island City", "DESCRIPTION:StudioHub crew assignment",
+      "BEGIN:VEVENT", `UID:${assignmentId}@studiohub`, `DTSTART:${calendarDate(startsAt)}`,
+      `DTEND:${calendarDate(endsAt)}`, `SUMMARY:${escaped(projectName)} — ${escaped(role)}`,
+      `LOCATION:${escaped(location)}`, "DESCRIPTION:StudioHub crew assignment",
       "END:VEVENT", "END:VCALENDAR",
     ].join("\r\n");
     const link = document.createElement("a");
     link.href = URL.createObjectURL(new Blob([ics], { type: "text/calendar" }));
-    link.download = "studiohub-maya-theo-assignment.ics";
+    link.download = `studiohub-${assignmentId}.ics`;
     link.click();
     URL.revokeObjectURL(link.href);
     await run("acknowledgeCalendar", {}, "Calendar file downloaded and acknowledgement recorded.");
     setCalendarAdded(true);
   };
   const acknowledge = async () => {
+    if (!currentScheduleId || currentScheduleVersion < 1)
+      throw new Error("No published schedule is available.");
     await run("acknowledgeSchedule", { scheduleId: currentScheduleId, scheduleVersion: currentScheduleVersion }, `Schedule version ${currentScheduleVersion} acknowledged.`);
     setScheduleAcknowledged(true);
   };
   if (status === "declined") return <div className="crew-action-result" role="status"><XCircle size={18}/><span><strong>Assignment declined</strong><small>The studio has been notified to reassign this role.</small></span></div>;
   return <div className="crew-action-stack">
     {status === "invited" ? <div className="crew-action-row"><button className="button button-dark" type="button" disabled={!interactive} onClick={()=>respond("accepted")}><CheckCircle2 size={16}/> Accept job</button><button className="button button-light" type="button" disabled={!interactive} onClick={()=>respond("declined")}><XCircle size={16}/> Decline</button></div> : <>
-      <div className="crew-action-row"><button className="button button-light" type="button" onClick={addCalendar} disabled={!interactive||calendarAdded}><CalendarPlus size={16}/>{calendarAdded?"Added to calendar":"Add to calendar"}</button><button className="button button-dark" type="button" onClick={acknowledge} disabled={!interactive||scheduleAcknowledged}><CheckCircle2 size={16}/>{scheduleAcknowledged?`Version ${currentScheduleVersion} acknowledged`:"Acknowledge current schedule"}</button></div>
+      <div className="crew-action-row"><button className="button button-light" type="button" onClick={()=>void addCalendar().catch(caught=>setNotice(caught instanceof Error?caught.message:"Calendar download failed."))} disabled={!interactive||calendarAdded||!startsAt||!endsAt}><CalendarPlus size={16}/>{calendarAdded?"Added to calendar":"Add to calendar"}</button>{currentScheduleId&&currentScheduleVersion>0?<button className="button button-dark" type="button" onClick={()=>void acknowledge().catch(caught=>setNotice(caught instanceof Error?caught.message:"Schedule acknowledgement failed."))} disabled={!interactive||scheduleAcknowledged}><CheckCircle2 size={16}/>{scheduleAcknowledged?`Version ${currentScheduleVersion} acknowledged`:"Acknowledge current schedule"}</button>:null}</div>
     </>}
     {notice?<p className="form-notice" role="status">{notice}</p>:null}
   </div>;

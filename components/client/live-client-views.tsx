@@ -1,0 +1,740 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import {
+  CalendarDays,
+  CheckCircle2,
+  CircleCheck,
+  Clock3,
+  ExternalLink,
+  Heart,
+  Images,
+  LoaderCircle,
+  LockKeyhole,
+  MapPin,
+  ShieldCheck,
+  Star,
+} from "lucide-react";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  query,
+  where,
+} from "firebase/firestore";
+import { ClientQuestionnaireForm } from "@/components/planning/client-questionnaire-form";
+import { PostEventAction } from "@/components/post-event/post-event-actions";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { getFirebaseClient } from "@/lib/firebase/client";
+import { sendPlanningCommand } from "@/lib/planning/command-client";
+import { dataIsLive } from "@/lib/runtime-mode";
+
+type RecordValue = Record<string, unknown> & { id: string };
+type Loadable<T> = {
+  value: T;
+  loading: boolean;
+  error: string | null;
+};
+
+function useProject(): Loadable<RecordValue | null> {
+  const workspace = useWorkspace();
+  const [state, setState] = useState<Loadable<RecordValue | null>>({
+    value: null,
+    loading: dataIsLive,
+    error: null,
+  });
+  useEffect(() => {
+    if (!dataIsLive || workspace.loading) return;
+    if (!workspace.projectId) {
+      queueMicrotask(() =>
+        setState({
+          value: null,
+          loading: false,
+          error: "No project is assigned to this portal membership.",
+        }),
+      );
+      return;
+    }
+    let active = true;
+    void getDoc(
+      doc(getFirebaseClient().firestore, "projects", workspace.projectId),
+    )
+      .then((project) => {
+        if (!active) return;
+        setState({
+          value: project.exists()
+            ? ({ id: project.id, ...project.data() } as RecordValue)
+            : null,
+          loading: false,
+          error: project.exists() ? null : "The assigned project was not found.",
+        });
+      })
+      .catch((caught: unknown) => {
+        if (active)
+          setState({
+            value: null,
+            loading: false,
+            error:
+              caught instanceof Error
+                ? caught.message
+                : "Project details could not be loaded.",
+          });
+      });
+    return () => {
+      active = false;
+    };
+  }, [workspace.loading, workspace.projectId]);
+  return state;
+}
+
+function useProjectRecords(collectionName: string): Loadable<RecordValue[]> {
+  const workspace = useWorkspace();
+  const [state, setState] = useState<Loadable<RecordValue[]>>({
+    value: [],
+    loading: dataIsLive,
+    error: null,
+  });
+  useEffect(() => {
+    if (!dataIsLive || workspace.loading) return;
+    if (!workspace.tenantId || !workspace.projectId) {
+      queueMicrotask(() =>
+        setState({
+          value: [],
+          loading: false,
+          error: "No project is assigned to this portal membership.",
+        }),
+      );
+      return;
+    }
+    let active = true;
+    const { firestore } = getFirebaseClient();
+    void getDocs(
+      query(
+        collection(firestore, collectionName),
+        where("tenantId", "==", workspace.tenantId),
+        where("projectId", "==", workspace.projectId),
+        limit(50),
+      ),
+    )
+      .then((snapshot) => {
+        if (!active) return;
+        setState({
+          value: snapshot.docs.map(
+            (document) =>
+              ({ id: document.id, ...document.data() }) as RecordValue,
+          ),
+          loading: false,
+          error: null,
+        });
+      })
+      .catch((caught: unknown) => {
+        if (active)
+          setState({
+            value: [],
+            loading: false,
+            error:
+              caught instanceof Error
+                ? caught.message
+                : `${collectionName} could not be loaded.`,
+          });
+      });
+    return () => {
+      active = false;
+    };
+  }, [
+    collectionName,
+    workspace.loading,
+    workspace.projectId,
+    workspace.tenantId,
+  ]);
+  return state;
+}
+
+function PortalState({
+  loading,
+  error,
+  empty,
+}: {
+  loading: boolean;
+  error: string | null;
+  empty?: string;
+}) {
+  if (loading)
+    return (
+      <section className="panel portal-live-state">
+        <LoaderCircle className="spin" />
+        <span>
+          <strong>Loading your project…</strong>
+          <small>Reading only records assigned to your portal.</small>
+        </span>
+      </section>
+    );
+  if (error)
+    return (
+      <section className="panel portal-live-state portal-live-error">
+        <ShieldCheck />
+        <span>
+          <strong>This information is unavailable</strong>
+          <small>{error}</small>
+        </span>
+      </section>
+    );
+  if (empty)
+    return (
+      <section className="panel portal-live-state">
+        <Clock3 />
+        <span>
+          <strong>Nothing to complete yet</strong>
+          <small>{empty}</small>
+        </span>
+      </section>
+    );
+  return null;
+}
+
+const text = (value: unknown, fallback = "Pending") =>
+  typeof value === "string" && value ? value : fallback;
+const number = (value: unknown) =>
+  typeof value === "number" && Number.isFinite(value) ? value : 0;
+const money = (cents: unknown, currency: unknown = "USD") =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: text(currency, "USD"),
+  }).format(number(cents) / 100);
+const date = (value: unknown) => {
+  const parsed = new Date(String(value));
+  return Number.isNaN(parsed.valueOf())
+    ? "Date pending"
+    : parsed.toLocaleDateString(undefined, {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      });
+};
+const statusTone = (status: unknown) =>
+  ["completed", "paid", "approved", "published", "downloaded", "sent"].includes(
+    String(status),
+  )
+    ? ("success" as const)
+    : ["overdue", "error", "declined", "revoked"].includes(String(status))
+      ? ("danger" as const)
+      : ("warning" as const);
+
+export function LiveClientHome() {
+  const workspace = useWorkspace();
+  const project = useProject();
+  if (project.loading || project.error || !project.value)
+    return (
+      <PortalState
+        loading={project.loading}
+        error={project.error}
+        empty={!project.loading && !project.error ? "Project details will appear after assignment." : undefined}
+      />
+    );
+  const value = project.value;
+  const eventDate = new Date(String(value.eventDate));
+  const days = Math.max(
+    0,
+    Math.ceil((eventDate.valueOf() - Date.now()) / 86400000),
+  );
+  const readiness = number(value.readinessScore);
+  return (
+    <>
+      <div className="portal-hero">
+        <div>
+          <p className="eyebrow">Your {text(value.eventType, "photography")} project</p>
+          <h1>Hello, {workspace.userName.split(" ")[0]}.</h1>
+          <p>Everything approved for your project, in one secure place.</p>
+        </div>
+        <div className="event-countdown">
+          <strong>{days}</strong>
+          <span>days to go</span>
+        </div>
+      </div>
+      <section className="client-next-action">
+        <span className="next-action-art">
+          <Clock3 size={25} />
+        </span>
+        <div>
+          <StatusBadge tone={readiness === 100 ? "success" : "warning"}>
+            {readiness === 100 ? "Project ready" : "Your next action"}
+          </StatusBadge>
+          <h2>{text(value.nextAction, "Review your project details")}</h2>
+          <p>
+            This action comes from the studio’s deterministic readiness
+            workflow.
+          </p>
+        </div>
+        <Link className="button button-dark" href="/client/schedule">
+          Open schedule
+        </Link>
+      </section>
+      <div className="client-grid">
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Project readiness</h2>
+              <p>Required operational evidence</p>
+            </div>
+            <strong>{readiness}%</strong>
+          </div>
+          <div className="progress-track">
+            <i style={{ width: `${readiness}%` }} />
+          </div>
+          <div className="client-check">
+            <span className={readiness === 100 ? "complete" : "current"}>
+              {readiness === 100 ? <CircleCheck /> : <Clock3 />}
+            </span>
+            <span>
+              <strong>{text(value.state).replaceAll("_", " ")}</strong>
+              <small>
+                StudioHub does not infer payment, signature, or insurance
+                completion.
+              </small>
+            </span>
+          </div>
+        </section>
+        <section className="panel event-detail-card">
+          <div className="panel-heading">
+            <div>
+              <h2>Your event</h2>
+              <p>{text(value.name)}</p>
+            </div>
+          </div>
+          <div className="event-detail">
+            <CalendarDays />
+            <span>
+              <small>Date</small>
+              <strong>{date(value.eventDate)}</strong>
+            </span>
+          </div>
+          <div className="event-detail">
+            <MapPin />
+            <span>
+              <small>Location</small>
+              <strong>
+                {text(value.venueName ?? value.city, "Location pending")}
+              </strong>
+            </span>
+          </div>
+        </section>
+      </div>
+    </>
+  );
+}
+
+export function LiveClientPackage() {
+  const project = useProject();
+  const [snapshot, setSnapshot] = useState<Loadable<RecordValue | null>>({
+    value: null,
+    loading: dataIsLive,
+    error: null,
+  });
+  useEffect(() => {
+    const snapshotId = project.value?.packageSnapshotId;
+    if (!dataIsLive || project.loading || project.error) return;
+    if (typeof snapshotId !== "string" || !snapshotId) {
+      queueMicrotask(() =>
+        setSnapshot({ value: null, loading: false, error: null }),
+      );
+      return;
+    }
+    let active = true;
+    void getDoc(doc(getFirebaseClient().firestore, "packageSnapshots", snapshotId))
+      .then((value) => {
+        if (active)
+          setSnapshot({
+            value: value.exists()
+              ? ({ id: value.id, ...value.data() } as RecordValue)
+              : null,
+            loading: false,
+            error: value.exists() ? null : "Package snapshot was not found.",
+          });
+      })
+      .catch((caught: unknown) => {
+        if (active)
+          setSnapshot({
+            value: null,
+            loading: false,
+            error: caught instanceof Error ? caught.message : "Package could not load.",
+          });
+      });
+    return () => {
+      active = false;
+    };
+  }, [project.error, project.loading, project.value?.packageSnapshotId]);
+  if (project.loading || snapshot.loading || project.error || snapshot.error)
+    return <PortalState loading={project.loading || snapshot.loading} error={project.error ?? snapshot.error} />;
+  if (!snapshot.value)
+    return <PortalState loading={false} error={null} empty="Your selected package will appear after the studio creates its immutable snapshot." />;
+  const value = snapshot.value;
+  const included = Array.isArray(value.includedDeliverables)
+    ? value.includedDeliverables
+    : Array.isArray(value.deliverables)
+      ? value.deliverables
+      : [];
+  return (
+    <div className="client-booking-page">
+      <p className="eyebrow">Your selection</p>
+      <h1>{text(value.packageName ?? value.name, "Selected package")}</h1>
+      <p>
+        Package version {number(value.packageVersion ?? value.version)} ·
+        selected {date(value.selectionDate ?? value.createdAt)}
+      </p>
+      <section className="panel client-package-card">
+        <div>
+          <h2>Locked project total</h2>
+          <strong>{money(value.totalCents, value.currency)}</strong>
+        </div>
+        <ul>
+          <li>
+            <CircleCheck />{" "}
+            {number(value.includedCoverageMinutes) / 60} coverage hours
+          </li>
+          <li>
+            <CircleCheck /> {number(value.includedPhotographers)} photographer(s)
+          </li>
+          {included.map((item) => (
+            <li key={String(item)}>
+              <CircleCheck /> {String(item)}
+            </li>
+          ))}
+        </ul>
+        <div className="immutable-note">
+          <Clock3 />
+          <span>
+            <strong>Your pricing is locked.</strong>
+            <small>Future package edits cannot change this snapshot.</small>
+          </span>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+export function LiveClientContract() {
+  const contracts = useProjectRecords("contracts");
+  const contract = useMemo(
+    () =>
+      [...contracts.value].sort((a, b) =>
+        String(b.updatedAt).localeCompare(String(a.updatedAt)),
+      )[0],
+    [contracts.value],
+  );
+  if (contracts.loading || contracts.error || !contract)
+    return <PortalState loading={contracts.loading} error={contracts.error} empty={!contracts.loading && !contracts.error ? "Your agreement will appear after the studio sends it through Docusign." : undefined} />;
+  const signers = Array.isArray(contract.signers)
+    ? (contract.signers as Array<Record<string, unknown>>)
+    : [];
+  const signingUrl =
+    typeof contract.signingUrl === "string" ? contract.signingUrl : null;
+  return (
+    <div className="client-booking-page">
+      <p className="eyebrow">Agreement</p>
+      <h1>Photography services agreement</h1>
+      <p>Docusign envelope {text(contract.providerEnvelopeId)}</p>
+      <section className="panel client-contract-card">
+        <ShieldCheck />
+        <div>
+          <StatusBadge tone={statusTone(contract.status)}>
+            {text(contract.status).replaceAll("_", " ")}
+          </StatusBadge>
+          <h2>
+            {contract.status === "completed"
+              ? "Every required signature is complete."
+              : "Docusign is collecting required signatures."}
+          </h2>
+          {signers.map((signer) => (
+            <div
+              className={`client-signer ${signer.status === "completed" ? "" : "pending"}`}
+              key={`${String(signer.email)}-${String(signer.order)}`}
+            >
+              <span>
+                {signer.status === "completed" ? <CheckCircle2 /> : null}
+                {text(signer.name)}
+              </span>
+              <strong>{text(signer.status)}</strong>
+            </div>
+          ))}
+          {signingUrl ? (
+            <a className="button button-dark" href={signingUrl} rel="noreferrer" target="_blank">
+              Open secure Docusign <ExternalLink />
+            </a>
+          ) : (
+            <p>Docusign sends each signer their secure signing link directly.</p>
+          )}
+        </div>
+      </section>
+      <p className="source-note">
+        Only Docusign completion evidence can mark this contract complete.
+      </p>
+    </div>
+  );
+}
+
+export function LiveClientPayments() {
+  const invoices = useProjectRecords("invoiceReferences");
+  if (invoices.loading || invoices.error || invoices.value.length === 0)
+    return <PortalState loading={invoices.loading} error={invoices.error} empty={!invoices.loading && !invoices.error ? "QuickBooks invoice links will appear when created by the studio." : undefined} />;
+  return (
+    <div className="client-booking-page">
+      <p className="eyebrow">Payments</p>
+      <h1>Your payment schedule</h1>
+      <p>QuickBooks Online is the accounting and payment system of record.</p>
+      {invoices.value
+        .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)))
+        .map((invoice) => (
+          <section className="panel client-payment-card" key={invoice.id}>
+            <div>
+              <span>
+                <small>{text(invoice.kind)}</small>
+                <strong>{money(invoice.amountCents, invoice.currency)}</strong>
+              </span>
+              <StatusBadge tone={statusTone(invoice.status)}>
+                {text(invoice.status).replaceAll("_", " ")}
+              </StatusBadge>
+            </div>
+            <p>
+              Due {date(invoice.dueDate)} · Balance{" "}
+              {money(invoice.balanceCents, invoice.currency)}
+            </p>
+            {typeof invoice.hostedUrl === "string" && invoice.hostedUrl ? (
+              <a className="button button-dark" href={invoice.hostedUrl} rel="noreferrer" target="_blank">
+                Open QuickBooks invoice <ExternalLink />
+              </a>
+            ) : (
+              <p>Payment link pending QuickBooks synchronization.</p>
+            )}
+            <footer>
+              <LockKeyhole /> StudioHub never receives your card or bank details.
+            </footer>
+          </section>
+        ))}
+    </div>
+  );
+}
+
+export function LiveClientQuestionnaire() {
+  const responses = useProjectRecords("questionnaireResponses");
+  const current = responses.value[0];
+  if (responses.loading || responses.error || !current)
+    return <PortalState loading={responses.loading} error={responses.error} empty={!responses.loading && !responses.error ? "Your studio has not assigned a questionnaire yet." : undefined} />;
+  return (
+    <div className="client-booking-page">
+      <p className="eyebrow">Project planning</p>
+      <h1>Your questionnaire</h1>
+      <p>
+        Save and resume securely. Submission creates deterministic completion
+        evidence.
+      </p>
+      <section className="panel">
+        <ClientQuestionnaireForm
+          projectId={text(current.projectId)}
+          responseId={current.id}
+          initialAnswers={
+            current.answers && typeof current.answers === "object"
+              ? (current.answers as Record<string, unknown>)
+              : {}
+          }
+        />
+      </section>
+    </div>
+  );
+}
+
+export function LiveClientSchedule() {
+  const schedules = useProjectRecords("schedules");
+  const [notice, setNotice] = useState<string | null>(null);
+  const schedule = useMemo(
+    () =>
+      [...schedules.value].sort(
+        (a, b) => number(b.version) - number(a.version),
+      )[0],
+    [schedules.value],
+  );
+  if (schedules.loading || schedules.error || !schedule)
+    return <PortalState loading={schedules.loading} error={schedules.error} empty={!schedules.loading && !schedules.error ? "The published run of show will appear here when it is ready for you." : undefined} />;
+  const items = Array.isArray(schedule.items)
+    ? (schedule.items as Array<Record<string, unknown>>)
+    : [];
+  async function decide(decision: "approved" | "changes_requested") {
+    setNotice(null);
+    try {
+      await sendPlanningCommand("approveSchedule", {
+        projectId: schedule.projectId,
+        scheduleId: schedule.id,
+        decision,
+        notes:
+          decision === "approved"
+            ? "Approved by client in the StudioHub portal."
+            : "Client requested schedule changes in the StudioHub portal.",
+      });
+      setNotice(
+        decision === "approved"
+          ? "Schedule approved."
+          : "Change request sent to the studio.",
+      );
+    } catch (caught: unknown) {
+      setNotice(
+        caught instanceof Error ? caught.message : "Schedule response failed.",
+      );
+    }
+  }
+  return (
+    <div className="client-booking-page">
+      <p className="eyebrow">
+        Version {number(schedule.version)} · {text(schedule.status).replaceAll("_", " ")}
+      </p>
+      <h1>Your event-day schedule</h1>
+      <p>Times are shown in {text(schedule.timezone)}.</p>
+      <section className="mobile-schedule">
+        {items
+          .filter((item) =>
+            ["client", "shared"].includes(text(item.visibility, "shared")),
+          )
+          .map((item) => (
+            <article key={text(item.id)}>
+              <span>
+                <strong>
+                  {new Date(String(item.startAt)).toLocaleTimeString([], {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </strong>
+                <small>
+                  {new Date(String(item.endAt)).toLocaleTimeString([], {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </small>
+              </span>
+              <div>
+                <h2>{text(item.title)}</h2>
+                <p>
+                  <MapPin /> {text(item.location, "Location pending")}
+                </p>
+              </div>
+            </article>
+          ))}
+      </section>
+      <div className="schedule-client-actions">
+        <button className="button button-dark" onClick={() => void decide("approved")} type="button">
+          Approve this version
+        </button>
+        <button className="button button-light" onClick={() => void decide("changes_requested")} type="button">
+          Request changes
+        </button>
+      </div>
+      {notice ? <p className="form-notice" role="status">{notice}</p> : null}
+    </div>
+  );
+}
+
+export function LiveClientDelivery() {
+  const workspace = useWorkspace();
+  const deliveries = useProjectRecords("deliveryRecords");
+  const delivery = deliveries.value[0];
+  if (deliveries.loading || deliveries.error || !delivery)
+    return <PortalState loading={deliveries.loading} error={deliveries.error} empty={!deliveries.loading && !deliveries.error ? "Your secure gallery details will appear after delivery." : undefined} />;
+  return (
+    <div className="client-post-event">
+      <header>
+        <p className="eyebrow">Your photographs</p>
+        <h1>Your gallery is ready.</h1>
+        <p>Keep your access details private and download before expiration.</p>
+      </header>
+      <section className="client-gallery-card">
+        <div className="gallery-art">
+          <Images />
+          <span>{workspace.tenantName}</span>
+        </div>
+        <div className="gallery-copy">
+          <StatusBadge tone={statusTone(delivery.status)}>
+            {text(delivery.status)}
+          </StatusBadge>
+          <h2>{workspace.projectName}</h2>
+          <dl>
+            <div>
+              <dt>
+                <LockKeyhole /> Access code
+              </dt>
+              <dd>{text(delivery.accessCode, "Not required")}</dd>
+            </div>
+            <div>
+              <dt>
+                <CalendarDays /> Available until
+              </dt>
+              <dd>{date(delivery.expirationDate)}</dd>
+            </div>
+          </dl>
+          <a className="button button-dark" href={text(delivery.galleryUrl)} target="_blank" rel="noreferrer">
+            <ExternalLink /> Open secure gallery
+          </a>
+          <PostEventAction
+            type="markDeliveryDownloaded"
+            input={{
+              projectId: delivery.projectId,
+              deliveryRecordId: delivery.id,
+            }}
+            label="Confirm download complete"
+            completedLabel="Download confirmed"
+          />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+export function LiveClientReviews() {
+  const workspace = useWorkspace();
+  const reviews = useProjectRecords("reviewRequests");
+  const review = reviews.value.find((item) => item.status !== "skipped");
+  if (reviews.loading || reviews.error || !review)
+    return <PortalState loading={reviews.loading} error={reviews.error} empty={!reviews.loading && !reviews.error ? "A review request may appear after your gallery is delivered." : undefined} />;
+  const confirmed = ["client_confirmed", "manually_confirmed"].includes(
+    String(review.status),
+  );
+  return (
+    <div className="client-post-event">
+      <header>
+        <p className="eyebrow">A small favor</p>
+        <h1>How was your experience?</h1>
+      </header>
+      <section className="client-review-card">
+        <Heart />
+        <h2>Thank you for trusting {workspace.tenantName}.</h2>
+        <p>
+          Opening the review site records engagement only. StudioHub never
+          claims that a review was posted from a click.
+        </p>
+        <a className="button button-dark" href={text(review.destinationUrl)} target="_blank" rel="noreferrer">
+          <Star /> Open review site
+        </a>
+        <div className="review-confirm-boundary">
+          <CheckCircle2 />
+          <span>
+            <strong>Already completed?</strong>
+            <small>Your explicit confirmation stops future reminders.</small>
+          </span>
+        </div>
+        {!confirmed ? (
+          <PostEventAction
+            type="confirmReview"
+            input={{
+              projectId: review.projectId,
+              reviewRequestId: review.id,
+            }}
+            label="I’ve completed my review"
+            completedLabel="Review confirmed"
+          />
+        ) : (
+          <StatusBadge tone="success">Confirmed</StatusBadge>
+        )}
+      </section>
+    </div>
+  );
+}

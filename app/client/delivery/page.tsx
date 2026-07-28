@@ -1,6 +1,10 @@
-import { CalendarDays,Download,ExternalLink,Images,LockKeyhole } from "lucide-react";
+import { LiveClientDelivery } from "@/components/client/live-client-views";
 import { PortalShell } from "@/components/layout/portal-shell";
-import { PostEventAction } from "@/components/post-event/post-event-actions";
-import { StatusBadge } from "@/components/ui/status-badge";
 
-export default function ClientDeliveryPage(){return <PortalShell active="Delivery" projectName="Nora & James" projectDate="June 20, 2026"><div className="client-post-event"><header><p className="eyebrow">Your photographs</p><h1>Your gallery is ready.</h1><p>Relive the day, download your files, and keep your access details somewhere safe.</p></header><section className="client-gallery-card"><div className="gallery-art"><Images/><span>ALDER &amp; MUSE</span></div><div className="gallery-copy"><StatusBadge tone="success">Delivered July 18</StatusBadge><h2>Nora &amp; James</h2><p>Full wedding gallery · High-resolution downloads · Printing rights</p><dl><div><dt><LockKeyhole size={14}/> Access code</dt><dd>ELLIS</dd></div><div><dt><CalendarDays size={14}/> Available until</dt><dd>July 18, 2027</dd></div></dl><a className="button button-dark" href="https://gallery.example.test/nora-james" target="_blank" rel="noreferrer"><ExternalLink size={16}/> Open secure gallery</a><PostEventAction type="markDeliveryDownloaded" input={{projectId:"wedding-delivered",deliveryRecordId:"delivery-ellis"}} label="Confirm download complete" completedLabel="Download confirmed"/></div></section><a className="client-download-reference" href="data:text/plain,StudioHub%20delivery%20reference%20for%20Nora%20and%20James" download="studiohub-delivery-reference.txt"><Download size={15}/> Download delivery reference</a></div></PortalShell>}
+export default function ClientDeliveryPage() {
+  return (
+    <PortalShell active="Delivery">
+      <LiveClientDelivery />
+    </PortalShell>
+  );
+}

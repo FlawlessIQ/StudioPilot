@@ -77,6 +77,18 @@ const command = z.discriminatedUnion("type", [
     }),
   }),
   z.object({
+    type: z.literal("setAvailability"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      crewProfileId: z.string().min(1),
+      startsAt: z.string().datetime(),
+      endsAt: z.string().datetime(),
+      status: z.enum(["available", "unavailable", "tentative"]),
+      notes: z.string().max(1000).nullable(),
+    }),
+  }),
+  z.object({
     type: z.literal("acknowledgeCalendar"),
     tenantId: z.string(),
     idempotencyKey: z.string().min(8),
@@ -209,6 +221,9 @@ export const crewCommand = onRequest(
         const inviteExpiresAt = new Date(
           Date.now() + 7 * 86400000,
         ).toISOString();
+        const appUrl =
+          process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app";
+        const inviteUrl = `${appUrl}/auth/crew-invite?token=${encodeURIComponent(inviteToken)}`;
         const batch = db.batch();
         batch.create(db.doc(`crewAssignments/${id}`), {
           id,
@@ -260,11 +275,57 @@ export const crewCommand = onRequest(
           assignmentId: id,
           recipient: profile.get("email"),
           inviteToken,
+          inviteUrl,
           status: "queued",
+          attempts: 0,
           createdAt: now,
+          updatedAt: now,
         });
         await batch.commit();
-        result = { assignmentId: id, status: "invited", inviteExpiresAt };
+        result = {
+          assignmentId: id,
+          status: "invited",
+          inviteExpiresAt,
+          inviteUrl,
+        };
+      } else if (parsed.type === "setAvailability") {
+        const profile = await db
+          .doc(`crewProfiles/${parsed.input.crewProfileId}`)
+          .get();
+        if (
+          !profile.exists ||
+          profile.get("tenantId") !== parsed.tenantId ||
+          profile.get("userId") !== identity.uid ||
+          role !== "subcontractor"
+        ) {
+          throw new Error("FORBIDDEN");
+        }
+        if (
+          Date.parse(parsed.input.endsAt) <= Date.parse(parsed.input.startsAt)
+        ) {
+          throw new Error("INVALID_AVAILABILITY_RANGE");
+        }
+        const id = stable(
+          "crew_availability",
+          parsed.tenantId,
+          parsed.idempotencyKey,
+        );
+        await db.doc(`crewAvailability/${id}`).create({
+          id,
+          tenantId: parsed.tenantId,
+          crewProfileId: parsed.input.crewProfileId,
+          userId: identity.uid,
+          startsAt: parsed.input.startsAt,
+          endsAt: parsed.input.endsAt,
+          status: parsed.input.status,
+          notes: parsed.input.notes,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: identity.uid,
+          updatedBy: identity.uid,
+          archivedAt: null,
+        });
+        result = { availabilityId: id, status: parsed.input.status };
       } else {
         if (!hasProject(parsed.input.projectId)) throw new Error("FORBIDDEN");
         const reference = db.doc(

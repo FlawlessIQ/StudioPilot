@@ -1,5 +1,10 @@
-import { CheckCircle2,Heart,Star } from "lucide-react";
+import { LiveClientReviews } from "@/components/client/live-client-views";
 import { PortalShell } from "@/components/layout/portal-shell";
-import { PostEventAction } from "@/components/post-event/post-event-actions";
 
-export default function ClientReviewsPage(){return <PortalShell active="Reviews" projectName="Nora & James" projectDate="June 20, 2026"><div className="client-post-event"><header><p className="eyebrow">A small favor</p><h1>How was your experience?</h1><p>Your perspective helps future clients choose a photography team they can trust.</p></header><section className="client-review-card"><Heart/><h2>Thank you for trusting Alder &amp; Muse.</h2><p>If you have already left a review, confirm below and we will stop all reminders. Opening the review site alone never marks this complete.</p><a className="button button-dark" href="https://example.com/alder-muse-google-review" target="_blank" rel="noreferrer"><Star size={16}/> Leave a Google review</a><div className="review-confirm-boundary"><CheckCircle2/><span><strong>Already completed?</strong><small>This confirmation—not the link click—ends the reminder sequence.</small></span></div><PostEventAction type="confirmReview" input={{projectId:"wedding-delivered",reviewRequestId:"review-ellis-1"}} label="I’ve completed my review" completedLabel="Review confirmed"/></section></div></PortalShell>}
+export default function ClientReviewsPage() {
+  return (
+    <PortalShell active="Reviews">
+      <LiveClientReviews />
+    </PortalShell>
+  );
+}

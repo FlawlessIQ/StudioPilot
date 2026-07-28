@@ -1,8 +1,10 @@
-import { MapPin, Phone, ShieldCheck } from "lucide-react";
-import { AssignmentActions } from "@/components/crew/assignment-actions";
 import { CrewPortalShell } from "@/components/crew/crew-portal-shell";
-import { StatusBadge } from "@/components/ui/status-badge";
+import { LiveCrewAccepted } from "@/components/crew/live-crew-views";
 
 export default function AcceptedJobsPage() {
-  return <CrewPortalShell active="Accepted jobs"><div className="crew-mobile-page"><header className="crew-portal-hero"><div><p className="eyebrow">Accepted job</p><h1>Maya &amp; Theo Johnson</h1><p>Second photographer · Saturday, August 15</p></div><StatusBadge tone="success">Accepted</StatusBadge></header><section className="panel crew-job-brief"><div className="crew-job-brief-hero"><span><small>Call time</small><strong>1:15 PM</strong></span><span><small>Wrap</small><strong>9:30 PM</strong></span><span><small>Compensation</small><strong>$800 flat</strong></span></div><div className="crew-contact-sheet"><article><MapPin/><span><strong>The Boro Hotel</strong><small>38-28 27th Street · Meet in lobby</small></span></article><article><MapPin/><span><strong>The Foundry</strong><small>42-38 9th Street · Crew parking on 9th</small></span></article><article><Phone/><span><strong>Conor Lawless · Lead photographer</strong><a href="tel:+12125550110">212-555-0110</a></span></article></div><div className="crew-scope-note"><ShieldCheck/><span><strong>Privacy boundary active</strong><small>You can see relevant contacts and logistics. Package pricing, invoices, and unrelated project information remain hidden.</small></span></div><AssignmentActions assignmentId="wedding-booked-second" projectId="wedding-booked" initialStatus="accepted"/></section></div></CrewPortalShell>;
+  return (
+    <CrewPortalShell active="Accepted jobs">
+      <LiveCrewAccepted />
+    </CrewPortalShell>
+  );
 }

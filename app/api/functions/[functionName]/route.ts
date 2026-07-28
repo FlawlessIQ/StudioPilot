@@ -8,6 +8,7 @@ const functionNames = [
   "billingCommand",
   "createSession",
   "crewCommand",
+  "crewInvitationCommand",
   "crmCommand",
   "integrationOAuth",
   "membershipCommand",

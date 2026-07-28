@@ -518,3 +518,38 @@ Validation record:
 - Cloud Functions TypeScript build: passed
 - production Next.js build: passed
 - desktop and mobile pricing layout checks: passed with no horizontal overflow
+
+## Pilot hardening — tenant truth and access — July 27, 2026
+
+Status: deployed backend; App Hosting release in progress from `main`.
+
+Delivered:
+
+- production operations job scheduler for provider, email, AI, and PDF queues
+- retry/dead-letter indexes and a verified authenticated Scheduler execution
+- independent outbound email gate; queued work can run without sending mail
+- private SendGrid Inbound Parse COI processor behind the App Hosting boundary
+- live workspace context for user, tenant, role, plan, and assigned projects
+- removal of production demo fallback from project, lead, and dashboard rows
+- explicit loading, empty, permission, and failure states
+- Studio Owner team management with plan-capacity enforcement
+- expiring, one-way-hashed staff invitations and verified-email acceptance
+- audited role changes, suspension, invitation revocation, and acceptance
+- role-filtered Studio navigation
+- verified-email crew invitation activation with subcontractor entitlements
+- project-scoped client portal data for package, contract, invoice,
+  questionnaire, schedule, delivery, and review records
+- project-scoped crew data for invitations, briefs, schedule segments,
+  requirements, document uploads, profile, and availability
+- real assignment-specific ICS generation with no hard-coded client data
+- deterministic client schedule approval and review/download confirmation
+
+Validation record:
+
+- strict TypeScript: passed
+- ESLint: passed
+- unit and policy suite: 68 passed
+- Firestore security-rule suite: passed
+- Cloud Functions TypeScript build: passed
+- production Next.js build: passed
+- operations Scheduler manual execution: passed after index readiness

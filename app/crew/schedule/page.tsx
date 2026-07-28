@@ -1,9 +1,10 @@
-import { AlertTriangle, MapPin, Navigation, Users } from "lucide-react";
-import { AssignmentActions } from "@/components/crew/assignment-actions";
 import { CrewPortalShell } from "@/components/crew/crew-portal-shell";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { crewSchedule } from "@/config/crew-demo-data";
+import { LiveCrewSchedule } from "@/components/crew/live-crew-views";
 
 export default function CrewSchedulePage() {
-  return <CrewPortalShell active="Schedule"><div className="crew-mobile-page crew-event-day"><header className="crew-portal-hero"><div><p className="eyebrow">Saturday, August 15 · America/New_York</p><h1>Event-day schedule</h1><p>Maya &amp; Theo Johnson · Your assigned segments only</p></div><StatusBadge tone="warning">Version 4 · acknowledgement due</StatusBadge></header><div className="crew-version-alert"><AlertTriangle/><span><strong>This schedule changed after your last acknowledgement.</strong><small>Version 4 updates the ceremony start. Review every segment before acknowledging.</small></span></div><section className="crew-event-timeline">{crewSchedule.map((item,index)=><article key={item.title} className={index===2?"is-next":""}><time><strong>{item.time}</strong><small>{item.end}</small></time><i/><div><span>{index===2?<StatusBadge tone="info">Next</StatusBadge>:null}<h2>{item.title}</h2></span><p><MapPin size={14}/>{item.location}</p><small><Users size={14}/>{item.responsibility}</small>{index===2?<a href="https://maps.google.com/?q=The+Foundry+Long+Island+City" target="_blank" rel="noreferrer"><Navigation size={14}/> Open directions</a>:null}</div></article>)}</section><div className="crew-mobile-action-bar"><AssignmentActions assignmentId="wedding-booked-second" projectId="wedding-booked" initialStatus="accepted" currentScheduleId="wedding-booked-v4" currentScheduleVersion={4}/></div></div></CrewPortalShell>;
+  return (
+    <CrewPortalShell active="Schedule">
+      <LiveCrewSchedule />
+    </CrewPortalShell>
+  );
 }
