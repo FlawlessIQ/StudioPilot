@@ -7,7 +7,9 @@ import { BillingAction } from "@/components/saas/billing-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { planCards } from "@/config/saas-plans";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { planEntitlements } from "@/features/subscriptions/entitlements";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { dataIsLive } from "@/lib/runtime-mode";
 
 type Subscription = Record<string, unknown>;
 
@@ -16,7 +18,7 @@ export function LiveSubscription() {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [usage, setUsage] = useState<Record<string, unknown>>({});
   useEffect(() => {
-    if (!workspace.tenantId) return;
+    if (!dataIsLive || !workspace.tenantId) return;
     const { firestore } = getFirebaseClient();
     const period = new Date().toISOString().slice(0, 7);
     const unsubscribeSubscription = onSnapshot(
@@ -33,13 +35,13 @@ export function LiveSubscription() {
     };
   }, [workspace.tenantId]);
   const plan = String(subscription?.plan ?? "solo");
-  const status = String(subscription?.status ?? "loading");
+  const status = String(subscription?.status ?? (dataIsLive ? "loading" : "trialing"));
   const entitlements =
     typeof subscription?.entitlements === "object" &&
     subscription.entitlements !== null
       ? (subscription.entitlements as Record<string, unknown>)
-      : {};
-  const users = Number(subscription?.internalUserCount ?? 0);
+      : { ...planEntitlements.solo };
+  const users = Number(subscription?.internalUserCount ?? (dataIsLive ? 0 : 1));
   const maxUsers = Number(entitlements.maxInternalUsers ?? 0);
   const aiActions = Number(usage.aiActions ?? 0);
   const maxAi = Number(entitlements.aiActionsMonthly ?? 0);
@@ -58,24 +60,26 @@ export function LiveSubscription() {
         </StatusBadge>
       </header>
       <section className="usage-grid">
-        <article className="panel">
-          <UsersRound />
+        <article className="panel usage-card">
+          <span className="usage-card-icon"><UsersRound /></span>
           <span>
             <small>Internal users</small>
             <strong>{users} / {maxUsers || "—"}</strong>
+            <em>Team seats in use</em>
             <i><b style={{ width: `${maxUsers ? Math.min(100, (users / maxUsers) * 100) : 0}%` }} /></i>
           </span>
         </article>
-        <article className="panel">
-          <BrainCircuit />
+        <article className="panel usage-card">
+          <span className="usage-card-icon"><BrainCircuit /></span>
           <span>
             <small>AI actions · current month</small>
             <strong>{aiActions.toLocaleString()} / {maxAi ? maxAi.toLocaleString() : "—"}</strong>
+            <em>Resets each billing month</em>
             <i><b style={{ width: `${maxAi ? Math.min(100, (aiActions / maxAi) * 100) : 0}%` }} /></i>
           </span>
         </article>
-        <article className="panel">
-          <CheckCircle2 />
+        <article className="panel usage-card">
+          <span className="usage-card-icon"><CheckCircle2 /></span>
           <span>
             <small>Active subcontractors</small>
             <strong>{subcontractors} · {maxSubcontractors === null ? "Unlimited" : String(maxSubcontractors ?? "—")}</strong>
@@ -83,27 +87,39 @@ export function LiveSubscription() {
           </span>
         </article>
       </section>
-      <div className="plan-grid">
-        {planCards.map((card) => (
-          <article className={`panel plan-card ${card.key === plan ? "is-current" : ""}`} key={card.key}>
-            <div>
-              <h2>{card.name}</h2>
-              {card.key === plan ? <StatusBadge tone="success">Current</StatusBadge> : null}
-            </div>
-            <strong>{card.monthly}<small>/month</small></strong>
-            <p>or {card.yearly} annually · two months free</p>
-            <ul>
-              <li>{card.users}</li>
-              <li>{card.ai}</li>
-              {card.features.slice(0, 2).map((feature) => <li key={feature}>{feature}</li>)}
-            </ul>
-            <div className="plan-billing-actions">
-              <BillingAction plan={card.key} cadence="monthly" label={`${card.name} monthly`} />
-              <BillingAction plan={card.key} cadence="yearly" label={`${card.name} annual`} />
-            </div>
-          </article>
-        ))}
-      </div>
+      <section className="subscription-plan-section">
+        <div className="section-heading-row">
+          <div>
+            <p className="eyebrow">Plans</p>
+            <h2>Choose the operating capacity your studio needs</h2>
+            <p>Upgrade or change cadence without contacting support.</p>
+          </div>
+        </div>
+        <div className="plan-grid">
+          {planCards.map((card) => (
+            <article className={`panel plan-card plan-card-${card.key} ${card.key === plan ? "is-current" : ""}`} key={card.key}>
+              <div>
+                <span>
+                  <small>{card.key === "studio" ? "Most popular" : "StudioCue plan"}</small>
+                  <h2>{card.name}</h2>
+                </span>
+                {card.key === plan ? <StatusBadge tone="success">Current</StatusBadge> : null}
+              </div>
+              <strong>{card.monthly}<small>/month</small></strong>
+              <p>or {card.yearly} annually · two months free</p>
+              <ul>
+                <li>{card.users}</li>
+                <li>{card.ai}</li>
+                {card.features.slice(0, 2).map((feature) => <li key={feature}>{feature}</li>)}
+              </ul>
+              <div className="plan-billing-actions">
+                <BillingAction plan={card.key} cadence="monthly" label={`${card.name} monthly`} />
+                <BillingAction plan={card.key} cadence="yearly" label={`${card.name} annual`} />
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
       <section className="panel billing-boundary">
         <div>
           <CreditCard />

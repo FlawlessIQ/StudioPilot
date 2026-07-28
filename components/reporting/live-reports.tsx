@@ -1,7 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, Printer } from "lucide-react";
+import {
+  BarChart3,
+  BriefcaseBusiness,
+  CircleDollarSign,
+  Download,
+  Gauge,
+  Info,
+  Printer,
+  SlidersHorizontal,
+  WalletCards,
+} from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 
 function csvCell(value: unknown) {
@@ -107,10 +117,10 @@ export function LiveReports() {
         <div>
           <p className="eyebrow">Operational intelligence</p>
           <h1>Reports</h1>
-          <p>Calculated from current tenant records and provider-synced financial references.</p>
+          <p>Understand the health of your pipeline, projects, and collections without losing sight of where each number came from.</p>
         </div>
         <div className="report-actions">
-          <button className="button" type="button" onClick={() => window.print()}>
+          <button className="button button-light" type="button" onClick={() => window.print()}>
             <Printer /> Print
           </button>
           <button className="button button-dark" type="button" onClick={exportCsv}>
@@ -119,6 +129,13 @@ export function LiveReports() {
         </div>
       </header>
       <div className="report-filters">
+        <div className="report-filter-heading">
+          <span className="report-filter-icon"><SlidersHorizontal /></span>
+          <span>
+            <strong>Report range</strong>
+            <small>Focus every metric below</small>
+          </span>
+        </div>
         <label>
           From
           <input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
@@ -139,13 +156,25 @@ export function LiveReports() {
       </div>
       {error ? <p className="form-notice">{error}</p> : null}
       <section className="report-metrics">
-        <article className="panel"><small>Projects</small><strong>{loading ? "—" : projects.length}</strong><span>Filtered event records</span></article>
-        <article className="panel"><small>Average readiness</small><strong>{loading ? "—" : `${readinessAverage}%`}</strong><span>Deterministic project scores</span></article>
-        <article className="panel"><small>Booked value</small><strong>{loading ? "—" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(bookedValue / 100)}</strong><span>Synced invoice references</span></article>
-        <article className="panel"><small>Outstanding</small><strong>{loading ? "—" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(outstanding / 100)}</strong><span>Collected {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(collected / 100)}</span></article>
+        <article className="panel report-metric-card report-metric-projects">
+          <span className="report-metric-icon"><BriefcaseBusiness /></span>
+          <span className="report-metric-copy"><small>Projects</small><strong>{loading ? "—" : projects.length}</strong><span>Filtered event records</span></span>
+        </article>
+        <article className="panel report-metric-card report-metric-readiness">
+          <span className="report-metric-icon"><Gauge /></span>
+          <span className="report-metric-copy"><small>Average readiness</small><strong>{loading ? "—" : `${readinessAverage}%`}</strong><span>Deterministic project scores</span></span>
+        </article>
+        <article className="panel report-metric-card report-metric-booked">
+          <span className="report-metric-icon"><CircleDollarSign /></span>
+          <span className="report-metric-copy"><small>Booked value</small><strong>{loading ? "—" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(bookedValue / 100)}</strong><span>Synced invoice references</span></span>
+        </article>
+        <article className="panel report-metric-card report-metric-outstanding">
+          <span className="report-metric-icon"><WalletCards /></span>
+          <span className="report-metric-copy"><small>Outstanding</small><strong>{loading ? "—" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(outstanding / 100)}</strong><span>Collected {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(collected / 100)}</span></span>
+        </article>
       </section>
       <div className="report-layout">
-        <section className="panel">
+        <section className="panel report-chart-card">
           <div className="panel-heading"><div><h2>Lead sources</h2><p>Current intake attribution</p></div></div>
           <div className="report-bars">
             {leadSources.map(([source, count]) => (
@@ -154,10 +183,18 @@ export function LiveReports() {
                 <i><b style={{ width: `${(count / maxSource) * 100}%` }} /></i>
               </article>
             ))}
-            {!leadSources.length ? <p className="form-notice">No lead-source data in this tenant yet.</p> : null}
+            {!leadSources.length ? (
+              <div className="report-empty-chart">
+                <BarChart3 />
+                <span>
+                  <strong>Attribution starts with your next inquiry</strong>
+                  <small>Lead sources will build here as inquiry forms are submitted.</small>
+                </span>
+              </div>
+            ) : null}
           </div>
         </section>
-        <section className="panel">
+        <section className="panel report-chart-card">
           <div className="panel-heading"><div><h2>Projects by type</h2><p>Filtered portfolio mix</p></div></div>
           <div className="report-bars">
             {projectTypes.map(([type, count]) => (
@@ -166,12 +203,24 @@ export function LiveReports() {
                 <i><b style={{ width: `${projects.length ? (count / projects.length) * 100 : 0}%` }} /></i>
               </article>
             ))}
+            {!projectTypes.length ? (
+              <div className="report-empty-chart">
+                <BriefcaseBusiness />
+                <span>
+                  <strong>Your portfolio mix will appear here</strong>
+                  <small>Create a project to begin comparing work by project type.</small>
+                </span>
+              </div>
+            ) : null}
           </div>
         </section>
       </div>
       <aside className="panel report-source-note">
-        <h2>Financial source boundary</h2>
-        <p>Revenue figures use StudioCue&apos;s latest QuickBooks invoice references and can lag the accounting system. QuickBooks remains authoritative.</p>
+        <Info />
+        <span>
+          <h2>QuickBooks remains your financial source of truth</h2>
+          <p>StudioCue uses the latest synchronized invoice references for this operational view. Figures can briefly lag your accounting system.</p>
+        </span>
       </aside>
     </div>
   );

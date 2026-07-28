@@ -221,6 +221,16 @@ function PortalPageState({
       <h1>{title}</h1>
       <p>{description}</p>
       <PortalState loading={loading} error={error} empty={empty} />
+      {empty ? (
+        <aside className="portal-empty-guide" aria-label="What happens next">
+          <p className="eyebrow">What happens next</p>
+          <div>
+            <span><CheckCircle2 /><strong>Your studio prepares this area</strong></span>
+            <span><MessageCircle /><strong>You’ll be notified when it changes</strong></span>
+            <span><ShieldCheck /><strong>Only approved project details appear here</strong></span>
+          </div>
+        </aside>
+      ) : null}
     </div>
   );
 }

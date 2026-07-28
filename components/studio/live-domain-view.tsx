@@ -52,6 +52,9 @@ type Domain =
 
 const emptyCopy: Partial<Record<Domain, { title: string; detail: string }>> = {
   packages: { title: "No packages yet", detail: "Create the first offer you want clients to select." },
+  proposals: { title: "No proposals yet", detail: "Create a proposal when a client is ready to review an offer." },
+  contracts: { title: "No contracts yet", detail: "Contracts will appear here after an agreement is prepared for signature." },
+  invoices: { title: "No invoice references yet", detail: "QuickBooks invoice links and payment status will appear here after they are created." },
   tasks: { title: "No tasks yet", detail: "Create a task when a project needs a clear owner and due date." },
   workflows: { title: "No workflows yet", detail: "Create a reusable workflow for your most common project type." },
   consultations: { title: "No consultations scheduled", detail: "Choose a project below to schedule the first consultation." },
@@ -60,6 +63,16 @@ const emptyCopy: Partial<Record<Domain, { title: string; detail: string }>> = {
   schedules: { title: "No schedules yet", detail: "Generate a run of show from an active project." },
   vendors: { title: "No vendors yet", detail: "Add a venue, planner, or project vendor when details are available." },
   questionnaires: { title: "No questionnaires assigned", detail: "Create a template, then assign it to a project." },
+  insurance: { title: "No certificate requests yet", detail: "Start a request when a venue requires proof of insurance." },
+  crew_profiles: { title: "No crew profiles yet", detail: "Add a photographer or subcontractor before assigning project work." },
+  crew_assignments: { title: "No crew assignments yet", detail: "Invite crew after the project role, timing, and responsibilities are clear." },
+  post_production: { title: "No post-production work yet", detail: "Post-event milestones appear after event coverage is complete." },
+  delivery: { title: "No deliveries recorded", detail: "Add the approved gallery or delivery link when it is ready for the client." },
+  reviews: { title: "No review requests yet", detail: "Requests can be scheduled after the client receives their delivery." },
+  audit: { title: "No audit events in this view", detail: "Meaningful user, workflow, and provider actions will appear here." },
+  automations: { title: "No automation runs yet", detail: "Workflow executions will appear after a supported trigger occurs." },
+  documents: { title: "No documents yet", detail: "Uploaded and provider-generated project files will appear here." },
+  messages: { title: "No messages yet", detail: "Client, crew, and vendor communication history will appear here." },
 };
 
 type DomainConfig = {

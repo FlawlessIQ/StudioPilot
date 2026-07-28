@@ -808,3 +808,23 @@ Validation record:
   application routes
 - Chrome route audit: passed for Studio, Client, Crew, and Platform Admin
 - 390px mobile route and drawer audit: passed with no horizontal overflow
+
+## July 28, 2026 — authenticated visual and usability pass
+
+Status: implementation and local validation complete; production deployment pending.
+
+- Audited every static Studio, client, crew, and platform-administration route at desktop and mobile widths.
+- Reworked shared page hierarchy, panels, metrics, filters, forms, empty states, and system-of-record disclosures.
+- Upgraded Reports, Subscription, Settings, client portal, crew portal, and platform support surfaces that bypassed dependable card spacing.
+- Clarified navigation by promoting Tasks and renaming People to Clients.
+- Added full authenticated-route visual-shell regression coverage.
+- Documented the audit findings and the StudioCue authenticated-product design standard in `docs/visual-ui-audit.md`.
+
+Validation record:
+
+- strict TypeScript: passed
+- ESLint: passed with zero warnings
+- unit and policy suite: 74 passed
+- authenticated route suite: 8 passed across desktop Chromium and Pixel 7
+- Chrome visual audit: 70 static authenticated routes passed at desktop and phone widths
+- production Next.js webpack build: passed, including all 92 application routes

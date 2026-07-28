@@ -244,6 +244,13 @@ function CrewPageState({
         </div>
       </header>
       <CrewState data={data} empty={empty} />
+      {empty ? (
+        <aside className="crew-empty-guide" aria-label="Assignment notifications">
+          <span><CheckCircle2 /><strong>No action is required right now</strong></span>
+          <span><CalendarCheck /><strong>New work and schedule changes appear here</strong></span>
+          <span><ShieldCheck /><strong>You only see jobs assigned to you</strong></span>
+        </aside>
+      ) : null}
     </div>
   );
 }

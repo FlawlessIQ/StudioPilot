@@ -169,8 +169,8 @@ export function DataControls() {
   }
   return (
     <div className="data-controls">
-      <section className="panel">
-        <Download />
+      <section className="panel data-control-card">
+        <span className="data-control-icon"><Download /></span>
         <div>
           <h2>Tenant export</h2>
           <p>
@@ -201,8 +201,8 @@ export function DataControls() {
           </ul>
         ) : null}
       </section>
-      <section className="panel deletion-control">
-        <ShieldAlert />
+      <section className="panel deletion-control data-control-card data-control-danger">
+        <span className="data-control-icon"><ShieldAlert /></span>
         <div>
           <h2>Request account deletion</h2>
           <p>

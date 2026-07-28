@@ -10,6 +10,7 @@ import {
   ContactRound,
   FolderKanban,
   LibraryBig,
+  ListTodo,
   Menu,
   Settings,
   Sparkles,
@@ -39,7 +40,8 @@ const navSections = [
       { label: "Pipeline", href: "/studio/leads", icon: ContactRound },
       { label: "Projects", href: "/studio/projects", icon: FolderKanban },
       { label: "Calendar", href: "/studio/calendar", icon: CalendarDays },
-      { label: "People", href: "/studio/clients", icon: UsersRound },
+      { label: "Tasks", href: "/studio/tasks", icon: ListTodo },
+      { label: "Clients", href: "/studio/clients", icon: UsersRound },
     ],
   },
   {
@@ -65,7 +67,6 @@ const activeGroups: Record<string, string[]> = {
   Pipeline: ["Leads", "Inquiries", "Proposals", "Contracts", "Invoices", "Booking"],
   Projects: [
     "Projects",
-    "Tasks",
     "Questionnaires",
     "Vendors",
     "Crew",
@@ -78,8 +79,9 @@ const activeGroups: Record<string, string[]> = {
     "Documents",
     "Communications",
   ],
+  Tasks: ["Tasks"],
   Calendar: ["Calendar"],
-  People: ["Clients"],
+  Clients: ["Clients"],
   Library: ["Library", "Packages", "Workflows"],
   Reports: ["Reports"],
   "Studio setup": ["Studio setup", "Integrations", "Team", "Subscription", "Settings"],
@@ -114,6 +116,7 @@ function StudioShell({
     "Home",
     "Projects",
     "Calendar",
+    "Tasks",
   ]);
   const coordinatorExcluded = new Set([
     "Reports",
