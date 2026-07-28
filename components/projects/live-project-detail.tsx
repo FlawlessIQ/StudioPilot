@@ -1,15 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
+  ArrowRight,
   CalendarDays,
   CheckCircle2,
   CircleAlert,
+  ClipboardCheck,
+  FileCheck2,
+  FolderKanban,
   LoaderCircle,
   MapPin,
+  PartyPopper,
+  Send,
+  Sparkles,
   UserRound,
+  UsersRound,
 } from "lucide-react";
 import {
   collection,
@@ -22,26 +30,295 @@ import {
 import { ReadinessMeter } from "@/components/ui/readiness-meter";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import {
+  allowedProjectTransitions,
+} from "@/features/projects/state-machine";
+import {
+  projectStateSchema,
+  type ProjectState,
+} from "@/features/projects/schema";
+import { runCrmCommand } from "@/lib/crm/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { dataIsLive } from "@/lib/runtime-mode";
 
 type ProjectRecord = Record<string, unknown> & { id: string };
 type CheckpointRecord = Record<string, unknown> & { id: string };
 
-const states = [
-  "LEAD",
-  "CONSULTATION",
-  "PROPOSAL",
-  "CONTRACT_PENDING",
-  "RETAINER_PENDING",
-  "BOOKED",
-  "PLANNING",
-  "READY",
-  "EVENT_COMPLETE",
-  "POST_PRODUCTION",
-  "DELIVERED",
-  "REVIEW_REQUESTED",
-  "CLOSED",
+const projectPhases: ReadonlyArray<{
+  label: string;
+  detail: string;
+  states: readonly ProjectState[];
+  icon: typeof ClipboardCheck;
+}> = [
+  {
+    label: "Inquiry",
+    detail: "Qualify the lead and schedule a consultation.",
+    states: ["LEAD", "CONSULTATION"],
+    icon: ClipboardCheck,
+  },
+  {
+    label: "Booking",
+    detail: "Proposal, contract, and retainer.",
+    states: ["PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING", "BOOKED"],
+    icon: FileCheck2,
+  },
+  {
+    label: "Planning",
+    detail: "Details, crew, insurance, and schedule.",
+    states: ["PLANNING", "READY"],
+    icon: FolderKanban,
+  },
+  {
+    label: "Event",
+    detail: "Execute coverage and finish event-day work.",
+    states: ["EVENT_COMPLETE"],
+    icon: PartyPopper,
+  },
+  {
+    label: "Delivery",
+    detail: "Post-production, delivery, review, and closeout.",
+    states: ["POST_PRODUCTION", "DELIVERED", "REVIEW_REQUESTED", "CLOSED"],
+    icon: Send,
+  },
 ];
+
+const forwardStage: Partial<Record<ProjectState, ProjectState>> = {
+  LEAD: "CONSULTATION",
+  CONSULTATION: "PROPOSAL",
+  PROPOSAL: "CONTRACT_PENDING",
+  CONTRACT_PENDING: "RETAINER_PENDING",
+  RETAINER_PENDING: "BOOKED",
+  BOOKED: "PLANNING",
+  PLANNING: "READY",
+  READY: "EVENT_COMPLETE",
+  EVENT_COMPLETE: "POST_PRODUCTION",
+  POST_PRODUCTION: "DELIVERED",
+  DELIVERED: "REVIEW_REQUESTED",
+  REVIEW_REQUESTED: "CLOSED",
+  CLOSED: "ARCHIVED",
+};
+
+const mockProject = (projectId: string): ProjectRecord => ({
+  id: projectId,
+  name: "Rivera wedding",
+  eventType: "Wedding",
+  eventDate: "2027-06-12",
+  venueName: "The Garden Conservatory",
+  city: "Brooklyn",
+  leadPhotographerName: "Jordan Lee",
+  state: "PLANNING",
+  stateVersion: 4,
+  readinessScore: 67,
+  nextAction: "Confirm the final run of show",
+});
+
+const mockCheckpoints: CheckpointRecord[] = [
+  {
+    id: "checkpoint-questionnaire",
+    name: "Client questionnaire complete",
+    ownerType: "client",
+    resolvedDueDate: "2027-04-13",
+    blocking: true,
+    status: "complete",
+  },
+  {
+    id: "checkpoint-schedule",
+    name: "Final schedule approved",
+    ownerType: "studio",
+    resolvedDueDate: "2027-05-29",
+    blocking: true,
+    status: "in_progress",
+  },
+  {
+    id: "checkpoint-crew",
+    name: "Crew acknowledges current schedule",
+    ownerType: "subcontractor",
+    resolvedDueDate: "2027-06-05",
+    blocking: true,
+    status: "not_started",
+  },
+];
+
+function stateLabel(state: ProjectState): string {
+  return state
+    .toLowerCase()
+    .replaceAll("_", " ")
+    .replace(/^\w/, (value) => value.toUpperCase());
+}
+
+function displayDate(value: unknown): string {
+  const source = String(value ?? "");
+  const date = new Date(`${source}T12:00:00`);
+  if (Number.isNaN(date.valueOf())) return source || "Date pending";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
+
+function projectAction(
+  state: ProjectState,
+  projectId: string,
+): { href: string; label: string; detail: string } {
+  const routes: Record<ProjectState, { href: string; label: string; detail: string }> = {
+    LEAD: {
+      href: `/studio/calendar?project=${projectId}`,
+      label: "Schedule consultation",
+      detail: "Qualify the inquiry, then choose a time with the client.",
+    },
+    CONSULTATION: {
+      href: `/studio/proposals?project=${projectId}`,
+      label: "Prepare proposal",
+      detail: "Turn the consultation outcome into a clear client offer.",
+    },
+    PROPOSAL: {
+      href: `/studio/proposals?project=${projectId}`,
+      label: "Review proposal",
+      detail: "Confirm pricing, expiration, and acceptance before contracting.",
+    },
+    CONTRACT_PENDING: {
+      href: `/studio/contracts?project=${projectId}`,
+      label: "Open contract",
+      detail: "Track the authoritative Docusign envelope and signer status.",
+    },
+    RETAINER_PENDING: {
+      href: `/studio/contracts?project=${projectId}`,
+      label: "Check retainer status",
+      detail: "Confirm the QuickBooks retainer evidence before booking.",
+    },
+    BOOKED: {
+      href: `/studio/vendors?project=${projectId}`,
+      label: "Begin planning",
+      detail: "Collect the people, locations, and requirements behind the event.",
+    },
+    PLANNING: {
+      href: `/studio/readiness?project=${projectId}`,
+      label: "Review readiness",
+      detail: "Resolve blocking checkpoints before moving the project to Ready.",
+    },
+    READY: {
+      href: `/studio/schedules?project=${projectId}`,
+      label: "Open final schedule",
+      detail: "Confirm the published version and every crew acknowledgement.",
+    },
+    EVENT_COMPLETE: {
+      href: `/studio/post-production?project=${projectId}`,
+      label: "Start post-production",
+      detail: "Record protected backup before culling and editing begin.",
+    },
+    POST_PRODUCTION: {
+      href: `/studio/delivery?project=${projectId}`,
+      label: "Review delivery",
+      detail: "Track the approved gallery and client delivery evidence.",
+    },
+    DELIVERED: {
+      href: `/studio/reviews?project=${projectId}`,
+      label: "Manage review request",
+      detail: "Invite feedback without claiming a review was posted.",
+    },
+    REVIEW_REQUESTED: {
+      href: `/studio/post-production?project=${projectId}`,
+      label: "Review closeout",
+      detail: "Confirm every closeout requirement before closing the project.",
+    },
+    CLOSED: {
+      href: `/studio/delivery?project=${projectId}`,
+      label: "View delivery record",
+      detail: "Keep the completed project accessible until it is archived.",
+    },
+    CANCELLED: {
+      href: `/studio/tasks/new?project=${projectId}`,
+      label: "Add follow-up task",
+      detail: "Record any remaining client, financial, or archival work.",
+    },
+    POSTPONED: {
+      href: `/studio/calendar?project=${projectId}`,
+      label: "Review new date",
+      detail: "Reconfirm availability and rebuild every date-relative task.",
+    },
+    ARCHIVED: {
+      href: `/studio/documents?project=${projectId}`,
+      label: "View project files",
+      detail: "Review retained project evidence without reopening the workflow.",
+    },
+  };
+  return routes[state];
+}
+
+function ProjectStageControl({
+  projectId,
+  state,
+  stateVersion,
+  onTransition,
+}: {
+  projectId: string;
+  state: ProjectState;
+  stateVersion: number;
+  onTransition: (state: ProjectState, version: number) => void;
+}) {
+  const target = forwardStage[state];
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  if (!target || !allowedProjectTransitions[state].includes(target)) return null;
+  const nextStage = target;
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setNotice(null);
+    try {
+      const response = await runCrmCommand("transitionProject", {
+        projectId,
+        expectedVersion: stateVersion,
+        targetState: nextStage,
+      });
+      if (response.persisted) {
+        const version = Number(response.result.stateVersion ?? stateVersion + 1);
+        onTransition(nextStage, version);
+        setNotice(`Project moved to ${stateLabel(nextStage)}.`);
+      } else {
+        setNotice(
+          `Development preview: the project would move to ${stateLabel(nextStage)}.`,
+        );
+      }
+    } catch (caught: unknown) {
+      setNotice(
+        caught instanceof Error
+          ? caught.message.replaceAll("_", " ")
+          : "The project stage could not be changed.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <details className="project-stage-control">
+      <summary>Update project stage</summary>
+      <form onSubmit={(event) => void submit(event)}>
+        <span>
+          <small>Current stage</small>
+          <strong>{stateLabel(state)}</strong>
+        </span>
+        <ArrowRight aria-hidden="true" size={16} />
+        <span>
+          <small>Next allowed stage</small>
+          <strong>{stateLabel(nextStage)}</strong>
+        </span>
+        <p>
+          This deterministic change creates an audit event. Ready status will
+          still be blocked unless every required readiness rule passes.
+        </p>
+        <button className="button button-light-on-dark" disabled={busy} type="submit">
+          {busy ? "Updating…" : `Confirm ${stateLabel(nextStage)}`}
+        </button>
+        {notice ? <p className="project-stage-notice" role="status">{notice}</p> : null}
+      </form>
+    </details>
+  );
+}
 
 function checkpointTone(status: string) {
   if (["complete", "waived"].includes(status)) return "success" as const;
@@ -52,12 +329,16 @@ function checkpointTone(status: string) {
 
 export function LiveProjectDetail({ projectId }: { projectId: string }) {
   const workspace = useWorkspace();
-  const [project, setProject] = useState<ProjectRecord | null>(null);
-  const [checkpoints, setCheckpoints] = useState<CheckpointRecord[]>([]);
+  const [project, setProject] = useState<ProjectRecord | null>(
+    dataIsLive ? null : mockProject(projectId),
+  );
+  const [checkpoints, setCheckpoints] = useState<CheckpointRecord[]>(
+    dataIsLive ? [] : mockCheckpoints,
+  );
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (workspace.loading || !workspace.tenantId) return;
+    if (!dataIsLive || workspace.loading || !workspace.tenantId) return;
     let active = true;
     const { firestore } = getFirebaseClient();
     void Promise.all([
@@ -121,18 +402,23 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
       </section>
     );
 
-  const state = String(project.state);
-  const stateIndex = states.indexOf(state);
+  const parsedState = projectStateSchema.safeParse(project.state);
+  const state: ProjectState = parsedState.success ? parsedState.data : "LEAD";
+  const phaseIndex = Math.max(
+    0,
+    projectPhases.findIndex((phase) => phase.states.includes(state)),
+  );
   const readiness = Number(project.readinessScore ?? 0);
+  const action = projectAction(state, projectId);
   const workspaceLinks = [
-    { label: "Overview", href: `/studio/projects/${projectId}` },
-    { label: "Tasks", href: `/studio/tasks?project=${projectId}` },
-    { label: "Client details", href: `/studio/questionnaires?project=${projectId}` },
-    { label: "Contracts & payments", href: `/studio/contracts?project=${projectId}` },
-    { label: "Planning", href: `/studio/vendors?project=${projectId}` },
-    { label: "Crew", href: `/studio/crew?project=${projectId}` },
-    { label: "Schedule", href: `/studio/schedules?project=${projectId}` },
-    { label: "Files & delivery", href: `/studio/documents?project=${projectId}` },
+    { label: "Overview", href: `/studio/projects/${projectId}`, icon: Sparkles },
+    { label: "Tasks", href: `/studio/tasks?project=${projectId}`, icon: ClipboardCheck },
+    { label: "Client details", href: `/studio/questionnaires?project=${projectId}`, icon: UserRound },
+    { label: "Booking", href: `/studio/contracts?project=${projectId}`, icon: FileCheck2 },
+    { label: "Planning", href: `/studio/vendors?project=${projectId}`, icon: FolderKanban },
+    { label: "Crew", href: `/studio/crew?project=${projectId}`, icon: UsersRound },
+    { label: "Schedule", href: `/studio/schedules?project=${projectId}`, icon: CalendarDays },
+    { label: "Files", href: `/studio/documents?project=${projectId}`, icon: Send },
   ];
   return (
     <div className="project-detail-page">
@@ -141,30 +427,42 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
       </Link>
       <header className="project-detail-header">
         <div>
+          <p className="eyebrow">Project command center</p>
           <div className="project-title-line">
             <h1>{String(project.name)}</h1>
             <StatusBadge tone={state === "READY" ? "success" : "info"} dot>
-              {state.replaceAll("_", " ")}
+              {stateLabel(state)}
             </StatusBadge>
           </div>
           <p>
-            {String(project.eventType)} photography
+            {String(project.eventType)} photography ·{" "}
+            {displayDate(project.eventDate)}
           </p>
         </div>
-        <ReadinessMeter value={readiness} size="lg" />
+        <div className="project-readiness-summary">
+          <span>
+            <small>Event readiness</small>
+            <strong>{readiness}%</strong>
+          </span>
+          <ReadinessMeter value={readiness} size="lg" />
+        </div>
       </header>
       <nav aria-label="Project workspace" className="project-workspace-nav">
-        {workspaceLinks.map((item, index) => (
+        {workspaceLinks.map((item, index) => {
+          const Icon = item.icon;
+          return (
           <Link className={index === 0 ? "active" : ""} href={item.href} key={item.label}>
+            <Icon aria-hidden="true" size={14} />
             {item.label}
           </Link>
-        ))}
+          );
+        })}
       </nav>
       <div className="project-facts">
         <span>
           <CalendarDays size={17} />
           <small>Event date</small>
-          <strong>{String(project.eventDate)}</strong>
+          <strong>{displayDate(project.eventDate)}</strong>
         </span>
         <span>
           <MapPin size={17} />
@@ -178,36 +476,75 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
         </span>
       </div>
       <div className="project-detail-grid">
-        <section className="panel">
+        <section className="panel project-lifecycle-card">
           <div className="panel-heading">
             <div>
+              <p className="eyebrow">Workflow</p>
               <h2>Project lifecycle</h2>
-              <p>See where this project is now and what comes next.</p>
+              <p>Five clear phases from inquiry through delivery and closeout.</p>
             </div>
+            <span className="project-current-stage">
+              <small>Current stage</small>
+              <strong>{stateLabel(state)}</strong>
+            </span>
           </div>
-          <div className="state-timeline">
-            {states.slice(0, 8).map((candidate, index) => (
-              <span className={index <= stateIndex ? "complete" : ""} key={candidate}>
-                <i>
-                  {index < stateIndex ? <CheckCircle2 size={14} /> : index + 1}
-                </i>
-                <small>{candidate.replaceAll("_", " ")}</small>
-              </span>
-            ))}
+          <div className="project-phase-rail">
+            {projectPhases.map((phase, index) => {
+              const Icon = phase.icon;
+              const isCurrent = index === phaseIndex;
+              const isComplete = index < phaseIndex;
+              return (
+                <article
+                  aria-current={isCurrent ? "step" : undefined}
+                  className={
+                    isCurrent
+                      ? "project-phase is-current"
+                      : isComplete
+                        ? "project-phase is-complete"
+                        : "project-phase"
+                  }
+                  key={phase.label}
+                >
+                  <span className="project-phase-icon">
+                    {isComplete ? <CheckCircle2 size={17} /> : <Icon size={17} />}
+                  </span>
+                  <span>
+                    <small>
+                      {isComplete ? "Complete" : isCurrent ? stateLabel(state) : "Upcoming"}
+                    </small>
+                    <strong>{phase.label}</strong>
+                    <em>{phase.detail}</em>
+                  </span>
+                </article>
+              );
+            })}
           </div>
         </section>
         <aside className="next-action-card">
-          <p className="eyebrow">Next action</p>
-          <CircleAlert size={21} />
+          <p className="eyebrow">Recommended next move</p>
+          <span className="next-action-icon"><CircleAlert size={21} /></span>
           <h2>{String(project.nextAction ?? "Review project readiness")}</h2>
-          <p>
-            StudioCue selected this from the project’s incomplete requirements and
-            deadlines.
-          </p>
+          <p>{action.detail}</p>
           <div className="project-next-actions">
-            <Link className="button button-light" href={`/studio/tasks/new?project=${projectId}`}>Add task</Link>
-            <Link className="button button-light" href={`/studio/readiness?project=${projectId}`}>Review readiness</Link>
+            <Link className="button button-light-on-dark" href={action.href}>
+              {action.label} <ArrowRight size={15} />
+            </Link>
+            <Link className="button project-action-secondary" href={`/studio/tasks/new?project=${projectId}`}>
+              Add a task
+            </Link>
           </div>
+          <ProjectStageControl
+            onTransition={(nextState, version) =>
+              setProject((current) =>
+                current
+                  ? { ...current, state: nextState, stateVersion: version }
+                  : current,
+              )
+            }
+            projectId={projectId}
+            state={state}
+            stateVersion={Number(project.stateVersion ?? 0)}
+          />
         </aside>
       </div>
       <section className="panel project-checkpoints-panel">

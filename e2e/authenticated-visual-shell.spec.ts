@@ -94,17 +94,37 @@ async function expectHealthyAuthenticatedShell(page: Page, route: string) {
     const invalidInternalLinks = links
       .map((link) => link.getAttribute("href")?.trim() ?? "")
       .filter((href) => href === "" || href === "#");
+    const invisibleActionText = Array.from(
+      document.querySelectorAll<HTMLElement>("button, a.button"),
+    )
+      .filter((element) => {
+        const bounds = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return (
+          bounds.width > 0 &&
+          bounds.height > 0 &&
+          (element.textContent?.trim().length ?? 0) > 0 &&
+          style.opacity !== "0" &&
+          style.color === style.backgroundColor
+        );
+      })
+      .map((element) => element.textContent?.trim() ?? "");
 
     return {
       horizontalOverflow:
         document.documentElement.scrollWidth >
         document.documentElement.clientWidth + 1,
       invalidInternalLinks,
+      invisibleActionText,
     };
   });
 
   expect(layout.horizontalOverflow, `${route} must fit the viewport`).toBe(false);
   expect(layout.invalidInternalLinks, `${route} contains dead links`).toEqual([]);
+  expect(
+    layout.invisibleActionText,
+    `${route} contains actions whose text matches their background`,
+  ).toEqual([]);
 }
 
 test.describe("authenticated visual shell", () => {
@@ -134,5 +154,37 @@ test.describe("authenticated visual shell", () => {
     for (const route of platformRoutes) {
       await expectHealthyAuthenticatedShell(page, route);
     }
+  });
+
+  test("dynamic record workflows remain usable and legible", async ({ page }) => {
+    await expectHealthyAuthenticatedShell(page, "/studio/projects/demo-project");
+    await expect(page.locator(".project-phase")).toHaveCount(5);
+    await expect(
+      page.locator('.project-phase[aria-current="step"] strong'),
+    ).toHaveText("Planning");
+    await expect(
+      page.getByRole("link", { name: /Review readiness/i }),
+    ).toBeVisible();
+    await page.getByText("Update project stage", { exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "Confirm Ready" }),
+    ).toBeVisible();
+
+    for (const route of [
+      "/studio/leads/LD-1087",
+      "/studio/proposals/demo-proposal",
+      "/studio/crew/demo-crew",
+      "/studio/post-production/demo-project",
+      "/studio/schedules/demo-schedule",
+      "/studio/workflows/demo-workflow",
+    ]) {
+      await expectHealthyAuthenticatedShell(page, route);
+    }
+
+    await page.goto("/studio/proposals/demo-proposal/preview");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Signature wedding" }),
+    ).toBeVisible();
   });
 });

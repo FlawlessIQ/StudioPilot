@@ -7,6 +7,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { dataIsLive } from "@/lib/runtime-mode";
 
 type RecordValue = Record<string, unknown> & { id: string };
 type DetailKind = "proposal" | "schedule" | "crew" | "post-production" | "workflow";
@@ -131,6 +132,96 @@ const config: Record<
   },
 };
 
+function mockRecord(kind: DetailKind, id: string): RecordValue {
+  const records: Record<DetailKind, RecordValue> = {
+    proposal: {
+      id,
+      projectName: "Rivera wedding",
+      clientSnapshot: { primaryName: "Maya and Elena Rivera" },
+      status: "sent",
+      version: 2,
+      pricingSnapshot: {
+        packageName: "Signature wedding",
+        totalCents: 680000,
+      },
+      expiresAt: "2027-01-31T17:00:00.000Z",
+      sentAt: "2027-01-18T14:00:00.000Z",
+      acceptedAt: null,
+    },
+    schedule: {
+      id,
+      projectName: "Rivera wedding",
+      status: "published",
+      approvalState: "approved",
+      version: 3,
+      timezone: "America/New_York",
+      publishedAt: "2027-06-01T16:00:00.000Z",
+      approvedAt: "2027-06-02T13:30:00.000Z",
+      approvedBy: "Maya Rivera",
+      items: [
+        {
+          id: "arrival",
+          startAt: "2027-06-12T12:30:00-04:00",
+          endAt: "2027-06-12T13:00:00-04:00",
+          title: "Crew arrival and venue walk-through",
+          location: "The Garden Conservatory",
+        },
+        {
+          id: "ceremony",
+          startAt: "2027-06-12T17:00:00-04:00",
+          endAt: "2027-06-12T17:45:00-04:00",
+          title: "Ceremony",
+          location: "Garden terrace",
+        },
+      ],
+    },
+    crew: {
+      id,
+      name: "Jordan Lee",
+      role: "Lead photographer",
+      active: true,
+      email: "jordan@example.test",
+      arrivalAt: "2027-06-12T12:30:00-04:00",
+      departureAt: "2027-06-12T22:30:00-04:00",
+      calendarStatus: "accepted",
+      currentScheduleVersion: 3,
+      requirements: [
+        { name: "W-9", kind: "document", status: "complete" },
+        { name: "Final schedule", kind: "acknowledgement", status: "ready" },
+      ],
+      specialties: ["Weddings", "Documentary"],
+      serviceAreas: ["New York City", "Hudson Valley"],
+      w9Status: "complete",
+      insuranceStatus: "current",
+    },
+    "post-production": {
+      id,
+      projectName: "Rivera wedding",
+      currentStep: "editing_started",
+      targetDeliveryDate: "2027-08-07",
+      updatedAt: "2027-06-16T18:00:00.000Z",
+      projectId: "demo-project",
+      steps: {
+        backup_complete: true,
+        cull_complete: true,
+        editing_started: true,
+      },
+    },
+    workflow: {
+      id,
+      name: "Wedding photography",
+      status: "active",
+      version: 4,
+      eventTypeId: "wedding",
+      checkpoints: ["Contract", "Retainer", "Questionnaire", "Schedule"],
+      automations: ["Booking confirmation", "Final invoice", "Review request"],
+      createdAt: "2026-10-12T14:00:00.000Z",
+      updatedAt: "2027-01-04T15:30:00.000Z",
+    },
+  };
+  return records[kind];
+}
+
 function nested(value: RecordValue, fields: string[]) {
   for (const field of fields) {
     let current: unknown = value;
@@ -171,10 +262,12 @@ export function LiveRecordDetail({
 }) {
   const workspace = useWorkspace();
   const selected = config[kind];
-  const [record, setRecord] = useState<RecordValue | null | undefined>();
+  const [record, setRecord] = useState<RecordValue | null | undefined>(
+    dataIsLive ? undefined : mockRecord(kind, id),
+  );
   const [error, setError] = useState("");
   useEffect(() => {
-    if (workspace.loading) return;
+    if (!dataIsLive || workspace.loading) return;
     let active = true;
     const load = async () => {
       const { firestore } = getFirebaseClient();

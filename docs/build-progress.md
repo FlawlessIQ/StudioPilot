@@ -828,3 +828,27 @@ Validation record:
 - authenticated route suite: 8 passed across desktop Chromium and Pixel 7
 - Chrome visual audit: 70 static authenticated routes passed at desktop and phone widths
 - production Next.js webpack build: passed, including all 92 application routes
+
+## July 28, 2026 — project command-center correction
+
+Status: implementation and validation complete; production deployment pending.
+
+- Corrected inherited white-on-white text in light buttons placed on dark surfaces.
+- Replaced the technical project-state row with five understandable lifecycle phases.
+- Added state-aware primary actions and a confirmed, audited stage-update control.
+- Improved project navigation, event facts, date presentation, readiness context, and mobile behavior.
+- Added representative mock records for every shared dynamic-detail family.
+- Expanded authenticated regression coverage to catch invisible action text and exercise dynamic record flows.
+
+Validation record:
+
+- strict TypeScript: passed
+- ESLint: passed with zero warnings
+- unit and policy suite: 74 passed
+- dynamic project and record-detail suite: 2 passed across desktop Chromium and Pixel 7
+- authenticated desktop route groups: 5 passed; mobile route sweep was stopped
+  after the local test compiler exhausted temporary disk space, not because of an
+  application assertion
+- Chrome project-context audit: passed at desktop and phone widths with no
+  horizontal overflow or invisible actions
+- production Next.js webpack build: passed, including all 92 application routes

@@ -15,6 +15,10 @@ This pass covers every static, authenticated destination in the product:
 
 Record-detail routes are covered through their shared shells and components. They remain subject to workflow-specific end-to-end tests as representative records are added.
 
+Follow-up correction: the initial pass did not exercise the live project command
+center deeply enough. A subsequent real-record audit added explicit coverage for
+project-context destinations and every dynamic record-detail family.
+
 ## Findings
 
 ### 1. Several route families bypassed the intended card spacing
@@ -67,6 +71,29 @@ Resolution:
 - Rewrote key Reports and subscription copy around decisions and outcomes.
 - Reframed the financial disclosure as “QuickBooks remains your financial source of truth.”
 - Kept security and authority boundaries explicit where they protect users from incorrect financial, legal, insurance, or AI assumptions.
+
+### 6. The project lifecycle exposed technical states instead of a usable flow
+
+The original project overview displayed eight small state-machine labels in one
+row. It did not explain the larger operating phases, connect the current stage
+to the correct tool, or offer a controlled stage update. Its light action
+buttons also inherited white text from a dark parent, producing white-on-white
+labels.
+
+Resolution:
+
+- Replaced the state row with five understandable phases: Inquiry, Booking,
+  Planning, Event, and Delivery.
+- Added the exact current deterministic state inside its phase.
+- Added a state-aware recommended action that links to the correct project
+  workspace.
+- Added an explicit, confirmed stage-update control backed by the audited CRM
+  command and server-side transition rules.
+- Added contrast regression checks for every visible text action.
+- Added responsive project-flow coverage and project-context return-path checks.
+- Added representative mock records for proposal, schedule, crew,
+  post-production, workflow, and proposal-preview detail routes so those
+  surfaces can be visually tested without production data.
 
 ## Design standard applied
 

@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import { doc, getDoc } from "firebase/firestore";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { dataIsLive } from "@/lib/runtime-mode";
 
 type Proposal = Record<string, unknown> & { id: string };
 function nested(value: Proposal, path: string) {
@@ -26,9 +27,31 @@ function money(value: unknown, currency: unknown) {
 
 export function LiveProposalPreview({ id }: { id: string }) {
   const workspace = useWorkspace();
-  const [proposal, setProposal] = useState<Proposal | null>();
+  const [proposal, setProposal] = useState<Proposal | null | undefined>(
+    dataIsLive
+      ? undefined
+      : {
+          id,
+          projectName: "Rivera wedding",
+          clientSnapshot: { primaryName: "Maya and Elena Rivera" },
+          eventType: "Wedding photography",
+          eventDate: "June 12, 2027",
+          version: 2,
+          currency: "USD",
+          pricingSnapshot: {
+            packageName: "Signature wedding",
+            description:
+              "Ten hours of coverage, two photographers, and a complete digital collection.",
+            subtotalCents: 650000,
+            discountCents: 0,
+            taxCents: 30000,
+            retainerCents: 170000,
+            totalCents: 680000,
+          },
+        },
+  );
   useEffect(() => {
-    if (workspace.loading) return;
+    if (!dataIsLive || workspace.loading) return;
     void getDoc(doc(getFirebaseClient().firestore, "proposals", id)).then(
       (snapshot) =>
         setProposal(
