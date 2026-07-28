@@ -134,7 +134,7 @@ export const billingCommand = onRequest(
         membership.get("role") !== "studio_owner"
       )
         throw new Error("FORBIDDEN");
-      if (process.env.PROVIDER_MOCK_MODE === "true") {
+      if (process.env.BILLING_MOCK_MODE === "true") {
         response
           .status(200)
           .json({
@@ -151,9 +151,22 @@ export const billingCommand = onRequest(
       const customerId = subscription.get("stripeCustomerId") as
         | string
         | undefined;
+      const subscriptionId = subscription.get("stripeSubscriptionId") as
+        | string
+        | undefined;
+      const existingStatus = subscription.get("status");
+      const hasManagedSubscription =
+        Boolean(customerId && subscriptionId) &&
+        ["trialing", "active", "past_due", "paused"].includes(
+          String(existingStatus),
+        );
+      const operation =
+        parsed.type === "createCheckout" && hasManagedSubscription
+          ? "createPortal"
+          : parsed.type;
       const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app";
       const params = new URLSearchParams();
-      if (parsed.type === "createCheckout") {
+      if (operation === "createCheckout") {
         if (!parsed.plan || !parsed.cadence) throw new Error("PLAN_REQUIRED");
         const priceId = priceFor(parsed.plan, parsed.cadence);
         if (!priceId) throw new Error("STRIPE_PRICE_NOT_CONFIGURED");
@@ -175,9 +188,13 @@ export const billingCommand = onRequest(
         if (!customerId) throw new Error("STRIPE_CUSTOMER_NOT_FOUND");
         params.set("customer", customerId);
         params.set("return_url", `${appUrl}/studio/subscription`);
+        const portalConfigurationId =
+          process.env.STRIPE_PORTAL_CONFIGURATION_ID;
+        if (portalConfigurationId)
+          params.set("configuration", portalConfigurationId);
       }
       const endpoint =
-        parsed.type === "createCheckout"
+        operation === "createCheckout"
           ? "checkout/sessions"
           : "billing_portal/sessions";
       const stripeResponse = await fetch(

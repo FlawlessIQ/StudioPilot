@@ -14,6 +14,7 @@ import {
 import { Logo } from "@/components/brand/logo";
 import { ReadinessMeter } from "@/components/ui/readiness-meter";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { planCards } from "@/config/saas-plans";
 
 const readinessItems = [
   { label: "Contract signed", detail: "Completed Jul 02", complete: true },
@@ -258,15 +259,57 @@ export default function MarketingHome() {
           </div>
         </section>
 
-        <section className="pricing-preview" id="pricing">
-          <div>
+        <section className="marketing-pricing" id="pricing">
+          <header>
             <span className="section-kicker">Simple, serious software</span>
-            <h2>Start at $59/month.</h2>
-            <p>Unlimited clients and projects, with the operational foundation included.</p>
+            <h2>Price the operation—not every client.</h2>
+            <p>
+              Every plan includes unlimited clients and projects. Annual plans include
+              two months free.
+            </p>
+          </header>
+          <div className="marketing-pricing-grid">
+            {planCards.map((plan) => (
+              <article
+                className={`marketing-price-card ${plan.highlight ? "is-featured" : ""}`}
+                key={plan.key}
+              >
+                <div className="marketing-plan-heading">
+                  <span>
+                    <small>{plan.highlight ? "Most popular" : "StudioHub"}</small>
+                    <h3>{plan.name}</h3>
+                  </span>
+                  {plan.highlight ? <StatusBadge tone="success">Best for teams</StatusBadge> : null}
+                </div>
+                <p>{plan.description}</p>
+                <div className="marketing-plan-price">
+                  <strong>{plan.monthly}</strong>
+                  <span>/month</span>
+                </div>
+                <small className="marketing-annual-price">
+                  {plan.yearly}/year · two months free
+                </small>
+                <ul>
+                  <li><CircleCheck size={16} /> {plan.users}</li>
+                  <li><CircleCheck size={16} /> {plan.ai}</li>
+                  {plan.features.map((feature) => (
+                    <li key={feature}><CircleCheck size={16} /> {feature}</li>
+                  ))}
+                </ul>
+                <Link
+                  className={`button ${plan.highlight ? "button-dark" : "button-light"}`}
+                  href={`/auth/register?plan=${plan.key}`}
+                >
+                  Start with {plan.name} <ArrowRight size={16} />
+                </Link>
+              </article>
+            ))}
           </div>
-          <Link className="button button-light-on-dark" href="/auth/login?mode=trial">
-            Compare plans <ArrowRight size={17} />
-          </Link>
+          <p className="marketing-pricing-note">
+            Provider subscriptions, SMS usage, assisted migration, and implementation
+            services are billed separately. StudioHub does not charge a percentage of
+            client payments.
+          </p>
         </section>
       </main>
 

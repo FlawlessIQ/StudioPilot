@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 
 const functionNames = [
   "bookingCommand",
+  "billingCommand",
   "createSession",
   "crewCommand",
   "crmCommand",

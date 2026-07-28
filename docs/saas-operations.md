@@ -27,6 +27,12 @@ Required secrets and values:
 - monthly and yearly `STRIPE_PRICE_*` values for all three plans
 - `NEXT_PUBLIC_BILLING_FUNCTIONS_URL`
 
+Current public list prices are $69/$690 for Solo, $199/$1,990 for Studio,
+and $399/$3,990 for Multi-Brand. Annual prices represent ten months of the
+monthly price. Stripe price IDs are immutable references: a pricing change
+creates new Stripe Price objects while existing subscriptions retain their
+historical price until deliberately migrated.
+
 All production secrets belong in Secret Manager. Public function URLs are
 configuration, not credentials.
 

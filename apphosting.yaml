@@ -63,6 +63,11 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: NEXT_PUBLIC_BILLING_FUNCTIONS_URL
+    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: NEXT_PUBLIC_PLANNING_FUNCTIONS_URL
     value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
     availability:

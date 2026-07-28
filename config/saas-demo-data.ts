@@ -1,8 +1,3 @@
-export const planCards=[
-  {key:"solo",name:"Solo",monthly:"$59",yearly:"$590",users:"1 internal user",ai:"500 AI actions",highlight:false},
-  {key:"studio",name:"Studio",monthly:"$129",yearly:"$1,290",users:"5 internal users",ai:"2,500 AI actions",highlight:true},
-  {key:"multi_brand",name:"Multi-Brand",monthly:"$249",yearly:"$2,490",users:"15 internal users",ai:"7,500 AI actions",highlight:false},
-] as const;
 export const systemHealth=[
   {component:"QuickBooks Online",status:"Healthy",latency:"142 ms",failures:0},
   {component:"Docusign",status:"Healthy",latency:"181 ms",failures:0},

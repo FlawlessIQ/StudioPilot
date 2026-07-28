@@ -106,9 +106,9 @@ QuickBooks is the accounting system of record. Docusign completion is the contra
 
 Entitlements—not plan-name conditionals—control limits and capabilities.
 
-- **Solo:** $59 monthly / $590 yearly; one internal user, one brand, 500 monthly AI actions, ten active subcontractor relationships.
-- **Studio:** $129 monthly / $1,290 yearly; five internal users, unlimited subcontractors, COI, custom workflows, advanced schedules/reports, Zoom, SMS, 2,500 AI actions.
-- **Multi-Brand:** $249 monthly / $2,490 yearly; fifteen internal users, three brands, branded subdomains, API access, advanced reporting, 7,500 AI actions.
+- **Solo:** $69 monthly / $690 yearly; one internal user, one brand, 500 monthly AI actions, ten active subcontractor relationships.
+- **Studio:** $199 monthly / $1,990 yearly; five internal users, unlimited subcontractors, COI, custom workflows, advanced schedules/reports, Zoom, SMS, 2,500 AI actions.
+- **Multi-Brand:** $399 monthly / $3,990 yearly; fifteen internal users, three brands, branded subdomains, API access, advanced reporting, 7,500 AI actions.
 
 Additional users, brands, SMS, and AI usage are add-ons. Setup and migration services remain outside automated billing initially.
 

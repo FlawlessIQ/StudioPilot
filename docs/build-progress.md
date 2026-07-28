@@ -487,3 +487,34 @@ Secret-free production operations activated:
   ClamAV clean, and object metadata promoted from pending to clean
 - malware scanner tuned to 2 GiB and concurrency two after production memory
   telemetry; the exact isolated test object was removed after validation
+
+## Commercial pricing revision — July 27, 2026
+
+Status: implemented and production billing infrastructure deployed.
+
+Delivered:
+
+- public list pricing revised to Solo $69/$690, Studio $199/$1,990, and
+  Multi-Brand $399/$3,990
+- shared typed pricing configuration used by the marketing and subscription
+  interfaces
+- full responsive pricing comparison added to the marketing homepage
+- monthly and annual subscription actions exposed in the studio workspace
+- three live Stripe products and six immutable recurring Price objects
+- StudioHub-specific Stripe Customer Portal configuration for plan changes,
+  payment-method updates, invoice history, and end-of-period cancellation
+- duplicate-subscription protection that routes existing subscribers to the
+  Customer Portal instead of opening a second Checkout subscription
+- independent billing mock control so provider adapters can remain in mock mode
+  while Stripe billing operates live
+- private `billingCommand` deployed with App Hosting invocation limited to the
+  production runtime service account
+
+Validation record:
+
+- strict TypeScript: passed
+- ESLint: passed
+- unit and policy suite: 67 passed
+- Cloud Functions TypeScript build: passed
+- production Next.js build: passed
+- desktop and mobile pricing layout checks: passed with no horizontal overflow
