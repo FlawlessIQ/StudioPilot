@@ -6,6 +6,7 @@ import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { checkProviderConnection } from "../operations/provider-runtime.js";
+import { providerUsesPkce } from "./oauth-strategy.js";
 
 const providerSchema = z.enum([
   "google_calendar",
@@ -150,7 +151,7 @@ function basic(clientId: string, clientSecret: string) {
 async function exchange(
   provider: Provider,
   code: string,
-  verifier: string,
+  verifier: string | null,
   redirectUri: string,
 ) {
   const current = config(provider);
@@ -158,8 +159,8 @@ async function exchange(
     grant_type: "authorization_code",
     code,
     redirect_uri: redirectUri,
-    code_verifier: verifier,
   });
+  if (verifier) params.set("code_verifier", verifier);
   const headers: Record<string, string> = {
     "content-type": "application/x-www-form-urlencoded",
   };
@@ -260,9 +261,11 @@ export const integrationOAuth = onRequest(
           return;
         }
         const current = config(input.provider);
-        const verifier = base64url(randomBytes(48));
+        const verifier = providerUsesPkce(input.provider)
+          ? base64url(randomBytes(48))
+          : null;
         const state = base64url(randomBytes(32));
-        const challenge = base64url(sha256(verifier));
+        const challenge = verifier ? base64url(sha256(verifier)) : null;
         const now = new Date();
         await db
           .doc(
@@ -283,8 +286,10 @@ export const integrationOAuth = onRequest(
         url.searchParams.set("redirect_uri", redirectUri);
         url.searchParams.set("scope", current.scopes.join(" "));
         url.searchParams.set("state", state);
-        url.searchParams.set("code_challenge", challenge);
-        url.searchParams.set("code_challenge_method", "S256");
+        if (challenge) {
+          url.searchParams.set("code_challenge", challenge);
+          url.searchParams.set("code_challenge_method", "S256");
+        }
         for (const [key, value] of Object.entries(current.extra))
           url.searchParams.set(key, value);
         response.status(200).json({ url: url.toString() });
@@ -313,7 +318,9 @@ export const integrationOAuth = onRequest(
       const token = await exchange(
         provider,
         code,
-        String(saved.get("verifier")),
+        typeof saved.get("verifier") === "string"
+          ? String(saved.get("verifier"))
+          : null,
         String(saved.get("redirectUri")),
       );
       const expiresIn = Number(token.expires_in ?? 3600);

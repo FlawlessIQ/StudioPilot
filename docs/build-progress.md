@@ -663,3 +663,25 @@ Validation record:
 - Cloud Functions TypeScript build: passed
 - desktop integration layout visual QA: passed
 - 390px mobile integration layout visual QA: passed with no horizontal overflow
+
+## Dropbox confidential OAuth correction — July 28, 2026
+
+Status: implementation complete; production deployment pending.
+
+Delivered:
+
+- Dropbox now uses the confidential server-side authorization-code flow with
+  its protected client secret and one-time state validation
+- PKCE is no longer sent to Dropbox, so the Dropbox app does not need public
+  client or implicit-grant access enabled
+- Google Calendar and Zoom retain PKCE protection
+- Firebase Functions now builds TypeScript automatically before every deploy,
+  preventing stale compiled JavaScript from reaching production
+- provider-strategy regression coverage added
+
+Validation record:
+
+- strict TypeScript: passed
+- ESLint: passed
+- Cloud Functions TypeScript build and lint: passed
+- unit and policy suite: 74 passed
