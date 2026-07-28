@@ -20,7 +20,26 @@ export type ClientPortalProject = {
     description: string | null;
     dueDate: string | null;
     ownerType: string | null;
-  } | null;
+    responsibility: "client" | "studio";
+    href: string;
+    actionLabel: string;
+  };
+  navigation: {
+    package: boolean;
+    contract: boolean;
+    payments: boolean;
+    questionnaire: boolean;
+    schedule: boolean;
+    files: boolean;
+    delivery: boolean;
+    reviews: boolean;
+  };
+  milestones: Array<{
+    id: string;
+    label: string;
+    description: string;
+    status: "complete" | "current" | "upcoming";
+  }>;
   checkpoints: Array<{
     id: string;
     name: string;
@@ -30,6 +49,11 @@ export type ClientPortalProject = {
     ownerType: string | null;
   }>;
 };
+
+export type ClientPortalProjectSummary = Pick<
+  ClientPortalProject,
+  "id" | "name" | "eventType" | "eventDate" | "venueName" | "city" | "clientStage"
+>;
 
 export type ClientPortalCollection =
   | "packageSnapshots"
@@ -71,6 +95,13 @@ export function getClientPortalProject(tenantId: string, projectId: string) {
   });
 }
 
+export function getClientPortalProjects(tenantId: string) {
+  return portalRequest<{ projects: ClientPortalProjectSummary[] }>({
+    type: "projects",
+    tenantId,
+  });
+}
+
 export function getClientPortalRecords(
   tenantId: string,
   projectId: string,
@@ -94,5 +125,6 @@ export function sendClientPortalMessage(
     tenantId,
     projectId,
     body,
+    idempotencyKey: crypto.randomUUID(),
   });
 }

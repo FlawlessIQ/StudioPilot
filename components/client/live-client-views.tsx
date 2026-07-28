@@ -60,6 +60,16 @@ function useProject(): Loadable<ClientPortalProject | null> {
       );
       return;
     }
+    if (workspace.clientProject?.id === workspace.projectId) {
+      queueMicrotask(() =>
+        setState({
+          value: workspace.clientProject,
+          loading: false,
+          error: null,
+        }),
+      );
+      return;
+    }
     let active = true;
     void getClientPortalProject(workspace.tenantId, workspace.projectId)
       .then((project) => {
@@ -84,7 +94,12 @@ function useProject(): Loadable<ClientPortalProject | null> {
     return () => {
       active = false;
     };
-  }, [workspace.loading, workspace.projectId, workspace.tenantId]);
+  }, [
+    workspace.clientProject,
+    workspace.loading,
+    workspace.projectId,
+    workspace.tenantId,
+  ]);
   return state;
 }
 
@@ -257,6 +272,7 @@ const statusTone = (status: unknown) =>
 export function LiveClientHome() {
   const workspace = useWorkspace();
   const project = useProject();
+  const [renderedAt] = useState(() => Date.now());
   if (project.loading || project.error || !project.value)
     return (
       <PortalPageState
@@ -272,24 +288,13 @@ export function LiveClientHome() {
   const eventDate = value.eventDate
     ? new Date(`${value.eventDate}T12:00:00`)
     : new Date(Number.NaN);
-  const days = Math.max(
-    0,
-    Number.isNaN(eventDate.valueOf())
-      ? 0
-      : Math.ceil((eventDate.valueOf() - Date.now()) / 86400000),
-  );
+  const hasEventDate = !Number.isNaN(eventDate.valueOf());
+  const days = hasEventDate
+    ? Math.ceil((eventDate.valueOf() - renderedAt) / 86400000)
+    : null;
   const progress = value.clientProgress;
   const nextAction = value.nextClientAction;
-  const nextActionName = nextAction?.name ?? "Review your project details";
-  const nextActionHref = /questionnaire|form|family|vendor/i.test(nextActionName)
-    ? "/client/questionnaire"
-    : /schedule|timeline/i.test(nextActionName)
-      ? "/client/schedule"
-      : /contract|agreement|sign/i.test(nextActionName)
-        ? "/client/contract"
-        : /invoice|payment|retainer|balance/i.test(nextActionName)
-          ? "/client/payments"
-          : "/client/project";
+  const studioIsWorking = nextAction.responsibility === "studio";
   return (
     <>
       <div className="portal-hero">
@@ -299,54 +304,77 @@ export function LiveClientHome() {
           <p>Everything approved for your project, in one secure place.</p>
         </div>
         <div className="event-countdown">
-          <strong>{days}</strong>
-          <span>days to go</span>
+          <strong>{days === null ? "—" : Math.max(0, days)}</strong>
+          <span>
+            {days === null
+              ? "date pending"
+              : days < 0
+                ? "event complete"
+                : "days to go"}
+          </span>
         </div>
       </div>
-      <section className="client-next-action">
+      <section
+        className={
+          studioIsWorking
+            ? "client-next-action client-next-action-studio"
+            : "client-next-action"
+        }
+      >
         <span className="next-action-art">
-          <Clock3 size={25} />
+          {studioIsWorking ? <ShieldCheck size={25} /> : <Clock3 size={25} />}
         </span>
         <div>
-          <StatusBadge tone={progress === 100 ? "success" : "warning"}>
-            {progress === 100 ? "You’re caught up" : "Your next action"}
+          <StatusBadge tone={studioIsWorking ? "success" : "warning"}>
+            {studioIsWorking ? "Studio is working" : "Your next action"}
           </StatusBadge>
-          <h2>{nextActionName}</h2>
-          <p>
-            {nextAction?.description ??
-              "Review the details your studio has shared with you."}
-          </p>
+          <h2>{nextAction.name}</h2>
+          <p>{nextAction.description}</p>
+          {nextAction.dueDate ? (
+            <span className="client-action-due">
+              <CalendarDays size={14} />
+              Due {date(nextAction.dueDate)}
+            </span>
+          ) : null}
         </div>
-        <Link className="button button-dark" href={nextActionHref}>
-          Continue
+        <Link className="button button-dark" href={nextAction.href}>
+          {nextAction.actionLabel}
         </Link>
       </section>
       <div className="client-grid">
-        <section className="panel">
+        <section className="panel client-journey-card">
           <div className="panel-heading">
             <div>
-              <h2>Your planning progress</h2>
-              <p>
-                {value.clientCheckpointCount
-                  ? `${value.clientCheckpointCount} steps shared with you`
-                  : "Your studio is preparing your next steps"}
-              </p>
+              <h2>Your project journey</h2>
+              <p>From inquiry through final delivery</p>
             </div>
             <strong>{progress}%</strong>
           </div>
           <div className="progress-track">
             <i style={{ width: `${progress}%` }} />
           </div>
-          <div className="client-check">
-            <span className={progress === 100 ? "complete" : "current"}>
-              {progress === 100 ? <CircleCheck /> : <Clock3 />}
-            </span>
-            <span>
-              <strong>{value.clientStage}</strong>
-              <small>
-                You only see the planning steps your studio has shared with you.
-              </small>
-            </span>
+          <div className="client-milestone-list">
+            {value.milestones.map((milestone) => (
+              <div
+                className={`client-milestone client-milestone-${milestone.status}`}
+                key={milestone.id}
+              >
+                <span>
+                  {milestone.status === "complete" ? (
+                    <CircleCheck />
+                  ) : milestone.status === "current" ? (
+                    <Clock3 />
+                  ) : (
+                    <span className="client-milestone-dot" />
+                  )}
+                </span>
+                <span>
+                  <strong>{milestone.label}</strong>
+                  <small>{milestone.description}</small>
+                </span>
+                {milestone.status === "current" ? <em>Now</em> : null}
+              </div>
+            ))}
           </div>
         </section>
         <section className="panel event-detail-card">

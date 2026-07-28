@@ -878,6 +878,7 @@ Validation record:
 - strict TypeScript: passed
 - ESLint: passed with zero warnings
 - Functions TypeScript build: passed
+
 - unit and policy suite: 77 passed
 - account-email browser suite: 6 passed across desktop Chromium and Pixel 7
 - production Next.js webpack build: passed, including all 95 application routes
@@ -914,3 +915,29 @@ Validation record:
 - Storage visibility rules: passed
 - serialized client portal route suite: passed on desktop Chromium and Pixel 7
 - Functions TypeScript build: passed
+
+## July 28, 2026 — client lifecycle and project-switching phase
+
+Status: implementation and local validation complete; production deployment pending.
+
+- Added a tenant-scoped multi-project selector that remembers the client’s
+  active project and returns them to its home view after switching.
+- Added a server-derived progressive navigation model so booking, planning,
+  files, delivery, and review areas appear only when the project lifecycle or
+  shared records make them relevant.
+- Replaced generic progress language with a six-stage, client-safe project
+  journey from inquiry through delivery.
+- Distinguished client-owned actions from studio-owned work, including
+  reassuring waiting states when the client has nothing to complete.
+- Added explicit destinations and action labels for questionnaires, contracts,
+  payments, schedules, packages, delivery, and reviews.
+- Made secure client messages idempotent and create an actionable studio task,
+  linked to the correct project, alongside the immutable audit event.
+- Added unit coverage for stage-aware navigation, safe fallback actions,
+  ownership boundaries, and lifecycle milestones.
+
+Validation record:
+
+- strict TypeScript: passed
+- ESLint: passed with zero warnings
+- unit and policy suite: 82 passed

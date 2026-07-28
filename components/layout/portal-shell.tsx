@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   CalendarDays,
+  ChevronDown,
   ClipboardList,
   CreditCard,
   FileText,
@@ -30,29 +32,65 @@ const portalNavSections = [
     items: [
       { label: "Home", icon: Home, href: "/client" },
       { label: "Project details", icon: CalendarDays, href: "/client/project" },
-      { label: "Schedule", icon: CalendarDays, href: "/client/schedule" },
-      { label: "Files", icon: FolderOpen, href: "/client/documents" },
+      {
+        label: "Schedule",
+        icon: CalendarDays,
+        href: "/client/schedule",
+        capability: "schedule",
+      },
+      {
+        label: "Files",
+        icon: FolderOpen,
+        href: "/client/documents",
+        capability: "files",
+      },
       { label: "Messages", icon: MessageCircle, href: "/client/messages" },
     ],
   },
   {
     label: "Booking & planning",
     items: [
-      { label: "Package", icon: FileText, href: "/client/package" },
-      { label: "Contract", icon: FileText, href: "/client/contract" },
-      { label: "Payments", icon: CreditCard, href: "/client/payments" },
+      {
+        label: "Package",
+        icon: FileText,
+        href: "/client/package",
+        capability: "package",
+      },
+      {
+        label: "Contract",
+        icon: FileText,
+        href: "/client/contract",
+        capability: "contract",
+      },
+      {
+        label: "Payments",
+        icon: CreditCard,
+        href: "/client/payments",
+        capability: "payments",
+      },
       {
         label: "Questionnaires",
         icon: ClipboardList,
         href: "/client/questionnaire",
+        capability: "questionnaire",
       },
     ],
   },
   {
     label: "After delivery",
     items: [
-      { label: "Delivery", icon: Images, href: "/client/delivery" },
-      { label: "Reviews", icon: Star, href: "/client/reviews" },
+      {
+        label: "Delivery",
+        icon: Images,
+        href: "/client/delivery",
+        capability: "delivery",
+      },
+      {
+        label: "Reviews",
+        icon: Star,
+        href: "/client/reviews",
+        capability: "reviews",
+      },
     ],
   },
 ] as const;
@@ -99,6 +137,7 @@ function ClientPortalShell({
   const menuButton = useRef<HTMLButtonElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const workspace = useWorkspace();
+  const router = useRouter();
   const displayedProjectName = projectName ?? workspace.projectName;
   const displayedProjectDate = projectDate ?? workspace.projectDate;
   const formattedProjectDate = /^\d{4}-\d{2}-\d{2}$/.test(displayedProjectDate)
@@ -130,6 +169,12 @@ function ClientPortalShell({
     if (mobileNavigation) {
       window.requestAnimationFrame(() => menuButton.current?.focus());
     }
+  }
+
+  async function switchProject(projectId: string) {
+    await workspace.selectProject(projectId);
+    closeNavigation();
+    router.push("/client");
   }
 
   return (
@@ -170,16 +215,51 @@ function ClientPortalShell({
             <X size={19} />
           </button>
         </div>
-        <div className="portal-project">
-          <small>Your project</small>
-          <strong>{displayedProjectName}</strong>
+        <div
+          className={
+            workspace.clientProjects.length > 1
+              ? "portal-project portal-project-switcher"
+              : "portal-project"
+          }
+        >
+          <small>
+            {workspace.clientProjects.length > 1
+              ? "Current project"
+              : "Your project"}
+          </small>
+          {workspace.clientProjects.length > 1 ? (
+            <label>
+              <span className="sr-only">Choose a project</span>
+              <select
+                aria-label="Choose a client project"
+                onChange={(event) => void switchProject(event.target.value)}
+                value={workspace.projectId ?? ""}
+              >
+                {workspace.clientProjects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown aria-hidden="true" size={15} />
+            </label>
+          ) : (
+            <strong>{displayedProjectName}</strong>
+          )}
           <span>{formattedProjectDate || "Date pending"}</span>
         </div>
         <nav aria-label="Client portal navigation">
-          {portalNavSections.map((section) => (
-            <div className="portal-nav-section" key={section.label}>
-              <span className="portal-nav-label">{section.label}</span>
-              {section.items.map((item) => {
+          {portalNavSections.map((section) => {
+            const visibleItems = section.items.filter(
+              (item) =>
+                !("capability" in item) ||
+                workspace.clientProject?.navigation[item.capability] === true,
+            );
+            if (!visibleItems.length) return null;
+            return (
+              <div className="portal-nav-section" key={section.label}>
+                <span className="portal-nav-label">{section.label}</span>
+                {visibleItems.map((item) => {
                 const Icon = item.icon;
                 return (
                   <Link
@@ -194,9 +274,10 @@ function ClientPortalShell({
                     <span>{item.label}</span>
                   </Link>
                 );
-              })}
-            </div>
-          ))}
+                })}
+              </div>
+            );
+          })}
         </nav>
         <div className="portal-profile">
           <span className="avatar avatar-sand">

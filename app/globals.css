@@ -987,6 +987,169 @@ textarea:focus-visible {
   }
 }
 
+/* Client lifecycle clarity */
+.sr-only {
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.portal-project-switcher label {
+  display: grid;
+  margin: 6px 0 4px;
+  position: relative;
+}
+
+.portal-project-switcher select {
+  appearance: none;
+  background: rgb(255 255 255 / 8%);
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 9px;
+  color: white;
+  cursor: pointer;
+  font: 650 12px var(--font-display);
+  min-height: 42px;
+  padding: 0 34px 0 11px;
+  width: 100%;
+}
+
+.portal-project-switcher select:focus-visible {
+  outline: 2px solid #d9e6d9;
+  outline-offset: 2px;
+}
+
+.portal-project-switcher label > svg {
+  color: #a8b0aa;
+  pointer-events: none;
+  position: absolute;
+  right: 11px;
+  top: 14px;
+}
+
+.client-next-action {
+  border-radius: 18px;
+  box-shadow: var(--workspace-shadow);
+  padding: 24px;
+}
+
+.client-next-action-studio {
+  background:
+    radial-gradient(circle at 94% 20%, rgb(202 220 203 / 34%), transparent 14rem),
+    #f9fbf8;
+  border-color: #cbd9cd;
+}
+
+.client-action-due {
+  align-items: center;
+  color: #79643d;
+  display: inline-flex;
+  font-size: 11px;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.client-journey-card {
+  overflow: hidden;
+}
+
+.client-milestone-list {
+  display: grid;
+  padding: 4px 18px 14px;
+}
+
+.client-milestone {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  min-height: 62px;
+  padding: 10px 0;
+}
+
+.client-milestone:first-child {
+  border-top: 0;
+}
+
+.client-milestone > span:first-child {
+  align-items: center;
+  color: #a3aaa5;
+  display: flex;
+  justify-content: center;
+}
+
+.client-milestone > span:first-child svg {
+  height: 18px;
+  width: 18px;
+}
+
+.client-milestone > span:nth-child(2) {
+  display: grid;
+  gap: 3px;
+}
+
+.client-milestone strong {
+  font-size: 11px;
+}
+
+.client-milestone small {
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.client-milestone em {
+  background: #edf4ed;
+  border-radius: 999px;
+  color: #386248;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 750;
+  padding: 5px 8px;
+  text-transform: uppercase;
+}
+
+.client-milestone-complete > span:first-child {
+  color: var(--sage-dark);
+}
+
+.client-milestone-current {
+  color: #254c33;
+}
+
+.client-milestone-current > span:first-child {
+  color: #5f8d70;
+}
+
+.client-milestone-dot {
+  background: #d8ddd9;
+  border-radius: 50%;
+  height: 8px;
+  width: 8px;
+}
+
+@media (max-width: 620px) {
+  .client-next-action {
+    align-items: start;
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 20px;
+  }
+
+  .client-next-action > .button {
+    grid-column: 1 / -1;
+    min-height: 48px;
+    width: 100%;
+  }
+
+  .client-milestone {
+    min-height: 68px;
+  }
+}
+
 /* Secure client invitation journey */
 .client-invite-page {
   --invite-accent: #345c46;

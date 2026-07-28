@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -18,7 +19,12 @@ import {
   where,
 } from "firebase/firestore";
 import type { Role } from "@/features/auth/roles";
-import { getClientPortalProject } from "@/lib/client/portal-client";
+import {
+  getClientPortalProject,
+  getClientPortalProjects,
+  type ClientPortalProject,
+  type ClientPortalProjectSummary,
+} from "@/lib/client/portal-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { authIsLive } from "@/lib/runtime-mode";
 
@@ -47,7 +53,13 @@ type WorkspaceState = {
   projectId: string | null;
   projectName: string;
   projectDate: string;
+  clientProject: ClientPortalProject | null;
+  clientProjects: ClientPortalProjectSummary[];
   memberships: WorkspaceMembership[];
+};
+
+type WorkspaceContextValue = WorkspaceState & {
+  selectProject: (projectId: string) => Promise<void>;
 };
 
 const mockWorkspace: WorkspaceState = {
@@ -65,6 +77,8 @@ const mockWorkspace: WorkspaceState = {
   projectId: null,
   projectName: "Demo project",
   projectDate: "Date pending",
+  clientProject: null,
+  clientProjects: [],
   memberships: [],
 };
 
@@ -84,11 +98,16 @@ const initialWorkspace: WorkspaceState = authIsLive
       projectId: null,
       projectName: "Loading project…",
       projectDate: "",
+      clientProject: null,
+      clientProjects: [],
       memberships: [],
     }
   : mockWorkspace;
 
-const WorkspaceContext = createContext<WorkspaceState>(initialWorkspace);
+const WorkspaceContext = createContext<WorkspaceContextValue>({
+  ...initialWorkspace,
+  selectProject: async () => undefined,
+});
 
 const areaRoles: Record<WorkspaceArea, Role[]> = {
   studio: [
@@ -197,7 +216,27 @@ export function WorkspaceProvider({
             membership.tenantId,
           );
 
-          const projectId = membership.projectIds[0] ?? null;
+          const clientProjects =
+            area === "client"
+              ? (await getClientPortalProjects(membership.tenantId)).projects
+              : [];
+          const storedClientProjectId = window.localStorage.getItem(
+            `studiohub.activeClientProjectId.${membership.tenantId}`,
+          );
+          const projectId =
+            area === "client"
+              ? clientProjects.find(
+                  (project) => project.id === storedClientProjectId,
+                )?.id ??
+                clientProjects[0]?.id ??
+                null
+              : membership.projectIds[0] ?? null;
+          if (area === "client" && projectId) {
+            window.localStorage.setItem(
+              `studiohub.activeClientProjectId.${membership.tenantId}`,
+              projectId,
+            );
+          }
           const [tenantDocument, userDocument, projectDocument] =
             await Promise.all([
               getDoc(doc(firestore, "tenants", membership.tenantId)),
@@ -214,6 +253,10 @@ export function WorkspaceProvider({
             projectDocument && "data" in projectDocument
               ? projectDocument.data() ?? {}
               : projectDocument ?? {};
+          const clientProject =
+            area === "client" && projectDocument && !("data" in projectDocument)
+              ? projectDocument
+              : null;
           setState({
             loading: false,
             error: null,
@@ -237,6 +280,8 @@ export function WorkspaceProvider({
             projectId,
             projectName: String(project.name ?? "No assigned project"),
             projectDate: String(project.eventDate ?? ""),
+            clientProject,
+            clientProjects,
             memberships,
           });
         } catch (caught: unknown) {
@@ -253,7 +298,62 @@ export function WorkspaceProvider({
     });
   }, [area]);
 
-  const value = useMemo(() => state, [state]);
+  const selectProject = useCallback(
+    async (projectId: string) => {
+      if (area !== "client" || !state.tenantId) return;
+      const summary = state.clientProjects.find(
+        (project) => project.id === projectId,
+      );
+      if (!summary || projectId === state.projectId) return;
+      window.localStorage.setItem(
+        `studiohub.activeClientProjectId.${state.tenantId}`,
+        projectId,
+      );
+      setState((current) => ({
+        ...current,
+        projectId,
+        projectName: summary.name,
+        projectDate: summary.eventDate ?? "",
+        clientProject: null,
+        error: null,
+      }));
+      try {
+        const project = await getClientPortalProject(state.tenantId, projectId);
+        setState((current) =>
+          current.projectId === projectId
+            ? {
+                ...current,
+                projectName: project.name,
+                projectDate: project.eventDate ?? "",
+                clientProject: project,
+              }
+            : current,
+        );
+      } catch (caught: unknown) {
+        setState((current) =>
+          current.projectId === projectId
+            ? {
+                ...current,
+                error:
+                  caught instanceof Error
+                    ? caught.message
+                    : "The selected project could not be loaded.",
+              }
+            : current,
+        );
+      }
+    },
+    [
+      area,
+      state.clientProjects,
+      state.projectId,
+      state.tenantId,
+    ],
+  );
+  const value = useMemo(
+    () => ({ ...state, selectProject }),
+    [selectProject, state],
+  );
   return (
     <WorkspaceContext.Provider value={value}>
       {children}
@@ -261,7 +361,7 @@ export function WorkspaceProvider({
   );
 }
 
-export function useWorkspace(): WorkspaceState {
+export function useWorkspace(): WorkspaceContextValue {
   return useContext(WorkspaceContext);
 }
 

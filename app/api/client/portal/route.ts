@@ -1,15 +1,21 @@
 import { z } from "zod";
+import { createHash } from "node:crypto";
 import type { DocumentData } from "firebase-admin/firestore";
 import {
   adminAppCheck,
   adminAuth,
   adminFirestore,
 } from "@/server/firebase/admin";
+import { buildClientPortalExperience } from "@/server/client/portal-experience";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const requestSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("projects"),
+    tenantId: z.string().min(1).max(160),
+  }),
   z.object({
     type: z.literal("records"),
     tenantId: z.string().min(1).max(160),
@@ -36,6 +42,7 @@ const requestSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1).max(160),
     projectId: z.string().min(1).max(160),
     body: z.string().trim().min(1).max(5000),
+    idempotencyKey: z.string().min(8).max(160),
   }),
 ]);
 
@@ -43,25 +50,6 @@ type Membership = {
   role?: unknown;
   status?: unknown;
   projectIds?: unknown;
-};
-
-const clientStages: Record<string, string> = {
-  LEAD: "Getting started",
-  CONSULTATION: "Consultation",
-  PROPOSAL: "Reviewing your proposal",
-  CONTRACT_PENDING: "Agreement",
-  RETAINER_PENDING: "Booking",
-  BOOKED: "Booked",
-  PLANNING: "Planning",
-  READY: "Ready for your event",
-  EVENT_COMPLETE: "Event complete",
-  POST_PRODUCTION: "Photographs in production",
-  DELIVERED: "Delivered",
-  REVIEW_REQUESTED: "After delivery",
-  CLOSED: "Complete",
-  CANCELLED: "Cancelled",
-  POSTPONED: "Postponed",
-  ARCHIVED: "Archived",
 };
 
 function bearerToken(request: Request) {
@@ -89,7 +77,7 @@ async function verifyRequest(request: Request) {
 async function requireClientMembership(
   uid: string,
   tenantId: string,
-  projectId: string,
+  projectId?: string,
 ) {
   const reference = adminFirestore.doc(`memberships/${tenantId}_${uid}`);
   const snapshot = await reference.get();
@@ -99,10 +87,13 @@ async function requireClientMembership(
     !snapshot.exists ||
     value.status !== "active" ||
     value.role !== "client" ||
-    !projectIds.includes(projectId)
+    (projectId ? !projectIds.includes(projectId) : false)
   ) {
     throw new Error("PROJECT_ACCESS_DENIED");
   }
+  return projectIds.filter(
+    (candidate): candidate is string => typeof candidate === "string",
+  );
 }
 
 function safeString(value: unknown) {
@@ -279,7 +270,18 @@ async function clientRecords(
 }
 
 async function clientProject(tenantId: string, projectId: string) {
-  const [projectSnapshot, checkpointsSnapshot] = await Promise.all([
+  const availabilityCollections = {
+    package: "packageSnapshots",
+    contract: "contracts",
+    payments: "invoiceReferences",
+    questionnaire: "questionnaireResponses",
+    schedule: "schedules",
+    files: "documents",
+    delivery: "deliveryRecords",
+    reviews: "reviewRequests",
+  } as const;
+  const [projectSnapshot, checkpointsSnapshot, ...availabilitySnapshots] =
+    await Promise.all([
     adminFirestore.doc(`projects/${projectId}`).get(),
     adminFirestore
       .collection("checkpoints")
@@ -288,6 +290,14 @@ async function clientProject(tenantId: string, projectId: string) {
       .where("visibility", "in", ["client", "shared"])
       .limit(100)
       .get(),
+    ...Object.values(availabilityCollections).map((collectionName) =>
+      adminFirestore
+        .collection(collectionName)
+        .where("tenantId", "==", tenantId)
+        .where("projectId", "==", projectId)
+        .limit(10)
+        .get(),
+    ),
   ]);
   if (
     !projectSnapshot.exists ||
@@ -305,17 +315,34 @@ async function clientProject(tenantId: string, projectId: string) {
     ),
     ownerType: safeString(document.get("ownerType")),
   }));
-  const incomplete = checkpoints.find(
-    (checkpoint) => !["complete", "waived"].includes(checkpoint.status),
-  );
-  const completeCount = checkpoints.filter((checkpoint) =>
-    ["complete", "waived"].includes(checkpoint.status),
-  ).length;
-  const progress =
-    checkpoints.length > 0
-      ? Math.round((completeCount / checkpoints.length) * 100)
-      : 0;
   const state = String(projectSnapshot.get("state") ?? "LEAD");
+  const availability = Object.fromEntries(
+    Object.keys(availabilityCollections).map((key, index) => {
+      const collectionName =
+        availabilityCollections[key as keyof typeof availabilityCollections];
+      const visible = availabilitySnapshots[index].docs.some((document) => {
+        const value = document.data();
+        if (collectionName === "documents") {
+          return (
+            ["client", "shared"].includes(String(value.visibility)) &&
+            value.clientVisible !== false
+          );
+        }
+        if (collectionName === "schedules") {
+          return ["client_review", "approved", "published"].includes(
+            String(value.status),
+          );
+        }
+        return true;
+      });
+      return [key, visible];
+    }),
+  );
+  const experience = buildClientPortalExperience({
+    state,
+    availability,
+    checkpoints,
+  });
   return {
     id: projectId,
     name: safeString(projectSnapshot.get("name")) ?? "Your photography project",
@@ -330,30 +357,55 @@ async function clientProject(tenantId: string, projectId: string) {
     leadPhotographerName: safeString(
       projectSnapshot.get("leadPhotographerName"),
     ),
-    clientStage: clientStages[state] ?? "In progress",
-    clientProgress: progress,
+    ...experience,
     clientCheckpointCount: checkpoints.length,
-    nextClientAction: incomplete
-      ? {
-          name: incomplete.name,
-          description: incomplete.description,
-          dueDate: incomplete.dueDate,
-          ownerType: incomplete.ownerType,
-        }
-      : null,
     checkpoints,
   };
+}
+
+async function clientProjects(tenantId: string, projectIds: string[]) {
+  const snapshots = await Promise.all(
+    projectIds.slice(0, 100).map((projectId) =>
+      adminFirestore.doc(`projects/${projectId}`).get(),
+    ),
+  );
+  return snapshots.flatMap((snapshot, index) => {
+    if (!snapshot.exists || snapshot.get("tenantId") !== tenantId) return [];
+    const state = String(snapshot.get("state") ?? "LEAD");
+    return [{
+      id: projectIds[index],
+      name: safeString(snapshot.get("name")) ?? "Your photography project",
+      eventType:
+        safeString(snapshot.get("eventType")) ??
+        safeString(snapshot.get("eventTypeName")) ??
+        "Photography",
+      eventDate: safeString(snapshot.get("eventDate")),
+      venueName: safeString(snapshot.get("venueName")),
+      city: safeString(snapshot.get("city")),
+      clientStage: buildClientPortalExperience({
+        state,
+        availability: {},
+        checkpoints: [],
+      }).clientStage,
+    }];
+  });
 }
 
 export async function POST(request: Request) {
   try {
     const identity = await verifyRequest(request);
     const parsed = requestSchema.parse(await request.json());
-    await requireClientMembership(
+    const projectIds = await requireClientMembership(
       identity.uid,
       parsed.tenantId,
-      parsed.projectId,
+      "projectId" in parsed ? parsed.projectId : undefined,
     );
+
+    if (parsed.type === "projects") {
+      return Response.json({
+        projects: await clientProjects(parsed.tenantId, projectIds),
+      });
+    }
 
     if (parsed.type === "project") {
       return Response.json(
@@ -372,9 +424,18 @@ export async function POST(request: Request) {
     }
 
     const now = new Date().toISOString();
-    const messageId = crypto.randomUUID();
+    const messageId = `client_${createHash("sha256")
+      .update(`${identity.uid}:${parsed.projectId}:${parsed.idempotencyKey}`)
+      .digest("hex")
+      .slice(0, 32)}`;
+    const taskId = `client_message_${messageId}`;
+    const projectSnapshot = await adminFirestore
+      .doc(`projects/${parsed.projectId}`)
+      .get();
+    const projectName =
+      safeString(projectSnapshot.get("name")) ?? "Client project";
     const batch = adminFirestore.batch();
-    batch.create(adminFirestore.doc(`messages/${messageId}`), {
+    batch.set(adminFirestore.doc(`messages/${messageId}`), {
       id: messageId,
       tenantId: parsed.tenantId,
       projectId: parsed.projectId,
@@ -392,7 +453,32 @@ export async function POST(request: Request) {
       updatedBy: identity.uid,
       archivedAt: null,
     });
-    batch.create(adminFirestore.doc(`auditEvents/${crypto.randomUUID()}`), {
+    batch.set(adminFirestore.doc(`tasks/${taskId}`), {
+      id: taskId,
+      tenantId: parsed.tenantId,
+      projectId: parsed.projectId,
+      projectName,
+      workflowRunId: null,
+      checkpointId: null,
+      title: "Client message received",
+      description: `${projectName}: ${parsed.body.slice(0, 240)}`,
+      assignedUserId: null,
+      assignedRole: "studio_coordinator",
+      dueDate: null,
+      priority: "normal",
+      status: "not_started",
+      blocking: false,
+      completedAt: null,
+      completedBy: null,
+      source: "client_portal",
+      sourceMessageId: messageId,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: identity.uid,
+      updatedBy: identity.uid,
+      archivedAt: null,
+    });
+    batch.set(adminFirestore.doc(`auditEvents/${messageId}`), {
       tenantId: parsed.tenantId,
       actor: identity.uid,
       actorType: "client",
@@ -405,6 +491,7 @@ export async function POST(request: Request) {
         projectId: parsed.projectId,
         channel: "portal",
         status: "received",
+        studioTaskId: taskId,
       },
       correlationId: messageId,
       automationRunId: null,
