@@ -74,13 +74,16 @@ function normalizeQuickBooksCloudEvent(
   const payload = asRecord(input);
   const type = asString(payload.type).toLowerCase();
   const match = /^qbo\.([^.]+)\.([^.]+)\.v\d+$/.exec(type);
+  const entityName = match?.[1] ?? "";
+  const operation = match?.[2] ?? "";
   const providerEventId = asString(payload.id);
   const realmId = asString(payload.intuitaccountid);
   const entityId = asString(payload.intuitentityid);
   const occurredAt = asString(payload.time);
 
   if (
-    !match ||
+    !entityName ||
+    !operation ||
     !providerEventId ||
     !realmId ||
     !entityId ||
@@ -92,9 +95,9 @@ function normalizeQuickBooksCloudEvent(
   return {
     providerEventId,
     realmId,
-    entityName: match[1],
+    entityName,
     entityId,
-    operation: match[2],
+    operation,
     occurredAt,
   };
 }
