@@ -6,6 +6,9 @@ wedding photographer
 Related research:
 [`studiocue-workflow-ux-research-2026-07-29.md`](./studiocue-workflow-ux-research-2026-07-29.md)
 
+Delivery plan:
+[`studiocue-roadmap-execution-plan-2026-07-29.md`](./studiocue-roadmap-execution-plan-2026-07-29.md)
+
 ## Executive decision
 
 StudioCue should become the operating system that moves one photography job from
