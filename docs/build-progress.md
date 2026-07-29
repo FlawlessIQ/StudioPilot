@@ -980,8 +980,7 @@ Validation record:
 
 ## July 28, 2026 — studio proposal authoring and delivery phase
 
-Status: implementation and local validation complete; production deployment
-pending.
+Status: implementation, validation, and production deployment complete.
 
 - Replaced the generic proposal collection/detail pages with a premium proposal
   center, guided composer, immutable offer snapshot, approval workspace,
@@ -1021,3 +1020,12 @@ Validation record:
 - production Next.js build: passed, including all 97 application routes
 - Functions TypeScript build: passed
 - branded PDF fixture: visually passed as one page with no clipping or overflow
+- private Cloud Run PDF renderer rollout: passed, revision
+  `studiohub-pdf-00002-kh8` serving 100% of traffic
+- Firebase Functions rollout: passed, including `proposalCommand`,
+  `operationsJobScheduler`, `sendgridEventWebhook`, and the hardened
+  `bookingCommand`
+- App Hosting rollout: passed from commit `6c5cb5a`
+- production home, proposal center, and proposal composer probes: HTTP 200
+- private proposal relay probe: reached the Function and correctly rejected an
+  unauthenticated request with `APP_CHECK_REQUIRED`
