@@ -136,6 +136,28 @@ export const sendgridEventWebhook = onRequest(
         },
         { merge: true },
       );
+      if (
+        job.get("type") === "proposal_sent" &&
+        typeof job.get("proposalId") === "string" &&
+        [
+          "processed",
+          "delivered",
+          "deferred",
+          "bounce",
+          "dropped",
+          "open",
+          "click",
+        ].includes(event.event)
+      ) {
+        batch.update(
+          db.doc(`proposals/${String(job.get("proposalId"))}`),
+          {
+            emailDeliveryStatus: event.event,
+            updatedAt: new Date().toISOString(),
+            updatedBy: "sendgrid-event-webhook",
+          },
+        );
+      }
       await batch.commit();
     }
     response.status(204).send();

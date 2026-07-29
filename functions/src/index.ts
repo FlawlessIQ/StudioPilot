@@ -9,6 +9,7 @@ export { crmCommand } from "./crm/commands.js";
 export { publicLeadIntake } from "./crm/public-lead.js";
 export { workflowCommand } from "./workflow/commands.js";
 export { bookingCommand } from "./booking/commands.js";
+export { proposalCommand } from "./booking/proposals.js";
 export { docusignWebhook, quickbooksWebhook } from "./booking/webhooks.js";
 export { planningCommand } from "./planning/commands.js";
 export { sendgridInboundCoi } from "./planning/inbound.js";

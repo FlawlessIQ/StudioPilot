@@ -73,6 +73,30 @@ async function finish(
           : new Date(Date.now() + retryDelay(attempts)).toISOString(),
       updatedAt: now,
     });
+    if (
+      document.ref.parent.id === "pdfJobs" &&
+      document.get("proposalId")
+    ) {
+      await getFirestore()
+        .doc(`proposals/${String(document.get("proposalId"))}`)
+        .update({
+          pdfState: "failed",
+          updatedAt: now,
+          updatedBy: "pdf-worker",
+        });
+    }
+    if (
+      document.ref.parent.id === "emailJobs" &&
+      document.get("proposalId")
+    ) {
+      await getFirestore()
+        .doc(`proposals/${String(document.get("proposalId"))}`)
+        .update({
+          emailDeliveryStatus: "failed",
+          updatedAt: now,
+          updatedBy: "email-worker",
+        });
+    }
     await captureOperationalError(code, {
       collection: document.ref.parent.id,
       jobId: document.id,
@@ -246,6 +270,16 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
       messageId,
       "mock",
     );
+    if (document.get("proposalId")) {
+      await getFirestore()
+        .doc(`proposals/${String(document.get("proposalId"))}`)
+        .update({
+          emailDeliveryStatus: "sent",
+          emailMessageId: messageId,
+          updatedAt: new Date().toISOString(),
+          updatedBy: "email-worker",
+        });
+    }
     return {
       messageId,
       deliveryMode: "mock",
@@ -314,6 +348,38 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
       },
     ];
   }
+  if (type === "proposal_sent" && document.get("attachmentDocumentId")) {
+    const attachment = await getFirestore()
+      .doc(`documents/${String(document.get("attachmentDocumentId"))}`)
+      .get();
+    if (
+      !attachment.exists ||
+      attachment.get("tenantId") !== document.get("tenantId") ||
+      attachment.get("projectId") !== document.get("projectId") ||
+      attachment.get("contentType") !== "application/pdf"
+    ) {
+      throw new Error("PROPOSAL_ATTACHMENT_INVALID");
+    }
+    const objectName = firstString(
+      attachment.get("providerFileId"),
+      attachment.get("canonicalPath"),
+    );
+    if (!objectName) throw new Error("PROPOSAL_ATTACHMENT_REFERENCE_INVALID");
+    const [bytes] = await getStorage().bucket().file(objectName).download();
+    if (bytes.length > 15 * 1024 * 1024) {
+      throw new Error("PROPOSAL_ATTACHMENT_TOO_LARGE");
+    }
+    payload.attachments = [
+      {
+        content: bytes.toString("base64"),
+        type: "application/pdf",
+        filename: String(
+          attachment.get("name") ?? "photography-proposal.pdf",
+        ),
+        disposition: "attachment",
+      },
+    ];
+  }
   const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
     method: "POST",
     headers: {
@@ -333,6 +399,16 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
     messageId,
     "live",
   );
+  if (document.get("proposalId")) {
+    await getFirestore()
+      .doc(`proposals/${String(document.get("proposalId"))}`)
+      .update({
+        emailDeliveryStatus: "sent",
+        emailMessageId: messageId,
+        updatedAt: new Date().toISOString(),
+        updatedBy: "email-worker",
+      });
+  }
   if (type === "review_request" && document.get("reviewRequestId")) {
     const now = new Date().toISOString();
     await getFirestore()

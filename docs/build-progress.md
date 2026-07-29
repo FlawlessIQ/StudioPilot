@@ -977,16 +977,47 @@ Validation record:
 - Firestore isolation rules: passed and deployed to production
 - responsive proposal route suite: passed on desktop Chromium and Pixel 7
 - production Next.js build: passed, including all 96 application routes
-- Firebase App Hosting rollout: passed
-- production health and client proposal route checks: HTTP 200
-- Updated the client next-action model so declined proposals become
-  studio-owned follow-up work instead of prompting the client to decide again.
+
+## July 28, 2026 — studio proposal authoring and delivery phase
+
+Status: implementation and local validation complete; production deployment
+pending.
+
+- Replaced the generic proposal collection/detail pages with a premium proposal
+  center, guided composer, immutable offer snapshot, approval workspace,
+  delivery evidence, and version history.
+- Added a dedicated App Check-protected `proposalCommand` that derives client,
+  project, and price data server-side and verifies tenant membership, role, and
+  assigned-project access on every command.
+- Added explicit draft, internal review, approval, PDF generation, send, resend,
+  view, acceptance, change-request, expiration, and supersession boundaries.
+- Restricted approval, PDF regeneration, send, and resend to Studio Owners and
+  Studio Admins while allowing assigned coordinators to prepare drafts.
+- Added optimistic draft revisions, command idempotency, immutable audit events,
+  terminal accepted/superseded versions, and delayed supersession only when a
+  replacement is actually sent.
+- Removed the legacy booking command that could create and render a proposal
+  without approval.
+- Added a sanitized one-page branded PDF with escaped content, explicit payment
+  dates, introduction, terms, expiration, version/project metadata, and the
+  contract boundary.
+- Attached the exact approved PDF to the branded SendGrid email and connected
+  processed, delivered, deferred, bounced, dropped, opened, clicked, and failed
+  evidence to the proposal.
+- Kept generated PDFs studio-only until send and prevented direct browser writes
+  to proposal, PDF, email, delivery, and audit state.
+- Updated the studio preview to the current client, event, pricing, copy, and
+  terms snapshot fields.
 
 Validation record:
 
 - strict TypeScript: passed
 - ESLint: passed with zero warnings
-- unit and policy suite: 91 passed
-- Firestore tenant-isolation rules: passed
-- client proposal decision suite: 2 passed across desktop Chromium and Pixel 7
-- production Next.js build: passed, including all 96 application routes
+- unit and policy suite: 100 passed
+- Firestore proposal read/write isolation: passed
+- Storage visibility rules: passed
+- responsive proposal authoring/approval suite: 2 passed across desktop and
+  mobile Chromium
+- production Next.js build: passed, including all 97 application routes
+- Functions TypeScript build: passed
+- branded PDF fixture: visually passed as one page with no clipping or overflow

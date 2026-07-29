@@ -121,6 +121,8 @@ See [docs/architecture.md](docs/architecture.md), [docs/data-model.md](docs/data
 [docs/readiness-engine.md](docs/readiness-engine.md),
 [docs/booking-gate.md](docs/booking-gate.md),
 [docs/booking-integrations.md](docs/booking-integrations.md),
+[docs/proposals.md](docs/proposals.md),
+[docs/communications.md](docs/communications.md),
 [docs/webhooks.md](docs/webhooks.md),
 [docs/pdf-generation.md](docs/pdf-generation.md),
 [docs/planning-platform.md](docs/planning-platform.md),

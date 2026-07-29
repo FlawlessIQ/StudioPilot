@@ -5,6 +5,8 @@ const cents = z.number().int().nonnegative().safe();
 
 export const proposalStatusSchema = z.enum([
   "draft",
+  "internal_review",
+  "approved",
   "sent",
   "viewed",
   "accepted",
@@ -55,12 +57,34 @@ export const proposalSchema = auditFieldsSchema.extend({
   notes: z.string().max(4000).nullable(),
   termsSummary: z.string().min(10).max(6000),
   pdfDocumentId: z.string().nullable(),
+  pdfState: z.enum(["not_requested", "queued", "ready", "failed"]).default("not_requested"),
+  draftRevision: z.number().int().positive().default(1),
+  submittedAt: z.string().datetime().nullable().default(null),
+  approvedAt: z.string().datetime().nullable().default(null),
+  approvedBy: z.string().nullable().default(null),
   sentAt: z.string().datetime().nullable(),
   viewedAt: z.string().datetime().nullable(),
   acceptedAt: z.string().datetime().nullable(),
   declinedAt: z.string().datetime().nullable().default(null),
   declineReason: z.string().max(1000).nullable().default(null),
   decisionBy: z.string().nullable().default(null),
+  emailJobId: z.string().nullable().default(null),
+  emailDeliveryStatus: z
+    .enum([
+      "not_sent",
+      "queued",
+      "sent",
+      "processed",
+      "delivered",
+      "deferred",
+      "bounce",
+      "dropped",
+      "open",
+      "click",
+      "failed",
+    ])
+    .default("not_sent"),
+  emailMessageId: z.string().nullable().default(null),
   supersedesId: z.string().nullable(),
   archivedAt: z.string().datetime().nullable(),
 });

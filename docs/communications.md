@@ -61,6 +61,11 @@ The shared catalog covers:
 - event reminder and thank-you
 - delivery and review request
 
+Proposal delivery is approval-gated. The email worker attaches the exact
+approved PDF, uses the secure client-portal action URL, and writes SendGrid
+message and delivery evidence back to the proposal. Resending creates a new
+idempotent email job without mutating the approved offer snapshot.
+
 Unknown future job types receive the same safe branded fallback instead of an
 unstyled message.
 

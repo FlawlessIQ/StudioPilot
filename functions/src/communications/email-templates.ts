@@ -260,10 +260,13 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         paragraphs: [
           greeting,
           `${brand.studioName} prepared a proposal${project} with your selected coverage, pricing, payment schedule, and terms summary.`,
+          "Review the live proposal in your secure client portal. A PDF copy is attached for your records.",
         ],
         action: actionUrl
           ? { label: "Review proposal", url: actionUrl }
           : undefined,
+        note:
+          "Accepting a proposal does not sign a contract or collect a payment. Those steps remain separate.",
       };
     case "contract_sent":
       return {

@@ -21,18 +21,6 @@ const commandSchema = z.discriminatedUnion("type", [
     }),
   }),
   z.object({
-    type: z.literal("createProposal"),
-    tenantId: z.string().min(1),
-    idempotencyKey: z.string().min(8).max(160),
-    input: z.object({
-      projectId: z.string().min(1),
-      packageSnapshotId: z.string().min(1),
-      clientName: z.string().min(1),
-      clientEmail: z.string().email(),
-      expiresAt: z.string().datetime(),
-    }),
-  }),
-  z.object({
     type: z.literal("createEnvelope"),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
@@ -213,116 +201,6 @@ export const bookingCommand = onRequest(
           consultationId,
           providerState: mockMode ? "completed_mock" : "queued",
         };
-      } else if (command.type === "createProposal") {
-        const [projectSnapshot, packageSnapshot, priorVersions] =
-          await Promise.all([
-            firestore.doc(`projects/${command.input.projectId}`).get(),
-            firestore
-              .doc(`packageSnapshots/${command.input.packageSnapshotId}`)
-              .get(),
-            firestore
-              .collection("proposals")
-              .where("tenantId", "==", command.tenantId)
-              .where("projectId", "==", command.input.projectId)
-              .orderBy("version", "desc")
-              .limit(1)
-              .get(),
-          ]);
-        if (!projectSnapshot.exists || !packageSnapshot.exists)
-          throw new Error("BOOKING_DATA_NOT_FOUND");
-        if (
-          projectSnapshot.get("tenantId") !== command.tenantId ||
-          packageSnapshot.get("tenantId") !== command.tenantId
-        )
-          throw new Error("FORBIDDEN");
-        const packageData = packageSnapshot.data() ?? {};
-        const version = Number(priorVersions.docs[0]?.get("version") ?? 0) + 1;
-        const proposalId = stableId(
-          "proposal",
-          command.tenantId,
-          command.idempotencyKey,
-        );
-        const priorId = priorVersions.docs[0]?.id ?? null;
-        const batch = firestore.batch();
-        if (priorId)
-          batch.update(firestore.doc(`proposals/${priorId}`), {
-            status: "superseded",
-            updatedAt: timestamp,
-            updatedBy: identity.uid,
-          });
-        batch.create(firestore.doc(`proposals/${proposalId}`), {
-          id: proposalId,
-          tenantId: command.tenantId,
-          projectId: command.input.projectId,
-          packageSnapshotId: command.input.packageSnapshotId,
-          version,
-          status: "draft",
-          clientSnapshot: {
-            displayName: command.input.clientName,
-            email: command.input.clientEmail,
-          },
-          eventSnapshot: {
-            name: projectSnapshot.get("name"),
-            eventType: projectSnapshot.get("eventType"),
-            eventDate: projectSnapshot.get("eventDate"),
-            timezone: projectSnapshot.get("timezone"),
-            venue: projectSnapshot.get("venueName") ?? null,
-          },
-          pricingSnapshot: {
-            currency: packageData.currency,
-            packageName: packageData.packageName,
-            subtotalCents: packageData.subtotalCents,
-            discountCents: packageData.discountCents,
-            taxCents: packageData.taxCents,
-            retainerCents: packageData.retainerCents,
-            totalCents: packageData.totalCents,
-            lineItems: [
-              {
-                description: packageData.packageName,
-                quantity: 1,
-                unitPriceCents: packageData.basePriceCents,
-                totalCents: packageData.basePriceCents,
-              },
-            ],
-          },
-          paymentSchedule: [
-            {
-              label: "Retainer",
-              amountCents: packageData.retainerCents,
-              dueDate: null,
-            },
-            {
-              label: "Final balance",
-              amountCents:
-                Number(packageData.totalCents) -
-                Number(packageData.retainerCents),
-              dueDate: null,
-            },
-          ],
-          expiresAt: command.input.expiresAt,
-          notes: null,
-          termsSummary: packageData.terms,
-          pdfDocumentId: null,
-          sentAt: null,
-          viewedAt: null,
-          acceptedAt: null,
-          supersedesId: priorId,
-          createdAt: timestamp,
-          updatedAt: timestamp,
-          createdBy: identity.uid,
-          updatedBy: identity.uid,
-          archivedAt: null,
-        });
-        batch.create(firestore.doc(`pdfJobs/proposal_${proposalId}`), {
-          tenantId: command.tenantId,
-          projectId: command.input.projectId,
-          proposalId,
-          type: "proposal_pdf",
-          status: "queued",
-          createdAt: timestamp,
-        });
-        await batch.commit();
-        result = { proposalId, version, pdfState: "queued" };
       } else if (command.type === "createEnvelope") {
         const contractId = stableId(
           "contract",

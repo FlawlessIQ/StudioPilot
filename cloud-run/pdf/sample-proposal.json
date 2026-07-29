@@ -7,10 +7,16 @@
   "event_summary": "Wedding | September 19, 2026 | The Foundry, Long Island City",
   "package_name": "The Signature Collection",
   "package_description": "Ten hours of documentary coverage with two photographers, full-resolution gallery delivery, and an engagement session.",
+  "introduction": "A thoughtful, documentary-led collection built around the moments and people that matter most.",
+  "terms_summary": "The collection includes the coverage and deliverables listed below. Travel outside the included area and client-requested additions require written approval.",
   "line_items": [
     {"description": "Signature Collection", "amount": "$6,500.00"},
     {"description": "Engagement session", "amount": "$650.00"},
     {"description": "Tax", "amount": "$490.00"}
+  ],
+  "payment_schedule": [
+    {"label": "Retainer", "amount": "$1,910.00", "due_date": "On signing"},
+    {"label": "Final balance", "amount": "$5,730.00", "due_date": "September 5, 2026"}
   ],
   "total": "$7,640.00",
   "retainer": "$1,910.00",

@@ -18,6 +18,7 @@ const functionNames = [
   "membershipCommand",
   "planningCommand",
   "postEventCommand",
+  "proposalCommand",
   "publicLeadIntake",
   "saasAdminCommand",
   "supportTenantSummary",

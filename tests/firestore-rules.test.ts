@@ -205,6 +205,30 @@ test(
       await assertSucceeds(getDoc(doc(userDb, "postProductionRecords/post-a")));
       await assertFails(getDoc(doc(userDb, "deliveryRecords/delivery-a")));
 
+      const proposalCoordinatorDb = environment
+        .authenticatedContext("coordinator-a")
+        .firestore();
+      await assertSucceeds(
+        getDoc(doc(proposalCoordinatorDb, "proposals/proposal-a")),
+      );
+      await assertFails(
+        updateDoc(doc(proposalCoordinatorDb, "proposals/proposal-a"), {
+          status: "sent",
+        }),
+      );
+
+      const proposalOwnerDb = environment
+        .authenticatedContext("owner-a")
+        .firestore();
+      await assertSucceeds(
+        getDoc(doc(proposalOwnerDb, "proposals/proposal-a")),
+      );
+      await assertFails(
+        updateDoc(doc(proposalOwnerDb, "proposals/proposal-a"), {
+          status: "approved",
+        }),
+      );
+
       const clientDb = environment.authenticatedContext("client-a").firestore();
       await assertFails(getDoc(doc(clientDb, "projects/project-a")));
       await assertFails(getDoc(doc(clientDb, "workflowRuns/run-a")));

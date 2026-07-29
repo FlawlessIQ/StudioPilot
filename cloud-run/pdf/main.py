@@ -5,6 +5,7 @@ or pricing data from the browser and never modifies signed provider documents.
 """
 
 from io import BytesIO
+from html import escape
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Response
@@ -31,6 +32,12 @@ class LineItem(BaseModel):
     amount: str = Field(min_length=1, max_length=40)
 
 
+class PaymentItem(BaseModel):
+    label: str = Field(min_length=1, max_length=120)
+    amount: str = Field(min_length=1, max_length=40)
+    due_date: str | None = Field(default=None, max_length=80)
+
+
 class ProposalRequest(BaseModel):
     tenant_name: str = Field(min_length=1, max_length=160)
     project_id: str = Field(min_length=1, max_length=120)
@@ -40,7 +47,10 @@ class ProposalRequest(BaseModel):
     event_summary: str = Field(min_length=1, max_length=500)
     package_name: str = Field(min_length=1, max_length=160)
     package_description: str = Field(min_length=1, max_length=2000)
+    introduction: str = Field(default="", max_length=3000)
+    terms_summary: str = Field(default="", max_length=3000)
     line_items: list[LineItem] = Field(min_length=1, max_length=50)
+    payment_schedule: list[PaymentItem] = Field(default_factory=list, max_length=20)
     total: str = Field(min_length=1, max_length=40)
     retainer: str = Field(min_length=1, max_length=40)
     balance: str = Field(min_length=1, max_length=40)
@@ -120,41 +130,71 @@ def build_proposal_pdf(data: ProposalRequest) -> bytes:
     header = Table(
         [
             [
-                Paragraph(f"<b>{data.tenant_name.upper()}</b><br/><font color='#67706B'>PHOTOGRAPHY PROPOSAL</font>", styles["Brand"]),
-                Paragraph(f"{data.proposal_id}<br/>VERSION {data.version}", styles["RightMeta"]),
+                Paragraph(f"<b>{escape(data.tenant_name.upper())}</b><br/><font color='#67706B'>PHOTOGRAPHY PROPOSAL</font>", styles["Brand"]),
+                Paragraph(f"{escape(data.proposal_id)}<br/>VERSION {data.version}", styles["RightMeta"]),
             ]
         ],
         colWidths=[4.5 * inch, 2 * inch],
     )
-    header.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LINEBELOW", (0, 0), (-1, -1), 0.7, line), ("BOTTOMPADDING", (0, 0), (-1, -1), 14)]))
-    story.extend([header, Spacer(1, 0.48 * inch), Paragraph("PREPARED FOR", ParagraphStyle(name="Eyebrow", parent=styles["Meta"], textColor=accent, spaceAfter=8)), Paragraph(data.client_name, styles["Client"]), Paragraph(data.event_summary, styles["BodyStudio"]), Spacer(1, 0.5 * inch)])
-    story.extend([Paragraph(data.package_name, styles["Heading"]), Paragraph(data.package_description, styles["BodyStudio"]), Spacer(1, 0.28 * inch)])
+    header.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LINEBELOW", (0, 0), (-1, -1), 0.7, line), ("BOTTOMPADDING", (0, 0), (-1, -1), 10)]))
+    story.extend([header, Spacer(1, 0.32 * inch), Paragraph("PREPARED FOR", ParagraphStyle(name="Eyebrow", parent=styles["Meta"], textColor=accent, spaceAfter=8)), Paragraph(escape(data.client_name), styles["Client"]), Paragraph(escape(data.event_summary), styles["BodyStudio"]), Spacer(1, 0.32 * inch)])
+    story.extend([Paragraph(escape(data.package_name), styles["Heading"]), Paragraph(escape(data.introduction or data.package_description), styles["BodyStudio"]), Spacer(1, 0.22 * inch)])
 
     rows = [[Paragraph("INVESTMENT", styles["Brand"]), Paragraph("AMOUNT", styles["RightMeta"])]]
-    rows.extend([[Paragraph(item.description, styles["BodyStudio"]), Paragraph(item.amount, styles["RightMeta"])] for item in data.line_items])
-    rows.append([Paragraph("<b>Total</b>", styles["BodyStudio"]), Paragraph(f"<b>{data.total}</b>", styles["RightMeta"])])
+    rows.extend([[Paragraph(escape(item.description), styles["BodyStudio"]), Paragraph(escape(item.amount), styles["RightMeta"])] for item in data.line_items])
+    rows.append([Paragraph("<b>Total</b>", styles["BodyStudio"]), Paragraph(f"<b>{escape(data.total)}</b>", styles["RightMeta"])])
     pricing = Table(rows, colWidths=[5.2 * inch, 1.3 * inch], repeatRows=1)
     pricing.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), soft),
         ("LINEBELOW", (0, 0), (-1, -1), 0.5, line),
-        ("TOPPADDING", (0, 0), (-1, -1), 10),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
         ("LEFTPADDING", (0, 0), (-1, -1), 10),
         ("RIGHTPADDING", (0, 0), (-1, -1), 10),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
     ]))
-    story.extend([pricing, Spacer(1, 0.32 * inch)])
-    payments = Table(
+    story.extend([pricing, Spacer(1, 0.22 * inch)])
+    payment_rows = [
         [
+            Paragraph("PAYMENT", styles["Brand"]),
+            Paragraph("AMOUNT", styles["Brand"]),
+            Paragraph("DUE", styles["Brand"]),
+        ]
+    ]
+    if data.payment_schedule:
+        payment_rows.extend(
             [
-                Paragraph(f"<font color='#67706B'>RETAINER ON SIGNING</font><br/><b>{data.retainer}</b>", styles["BodyStudio"]),
-                Paragraph(f"<font color='#67706B'>FINAL BALANCE</font><br/><b>{data.balance}</b>", styles["BodyStudio"]),
+                [
+                    Paragraph(escape(item.label), styles["BodyStudio"]),
+                    Paragraph(f"<b>{escape(item.amount)}</b>", styles["BodyStudio"]),
+                    Paragraph(escape(item.due_date or "As agreed"), styles["BodyStudio"]),
+                ]
+                for item in data.payment_schedule
             ]
-        ],
-        colWidths=[3.2 * inch, 3.2 * inch],
-    )
-    payments.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), soft), ("BOX", (0, 0), (-1, -1), 0.5, line), ("INNERGRID", (0, 0), (-1, -1), 0.5, line), ("TOPPADDING", (0, 0), (-1, -1), 14), ("BOTTOMPADDING", (0, 0), (-1, -1), 14), ("LEFTPADDING", (0, 0), (-1, -1), 12)]))
-    story.extend([KeepTogether([Paragraph("Payment schedule", styles["Heading"]), payments]), Spacer(1, 0.3 * inch), Paragraph(f"This proposal expires {data.expires_on}. Final terms are governed by the completed Docusign agreement. Acceptance of this proposal does not itself constitute a signed contract.", styles["BodyStudio"])])
+        )
+    else:
+        payment_rows.extend(
+            [
+                [Paragraph("Retainer", styles["BodyStudio"]), Paragraph(f"<b>{escape(data.retainer)}</b>", styles["BodyStudio"]), Paragraph("On signing", styles["BodyStudio"])],
+                [Paragraph("Final balance", styles["BodyStudio"]), Paragraph(f"<b>{escape(data.balance)}</b>", styles["BodyStudio"]), Paragraph("As agreed", styles["BodyStudio"])],
+            ]
+        )
+    payments = Table(payment_rows, colWidths=[2.7 * inch, 1.55 * inch, 2.15 * inch], repeatRows=1)
+    payments.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), soft), ("BOX", (0, 0), (-1, -1), 0.5, line), ("INNERGRID", (0, 0), (-1, -1), 0.5, line), ("TOPPADDING", (0, 0), (-1, -1), 8), ("BOTTOMPADDING", (0, 0), (-1, -1), 8), ("LEFTPADDING", (0, 0), (-1, -1), 10), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
+    terms = data.terms_summary or "Final terms are governed by the completed Docusign agreement."
+    story.extend([
+        KeepTogether([Paragraph("Payment schedule", styles["Heading"]), payments]),
+        Spacer(1, 0.22 * inch),
+        KeepTogether([
+            Paragraph("Offer details", styles["Heading"]),
+            Paragraph(escape(terms), styles["BodyStudio"]),
+            Spacer(1, 0.08 * inch),
+            Paragraph(
+                f"This proposal expires {escape(data.expires_on)}. Acceptance of this proposal does not itself constitute a signed contract.",
+                styles["BodyStudio"],
+            ),
+        ]),
+    ])
     doc.build(story, onFirstPage=footer, onLaterPages=footer)
     return buffer.getvalue()
 

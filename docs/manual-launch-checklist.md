@@ -120,7 +120,8 @@ Run a real pilot from a clean account:
 2. invite a staff member
 3. submit an inquiry and convert it to a project
 4. schedule a Calendar/Zoom consultation
-5. select a package and generate a proposal
+5. select a package; draft, review, approve, generate, send, view, and accept a
+   proposal; verify the branded PDF attachment and SendGrid delivery events
 6. complete a Docusign agreement and QuickBooks retainer
 7. pass the booking gate once and verify Calendar/Dropbox side effects
 8. activate a client portal and submit a questionnaire

@@ -38,6 +38,7 @@ const studioRoutes = [
   "/studio/clients/new",
   "/studio/projects/new",
   "/studio/packages/new",
+  "/studio/proposals/new",
   "/studio/crew/new",
   "/studio/schedules/new",
   "/studio/tasks/new",
@@ -163,6 +164,33 @@ test.describe("authenticated visual shell", () => {
         .getByRole("heading", { name: "Signature wedding" })
         .evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize)),
     ).toBeGreaterThanOrEqual(40);
+  });
+
+  test("studio proposal authoring requires approval before delivery", async ({
+    page,
+  }) => {
+    await page.goto("/studio/proposals");
+    await expect(page.getByRole("heading", { name: "Proposals" })).toBeVisible();
+    await page.getByRole("link", { name: "New proposal" }).click();
+    await expect(
+      page.getByRole("heading", {
+        name: "Turn a selected package into a clear decision.",
+      }),
+    ).toBeVisible();
+    await page.getByLabel("Project").selectOption("demo-project");
+    await expect(page.getByText("$7,063.00", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Create draft" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Rivera wedding" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Send for approval" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Approve the offer" }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Approve & generate PDF" })
+      .click();
+    await expect(page.getByText("Generating branded PDF")).toBeVisible();
   });
 
   test("crew portal routes remain complete and responsive", async ({ page }) => {

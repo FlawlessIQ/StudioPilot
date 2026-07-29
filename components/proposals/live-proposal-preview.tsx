@@ -33,12 +33,19 @@ export function LiveProposalPreview({ id }: { id: string }) {
       : {
           id,
           projectName: "Rivera wedding",
-          clientSnapshot: { primaryName: "Maya and Elena Rivera" },
-          eventType: "Wedding photography",
-          eventDate: "June 12, 2027",
+          clientSnapshot: { displayName: "Maya and Elena Rivera" },
+          eventSnapshot: {
+            name: "Rivera wedding",
+            eventType: "Wedding photography",
+            eventDate: "June 12, 2027",
+          },
           version: 2,
-          currency: "USD",
+          notes:
+            "A thoughtful, documentary-led collection built around the moments and people that matter most.",
+          termsSummary:
+            "The offer is reserved through the expiration date below. Final legal terms are established only by the signed agreement.",
           pricingSnapshot: {
+            currency: "USD",
             packageName: "Signature wedding",
             description:
               "Ten hours of coverage, two photographers, and a complete digital collection.",
@@ -70,16 +77,30 @@ export function LiveProposalPreview({ id }: { id: string }) {
   const packageName = String(snapshot?.packageName ?? "Photography package");
   const total = Number(snapshot?.totalCents ?? proposal.totalCents ?? 0);
   const retainer = Number(snapshot?.retainerCents ?? proposal.retainerCents ?? 0);
+  const currency = snapshot?.currency ?? proposal.currency;
+  const clientName =
+    nested(proposal, "clientSnapshot.displayName") ??
+    nested(proposal, "clientSnapshot.primaryName") ??
+    proposal.projectName ??
+    "Client";
+  const eventType =
+    nested(proposal, "eventSnapshot.eventType") ??
+    proposal.eventType ??
+    "Photography project";
+  const eventDate =
+    nested(proposal, "eventSnapshot.eventDate") ??
+    proposal.eventDate ??
+    "Date pending";
   return (
     <div className="proposal-preview-page">
       <Link className="back-link" href={`/studio/proposals/${id}`}><ArrowLeft /> Back to proposal</Link>
       <main className="pdf-preview">
       <header><span>SC</span><div><small>{workspace.tenantName.toUpperCase()}</small><strong>Photography Proposal</strong></div><p>VERSION {String(proposal.version ?? 1)}</p></header>
-      <section><p className="eyebrow">Prepared for</p><h1>{String(nested(proposal, "clientSnapshot.primaryName") ?? proposal.projectName ?? "Client")}</h1><p>{String(proposal.eventType ?? "Photography project")} · {String(proposal.eventDate ?? "Date pending")}</p></section>
-      <section><h2>{packageName}</h2><p>{String(snapshot?.description ?? proposal.notes ?? "Scope and deliverables are preserved in this proposal version.")}</p>
-        <table><tbody><tr><td>{packageName}</td><td>{money(snapshot?.subtotalCents ?? total, proposal.currency)}</td></tr><tr><td>Discounts and tax</td><td>{money(Number(snapshot?.taxCents ?? 0) - Number(snapshot?.discountCents ?? 0), proposal.currency)}</td></tr><tr className="total"><td>Total</td><td>{money(total, proposal.currency)}</td></tr></tbody></table>
+      <section><p className="eyebrow">Prepared for</p><h1>{String(clientName)}</h1><p>{String(eventType)} · {String(eventDate)}</p></section>
+      <section><h2>{packageName}</h2><p>{String(proposal.notes ?? snapshot?.description ?? "Scope and deliverables are preserved in this proposal version.")}</p>
+        <table><tbody><tr><td>{packageName}</td><td>{money(snapshot?.subtotalCents ?? total, currency)}</td></tr><tr><td>Discounts and tax</td><td>{money(Number(snapshot?.taxCents ?? 0) - Number(snapshot?.discountCents ?? 0), currency)}</td></tr><tr className="total"><td>Total</td><td>{money(total, currency)}</td></tr></tbody></table>
       </section>
-      <section className="pdf-terms"><h2>Payment schedule</h2><div><span><small>Retainer</small><strong>{money(retainer, proposal.currency)}</strong></span><span><small>Remaining balance</small><strong>{money(Math.max(0, total - retainer), proposal.currency)}</strong></span></div><p>Final contractual terms are governed only by the completed signature-provider agreement.</p></section>
+      <section className="pdf-terms"><h2>Payment schedule</h2><div><span><small>Retainer</small><strong>{money(retainer, currency)}</strong></span><span><small>Remaining balance</small><strong>{money(Math.max(0, total - retainer), currency)}</strong></span></div><p>{String(proposal.termsSummary ?? "Final contractual terms are governed only by the completed signature-provider agreement.")}</p></section>
       <footer><span>Generated {new Date().toLocaleDateString()}</span><span>{workspace.tenantName}</span><span>Preview</span></footer>
       </main>
     </div>

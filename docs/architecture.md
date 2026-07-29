@@ -191,6 +191,13 @@ external completion evidence accepted by the deterministic booking gate.
 Proposal rendering runs in isolated Cloud Run infrastructure from immutable
 snapshots; signed Docusign files are never regenerated.
 
+Proposal authoring uses a separate App Check-protected `proposalCommand`
+boundary. It derives client, event, and pricing facts from trusted project,
+contact, and package-snapshot records; applies an explicit draft, review,
+approval, send, and outcome state machine; and records idempotent command and
+audit evidence. The full boundary is documented in
+[`docs/proposals.md`](./proposals.md).
+
 ## Observability
 
 Structured logging includes correlation, tenant, project, automation run, provider, severity, and outcome without logging secrets or raw sensitive documents. Sentry captures web and function failures. Audit events record business actions; operational logs record system execution. These are separate concerns and retention policies.
