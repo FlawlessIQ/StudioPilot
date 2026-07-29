@@ -1,5 +1,49 @@
 # StudioCue Build Progress
 
+## Lifecycle automation and AI value release — 2026-07-29
+
+Status: implemented, validated, and deployed to production.
+
+Delivered:
+
+- lifecycle authority and normalized domain events with idempotent workflow
+  execution, retries, dead-letter visibility, and manual recovery
+- public consultation scheduling, availability orchestration, and provider-safe
+  Calendar and Zoom coordination
+- AI-assisted inquiry qualification, missing-information detection, consultation
+  preparation, questionnaire review, schedule drafting, and project risk
+  explanation with deterministic authority boundaries
+- package selection, proposal acceptance, contract and invoice orchestration,
+  booking gates, client communications, reminders, and scheduled email release
+- operational reporting, automation outcomes, readiness intelligence, and value
+  indicators grounded in tenant-scoped records
+- complete responsive studio, client, crew, and platform-administration UX pass
+- live-mode provider configuration with explicit health, authorization, and
+  human-approval states
+
+Validation record:
+
+- strict TypeScript: passed
+- ESLint: passed with zero warnings
+- unit, domain, security, and policy suite: 103 passed
+- Firestore rules suite: passed
+- Storage rules suite: passed
+- Playwright acceptance suite: 34 passed across desktop and mobile Chromium
+- Cloud Functions TypeScript build: passed
+- Next.js production build: passed with 98 routes
+
+Production record:
+
+- release commit `581c5449ccfb6a0bd636b3386bc39eed596ccf1c`
+- Firestore rules, composite indexes, and Storage rules deployed
+- all trusted Functions deployed; new lifecycle, communication, scheduling, and
+  domain-event services report active revisions with successful startup probes
+- Firebase App Hosting rollout completed in `us-east4`
+- public health endpoint reports live authentication, data, and provider modes
+- production smoke checks passed for marketing, studio, client, crew,
+  platform-administration, and public consultation routes
+- unauthenticated direct access to trusted command endpoints is rejected
+
 ## Platform-to-tenant workspace access — 2026-07-28
 
 Status: implemented and validated.
