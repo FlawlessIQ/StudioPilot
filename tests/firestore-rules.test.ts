@@ -216,7 +216,7 @@ test(
       await assertFails(getDoc(doc(clientDb, "checkpoints/studio-a")));
       await assertFails(getDoc(doc(clientDb, "tasks/task-a")));
       await assertFails(getDoc(doc(clientDb, "readinessAssessments/project-a")));
-      await assertSucceeds(getDoc(doc(clientDb, "proposals/proposal-a")));
+      await assertFails(getDoc(doc(clientDb, "proposals/proposal-a")));
       await assertFails(getDoc(doc(clientDb, "contracts/contract-a")));
       await assertFails(getDoc(doc(clientDb, "invoiceReferences/invoice-a")));
       await assertFails(getDoc(doc(clientDb, "documents/document-client")));

@@ -7,6 +7,7 @@ import {
   adminFirestore,
 } from "@/server/firebase/admin";
 import { buildClientPortalExperience } from "@/server/client/portal-experience";
+import { planClientProposalDecision } from "@/server/client/proposal-decision";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +22,7 @@ const requestSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1).max(160),
     projectId: z.string().min(1).max(160),
     collection: z.enum([
+      "proposals",
       "packageSnapshots",
       "contracts",
       "invoiceReferences",
@@ -42,6 +44,15 @@ const requestSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1).max(160),
     projectId: z.string().min(1).max(160),
     body: z.string().trim().min(1).max(5000),
+    idempotencyKey: z.string().min(8).max(160),
+  }),
+  z.object({
+    type: z.literal("decide_proposal"),
+    tenantId: z.string().min(1).max(160),
+    projectId: z.string().min(1).max(160),
+    proposalId: z.string().min(1).max(160),
+    decision: z.enum(["accepted", "declined"]),
+    reason: z.string().trim().min(10).max(1000).nullable(),
     idempotencyKey: z.string().min(8).max(160),
   }),
 ]);
@@ -112,6 +123,22 @@ function pick(
 }
 
 const clientRecordFields = {
+  proposals: [
+    "version",
+    "status",
+    "eventSnapshot",
+    "pricingSnapshot",
+    "paymentSchedule",
+    "expiresAt",
+    "notes",
+    "termsSummary",
+    "sentAt",
+    "viewedAt",
+    "acceptedAt",
+    "declinedAt",
+    "declineReason",
+    "updatedAt",
+  ],
   packageSnapshots: [
     "packageName",
     "name",
@@ -206,6 +233,7 @@ async function clientRecords(
   tenantId: string,
   projectId: string,
   collectionName: keyof typeof clientRecordFields,
+  actorId: string,
 ) {
   const snapshot = await adminFirestore
     .collection(collectionName)
@@ -213,8 +241,53 @@ async function clientRecords(
     .where("projectId", "==", projectId)
     .limit(100)
     .get();
+  if (collectionName === "proposals") {
+    await Promise.all(
+      snapshot.docs
+        .filter((document) => document.get("status") === "sent")
+        .map((document) =>
+          adminFirestore.runTransaction(async (transaction) => {
+            const current = await transaction.get(document.ref);
+            if (!current.exists || current.get("status") !== "sent") return;
+            const now = new Date().toISOString();
+            const auditId = `proposal_viewed_${createHash("sha256")
+              .update(`${actorId}:${document.id}`)
+              .digest("hex")
+              .slice(0, 32)}`;
+            transaction.update(document.ref, {
+              status: "viewed",
+              viewedAt: now,
+              updatedAt: now,
+              updatedBy: actorId,
+            });
+            transaction.create(adminFirestore.doc(`auditEvents/${auditId}`), {
+              tenantId,
+              actor: actorId,
+              actorType: "client",
+              action: "proposal_viewed",
+              entityType: "proposal",
+              entityId: document.id,
+              timestamp: now,
+              beforeSnapshot: { status: "sent" },
+              afterSnapshot: { status: "viewed", projectId },
+              correlationId: auditId,
+              automationRunId: null,
+              providerEventId: null,
+            });
+          }),
+        ),
+    );
+  }
   return snapshot.docs.flatMap((document) => {
     const value = document.data();
+    if (
+      collectionName === "proposals" &&
+      !["sent", "viewed", "accepted", "declined", "expired", "superseded"].includes(
+        String(value.status),
+      )
+    ) {
+      return [];
+    }
     if (
       collectionName === "documents" &&
       (!["client", "shared"].includes(String(value.visibility)) ||
@@ -237,6 +310,10 @@ async function clientRecords(
       return [];
     }
     const sanitized = pick(value, clientRecordFields[collectionName]);
+    if (collectionName === "proposals" && sanitized.status === "sent") {
+      sanitized.status = "viewed";
+      sanitized.viewedAt = new Date().toISOString();
+    }
     if (collectionName === "contracts" && Array.isArray(sanitized.signers)) {
       sanitized.signers = (
         sanitized.signers as Array<Record<string, unknown>>
@@ -271,6 +348,7 @@ async function clientRecords(
 
 async function clientProject(tenantId: string, projectId: string) {
   const availabilityCollections = {
+    proposal: "proposals",
     package: "packageSnapshots",
     contract: "contracts",
     payments: "invoiceReferences",
@@ -328,6 +406,11 @@ async function clientProject(tenantId: string, projectId: string) {
             value.clientVisible !== false
           );
         }
+        if (collectionName === "proposals") {
+          return ["sent", "viewed", "accepted", "declined"].includes(
+            String(value.status),
+          );
+        }
         if (collectionName === "schedules") {
           return ["client_review", "approved", "published"].includes(
             String(value.status),
@@ -338,10 +421,26 @@ async function clientProject(tenantId: string, projectId: string) {
       return [key, visible];
     }),
   );
+  const proposalIndex = Object.keys(availabilityCollections).indexOf("proposal");
+  const currentProposal = [...availabilitySnapshots[proposalIndex].docs].sort(
+    (left, right) =>
+      Number(right.get("version") ?? 0) - Number(left.get("version") ?? 0),
+  )[0];
+  const storedProposalStatus = currentProposal
+    ? String(currentProposal.get("status") ?? "")
+    : null;
+  const proposalStatus =
+    currentProposal &&
+    ["sent", "viewed"].includes(String(storedProposalStatus)) &&
+    new Date(String(currentProposal.get("expiresAt") ?? "")).valueOf() <=
+      Date.now()
+      ? "expired"
+      : storedProposalStatus;
   const experience = buildClientPortalExperience({
     state,
     availability,
     checkpoints,
+    proposalStatus,
   });
   return {
     id: projectId,
@@ -391,6 +490,220 @@ async function clientProjects(tenantId: string, projectIds: string[]) {
   });
 }
 
+async function decideProposal({
+  tenantId,
+  projectId,
+  proposalId,
+  decision,
+  reason,
+  idempotencyKey,
+  actorId,
+}: {
+  tenantId: string;
+  projectId: string;
+  proposalId: string;
+  decision: "accepted" | "declined";
+  reason: string | null;
+  idempotencyKey: string;
+  actorId: string;
+}) {
+  const decisionId = `client_proposal_${createHash("sha256")
+    .update(`${actorId}:${tenantId}:${projectId}:${proposalId}:${idempotencyKey}`)
+    .digest("hex")
+    .slice(0, 32)}`;
+  const executionReference = adminFirestore.doc(
+    `commandExecutions/${decisionId}`,
+  );
+  const result = await adminFirestore.runTransaction(async (transaction) => {
+    const projectReference = adminFirestore.doc(`projects/${projectId}`);
+    const proposalReference = adminFirestore.doc(`proposals/${proposalId}`);
+    const latestQuery = adminFirestore
+      .collection("proposals")
+      .where("tenantId", "==", tenantId)
+      .where("projectId", "==", projectId)
+      .orderBy("version", "desc")
+      .limit(1);
+
+    const execution = await transaction.get(executionReference);
+    if (execution.exists) {
+      return execution.get("result") as {
+        proposalId: string;
+        status: "accepted" | "declined";
+        projectState: string;
+        alreadyComplete: boolean;
+      };
+    }
+
+    const [project, proposal, latestProposals] = await Promise.all([
+      transaction.get(projectReference),
+      transaction.get(proposalReference),
+      transaction.get(latestQuery),
+    ]);
+    if (
+      !project.exists ||
+      project.get("tenantId") !== tenantId ||
+      !proposal.exists ||
+      proposal.get("tenantId") !== tenantId ||
+      proposal.get("projectId") !== projectId
+    ) {
+      throw new Error("PROPOSAL_NOT_FOUND");
+    }
+    if (latestProposals.docs[0]?.id !== proposalId) {
+      throw new Error("PROPOSAL_SUPERSEDED");
+    }
+
+    const packageSnapshotId = String(
+      proposal.get("packageSnapshotId") ?? "",
+    );
+    const packageSnapshot = await transaction.get(
+      adminFirestore.doc(`packageSnapshots/${packageSnapshotId}`),
+    );
+    if (
+      !packageSnapshot.exists ||
+      packageSnapshot.get("tenantId") !== tenantId ||
+      packageSnapshot.get("projectId") !== projectId
+    ) {
+      throw new Error("PACKAGE_SNAPSHOT_NOT_FOUND");
+    }
+
+    const now = new Date().toISOString();
+    const plan = planClientProposalDecision({
+      decision,
+      now,
+      project: {
+        state: String(project.get("state") ?? ""),
+        packageSnapshotId:
+          safeString(project.get("packageSnapshotId")) ?? null,
+      },
+      proposal: {
+        status: String(proposal.get("status") ?? ""),
+        expiresAt: String(proposal.get("expiresAt") ?? ""),
+        packageSnapshotId,
+      },
+    });
+    const response = {
+      proposalId,
+      status: plan.proposalStatus,
+      projectState: plan.projectState,
+      alreadyComplete: plan.alreadyComplete,
+    };
+
+    if (!plan.alreadyComplete) {
+      transaction.update(proposalReference, {
+        status: plan.proposalStatus,
+        acceptedAt: decision === "accepted" ? now : null,
+        declinedAt: decision === "declined" ? now : null,
+        declineReason: decision === "declined" ? reason : null,
+        decisionBy: actorId,
+        updatedAt: now,
+        updatedBy: actorId,
+      });
+      if (plan.transitionProject) {
+        transaction.update(projectReference, {
+          packageSnapshotId,
+          state: plan.projectState,
+          stateVersion: Number(project.get("stateVersion") ?? 0) + 1,
+          nextAction: "Prepare and send the photography agreement",
+          updatedAt: now,
+          updatedBy: actorId,
+        });
+      }
+
+      const taskId = `proposal_decision_${proposalId}`;
+      transaction.set(adminFirestore.doc(`tasks/${taskId}`), {
+        id: taskId,
+        tenantId,
+        projectId,
+        projectName:
+          safeString(project.get("name")) ?? "Client photography project",
+        workflowRunId: null,
+        checkpointId: null,
+        title:
+          decision === "accepted"
+            ? "Prepare client agreement"
+            : "Review requested proposal changes",
+        description:
+          decision === "accepted"
+            ? "The client accepted the current proposal. Prepare and send the contract."
+            : reason ?? "The client requested changes to the current proposal.",
+        assignedUserId: null,
+        assignedRole: "studio_coordinator",
+        dueDate: null,
+        priority: decision === "accepted" ? "high" : "normal",
+        status: "not_started",
+        blocking: decision === "accepted",
+        completedAt: null,
+        completedBy: null,
+        source: "client_portal",
+        sourceProposalId: proposalId,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: actorId,
+        updatedBy: actorId,
+        archivedAt: null,
+      });
+
+      const proposalAuditId = `${decisionId}_proposal`;
+      transaction.create(adminFirestore.doc(`auditEvents/${proposalAuditId}`), {
+        tenantId,
+        actor: actorId,
+        actorType: "client",
+        action:
+          decision === "accepted"
+            ? "proposal_accepted"
+            : "proposal_changes_requested",
+        entityType: "proposal",
+        entityId: proposalId,
+        timestamp: now,
+        beforeSnapshot: { status: proposal.get("status") },
+        afterSnapshot: {
+          status: plan.proposalStatus,
+          reason: decision === "declined" ? reason : null,
+        },
+        correlationId: decisionId,
+        automationRunId: null,
+        providerEventId: null,
+      });
+      if (plan.transitionProject) {
+        transaction.create(
+          adminFirestore.doc(`auditEvents/${decisionId}_state`),
+          {
+            tenantId,
+            actor: actorId,
+            actorType: "client",
+            action: "project_state_changed",
+            entityType: "project",
+            entityId: projectId,
+            timestamp: now,
+            beforeSnapshot: { state: project.get("state") },
+            afterSnapshot: {
+              state: plan.projectState,
+              reason: "Current proposal accepted by client",
+            },
+            correlationId: decisionId,
+            automationRunId: null,
+            providerEventId: null,
+          },
+        );
+      }
+    }
+
+    transaction.create(executionReference, {
+      id: decisionId,
+      tenantId,
+      projectId,
+      type: "client_proposal_decision",
+      idempotencyKey,
+      actorId,
+      result: response,
+      createdAt: now,
+      completedAt: now,
+    });
+    return response;
+  });
+  return result;
+}
+
 export async function POST(request: Request) {
   try {
     const identity = await verifyRequest(request);
@@ -419,8 +732,26 @@ export async function POST(request: Request) {
           parsed.tenantId,
           parsed.projectId,
           parsed.collection,
+          identity.uid,
         ),
       });
+    }
+
+    if (parsed.type === "decide_proposal") {
+      if (parsed.decision === "declined" && !parsed.reason) {
+        return Response.json({ error: "INVALID_REQUEST" }, { status: 400 });
+      }
+      return Response.json(
+        await decideProposal({
+          tenantId: parsed.tenantId,
+          projectId: parsed.projectId,
+          proposalId: parsed.proposalId,
+          decision: parsed.decision,
+          reason: parsed.reason,
+          idempotencyKey: parsed.idempotencyKey,
+          actorId: identity.uid,
+        }),
+      );
     }
 
     const now = new Date().toISOString();
@@ -516,6 +847,21 @@ export async function POST(request: Request) {
     }
     if (error === "PROJECT_NOT_FOUND") {
       return Response.json({ error }, { status: 404 });
+    }
+    if (
+      error === "PROPOSAL_NOT_FOUND" ||
+      error === "PACKAGE_SNAPSHOT_NOT_FOUND"
+    ) {
+      return Response.json({ error }, { status: 404 });
+    }
+    if (
+      error === "PROPOSAL_NOT_ACTIONABLE" ||
+      error === "PROPOSAL_EXPIRED" ||
+      error === "PROPOSAL_SUPERSEDED" ||
+      error === "PACKAGE_SNAPSHOT_CONFLICT" ||
+      error === "PROJECT_STATE_CONFLICT"
+    ) {
+      return Response.json({ error }, { status: 409 });
     }
     console.error("Client portal request failed", caught);
     return Response.json({ error: "PORTAL_REQUEST_FAILED" }, { status: 500 });

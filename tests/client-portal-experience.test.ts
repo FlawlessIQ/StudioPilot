@@ -18,8 +18,47 @@ test("a lead sees a studio-owned waiting state instead of an impossible client t
     "Your studio is reviewing your inquiry",
   );
   assert.equal(experience.navigation.contract, false);
+  assert.equal(experience.navigation.proposal, false);
   assert.equal(experience.navigation.payments, false);
   assert.equal(experience.navigation.delivery, false);
+});
+
+test("proposal stage points to a dedicated decision experience", () => {
+  const experience = buildClientPortalExperience({
+    state: "PROPOSAL",
+    availability: { proposal: true, package: true },
+    checkpoints: [],
+  });
+
+  assert.equal(experience.navigation.proposal, true);
+  assert.equal(experience.navigation.package, false);
+  assert.equal(experience.nextClientAction.href, "/client/proposal");
+  assert.equal(experience.nextClientAction.actionLabel, "Review proposal");
+});
+
+test("accepted proposal unlocks the preserved package and contract stage", () => {
+  const experience = buildClientPortalExperience({
+    state: "CONTRACT_PENDING",
+    availability: { proposal: true, package: true },
+    checkpoints: [],
+  });
+
+  assert.equal(experience.navigation.proposal, true);
+  assert.equal(experience.navigation.package, true);
+  assert.equal(experience.navigation.contract, true);
+});
+
+test("a change request becomes studio-owned work instead of prompting another decision", () => {
+  const experience = buildClientPortalExperience({
+    state: "PROPOSAL",
+    availability: { proposal: true },
+    checkpoints: [],
+    proposalStatus: "declined",
+  });
+
+  assert.equal(experience.nextClientAction.responsibility, "studio");
+  assert.match(experience.nextClientAction.name, /reviewing/i);
+  assert.equal(experience.nextClientAction.href, "/client/proposal");
 });
 
 test("a visible client checkpoint becomes the next action with a safe destination", () => {

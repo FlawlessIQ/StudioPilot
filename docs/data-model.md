@@ -127,6 +127,12 @@ package, pricing, payment, and terms snapshots. `contracts` and
 `invoiceReferences` store normalized Docusign and QuickBooks evidence without
 containing signature secrets or payment credentials.
 
+Proposal decision metadata (`status`, viewed/accepted/declined timestamps,
+decision actor, and client change request) may advance, but the proposal’s
+package, pricing, payment, event, and terms snapshots never change. Client
+acceptance binds the referenced package snapshot to the project and advances
+only the allowed `PROPOSAL` → `CONTRACT_PENDING` transition.
+
 `documents` reference provider file IDs, revisions, hashes, paths, content type,
 and visibility. `integrationConnections` store status and Secret Manager
 references, never OAuth refresh-token plaintext. `webhookEvents`,

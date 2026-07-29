@@ -91,10 +91,18 @@ commands run through Cloud Functions; browsers have no direct create permission 
 leads, packages, package snapshots, command executions, rate-limit counters, or
 audit events.
 
+Client portal reads and decisions use an App Check- and membership-protected
+server API. The API applies per-record allowlists and visibility filters before
+returning project data; clients do not read raw projects, proposals, contracts,
+invoices, schedules, documents, or messages directly from Firestore. Proposal
+acceptance is a server transaction that verifies the current proposal version,
+expiration, immutable package snapshot, idempotency key, and allowed project
+state transition before recording audit evidence.
+
 Immutable/versioned records:
 
 - package snapshots
-- accepted proposal versions
+- proposal pricing and terms snapshots
 - contract evidence
 - workflow run input/version
 - approved and published schedule versions

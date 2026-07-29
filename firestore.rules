@@ -252,7 +252,7 @@ service cloud.firestore {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
-          && hasRole(resource.data.tenantId, ["studio_coordinator", "client"])
+          && hasRole(resource.data.tenantId, ["studio_coordinator"])
         );
       allow write: if false;
     }

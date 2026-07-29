@@ -7738,6 +7738,376 @@ textarea:focus-visible {
   width: 16px;
 }
 
+/* Client proposal review and decision */
+.client-proposal-page {
+  max-width: 1080px;
+}
+
+.client-proposal-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+}
+
+.client-proposal-heading h1 {
+  color: #17201a;
+  font-family: var(--font-display);
+  font-size: clamp(40px, 4vw, 58px);
+  font-weight: 580;
+  line-height: 1;
+  letter-spacing: -.05em;
+  margin: 7px 0 12px;
+}
+
+.client-proposal-heading > div > p:last-child {
+  color: var(--muted);
+  margin: 0;
+}
+
+.client-proposal-heading > .status-badge {
+  margin-top: 8px;
+}
+
+.client-proposal-summary {
+  background: #17201a;
+  border-radius: 18px;
+  box-shadow: var(--workspace-shadow-raised);
+  color: #fff;
+  display: grid;
+  gap: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 30px;
+  overflow: hidden;
+}
+
+.client-proposal-summary > span {
+  border-left: 1px solid rgb(255 255 255 / 12%);
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  padding: 20px;
+}
+
+.client-proposal-summary > span:first-child {
+  border-left: 0;
+}
+
+.client-proposal-summary small {
+  color: rgb(255 255 255 / 56%);
+  font-size: 9px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.client-proposal-summary strong {
+  overflow-wrap: anywhere;
+}
+
+.client-proposal-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, .65fr);
+  margin-top: 16px;
+}
+
+.client-proposal-pricing,
+.client-proposal-payment-plan,
+.client-proposal-terms {
+  border-radius: 19px;
+  box-shadow: var(--workspace-shadow);
+}
+
+.client-proposal-pricing {
+  padding: 0 28px 24px;
+}
+
+.client-proposal-payment-plan {
+  padding: 26px 22px;
+}
+
+.client-proposal-terms {
+  padding: 22px 26px;
+}
+
+.client-proposal-pricing .panel-heading {
+  align-items: flex-start;
+  border-bottom: 1px solid var(--workspace-line);
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+  margin-bottom: 0;
+  padding: 26px 0 20px;
+}
+
+.client-proposal-pricing .panel-heading h2,
+.client-proposal-payment-plan h2,
+.client-proposal-terms h2,
+.client-proposal-decision h2,
+.client-proposal-result h2 {
+  color: #17201a;
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 580;
+  line-height: 1.15;
+  letter-spacing: -.025em;
+  margin: 4px 0;
+}
+
+.client-proposal-pricing .panel-heading > strong {
+  color: #315e43;
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -.03em;
+  white-space: nowrap;
+}
+
+.client-proposal-lines {
+  display: grid;
+}
+
+.client-proposal-lines > div {
+  align-items: center;
+  border-bottom: 1px solid var(--workspace-line);
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+  padding: 17px 0;
+}
+
+.client-proposal-lines > div > span {
+  display: grid;
+  gap: 4px;
+}
+
+.client-proposal-lines small,
+.client-proposal-payment-plan small,
+.client-proposal-terms small,
+.client-proposal-confirm small {
+  color: var(--muted);
+}
+
+.client-proposal-totals {
+  display: grid;
+  gap: 10px;
+  margin: 20px 0 0;
+}
+
+.client-proposal-totals > div {
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+}
+
+.client-proposal-totals dt {
+  color: var(--muted);
+}
+
+.client-proposal-totals dd {
+  margin: 0;
+}
+
+.client-proposal-totals .client-proposal-total {
+  border-top: 1px solid var(--workspace-line);
+  font-size: 17px;
+  font-weight: 700;
+  margin-top: 4px;
+  padding-top: 14px;
+}
+
+.client-proposal-payment-plan {
+  align-content: start;
+  display: grid;
+  gap: 0;
+}
+
+.client-proposal-payment-plan > div {
+  align-items: center;
+  border-top: 1px solid var(--workspace-line);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto 1fr auto;
+  padding: 17px 0;
+}
+
+.client-proposal-payment-plan > div > span:first-child {
+  align-items: center;
+  background: #e6efe7;
+  border-radius: 50%;
+  color: #315e43;
+  display: flex;
+  font-size: 10px;
+  font-weight: 750;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+
+.client-proposal-payment-plan > div > span:nth-child(2) {
+  display: grid;
+  gap: 3px;
+}
+
+.client-proposal-payment-plan > p:last-child {
+  background: #f2f6f1;
+  border-radius: 12px;
+  color: #56625a;
+  font-size: 11px;
+  line-height: 1.55;
+  margin: 16px 0 0;
+  padding: 13px;
+}
+
+.client-proposal-terms {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.client-proposal-terms > div {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.client-proposal-terms > div > svg {
+  color: #3f6d4e;
+}
+
+.client-proposal-terms > p {
+  color: #3f4842;
+  line-height: 1.65;
+  margin: 0;
+  white-space: pre-line;
+}
+
+.client-proposal-decision,
+.client-proposal-result {
+  background:
+    radial-gradient(circle at 92% 0, rgb(75 118 88 / 14%), transparent 18rem),
+    #17201a;
+  border-radius: 19px;
+  box-shadow: var(--workspace-shadow-raised);
+  color: #fff;
+  display: grid;
+  gap: 22px;
+  margin-top: 16px;
+  padding: clamp(24px, 4vw, 34px);
+}
+
+.client-proposal-decision > div:first-child > p:last-child,
+.client-proposal-result p {
+  color: rgb(255 255 255 / 65%);
+  line-height: 1.6;
+  margin-bottom: 0;
+  max-width: 700px;
+}
+
+.client-proposal-decision h2,
+.client-proposal-result h2 {
+  color: #fff;
+}
+
+.client-proposal-decision-actions,
+.client-proposal-change-request > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.client-proposal-decision .button-dark {
+  background: #fff;
+  color: #17201a;
+}
+
+.client-proposal-decision .button-light {
+  background: transparent;
+  border-color: rgb(255 255 255 / 24%);
+  color: #fff;
+}
+
+.client-proposal-decision .button svg,
+.client-proposal-result .button svg {
+  height: 16px;
+  width: 16px;
+}
+
+.client-proposal-confirm {
+  align-items: center;
+  background: rgb(255 255 255 / 7%);
+  border: 1px solid rgb(255 255 255 / 13%);
+  border-radius: 14px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: auto 1fr auto auto;
+  padding: 16px;
+}
+
+.client-proposal-confirm > svg {
+  color: #a9d1b3;
+}
+
+.client-proposal-confirm > span {
+  display: grid;
+  gap: 4px;
+}
+
+.client-proposal-change-request {
+  display: grid;
+  gap: 10px;
+}
+
+.client-proposal-change-request label {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.client-proposal-change-request textarea {
+  background: #fff;
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 12px;
+  color: #17201a;
+  font: inherit;
+  line-height: 1.55;
+  min-height: 120px;
+  padding: 14px;
+  resize: vertical;
+  width: 100%;
+}
+
+.client-proposal-change-request textarea:focus-visible {
+  box-shadow: 0 0 0 3px rgb(169 209 179 / 28%);
+  outline: none;
+}
+
+.client-proposal-result {
+  align-items: center;
+  grid-template-columns: auto 1fr auto;
+}
+
+.client-proposal-result > svg {
+  color: #a9d1b3;
+  height: 30px;
+  width: 30px;
+}
+
+.client-proposal-result-warning > svg {
+  color: #f0c985;
+}
+
+.client-proposal-result .button-light {
+  background: #fff;
+  color: #17201a;
+}
+
+.client-proposal-notice {
+  color: #cce6d2;
+  font-size: 12px;
+  margin: 0;
+}
+
 @media (max-width: 900px) {
   .portal-sidebar,
   .crew-portal-sidebar,
@@ -7858,6 +8228,58 @@ textarea:focus-visible {
   .client-message-list article {
     align-items: flex-start;
     grid-template-columns: auto 1fr;
+  }
+
+  .client-proposal-heading {
+    display: grid;
+  }
+
+  .client-proposal-heading > .status-badge {
+    justify-self: start;
+  }
+
+  .client-proposal-summary,
+  .client-proposal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .client-proposal-summary > span {
+    border-left: 0;
+    border-top: 1px solid rgb(255 255 255 / 12%);
+    padding: 15px 18px;
+  }
+
+  .client-proposal-summary > span:first-child {
+    border-top: 0;
+  }
+
+  .client-proposal-pricing,
+  .client-proposal-payment-plan,
+  .client-proposal-terms {
+    padding: 20px;
+  }
+
+  .client-proposal-pricing .panel-heading {
+    display: grid;
+  }
+
+  .client-proposal-confirm,
+  .client-proposal-result {
+    align-items: flex-start;
+    grid-template-columns: auto 1fr;
+  }
+
+  .client-proposal-confirm .button,
+  .client-proposal-result .button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .client-proposal-decision-actions,
+  .client-proposal-decision-actions .button,
+  .client-proposal-change-request > div,
+  .client-proposal-change-request .button {
+    width: 100%;
   }
 
   .crew-mobile-page {

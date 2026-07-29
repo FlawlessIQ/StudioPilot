@@ -945,3 +945,37 @@ Validation record:
 - production Next.js build: passed, including all 95 application routes
 - Firebase App Hosting rollout: passed
 - production bundle verification: passed
+
+## July 28, 2026 — client proposal decision phase
+
+Status: implementation and local validation complete; production deployment pending.
+
+- Added a dedicated proposal destination to the progressive client navigation
+  and made it the authoritative next action during the proposal stage.
+- Built a responsive proposal review experience with event facts, immutable
+  line items, subtotal, discounts, tax, total, payment schedule, expiration,
+  and a clearly separated terms summary.
+- Added an explicit acceptance confirmation that explains that accepting a
+  proposal does not sign a contract or collect a payment.
+- Added a structured request-changes flow that creates a studio task and keeps
+  the project in the proposal stage for a replacement version.
+- Made proposal decisions tenant- and project-scoped, App Check-protected,
+  idempotent, version-aware, expiration-aware, and bound to the proposal’s
+  immutable package snapshot.
+- Made acceptance transition a project only from `PROPOSAL` to
+  `CONTRACT_PENDING`; every proposal decision and project transition creates an
+  immutable audit event.
+- Added audited proposal-view tracking and removed direct client Firestore
+  access to raw proposal records. Client-visible proposal data is now returned
+  only through the sanitized portal API.
+- Updated the client next-action model so declined proposals become
+  studio-owned follow-up work instead of prompting the client to decide again.
+
+Validation record:
+
+- strict TypeScript: passed
+- ESLint: passed with zero warnings
+- unit and policy suite: 91 passed
+- Firestore tenant-isolation rules: passed
+- client proposal decision suite: 2 passed across desktop Chromium and Pixel 7
+- production Next.js build: passed, including all 96 application routes

@@ -15,6 +15,7 @@ export const clientProjectStates = [
 ] as const;
 
 export type ClientNavigation = {
+  proposal: boolean;
   package: boolean;
   contract: boolean;
   payments: boolean;
@@ -44,6 +45,7 @@ export type ClientNextAction = {
 
 type Availability = Partial<Record<
   | "package"
+  | "proposal"
   | "contract"
   | "payments"
   | "questionnaire"
@@ -101,7 +103,10 @@ function checkpointDestination(name: string) {
   if (/invoice|payment|retainer|balance/i.test(name)) {
     return { href: "/client/payments", actionLabel: "View payments" };
   }
-  if (/package|proposal/i.test(name)) {
+  if (/proposal|offer/i.test(name)) {
+    return { href: "/client/proposal", actionLabel: "Review proposal" };
+  }
+  if (/package/i.test(name)) {
     return { href: "/client/package", actionLabel: "Review package" };
   }
   return { href: "/client/project", actionLabel: "View project" };
@@ -130,14 +135,14 @@ function defaultNextAction(state: string): ClientNextAction {
       actionLabel: "Review details",
     },
     PROPOSAL: {
-      name: "Review your package",
+      name: "Review your proposal",
       description:
-        "Your package and proposal details are ready for your review.",
+        "Review the exact coverage, price, payment schedule, and terms your studio prepared.",
       dueDate: null,
       ownerType: "client",
       responsibility: "client",
-      href: "/client/package",
-      actionLabel: "Review package",
+      href: "/client/proposal",
+      actionLabel: "Review proposal",
     },
     CONTRACT_PENDING: {
       name: "Review your agreement",
@@ -305,10 +310,12 @@ export function buildClientPortalExperience({
   state,
   availability,
   checkpoints,
+  proposalStatus,
 }: {
   state: string;
   availability: Availability;
   checkpoints: VisibleCheckpoint[];
+  proposalStatus?: string | null;
 }) {
   const index = stateIndex(state);
   const clientCheckpoint = checkpoints.find(
@@ -320,6 +327,30 @@ export function buildClientPortalExperience({
   const destination = clientCheckpoint
     ? checkpointDestination(clientCheckpoint.name)
     : null;
+  const proposalNextAction: ClientNextAction | null =
+    state === "PROPOSAL" && proposalStatus === "declined"
+      ? {
+          name: "Your studio is reviewing your requested changes",
+          description:
+            "No action is needed while the studio prepares an updated proposal or follows up with you.",
+          dueDate: null,
+          ownerType: "studio",
+          responsibility: "studio",
+          href: "/client/proposal",
+          actionLabel: "View your request",
+        }
+      : state === "PROPOSAL" && proposalStatus === "expired"
+        ? {
+            name: "Ask for an updated proposal",
+            description:
+              "The current proposal has expired. Send your studio a message before making a decision.",
+            dueDate: null,
+            ownerType: "client",
+            responsibility: "client",
+            href: "/client/messages",
+            actionLabel: "Message your studio",
+          }
+        : null;
   const nextClientAction: ClientNextAction = clientCheckpoint
     ? {
         name: clientCheckpoint.name,
@@ -332,7 +363,7 @@ export function buildClientPortalExperience({
         href: destination?.href ?? "/client/project",
         actionLabel: destination?.actionLabel ?? "View project",
       }
-    : defaultNextAction(state);
+    : proposalNextAction ?? defaultNextAction(state);
   const milestones = buildClientMilestones(state);
   const completedMilestones = milestones.filter(
     (milestone) => milestone.status === "complete",
@@ -346,7 +377,10 @@ export function buildClientPortalExperience({
     nextClientAction,
     milestones,
     navigation: {
-      package: Boolean(availability.package || index >= 2),
+      proposal: Boolean(availability.proposal || index === 2),
+      package: Boolean(
+        availability.package && index >= 3,
+      ),
       contract: Boolean(availability.contract || index >= 3),
       payments: Boolean(availability.payments || index >= 4),
       questionnaire: Boolean(availability.questionnaire || index >= 5),

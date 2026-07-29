@@ -25,6 +25,7 @@ export type ClientPortalProject = {
     actionLabel: string;
   };
   navigation: {
+    proposal: boolean;
     package: boolean;
     contract: boolean;
     payments: boolean;
@@ -56,6 +57,7 @@ export type ClientPortalProjectSummary = Pick<
 >;
 
 export type ClientPortalCollection =
+  | "proposals"
   | "packageSnapshots"
   | "contracts"
   | "invoiceReferences"
@@ -125,6 +127,29 @@ export function sendClientPortalMessage(
     tenantId,
     projectId,
     body,
+    idempotencyKey: crypto.randomUUID(),
+  });
+}
+
+export function decideClientProposal(
+  tenantId: string,
+  projectId: string,
+  proposalId: string,
+  decision: "accepted" | "declined",
+  reason: string | null,
+) {
+  return portalRequest<{
+    proposalId: string;
+    status: "accepted" | "declined";
+    projectState: string;
+    alreadyComplete: boolean;
+  }>({
+    type: "decide_proposal",
+    tenantId,
+    projectId,
+    proposalId,
+    decision,
+    reason,
     idempotencyKey: crypto.randomUUID(),
   });
 }

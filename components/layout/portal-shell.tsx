@@ -51,6 +51,12 @@ const portalNavSections = [
     label: "Booking & planning",
     items: [
       {
+        label: "Proposal",
+        icon: FileText,
+        href: "/client/proposal",
+        capability: "proposal",
+      },
+      {
         label: "Package",
         icon: FileText,
         href: "/client/package",

@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  ArrowRight,
+  BadgeCheck,
   CalendarDays,
   CheckCircle2,
   CircleCheck,
@@ -19,12 +21,14 @@ import {
   ShieldCheck,
   Star,
   UserRound,
+  XCircle,
 } from "lucide-react";
 import { ClientQuestionnaireForm } from "@/components/planning/client-questionnaire-form";
 import { PostEventAction } from "@/components/post-event/post-event-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import {
+  decideClientProposal,
   getClientPortalProject,
   getClientPortalRecords,
   sendClientPortalMessage,
@@ -40,6 +44,68 @@ type Loadable<T> = {
   loading: boolean;
   error: string | null;
 };
+
+function mockClientRecords(
+  collectionName: ClientPortalCollection,
+): RecordValue[] {
+  if (collectionName !== "proposals") return [];
+  return [
+    {
+      id: "demo-proposal-v2",
+      version: 2,
+      status: "viewed",
+      eventSnapshot: {
+        name: "Rivera wedding",
+        eventType: "Wedding",
+        eventDate: "2027-06-12",
+        timezone: "America/New_York",
+        venue: "The Garden Conservatory",
+      },
+      pricingSnapshot: {
+        currency: "USD",
+        packageName: "Signature wedding",
+        subtotalCents: 715000,
+        discountCents: 25000,
+        taxCents: 45600,
+        retainerCents: 182650,
+        totalCents: 735600,
+        lineItems: [
+          {
+            description: "Signature wedding collection",
+            quantity: 1,
+            unitPriceCents: 650000,
+            totalCents: 650000,
+          },
+          {
+            description: "Engagement session",
+            quantity: 1,
+            unitPriceCents: 65000,
+            totalCents: 65000,
+          },
+        ],
+      },
+      paymentSchedule: [
+        {
+          label: "Retainer",
+          amountCents: 182650,
+          dueDate: "2026-08-14",
+        },
+        {
+          label: "Final balance",
+          amountCents: 552950,
+          dueDate: "2027-05-29",
+        },
+      ],
+      expiresAt: "2027-01-31T17:00:00.000Z",
+      termsSummary:
+        "Coverage, deliverables, and payment timing are subject to the completed photography services agreement.",
+      sentAt: "2026-07-25T15:00:00.000Z",
+      viewedAt: "2026-07-28T18:00:00.000Z",
+      acceptedAt: null,
+      declinedAt: null,
+    },
+  ];
+}
 
 function useProject(): Loadable<ClientPortalProject | null> {
   const workspace = useWorkspace();
@@ -108,7 +174,7 @@ function useProjectRecords(
 ): Loadable<RecordValue[]> {
   const workspace = useWorkspace();
   const [state, setState] = useState<Loadable<RecordValue[]>>({
-    value: [],
+    value: mockClientRecords(collectionName),
     loading: dataIsLive,
     error: null,
   });
@@ -261,9 +327,15 @@ const date = (value: unknown) => {
       });
 };
 const statusTone = (status: unknown) =>
-  ["completed", "paid", "approved", "published", "downloaded", "sent"].includes(
-    String(status),
-  )
+  [
+    "accepted",
+    "completed",
+    "paid",
+    "approved",
+    "published",
+    "downloaded",
+    "sent",
+  ].includes(String(status))
     ? ("success" as const)
     : ["overdue", "error", "declined", "revoked"].includes(String(status))
       ? ("danger" as const)
@@ -594,6 +666,368 @@ export function LiveClientMessages() {
   );
 }
 
+function proposalErrorMessage(error: string) {
+  const messages: Record<string, string> = {
+    PROPOSAL_EXPIRED:
+      "This proposal has expired. Message your studio for an updated version.",
+    PROPOSAL_SUPERSEDED:
+      "A newer proposal is available. Refresh this page to review the current version.",
+    PROPOSAL_NOT_ACTIONABLE:
+      "This proposal can no longer be changed from the portal.",
+    PROJECT_STATE_CONFLICT:
+      "Your project has already moved beyond this proposal. Refresh the page for the latest status.",
+    PACKAGE_SNAPSHOT_CONFLICT:
+      "The package linked to this proposal no longer matches the project. Your studio has been asked to review it.",
+  };
+  return messages[error] ?? error;
+}
+
+export function LiveClientProposal() {
+  const workspace = useWorkspace();
+  const proposals = useProjectRecords("proposals");
+  const proposal = useMemo(
+    () =>
+      [...proposals.value].sort(
+        (a, b) => number(b.version) - number(a.version),
+      )[0],
+    [proposals.value],
+  );
+  const [mode, setMode] = useState<"idle" | "accept" | "changes">("idle");
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [localStatus, setLocalStatus] = useState<string | null>(null);
+  const [renderedAt] = useState(() => Date.now());
+
+  if (proposals.loading || proposals.error || !proposal) {
+    return (
+      <PortalPageState
+        eyebrow="Your offer"
+        title="Your proposal"
+        description="Review the exact coverage, price, payment schedule, and terms prepared for your project."
+        loading={proposals.loading}
+        error={proposals.error}
+        empty={
+          !proposals.loading && !proposals.error
+            ? "Your studio is still preparing your proposal. You’ll be notified when it is ready."
+            : undefined
+        }
+      />
+    );
+  }
+
+  const pricing =
+    proposal.pricingSnapshot &&
+    typeof proposal.pricingSnapshot === "object"
+      ? (proposal.pricingSnapshot as Record<string, unknown>)
+      : {};
+  const event =
+    proposal.eventSnapshot && typeof proposal.eventSnapshot === "object"
+      ? (proposal.eventSnapshot as Record<string, unknown>)
+      : {};
+  const lines = Array.isArray(pricing.lineItems)
+    ? (pricing.lineItems as Array<Record<string, unknown>>)
+    : [];
+  const payments = Array.isArray(proposal.paymentSchedule)
+    ? (proposal.paymentSchedule as Array<Record<string, unknown>>)
+    : [];
+  const storedStatus = text(proposal.status, "sent");
+  const expired =
+    !["accepted", "declined", "superseded"].includes(storedStatus) &&
+    new Date(String(proposal.expiresAt)).valueOf() <= renderedAt;
+  const status = localStatus ?? (expired ? "expired" : storedStatus);
+  const actionable = ["sent", "viewed"].includes(status);
+
+  async function submitDecision(decision: "accepted" | "declined") {
+    if (!workspace.tenantId || !workspace.projectId) return;
+    setSubmitting(true);
+    setNotice(null);
+    try {
+      const result = await decideClientProposal(
+        workspace.tenantId,
+        workspace.projectId,
+        proposal.id,
+        decision,
+        decision === "declined" ? reason.trim() : null,
+      );
+      setLocalStatus(result.status);
+      setMode("idle");
+      setNotice(
+        decision === "accepted"
+          ? "Proposal accepted. Your studio can now prepare the agreement."
+          : "Your change request was sent to your studio.",
+      );
+    } catch (caught: unknown) {
+      setNotice(
+        proposalErrorMessage(
+          caught instanceof Error
+            ? caught.message
+            : "Your decision could not be saved.",
+        ),
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="client-booking-page client-proposal-page">
+      <div className="client-proposal-heading">
+        <div>
+          <p className="eyebrow">Proposal · version {number(proposal.version)}</p>
+          <h1>{text(pricing.packageName, "Photography proposal")}</h1>
+          <p>
+            Prepared for {text(event.name, "your photography project")} by{" "}
+            {workspace.tenantName}.
+          </p>
+        </div>
+        <StatusBadge tone={statusTone(status)}>
+          {status.replaceAll("_", " ")}
+        </StatusBadge>
+      </div>
+
+      <section className="client-proposal-summary">
+        <span>
+          <small>Event</small>
+          <strong>{text(event.eventType, "Photography")}</strong>
+        </span>
+        <span>
+          <small>Date</small>
+          <strong>{date(event.eventDate)}</strong>
+        </span>
+        <span>
+          <small>Location</small>
+          <strong>{text(event.venue, "To be confirmed")}</strong>
+        </span>
+        <span>
+          <small>Proposal valid through</small>
+          <strong>{date(proposal.expiresAt)}</strong>
+        </span>
+      </section>
+
+      <div className="client-proposal-grid">
+        <section className="panel client-proposal-pricing">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Investment</p>
+              <h2>Your selected coverage</h2>
+            </div>
+            <strong>{money(pricing.totalCents, pricing.currency)}</strong>
+          </div>
+          <div className="client-proposal-lines">
+            {lines.map((line, index) => (
+              <div key={`${String(line.description)}-${index}`}>
+                <span>
+                  <strong>{text(line.description, "Photography services")}</strong>
+                  <small>
+                    {number(line.quantity)} ×{" "}
+                    {money(line.unitPriceCents, pricing.currency)}
+                  </small>
+                </span>
+                <strong>{money(line.totalCents, pricing.currency)}</strong>
+              </div>
+            ))}
+          </div>
+          <dl className="client-proposal-totals">
+            <div>
+              <dt>Subtotal</dt>
+              <dd>{money(pricing.subtotalCents, pricing.currency)}</dd>
+            </div>
+            {number(pricing.discountCents) > 0 ? (
+              <div>
+                <dt>Discount</dt>
+                <dd>−{money(pricing.discountCents, pricing.currency)}</dd>
+              </div>
+            ) : null}
+            <div>
+              <dt>Tax</dt>
+              <dd>{money(pricing.taxCents, pricing.currency)}</dd>
+            </div>
+            <div className="client-proposal-total">
+              <dt>Project total</dt>
+              <dd>{money(pricing.totalCents, pricing.currency)}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <aside className="panel client-proposal-payment-plan">
+          <p className="eyebrow">Payment plan</p>
+          <h2>What comes next</h2>
+          {payments.map((payment, index) => (
+            <div key={`${String(payment.label)}-${index}`}>
+              <span>{index + 1}</span>
+              <span>
+                <strong>{text(payment.label, "Payment")}</strong>
+                <small>
+                  {payment.dueDate
+                    ? `Due ${date(payment.dueDate)}`
+                    : "Due date confirmed on the invoice"}
+                </small>
+              </span>
+              <strong>{money(payment.amountCents, pricing.currency)}</strong>
+            </div>
+          ))}
+          <p>
+            Accepting this proposal does not sign a contract or collect a
+            payment. Those remain separate, secure steps.
+          </p>
+        </aside>
+      </div>
+
+      <section className="panel client-proposal-terms">
+        <div>
+          <ShieldCheck />
+          <span>
+            <p className="eyebrow">Terms summary</p>
+            <h2>Before you decide</h2>
+          </span>
+        </div>
+        <p>{text(proposal.termsSummary, "Your studio will provide the full agreement as the next step.")}</p>
+        <small>
+          The signed agreement—not this summary—governs the photography
+          services.
+        </small>
+      </section>
+
+      {status === "accepted" ? (
+        <section className="client-proposal-result client-proposal-result-success">
+          <BadgeCheck />
+          <div>
+            <p className="eyebrow">Accepted</p>
+            <h2>Your studio can prepare the agreement.</h2>
+            <p>
+              You’ll receive a separate secure Docusign request when the
+              contract is ready.
+            </p>
+          </div>
+          <Link className="button button-light" href="/client/contract">
+            Contract status <ArrowRight />
+          </Link>
+        </section>
+      ) : status === "declined" ? (
+        <section className="client-proposal-result">
+          <MessageCircle />
+          <div>
+            <p className="eyebrow">Changes requested</p>
+            <h2>Your studio is reviewing your note.</h2>
+            <p>This does not cancel your project or reserve a date.</p>
+          </div>
+          <Link className="button button-light" href="/client/messages">
+            Message studio
+          </Link>
+        </section>
+      ) : status === "expired" || status === "superseded" ? (
+        <section className="client-proposal-result client-proposal-result-warning">
+          <XCircle />
+          <div>
+            <p className="eyebrow">Proposal unavailable</p>
+            <h2>
+              {status === "expired"
+                ? "This proposal has expired."
+                : "A newer proposal replaced this version."}
+            </h2>
+            <p>Ask your studio to share the current offer before deciding.</p>
+          </div>
+          <Link className="button button-light" href="/client/messages">
+            Message studio
+          </Link>
+        </section>
+      ) : actionable ? (
+        <section className="client-proposal-decision">
+          <div>
+            <p className="eyebrow">Your decision</p>
+            <h2>Ready to move forward?</h2>
+            <p>
+              Acceptance locks this proposal to the project and asks your
+              studio to prepare the contract. No charge is made now.
+            </p>
+          </div>
+          {mode === "accept" ? (
+            <div className="client-proposal-confirm">
+              <BadgeCheck />
+              <span>
+                <strong>Accept proposal version {number(proposal.version)}?</strong>
+                <small>
+                  You are approving the coverage and {money(pricing.totalCents, pricing.currency)} project total shown above.
+                </small>
+              </span>
+              <button
+                className="button button-dark"
+                disabled={submitting}
+                onClick={() => void submitDecision("accepted")}
+                type="button"
+              >
+                {submitting ? "Saving…" : "Confirm acceptance"}
+              </button>
+              <button
+                className="button button-light"
+                disabled={submitting}
+                onClick={() => setMode("idle")}
+                type="button"
+              >
+                Go back
+              </button>
+            </div>
+          ) : mode === "changes" ? (
+            <div className="client-proposal-change-request">
+              <label htmlFor="proposal-change-request">
+                What would you like your studio to change?
+              </label>
+              <textarea
+                id="proposal-change-request"
+                maxLength={1000}
+                onChange={(event) => setReason(event.target.value)}
+                placeholder="Describe the coverage, add-on, timing, or pricing question you would like reviewed."
+                rows={4}
+                value={reason}
+              />
+              <div>
+                <button
+                  className="button button-dark"
+                  disabled={submitting || reason.trim().length < 10}
+                  onClick={() => void submitDecision("declined")}
+                  type="button"
+                >
+                  {submitting ? "Sending…" : "Send change request"}
+                </button>
+                <button
+                  className="button button-light"
+                  disabled={submitting}
+                  onClick={() => setMode("idle")}
+                  type="button"
+                >
+                  Go back
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="client-proposal-decision-actions">
+              <button
+                className="button button-dark"
+                onClick={() => setMode("accept")}
+                type="button"
+              >
+                Accept proposal <ArrowRight />
+              </button>
+              <button
+                className="button button-light"
+                onClick={() => setMode("changes")}
+                type="button"
+              >
+                Request changes
+              </button>
+            </div>
+          )}
+          {notice ? <p className="client-proposal-notice" role="status">{notice}</p> : null}
+        </section>
+      ) : null}
+      {notice && !actionable ? (
+        <p className="client-proposal-notice" role="status">{notice}</p>
+      ) : null}
+    </div>
+  );
+}
+
 export function LiveClientPackage() {
   const snapshots = useProjectRecords("packageSnapshots");
   const snapshot = snapshots.value[0];
@@ -666,7 +1100,7 @@ export function LiveClientContract() {
     <div className="client-booking-page">
       <p className="eyebrow">Agreement</p>
       <h1>Photography services agreement</h1>
-      <p>Docusign envelope {text(contract.providerEnvelopeId)}</p>
+      <p>Your secure signature status from Docusign.</p>
       <section className="panel client-contract-card">
         <ShieldCheck />
         <div>

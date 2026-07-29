@@ -58,6 +58,9 @@ export const proposalSchema = auditFieldsSchema.extend({
   sentAt: z.string().datetime().nullable(),
   viewedAt: z.string().datetime().nullable(),
   acceptedAt: z.string().datetime().nullable(),
+  declinedAt: z.string().datetime().nullable().default(null),
+  declineReason: z.string().max(1000).nullable().default(null),
+  decisionBy: z.string().nullable().default(null),
   supersedesId: z.string().nullable(),
   archivedAt: z.string().datetime().nullable(),
 });

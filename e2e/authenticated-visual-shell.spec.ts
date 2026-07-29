@@ -47,6 +47,7 @@ const studioRoutes = [
 const clientRoutes = [
   "/client",
   "/client/project",
+  "/client/proposal",
   "/client/package",
   "/client/contract",
   "/client/payments",
@@ -140,6 +141,28 @@ test.describe("authenticated visual shell", () => {
     for (const route of clientRoutes) {
       await expectHealthyAuthenticatedShell(page, route);
     }
+  });
+
+  test("client proposal decision remains clear and responsive", async ({ page }) => {
+    await page.goto("/client/proposal");
+    await expect(
+      page.getByRole("heading", { name: "Signature wedding" }),
+    ).toBeVisible();
+    await expect(page.getByText("$7,356.00", { exact: true }).first()).toBeVisible();
+    await page.getByRole("button", { name: /Accept proposal/i }).click();
+    await expect(
+      page.getByRole("button", { name: "Confirm acceptance" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Go back" }).click();
+    await page.getByRole("button", { name: "Request changes" }).click();
+    await expect(
+      page.getByLabel("What would you like your studio to change?"),
+    ).toBeVisible();
+    expect(
+      await page
+        .getByRole("heading", { name: "Signature wedding" })
+        .evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize)),
+    ).toBeGreaterThanOrEqual(40);
   });
 
   test("crew portal routes remain complete and responsive", async ({ page }) => {
