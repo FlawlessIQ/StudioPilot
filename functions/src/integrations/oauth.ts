@@ -187,6 +187,9 @@ export const integrationOAuth = onRequest(
       "DROPBOX_CLIENT_SECRET",
       "GOOGLE_CALENDAR_CLIENT_SECRET",
       "ZOOM_CLIENT_SECRET",
+      "DOCUSIGN_CLIENT_SECRET",
+      "QUICKBOOKS_CLIENT_ID",
+      "QUICKBOOKS_CLIENT_SECRET",
     ],
   },
   async (request, response) => {

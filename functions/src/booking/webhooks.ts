@@ -1,7 +1,10 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
-import { z } from "zod";
+import {
+  normalizeDocusignWebhook,
+  normalizeQuickBooksWebhooks,
+} from "./webhook-normalizers.js";
 
 function verify(rawBody: Buffer, supplied: string | undefined, secret: string | undefined): boolean {
   if (!supplied || !secret) return false;
@@ -11,13 +14,8 @@ function verify(rawBody: Buffer, supplied: string | undefined, secret: string | 
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
-const docusignPayload = z.object({
-  eventId: z.string().min(1),
-  event: z.string().min(1),
-  accountId: z.string().min(1),
-  envelopeId: z.string().min(1),
-  occurredAt: z.string().datetime(),
-});
+const safeEventId = (provider: string, providerEventId: string) =>
+  `${provider}_${createHash("sha256").update(providerEventId).digest("hex")}`;
 
 export const docusignWebhook = onRequest(
   { cors: false, invoker: "private", secrets: ["DOCUSIGN_WEBHOOK_HMAC_SECRET"] },
@@ -26,16 +24,18 @@ export const docusignWebhook = onRequest(
       response.status(401).json({ error: "INVALID_SIGNATURE" });
       return;
     }
-    const payload = docusignPayload.safeParse(request.body);
-    if (!payload.success) {
+    const event = normalizeDocusignWebhook(request.body);
+    if (!event) {
       response.status(400).json({ error: "INVALID_PAYLOAD" });
       return;
     }
     const firestore = getFirestore();
-    const eventReference = firestore.doc(`webhookEvents/docusign_${payload.data.eventId}`);
+    const eventReference = firestore.doc(
+      `webhookEvents/${safeEventId("docusign", event.providerEventId)}`,
+    );
     const connections = await firestore.collection("integrationConnections")
       .where("provider", "==", "docusign")
-      .where("providerAccountId", "==", payload.data.accountId)
+      .where("providerAccountId", "==", event.accountId)
       .limit(1)
       .get();
     const connection = connections.docs[0];
@@ -46,14 +46,26 @@ export const docusignWebhook = onRequest(
     const tenantId = String(connection.get("tenantId"));
     const contracts = await firestore.collection("contracts")
       .where("tenantId", "==", tenantId)
-      .where("providerEnvelopeId", "==", payload.data.envelopeId)
+      .where("providerEnvelopeId", "==", event.envelopeId)
       .limit(1)
       .get();
     await firestore.runTransaction(async (transaction) => {
       if ((await transaction.get(eventReference)).exists) return;
-      transaction.create(eventReference, { tenantId, provider: "docusign", providerEventId: payload.data.eventId, payload: payload.data, status: "processed", createdAt: new Date().toISOString() });
+      transaction.create(eventReference, {
+        tenantId,
+        provider: "docusign",
+        providerEventId: event.providerEventId,
+        payload: {
+          event: event.event,
+          accountId: event.accountId,
+          envelopeId: event.envelopeId,
+          occurredAt: event.occurredAt,
+        },
+        status: "processed",
+        createdAt: new Date().toISOString(),
+      });
       const contract = contracts.docs[0];
-      if (contract && payload.data.event === "envelope-completed") {
+      if (contract && event.event === "envelope-completed") {
         const timestamp = new Date().toISOString();
         const projectReference = firestore.doc(
           `projects/${String(contract.get("projectId"))}`,
@@ -61,9 +73,12 @@ export const docusignWebhook = onRequest(
         const project = await transaction.get(projectReference);
         transaction.update(contract.ref, {
           status: "completed",
-          completedAt: payload.data.occurredAt,
-          lastProviderEventId: payload.data.eventId,
-          completionEvidence: { provider: "docusign", eventId: payload.data.eventId },
+          completedAt: event.occurredAt,
+          lastProviderEventId: event.providerEventId,
+          completionEvidence: {
+            provider: "docusign",
+            eventId: event.providerEventId,
+          },
           updatedAt: timestamp,
           updatedBy: "docusign-webhook",
         });
@@ -80,7 +95,7 @@ export const docusignWebhook = onRequest(
             updatedBy: "docusign-webhook",
           });
           const auditReference = firestore.doc(
-            `auditEvents/docusign_contract_completed_${payload.data.eventId}`,
+            `auditEvents/docusign_contract_completed_${createHash("sha256").update(event.providerEventId).digest("hex")}`,
           );
           transaction.create(auditReference, {
             id: auditReference.id,
@@ -99,9 +114,9 @@ export const docusignWebhook = onRequest(
             },
             ipAddress: null,
             userAgent: null,
-            correlationId: payload.data.eventId,
+            correlationId: event.providerEventId,
             automationRunId: null,
-            providerEventId: payload.data.eventId,
+            providerEventId: event.providerEventId,
           });
         }
       }
@@ -110,15 +125,6 @@ export const docusignWebhook = onRequest(
   },
 );
 
-const quickbooksPayload = z.object({
-  eventId: z.string().min(1),
-  realmId: z.string().min(1),
-  invoiceId: z.string().min(1),
-  status: z.enum(["sent", "partially_paid", "paid", "voided", "refunded"]),
-  balanceCents: z.number().int().nonnegative(),
-  occurredAt: z.string().datetime(),
-});
-
 export const quickbooksWebhook = onRequest(
   { cors: false, invoker: "private", secrets: ["QUICKBOOKS_WEBHOOK_VERIFIER_TOKEN"] },
   async (request, response) => {
@@ -126,42 +132,84 @@ export const quickbooksWebhook = onRequest(
       response.status(401).json({ error: "INVALID_SIGNATURE" });
       return;
     }
-    const payload = quickbooksPayload.safeParse(request.body);
-    if (!payload.success) {
+    const events = normalizeQuickBooksWebhooks(request.body);
+    if (events.length === 0) {
       response.status(400).json({ error: "INVALID_PAYLOAD" });
       return;
     }
     const firestore = getFirestore();
-    const eventReference = firestore.doc(`webhookEvents/quickbooks_${payload.data.eventId}`);
-    const connections = await firestore.collection("integrationConnections")
-      .where("provider", "==", "quickbooks")
-      .where("providerAccountId", "==", payload.data.realmId)
-      .limit(1)
-      .get();
-    const connection = connections.docs[0];
-    if (!connection) {
-      response.status(404).json({ error: "CONNECTION_NOT_FOUND" });
-      return;
-    }
-    const tenantId = String(connection.get("tenantId"));
-    const invoices = await firestore.collection("invoiceReferences")
-      .where("tenantId", "==", tenantId)
-      .where("providerInvoiceId", "==", payload.data.invoiceId)
-      .limit(1)
-      .get();
-    await firestore.runTransaction(async (transaction) => {
-      if ((await transaction.get(eventReference)).exists) return;
-      transaction.create(eventReference, { tenantId, provider: "quickbooks", providerEventId: payload.data.eventId, payload: payload.data, status: "processed", createdAt: new Date().toISOString() });
-      const invoice = invoices.docs[0];
-      if (invoice) transaction.update(invoice.ref, {
-        status: payload.data.status,
-        balanceCents: payload.data.balanceCents,
-        lastProviderEventId: payload.data.eventId,
-        lastSyncedAt: payload.data.occurredAt,
-        updatedAt: new Date().toISOString(),
-        updatedBy: "quickbooks-webhook",
+    for (const event of events) {
+      const eventId = safeEventId("quickbooks", event.providerEventId);
+      const eventReference = firestore.doc(`webhookEvents/${eventId}`);
+      const connections = await firestore.collection("integrationConnections")
+        .where("provider", "==", "quickbooks")
+        .where("providerAccountId", "==", event.realmId)
+        .limit(1)
+        .get();
+      const connection = connections.docs[0];
+      if (!connection) {
+        console.warn("quickbooks_webhook_connection_not_found", {
+          providerEventId: event.providerEventId,
+          realmId: event.realmId,
+        });
+        continue;
+      }
+      const tenantId = String(connection.get("tenantId"));
+      const invoices = event.entityName === "invoice"
+        ? await firestore.collection("invoiceReferences")
+          .where("tenantId", "==", tenantId)
+          .where("providerInvoiceId", "==", event.entityId)
+          .limit(1)
+          .get()
+        : null;
+      const invoice = invoices?.docs[0];
+      const jobReference = invoice
+        ? firestore.doc(`providerJobs/quickbooks_reconcile_${createHash("sha256").update(event.providerEventId).digest("hex")}`)
+        : null;
+
+      await firestore.runTransaction(async (transaction) => {
+        if ((await transaction.get(eventReference)).exists) return;
+        const now = new Date().toISOString();
+        const status = invoice && jobReference ? "queued" : "ignored";
+        transaction.create(eventReference, {
+          tenantId,
+          provider: "quickbooks",
+          providerEventId: event.providerEventId,
+          payload: {
+            realmId: event.realmId,
+            entityName: event.entityName,
+            entityId: event.entityId,
+            operation: event.operation,
+            occurredAt: event.occurredAt,
+          },
+          status,
+          ignoredReason: status === "ignored"
+            ? event.entityName !== "invoice"
+              ? "UNSUPPORTED_ENTITY"
+              : "INVOICE_NOT_TRACKED"
+            : null,
+          createdAt: now,
+        });
+        if (invoice && jobReference) {
+          transaction.create(jobReference, {
+            id: jobReference.id,
+            tenantId,
+            invoiceId: invoice.id,
+            providerInvoiceId: event.entityId,
+            realmId: event.realmId,
+            operation: event.operation,
+            occurredAt: event.occurredAt,
+            webhookEventId: eventId,
+            type: "reconcile_quickbooks_invoice",
+            idempotencyKey: event.providerEventId,
+            status: "queued",
+            attempts: 0,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
       });
-    });
-    response.status(204).send();
+    }
+    response.status(200).json({ accepted: events.length });
   },
 );

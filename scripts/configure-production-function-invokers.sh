@@ -19,6 +19,7 @@ app_services=(
   crewcommand
   crewinvitationcommand
   crmcommand
+  docusignwebhook
   integrationoauth
   membershipcommand
   planningcommand
@@ -26,6 +27,7 @@ app_services=(
   proposalcommand
   publicconsultationscheduling
   publicleadintake
+  quickbookswebhook
   saasadmincommand
   sendgrideventwebhook
   sendgridinboundcoi

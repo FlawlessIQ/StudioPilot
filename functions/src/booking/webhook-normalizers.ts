@@ -1,0 +1,163 @@
+import { createHash } from "node:crypto";
+
+type Json = Record<string, unknown>;
+
+const asRecord = (value: unknown): Json =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Json)
+    : {};
+
+const asString = (value: unknown): string =>
+  typeof value === "string" ? value : "";
+
+const digest = (value: string): string =>
+  createHash("sha256").update(value).digest("hex");
+
+export type DocusignWebhookEvent = {
+  providerEventId: string;
+  event: string;
+  accountId: string;
+  envelopeId: string;
+  occurredAt: string;
+};
+
+export function normalizeDocusignWebhook(
+  input: unknown,
+): DocusignWebhookEvent | null {
+  const payload = asRecord(input);
+  const data = asRecord(payload.data);
+  const event = asString(payload.event);
+  const accountId =
+    asString(data.accountId) || asString(payload.accountId);
+  const envelopeId =
+    asString(data.envelopeId) || asString(payload.envelopeId);
+  const occurredAt =
+    asString(payload.generatedDateTime) || asString(payload.occurredAt);
+
+  if (!event || !accountId || !envelopeId || !occurredAt) return null;
+
+  const explicitEventId = asString(payload.eventId);
+  const providerEventId =
+    explicitEventId ||
+    digest(
+      [
+        asString(payload.configurationId),
+        event,
+        accountId,
+        envelopeId,
+        occurredAt,
+        String(payload.retryCount ?? ""),
+      ].join(":"),
+    );
+
+  return {
+    providerEventId,
+    event,
+    accountId,
+    envelopeId,
+    occurredAt,
+  };
+}
+
+export type QuickBooksWebhookEvent = {
+  providerEventId: string;
+  realmId: string;
+  entityName: string;
+  entityId: string;
+  operation: string;
+  occurredAt: string;
+};
+
+function normalizeQuickBooksCloudEvent(
+  input: unknown,
+): QuickBooksWebhookEvent | null {
+  const payload = asRecord(input);
+  const type = asString(payload.type).toLowerCase();
+  const match = /^qbo\.([^.]+)\.([^.]+)\.v\d+$/.exec(type);
+  const providerEventId = asString(payload.id);
+  const realmId = asString(payload.intuitaccountid);
+  const entityId = asString(payload.intuitentityid);
+  const occurredAt = asString(payload.time);
+
+  if (
+    !match ||
+    !providerEventId ||
+    !realmId ||
+    !entityId ||
+    !occurredAt
+  ) {
+    return null;
+  }
+
+  return {
+    providerEventId,
+    realmId,
+    entityName: match[1],
+    entityId,
+    operation: match[2],
+    occurredAt,
+  };
+}
+
+function normalizeQuickBooksLegacyPayload(
+  input: unknown,
+): QuickBooksWebhookEvent[] {
+  const payload = asRecord(input);
+  const notifications = Array.isArray(payload.eventNotifications)
+    ? payload.eventNotifications
+    : [];
+  const events: QuickBooksWebhookEvent[] = [];
+
+  for (const notificationValue of notifications) {
+    const notification = asRecord(notificationValue);
+    const realmId = asString(notification.realmId);
+    const dataChangeEvent = asRecord(notification.dataChangeEvent);
+    const entities = Array.isArray(dataChangeEvent.entities)
+      ? dataChangeEvent.entities
+      : [];
+
+    for (const entityValue of entities) {
+      const entity = asRecord(entityValue);
+      const entityName = asString(entity.name).toLowerCase();
+      const entityId = asString(entity.id);
+      const operation = asString(entity.operation).toLowerCase();
+      const occurredAt = asString(entity.lastUpdated);
+      if (
+        !realmId ||
+        !entityName ||
+        !entityId ||
+        !operation ||
+        !occurredAt
+      ) {
+        continue;
+      }
+
+      events.push({
+        providerEventId: digest(
+          [realmId, entityName, entityId, operation, occurredAt].join(":"),
+        ),
+        realmId,
+        entityName,
+        entityId,
+        operation,
+        occurredAt,
+      });
+    }
+  }
+
+  return events;
+}
+
+export function normalizeQuickBooksWebhooks(
+  input: unknown,
+): QuickBooksWebhookEvent[] {
+  if (Array.isArray(input)) {
+    return input
+      .map(normalizeQuickBooksCloudEvent)
+      .filter(
+        (event): event is QuickBooksWebhookEvent => event !== null,
+      );
+  }
+
+  return normalizeQuickBooksLegacyPayload(input);
+}

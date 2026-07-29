@@ -16,6 +16,7 @@ import {
   createConsultationResources,
   createDocusignEnvelope,
   createQuickBooksInvoice,
+  reconcileQuickBooksInvoice,
   uploadDropboxDocument,
 } from "./provider-runtime.js";
 
@@ -128,6 +129,8 @@ async function providerJob(document: DocumentSnapshot) {
     return createDocusignEnvelope(document);
   if (type === "create_quickbooks_invoice")
     return createQuickBooksInvoice(document);
+  if (type === "reconcile_quickbooks_invoice")
+    return reconcileQuickBooksInvoice(document);
   if (type === "complete_booking_side_effects")
     return completeBookingResources(document);
   if (type === "upload_dropbox_document")
@@ -585,6 +588,7 @@ export const operationsJobScheduler = onSchedule(
       "ZOOM_CLIENT_SECRET",
       "DROPBOX_CLIENT_SECRET",
       "DOCUSIGN_CLIENT_SECRET",
+      "QUICKBOOKS_CLIENT_ID",
       "QUICKBOOKS_CLIENT_SECRET",
     ],
   },
