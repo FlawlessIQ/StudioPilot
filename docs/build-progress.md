@@ -885,7 +885,7 @@ Validation record:
 
 ## July 28, 2026 — client portal least-privilege and usability pass
 
-Status: implementation and local validation complete; production deployment pending.
+Status: implementation, validation, and production deployment complete.
 
 - Replaced raw client reads of operational project records with a
   membership-verified, App Check-protected, client-specific portal response.
@@ -968,6 +968,17 @@ Status: implementation and local validation complete; production deployment pend
 - Added audited proposal-view tracking and removed direct client Firestore
   access to raw proposal records. Client-visible proposal data is now returned
   only through the sanitized portal API.
+
+Validation record:
+
+- strict TypeScript: passed
+- ESLint: passed with zero warnings
+- unit and policy suite: 91 passed
+- Firestore isolation rules: passed and deployed to production
+- responsive proposal route suite: passed on desktop Chromium and Pixel 7
+- production Next.js build: passed, including all 96 application routes
+- Firebase App Hosting rollout: passed
+- production health and client proposal route checks: HTTP 200
 - Updated the client next-action model so declined proposals become
   studio-owned follow-up work instead of prompting the client to decide again.
 
