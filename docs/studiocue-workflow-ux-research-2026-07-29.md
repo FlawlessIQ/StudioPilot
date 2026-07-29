@@ -170,6 +170,10 @@ files passing file-safety checks before model access.
 
 ## Recommended delivery order
 
+The complete product, AI, sequencing, dependency, measurement, and release plan
+is maintained in
+[`studiocue-product-ai-roadmap-2026-07-29.md`](./studiocue-product-ai-roadmap-2026-07-29.md).
+
 1. Connect the import studio to a secure file upload, extraction job, and draft
    template persistence.
 2. Make the project detail page the complete lifecycle workspace and move

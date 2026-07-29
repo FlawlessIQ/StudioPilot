@@ -1,5 +1,10 @@
 # StudioCue Continuation Roadmap
 
+This document tracks launch operations, provider certification, and production
+readiness. The workflow-led product and AI roadmap derived from the July 29,
+2026 photographer interview is
+[`studiocue-product-ai-roadmap-2026-07-29.md`](./studiocue-product-ai-roadmap-2026-07-29.md).
+
 StudioCue is pilot-capable, but not yet launch-complete. The core product and
 deterministic operating model are implemented. The remaining roadmap prioritizes
 real-provider certification, a complete clean-account pilot, and operational
