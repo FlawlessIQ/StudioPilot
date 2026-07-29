@@ -10,14 +10,14 @@ import {
   CircleGauge,
   ContactRound,
   FolderKanban,
+  Images,
   LibraryBig,
-  ListTodo,
   Menu,
   Settings,
   Sparkles,
   ChartNoAxesColumn,
-  SlidersHorizontal,
   UsersRound,
+  WandSparkles,
   X,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
@@ -35,42 +35,38 @@ import {
 
 const navSections = [
   {
-    label: "Workspace",
+    label: "Your work",
     items: [
       { label: "Home", href: "/studio", icon: CircleGauge },
-      { label: "Pipeline", href: "/studio/leads", icon: ContactRound },
+      { label: "Inbox", href: "/studio/leads", icon: ContactRound },
       { label: "Projects", href: "/studio/projects", icon: FolderKanban },
       { label: "Calendar", href: "/studio/calendar", icon: CalendarDays },
-      { label: "Tasks", href: "/studio/tasks", icon: ListTodo },
-      { label: "Clients", href: "/studio/clients", icon: UsersRound },
     ],
   },
   {
-    label: "Studio",
+    label: "Your studio",
     items: [
+      { label: "People", href: "/studio/clients", icon: UsersRound },
       {
         label: "Library",
         href: "/studio/library",
         icon: LibraryBig,
       },
-      { label: "Reports", href: "/studio/reports", icon: ChartNoAxesColumn },
       {
-        label: "Studio setup",
-        href: "/studio/setup",
-        icon: SlidersHorizontal,
+        label: "Insights",
+        href: "/studio/reports",
+        icon: ChartNoAxesColumn,
       },
     ],
   },
 ] as const;
 
 const activeGroups: Record<string, string[]> = {
-  Home: ["Dashboard", "Notifications", "Copilot"],
-  Pipeline: ["Leads", "Inquiries", "Proposals", "Contracts", "Invoices", "Booking"],
+  Home: ["Dashboard", "Notifications", "Copilot", "AI setup"],
+  Inbox: ["Leads", "Inquiries", "Proposals", "Contracts", "Invoices", "Booking"],
   Projects: [
     "Projects",
     "Questionnaires",
-    "Vendors",
-    "Crew",
     "Insurance",
     "Schedules",
     "Readiness",
@@ -80,12 +76,10 @@ const activeGroups: Record<string, string[]> = {
     "Documents",
     "Communications",
   ],
-  Tasks: ["Tasks"],
   Calendar: ["Calendar"],
-  Clients: ["Clients"],
-  Library: ["Library", "Packages", "Workflows"],
-  Reports: ["Reports"],
-  "Studio setup": ["Studio setup", "Integrations", "Team", "Subscription", "Settings"],
+  People: ["Clients", "Crew", "Team", "Vendors"],
+  Library: ["Library", "Packages", "Workflows", "Tasks", "Documents"],
+  Insights: ["Reports"],
 };
 
 const StudioShellContext = createContext(false);
@@ -103,6 +97,7 @@ const studioRouteLabels: Record<string, string> = {
   documents: "Documents",
   insurance: "Insurance",
   integrations: "Integrations",
+  import: "AI setup",
   invoices: "Invoices",
   leads: "Inquiries",
   library: "Library",
@@ -165,12 +160,11 @@ function StudioShell({
     "Home",
     "Projects",
     "Calendar",
-    "Tasks",
+    "People",
   ]);
   const coordinatorExcluded = new Set([
-    "Reports",
+    "Insights",
     "Library",
-    "Studio setup",
   ]);
   const canSee = (label: string) => {
     if (workspace.role === "staff_photographer")
@@ -248,6 +242,23 @@ function StudioShell({
           ))}
         </nav>
 
+        {workspace.role !== "staff_photographer" ? (
+          <Link
+            className="sidebar-ai-card"
+            href="/studio/import"
+            onClick={() => setNavigationOpen(false)}
+          >
+            <span className="sidebar-ai-icon">
+              <WandSparkles size={17} />
+            </span>
+            <span>
+              <small>AI studio</small>
+              <strong>Import your workflow</strong>
+              <em>Turn existing files into templates</em>
+            </span>
+          </Link>
+        ) : null}
+
         <div className="sidebar-bottom">
           <details className="user-menu">
             <summary className="user-card">
@@ -289,12 +300,16 @@ function StudioShell({
           </span>
           <GlobalSearch />
           <div className="topbar-actions">
+            <Link className="topbar-gallery-link" href="/studio/delivery">
+              <Images size={17} />
+              Deliveries
+            </Link>
             <Link className="icon-button" href="/studio/notifications" aria-label="Notifications">
               <Bell size={19} />
             </Link>
-            <Link href="/studio/copilot" className="copilot-button">
+            <Link href="/studio/import" className="copilot-button">
               <Sparkles size={16} />
-              Ask Copilot
+              Create with AI
             </Link>
           </div>
         </header>

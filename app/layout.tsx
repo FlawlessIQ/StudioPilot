@@ -25,24 +25,24 @@ export const metadata: Metadata = {
   applicationName: "StudioCue",
   manifest: "/manifest.webmanifest",
   openGraph: {
-    title: "StudioCue · Every project, genuinely ready.",
+    title: "StudioCue · From inquiry to gallery.",
     description:
-      "The photography operations OS for calm, confident event execution.",
+      "One calm workflow for clients, booking, planning, crew, and delivery—with AI where the repetitive work happens.",
     type: "website",
     images: [
       {
         url: "/og.png",
-        width: 1756,
-        height: 895,
-        alt: "StudioCue — Every project, genuinely ready.",
+        width: 1755,
+        height: 896,
+        alt: "StudioCue — From inquiry to gallery. One calm workflow.",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "StudioCue · Every project, genuinely ready.",
+    title: "StudioCue · From inquiry to gallery.",
     description:
-      "The photography operations OS for calm, confident event execution.",
+      "One calm workflow for clients, booking, planning, crew, and delivery—with AI where the repetitive work happens.",
     images: ["/og.png"],
   },
   icons: {

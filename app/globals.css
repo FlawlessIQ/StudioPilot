@@ -1,10 +1,16 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
 @import "./booking-workspace.css";
 @import "./communications.css";
 @import "./questionnaire-intelligence.css";
 @import "./schedule-impact.css";
 @import "./operational-value.css";
 @import "./integration-diagnostics.css";
+@import "./studiocue-reimagined.css";
+@source "../app";
+@source "../components";
+@source "../features";
+@source "../lib";
+@source "../config";
 
 :root {
   --ink: #171a18;

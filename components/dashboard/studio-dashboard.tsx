@@ -3,14 +3,20 @@
 import Link from "next/link";
 import {
   ArrowRight,
+  ArrowUpRight,
   CalendarDays,
   CircleAlert,
   Clock3,
+  FileText,
   FolderKanban,
   MailCheck,
-  Plus,
   ReceiptText,
+  Send,
   ShieldCheck,
+  Sparkles,
+  Upload,
+  UserRoundCheck,
+  WandSparkles,
   Workflow,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
@@ -41,34 +47,55 @@ function DashboardSummary() {
   const workspace = useWorkspace();
   const { records, error, loading } = useTenantDocuments("projects");
   const current = new Date();
-  const active = (records ?? []).filter((project) =>
+  const projects = records ?? [];
+  const active = projects.filter((project) =>
     activeStates.has(String(project.state)),
   );
-  const eventsThisMonth = active.filter((project) => {
-    const date = new Date(`${String(project.eventDate)}T12:00:00`);
-    return (
-      date.getFullYear() === current.getFullYear() &&
-      date.getMonth() === current.getMonth()
-    );
-  }).length;
-  const ready = active.filter(
-    (project) =>
-      project.state === "READY" || Number(project.readinessScore) === 100,
-  ).length;
   const atRisk = active.filter(
     (project) => Number(project.readinessScore ?? 0) < 100,
   );
-  const pipeline = [
-    ["Consultations", "CONSULTATION"],
-    ["Proposals", "PROPOSAL"],
-    ["Contracts", "CONTRACT_PENDING"],
-    ["Retainers", "RETAINER_PENDING"],
-    ["Booked", "BOOKED"],
-  ].map(([label, state]) => ({
-    label,
-    value: active.filter((project) => project.state === state).length,
+  const lifecycle = [
+    {
+      label: "Inquiries",
+      detail: "Qualify & consult",
+      states: ["LEAD", "CONSULTATION"],
+      href: "/studio/leads",
+      tone: "coral",
+    },
+    {
+      label: "Booking",
+      detail: "Proposal to retainer",
+      states: ["PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING", "BOOKED"],
+      href: "/studio/projects?stage=booking",
+      tone: "violet",
+    },
+    {
+      label: "Planning",
+      detail: "Details, crew & COI",
+      states: ["PLANNING", "READY"],
+      href: "/studio/projects?stage=planning",
+      tone: "gold",
+    },
+    {
+      label: "Event",
+      detail: "Ready to capture",
+      states: ["EVENT_COMPLETE"],
+      href: "/studio/projects?stage=event",
+      tone: "blue",
+    },
+    {
+      label: "Delivery",
+      detail: "Edit, album & review",
+      states: ["POST_PRODUCTION", "DELIVERED", "REVIEW_REQUESTED"],
+      href: "/studio/projects?stage=delivery",
+      tone: "mint",
+    },
+  ].map((stage) => ({
+    ...stage,
+    value: projects.filter((project) =>
+      stage.states.includes(String(project.state)),
+    ).length,
   }));
-  const maxPipeline = Math.max(1, ...pipeline.map((item) => item.value));
   const greetingName =
     workspace.userName === workspace.tenantName
       ? ""
@@ -76,9 +103,10 @@ function DashboardSummary() {
 
   return (
     <>
-      <div className="dashboard-heading">
-        <div>
-          <p className="eyebrow">
+      <section className="studio-command-hero">
+        <div className="studio-command-copy">
+          <p className="studio-command-kicker">
+            <Sparkles size={14} />
             {current.toLocaleDateString(undefined, {
               weekday: "long",
               month: "long",
@@ -88,18 +116,54 @@ function DashboardSummary() {
           <h1>Good morning{greetingName}.</h1>
           <p>
             {loading
-              ? "Loading your operational priorities…"
+              ? "Gathering the work that needs you…"
               : error
                 ? "Studio data is temporarily unavailable."
-                : active.length
-                  ? "Here’s what needs your attention today."
-                  : "Let’s set up the essentials for your first project."}
+                : atRisk.length
+                  ? `${atRisk.length} ${atRisk.length === 1 ? "project needs" : "projects need"} your attention. StudioCue can handle the rest.`
+                  : active.length
+                    ? "Your active projects are on track. Keep the momentum going."
+                    : "Bring in your first project or teach StudioCue how your studio works."}
           </p>
+          <div className="studio-command-actions">
+            <Link className="studio-ai-primary" href="/studio/import">
+              <Upload size={17} />
+              Import my templates
+              <ArrowUpRight size={15} />
+            </Link>
+            <Link className="studio-ai-secondary" href="/studio/copilot">
+              <WandSparkles size={17} />
+              Ask StudioCue
+            </Link>
+          </div>
         </div>
-        <Link className="button button-dark" href={active.length ? "/studio/projects" : "/studio/projects/new"}>
-          <Plus size={16} /> {active.length ? "View projects" : "Create first project"}
-        </Link>
-      </div>
+        <div className="studio-command-preview" aria-label="AI workflow preview">
+          <div className="studio-command-orbit orbit-one" />
+          <div className="studio-command-orbit orbit-two" />
+          <span className="studio-command-badge">
+            <Sparkles size={13} /> Suggested next
+          </span>
+          <strong>
+            {atRisk[0]?.nextAction
+              ? String(atRisk[0].nextAction)
+              : "Import your wedding workflow"}
+          </strong>
+          <small>
+            {atRisk[0]?.name
+              ? String(atRisk[0].name)
+              : "Upload a contract, email, questionnaire, or run of show."}
+          </small>
+          <Link
+            href={
+              atRisk[0]?.id
+                ? `/studio/projects/${String(atRisk[0].id)}`
+                : "/studio/import"
+            }
+          >
+            Open workspace <ArrowRight size={14} />
+          </Link>
+        </div>
+      </section>
 
       <SetupChecklist />
 
@@ -111,31 +175,36 @@ function DashboardSummary() {
         <OwnerAutomationSignal />
       ) : null}
 
-      <section className="metric-grid" aria-label="Studio overview">
-        <article className="metric-card">
-          <span className="metric-label">Events this month</span>
-          <strong>{loading ? "—" : eventsThisMonth}</strong>
-          <span className="metric-note">From active project dates</span>
-        </article>
-        <article className="metric-card">
-          <span className="metric-label">Projects ready</span>
-          <strong>
-            {loading ? "—" : ready} <small>/ {loading ? "—" : active.length}</small>
-          </strong>
-          <span className="metric-note">Required event checks completed</span>
-        </article>
-        <article className="metric-card metric-alert">
-          <span className="metric-label">Projects needing action</span>
-          <strong>{loading ? "—" : atRisk.length}</strong>
-          <span className="metric-note warning">
-            <CircleAlert size={14} /> Below 100% readiness
+      <section className="lifecycle-overview" aria-label="Project lifecycle">
+        <div className="lifecycle-heading">
+          <span>
+            <small>One connected workflow</small>
+            <strong>Every project, from hello to gallery</strong>
           </span>
-        </article>
-        <article className="metric-card">
-          <span className="metric-label">Active projects</span>
-          <strong>{loading ? "—" : active.length}</strong>
-          <span className="metric-note">Cancelled and archived excluded</span>
-        </article>
+          <Link href="/studio/projects">
+            All projects <ArrowRight size={14} />
+          </Link>
+        </div>
+        <div className="lifecycle-rail">
+          {lifecycle.map((stage, index) => (
+            <Link
+              className={`lifecycle-stage lifecycle-${stage.tone}`}
+              href={stage.href}
+              key={stage.label}
+            >
+              <span className="lifecycle-stage-number">
+                {loading ? "—" : stage.value}
+              </span>
+              <span>
+                <strong>{stage.label}</strong>
+                <small>{stage.detail}</small>
+              </span>
+              {index < lifecycle.length - 1 ? (
+                <ArrowRight className="lifecycle-arrow" size={15} />
+              ) : null}
+            </Link>
+          ))}
+        </div>
       </section>
 
       <div className="dashboard-grid">
@@ -195,27 +264,57 @@ function DashboardSummary() {
             ) : null}
           </div>
         </section>
-        <section className="panel risk-panel">
+        <section className="panel automation-next-panel">
           <div className="panel-heading">
             <div>
-              <h2>Pipeline</h2>
-              <p>Current projects by booking stage</p>
+              <h2>Put AI to work</h2>
+              <p>Recommended shortcuts for your studio</p>
             </div>
-            <StatusBadge tone="info">Live data</StatusBadge>
+            <span className="automation-next-icon">
+              <Sparkles size={17} />
+            </span>
           </div>
-          <div className="pipeline-bars">
-            {pipeline.map((stage) => (
-              <div className="pipeline-row" key={stage.label}>
-                <span>{stage.label}</span>
-                <div>
-                  <i
-                    className="bar-green"
-                    style={{ width: `${(stage.value / maxPipeline) * 100}%` }}
-                  />
-                </div>
-                <strong>{loading ? "—" : stage.value}</strong>
-              </div>
-            ))}
+          <div className="automation-next-list">
+            <Link href="/studio/import">
+              <span className="automation-next-art automation-coral">
+                <FileText size={17} />
+              </span>
+              <span>
+                <strong>Recreate your templates</strong>
+                <small>Upload contracts, emails, forms, or schedules</small>
+              </span>
+              <ArrowRight size={15} />
+            </Link>
+            <Link href="/studio/questionnaires">
+              <span className="automation-next-art automation-violet">
+                <WandSparkles size={17} />
+              </span>
+              <span>
+                <strong>Draft a wedding timeline</strong>
+                <small>Use verified questionnaire answers</small>
+              </span>
+              <ArrowRight size={15} />
+            </Link>
+            <Link href="/studio/crew">
+              <span className="automation-next-art automation-mint">
+                <UserRoundCheck size={17} />
+              </span>
+              <span>
+                <strong>Fill a crew role in order</strong>
+                <small>Offer, wait, and cascade automatically</small>
+              </span>
+              <ArrowRight size={15} />
+            </Link>
+            <Link href="/studio/delivery">
+              <span className="automation-next-art automation-blue">
+                <Send size={17} />
+              </span>
+              <span>
+                <strong>Run delivery follow-up</strong>
+                <small>Gallery, album selections, and review reminders</small>
+              </span>
+              <ArrowRight size={15} />
+            </Link>
           </div>
         </section>
       </div>
