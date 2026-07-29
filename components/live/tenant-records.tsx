@@ -32,11 +32,35 @@ import type { Role } from "@/features/auth/roles";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { withTimeout } from "@/lib/async/with-timeout";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { ReadinessMeter } from "@/components/ui/readiness-meter";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ClientPortalInvite } from "@/components/clients/client-portal-invite";
 export type TenantDocument = Record<string, unknown> & { id: string };
+
+const tenantRecordsCacheTtlMs = 15_000;
+const tenantRecordsRequestTimeoutMs = 12_000;
+const tenantRecordsCache = new Map<
+  string,
+  { records: TenantDocument[]; expiresAt: number }
+>();
+const tenantRecordsRequests = new Map<string, Promise<TenantDocument[]>>();
+
+function tenantRecordsKey(
+  collectionName: string,
+  tenantId: string,
+  role: Role | null,
+  projectIds: string[],
+): string {
+  return [
+    tenantId,
+    collectionName,
+    role ?? "unknown",
+    [...projectIds].sort().join(","),
+  ].join(":");
+}
+
 async function tenantDocuments(
   collectionName: string,
   tenantId: string,
@@ -74,6 +98,37 @@ async function tenantDocuments(
   );
 }
 
+async function cachedTenantDocuments(
+  collectionName: string,
+  tenantId: string,
+  role: Role | null,
+  projectIds: string[],
+): Promise<TenantDocument[]> {
+  const key = tenantRecordsKey(collectionName, tenantId, role, projectIds);
+  const cached = tenantRecordsCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.records;
+  const pending = tenantRecordsRequests.get(key);
+  if (pending) return pending;
+
+  const request = withTimeout(
+    tenantDocuments(collectionName, tenantId, role, projectIds),
+    tenantRecordsRequestTimeoutMs,
+    `The ${collectionName} request took too long. Check your connection and try again.`,
+  )
+    .then((records) => {
+      tenantRecordsCache.set(key, {
+        records,
+        expiresAt: Date.now() + tenantRecordsCacheTtlMs,
+      });
+      return records;
+    })
+    .finally(() => {
+      tenantRecordsRequests.delete(key);
+    });
+  tenantRecordsRequests.set(key, request);
+  return request;
+}
+
 export function useTenantDocuments(collectionName: string) {
   const workspace = useWorkspace();
   const [records, setRecords] = useState<TenantDocument[] | null>(null);
@@ -82,7 +137,21 @@ export function useTenantDocuments(collectionName: string) {
     if (!dataIsLive || workspace.loading) return;
     if (!workspace.tenantId) return;
     let active = true;
-    void tenantDocuments(
+    const key = tenantRecordsKey(
+      collectionName,
+      workspace.tenantId,
+      workspace.role,
+      workspace.projectIds,
+    );
+    const cached = tenantRecordsCache.get(key);
+    void Promise.resolve().then(() => {
+      if (!active) return;
+      setRecords(
+        cached && cached.expiresAt > Date.now() ? cached.records : null,
+      );
+      setError(null);
+    });
+    void cachedTenantDocuments(
       collectionName,
       workspace.tenantId,
       workspace.role,

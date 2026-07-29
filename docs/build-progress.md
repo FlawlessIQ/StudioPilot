@@ -1130,3 +1130,40 @@ Validation record:
 - Functions TypeScript build: passed
 - serialized responsive browser suite: 34 passed across desktop Chromium and
   Pixel 7, including every post-auth studio, client, crew, and platform route
+
+## July 29, 2026 — authenticated workspace performance recovery
+
+Status: implementation and local release validation complete; production
+deployment follows this record.
+
+- Moved the studio, client, and crew authorization boundaries into persistent
+  route layouts so tab navigation no longer destroys and recreates the signed-in
+  workspace.
+- Added a shared membership cache with in-flight request deduplication, a
+  bounded freshness window, and explicit timeouts. The authorization boundary,
+  workspace context, and server command membership resolver now reuse the same
+  normalized membership result.
+- Started workspace detail loading alongside authorization instead of waiting
+  for one network round trip to finish before beginning the next.
+- Added recoverable authorization and workspace error states so a rejected or
+  unavailable Firestore request cannot leave the interface on “Verifying
+  access…” indefinitely.
+- Deduplicated identical tenant collection reads across dashboard widgets and
+  added bounded request timeouts and short-lived data caching.
+- Preserved the studio, client, and crew shell DOM across internal route changes,
+  preventing repeated sidebar resets, “Loading studio…” flashes, and redundant
+  access verification.
+- Added desktop and mobile browser regressions that explicitly prove each
+  authenticated shell remains mounted while navigating between pages.
+
+Validation record:
+
+- strict TypeScript: passed
+- ESLint: passed with zero warnings
+- domain, permissions, provider, email, lifecycle, AI guardrail, and timeout
+  suite: 105 passed
+- optimized Next.js production build: passed, including all 98 routes
+- existing responsive browser coverage: 37 passed before the new focused
+  navigation tests
+- persistent-shell navigation regression suite: 6 passed across desktop
+  Chromium and Pixel 7

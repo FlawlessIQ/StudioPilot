@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { createContext, useContext, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   Bell,
   CalendarDays,
@@ -87,18 +88,62 @@ const activeGroups: Record<string, string[]> = {
   "Studio setup": ["Studio setup", "Integrations", "Team", "Subscription", "Settings"],
 };
 
+const StudioShellContext = createContext(false);
+
+const studioRouteLabels: Record<string, string> = {
+  audit: "Workflows",
+  automations: "Workflows",
+  booking: "Booking",
+  calendar: "Calendar",
+  clients: "Clients",
+  contracts: "Contracts",
+  copilot: "Copilot",
+  crew: "Crew",
+  delivery: "Delivery",
+  documents: "Documents",
+  insurance: "Insurance",
+  integrations: "Integrations",
+  invoices: "Invoices",
+  leads: "Inquiries",
+  library: "Library",
+  messages: "Communications",
+  notifications: "Notifications",
+  packages: "Packages",
+  "post-production": "Post-production",
+  projects: "Projects",
+  proposals: "Proposals",
+  questionnaires: "Questionnaires",
+  readiness: "Readiness",
+  reports: "Reports",
+  reviews: "Reviews",
+  schedules: "Schedules",
+  settings: "Settings",
+  setup: "Studio setup",
+  subscription: "Subscription",
+  tasks: "Tasks",
+  team: "Team",
+  vendors: "Vendors",
+  workflows: "Workflows",
+};
+
 export function AppShell({
   children,
-  active = "Dashboard",
+  active,
 }: {
   children: React.ReactNode;
   active?: string;
 }) {
-  return <AuthBoundary area="studio">
-    <WorkspaceProvider area="studio">
-      <StudioShell active={active}>{children}</StudioShell>
-    </WorkspaceProvider>
-  </AuthBoundary>;
+  const shellMounted = useContext(StudioShellContext);
+  if (shellMounted) return <>{children}</>;
+  return (
+    <StudioShellContext.Provider value>
+      <WorkspaceProvider area="studio">
+        <AuthBoundary area="studio">
+          <StudioShell active={active}>{children}</StudioShell>
+        </AuthBoundary>
+      </WorkspaceProvider>
+    </StudioShellContext.Provider>
+  );
 }
 
 function StudioShell({
@@ -106,10 +151,14 @@ function StudioShell({
   active,
 }: {
   children: React.ReactNode;
-  active: string;
+  active?: string;
 }) {
+  const pathname = usePathname();
   const [navigationOpen, setNavigationOpen] = useState(false);
   const workspace = useWorkspace();
+  const routeSegment = pathname.split("/").filter(Boolean)[1] ?? "";
+  const resolvedActive =
+    active ?? studioRouteLabels[routeSegment] ?? "Dashboard";
   const tenantName = workspace.error ? "Workspace unavailable" : workspace.tenantName;
   const userName = workspace.error ? "Signed-in user" : workspace.userName;
   const staffAllowed = new Set([
@@ -137,7 +186,9 @@ function StudioShell({
     }))
     .filter((section) => section.items.length);
   const currentGroup =
-    Object.entries(activeGroups).find(([, values]) => values.includes(active))?.[0] ??
+    Object.entries(activeGroups).find(([, values]) =>
+      values.includes(resolvedActive),
+    )?.[0] ??
     "Home";
   return (
     <div className={cn("app-frame", navigationOpen && "navigation-is-open")}>
@@ -234,7 +285,7 @@ function StudioShell({
             <Menu size={20} />
           </button>
           <span className="topbar-context">
-            {active === "Dashboard" ? "Home" : active}
+            {resolvedActive === "Dashboard" ? "Home" : resolvedActive}
           </span>
           <GlobalSearch />
           <div className="topbar-actions">
@@ -247,6 +298,17 @@ function StudioShell({
             </Link>
           </div>
         </header>
+        {workspace.error ? (
+          <div className="workspace-load-error" role="alert">
+            <span>
+              <strong>Studio data is temporarily unavailable</strong>
+              <small>{workspace.error}</small>
+            </span>
+            <button onClick={workspace.retry} type="button">
+              Retry
+            </button>
+          </div>
+        ) : null}
         <main className="app-content">{children}</main>
       </div>
     </div>

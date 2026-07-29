@@ -1,8 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   CalendarDays,
   ChevronDown,
@@ -101,9 +107,25 @@ const portalNavSections = [
   },
 ] as const;
 
+const PortalShellContext = createContext(false);
+
+const clientRouteLabels: Record<string, string> = {
+  contract: "Contract",
+  delivery: "Delivery",
+  documents: "Files",
+  messages: "Messages",
+  package: "Package",
+  payments: "Payments",
+  project: "Project details",
+  proposal: "Proposal",
+  questionnaire: "Questionnaires",
+  reviews: "Reviews",
+  schedule: "Schedule",
+};
+
 export function PortalShell({
   children,
-  active = "Home",
+  active,
   projectName,
   projectDate,
 }: {
@@ -112,18 +134,22 @@ export function PortalShell({
   projectName?: string;
   projectDate?: string;
 }) {
+  const shellMounted = useContext(PortalShellContext);
+  if (shellMounted) return <>{children}</>;
   return (
-    <AuthBoundary area="client">
+    <PortalShellContext.Provider value>
       <WorkspaceProvider area="client">
-        <ClientPortalShell
-          active={active}
-          projectName={projectName}
-          projectDate={projectDate}
-        >
-          {children}
-        </ClientPortalShell>
+        <AuthBoundary area="client">
+          <ClientPortalShell
+            active={active}
+            projectName={projectName}
+            projectDate={projectDate}
+          >
+            {children}
+          </ClientPortalShell>
+        </AuthBoundary>
       </WorkspaceProvider>
-    </AuthBoundary>
+    </PortalShellContext.Provider>
   );
 }
 
@@ -134,16 +160,19 @@ function ClientPortalShell({
   projectDate,
 }: {
   children: React.ReactNode;
-  active: string;
+  active?: string;
   projectName?: string;
   projectDate?: string;
 }) {
+  const pathname = usePathname();
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [mobileNavigation, setMobileNavigation] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const workspace = useWorkspace();
   const router = useRouter();
+  const routeSegment = pathname.split("/").filter(Boolean)[1] ?? "";
+  const resolvedActive = active ?? clientRouteLabels[routeSegment] ?? "Home";
   const displayedProjectName = projectName ?? workspace.projectName;
   const displayedProjectDate = projectDate ?? workspace.projectDate;
   const formattedProjectDate = /^\d{4}-\d{2}-\d{2}$/.test(displayedProjectDate)
@@ -271,7 +300,7 @@ function ClientPortalShell({
                   <Link
                     href={item.href}
                     className={
-                      item.label === active ? "portal-nav-active" : ""
+                    item.label === resolvedActive ? "portal-nav-active" : ""
                     }
                     key={item.label}
                     onClick={closeNavigation}
@@ -309,10 +338,21 @@ function ClientPortalShell({
           >
             <Menu size={20} />
           </button>
-          <span className="portal-page-context">{active}</span>
+          <span className="portal-page-context">{resolvedActive}</span>
           <span className="portal-studio-name">{workspace.tenantName}</span>
           <SignOutButton />
         </header>
+        {workspace.error ? (
+          <div className="workspace-load-error" role="alert">
+            <span>
+              <strong>Your project workspace is temporarily unavailable</strong>
+              <small>{workspace.error}</small>
+            </span>
+            <button onClick={workspace.retry} type="button">
+              Retry
+            </button>
+          </div>
+        ) : null}
         {children}
       </main>
     </div>

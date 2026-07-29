@@ -10,13 +10,8 @@ import {
 } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import {
-  collection,
   doc,
   getDoc,
-  getDocs,
-  limit,
-  query,
-  where,
 } from "firebase/firestore";
 import type { Role } from "@/features/auth/roles";
 import {
@@ -26,7 +21,12 @@ import {
   type ClientPortalProjectSummary,
 } from "@/lib/client/portal-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import {
+  invalidateMembershipCache,
+  loadMembershipDocuments,
+} from "@/lib/firebase/membership-cache";
 import { authIsLive } from "@/lib/runtime-mode";
+import { withTimeout } from "@/lib/async/with-timeout";
 
 type WorkspaceArea = "studio" | "client" | "crew";
 
@@ -60,6 +60,7 @@ type WorkspaceState = {
 
 type WorkspaceContextValue = WorkspaceState & {
   selectProject: (projectId: string) => Promise<void>;
+  retry: () => void;
 };
 
 const mockWorkspace: WorkspaceState = {
@@ -107,6 +108,7 @@ const initialWorkspace: WorkspaceState = authIsLive
 const WorkspaceContext = createContext<WorkspaceContextValue>({
   ...initialWorkspace,
   selectProject: async () => undefined,
+  retry: () => undefined,
 });
 
 const areaRoles: Record<WorkspaceArea, Role[]> = {
@@ -162,6 +164,7 @@ export function WorkspaceProvider({
   children: React.ReactNode;
 }) {
   const [state, setState] = useState(initialWorkspace);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!authIsLive) {
@@ -169,7 +172,8 @@ export function WorkspaceProvider({
       return;
     }
     const { auth, firestore } = getFirebaseClient();
-    return onAuthStateChanged(auth, (user) => {
+    let active = true;
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!user) {
         setState((current) => ({
           ...current,
@@ -180,15 +184,12 @@ export function WorkspaceProvider({
       }
       void (async () => {
         try {
-          const membershipSnapshot = await getDocs(
-            query(
-              collection(firestore, "memberships"),
-              where("userId", "==", user.uid),
-              where("status", "==", "active"),
-              limit(20),
-            ),
+          const membershipDocuments = await loadMembershipDocuments(
+            firestore,
+            user.uid,
+            { force: attempt > 0 },
           );
-          const memberships = membershipSnapshot.docs
+          const memberships = membershipDocuments
             .map((membershipDocument) =>
               asMembership(
                 membershipDocument.id,
@@ -218,7 +219,13 @@ export function WorkspaceProvider({
 
           const clientProjects =
             area === "client"
-              ? (await getClientPortalProjects(membership.tenantId)).projects
+              ? (
+                  await withTimeout(
+                    getClientPortalProjects(membership.tenantId),
+                    15_000,
+                    "Your project list took too long to load. Try again.",
+                  )
+                ).projects
               : [];
           const storedClientProjectId = window.localStorage.getItem(
             `studiohub.activeClientProjectId.${membership.tenantId}`,
@@ -238,15 +245,20 @@ export function WorkspaceProvider({
             );
           }
           const [tenantDocument, userDocument, projectDocument] =
-            await Promise.all([
-              getDoc(doc(firestore, "tenants", membership.tenantId)),
-              getDoc(doc(firestore, "users", user.uid)),
-              projectId
-                ? area === "client"
-                  ? getClientPortalProject(membership.tenantId, projectId)
-                  : getDoc(doc(firestore, "projects", projectId))
-                : Promise.resolve(null),
-            ]);
+            await withTimeout(
+              Promise.all([
+                getDoc(doc(firestore, "tenants", membership.tenantId)),
+                getDoc(doc(firestore, "users", user.uid)),
+                projectId
+                  ? area === "client"
+                    ? getClientPortalProject(membership.tenantId, projectId)
+                    : getDoc(doc(firestore, "projects", projectId))
+                  : Promise.resolve(null),
+              ]),
+              15_000,
+              "Your workspace details took too long to load. Try again.",
+            );
+          if (!active) return;
           const tenant = tenantDocument.data() ?? {};
           const profile = userDocument.data() ?? {};
           const project =
@@ -285,6 +297,7 @@ export function WorkspaceProvider({
             memberships,
           });
         } catch (caught: unknown) {
+          if (!active) return;
           setState((current) => ({
             ...current,
             loading: false,
@@ -296,7 +309,11 @@ export function WorkspaceProvider({
         }
       })();
     });
-  }, [area]);
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [area, attempt]);
 
   const selectProject = useCallback(
     async (projectId: string) => {
@@ -351,7 +368,19 @@ export function WorkspaceProvider({
     ],
   );
   const value = useMemo(
-    () => ({ ...state, selectProject }),
+    () => ({
+      ...state,
+      selectProject,
+      retry: () => {
+        if (state.userId) invalidateMembershipCache(state.userId);
+        setState((current) => ({
+          ...current,
+          loading: true,
+          error: null,
+        }));
+        setAttempt((current) => current + 1);
+      },
+    }),
     [selectProject, state],
   );
   return (

@@ -1,35 +1,24 @@
 "use client";
 
-import {
-  collection,
-  getDocs,
-  limit,
-  query,
-  where,
-  type Firestore,
-  type QueryDocumentSnapshot,
+import type {
+  Firestore,
+  QueryDocumentSnapshot,
 } from "firebase/firestore";
+import { loadMembershipDocuments } from "@/lib/firebase/membership-cache";
 
 export async function activeMembership(
   firestore: Firestore,
   userId: string,
 ): Promise<QueryDocumentSnapshot> {
-  const snapshot = await getDocs(
-    query(
-      collection(firestore, "memberships"),
-      where("userId", "==", userId),
-      where("status", "==", "active"),
-      limit(20),
-    ),
-  );
+  const documents = await loadMembershipDocuments(firestore, userId);
   const preferredTenantId =
     typeof window === "undefined"
       ? null
       : window.localStorage.getItem("studiohub.activeTenantId");
   const membership =
-    snapshot.docs.find(
+    documents.find(
       (document) => document.data().tenantId === preferredTenantId,
-    ) ?? snapshot.docs[0];
+    ) ?? documents[0];
   if (!membership) throw new Error("No active studio membership was found.");
   return membership;
 }
