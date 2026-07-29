@@ -935,6 +935,56 @@
   padding: 4px;
 }
 
+.template-file-errors {
+  display: grid;
+  gap: 7px;
+}
+
+.template-file-errors article {
+  align-items: center;
+  background: rgba(190, 24, 93, 0.07);
+  border: 1px solid rgba(190, 24, 93, 0.18);
+  border-radius: 11px;
+  color: #9d174d;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 9px 10px;
+}
+
+.template-file-errors article span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.template-file-errors article strong,
+.template-file-errors article small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.template-file-errors article strong {
+  font-size: 9px;
+}
+
+.template-file-errors article small {
+  color: #9f1239;
+  font-size: 8px;
+}
+
+.template-file-errors article button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  justify-content: center;
+  padding: 5px;
+}
+
 .template-paste-source {
   display: grid;
   gap: 8px;

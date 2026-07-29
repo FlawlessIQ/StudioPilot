@@ -21,6 +21,12 @@ import {
   X,
 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
+import {
+  STUDIO_IMPORT_MAX_FILES,
+  STUDIO_IMPORT_MAX_FILE_BYTES,
+  studioImportAllowedExtensions,
+  validateStudioImportFileCandidate,
+} from "@/features/studio-import/schema";
 
 type SourceMode = "files" | "email" | "website";
 type ImportKind =
@@ -37,6 +43,12 @@ type SourceFile = {
   size: number;
   type: string;
   kind: ImportKind;
+};
+
+type RejectedSourceFile = {
+  id: string;
+  name: string;
+  message: string;
 };
 
 const sourceModes: Array<{
@@ -122,6 +134,7 @@ export function TemplateImportStudio() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [sourceMode, setSourceMode] = useState<SourceMode>("files");
   const [files, setFiles] = useState<SourceFile[]>([]);
+  const [rejectedFiles, setRejectedFiles] = useState<RejectedSourceFile[]>([]);
   const [emailText, setEmailText] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [selected, setSelected] = useState<ImportKind[]>([]);
@@ -140,18 +153,48 @@ export function TemplateImportStudio() {
   }, [emailText, files, websiteUrl]);
 
   function addFiles(incoming: FileList | File[]) {
-    const next = Array.from(incoming)
-      .filter((file) => file.size <= 12 * 1024 * 1024)
-      .map((file) => ({
-        id: `${file.name}-${file.size}-${file.lastModified}`,
+    const checked = Array.from(incoming).map((file) => {
+      const id = `${file.name}-${file.size}-${file.lastModified}`;
+      const validation = validateStudioImportFileCandidate({
+        clientId: id,
         name: file.name,
-        size: file.size,
-        type: file.type || "Document",
-        kind: inferKind(file.name),
-      }));
+        sizeBytes: file.size,
+        contentType: file.type || "application/octet-stream",
+        lastModifiedAt: new Date(file.lastModified).toISOString(),
+      });
+      return { file, id, validation };
+    });
+    const next = checked.flatMap(({ file, id, validation }) =>
+      validation.accepted
+        ? [
+            {
+              id,
+              name: validation.candidate.name,
+              size: validation.candidate.sizeBytes,
+              type: validation.candidate.contentType,
+              kind: inferKind(file.name),
+            },
+          ]
+        : [],
+    );
+    const rejected = checked.flatMap(({ file, id, validation }) =>
+      validation.accepted
+        ? []
+        : [{ id, name: file.name, message: validation.message }],
+    );
     setFiles((current) => {
       const ids = new Set(current.map((file) => file.id));
-      return [...current, ...next.filter((file) => !ids.has(file.id))].slice(0, 12);
+      return [...current, ...next.filter((file) => !ids.has(file.id))].slice(
+        0,
+        STUDIO_IMPORT_MAX_FILES,
+      );
+    });
+    setRejectedFiles((current) => {
+      const ids = new Set(current.map((file) => file.id));
+      return [
+        ...current,
+        ...rejected.filter((file) => !ids.has(file.id)),
+      ].slice(0, STUDIO_IMPORT_MAX_FILES);
     });
     setComplete(false);
   }
@@ -252,11 +295,16 @@ export function TemplateImportStudio() {
               >
                 <span><Upload size={23} /></span>
                 <strong>Drop your working files here</strong>
-                <small>Contracts, email copy, questionnaires, schedules, packages · 12 MB each</small>
+                <small>
+                  Contracts, email copy, questionnaires, schedules, packages ·{" "}
+                  {STUDIO_IMPORT_MAX_FILE_BYTES / (1024 * 1024)} MB each
+                </small>
                 <em>Browse files</em>
               </button>
               <input
-                accept=".pdf,.doc,.docx,.txt,.csv,.rtf"
+                accept={studioImportAllowedExtensions
+                  .map((extension) => `.${extension}`)
+                  .join(",")}
                 hidden
                 multiple
                 onChange={(event) => event.target.files && addFiles(event.target.files)}
@@ -291,6 +339,30 @@ export function TemplateImportStudio() {
                       </article>
                     );
                   })}
+                </div>
+              ) : null}
+              {rejectedFiles.length ? (
+                <div className="template-file-errors" role="alert">
+                  {rejectedFiles.map((file) => (
+                    <article key={file.id}>
+                      <CircleAlert size={16} />
+                      <span>
+                        <strong>{file.name}</strong>
+                        <small>{file.message}</small>
+                      </span>
+                      <button
+                        aria-label={`Dismiss error for ${file.name}`}
+                        onClick={() =>
+                          setRejectedFiles((current) =>
+                            current.filter((item) => item.id !== file.id),
+                          )
+                        }
+                        type="button"
+                      >
+                        <X size={15} />
+                      </button>
+                    </article>
+                  ))}
                 </div>
               ) : null}
             </>

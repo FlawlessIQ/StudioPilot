@@ -1,5 +1,39 @@
 # StudioCue Build Progress
 
+## Roadmap execution pass 1 — import and AI foundation — 2026-07-29
+
+Status: implemented and validated.
+
+Delivered:
+
+- secure, tenant-scoped studio import session and item contracts
+- shared file-type, file-size, metadata, count, and rejection policy used by the
+  import experience and trusted service layer
+- owner/admin-only, idempotent import-session creation with audit evidence
+- immutable studio asset and version contracts with source citations,
+  validation issues, approval, activation, supersession, and rollback fields
+- persistent AI action contract covering sources, confidence, uncertainty,
+  validation, human decisions, edit deltas, downstream commands, cost, latency,
+  and estimated time saved
+- explicit AI authority boundary that prevents model output from authorizing
+  provider evidence, legal, financial, insurance, or readiness truth
+- normalized product event taxonomy and verified handling-time calculation
+- release feature registry with future roadmap capabilities disabled by default
+- client-side file rejection messages driven by the same shared import policy
+- 44-capability current-state inventory with the next critical path
+
+Validation record:
+
+- strict TypeScript: passed
+- complete unit/domain suite: 125 passed
+- Sites production build: passed
+
+Next pass:
+
+- secure upload sessions and tenant-scoped storage
+- quarantine, file-signature verification, and malware-scan state transitions
+- asynchronous classification job and persisted progress
+
 ## Lifecycle automation and AI value release — 2026-07-29
 
 Status: implemented, validated, and deployed to production.

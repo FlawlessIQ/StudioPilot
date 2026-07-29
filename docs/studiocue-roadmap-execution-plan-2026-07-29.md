@@ -4,6 +4,9 @@ Date: July 29, 2026
 Source roadmap:
 [`studiocue-product-ai-roadmap-2026-07-29.md`](./studiocue-product-ai-roadmap-2026-07-29.md)
 
+Implementation baseline:
+[`studiocue-capability-inventory-2026-07-29.md`](./studiocue-capability-inventory-2026-07-29.md)
+
 ## Executive plan
 
 Execute the roadmap as a 26-week, outcome-gated program for a focused 4–6 person
@@ -578,7 +581,7 @@ The product may enter a broader beta only if:
 
 - review the workflow recording and product roadmap as a team;
 - agree on the primary promise and P0 scope;
-- map all 43 backlog items to existing, partial, or net-new capability;
+- map all 44 backlog items to existing, partial, or net-new capability;
 - identify duplicate or obsolete existing routes;
 - document the current end-to-end happy path;
 - choose the initial e-signature decision deadline.
@@ -864,7 +867,7 @@ The next ten actions, in order, are:
 
 1. name the program owners;
 2. recruit the first three design partners;
-3. inventory the 43 roadmap capabilities against the current codebase;
+3. inventory the 44 roadmap capabilities against the current codebase;
 4. choose the initial signing-provider decision date;
 5. establish baseline handling-time events;
 6. approve the studio asset, AI action, provenance, and receipt contracts;
