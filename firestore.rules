@@ -217,7 +217,8 @@ service cloud.firestore {
     }
 
     match /automationRuns/{runId} {
-      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
       allow write: if false;
     }
 
@@ -227,7 +228,8 @@ service cloud.firestore {
     }
 
     match /domainEvents/{eventId} {
-      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
       allow write: if false;
     }
 
@@ -410,7 +412,8 @@ service cloud.firestore {
       allow write: if false;
     }
     match /emailJobs/{jobId} {
-      allow read, write: if false;
+      allow read: if isPlatformAdmin();
+      allow write: if false;
     }
     match /messages/{messageId} {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
@@ -428,6 +431,14 @@ service cloud.firestore {
           hasRole(resource.data.tenantId, ["studio_coordinator"])
           && isAssignedToProject(resource.data.tenantId, resource.data.projectId)
         );
+      allow write: if false;
+    }
+    match /messageTemplates/{templateId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
+      allow write: if false;
+    }
+    match /messageTemplatePointers/{pointerId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
       allow write: if false;
     }
     match /postProductionRecords/{recordId} {

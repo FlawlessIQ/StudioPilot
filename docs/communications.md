@@ -69,6 +69,21 @@ idempotent email job without mutating the approved offer snapshot.
 Unknown future job types receive the same safe branded fallback instead of an
 unstyled message.
 
+## Tenant template versions
+
+Studio Owners and Studio Admins can use **Communications → Branded template
+studio** to customize supported journeys. Every save creates a new immutable
+`messageTemplates` version. Activating a version changes only future email jobs;
+prior versions and sent messages remain unchanged. The active pointer is stored
+separately in `messageTemplatePointers`, making rollback an explicit activation
+instead of a content mutation.
+
+The designer includes an inbox preview, responsive branded body preview,
+allow-listed variables, test delivery, active-version evidence, and version
+history. Test jobs carry a server-side template snapshot so testing a draft
+never requires publishing it. Tenant text is escaped by the renderer and
+action URLs still come from deterministic application workflows.
+
 ## Authentication email
 
 StudioCue owns the password-reset and verification presentation:

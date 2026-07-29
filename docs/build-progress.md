@@ -1167,3 +1167,36 @@ Validation record:
   navigation tests
 - persistent-shell navigation regression suite: 6 passed across desktop
   Chromium and Pixel 7
+
+## July 29, 2026 — internal scale and operability roadmap
+
+Status: implementation complete; final production validation and deployment
+record follows this entry.
+
+- Added Cloud Tasks dispatch for provider, email, AI, and PDF work while
+  preserving the Scheduler poller as a recovery transport.
+- Moved normalized domain-event delivery to Pub/Sub with an auditable Firestore
+  outbox and scheduled republishing.
+- Added replay controls across all job queues, workflow runs, and domain events.
+- Added queue service objectives, backlog age, dead-letter monitoring, and a
+  capacity profile in platform system health.
+- Added bounded async-path load tests and production mutation safeguards.
+- Added Cloud Run capacity and cost policy files plus an application script.
+- Added a tenant-editable branded email designer with escaped variables,
+  immutable versions, activation, rollback, and secure test sends.
+- Added provider diagnostics for health latency, credential-vault state,
+  scopes, webhook activity, failed work, reconciliation, and recommended
+  actions.
+
+Validation record:
+
+- strict TypeScript: passed
+- ESLint: passed with zero warnings
+- Functions TypeScript build: passed
+- domain, permissions, provider, email, lifecycle, queue-objective, and
+  diagnostic suite: 111 passed
+- Firestore tenant and template-version rules: passed
+- Storage visibility and upload rules: passed
+- optimized Next.js build: passed across all 98 routes
+- responsive Playwright suite: 40 passed across desktop Chromium and Pixel 7
+- bounded production health load test: 20/20 HTTP 200, 0% errors, p95 1,443 ms

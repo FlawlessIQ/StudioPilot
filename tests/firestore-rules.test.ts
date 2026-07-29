@@ -178,6 +178,8 @@ test(
         await setDoc(doc(adminDb, "clientInvitations/client-invite-a"), { tenantId: "tenant-a", projectId: "project-a", tokenHash: "server-only", status: "pending" });
         await setDoc(doc(adminDb, "messages/message-studio"), { tenantId: "tenant-a", projectId: "project-a", visibility: "studio" });
         await setDoc(doc(adminDb, "messages/message-shared"), { tenantId: "tenant-a", projectId: "project-a", visibility: "shared" });
+        await setDoc(doc(adminDb, "messageTemplates/tenant-a_client_invitation_v1"), { tenantId: "tenant-a", key: "client_invitation", version: 1, status: "active" });
+        await setDoc(doc(adminDb, "messageTemplatePointers/tenant-a_client_invitation"), { tenantId: "tenant-a", key: "client_invitation", activeTemplateId: "tenant-a_client_invitation_v1" });
         await setDoc(doc(adminDb, "usageCounters/tenant-a_2026-07"), { tenantId: "tenant-a", period: "2026-07", aiActions: 1200 });
         await setDoc(doc(adminDb, "featureFlags/advanced-ai"), { key: "advanced-ai", enabled: true, tenantIds: ["tenant-a"] });
         await setDoc(doc(adminDb, "supportAccess/support-a"), { tenantId: "tenant-a", platformUserId: "platform-a", status: "active" });
@@ -262,6 +264,7 @@ test(
       await assertFails(getDoc(doc(clientDb, "clientInvitations/client-invite-a")));
       await assertFails(getDoc(doc(clientDb, "messages/message-studio")));
       await assertFails(getDoc(doc(clientDb, "messages/message-shared")));
+      await assertFails(getDoc(doc(clientDb, "messageTemplates/tenant-a_client_invitation_v1")));
 
       const crewDb = environment.authenticatedContext("crew-a").firestore();
       await assertSucceeds(getDoc(doc(crewDb, "projects/project-a")));
@@ -289,6 +292,9 @@ test(
       await assertSucceeds(getDoc(doc(ownerDb, "tenantInvitations/invite-a")));
       await assertFails(getDoc(doc(ownerDb, "clientInvitations/client-invite-a")));
       await assertSucceeds(getDoc(doc(ownerDb, "messages/message-studio")));
+      await assertSucceeds(getDoc(doc(ownerDb, "messageTemplates/tenant-a_client_invitation_v1")));
+      await assertSucceeds(getDoc(doc(ownerDb, "messageTemplatePointers/tenant-a_client_invitation")));
+      await assertFails(updateDoc(doc(ownerDb, "messageTemplates/tenant-a_client_invitation_v1"), { status: "superseded" }));
       await assertFails(
         updateDoc(doc(ownerDb, "tenantInvitations/invite-a"), { status: "accepted" }),
       );

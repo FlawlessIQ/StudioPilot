@@ -31,6 +31,13 @@ export { tenantOnboardingCommand } from "./saas/onboarding.js";
 export { tenantBrandingCommand } from "./saas/branding.js";
 export { membershipCommand } from "./saas/memberships.js";
 export { operationsJobScheduler } from "./operations/jobs.js";
+export {
+  aiJobTaskDispatch,
+  emailJobTaskDispatch,
+  operationsTaskWorker,
+  pdfJobTaskDispatch,
+  providerJobTaskDispatch,
+} from "./operations/task-queue.js";
 export { fileSafetyOnFinalize } from "./operations/file-safety.js";
 export { integrationOAuth } from "./integrations/oauth.js";
 export {
@@ -45,6 +52,8 @@ export { aiScheduleCommand } from "./ai/schedule.js";
 export { authEmailCommand } from "./auth/emails.js";
 export {
   automationRetryScheduler,
+  consumeDomainEvent,
+  domainEventOutboxScheduler,
   normalizeDomainEvent,
   processDomainEvent,
 } from "./automation/runtime.js";

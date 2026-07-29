@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { getFirestore,type DocumentSnapshot } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
+import { buildIntegrationDiagnostics } from "../integrations/diagnostics.js";
 
 export type Provider="google_calendar"|"zoom"|"dropbox"|"docusign"|"quickbooks";
 type Credential={
@@ -98,11 +99,50 @@ async function connection(tenantId:string,provider:Provider){
 }
 
 export async function checkProviderConnection(tenantId:string,provider:Provider){
+  const startedAt=Date.now();
   const current=await connection(tenantId,provider);
   const now=new Date().toISOString();
+  const db=getFirestore();
+  const since=new Date(Date.now()-7*24*60*60_000).toISOString();
+  const [webhookSnapshot,jobSnapshot]=await Promise.all([
+    db.collection("webhookEvents").where("tenantId","==",tenantId).limit(200).get(),
+    db.collection("providerJobs").where("tenantId","==",tenantId).limit(200).get(),
+  ]);
+  const providerMatches=(value:DocumentSnapshot)=>{
+    const source=String(value.get("provider")??value.get("source")??value.get("type")??"");
+    return source.includes(provider);
+  };
+  const webhookEvents=webhookSnapshot.docs
+    .filter(providerMatches)
+    .filter((item)=>String(item.get("createdAt")??item.get("receivedAt")??"")>=since);
+  const failedJobs=jobSnapshot.docs
+    .filter(providerMatches)
+    .filter((item)=>String(item.get("updatedAt")??item.get("createdAt")??"")>=since)
+    .filter((item)=>["failed","dead_letter"].includes(String(item.get("status"))));
+  const scopes=Array.isArray(current.document.get("scopes"))
+    ? (current.document.get("scopes") as unknown[]).filter((scope):scope is string=>typeof scope==="string")
+    : [];
+  const baseDiagnostic={
+    provider,
+    credentialPresent:current.mock||Boolean(current.document.get("encryptedCredentialRef")),
+    tokenExpiresAt:current.credential?.expiresAt??null,
+    scopes,
+    webhookEvents7d:webhookEvents.length,
+    failedJobs7d:failedJobs.length,
+    lastWebhookAt:webhookEvents
+      .map((item)=>String(item.get("receivedAt")??item.get("createdAt")??""))
+      .sort()
+      .at(-1)??null,
+    lastReconciledAt:text(current.document.get("lastReconciledAt"))||null,
+  };
   if(current.mock){
-    await current.document.ref.update({lastHealthCheckAt:now,lastError:null,updatedAt:now});
-    return{provider,status:"connected",mockMode:true};
+    const diagnostics=buildIntegrationDiagnostics({
+      ...baseDiagnostic,
+      latencyMs:Date.now()-startedAt,
+      error:null,
+    },now);
+    await current.document.ref.update({lastHealthCheckAt:now,lastHealthLatencyMs:diagnostics.latencyMs,diagnosticSeverity:diagnostics.severity,diagnosticRecommendation:diagnostics.recommendedAction,diagnosticFailedJobs7d:diagnostics.failedJobs7d,diagnostics,lastError:null,updatedAt:now});
+    return{provider,status:"connected",mockMode:true,diagnostics};
   }
   const credential=current.credential;
   if(!credential)throw new Error("CREDENTIAL_UNAVAILABLE");
@@ -114,13 +154,16 @@ export async function checkProviderConnection(tenantId:string,provider:Provider)
     quickbooks:()=>fetch(`https://quickbooks.api.intuit.com/v3/company/${encodeURIComponent(credential.realmId??String(current.document.get("providerAccountId")??""))}/companyinfo/${encodeURIComponent(credential.realmId??String(current.document.get("providerAccountId")??""))}?minorversion=75`,{headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json"}}),
   };
   const response=await probes[provider]();
+  const latencyMs=Date.now()-startedAt;
   if(!response.ok){
     const code=`${provider.toUpperCase()}_HEALTH_FAILED:${response.status}`;
-    await current.document.ref.update({status:"error",lastHealthCheckAt:now,lastError:code,updatedAt:now});
+    const diagnostics=buildIntegrationDiagnostics({...baseDiagnostic,latencyMs,error:code},now);
+    await current.document.ref.update({status:"error",lastHealthCheckAt:now,lastHealthLatencyMs:latencyMs,diagnosticSeverity:diagnostics.severity,diagnosticRecommendation:diagnostics.recommendedAction,diagnosticFailedJobs7d:diagnostics.failedJobs7d,diagnostics,lastError:code,updatedAt:now});
     throw new Error(code);
   }
-  await current.document.ref.update({status:"connected",lastHealthCheckAt:now,lastError:null,updatedAt:now});
-  return{provider,status:"connected",mockMode:false};
+  const diagnostics=buildIntegrationDiagnostics({...baseDiagnostic,latencyMs,error:null},now);
+  await current.document.ref.update({status:"connected",lastHealthCheckAt:now,lastHealthLatencyMs:latencyMs,diagnosticSeverity:diagnostics.severity,diagnosticRecommendation:diagnostics.recommendedAction,diagnosticFailedJobs7d:diagnostics.failedJobs7d,diagnostics,lastError:null,updatedAt:now});
+  return{provider,status:"connected",mockMode:false,diagnostics};
 }
 async function providerJson(url:string,init:RequestInit,code:string):Promise<Json>{const response=await fetch(url,init);const body=asRecord(await response.json().catch(()=>({})));if(!response.ok)throw new Error(`${code}:${response.status}:${text(asRecord(body.error).message)||text(body.message)||"PROVIDER_ERROR"}`);return body}
 const mockId=(scope:string,id:string)=>`mock_${scope}_${createHash("sha256").update(id).digest("hex").slice(0,16)}`;

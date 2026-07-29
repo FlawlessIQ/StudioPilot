@@ -5,7 +5,10 @@ import {
   onDocumentWritten,
 } from "firebase-functions/v2/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { z } from "zod";
+
+const domainEventTopic = "studiocue-domain-events";
 
 const triggerSchema = z.enum([
   "lead_created",
@@ -423,15 +426,94 @@ export const normalizeDomainEvent = onDocumentWritten(
   },
 );
 
+async function publishDomainEvent(eventId: string): Promise<string> {
+  const projectId =
+    process.env.GOOGLE_CLOUD_PROJECT ?? process.env.GCLOUD_PROJECT ?? "";
+  if (!projectId) throw new Error("GOOGLE_CLOUD_PROJECT_REQUIRED");
+  const identityResponse = await fetch(
+    "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
+    { headers: { "Metadata-Flavor": "Google" } },
+  );
+  if (!identityResponse.ok) throw new Error("PUBSUB_IDENTITY_UNAVAILABLE");
+  const identity = z
+    .object({ access_token: z.string().min(1) })
+    .parse(await identityResponse.json());
+  const response = await fetch(
+    `https://pubsub.googleapis.com/v1/projects/${encodeURIComponent(
+      projectId,
+    )}/topics/${domainEventTopic}:publish`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${identity.access_token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        messages: [
+          {
+            data: Buffer.from(JSON.stringify({ eventId })).toString("base64"),
+            attributes: {
+              source: "studiocue-domain-outbox",
+              schemaVersion: "1",
+            },
+          },
+        ],
+      }),
+    },
+  );
+  if (!response.ok) {
+    throw new Error(`DOMAIN_EVENT_PUBLISH_FAILED:${response.status}`);
+  }
+  const result = z
+    .object({ messageIds: z.array(z.string()).min(1) })
+    .parse(await response.json());
+  const messageId = result.messageIds[0];
+  if (!messageId) throw new Error("DOMAIN_EVENT_MESSAGE_ID_MISSING");
+  await getFirestore().doc(`domainEvents/${eventId}`).set(
+    {
+      processingStatus: "published",
+      pubsubMessageId: messageId,
+      publishedAt: new Date().toISOString(),
+      publishError: null,
+    },
+    { merge: true },
+  );
+  return messageId;
+}
+
 export const processDomainEvent = onDocumentCreated(
   {
     document: "domainEvents/{eventId}",
     retry: true,
   },
   async (event) => {
-    const eventSnapshot = event.data;
-    if (!eventSnapshot) return;
+    if (!event.data) return;
+    try {
+      await publishDomainEvent(event.params.eventId);
+    } catch (caught: unknown) {
+      await event.data.ref.set(
+        {
+          processingStatus: "publish_retry",
+          publishError:
+            caught instanceof Error
+              ? caught.message.slice(0, 500)
+              : "DOMAIN_EVENT_PUBLISH_FAILED",
+          publishFailedAt: new Date().toISOString(),
+        },
+        { merge: true },
+      );
+      throw caught;
+    }
+  },
+);
+
+async function processDomainEventRecord(eventId: string) {
+    const eventSnapshot = await getFirestore()
+      .doc(`domainEvents/${eventId}`)
+      .get();
+    if (!eventSnapshot.exists) return;
     const domainEvent = eventSnapshot.data();
+    if (!domainEvent || domainEvent.processingStatus === "processed") return;
     const trigger = triggerSchema.safeParse(domainEvent.type);
     if (!trigger.success) {
       await eventSnapshot.ref.update({ processingStatus: "ignored" });
@@ -492,7 +574,7 @@ export const processDomainEvent = onDocumentCreated(
           ? rule.data.actions
           : [];
         if (!ruleKey || actions.length === 0) continue;
-        const runId = stable(event.params.eventId, workflowRun.id, ruleKey);
+        const runId = stable(eventId, workflowRun.id, ruleKey);
         const reference = db.doc(`automationRuns/${runId}`);
         const now = new Date().toISOString();
         try {
@@ -504,7 +586,7 @@ export const processDomainEvent = onDocumentCreated(
             workflowVersion: Number(workflow.workflowVersion ?? 1),
             automationRuleKey: ruleKey,
             trigger: trigger.data,
-            idempotencyKey: `${event.params.eventId}:${workflowRun.id}:${ruleKey}`,
+            idempotencyKey: `${eventId}:${workflowRun.id}:${ruleKey}`,
             inputSnapshot: payload,
             actionTypes: actions.map((action) =>
               String(
@@ -544,6 +626,36 @@ export const processDomainEvent = onDocumentCreated(
       matchedRuleCount: matched,
       processedAt: new Date().toISOString(),
     });
+}
+
+export const consumeDomainEvent = onMessagePublished(
+  {
+    topic: domainEventTopic,
+    retry: true,
+  },
+  async (event) => {
+    const payload = z
+      .object({ eventId: z.string().min(1).max(300) })
+      .parse(event.data.message.json);
+    await processDomainEventRecord(payload.eventId);
+  },
+);
+
+export const domainEventOutboxScheduler = onSchedule(
+  {
+    schedule: "every 5 minutes",
+    timeZone: "UTC",
+    retryCount: 3,
+  },
+  async () => {
+    const pending = await getFirestore()
+      .collection("domainEvents")
+      .where("processingStatus", "in", ["pending", "publish_retry"])
+      .limit(100)
+      .get();
+    for (const event of pending.docs) {
+      await publishDomainEvent(event.id);
+    }
   },
 );
 

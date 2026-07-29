@@ -6,7 +6,7 @@ type AdminCommand=
   |{type:"setFeatureFlag";input:{key:string;enabled:boolean;tenantIds:string[];description:string}}
   |{type:"suspendTenant";input:{tenantId:string;reason:string}}
   |{type:"grantSupportAccess";input:{tenantId:string;reason:string;durationMinutes:number}}
-  |{type:"rerunJob";input:{jobId:string}}
+  |{type:"rerunJob";input:{collectionName:"providerJobs"|"emailJobs"|"aiJobs"|"pdfJobs"|"automationRuns"|"domainEvents";jobId:string}}
   |{type:"revokeSupportAccess";input:{supportAccessId:string;reason:string}}
   |{type:"repairOwnerMembership";input:{tenantId:string}}
   |{type:"approveDeletion";input:{requestId:string;reason:string}};

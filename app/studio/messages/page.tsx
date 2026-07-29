@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AppShell } from "@/components/layout/app-shell";
 import { CommunicationsCenter } from "@/components/communications/communications-center";
+import { EmailTemplateDesigner } from "@/components/communications/email-template-designer";
 
 export const metadata: Metadata = { title: "Communications" };
 export default async function MessagesPage({
@@ -20,6 +21,7 @@ export default async function MessagesPage({
           </div>
         </header>
         <CommunicationsCenter initialProjectId={project} />
+        <EmailTemplateDesigner />
       </div>
     </AppShell>
   );

@@ -4,6 +4,7 @@
 @import "./questionnaire-intelligence.css";
 @import "./schedule-impact.css";
 @import "./operational-value.css";
+@import "./integration-diagnostics.css";
 
 :root {
   --ink: #171a18;

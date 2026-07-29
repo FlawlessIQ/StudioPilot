@@ -46,6 +46,7 @@ export type RenderEmailInput = {
   recipientName?: string | null;
   projectName?: string | null;
   values: Record<string, unknown>;
+  template?: EmailTemplateOverride | null;
 };
 
 export type RenderedEmail = {
@@ -63,6 +64,16 @@ type EmailCopy = {
   paragraphs: string[];
   action?: { label: string; url: string };
   note?: string;
+};
+
+export type EmailTemplateOverride = {
+  subject: string;
+  preheader: string;
+  eyebrow: string;
+  heading: string;
+  paragraphs: string[];
+  actionLabel: string | null;
+  note: string | null;
 };
 
 const stringValue = (
@@ -107,6 +118,52 @@ const humanDate = (value: string): string => {
 const projectReference = (
   projectName: string | null | undefined,
 ): string => (projectName ? ` for ${projectName}` : "");
+
+function templateValue(
+  value: string,
+  input: RenderEmailInput,
+): string {
+  const replacements: Record<string, string> = {
+    studioName: input.brand.studioName,
+    productName: input.brand.productName,
+    recipientName: input.recipientName ?? "",
+    projectName: input.projectName ?? "",
+    portalUrl: stringValue(input.values, "portalUrl"),
+    actionUrl: stringValue(input.values, "actionUrl"),
+    invoiceUrl: stringValue(input.values, "invoiceUrl"),
+    scheduleUrl: stringValue(input.values, "scheduleUrl"),
+    galleryUrl: stringValue(input.values, "galleryUrl"),
+  };
+  return value.replace(
+    /\{\{([a-zA-Z][a-zA-Z0-9]*)\}\}/g,
+    (_match, key: string) => replacements[key] ?? "",
+  );
+}
+
+function customizedCopy(
+  base: EmailCopy,
+  input: RenderEmailInput,
+): EmailCopy {
+  const template = input.template;
+  if (!template) return base;
+  return {
+    subject: templateValue(template.subject, input),
+    preheader: templateValue(template.preheader, input),
+    eyebrow: templateValue(template.eyebrow, input),
+    heading: templateValue(template.heading, input),
+    paragraphs: template.paragraphs.map((paragraph) =>
+      templateValue(paragraph, input),
+    ),
+    action:
+      base.action && template.actionLabel
+        ? {
+            label: templateValue(template.actionLabel, input),
+            url: base.action.url,
+          }
+        : base.action,
+    note: template.note ? templateValue(template.note, input) : undefined,
+  };
+}
 
 function copyFor(input: RenderEmailInput): EmailCopy {
   const { brand, values } = input;
@@ -537,7 +594,7 @@ const paragraphHtml = (paragraph: string): string =>
   `<p style="margin:0 0 18px;color:#4f5752;font-size:16px;line-height:1.7;">${escapeHtml(paragraph)}</p>`;
 
 export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
-  const copy = copyFor(input);
+  const copy = customizedCopy(copyFor(input), input);
   const accent = normalizeColor(input.brand.accentColor);
   const studioName = escapeHtml(input.brand.studioName);
   const productName = escapeHtml(input.brand.productName);

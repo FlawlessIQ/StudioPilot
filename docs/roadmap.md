@@ -203,27 +203,26 @@ Completion evidence:
 - production deployment and immutable revision smoke results recorded in
   `build-progress.md`
 
-Deferred enhancements, not pilot blockers:
+Additional internal hardening completed:
 
-- tenant-editable visual email designer and version history (the branded
-  template catalog, preview, test send, scheduling, approvals, and history are
-  implemented)
-- deeper provider-specific diagnostic payloads after live certification reveals
-  the support data each provider exposes
-- dependency advisory remediation when compatible upstream Firebase releases
-  are available
+- tenant-editable visual email designer, secure test sends, immutable version
+  history, activation, and rollback
+- provider health latency, credential-vault presence, scope, webhook,
+  reconciliation, failed-job, and recommended-action diagnostics
+- compatible dependency remediation and a documented residual advisory policy
 
 ## Phase 7 — Scale architecture
 
-Status: post-pilot; not a first-pilot blocker.
+Status: internal implementation complete; production scale evidence continues
+to accumulate during provider certification.
 
-- migrate high-volume and delayed work from the Scheduler-backed durable poller
-  to Cloud Tasks
-- publish normalized domain events through Pub/Sub where multiple consumers
-  benefit
-- add dead-letter replay controls and queue-specific service objectives
-- load-test email, webhook, document, AI, readiness, and reconciliation paths
-- define capacity and cost thresholds for additional Cloud Run workers
+- [x] migrate high-volume and delayed work from the Scheduler-backed durable
+  poller to Cloud Tasks, retaining the poller as a recovery transport
+- [x] publish normalized domain events through Pub/Sub with an auditable outbox
+- [x] add dead-letter replay controls and queue-specific service objectives
+- [x] add bounded load tests for email, webhook, document, AI, readiness, and
+  reconciliation paths
+- [x] define capacity and cost thresholds for additional Cloud Run workers
 
 Completion evidence:
 

@@ -77,8 +77,9 @@ four Scheduler-backed services.
    billing, and platform-operation endpoints.
 6. Deploy isolated Cloud Run document/AI workers with private invocation, CPU,
    memory, timeout, egress, and file-size limits.
-7. Create Cloud Tasks queues with bounded exponential retry and dead-letter
-   routing. Route normalized domain events through Pub/Sub.
+7. Deploy the Cloud Tasks dispatcher/worker Functions and Pub/Sub domain-event
+   Functions. Firebase creates their managed transport resources; confirm the
+   `studiocue-domain-events` topic and task worker metrics after deployment.
 8. Configure provider callback URLs and verify production webhook signing.
 9. Configure the web runtime with Firebase public values, App Check,
    nonsecret function URLs, Sentry public DSN, and the production application
@@ -141,6 +142,26 @@ new commits on that branch. The `dev:sites`, `build:sites`, and
 `start:sites` scripts preserve local compatibility with that earlier runtime.
 The primary `dev`, `build`, and `start` scripts use native Next.js for Firebase
 App Hosting.
+
+## Capacity and load verification
+
+`cloud-run/capacity-policy.yaml` is the reviewed source for worker CPU, memory,
+concurrency, instance, and timeout bounds. Apply it with:
+
+```bash
+./scripts/apply-capacity-policy.sh studiohub-prod us-east4
+```
+
+Run read-only health load tests with:
+
+```bash
+LOAD_BASE_URL=https://studiohub--studiohub-prod.us-east4.hosted.app \
+npm run test:load -- --scenario health
+```
+
+Mutation scenarios require an explicit non-production target or
+`ALLOW_PRODUCTION_LOAD_TEST=true`. The runner enforces latency and error-rate
+thresholds and returns nonzero when a service objective is missed.
 
 See [production-readiness.md](production-readiness.md) for the complete
 activation checklist and known pilot limitations.

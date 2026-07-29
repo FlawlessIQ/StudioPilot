@@ -38,7 +38,18 @@ type Connection = {
   mockMode: boolean;
   displayName: string | null;
   lastHealthCheckAt: string | null;
+  lastHealthLatencyMs: number | null;
   lastError: string | null;
+  diagnostics: {
+    severity?: string;
+    credentialPresent?: boolean;
+    scopes?: string[];
+    webhookEvents7d?: number;
+    failedJobs7d?: number;
+    lastWebhookAt?: string | null;
+    lastReconciledAt?: string | null;
+    recommendedAction?: string;
+  } | null;
 };
 
 type Notice = {
@@ -189,8 +200,17 @@ export function IntegrationManager() {
               typeof value.lastHealthCheckAt === "string"
                 ? value.lastHealthCheckAt
                 : null,
+            lastHealthLatencyMs:
+              typeof value.lastHealthLatencyMs === "number"
+                ? value.lastHealthLatencyMs
+                : null,
             lastError:
               typeof value.lastError === "string" ? value.lastError : null,
+            diagnostics:
+              typeof value.diagnostics === "object" &&
+              value.diagnostics !== null
+                ? value.diagnostics
+                : null,
           };
         }),
       );
@@ -464,10 +484,44 @@ export function IntegrationManager() {
                   <strong>
                     {connection?.lastError
                       ? readableError(connection.lastError)
-                      : relativeCheck(connection?.lastHealthCheckAt ?? null)}
+                      : connection?.lastHealthLatencyMs
+                        ? `${relativeCheck(connection.lastHealthCheckAt)} · ${connection.lastHealthLatencyMs} ms`
+                        : relativeCheck(connection?.lastHealthCheckAt ?? null)}
                   </strong>
                 </span>
               </div>
+
+              {connection?.diagnostics ? (
+                <details className="integration-diagnostics">
+                  <summary>Connection diagnostics</summary>
+                  <dl>
+                    <div>
+                      <dt>Credential vault</dt>
+                      <dd>
+                        {connection.diagnostics.credentialPresent
+                          ? "Available"
+                          : "Reconnect required"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Webhooks · 7 days</dt>
+                      <dd>{connection.diagnostics.webhookEvents7d ?? 0}</dd>
+                    </div>
+                    <div>
+                      <dt>Failed jobs · 7 days</dt>
+                      <dd>{connection.diagnostics.failedJobs7d ?? 0}</dd>
+                    </div>
+                    <div>
+                      <dt>Granted scopes</dt>
+                      <dd>{connection.diagnostics.scopes?.length ?? 0}</dd>
+                    </div>
+                  </dl>
+                  <p>
+                    {connection.diagnostics.recommendedAction ??
+                      "Run a connection test to generate recommendations."}
+                  </p>
+                </details>
+              ) : null}
 
               <footer>
                 <span className={connected ? "connection-live" : ""}>

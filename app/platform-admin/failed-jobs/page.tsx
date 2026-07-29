@@ -8,7 +8,10 @@ export default function FailedJobsPage() {
         <div>
           <p className="eyebrow">Dead-letter operations</p>
           <h1>Failed jobs</h1>
-          <p>Manual reruns preserve the original input snapshot and idempotency key.</p>
+          <p>
+            Replay provider, email, AI, PDF, automation, and domain-event
+            failures without changing their original input evidence.
+          </p>
         </div>
       </header>
       <LiveAdminCollection domain="failed_jobs" />

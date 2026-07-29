@@ -82,3 +82,32 @@ test("unknown email types receive the same branded safe fallback", () => {
   assert.match(rendered.html, /View update/);
   assert.match(rendered.text, /https:\/\/example.com\/update/);
 });
+
+test("tenant template versions substitute only allow-listed variables and escape HTML", () => {
+  const rendered = renderEmailTemplate({
+    key: "client_invitation",
+    brand,
+    recipientName: "Jordan <Admin>",
+    projectName: "Rivera wedding",
+    values,
+    template: {
+      subject: "{{studioName}} has an update for {{projectName}}",
+      preheader: "Private project details",
+      eyebrow: "Made for {{recipientName}}",
+      heading: "Welcome, {{recipientName}}",
+      paragraphs: [
+        "Your project is {{projectName}}.",
+        "Unknown variables stay empty: {{notAllowed}}.",
+      ],
+      actionLabel: "Open {{projectName}}",
+      note: "Sent securely by {{studioName}}",
+    },
+  });
+  assert.equal(
+    rendered.subject,
+    "Alder & Muse Photography has an update for Rivera wedding",
+  );
+  assert.match(rendered.html, /Welcome, Jordan &lt;Admin&gt;/);
+  assert.doesNotMatch(rendered.html, /\{\{notAllowed\}\}/);
+  assert.match(rendered.text, /Open Rivera wedding/);
+});

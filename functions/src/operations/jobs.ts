@@ -7,6 +7,7 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import {
   renderEmailTemplate,
   type EmailBrand,
+  type EmailTemplateOverride,
 } from "../communications/email-templates.js";
 import { runAiJob, runPdfJob } from "./ai-pdf.js";
 import { captureOperationalError } from "./observability.js";
@@ -20,15 +21,26 @@ import {
 
 type Result = Record<string, unknown>;
 
+export const jobCollections = [
+  "providerJobs",
+  "emailJobs",
+  "aiJobs",
+  "pdfJobs",
+] as const;
+
+export type JobCollection = (typeof jobCollections)[number];
+
 const retryDelay = (attempt: number) =>
   Math.min(6 * 60 * 60 * 1000, 30_000 * 2 ** Math.max(0, attempt - 1));
 
 async function claim(document: DocumentSnapshot) {
   return getFirestore().runTransaction(async (transaction) => {
     const current = await transaction.get(document.ref);
+    const nextAttemptAt = String(current.get("nextAttemptAt") ?? "");
     if (
       !current.exists ||
-      !["queued", "retry_scheduled"].includes(String(current.get("status")))
+      !["queued", "retry_scheduled"].includes(String(current.get("status"))) ||
+      (nextAttemptAt && nextAttemptAt > new Date().toISOString())
     ) {
       return false;
     }
@@ -61,16 +73,18 @@ async function finish(
   } catch (caught: unknown) {
     const current = await document.ref.get();
     const attempts = Number(current.get("attempts") ?? 1);
+    const maxAttempts = Number(current.get("maxAttempts") ?? 5);
     const message = caught instanceof Error ? caught.message : "JOB_FAILED";
     const code = message.split(":")[0] ?? "JOB_FAILED";
     const now = new Date().toISOString();
     await document.ref.update({
-      status: attempts >= 5 ? "dead_letter" : "retry_scheduled",
-      error: { code, message, retryable: attempts < 5 },
+      status: attempts >= maxAttempts ? "dead_letter" : "retry_scheduled",
+      error: { code, message, retryable: attempts < maxAttempts },
       nextAttemptAt:
-        attempts >= 5
+        attempts >= maxAttempts
           ? null
           : new Date(Date.now() + retryDelay(attempts)).toISOString(),
+      completedAt: attempts >= maxAttempts ? now : null,
       updatedAt: now,
     });
     if (
@@ -100,7 +114,8 @@ async function finish(
     await captureOperationalError(code, {
       collection: document.ref.parent.id,
       jobId: document.id,
-      status: attempts >= 5 ? "dead_letter" : "retry_scheduled",
+      status:
+        attempts >= maxAttempts ? "dead_letter" : "retry_scheduled",
     });
   }
 }
@@ -164,6 +179,37 @@ function safeLogoUrl(value: string | null): string | null {
   }
 }
 
+function emailTemplateOverride(
+  value: unknown,
+  tenantId: string,
+  templateKey: string,
+): EmailTemplateOverride | null {
+  const template = objectValue(value);
+  const paragraphs = template.paragraphs;
+  if (
+    (typeof template.tenantId === "string" &&
+      template.tenantId !== tenantId) ||
+    (typeof template.key === "string" && template.key !== templateKey) ||
+    typeof template.subject !== "string" ||
+    typeof template.preheader !== "string" ||
+    typeof template.eyebrow !== "string" ||
+    typeof template.heading !== "string" ||
+    !Array.isArray(paragraphs) ||
+    !paragraphs.every((paragraph) => typeof paragraph === "string")
+  ) {
+    return null;
+  }
+  return {
+    subject: template.subject,
+    preheader: template.preheader,
+    eyebrow: template.eyebrow,
+    heading: template.heading,
+    paragraphs,
+    actionLabel: firstString(template.actionLabel),
+    note: firstString(template.note),
+  };
+}
+
 async function emailContext(
   document: DocumentSnapshot,
   recipient: string,
@@ -172,6 +218,7 @@ async function emailContext(
   projectName: string | null;
   recipientName: string | null;
   values: Record<string, unknown>;
+  template: EmailTemplateOverride | null;
 }> {
   const db = getFirestore();
   const tenantId = String(document.get("tenantId") ?? "");
@@ -218,6 +265,27 @@ async function emailContext(
     document.get("projectName"),
     project?.get("name"),
   );
+  const templateKey = String(document.get("type") ?? "");
+  const snapshotTemplate = emailTemplateOverride(
+    document.get("templateSnapshot"),
+    tenantId,
+    templateKey,
+  );
+  const templatePointer =
+    !snapshotTemplate && tenantId && templateKey
+      ? await db.doc(`messageTemplatePointers/${tenantId}_${templateKey}`).get()
+      : null;
+  const activeTemplateId = firstString(
+    templatePointer?.get("activeTemplateId"),
+  );
+  const activeTemplate = activeTemplateId
+    ? await db.doc(`messageTemplates/${activeTemplateId}`).get()
+    : null;
+  const template =
+    snapshotTemplate ??
+    (activeTemplate?.exists
+      ? emailTemplateOverride(activeTemplate.data(), tenantId, templateKey)
+      : null);
 
   return {
     brand: {
@@ -236,6 +304,7 @@ async function emailContext(
     },
     projectName,
     recipientName,
+    template,
     values: {
       ...objectValue(document.data()),
       recipient,
@@ -259,6 +328,7 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
     recipientName: context.recipientName,
     projectName: context.projectName,
     values: context.values,
+    template: context.template,
   });
 
   if (process.env.EMAIL_DELIVERY_MODE !== "live") {
@@ -479,6 +549,31 @@ async function due(collectionName: string) {
   return [...queued.docs, ...retries.docs];
 }
 
+export async function processJobDocument(
+  collectionName: JobCollection,
+  jobId: string,
+): Promise<{ claimed: boolean }> {
+  const document = await getFirestore()
+    .doc(`${collectionName}/${jobId}`)
+    .get();
+  if (!document.exists) return { claimed: false };
+  const before = String(document.get("status") ?? "");
+  if (collectionName === "providerJobs")
+    await finish(document, () => providerJob(document));
+  if (collectionName === "emailJobs")
+    await finish(document, () => sendEmail(document));
+  if (collectionName === "aiJobs")
+    await finish(document, () => runAiJob(document));
+  if (collectionName === "pdfJobs")
+    await finish(document, () => runPdfJob(document));
+  return {
+    claimed:
+      ["queued", "retry_scheduled"].includes(before) &&
+      (String(document.get("nextAttemptAt") ?? "") === "" ||
+        String(document.get("nextAttemptAt")) <= new Date().toISOString()),
+  };
+}
+
 export const operationsJobScheduler = onSchedule(
   {
     schedule: "every 1 minutes",
@@ -494,13 +589,10 @@ export const operationsJobScheduler = onSchedule(
     ],
   },
   async () => {
-    for (const document of await due("providerJobs"))
-      await finish(document, () => providerJob(document));
-    for (const document of await due("emailJobs"))
-      await finish(document, () => sendEmail(document));
-    for (const document of await due("aiJobs"))
-      await finish(document, () => runAiJob(document));
-    for (const document of await due("pdfJobs"))
-      await finish(document, () => runPdfJob(document));
+    for (const collectionName of jobCollections) {
+      for (const document of await due(collectionName)) {
+        await processJobDocument(collectionName, document.id);
+      }
+    }
   },
 );

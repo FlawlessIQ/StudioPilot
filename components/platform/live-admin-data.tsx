@@ -36,7 +36,7 @@ type AdminDomain =
   | "health";
 
 type Config = {
-  collection: string;
+  collection: string | string[];
   icon: LucideIcon;
   primary: string[];
   secondary: string[];
@@ -87,21 +87,33 @@ const configurations: Record<AdminDomain, Config> = {
     facts: [
       { label: "Account", fields: ["displayName", "providerAccountId"] },
       { label: "Checked", fields: ["lastHealthCheckAt", "updatedAt"] },
+      { label: "Latency", fields: ["lastHealthLatencyMs"] },
+      { label: "Recommendation", fields: ["diagnosticRecommendation", "lastError"] },
     ],
     status: ["status"],
   },
   failed_jobs: {
-    collection: "providerJobs",
+    collection: [
+      "providerJobs",
+      "emailJobs",
+      "aiJobs",
+      "pdfJobs",
+      "automationRuns",
+      "domainEvents",
+    ],
     icon: CircleAlert,
     primary: ["type", "action", "id"],
     secondary: ["tenantId"],
     facts: [
+      { label: "Queue", fields: ["recordCollection"] },
       { label: "Attempts", fields: ["attempts"] },
       { label: "Last error", fields: ["lastError", "error"] },
     ],
-    status: ["status"],
+    status: ["status", "processingStatus"],
     filter: (record) =>
-      ["failed", "dead_letter"].includes(String(record.status)),
+      ["failed", "dead_letter", "publish_retry", "processing_failed"].includes(
+        String(record.status ?? record.processingStatus),
+      ),
   },
   feature_flags: {
     collection: "featureFlags",
@@ -187,11 +199,25 @@ export function LiveAdminCollection({
     }
     let active = true;
     const { firestore } = getFirebaseClient();
-    void getDocs(query(collection(firestore, config.collection), limit(100)))
-      .then((snapshot) => {
+    const collections = Array.isArray(config.collection)
+      ? config.collection
+      : [config.collection];
+    void Promise.all(
+      collections.map(async (collectionName) => {
+        const snapshot = await getDocs(
+          query(collection(firestore, collectionName), limit(100)),
+        );
+        return snapshot.docs.map((item) => ({
+          id: item.id,
+          recordCollection: collectionName,
+          ...item.data(),
+        }));
+      }),
+    )
+      .then((collectionRecords) => {
         if (!active) return;
-        const values = snapshot.docs
-          .map((item) => ({ id: item.id, ...item.data() }))
+        const values = collectionRecords
+          .flat()
           .filter((item) => (config.filter ? config.filter(item) : true));
         setRecords(values);
         onRecords?.(values);
@@ -202,7 +228,7 @@ export function LiveAdminCollection({
         setError(
           caught instanceof Error
             ? caught.message
-            : `${config.collection} could not be loaded.`,
+            : "Platform records could not be loaded.",
         );
       });
     return () => {
@@ -265,7 +291,19 @@ export function LiveAdminCollection({
               <AdminCommandAction
                 label="Rerun"
                 complete="Dead-letter job queued for a controlled rerun."
-                command={{ type: "rerunJob", input: { jobId: record.id } }}
+                command={{
+                  type: "rerunJob",
+                  input: {
+                    collectionName: String(record.recordCollection) as
+                      | "providerJobs"
+                      | "emailJobs"
+                      | "aiJobs"
+                      | "pdfJobs"
+                      | "automationRuns"
+                      | "domainEvents",
+                    jobId: record.id,
+                  },
+                }}
               />
             ) : null}
             {domain === "feature_flags" ? (

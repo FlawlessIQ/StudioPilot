@@ -4,6 +4,14 @@ import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
+const replayCollection = z.enum([
+  "providerJobs",
+  "emailJobs",
+  "aiJobs",
+  "pdfJobs",
+  "automationRuns",
+  "domainEvents",
+]);
 const command = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("setFeatureFlag"),
@@ -32,7 +40,10 @@ const command = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("rerunJob"),
-    input: z.object({ jobId: z.string().min(1) }),
+    input: z.object({
+      collectionName: replayCollection,
+      jobId: z.string().min(1),
+    }),
   }),
   z.object({
     type: z.literal("revokeSupportAccess"),
@@ -169,21 +180,64 @@ export const saasAdminCommand = onRequest(
           expiresAt,
         };
       } else if (parsed.type === "rerunJob") {
-        const jobReference = db.doc(`providerJobs/${parsed.input.jobId}`);
+        const jobReference = db.doc(
+          `${parsed.input.collectionName}/${parsed.input.jobId}`,
+        );
         const job = await jobReference.get();
         if (!job.exists) throw new Error("JOB_NOT_FOUND");
-        if (!["dead_letter", "failed"].includes(String(job.get("status"))))
+        const previousStatus =
+          parsed.input.collectionName === "domainEvents"
+            ? String(job.get("processingStatus"))
+            : String(job.get("status"));
+        if (
+          ![
+            "dead_letter",
+            "failed",
+            "publish_retry",
+            "processing_failed",
+          ].includes(previousStatus)
+        )
           throw new Error("JOB_NOT_RERUNNABLE");
-        await jobReference.update({
-          status: "queued",
-          nextAttemptAt: now,
-          manualRerunBy: identity.uid,
-          updatedAt: now,
-        });
+        const replayId = randomUUID();
+        if (parsed.input.collectionName === "domainEvents") {
+          await jobReference.update({
+            processingStatus: "publish_retry",
+            publishError: null,
+            manualReplayId: replayId,
+            manualRerunBy: identity.uid,
+            updatedAt: now,
+          });
+        } else if (parsed.input.collectionName === "automationRuns") {
+          await jobReference.update({
+            status: "retry_scheduled",
+            nextAttemptAt: now,
+            error: null,
+            manualReplayId: replayId,
+            manualRerunBy: identity.uid,
+            updatedAt: now,
+          });
+        } else {
+          await jobReference.update({
+            status: "queued",
+            nextAttemptAt: now,
+            error: null,
+            manualReplayId: replayId,
+            manualRerunBy: identity.uid,
+            updatedAt: now,
+          });
+        }
         result = {
           tenantId: String(job.get("tenantId")),
           jobId: parsed.input.jobId,
-          status: "queued",
+          collectionName: parsed.input.collectionName,
+          previousStatus,
+          replayId,
+          status:
+            parsed.input.collectionName === "domainEvents"
+              ? "publish_retry"
+              : parsed.input.collectionName === "automationRuns"
+                ? "retry_scheduled"
+                : "queued",
         };
       } else if (parsed.type === "revokeSupportAccess") {
         const reference = db.doc(

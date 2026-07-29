@@ -1,0 +1,30 @@
+schemaVersion: 1
+region: us-east4
+services:
+  studiohub-pdf:
+    minInstances: 0
+    maxInstances: 4
+    concurrency: 4
+    cpu: 1
+    memory: 1Gi
+    timeoutSeconds: 600
+    monthlyWarningUsd: 75
+    monthlyCriticalUsd: 150
+  studiohub-file-safety:
+    minInstances: 0
+    maxInstances: 4
+    concurrency: 2
+    cpu: 1
+    memory: 2Gi
+    timeoutSeconds: 600
+    monthlyWarningUsd: 100
+    monthlyCriticalUsd: 200
+  studiohub-ai:
+    minInstances: 0
+    maxInstances: 6
+    concurrency: 8
+    cpu: 1
+    memory: 1Gi
+    timeoutSeconds: 600
+    monthlyWarningUsd: 150
+    monthlyCriticalUsd: 300

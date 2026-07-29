@@ -26,7 +26,7 @@ Automation reruns create lineage through `manualRerunOfId`; provider-job reruns
 preserve the original job and input evidence while moving only failed or
 dead-letter work back to `queued`. Every manual rerun is audited.
 
-## Planned queue routing
+## Queue routing
 
 - Cloud Tasks: delayed and retried single-tenant actions
 - Cloud Scheduler: relative dates, reminders, reconciliations, health checks
@@ -34,6 +34,17 @@ dead-letter work back to `queued`. Every manual rerun is audited.
 - Cloud Run: PDFs, extraction, file safety, and heavier AI work
 
 Queue payloads contain identifiers and immutable snapshots, not provider secrets.
+
+Provider, email, AI, and PDF Firestore records dispatch to a single
+`operationsTaskWorker` through Cloud Tasks. The worker claims the record
+transactionally before executing it. Task creation itself is idempotent through
+the record's `taskDispatchKey`. If dispatch fails, the record is marked for the
+Scheduler recovery transport.
+
+Normalized `domainEvents` are an outbox. A Firestore trigger publishes their
+identifiers to `studiocue-domain-events`; the Pub/Sub consumer resolves the
+source record and evaluates matching workflow versions. A five-minute outbox
+scheduler republishes pending and retryable events.
 
 ## Operational health scheduling
 
@@ -59,5 +70,17 @@ from Secret Manager inside trusted compute.
 
 Inbound COI files follow a separate safety gate: Storage finalize invokes the
 private signature/ClamAV scanner, and only a clean result may consume quota and
-enqueue Vertex AI extraction. Cloud Tasks and Pub/Sub remain the scale target
-for higher-volume, per-tenant delivery and fan-out.
+enqueue Vertex AI extraction. Cloud Tasks and Pub/Sub now provide the primary
+scale transport. The poller remains deliberately available for rollback and
+recovery.
+
+## Service objectives and replay
+
+Platform health evaluates each queue independently: maximum acceptable backlog,
+maximum age of the oldest eligible record, maximum dead-letter count, current
+transport, and objective status.
+
+Platform administrators can replay failed provider, email, AI, PDF,
+automation-run, and domain-event records. Replay resets only transport state,
+adds a unique replay ID, preserves original input and failure evidence, and
+creates an audit record.
