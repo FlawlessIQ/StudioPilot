@@ -14,6 +14,7 @@ app_services=(
   billingcommand
   bookingcommand
   clientinvitationcommand
+  communicationscommand
   createsession
   crewcommand
   crewinvitationcommand
@@ -23,6 +24,7 @@ app_services=(
   planningcommand
   posteventcommand
   proposalcommand
+  publicconsultationscheduling
   publicleadintake
   saasadmincommand
   sendgrideventwebhook
@@ -37,10 +39,13 @@ app_services=(
 )
 
 scheduler_services=(
+  automationretryscheduler
+  domaineventoutboxscheduler
   finalinvoicescheduler
   operationshealthscheduler
   operationsjobscheduler
   reviewrequestscheduler
+  scheduledemailrelease
   tenantexportscheduler
 )
 
@@ -61,6 +66,18 @@ for service_name in "${scheduler_services[@]}"; do
     --role=roles/run.invoker \
     --quiet >/dev/null
 done
+
+gcloud projects add-iam-policy-binding "${project_id}" \
+  --member="serviceAccount:${functions_service_account}" \
+  --role=roles/cloudtasks.enqueuer \
+  --condition=None \
+  --quiet >/dev/null
+
+gcloud projects add-iam-policy-binding "${project_id}" \
+  --member="serviceAccount:${functions_service_account}" \
+  --role=roles/pubsub.publisher \
+  --condition=None \
+  --quiet >/dev/null
 
 gcloud run services add-iam-policy-binding studiohub-pdf \
   --region=us-east4 \

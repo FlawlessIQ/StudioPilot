@@ -25,6 +25,9 @@ approval, new production credentials, legal review, or owner acceptance.
   timeout, CPU, memory, and budget guardrails.
 - `scripts/apply-capacity-policy.sh` applies those bounds to the deployed
   workers using non-destructive `gcloud run services update` operations.
+- `scripts/configure-production-function-invokers.sh` restores least-privilege
+  App Hosting, Scheduler, Cloud Tasks, and Pub/Sub access after a Functions
+  deployment, including communications and consultation entry points.
 
 ## Email design
 

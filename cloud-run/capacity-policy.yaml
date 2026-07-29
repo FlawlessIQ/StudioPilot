@@ -1,7 +1,7 @@
 schemaVersion: 1
-region: us-east4
 services:
   studiohub-pdf:
+    region: us-east4
     minInstances: 0
     maxInstances: 4
     concurrency: 4
@@ -11,6 +11,7 @@ services:
     monthlyWarningUsd: 75
     monthlyCriticalUsd: 150
   studiohub-file-safety:
+    region: us-east1
     minInstances: 0
     maxInstances: 4
     concurrency: 2
@@ -20,6 +21,7 @@ services:
     monthlyWarningUsd: 100
     monthlyCriticalUsd: 200
   studiohub-ai:
+    region: us-east4
     minInstances: 0
     maxInstances: 6
     concurrency: 8
