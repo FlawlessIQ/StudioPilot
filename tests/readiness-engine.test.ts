@@ -72,3 +72,21 @@ test("overdue and at-risk items are deterministic date projections", () => {
   assert.equal(assessment.overdueItems.length, 1);
   assert.equal(assessment.atRiskItems.length, 1);
 });
+
+test("a project with no configured blocking checkpoints is not ready", () => {
+  const assessment = calculateReadiness({
+    id: "project-1",
+    tenantId: "tenant-a",
+    projectId: "project-1",
+    workflowRunId: null,
+    checkpoints: [],
+    calculatedAt: workflowTimestamp,
+  });
+
+  assert.equal(assessment.ready, false);
+  assert.equal(assessment.score, 0);
+  assert.equal(
+    assessment.recommendedNextAction,
+    "Set up required readiness checkpoints",
+  );
+});

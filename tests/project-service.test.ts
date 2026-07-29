@@ -50,7 +50,7 @@ const context = {
   role: "studio_owner" as const,
 };
 
-test("project transition to READY is blocked by deterministic readiness", async () => {
+test("generic project transition cannot claim READY without readiness evidence", async () => {
   const projects = new MemoryProjectStore();
   const readiness: ProjectReadinessStore = { async isReady() { return false; } };
   const service = new ProjectService(
@@ -62,12 +62,12 @@ test("project transition to READY is blocked by deterministic readiness", async 
   );
   await assert.rejects(
     service.transition(context, "project-1", 2, "READY", "correlation"),
-    /readiness blockers/i,
+    /readiness evidence/i,
   );
   assert.equal(projects.project.state, "PLANNING");
 });
 
-test("project transition to READY succeeds once deterministic readiness passes", async () => {
+test("READY remains evidence-controlled even when readiness passes", async () => {
   const projects = new MemoryProjectStore();
   const audits = new MemoryAuditStore();
   const readiness: ProjectReadinessStore = { async isReady() { return true; } };
@@ -78,14 +78,42 @@ test("project transition to READY succeeds once deterministic readiness passes",
     () => workflowTimestamp,
     readiness,
   );
-  const updated = await service.transition(
-    context,
-    "project-1",
-    2,
-    "READY",
-    "correlation",
+  await assert.rejects(
+    service.transition(
+      context,
+      "project-1",
+      2,
+      "READY",
+      "correlation",
+    ),
+    /readiness evidence/i,
   );
-  assert.equal(updated.state, "READY");
-  assert.equal(updated.stateVersion, 3);
-  assert.equal(audits.events[0]?.action, "project.state_changed");
+  assert.equal(audits.events.length, 0);
+});
+
+test("manual project transitions cannot bypass the booking gate", async () => {
+  const projects = new MemoryProjectStore();
+  projects.project = {
+    ...projects.project,
+    state: "RETAINER_PENDING",
+    stateVersion: 4,
+  };
+  const service = new ProjectService(
+    projects,
+    new MemoryAuditStore(),
+    () => "audit-1",
+    () => workflowTimestamp,
+  );
+
+  await assert.rejects(
+    service.transition(
+      context,
+      "project-1",
+      4,
+      "BOOKED",
+      "correlation",
+    ),
+    /booking gate evidence/i,
+  );
+  assert.equal(projects.project.state, "RETAINER_PENDING");
 });

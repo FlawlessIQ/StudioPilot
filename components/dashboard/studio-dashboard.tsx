@@ -5,9 +5,13 @@ import {
   ArrowRight,
   CalendarDays,
   CircleAlert,
+  Clock3,
   FolderKanban,
+  MailCheck,
   Plus,
+  ReceiptText,
   ShieldCheck,
+  Workflow,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { SetupChecklist } from "@/components/dashboard/setup-checklist";
@@ -98,6 +102,14 @@ function DashboardSummary() {
       </div>
 
       <SetupChecklist />
+
+      {workspace.role !== "staff_photographer" ? (
+        <DashboardPriorityStrip />
+      ) : null}
+
+      {["studio_owner", "studio_admin"].includes(workspace.role ?? "") ? (
+        <OwnerAutomationSignal />
+      ) : null}
 
       <section className="metric-grid" aria-label="Studio overview">
         <article className="metric-card">
@@ -228,6 +240,113 @@ function DashboardSummary() {
         </div>
       </section>
     </>
+  );
+}
+
+function DashboardPriorityStrip() {
+  const workspace = useWorkspace();
+  const tasksState = useTenantDocuments("tasks");
+  const consultationsState = useTenantDocuments("consultations");
+  const questionnaireState = useTenantDocuments("questionnaireResponses");
+  const projectsState = useTenantDocuments("projects");
+  const today = new Date().toISOString().slice(0, 10);
+  const dueTasks = (tasksState.records ?? []).filter(
+    (task) =>
+      !["complete", "completed", "cancelled"].includes(String(task.status)) &&
+      String(task.dueDate ?? "").slice(0, 10) <= today,
+  );
+  const projectsNeedingAction = (projectsState.records ?? []).filter(
+    (project) =>
+      activeStates.has(String(project.state)) &&
+      Number(project.readinessScore ?? 0) < 100,
+  );
+  const todayConsultations = (consultationsState.records ?? []).filter(
+    (consultation) => String(consultation.startsAt ?? "").slice(0, 10) === today,
+  );
+  const submittedQuestionnaires = (questionnaireState.records ?? []).filter(
+    (response) => response.status === "submitted" && !response.reviewedAt,
+  );
+  return (
+    <section
+      className="dashboard-priority-strip"
+      aria-label="Today’s operational signals"
+    >
+      <Link href="/studio/tasks">
+        <Clock3 />
+        <span><small>Tasks due or overdue</small><strong>{dueTasks.length}</strong></span>
+        <ArrowRight />
+      </Link>
+      {["studio_owner", "studio_admin"].includes(workspace.role ?? "") ? (
+        <FinancialPrioritySignal />
+      ) : (
+        <Link href="/studio/projects">
+          <CircleAlert />
+          <span><small>Projects needing action</small><strong>{projectsNeedingAction.length}</strong></span>
+          <ArrowRight />
+        </Link>
+      )}
+      <Link href="/studio/calendar">
+        <CalendarDays />
+        <span><small>Consultations today</small><strong>{todayConsultations.length}</strong></span>
+        <ArrowRight />
+      </Link>
+      <Link href="/studio/questionnaires">
+        <MailCheck />
+        <span><small>Client details to review</small><strong>{submittedQuestionnaires.length}</strong></span>
+        <ArrowRight />
+      </Link>
+    </section>
+  );
+}
+
+function FinancialPrioritySignal() {
+  const invoicesState = useTenantDocuments("invoiceReferences");
+  const today = new Date().toISOString().slice(0, 10);
+  const overdueInvoices = (invoicesState.records ?? []).filter(
+    (invoice) =>
+      Number(invoice.balanceCents ?? 0) > 0 &&
+      String(invoice.dueDate ?? "") < today &&
+      !["voided", "refunded"].includes(String(invoice.status)),
+  );
+  return (
+    <Link href="/studio/invoices">
+      <ReceiptText />
+      <span><small>Overdue balances</small><strong>{overdueInvoices.length}</strong></span>
+      <ArrowRight />
+    </Link>
+  );
+}
+
+function OwnerAutomationSignal() {
+  const runs = useTenantDocuments("automationRuns");
+  const approvals = useTenantDocuments("automationApprovals");
+  const integrations = useTenantDocuments("integrationConnections");
+  const failures = (runs.records ?? []).filter((run) =>
+    ["failed", "dead_letter"].includes(String(run.status)),
+  );
+  const pendingApprovals = (approvals.records ?? []).filter(
+    (approval) => approval.status === "pending",
+  );
+  const integrationIssues = (integrations.records ?? []).filter(
+    (connection) =>
+      connection.status === "error" || Boolean(connection.lastError),
+  );
+  if (!failures.length && !pendingApprovals.length && !integrationIssues.length)
+    return null;
+  return (
+    <section className="dashboard-automation-alert">
+      <Workflow />
+      <span>
+        <strong>Automation operations need review</strong>
+        <small>
+          {failures.length} failed runs · {pendingApprovals.length} approvals ·{" "}
+          {integrationIssues.length} integration issues
+        </small>
+      </span>
+      <Link href="/studio/automations">
+        Review operations <ArrowRight size={14} />
+      </Link>
+    </section>
   );
 }
 

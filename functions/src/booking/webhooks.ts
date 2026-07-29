@@ -54,14 +54,56 @@ export const docusignWebhook = onRequest(
       transaction.create(eventReference, { tenantId, provider: "docusign", providerEventId: payload.data.eventId, payload: payload.data, status: "processed", createdAt: new Date().toISOString() });
       const contract = contracts.docs[0];
       if (contract && payload.data.event === "envelope-completed") {
+        const timestamp = new Date().toISOString();
+        const projectReference = firestore.doc(
+          `projects/${String(contract.get("projectId"))}`,
+        );
+        const project = await transaction.get(projectReference);
         transaction.update(contract.ref, {
           status: "completed",
           completedAt: payload.data.occurredAt,
           lastProviderEventId: payload.data.eventId,
           completionEvidence: { provider: "docusign", eventId: payload.data.eventId },
-          updatedAt: new Date().toISOString(),
+          updatedAt: timestamp,
           updatedBy: "docusign-webhook",
         });
+        if (
+          project.exists &&
+          project.get("tenantId") === tenantId &&
+          project.get("state") === "CONTRACT_PENDING"
+        ) {
+          const stateVersion = Number(project.get("stateVersion") ?? 0);
+          transaction.update(projectReference, {
+            state: "RETAINER_PENDING",
+            stateVersion: stateVersion + 1,
+            updatedAt: timestamp,
+            updatedBy: "docusign-webhook",
+          });
+          const auditReference = firestore.doc(
+            `auditEvents/docusign_contract_completed_${payload.data.eventId}`,
+          );
+          transaction.create(auditReference, {
+            id: auditReference.id,
+            tenantId,
+            projectId: project.id,
+            actorId: "docusign-webhook",
+            actorType: "provider",
+            action: "contract.completed",
+            entityType: "contract",
+            entityId: contract.id,
+            timestamp,
+            before: { projectState: "CONTRACT_PENDING", stateVersion },
+            after: {
+              projectState: "RETAINER_PENDING",
+              stateVersion: stateVersion + 1,
+            },
+            ipAddress: null,
+            userAgent: null,
+            correlationId: payload.data.eventId,
+            automationRunId: null,
+            providerEventId: payload.data.eventId,
+          });
+        }
       }
     });
     response.status(204).send();

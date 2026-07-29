@@ -230,7 +230,8 @@ export const planningCommand = onRequest(
           snapshot.get("projectId") !== parsed.input.projectId
         )
           throw new Error("RESPONSE_NOT_FOUND");
-        await reference.update({
+        const batch = db.batch();
+        batch.update(reference, {
           answers: parsed.input.answers,
           status: parsed.input.submit ? "submitted" : "in_progress",
           completionPercent: parsed.input.submit
@@ -240,6 +241,25 @@ export const planningCommand = onRequest(
           updatedAt: now,
           updatedBy: identity.uid,
         });
+        if (parsed.input.submit) {
+          batch.set(
+            db.doc(`aiJobs/questionnaire_${parsed.input.responseId}`),
+            {
+              id: `questionnaire_${parsed.input.responseId}`,
+              tenantId: parsed.tenantId,
+              projectId: parsed.input.projectId,
+              responseId: parsed.input.responseId,
+              type: "questionnaire_analysis",
+              status: "queued",
+              attempts: 0,
+              humanReviewRequired: true,
+              createdAt: now,
+              updatedAt: now,
+            },
+            { merge: true },
+          );
+        }
+        await batch.commit();
         result = {
           responseId: parsed.input.responseId,
           status: parsed.input.submit ? "submitted" : "in_progress",
@@ -606,6 +626,59 @@ export const planningCommand = onRequest(
           .where("projectId", "==", parsed.input.projectId)
           .where("status", "==", "accepted")
           .get();
+        const crewProfiles = await Promise.all(
+          acceptedAssignments.docs.map((assignment) =>
+            db.doc(`crewProfiles/${String(assignment.get("crewProfileId"))}`).get(),
+          ),
+        );
+        const priorItems = priorSchedule && Array.isArray(priorSchedule.get("items"))
+          ? (priorSchedule.get("items") as unknown[]).map((value) =>
+              typeof value === "object" && value !== null
+                ? (value as Record<string, unknown>)
+                : {},
+            )
+          : [];
+        const currentItems = parsed.input.items;
+        const priorById = new Map(
+          priorItems.map((scheduleItem) => [String(scheduleItem.id), scheduleItem]),
+        );
+        const currentById = new Map(
+          currentItems.map((scheduleItem) => [scheduleItem.id, scheduleItem]),
+        );
+        const addedItemIds = currentItems
+          .filter((scheduleItem) => !priorById.has(scheduleItem.id))
+          .map((scheduleItem) => scheduleItem.id);
+        const removedItemIds = priorItems
+          .filter((scheduleItem) => !currentById.has(String(scheduleItem.id)))
+          .map((scheduleItem) => String(scheduleItem.id));
+        const changedItems = currentItems.flatMap((scheduleItem) => {
+          const priorItem = priorById.get(scheduleItem.id);
+          if (!priorItem) return [];
+          const changedFields = [
+            ["time", `${String(priorItem.startAt)}:${String(priorItem.endAt)}`, `${scheduleItem.startAt}:${scheduleItem.endAt}`],
+            ["location", `${String(priorItem.location)}:${String(priorItem.address)}`, `${String(scheduleItem.location)}:${String(scheduleItem.address)}`],
+            ["title", String(priorItem.title), scheduleItem.title],
+            ["photographers", JSON.stringify(priorItem.photographerIds ?? []), JSON.stringify(scheduleItem.photographerIds)],
+          ]
+            .filter(([, before, after]) => before !== after)
+            .map(([field]) => field);
+          return changedFields.length
+            ? [{ itemId: scheduleItem.id, title: scheduleItem.title, changedFields }]
+            : [];
+        });
+        const changeImpact = {
+          addedItemIds,
+          removedItemIds,
+          changedItems,
+          changedItemCount:
+            addedItemIds.length + removedItemIds.length + changedItems.length,
+          requiresRenewedCrewAcknowledgement:
+            acceptedAssignments.size > 0 &&
+            (addedItemIds.length > 0 ||
+              removedItemIds.length > 0 ||
+              changedItems.length > 0),
+          calculatedAt: now,
+        };
         const batch = db.batch();
         if (priorSchedule)
           batch.update(priorSchedule.ref, {
@@ -627,6 +700,7 @@ export const planningCommand = onRequest(
           pdfDocumentId: null,
           dropboxDocumentId: null,
           supersedesId: priorSchedule?.id ?? null,
+          changeImpact,
           immutable: true,
           createdAt: now,
           updatedAt: now,
@@ -642,7 +716,7 @@ export const planningCommand = onRequest(
           status: "queued",
           createdAt: now,
         });
-        for (const assignment of acceptedAssignments.docs) {
+        for (const [assignmentIndex, assignment] of acceptedAssignments.docs.entries()) {
           batch.update(assignment.ref, {
             currentScheduleId: id,
             currentScheduleVersion: version,
@@ -651,13 +725,75 @@ export const planningCommand = onRequest(
             updatedAt: now,
             updatedBy: identity.uid,
           });
+          const profile = crewProfiles[assignmentIndex];
+          if (profile?.exists && typeof profile.get("email") === "string") {
+            batch.set(
+              db.doc(`emailJobs/schedule_crew_${id}_${assignment.id}`),
+              {
+                id: `schedule_crew_${id}_${assignment.id}`,
+                tenantId: parsed.tenantId,
+                projectId: parsed.input.projectId,
+                assignmentId: assignment.id,
+                recipient: profile.get("email"),
+                recipientName: profile.get("name"),
+                type: "final_schedule_published",
+                scheduleId: id,
+                scheduleVersion: version,
+                scheduleUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app"}/crew/schedule`,
+                status: "queued",
+                attempts: 0,
+                createdAt: now,
+                updatedAt: now,
+              },
+              { merge: false },
+            );
+          }
         }
+        batch.set(
+          db.doc(`emailJobs/schedule_client_${id}`),
+          {
+            id: `schedule_client_${id}`,
+            tenantId: parsed.tenantId,
+            projectId: parsed.input.projectId,
+            type: "schedule_review",
+            scheduleId: id,
+            scheduleVersion: version,
+            scheduleUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app"}/client/schedule`,
+            status: "queued",
+            attempts: 0,
+            createdAt: now,
+            updatedAt: now,
+          },
+          { merge: false },
+        );
+        const auditReference = db.doc(`auditEvents/schedule_published_${id}`);
+        batch.create(auditReference, {
+          id: auditReference.id,
+          tenantId: parsed.tenantId,
+          projectId: parsed.input.projectId,
+          actorId: identity.uid,
+          actorType: "user",
+          action: "schedule.published",
+          entityType: "schedule",
+          entityId: id,
+          timestamp: now,
+          before: priorSchedule
+            ? { scheduleId: priorSchedule.id, version: version - 1 }
+            : null,
+          after: { scheduleId: id, version, changeImpact },
+          ipAddress: null,
+          userAgent: request.header("user-agent") ?? null,
+          correlationId: parsed.idempotencyKey,
+          automationRunId: null,
+          providerEventId: null,
+        });
         await batch.commit();
         result = {
           scheduleId: id,
           version,
           acknowledgementReset: true,
           crewNotified: acceptedAssignments.size,
+          changeImpact,
         };
       } else {
         const reference = db.doc(`schedules/${parsed.input.scheduleId}`);

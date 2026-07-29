@@ -1029,3 +1029,60 @@ Validation record:
 - production home, proposal center, and proposal composer probes: HTTP 200
 - private proposal relay probe: reached the Function and correctly rejected an
   unauthenticated request with `APP_CHECK_REQUIRED`
+
+## July 28, 2026 — post-pilot continuation roadmap
+
+Status: roadmap recorded; execution pending.
+
+- Added `docs/roadmap.md` as the prioritized source for remaining launch work.
+- Separated credential safety, provider certification, clean-account pilot,
+  production operations, legal/business launch, product hardening, and
+  post-pilot scale architecture into explicit phases.
+- Defined completion evidence for every phase so OAuth success or deployed code
+  alone cannot be mistaken for production certification.
+- Preserved `docs/manual-launch-checklist.md` as the detailed owner-facing
+  provider-console and business-decision checklist.
+- Established provider certification and the full lifecycle pilot as the next
+  launch-critical work, with product hardening available in parallel.
+
+## July 28, 2026 — lifecycle automation and value execution
+
+Status: implementation and local release validation complete; production
+deployment follows this record.
+
+- Closed manual lifecycle bypasses around proposal acceptance, contract
+  completion, retainer payment, booking, readiness, delivery, and closeout.
+- Added a normalized event-driven workflow runtime with versioned rules,
+  conditions, actions, idempotency, approval queues, retries, and dead-letter
+  evidence.
+- Added AI-assisted intake summaries, missing-information detection,
+  consultation questions, questionnaire discrepancy review, schedule risk
+  analysis, and permission-scoped Copilot explanations. AI remains advisory and
+  cannot approve insurance, payment, signature, permission, or readiness state.
+- Added branded public consultation scheduling, immutable client package
+  selection, guided booking operations, and server-derived booking-gate checks.
+- Added a communications center for branded manual and scheduled messages,
+  financial/contract/insurance approval gates, previews, delivery history, and
+  audit records.
+- Added schedule-version change impact, automatic renewed crew
+  acknowledgements, and client/crew publication notices.
+- Added role-aware daily priorities, funnel conversion, automation reliability,
+  crew acceptance, COI turnaround, and transparent time-saved reporting.
+- Switched the production configuration to live provider adapters while keeping
+  each tenant integration inactive until OAuth and acceptance are complete.
+- Hardened the browser suite to exercise the optimized production server
+  serially, preventing development compiler reloads from masking real UX
+  defects.
+
+Validation record:
+
+- strict TypeScript: passed
+- ESLint: passed with zero warnings
+- domain, permissions, provider, email, lifecycle, and AI guardrail suite:
+  103 passed
+- Firestore isolation rules: passed
+- Storage visibility and upload rules: passed
+- optimized Next.js production build: passed, including all 98 routes
+- Functions TypeScript build: passed
+- serialized responsive browser suite: 34 passed across desktop Chromium and
+  Pixel 7, including every post-auth studio, client, crew, and platform route

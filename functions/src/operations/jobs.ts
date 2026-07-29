@@ -444,6 +444,10 @@ async function saveMessage(
         templateKey: document.get("type"),
         recipient,
         subject,
+        bodyPreview:
+          typeof document.get("customBody") === "string"
+            ? String(document.get("customBody")).slice(0, 280)
+            : null,
         provider: "sendgrid",
         providerMessageId: messageId,
         deliveryMode,
@@ -485,6 +489,8 @@ export const operationsJobScheduler = onSchedule(
       "GOOGLE_CALENDAR_CLIENT_SECRET",
       "ZOOM_CLIENT_SECRET",
       "DROPBOX_CLIENT_SECRET",
+      "DOCUSIGN_CLIENT_SECRET",
+      "QUICKBOOKS_CLIENT_SECRET",
     ],
   },
   async () => {

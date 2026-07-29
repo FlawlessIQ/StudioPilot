@@ -45,6 +45,15 @@ const transitions: Readonly<
   ARCHIVED: [],
 };
 
+const evidenceControlledTransitions = new Set([
+  "PROPOSAL:CONTRACT_PENDING",
+  "CONTRACT_PENDING:RETAINER_PENDING",
+  "RETAINER_PENDING:BOOKED",
+  "POSTPONED:BOOKED",
+  "PLANNING:READY",
+  "POST_PRODUCTION:DELIVERED",
+]);
+
 const commandSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("createProject"),
@@ -230,12 +239,20 @@ export const crmCommand = onRequest(
 
         if (command.type === "createProject") {
           const projectId = randomUUID();
+          const leadReference = command.input.leadId
+            ? db.doc(`leads/${command.input.leadId}`)
+            : null;
           const contactReferences = command.input.clientContactIds.map(
             (contactId) => db.doc(`contacts/${contactId}`),
           );
-          const contactDocuments = await Promise.all(
-            contactReferences.map((reference) => transaction.get(reference)),
-          );
+          const [contactDocuments, leadDocument] = await Promise.all([
+            Promise.all(
+              contactReferences.map((reference) =>
+                transaction.get(reference),
+              ),
+            ),
+            leadReference ? transaction.get(leadReference) : null,
+          ]);
           if (
             contactDocuments.some(
               (contact) =>
@@ -245,6 +262,23 @@ export const crmCommand = onRequest(
             )
           ) {
             throw new Error("CLIENT_NOT_FOUND");
+          }
+          if (leadReference) {
+            if (
+              !leadDocument?.exists ||
+              leadDocument.get("tenantId") !== command.tenantId ||
+              leadDocument.get("archivedAt") ||
+              leadDocument.get("projectId")
+            ) {
+              throw new Error("LEAD_NOT_CONVERTIBLE");
+            }
+            if (
+              !command.input.clientContactIds.includes(
+                String(leadDocument.get("primaryContactId")),
+              )
+            ) {
+              throw new Error("LEAD_CONTACT_MISMATCH");
+            }
           }
           const project = {
             id: projectId,
@@ -263,6 +297,16 @@ export const crmCommand = onRequest(
             archivedAt: null,
           };
           transaction.create(db.doc(`projects/${projectId}`), project);
+          if (leadReference) {
+            transaction.update(leadReference, {
+              projectId,
+              status: "converted",
+              convertedAt: timestamp,
+              convertedBy: identity.uid,
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            });
+          }
           for (const contact of contactDocuments) {
             const priorProjectIds = contact.get("projectIds");
             const projectIds = Array.from(
@@ -300,6 +344,27 @@ export const crmCommand = onRequest(
             automationRunId: null,
             providerEventId: null,
           });
+          if (leadReference) {
+            const conversionAuditId = randomUUID();
+            transaction.create(db.doc(`auditEvents/${conversionAuditId}`), {
+              id: conversionAuditId,
+              tenantId: command.tenantId,
+              projectId,
+              actorId: identity.uid,
+              actorType: "user",
+              action: "lead.converted",
+              entityType: "lead",
+              entityId: command.input.leadId,
+              timestamp,
+              before: { status: leadDocument?.get("status") ?? "new" },
+              after: { status: "converted", projectId },
+              ipAddress: null,
+              userAgent: request.header("user-agent") ?? null,
+              correlationId,
+              automationRunId: null,
+              providerEventId: null,
+            });
+          }
           const output = { projectId, state: "LEAD" };
           transaction.create(commandReference, {
             tenantId: command.tenantId,
@@ -431,20 +496,12 @@ export const crmCommand = onRequest(
           if (!transitions[project.state].includes(command.input.targetState)) {
             throw new Error("INVALID_TRANSITION");
           }
-          if (command.input.targetState === "READY") {
-            const readinessSnapshot = await transaction.get(
-              db.doc(`readinessAssessments/${command.input.projectId}`),
-            );
-            const readiness = readinessSnapshot.data() as
-              | { tenantId: string; ready: boolean }
-              | undefined;
-            if (
-              !readiness ||
-              readiness.tenantId !== command.tenantId ||
-              !readiness.ready
-            ) {
-              throw new Error("READINESS_BLOCKED");
-            }
+          if (
+            evidenceControlledTransitions.has(
+              `${project.state}:${command.input.targetState}`,
+            )
+          ) {
+            throw new Error("EVIDENCE_CONTROLLED_TRANSITION");
           }
           transaction.update(projectReference, {
             state: command.input.targetState,

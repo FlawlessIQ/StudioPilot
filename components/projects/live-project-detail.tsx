@@ -32,6 +32,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import {
   allowedProjectTransitions,
+  transitionAuthority,
 } from "@/features/projects/state-machine";
 import {
   projectStateSchema,
@@ -40,6 +41,7 @@ import {
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
 
 type ProjectRecord = Record<string, unknown> & { id: string };
 type CheckpointRecord = Record<string, unknown> & { id: string };
@@ -261,7 +263,13 @@ function ProjectStageControl({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
-  if (!target || !allowedProjectTransitions[state].includes(target)) return null;
+  if (
+    !target ||
+    !allowedProjectTransitions[state].includes(target) ||
+    transitionAuthority(state, target)
+  ) {
+    return null;
+  }
   const nextStage = target;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -317,6 +325,50 @@ function ProjectStageControl({
         {notice ? <p className="project-stage-notice" role="status">{notice}</p> : null}
       </form>
     </details>
+  );
+}
+
+function ConsultationInviteAction({
+  projectId,
+  contactId,
+}: {
+  projectId: string;
+  contactId: string;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  async function send() {
+    setBusy(true);
+    setNotice(null);
+    try {
+      await runPublicScheduling({
+        type: "create_link",
+        idempotencyKey: crypto.randomUUID(),
+        input: { projectId, contactId, mode: "zoom" },
+      });
+      setNotice("Scheduling invitation queued for delivery.");
+    } catch (caught: unknown) {
+      setNotice(
+        caught instanceof Error
+          ? caught.message.replaceAll("_", " ")
+          : "Scheduling invitation could not be sent.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="project-consultation-invite">
+      <button
+        className="button project-action-secondary"
+        disabled={busy}
+        onClick={() => void send()}
+        type="button"
+      >
+        {busy ? "Sending…" : "Invite client to choose a time"}
+      </button>
+      {notice ? <small role="status">{notice}</small> : null}
+    </div>
   );
 }
 
@@ -533,6 +585,14 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
               Add a task
             </Link>
           </div>
+          {state === "LEAD" &&
+          Array.isArray(project.clientContactIds) &&
+          typeof project.clientContactIds[0] === "string" ? (
+            <ConsultationInviteAction
+              contactId={project.clientContactIds[0]}
+              projectId={projectId}
+            />
+          ) : null}
           <ProjectStageControl
             onTransition={(nextState, version) =>
               setProject((current) =>

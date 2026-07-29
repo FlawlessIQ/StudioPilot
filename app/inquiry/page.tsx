@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, LockKeyhole, ShieldCheck } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { LeadIntakeForm } from "@/components/crm/lead-intake-form";
+import { dataIsLive } from "@/lib/runtime-mode";
 import { adminFirestore } from "@/server/firebase/admin";
 
 type InquiryStudio = {
@@ -12,6 +13,9 @@ type InquiryStudio = {
 
 async function studioForSlug(slug: string): Promise<InquiryStudio | null> {
   if (!/^[a-z0-9-]{2,80}$/.test(slug)) return null;
+  if (!dataIsLive && slug === "demo-studio") {
+    return { name: "Aperture & Light Studio", slug };
+  }
   const result = await adminFirestore
     .collection("tenants")
     .where("publicSlug", "==", slug)

@@ -216,10 +216,9 @@ test.describe("authenticated visual shell", () => {
     await expect(
       page.getByRole("link", { name: /Review readiness/i }),
     ).toBeVisible();
-    await page.getByText("Update project stage", { exact: true }).click();
     await expect(
-      page.getByRole("button", { name: "Confirm Ready" }),
-    ).toBeVisible();
+      page.getByText("Update project stage", { exact: true }),
+    ).toHaveCount(0);
 
     for (const route of [
       "/studio/leads/LD-1087",
@@ -229,7 +228,9 @@ test.describe("authenticated visual shell", () => {
       "/studio/schedules/demo-schedule",
       "/studio/workflows/demo-workflow",
     ]) {
-      await expectHealthyAuthenticatedShell(page, route);
+      await test.step(route, async () => {
+        await expectHealthyAuthenticatedShell(page, route);
+      });
     }
 
     await page.goto("/studio/proposals/demo-proposal/preview");

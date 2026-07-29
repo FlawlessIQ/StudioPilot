@@ -1158,7 +1158,7 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
       </header>
 
       <div className="proposal-workspace-grid">
-        <main className="proposal-workspace-document">
+        <div className="proposal-workspace-document">
           <section className="proposal-workspace-client">
             <span>SC</span>
             <div>
@@ -1310,7 +1310,7 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
               </small>
             </div>
           </section>
-        </main>
+        </div>
 
         <aside className="proposal-workspace-actions">
           <section>

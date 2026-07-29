@@ -25,9 +25,118 @@ const checkpointChoices = [
   { key: "crew-acknowledged", name: "Crew acknowledged schedule", category: "Readiness", ownerType: "subcontractor", offsetDays: -7, completionMethod: "assignment_accepted", blocking: true },
 ] as const;
 
+const automationChoices = [
+  {
+    key: "review-new-inquiry",
+    name: "Create a lead-review task",
+    detail: "When an inquiry arrives, create an internal follow-up task.",
+    trigger: "lead_created",
+    actions: [
+      {
+        key: "create-lead-review-task",
+        type: "create_task",
+        configuration: {
+          title: "Review new inquiry",
+          description: "Review fit, availability, and missing information.",
+          priority: "high",
+        },
+        requiresApproval: false,
+      },
+    ],
+  },
+  {
+    key: "confirm-consultation",
+    name: "Send consultation confirmation",
+    detail: "Queue the branded confirmation after a consultation is scheduled.",
+    trigger: "consultation_scheduled",
+    actions: [
+      {
+        key: "send-consultation-confirmation",
+        type: "send_email",
+        configuration: { template: "consultation_confirmation" },
+        requiresApproval: false,
+      },
+    ],
+  },
+  {
+    key: "complete-contract-checkpoint",
+    name: "Complete the contract checkpoint",
+    detail: "Use the Docusign completion event as deterministic evidence.",
+    trigger: "contract_completed",
+    actions: [
+      {
+        key: "complete-contract",
+        type: "complete_checkpoint",
+        configuration: { templateKey: "contract-completed" },
+        requiresApproval: false,
+      },
+    ],
+  },
+  {
+    key: "review-retainer-payment",
+    name: "Complete retainer and alert the studio",
+    detail: "Record payment evidence, then prompt the studio to run booking.",
+    trigger: "invoice_paid",
+    actions: [
+      {
+        key: "complete-retainer",
+        type: "complete_checkpoint",
+        configuration: { templateKey: "retainer-paid" },
+        requiresApproval: false,
+      },
+      {
+        key: "booking-ready-alert",
+        type: "send_internal_alert",
+        configuration: {
+          title: "Retainer received",
+          body: "Review the booking gate and complete booking when every requirement passes.",
+        },
+        requiresApproval: false,
+      },
+    ],
+  },
+  {
+    key: "review-questionnaire",
+    name: "Create questionnaire review task",
+    detail: "Put every submitted questionnaire into the studio review queue.",
+    trigger: "form_submitted",
+    actions: [
+      {
+        key: "create-questionnaire-review",
+        type: "create_task",
+        configuration: {
+          title: "Review submitted questionnaire",
+          priority: "normal",
+        },
+        requiresApproval: false,
+      },
+    ],
+  },
+  {
+    key: "schedule-approved-alert",
+    name: "Notify the studio when a schedule is approved",
+    detail: "Create an internal alert before final publication and crew acknowledgement.",
+    trigger: "schedule_approved",
+    actions: [
+      {
+        key: "schedule-approved-notification",
+        type: "send_internal_alert",
+        configuration: {
+          title: "Schedule approved",
+          body: "Publish the final schedule and confirm crew acknowledgement.",
+        },
+        requiresApproval: false,
+      },
+    ],
+  },
+] as const;
+
 export function CreateWorkflowForm() {
   const [selected, setSelected] = useState<string[]>(
     checkpointChoices.map((checkpoint) => checkpoint.key),
+  );
+  const [selectedAutomations, setSelectedAutomations] = useState<string[]>(
+    automationChoices.map((automation) => automation.key),
   );
   const [outcome, setOutcome] = useState<{ persisted: boolean; reference: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -78,7 +187,18 @@ export function CreateWorkflowForm() {
             escalationRules: [{ daysOverdue: 1, notifyRole: "studio_admin" }],
             waiverAllowed: true,
           })),
-        automationRules: [],
+        automationRules: automationChoices
+          .filter((automation) =>
+            selectedAutomations.includes(automation.key),
+          )
+          .map((automation) => ({
+            key: automation.key,
+            name: automation.name,
+            trigger: automation.trigger,
+            conditions: [],
+            actions: automation.actions,
+            active: true,
+          })),
       });
       setOutcome({
         persisted: command.persisted,
@@ -128,6 +248,29 @@ export function CreateWorkflowForm() {
             />
             <span><strong>{checkpoint.name}</strong><small>{checkpoint.category} · {Math.abs(checkpoint.offsetDays)} days before event</small></span>
             {checkpoint.blocking ? <i>Required for readiness</i> : null}
+          </label>
+        ))}
+      </fieldset>
+      <fieldset className="checkpoint-picker">
+        <legend>Starting automations</legend>
+        {automationChoices.map((automation) => (
+          <label key={automation.key}>
+            <input
+              checked={selectedAutomations.includes(automation.key)}
+              onChange={(event) =>
+                setSelectedAutomations((current) =>
+                  event.target.checked
+                    ? [...current, automation.key]
+                    : current.filter((key) => key !== automation.key),
+                )
+              }
+              type="checkbox"
+            />
+            <span>
+              <strong>{automation.name}</strong>
+              <small>{automation.detail}</small>
+            </span>
+            <i>{automation.trigger.replaceAll("_", " ")}</i>
           </label>
         ))}
       </fieldset>

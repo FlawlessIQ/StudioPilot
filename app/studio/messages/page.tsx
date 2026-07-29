@@ -1,8 +1,26 @@
 import type { Metadata } from "next";
 import { AppShell } from "@/components/layout/app-shell";
-import { StudioDomainPage } from "@/components/studio/live-domain-view";
+import { CommunicationsCenter } from "@/components/communications/communications-center";
 
 export const metadata: Metadata = { title: "Communications" };
-export default function MessagesPage() {
-  return <AppShell active="Communications"><StudioDomainPage domain="messages" eyebrow="Client communication" title="Communications" description="Review messages sent for this studio and see whether they were delivered." /></AppShell>;
+export default async function MessagesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ project?: string }>;
+}) {
+  const { project } = await searchParams;
+  return (
+    <AppShell active="Communications">
+      <div className="live-domain-page">
+        <header className="page-heading">
+          <div>
+            <p className="eyebrow">Client communication</p>
+            <h1>Communications</h1>
+            <p>Write, approve, schedule, and trace branded project email from one place.</p>
+          </div>
+        </header>
+        <CommunicationsCenter initialProjectId={project} />
+      </div>
+    </AppShell>
+  );
 }

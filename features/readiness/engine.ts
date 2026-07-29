@@ -81,9 +81,10 @@ export function calculateReadiness(input: {
     .map((checkpoint) => toItem(checkpoint, "Due within seven days"));
   const score =
     required.length === 0
-      ? 100
+      ? 0
       : Math.round((satisfiedRequired.length / required.length) * 100);
   const primary = overdueItems[0] ?? blockingItems[0] ?? atRiskItems[0];
+  const configured = required.length > 0;
   const actorId = input.actorId ?? "readiness-engine";
 
   return readinessAssessmentSchema.parse({
@@ -92,13 +93,15 @@ export function calculateReadiness(input: {
     projectId: input.projectId,
     workflowRunId: input.workflowRunId,
     score,
-    ready: blockingItems.length === 0,
+    ready: configured && blockingItems.length === 0,
     totalRequired: required.length,
     satisfiedRequired: satisfiedRequired.length,
     blockingItems,
     overdueItems,
     atRiskItems,
-    recommendedNextAction: primary
+    recommendedNextAction: !configured
+      ? "Set up required readiness checkpoints"
+      : primary
       ? `${primary.name} · ${primary.ownerType}`
       : "No readiness blockers",
     calculatedAt: input.calculatedAt,

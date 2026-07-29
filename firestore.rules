@@ -221,6 +221,16 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /automationApprovals/{approvalId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
+      allow write: if false;
+    }
+
+    match /domainEvents/{eventId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
+      allow write: if false;
+    }
+
     match /readinessAssessments/{projectId} {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
         || (
@@ -409,6 +419,14 @@ service cloud.firestore {
           && (
             hasRole(resource.data.tenantId, ["studio_coordinator"])
           )
+        );
+      allow write: if false;
+    }
+    match /communicationDrafts/{draftId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+        || (
+          hasRole(resource.data.tenantId, ["studio_coordinator"])
+          && isAssignedToProject(resource.data.tenantId, resource.data.projectId)
         );
       allow write: if false;
     }

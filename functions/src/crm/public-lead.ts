@@ -129,7 +129,7 @@ export const publicLeadIntake = onRequest(
     const normalizedEmail = input.email.toLowerCase();
     const normalizedPhone = input.phone.replace(/\D/g, "");
     const duplicateKey = `${normalizedEmail}|${normalizedPhone}|${input.eventDate}`;
-    const [contactResult, duplicateResult] = await Promise.all([
+    const [contactResult, duplicateResult, dateConflicts] = await Promise.all([
       db
         .collection("contacts")
         .where("tenantId", "==", tenantId)
@@ -142,6 +142,21 @@ export const publicLeadIntake = onRequest(
         .where("tenantId", "==", tenantId)
         .where("duplicateKey", "==", duplicateKey)
         .where("archivedAt", "==", null)
+        .limit(1)
+        .get(),
+      db
+        .collection("projects")
+        .where("tenantId", "==", tenantId)
+        .where("eventDate", "==", input.eventDate)
+        .where("state", "in", [
+          "CONSULTATION",
+          "PROPOSAL",
+          "CONTRACT_PENDING",
+          "RETAINER_PENDING",
+          "BOOKED",
+          "PLANNING",
+          "READY",
+        ])
         .limit(1)
         .get(),
     ]);
@@ -183,6 +198,27 @@ export const publicLeadIntake = onRequest(
       defaultLeadAssigneeId?: string;
       defaultEventTypeId?: string;
     };
+    const missingInformation = missingFields(input);
+    const availabilityStatus = dateConflicts.empty ? "available" : "conflict";
+    const displayName = `${input.firstName} ${input.lastName}`.trim();
+    const suggestedConsultationQuestions = [
+      ...(missingInformation.includes("venue")
+        ? ["Which venue or location are you considering?"]
+        : []),
+      ...(missingInformation.includes("estimated guest count")
+        ? ["What guest count are you currently planning for?"]
+        : []),
+      ...(missingInformation.includes("budget range")
+        ? ["What investment range should the studio keep in mind?"]
+        : []),
+      "Which moments or outcomes matter most to you?",
+      "Who else should participate in planning and approvals?",
+    ].slice(0, 6);
+    const aiSummary = `${displayName} requested ${input.servicesRequested
+      .map((service) => service.replaceAll("_", " "))
+      .join(", ")} for a ${input.eventType.toLowerCase()} on ${input.eventDate} in ${input.city}. ${
+      input.venue ? `Venue: ${input.venue}.` : "Venue is not confirmed."
+    } ${availabilityStatus === "conflict" ? "The studio already has an active project on this date." : "No active StudioCue project currently conflicts with this date."}`;
     const lead = {
       id: leadId,
       tenantId,
@@ -202,10 +238,16 @@ export const publicLeadIntake = onRequest(
       assignedUserId: tenantData.defaultLeadAssigneeId ?? null,
       duplicateKey,
       duplicateOfLeadId: duplicateLead?.id ?? null,
-      availabilityStatus: "unknown",
-      aiSummary: null,
-      missingInformation: missingFields(input),
-      suggestedConsultationQuestions: [],
+      displayName,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      partnerName: input.partnerName,
+      email: input.email,
+      phone: input.phone,
+      availabilityStatus,
+      aiSummary,
+      missingInformation,
+      suggestedConsultationQuestions,
       consentRecordedAt: timestamp,
       source: input.source,
       createdAt: timestamp,
@@ -215,6 +257,18 @@ export const publicLeadIntake = onRequest(
       archivedAt: null,
     };
     batch.create(db.doc(`leads/${leadId}`), lead);
+    batch.create(db.doc(`aiJobs/lead_intake_${leadId}`), {
+      id: `lead_intake_${leadId}`,
+      tenantId,
+      projectId: null,
+      leadId,
+      type: "lead_intake_analysis",
+      status: "queued",
+      attempts: 0,
+      humanApprovalRequired: false,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
     batch.create(db.doc(`auditEvents/${auditId}`), {
       id: auditId,
       tenantId,
@@ -256,7 +310,7 @@ export const publicLeadIntake = onRequest(
     response.status(201).json({
       leadId,
       duplicate: Boolean(duplicateLead),
-      availabilityStatus: "unknown",
+      availabilityStatus,
       missingInformation: lead.missingInformation,
     });
   },

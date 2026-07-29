@@ -6,6 +6,7 @@ export const emailTemplateKeys = [
   "password_reset",
   "inquiry_acknowledgement",
   "consultation_confirmation",
+  "consultation_invitation",
   "consultation_reminder",
   "package_follow_up",
   "proposal_sent",
@@ -26,6 +27,7 @@ export const emailTemplateKeys = [
   "thank_you",
   "delivery",
   "review_request",
+  "manual_message",
 ] as const;
 
 export type EmailTemplateKey = (typeof emailTemplateKeys)[number];
@@ -237,6 +239,22 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           : undefined,
       };
     }
+    case "consultation_invitation":
+      return {
+        subject: `Choose a consultation time with ${brand.studioName}`,
+        preheader: "Select a convenient time for your photography consultation.",
+        eyebrow: "Consultation invitation",
+        heading: "Let’s find a time to talk",
+        paragraphs: [
+          greeting,
+          `${brand.studioName} invited you to choose a consultation time${project}.`,
+          "Open the secure scheduler to see the studio’s current availability. A confirmation will be sent after you choose a time.",
+        ],
+        action: actionUrl
+          ? { label: "Choose a consultation time", url: actionUrl }
+          : undefined,
+        note: "Times remain available until another client confirms them.",
+      };
     case "package_follow_up":
       return {
         subject: `Photography options from ${brand.studioName}`,
@@ -470,6 +488,23 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           ? { label: "Share your experience", url: destinationUrl }
           : undefined,
       };
+    case "manual_message": {
+      const subject =
+        stringValue(values, "customSubject") ||
+        `${brand.studioName} sent you an update`;
+      const body =
+        stringValue(values, "customBody") ||
+        `${brand.studioName} has an update for you.`;
+      const label = stringValue(values, "actionLabel") || "Open project portal";
+      return {
+        subject,
+        preheader: body.slice(0, 120),
+        eyebrow: "A note from your studio",
+        heading: subject,
+        paragraphs: [greeting, body],
+        action: actionUrl ? { label, url: actionUrl } : undefined,
+      };
+    }
     default:
       return {
         subject: `${brand.studioName} sent you an update`,

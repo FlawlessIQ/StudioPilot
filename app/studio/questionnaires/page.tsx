@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { QuestionnaireBuilder } from "@/components/planning/questionnaire-builder";
+import { QuestionnaireReviewInsights } from "@/components/planning/questionnaire-review-insights";
 import { LiveDomainView, ProjectContextBar } from "@/components/studio/live-domain-view";
 
 export default async function QuestionnairesPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
@@ -18,6 +19,7 @@ export default async function QuestionnairesPage({ searchParams }: { searchParam
           </div>
         </header>
         {project ? <ProjectContextBar projectId={project} /> : null}
+        {project ? <QuestionnaireReviewInsights projectId={project} /> : null}
         <LiveDomainView domain="questionnaires" projectId={project} />
         <QuestionnaireBuilder />
       </div>

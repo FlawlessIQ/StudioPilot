@@ -17,7 +17,7 @@ env:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_INTEGRATION_MODE
-    value: mock
+    value: live
     availability:
       - BUILD
       - RUNTIME
@@ -32,12 +32,12 @@ env:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_PROVIDER_MODE
-    value: mock
+    value: live
     availability:
       - BUILD
       - RUNTIME
   - variable: PROVIDER_MOCK_MODE
-    value: "true"
+    value: "false"
     availability:
       - RUNTIME
   - variable: FUNCTIONS_HTTPS_ORIGIN

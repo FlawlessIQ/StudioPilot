@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/layout/app-shell";
+import { ProjectBookingWorkspace } from "@/components/booking/project-booking-workspace";
 import { LiveDomainView, ProjectContextBar } from "@/components/studio/live-domain-view";
 
 export default async function ContractsPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
@@ -14,12 +15,20 @@ export default async function ContractsPage({ searchParams }: { searchParams: Pr
           </div>
         </header>
         {project ? <ProjectContextBar projectId={project} /> : null}
+        {project ? (
+          <ProjectBookingWorkspace projectId={project} />
+        ) : (
+          <section className="panel booking-project-prompt">
+            <h2>Choose a project to continue booking</h2>
+            <p>Open a project and select Booking to prepare its contract, retainer, and booking review in order.</p>
+          </section>
+        )}
         <section>
-          <div className="section-heading-row"><div><p className="eyebrow">Docusign</p><h2>Contracts</h2></div></div>
+          <div className="section-heading-row"><div><p className="eyebrow">Evidence history</p><h2>Contracts</h2></div></div>
           <LiveDomainView domain="contracts" projectId={project} />
         </section>
         <section>
-          <div className="section-heading-row"><div><p className="eyebrow">QuickBooks</p><h2>Invoices & balances</h2></div></div>
+          <div className="section-heading-row"><div><p className="eyebrow">Provider history</p><h2>Invoices & balances</h2></div></div>
           <LiveDomainView domain="invoices" projectId={project} />
         </section>
       </div>

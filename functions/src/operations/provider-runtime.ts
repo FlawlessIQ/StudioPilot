@@ -136,10 +136,47 @@ export async function createDocusignEnvelope(job:DocumentSnapshot){const db=getF
   const provider=await connection(String(job.get("tenantId")),"docusign");let envelopeId:string;if(provider.mock)envelopeId=mockId("envelope",job.id);else{const credential=provider.credential;if(!credential?.accountId)throw new Error("DOCUSIGN_ACCOUNT_MISSING");const signers=Array.isArray(contract.get("signers"))?contract.get("signers") as Array<Json>:[];const value=await providerJson(`${credential.baseUrl??"https://demo.docusign.net"}/restapi/v2.1/accounts/${encodeURIComponent(credential.accountId)}/envelopes`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/json"},body:JSON.stringify({transactionId:createHash("sha256").update(job.id).digest("hex").slice(0,32),templateId:contract.get("templateId"),templateRoles:signers.map(signer=>({name:text(signer.name),email:text(signer.email),roleName:text(signer.role),routingOrder:number(signer.order)})),status:"sent"})},"DOCUSIGN_CREATE_FAILED");envelopeId=text(value.envelopeId)}
   if(!envelopeId)throw new Error("DOCUSIGN_ENVELOPE_ID_MISSING");await reference.update({providerEnvelopeId:envelopeId,status:"sent",sentAt:new Date().toISOString(),providerState:"completed",updatedAt:new Date().toISOString(),updatedBy:"provider-worker"});return{contractId,envelopeId}}
 
+async function quickBooksCustomerId(
+  tenantId:string,
+  projectId:string,
+  invoice:DocumentSnapshot,
+  credential:Credential,
+  realmId:string,
+  idempotencyKey:string,
+):Promise<string>{
+  const existing=text(invoice.get("providerCustomerId"));
+  if(existing&&!existing.startsWith("pending_"))return existing;
+  const db=getFirestore();
+  const project=await db.doc(`projects/${projectId}`).get();
+  const contactIds=Array.isArray(project.get("clientContactIds"))?project.get("clientContactIds") as unknown[]:[];
+  const contactId=contactIds.find((value):value is string=>typeof value==="string");
+  if(!contactId)throw new Error("QUICKBOOKS_CUSTOMER_CONTACT_MISSING");
+  const contact=await db.doc(`contacts/${contactId}`).get();
+  if(!contact.exists||contact.get("tenantId")!==tenantId)throw new Error("QUICKBOOKS_CUSTOMER_CONTACT_MISSING");
+  const stored=text(asRecord(contact.get("providerIds")).quickbooksCustomerId);
+  if(stored)return stored;
+  const email=text(contact.get("email"));
+  const displayName=text(contact.get("displayName"))||email;
+  if(!email||!displayName)throw new Error("QUICKBOOKS_CUSTOMER_DETAILS_MISSING");
+  const base=credential.baseUrl??"https://sandbox-quickbooks.api.intuit.com";
+  const escapedEmail=email.replaceAll("'","\\'");
+  const query=encodeURIComponent(`select * from Customer where PrimaryEmailAddr = '${escapedEmail}' maxresults 1`);
+  const found=await providerJson(`${base}/v3/company/${encodeURIComponent(realmId)}/query?query=${query}&minorversion=75`,{headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json"}},"QUICKBOOKS_CUSTOMER_SEARCH_FAILED");
+  const customers=asRecord(found.QueryResponse).Customer;
+  let customerId=Array.isArray(customers)?text(asRecord(customers[0]).Id):"";
+  if(!customerId){
+    const created=await providerJson(`${base}/v3/company/${encodeURIComponent(realmId)}/customer?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/json","request-id":`${idempotencyKey}-customer`.slice(0,50)},body:JSON.stringify({DisplayName:displayName,PrimaryEmailAddr:{Address:email},...(text(contact.get("phone"))?{PrimaryPhone:{FreeFormNumber:text(contact.get("phone"))}}:{})})},"QUICKBOOKS_CUSTOMER_CREATE_FAILED");
+    customerId=text(asRecord(created.Customer).Id);
+  }
+  if(!customerId)throw new Error("QUICKBOOKS_CUSTOMER_ID_MISSING");
+  await contact.ref.update({providerIds:{...asRecord(contact.get("providerIds")),quickbooksCustomerId:customerId},updatedAt:new Date().toISOString(),updatedBy:"quickbooks-worker"});
+  return customerId;
+}
+
 export async function createQuickBooksInvoice(job:DocumentSnapshot){const db=getFirestore();const invoiceId=String(job.get("invoiceId"));const reference=db.doc(`invoiceReferences/${invoiceId}`);const invoice=await reference.get();if(!invoice.exists)throw new Error("INVOICE_NOT_FOUND");
   if(invoice.get("providerState")==="completed")return{invoiceId,providerInvoiceId:invoice.get("providerInvoiceId")};
-  const provider=await connection(String(job.get("tenantId")),"quickbooks");let providerInvoiceId:string;let balanceCents=Number(invoice.get("balanceCents"));if(provider.mock)providerInvoiceId=mockId("qbo_invoice",job.id);else{const credential=provider.credential;const realmId=credential?.realmId??String(provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");const value=await providerJson(`${credential.baseUrl??"https://sandbox-quickbooks.api.intuit.com"}/v3/company/${encodeURIComponent(realmId)}/invoice?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/json","request-id":String(job.get("idempotencyKey")??job.id)},body:JSON.stringify({CustomerRef:{value:invoice.get("providerCustomerId")},DueDate:invoice.get("dueDate"),PrivateNote:`StudioCue ${invoiceId}`,Line:[{Amount:Number(invoice.get("amountCents"))/100,DetailType:"SalesItemLineDetail",Description:String(invoice.get("kind"))}]})},"QUICKBOOKS_CREATE_FAILED");const created=asRecord(value.Invoice);providerInvoiceId=text(created.Id);balanceCents=Math.round(number(created.Balance)*100)}
-  if(!providerInvoiceId)throw new Error("QUICKBOOKS_INVOICE_ID_MISSING");const now=new Date().toISOString();await reference.update({providerInvoiceId,balanceCents,status:"sent",providerState:"completed",lastSyncedAt:now,updatedAt:now,updatedBy:"provider-worker"});return{invoiceId,providerInvoiceId}}
+  const tenantId=String(job.get("tenantId"));const provider=await connection(tenantId,"quickbooks");let providerInvoiceId:string;let providerCustomerId=text(invoice.get("providerCustomerId"));let balanceCents=Number(invoice.get("balanceCents"));if(provider.mock){providerInvoiceId=mockId("qbo_invoice",job.id);providerCustomerId=providerCustomerId.startsWith("pending_")?mockId("qbo_customer",String(invoice.get("projectId"))):providerCustomerId}else{const credential=provider.credential;const realmId=credential?.realmId??String(provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");providerCustomerId=await quickBooksCustomerId(tenantId,String(invoice.get("projectId")),invoice,credential,realmId,String(job.get("idempotencyKey")??job.id));const value=await providerJson(`${credential.baseUrl??"https://sandbox-quickbooks.api.intuit.com"}/v3/company/${encodeURIComponent(realmId)}/invoice?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/json","request-id":String(job.get("idempotencyKey")??job.id)},body:JSON.stringify({CustomerRef:{value:providerCustomerId},DueDate:invoice.get("dueDate"),PrivateNote:`StudioCue ${invoiceId}`,Line:[{Amount:Number(invoice.get("amountCents"))/100,DetailType:"SalesItemLineDetail",Description:String(invoice.get("kind"))}]})},"QUICKBOOKS_CREATE_FAILED");const created=asRecord(value.Invoice);providerInvoiceId=text(created.Id);balanceCents=Math.round(number(created.Balance)*100)}
+  if(!providerInvoiceId)throw new Error("QUICKBOOKS_INVOICE_ID_MISSING");const now=new Date().toISOString();await reference.update({providerInvoiceId,providerCustomerId,balanceCents,status:"sent",providerState:"completed",lastSyncedAt:now,updatedAt:now,updatedBy:"provider-worker"});return{invoiceId,providerInvoiceId}}
 
 async function dropboxFolder(accessToken:string,path:string){
   const create=await fetch("https://api.dropboxapi.com/2/files/create_folder_v2",{method:"POST",headers:{authorization:`Bearer ${accessToken}`,"content-type":"application/json"},body:JSON.stringify({path,autorename:false})});

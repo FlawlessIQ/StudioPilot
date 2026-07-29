@@ -1,6 +1,8 @@
 import type { AuditEvent } from "@/features/audit/schema";
 import { authorize, type AuthorizationContext } from "@/features/auth/authorize";
-import { assertProjectTransition } from "@/features/projects/state-machine";
+import {
+  assertManualProjectTransition,
+} from "@/features/projects/state-machine";
 import { projectSchema, type Project, type ProjectState } from "@/features/projects/schema";
 
 export interface ProjectStore {
@@ -94,7 +96,7 @@ export class ProjectService {
     authorize(context, "projects.manage");
     const current = await this.projects.getById(context.tenantId, projectId);
     if (!current) throw new Error("Project not found.");
-    assertProjectTransition(current.state, targetState);
+    assertManualProjectTransition(current.state, targetState);
     if (targetState === "READY") {
       if (!this.readiness || !(await this.readiness.isReady(context.tenantId, projectId))) {
         throw new Error("Project has unresolved readiness blockers.");

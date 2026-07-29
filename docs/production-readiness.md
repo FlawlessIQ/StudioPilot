@@ -1,9 +1,10 @@
 # Production Readiness
 
 This repository includes a deployable pilot architecture, but production
-activation is an operational release process—not a source-code flag. Keep
-`NEXT_PUBLIC_INTEGRATION_MODE=mock` until the checks below pass in a dedicated
-non-production Firebase project.
+activation is an operational release process—not a source-code flag. The
+production runtime now uses live provider adapters; an individual integration
+does no work until that tenant completes OAuth and the provider-specific
+acceptance path. Local development remains mock by default.
 
 ## Implemented hardening
 
@@ -47,8 +48,9 @@ legal determination is supplied by this repository.
   STOP/HELP, quiet-hours, and usage policy are configured.
 - Docusign and QuickBooks require production credentials, exact webhook payload
   certification, template/resource mapping, and provider acceptance tests.
-- A tenant-configurable visual communications-template editor is not included;
-  transactional message types and delivery history are implemented.
+- A tenant-configurable drag-and-drop email designer is not included. The
+  branded template catalog, safe variables, preview, test send, scheduling,
+  approval gate, delivery evidence, and communication history are implemented.
 - Physical erasure after the deletion approval chain remains an operator-owned
   retention action.
 - Cloud Scheduler is the current durable job poller. Cloud Tasks and Pub/Sub are
@@ -68,3 +70,6 @@ files or demo credentials.
 
 The current external-account and business-approval work is maintained in
 [`docs/manual-launch-checklist.md`](./manual-launch-checklist.md).
+The prioritized continuation sequence, including engineering work that can
+proceed while provider approvals are pending, is maintained in
+[`docs/roadmap.md`](./roadmap.md).

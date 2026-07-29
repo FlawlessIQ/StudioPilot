@@ -336,15 +336,17 @@ function calculateReadiness(
   return {
     score:
       required.length === 0
-        ? 100
+        ? 0
         : Math.round((satisfied.length / required.length) * 100),
-    ready: blockingItems.length === 0,
+    ready: required.length > 0 && blockingItems.length === 0,
     totalRequired: required.length,
     satisfiedRequired: satisfied.length,
     blockingItems,
     atRiskItems,
     overdueItems,
-    recommendedNextAction: primary
+    recommendedNextAction: required.length === 0
+      ? "Set up required readiness checkpoints"
+      : primary
       ? `${String(primary.name)} · ${String(primary.ownerType)}`
       : "No readiness blockers",
   };

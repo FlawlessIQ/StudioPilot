@@ -55,6 +55,24 @@ const requestSchema = z.discriminatedUnion("type", [
     reason: z.string().trim().min(10).max(1000).nullable(),
     idempotencyKey: z.string().min(8).max(160),
   }),
+  z.object({
+    type: z.literal("available_packages"),
+    tenantId: z.string().min(1).max(160),
+    projectId: z.string().min(1).max(160),
+  }),
+  z.object({
+    type: z.literal("select_package"),
+    tenantId: z.string().min(1).max(160),
+    projectId: z.string().min(1).max(160),
+    packageId: z.string().min(1).max(160),
+    selectedAddOns: z.array(
+      z.object({
+        addOnId: z.string().min(1).max(160),
+        quantity: z.number().int().positive().max(20),
+      }),
+    ),
+    idempotencyKey: z.string().min(8).max(160),
+  }),
 ]);
 
 type Membership = {
@@ -490,6 +508,238 @@ async function clientProjects(tenantId: string, projectIds: string[]) {
   });
 }
 
+async function availablePackages(tenantId: string, projectId: string) {
+  const project = await adminFirestore.doc(`projects/${projectId}`).get();
+  if (!project.exists || project.get("tenantId") !== tenantId) {
+    throw new Error("PROJECT_NOT_FOUND");
+  }
+  const snapshot = await adminFirestore
+    .collection("packages")
+    .where("tenantId", "==", tenantId)
+    .where("eventTypeId", "==", String(project.get("eventTypeId")))
+    .where("active", "==", true)
+    .where("publicVisible", "==", true)
+    .limit(50)
+    .get();
+  return snapshot.docs
+    .sort(
+      (left, right) =>
+        Number(left.get("displayOrder") ?? 0) -
+        Number(right.get("displayOrder") ?? 0),
+    )
+    .map((document) => ({
+      id: document.id,
+      name: String(document.get("name") ?? "Photography package"),
+      description: safeString(document.get("description")),
+      basePriceCents: Number(document.get("basePriceCents") ?? 0),
+      currency: String(document.get("currency") ?? "USD"),
+      includedCoverageMinutes: Number(
+        document.get("includedCoverageMinutes") ?? 0,
+      ),
+      includedPhotographers: Number(
+        document.get("includedPhotographers") ?? 0,
+      ),
+      includedDeliverables: Array.isArray(
+        document.get("includedDeliverables"),
+      )
+        ? document.get("includedDeliverables")
+        : [],
+      addOns: Array.isArray(document.get("addOns"))
+        ? (document.get("addOns") as Array<Record<string, unknown>>)
+            .filter((addOn) => addOn.active === true)
+            .map((addOn) =>
+              pick(addOn, [
+                "id",
+                "name",
+                "description",
+                "unitPriceCents",
+                "taxable",
+              ]),
+            )
+        : [],
+    }));
+}
+
+async function selectPackageForClient(input: {
+  tenantId: string;
+  projectId: string;
+  packageId: string;
+  selectedAddOns: Array<{ addOnId: string; quantity: number }>;
+  idempotencyKey: string;
+  actorId: string;
+}) {
+  const executionId = `client_package_${createHash("sha256")
+    .update(
+      `${input.actorId}:${input.tenantId}:${input.projectId}:${input.idempotencyKey}`,
+    )
+    .digest("hex")
+    .slice(0, 32)}`;
+  const executionReference = adminFirestore.doc(
+    `commandExecutions/${executionId}`,
+  );
+  return adminFirestore.runTransaction(async (transaction) => {
+    const existing = await transaction.get(executionReference);
+    if (existing.exists) return existing.get("result");
+    const projectReference = adminFirestore.doc(
+      `projects/${input.projectId}`,
+    );
+    const packageReference = adminFirestore.doc(
+      `packages/${input.packageId}`,
+    );
+    const [project, studioPackage] = await Promise.all([
+      transaction.get(projectReference),
+      transaction.get(packageReference),
+    ]);
+    if (
+      !project.exists ||
+      project.get("tenantId") !== input.tenantId ||
+      !["CONSULTATION", "PROPOSAL"].includes(String(project.get("state")))
+    ) {
+      throw new Error("PACKAGE_SELECTION_NOT_AVAILABLE");
+    }
+    if (project.get("packageSnapshotId")) {
+      throw new Error("PACKAGE_ALREADY_SELECTED");
+    }
+    if (
+      !studioPackage.exists ||
+      studioPackage.get("tenantId") !== input.tenantId ||
+      studioPackage.get("active") !== true ||
+      studioPackage.get("publicVisible") !== true ||
+      studioPackage.get("eventTypeId") !== project.get("eventTypeId")
+    ) {
+      throw new Error("PACKAGE_NOT_FOUND");
+    }
+    const addOns = Array.isArray(studioPackage.get("addOns"))
+      ? (studioPackage.get("addOns") as Array<Record<string, unknown>>)
+      : [];
+    const selectedLines = input.selectedAddOns.map((selection) => {
+      const addOn = addOns.find(
+        (candidate) =>
+          candidate.id === selection.addOnId && candidate.active === true,
+      );
+      if (!addOn) throw new Error("ADD_ON_NOT_FOUND");
+      const unitPriceCents = Number(addOn.unitPriceCents ?? 0);
+      return {
+        addOnId: String(addOn.id),
+        name: String(addOn.name),
+        quantity: selection.quantity,
+        unitPriceCents,
+        lineTotalCents: unitPriceCents * selection.quantity,
+        taxable: addOn.taxable === true,
+      };
+    });
+    const basePriceCents = Number(studioPackage.get("basePriceCents") ?? 0);
+    const addOnTotal = selectedLines.reduce(
+      (total, line) => total + line.lineTotalCents,
+      0,
+    );
+    const subtotalCents = basePriceCents + addOnTotal;
+    const taxCents = Math.round(
+      (subtotalCents * Number(studioPackage.get("taxRateBasisPoints") ?? 0)) /
+        10000,
+    );
+    const totalCents = subtotalCents + taxCents;
+    const retainerRule =
+      (studioPackage.get("retainerRule") as
+        | { type: "fixed"; amountCents: number }
+        | { type: "percentage"; basisPoints: number }
+        | undefined) ?? { type: "fixed", amountCents: 0 };
+    const retainerCents =
+      retainerRule.type === "fixed"
+        ? Math.min(totalCents, Number(retainerRule.amountCents))
+        : Math.round((totalCents * Number(retainerRule.basisPoints)) / 10000);
+    const snapshotId = `package_snapshot_${executionId}`;
+    const now = new Date().toISOString();
+    transaction.create(adminFirestore.doc(`packageSnapshots/${snapshotId}`), {
+      id: snapshotId,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      packageId: input.packageId,
+      packageVersion: Number(studioPackage.get("version") ?? 1),
+      packageName: String(studioPackage.get("name")),
+      description: String(studioPackage.get("description") ?? ""),
+      currency: String(studioPackage.get("currency") ?? "USD"),
+      basePriceCents,
+      addOns: selectedLines,
+      discountCents: 0,
+      subtotalCents,
+      taxCents,
+      retainerCents,
+      totalCents,
+      includedCoverageMinutes: Number(
+        studioPackage.get("includedCoverageMinutes") ?? 0,
+      ),
+      includedPhotographers: Number(
+        studioPackage.get("includedPhotographers") ?? 0,
+      ),
+      includedDeliverables: Array.isArray(
+        studioPackage.get("includedDeliverables"),
+      )
+        ? studioPackage.get("includedDeliverables")
+        : [],
+      includedTravelArea: String(
+        studioPackage.get("includedTravelArea") ?? "",
+      ),
+      terms: String(studioPackage.get("terms") ?? ""),
+      selectionDate: now,
+      selectedBy: input.actorId,
+      immutable: true,
+      createdAt: now,
+      createdBy: input.actorId,
+    });
+    transaction.update(projectReference, {
+      packageSnapshotId: snapshotId,
+      state:
+        project.get("state") === "CONSULTATION"
+          ? "PROPOSAL"
+          : project.get("state"),
+      stateVersion:
+        project.get("state") === "CONSULTATION"
+          ? Number(project.get("stateVersion") ?? 0) + 1
+          : Number(project.get("stateVersion") ?? 0),
+      nextAction: "Prepare proposal",
+      updatedAt: now,
+      updatedBy: input.actorId,
+    });
+    const result = { snapshotId, totalCents, retainerCents };
+    transaction.create(executionReference, {
+      id: executionId,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      type: "client_package_selection",
+      idempotencyKey: input.idempotencyKey,
+      actorId: input.actorId,
+      result,
+      createdAt: now,
+      completedAt: now,
+    });
+    transaction.create(
+      adminFirestore.doc(`auditEvents/${executionId}`),
+      {
+        id: executionId,
+        tenantId: input.tenantId,
+        projectId: input.projectId,
+        actorId: input.actorId,
+        actorType: "client",
+        action: "package.selected",
+        entityType: "packageSnapshot",
+        entityId: snapshotId,
+        timestamp: now,
+        before: null,
+        after: {
+          packageId: input.packageId,
+          totalCents,
+          addOnCount: selectedLines.length,
+        },
+        correlationId: executionId,
+        automationRunId: null,
+        providerEventId: null,
+      },
+    );
+    return result;
+  });
+}
+
 async function decideProposal({
   tenantId,
   projectId,
@@ -737,6 +987,26 @@ export async function POST(request: Request) {
       });
     }
 
+    if (parsed.type === "available_packages") {
+      return Response.json({
+        packages: await availablePackages(parsed.tenantId, parsed.projectId),
+      });
+    }
+
+    if (parsed.type === "select_package") {
+      return Response.json(
+        await selectPackageForClient({
+          tenantId: parsed.tenantId,
+          projectId: parsed.projectId,
+          packageId: parsed.packageId,
+          selectedAddOns: parsed.selectedAddOns,
+          idempotencyKey: parsed.idempotencyKey,
+          actorId: identity.uid,
+        }),
+        { status: 201 },
+      );
+    }
+
     if (parsed.type === "decide_proposal") {
       if (parsed.decision === "declined" && !parsed.reason) {
         return Response.json({ error: "INVALID_REQUEST" }, { status: 400 });
@@ -859,7 +1129,9 @@ export async function POST(request: Request) {
       error === "PROPOSAL_EXPIRED" ||
       error === "PROPOSAL_SUPERSEDED" ||
       error === "PACKAGE_SNAPSHOT_CONFLICT" ||
-      error === "PROJECT_STATE_CONFLICT"
+      error === "PROJECT_STATE_CONFLICT" ||
+      error === "PACKAGE_SELECTION_NOT_AVAILABLE" ||
+      error === "PACKAGE_ALREADY_SELECTED"
     ) {
       return Response.json({ error }, { status: 409 });
     }

@@ -29,9 +29,11 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import {
   decideClientProposal,
+  getClientAvailablePackages,
   getClientPortalProject,
   getClientPortalRecords,
   sendClientPortalMessage,
+  selectClientPackage,
   type ClientPortalCollection,
   type ClientPortalProject,
 } from "@/lib/client/portal-client";
@@ -1029,12 +1031,190 @@ export function LiveClientProposal() {
 }
 
 export function LiveClientPackage() {
+  const workspace = useWorkspace();
   const snapshots = useProjectRecords("packageSnapshots");
   const snapshot = snapshots.value[0];
+  const [packages, setPackages] = useState<RecordValue[]>([]);
+  const [packageLoading, setPackageLoading] = useState(dataIsLive);
+  const [selectedAddOns, setSelectedAddOns] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  useEffect(() => {
+    if (
+      !dataIsLive ||
+      workspace.loading ||
+      !workspace.tenantId ||
+      !workspace.projectId ||
+      snapshot
+    ) {
+      if (!dataIsLive || snapshot) queueMicrotask(() => setPackageLoading(false));
+      return;
+    }
+    let active = true;
+    void getClientAvailablePackages(
+      workspace.tenantId,
+      workspace.projectId,
+    )
+      .then((result) => {
+        if (active) setPackages(result.packages as RecordValue[]);
+      })
+      .catch((caught: unknown) => {
+        if (active)
+          setNotice(
+            caught instanceof Error
+              ? caught.message
+              : "Packages could not be loaded.",
+          );
+      })
+      .finally(() => {
+        if (active) setPackageLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [
+    snapshot,
+    workspace.loading,
+    workspace.projectId,
+    workspace.tenantId,
+  ]);
   if (snapshots.loading || snapshots.error)
     return <PortalPageState eyebrow="Your selection" title="Your package" description="Coverage, deliverables, and the price preserved for this project." loading={snapshots.loading} error={snapshots.error} />;
-  if (!snapshot)
-    return <PortalPageState eyebrow="Your selection" title="Your package" description="Coverage, deliverables, and the price preserved for this project." loading={false} error={null} empty="Your selected package will appear after the studio confirms it for this project." />;
+  if (!snapshot) {
+    if (packageLoading)
+      return <PortalPageState eyebrow="Choose coverage" title="Photography packages" description="Compare the studio’s current options and preserve your selection." loading error={null} />;
+    return (
+      <div className="client-booking-page">
+        <p className="eyebrow">Choose coverage</p>
+        <h1>Photography packages</h1>
+        <p>
+          Compare the studio’s current options. Your exact selection, add-ons,
+          tax, retainer, and total will be preserved when you confirm.
+        </p>
+        <div className="client-package-options">
+          {packages.map((studioPackage) => {
+            const addOns = Array.isArray(studioPackage.addOns)
+              ? (studioPackage.addOns as Array<Record<string, unknown>>)
+              : [];
+            const selectedForPackage = addOns.filter((addOn) =>
+              selectedAddOns.includes(`${studioPackage.id}:${String(addOn.id)}`),
+            );
+            const total =
+              number(studioPackage.basePriceCents) +
+              selectedForPackage.reduce(
+                (sum, addOn) => sum + number(addOn.unitPriceCents),
+                0,
+              );
+            return (
+              <article className="panel client-package-option" key={studioPackage.id}>
+                <div>
+                  <span>
+                    <h2>{text(studioPackage.name, "Photography package")}</h2>
+                    <strong>
+                      {money(studioPackage.basePriceCents, studioPackage.currency)}
+                    </strong>
+                  </span>
+                  <p>{text(studioPackage.description)}</p>
+                </div>
+                <ul>
+                  <li>
+                    <CircleCheck />{" "}
+                    {number(studioPackage.includedCoverageMinutes) / 60} hours
+                  </li>
+                  <li>
+                    <CircleCheck />{" "}
+                    {number(studioPackage.includedPhotographers)} photographer(s)
+                  </li>
+                  {(Array.isArray(studioPackage.includedDeliverables)
+                    ? studioPackage.includedDeliverables
+                    : []
+                  ).map((item) => (
+                    <li key={String(item)}>
+                      <CircleCheck /> {String(item)}
+                    </li>
+                  ))}
+                </ul>
+                {addOns.length ? (
+                  <fieldset>
+                    <legend>Optional add-ons</legend>
+                    {addOns.map((addOn) => {
+                      const key = `${studioPackage.id}:${String(addOn.id)}`;
+                      return (
+                        <label key={key}>
+                          <input
+                            checked={selectedAddOns.includes(key)}
+                            onChange={(event) =>
+                              setSelectedAddOns((current) =>
+                                event.target.checked
+                                  ? [...current, key]
+                                  : current.filter((value) => value !== key),
+                              )
+                            }
+                            type="checkbox"
+                          />
+                          <span>
+                            <strong>{String(addOn.name)}</strong>
+                            <small>
+                              {money(addOn.unitPriceCents, studioPackage.currency)}
+                            </small>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </fieldset>
+                ) : null}
+                <div className="client-package-confirm">
+                  <span>
+                    <small>Selection before tax</small>
+                    <strong>{money(total, studioPackage.currency)}</strong>
+                  </span>
+                  <button
+                    className="button button-dark"
+                    disabled={busy}
+                    onClick={() => {
+                      if (!workspace.tenantId || !workspace.projectId) return;
+                      setBusy(true);
+                      setNotice("");
+                      void selectClientPackage(
+                        workspace.tenantId,
+                        workspace.projectId,
+                        studioPackage.id,
+                        selectedForPackage.map((addOn) => ({
+                          addOnId: String(addOn.id),
+                          quantity: 1,
+                        })),
+                      )
+                        .then(() => window.location.reload())
+                        .catch((caught: unknown) =>
+                          setNotice(
+                            caught instanceof Error
+                              ? caught.message.replaceAll("_", " ")
+                              : "Your package could not be selected.",
+                          ),
+                        )
+                        .finally(() => setBusy(false));
+                    }}
+                    type="button"
+                  >
+                    {busy ? "Confirming…" : "Select this package"}
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+          {!packages.length ? (
+            <section className="panel portal-live-state">
+              <span>
+                <strong>Packages are being prepared</strong>
+                <small>Your studio will publish options for this project.</small>
+              </span>
+            </section>
+          ) : null}
+        </div>
+        {notice ? <p className="client-proposal-notice">{notice}</p> : null}
+      </div>
+    );
+  }
   const value = snapshot;
   const included = Array.isArray(value.includedDeliverables)
     ? value.includedDeliverables

@@ -21,6 +21,10 @@ test("public product, pricing, and vertical pages are complete", async ({ page }
 
 test("public inquiry validates and completes without fake persistence", async ({ page }) => {
   await page.goto("/inquiry");
+  await expect(
+    page.getByRole("heading", { name: "Ask the studio for its current inquiry link." }),
+  ).toBeVisible();
+  await page.goto("/inquiry?studio=demo-studio");
   await page.getByLabel("First name").fill("Lena");
   await page.getByLabel("Last name").fill("Ortiz");
   await page.getByLabel("Email").fill("lena@example.test");

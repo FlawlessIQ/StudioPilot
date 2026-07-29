@@ -3,8 +3,11 @@
 import { useMemo, useState } from "react";
 import {
   BarChart3,
+  Bot,
   BriefcaseBusiness,
+  CheckCircle2,
   CircleDollarSign,
+  ClockArrowUp,
   Download,
   Gauge,
   Info,
@@ -22,6 +25,15 @@ export function LiveReports() {
   const projectsState = useTenantDocuments("projects");
   const leadsState = useTenantDocuments("leads");
   const invoicesState = useTenantDocuments("invoiceReferences");
+  const consultationsState = useTenantDocuments("consultations");
+  const proposalsState = useTenantDocuments("proposals");
+  const contractsState = useTenantDocuments("contracts");
+  const crewState = useTenantDocuments("crewAssignments");
+  const schedulesState = useTenantDocuments("schedules");
+  const insuranceState = useTenantDocuments("insuranceRequests");
+  const automationsState = useTenantDocuments("automationRuns");
+  const messagesState = useTenantDocuments("messages");
+  const questionnairesState = useTenantDocuments("questionnaireResponses");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [projectType, setProjectType] = useState("all");
@@ -74,6 +86,73 @@ export function LiveReports() {
     }, {}),
   );
   const maxSource = Math.max(1, ...leadSources.map(([, count]) => count));
+  const scoped = (records: typeof projectsState.records) =>
+    (records ?? []).filter((record) => {
+      const linkedProject = String(record.projectId ?? "");
+      return !linkedProject || projectIds.has(linkedProject);
+    });
+  const consultations = scoped(consultationsState.records);
+  const proposals = scoped(proposalsState.records);
+  const contracts = scoped(contractsState.records);
+  const crewAssignments = scoped(crewState.records);
+  const schedules = scoped(schedulesState.records);
+  const insurance = scoped(insuranceState.records);
+  const automations = scoped(automationsState.records);
+  const messages = scoped(messagesState.records);
+  const questionnaires = scoped(questionnairesState.records);
+  const terminalAutomationStatuses = new Set([
+    "completed",
+    "failed",
+    "dead_letter",
+  ]);
+  const terminalAutomations = automations.filter((run) =>
+    terminalAutomationStatuses.has(String(run.status)),
+  );
+  const automationReliability = terminalAutomations.length
+    ? Math.round(
+        (terminalAutomations.filter((run) => run.status === "completed").length /
+          terminalAutomations.length) *
+          100,
+      )
+    : 0;
+  const proposalsSent = proposals.filter((item) =>
+    ["sent", "viewed", "accepted", "declined", "expired"].includes(
+      String(item.status),
+    ),
+  );
+  const proposalAcceptance = proposalsSent.length
+    ? Math.round(
+        (proposalsSent.filter((item) => item.status === "accepted").length /
+          proposalsSent.length) *
+          100,
+      )
+    : 0;
+  const acceptedCrew = crewAssignments.filter(
+    (item) => item.status === "accepted" || item.status === "completed",
+  ).length;
+  const crewAcceptance = crewAssignments.length
+    ? Math.round((acceptedCrew / crewAssignments.length) * 100)
+    : 0;
+  const coiTurnaroundDays = insurance
+    .flatMap((item) => {
+      if (!item.requestedAt || !item.approvedAt) return [];
+      const duration =
+        new Date(String(item.approvedAt)).valueOf() -
+        new Date(String(item.requestedAt)).valueOf();
+      return duration >= 0 ? [duration / 86_400_000] : [];
+    });
+  const averageCoiTurnaround = coiTurnaroundDays.length
+    ? Math.round(
+        coiTurnaroundDays.reduce((sum, value) => sum + value, 0) /
+          coiTurnaroundDays.length,
+      )
+    : null;
+  const estimatedMinutesSaved =
+    terminalAutomations.filter((run) => run.status === "completed").length * 6 +
+    messages.length * 4 +
+    questionnaires.filter((item) => item.aiReview).length * 10 +
+    schedules.filter((item) => Number(item.version ?? 0) > 1).length * 12 +
+    contracts.filter((item) => item.status === "completed").length * 8;
 
   function exportCsv() {
     const header = [
@@ -108,7 +187,18 @@ export function LiveReports() {
   }
 
   const loading =
-    projectsState.loading || leadsState.loading || invoicesState.loading;
+    projectsState.loading ||
+    leadsState.loading ||
+    invoicesState.loading ||
+    consultationsState.loading ||
+    proposalsState.loading ||
+    contractsState.loading ||
+    crewState.loading ||
+    schedulesState.loading ||
+    insuranceState.loading ||
+    automationsState.loading ||
+    messagesState.loading ||
+    questionnairesState.loading;
   const error =
     projectsState.error || leadsState.error || invoicesState.error;
   return (
@@ -215,6 +305,51 @@ export function LiveReports() {
           </div>
         </section>
       </div>
+      <section className="report-performance-section">
+        <div className="section-heading-row">
+          <div>
+            <p className="eyebrow">Workflow performance</p>
+            <h2>Where StudioCue is reducing coordination work</h2>
+            <p>Operational outcomes and a conservative time-reclaimed estimate, calculated from recorded activity.</p>
+          </div>
+        </div>
+        <div className="report-performance-grid">
+          <article className="panel">
+            <Bot />
+            <span><small>Automation reliability</small><strong>{loading ? "—" : `${automationReliability}%`}</strong><p>{terminalAutomations.length} completed or terminal runs</p></span>
+          </article>
+          <article className="panel">
+            <CheckCircle2 />
+            <span><small>Proposal acceptance</small><strong>{loading ? "—" : `${proposalAcceptance}%`}</strong><p>{proposalsSent.length} delivered proposals</p></span>
+          </article>
+          <article className="panel">
+            <CheckCircle2 />
+            <span><small>Crew acceptance</small><strong>{loading ? "—" : `${crewAcceptance}%`}</strong><p>{crewAssignments.length} assignments tracked</p></span>
+          </article>
+          <article className="panel">
+            <ClockArrowUp />
+            <span><small>Estimated time reclaimed</small><strong>{loading ? "—" : `${Math.round(estimatedMinutesSaved / 60)}h`}</strong><p>Estimated from completed automation and generated coordination work</p></span>
+          </article>
+        </div>
+        <div className="report-funnel panel">
+          {[
+            ["Inquiries", leadsState.records?.length ?? 0],
+            ["Consultations", consultations.length],
+            ["Proposals sent", proposalsSent.length],
+            ["Contracts complete", contracts.filter((item) => item.status === "completed").length],
+            ["Booked projects", projects.filter((item) => ["BOOKED", "PLANNING", "READY", "EVENT_COMPLETE", "POST_PRODUCTION", "DELIVERED", "REVIEW_REQUESTED", "CLOSED"].includes(String(item.state))).length],
+          ].map(([label, value], index) => (
+            <article key={String(label)}>
+              <span>{index + 1}</span>
+              <small>{String(label)}</small>
+              <strong>{value}</strong>
+            </article>
+          ))}
+        </div>
+        <p className="report-estimate-note">
+          Time reclaimed is an estimate, not a financial guarantee: 6 minutes per completed automation, 4 per tracked outbound message, 10 per AI-reviewed questionnaire, 12 per revised schedule, and 8 per completed digital contract. COI turnaround: {averageCoiTurnaround === null ? "not enough completed requests yet" : `${averageCoiTurnaround} days on average`}.
+        </p>
+      </section>
       <aside className="panel report-source-note">
         <Info />
         <span>

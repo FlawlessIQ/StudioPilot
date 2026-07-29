@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -31,6 +32,7 @@ import type { Role } from "@/features/auth/roles";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { runCrmCommand } from "@/lib/crm/command-client";
 import { ReadinessMeter } from "@/components/ui/readiness-meter";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ClientPortalInvite } from "@/components/clients/client-portal-invite";
@@ -496,8 +498,9 @@ export function LiveLeadDetail({ id }: { id: string }) {
       lead.name ??
       `${lead.firstName ?? ""} ${lead.lastName ?? ""}`,
   ).trim() || "New inquiry";
-  const missing = Array.isArray(lead.missingFields)
-    ? lead.missingFields.map(String)
+  const missingSource = lead.missingInformation ?? lead.missingFields;
+  const missing = Array.isArray(missingSource)
+    ? missingSource.map(String)
     : [];
   const questions = Array.isArray(lead.suggestedConsultationQuestions)
     ? lead.suggestedConsultationQuestions.map(String)
@@ -518,6 +521,16 @@ export function LiveLeadDetail({ id }: { id: string }) {
         </StatusBadge>
       </header>
       <div className="lead-action-row">
+        {String(lead.status) !== "converted" ? (
+          <ConvertInquiryButton lead={lead} />
+        ) : lead.projectId ? (
+          <Link
+            className="button button-dark"
+            href={`/studio/projects/${String(lead.projectId)}`}
+          >
+            Open project <ArrowRight />
+          </Link>
+        ) : null}
         {email ? <a className="button button-dark" href={`mailto:${email}`}><Mail /> Email client</a> : null}
         {phone ? <a className="button button-light" href={`tel:${phone}`}><Phone /> Call client</a> : null}
       </div>
@@ -546,6 +559,17 @@ export function LiveLeadDetail({ id }: { id: string }) {
           <p>{lead.message}</p>
         </section>
       ) : null}
+      {typeof lead.aiSummary === "string" && lead.aiSummary ? (
+        <section className="panel lead-message-card">
+          <div className="panel-heading">
+            <div>
+              <h2>Inquiry brief</h2>
+              <p>AI-assisted summary. Verify details against the original inquiry.</p>
+            </div>
+          </div>
+          <p>{lead.aiSummary}</p>
+        </section>
+      ) : null}
       <section className="lead-detail-grid">
         <article className="panel lead-insight-card">
           <h2>Before the consultation</h2>
@@ -561,6 +585,70 @@ export function LiveLeadDetail({ id }: { id: string }) {
         </article>
       </section>
     </div>
+  );
+}
+
+function ConvertInquiryButton({ lead }: { lead: TenantDocument }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  async function convert() {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const eventTypeLabel = String(
+        lead.eventTypeLabel ?? lead.eventType ?? "Wedding",
+      );
+      const displayName = String(
+        lead.displayName ??
+          `${String(lead.firstName ?? "")} ${String(lead.lastName ?? "")}`,
+      ).trim();
+      const response = await runCrmCommand("createProject", {
+        name: `${displayName || "Client"} ${eventTypeLabel}`.trim(),
+        eventTypeId: String(
+          lead.eventTypeId ?? eventTypeLabel.toLowerCase(),
+        ),
+        eventType: eventTypeLabel,
+        eventDate: String(lead.eventDate),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        clientContactIds: [String(lead.primaryContactId)],
+        leadPhotographerId: null,
+        leadId: lead.id,
+        venueName:
+          typeof lead.venue === "string" && lead.venue ? lead.venue : null,
+        city: typeof lead.city === "string" && lead.city ? lead.city : null,
+      });
+      const projectId = String(response.result.projectId ?? "");
+      if (response.persisted && projectId) {
+        router.push(`/studio/projects/${projectId}`);
+        router.refresh();
+      } else {
+        setNotice("Preview: this inquiry would become a project.");
+      }
+    } catch (caught: unknown) {
+      setNotice(
+        caught instanceof Error
+          ? caught.message.replaceAll("_", " ")
+          : "The inquiry could not be converted.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <button
+        className="button button-dark"
+        disabled={busy}
+        onClick={() => void convert()}
+        type="button"
+      >
+        {busy ? "Creating project…" : "Convert to project"} <ArrowRight />
+      </button>
+      {notice ? <p className="form-notice" role="status">{notice}</p> : null}
+    </>
   );
 }
 export function LiveUpcomingRows() {

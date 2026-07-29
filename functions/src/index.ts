@@ -9,11 +9,16 @@ export { crmCommand } from "./crm/commands.js";
 export { publicLeadIntake } from "./crm/public-lead.js";
 export { workflowCommand } from "./workflow/commands.js";
 export { bookingCommand } from "./booking/commands.js";
+export { publicConsultationScheduling } from "./booking/public-scheduling.js";
 export { proposalCommand } from "./booking/proposals.js";
 export { docusignWebhook, quickbooksWebhook } from "./booking/webhooks.js";
 export { planningCommand } from "./planning/commands.js";
 export { sendgridInboundCoi } from "./planning/inbound.js";
 export { sendgridEventWebhook } from "./communications/sendgrid-events.js";
+export {
+  communicationsCommand,
+  scheduledEmailRelease,
+} from "./communications/commands.js";
 export { crewCommand } from "./crew/commands.js";
 export { crewInvitationCommand } from "./crew/invitations.js";
 export { clientInvitationCommand } from "./client/invitations.js";
@@ -38,6 +43,11 @@ export { finalInvoiceScheduler } from "./operations/invoice-scheduler.js";
 export { aiCopilotCommand } from "./ai/copilot.js";
 export { aiScheduleCommand } from "./ai/schedule.js";
 export { authEmailCommand } from "./auth/emails.js";
+export {
+  automationRetryScheduler,
+  normalizeDomainEvent,
+  processDomainEvent,
+} from "./automation/runtime.js";
 
 if (getApps().length === 0) {
   initializeApp();

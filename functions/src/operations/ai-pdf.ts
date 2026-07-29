@@ -10,7 +10,153 @@ async function cloudAccessToken(){const value=await metadataToken("token");const
 async function cloudRunIdentityToken(audience:string){const response=await fetch(`http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=${encodeURIComponent(audience)}&format=full`,{headers:{"Metadata-Flavor":"Google"}});if(!response.ok)throw new Error("PDF_SERVICE_IDENTITY_UNAVAILABLE");return response.text()}
 const money=(value:unknown,currency:string)=>new Intl.NumberFormat("en-US",{style:"currency",currency}).format(Number(value)/100);
 
-export async function runAiJob(job:DocumentSnapshot){if(String(job.get("type"))!=="coi_extraction")throw new Error("UNSUPPORTED_AI_JOB");const db=getFirestore();const requestId=job.id.replace(/^coi_/,"");const insurance=await db.doc(`insuranceRequests/${requestId}`).get();if(!insurance.exists)throw new Error("INSURANCE_REQUEST_NOT_FOUND");if(job.get("humanApprovalRequired")!==true)throw new Error("AI_HUMAN_REVIEW_GUARD_MISSING");if(insurance.get("scanStatus")!=="clean")throw new Error("COI_FILE_NOT_CLEARED");let extraction:Json;
+async function runLeadIntakeAnalysis(job:DocumentSnapshot){
+  const db=getFirestore();
+  const leadId=string(job.get("leadId"))||job.id.replace(/^lead_intake_/,"");
+  const lead=await db.doc(`leads/${leadId}`).get();
+  if(!lead.exists)throw new Error("LEAD_NOT_FOUND");
+  const missing=Array.isArray(lead.get("missingInformation"))?lead.get("missingInformation") as unknown[]:[];
+  let analysis:Json;
+  if(process.env.PROVIDER_MOCK_MODE==="true"){
+    analysis={
+      summary:string(lead.get("aiSummary"))||"Inquiry received and ready for studio review.",
+      missingInformation:missing.map(String),
+      suggestedConsultationQuestions:Array.isArray(lead.get("suggestedConsultationQuestions"))?lead.get("suggestedConsultationQuestions"):[],
+    };
+  }else{
+    const project=process.env.VERTEX_AI_PROJECT_ID;
+    const location=process.env.VERTEX_AI_LOCATION??"us-east4";
+    const model=process.env.VERTEX_AI_EXTRACTION_MODEL;
+    if(!project||!model)throw new Error("VERTEX_AI_NOT_CONFIGURED");
+    const token=await cloudAccessToken();
+    const facts={
+      eventType:lead.get("eventTypeLabel"),
+      eventDate:lead.get("eventDate"),
+      venue:lead.get("venue"),
+      city:lead.get("city"),
+      estimatedGuestCount:lead.get("estimatedGuestCount"),
+      servicesRequested:lead.get("servicesRequested"),
+      budgetRange:lead.get("budgetRange"),
+      referralSource:lead.get("referralSource"),
+      message:lead.get("message"),
+      knownMissingInformation:missing,
+    };
+    const response=await fetch(`https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`,{
+      method:"POST",
+      headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},
+      body:JSON.stringify({
+        systemInstruction:{parts:[{text:"You summarize photography inquiries using only supplied facts. Never invent pricing, availability, dates, venues, or client preferences. Missing information and questions are suggestions for a human consultation."}]},
+        contents:[{role:"user",parts:[{text:JSON.stringify(facts)}]}],
+        generationConfig:{
+          temperature:0,
+          responseMimeType:"application/json",
+          responseSchema:{
+            type:"OBJECT",
+            properties:{
+              summary:{type:"STRING"},
+              missingInformation:{type:"ARRAY",items:{type:"STRING"}},
+              suggestedConsultationQuestions:{type:"ARRAY",items:{type:"STRING"}},
+            },
+            required:["summary","missingInformation","suggestedConsultationQuestions"],
+          },
+        },
+      }),
+    });
+    if(!response.ok)throw new Error(`VERTEX_AI_FAILED:${response.status}`);
+    const body=record(await response.json());
+    const candidates=Array.isArray(body.candidates)?body.candidates:[];
+    const content=record(record(candidates[0]).content);
+    const parts=Array.isArray(content.parts)?content.parts:[];
+    const output=string(record(parts[0]).text);
+    if(!output)throw new Error("VERTEX_AI_EMPTY_OUTPUT");
+    analysis=record(JSON.parse(output));
+  }
+  const summary=string(analysis.summary);
+  const missingInformation=Array.isArray(analysis.missingInformation)?analysis.missingInformation.map(String).filter(Boolean).slice(0,12):missing.map(String);
+  const suggestedConsultationQuestions=Array.isArray(analysis.suggestedConsultationQuestions)?analysis.suggestedConsultationQuestions.map(String).filter(Boolean).slice(0,8):[];
+  const now=new Date().toISOString();
+  await lead.ref.update({
+    aiSummary:summary||lead.get("aiSummary")||null,
+    missingInformation,
+    suggestedConsultationQuestions,
+    aiAnalyzedAt:now,
+    updatedAt:now,
+    updatedBy:"vertex-ai-worker",
+  });
+  return{leadId,missingInformationCount:missingInformation.length,questionCount:suggestedConsultationQuestions.length};
+}
+
+async function runQuestionnaireAnalysis(job:DocumentSnapshot){
+  const db=getFirestore();
+  const responseId=string(job.get("responseId"))||job.id.replace(/^questionnaire_/,"");
+  const response=await db.doc(`questionnaireResponses/${responseId}`).get();
+  if(!response.exists)throw new Error("QUESTIONNAIRE_RESPONSE_NOT_FOUND");
+  if(response.get("status")!=="submitted")throw new Error("QUESTIONNAIRE_NOT_SUBMITTED");
+  if(job.get("humanReviewRequired")!==true)throw new Error("AI_HUMAN_REVIEW_GUARD_MISSING");
+  const [template,project]=await Promise.all([
+    db.doc(`questionnaireTemplates/${String(response.get("templateId"))}`).get(),
+    db.doc(`projects/${String(response.get("projectId"))}`).get(),
+  ]);
+  if(!template.exists)throw new Error("QUESTIONNAIRE_TEMPLATE_NOT_FOUND");
+  const sections=Array.isArray(template.get("sections"))?template.get("sections") as unknown[]:[];
+  const fields=sections.flatMap(section=>{
+    const value=record(section);
+    return Array.isArray(value.fields)?value.fields.map(record):[];
+  }).filter(field=>field.internalOnly!==true&&field.type!=="information");
+  const answers=record(response.get("answers"));
+  const deterministicMissing=fields
+    .filter(field=>field.required===true)
+    .filter(field=>{
+      const answer=answers[string(field.id)];
+      return answer===null||answer===undefined||answer===""||(Array.isArray(answer)&&answer.length===0);
+    })
+    .map(field=>string(field.label)||string(field.id));
+  const facts={
+    project:{name:project.get("name"),eventType:project.get("eventType"),eventDate:project.get("eventDate"),venueName:project.get("venueName"),city:project.get("city")},
+    questionnaire:fields.map(field=>({id:string(field.id),label:string(field.label),required:Boolean(field.required),answer:answers[string(field.id)]??null})),
+    deterministicallyMissingRequired:deterministicMissing,
+  };
+  let analysis:Json;
+  if(process.env.PROVIDER_MOCK_MODE==="true"){
+    analysis={summary:"Questionnaire submitted and ready for studio review.",missingInformation:deterministicMissing,contradictions:[],planningRisks:[],suggestedQuestions:deterministicMissing.map(value=>`Can you confirm ${value}?`)};
+  }else{
+    const projectId=process.env.VERTEX_AI_PROJECT_ID;
+    const location=process.env.VERTEX_AI_LOCATION??"us-east4";
+    const model=process.env.VERTEX_AI_EXTRACTION_MODEL;
+    if(!projectId||!model)throw new Error("VERTEX_AI_NOT_CONFIGURED");
+    const token=await cloudAccessToken();
+    const vertex=await fetch(`https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`,{method:"POST",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({
+      systemInstruction:{parts:[{text:"Review a photography planning questionnaire using only supplied facts. Identify missing information, possible contradictions, operational planning risks, and suggested follow-up questions. Do not invent dates, contacts, prices, legal conclusions, approvals, or completion states. Every result is advisory and requires studio review."}]},
+      contents:[{role:"user",parts:[{text:JSON.stringify(facts)}]}],
+      generationConfig:{temperature:0,responseMimeType:"application/json",responseSchema:{type:"OBJECT",properties:{summary:{type:"STRING"},missingInformation:{type:"ARRAY",items:{type:"STRING"}},contradictions:{type:"ARRAY",items:{type:"STRING"}},planningRisks:{type:"ARRAY",items:{type:"STRING"}},suggestedQuestions:{type:"ARRAY",items:{type:"STRING"}}},required:["summary","missingInformation","contradictions","planningRisks","suggestedQuestions"]}},
+    })});
+    if(!vertex.ok)throw new Error(`VERTEX_AI_FAILED:${vertex.status}`);
+    const payload=record(await vertex.json());
+    const candidates=Array.isArray(payload.candidates)?payload.candidates:[];
+    const parts=Array.isArray(record(record(candidates[0]).content).parts)?record(record(candidates[0]).content).parts as unknown[]:[];
+    const output=string(record(parts[0]).text);
+    if(!output)throw new Error("VERTEX_AI_EMPTY_OUTPUT");
+    analysis=record(JSON.parse(output));
+  }
+  const list=(value:unknown,limit:number)=>Array.isArray(value)?value.map(String).map(item=>item.trim()).filter(Boolean).slice(0,limit):[];
+  const missingInformation=Array.from(new Set([...deterministicMissing,...list(analysis.missingInformation,20)])).slice(0,20);
+  const now=new Date().toISOString();
+  const aiReview={
+    status:"ready",
+    summary:string(analysis.summary)||"Questionnaire submitted for review.",
+    missingInformation,
+    contradictions:list(analysis.contradictions,12),
+    planningRisks:list(analysis.planningRisks,12),
+    suggestedQuestions:list(analysis.suggestedQuestions,12),
+    humanReviewRequired:true,
+    generatedAt:now,
+    modelMode:process.env.PROVIDER_MOCK_MODE==="true"?"mock":"vertex",
+  };
+  await response.ref.update({aiReview,aiReviewedAt:now,updatedAt:now,updatedBy:"vertex-ai-worker"});
+  return{responseId,missingCount:missingInformation.length,riskCount:aiReview.planningRisks.length,humanReviewRequired:true};
+}
+
+export async function runAiJob(job:DocumentSnapshot){if(String(job.get("type"))==="lead_intake_analysis")return runLeadIntakeAnalysis(job);if(String(job.get("type"))==="questionnaire_analysis")return runQuestionnaireAnalysis(job);if(String(job.get("type"))!=="coi_extraction")throw new Error("UNSUPPORTED_AI_JOB");const db=getFirestore();const requestId=job.id.replace(/^coi_/,"");const insurance=await db.doc(`insuranceRequests/${requestId}`).get();if(!insurance.exists)throw new Error("INSURANCE_REQUEST_NOT_FOUND");if(job.get("humanApprovalRequired")!==true)throw new Error("AI_HUMAN_REVIEW_GUARD_MISSING");if(insurance.get("scanStatus")!=="clean")throw new Error("COI_FILE_NOT_CLEARED");let extraction:Json;
   if(process.env.PROVIDER_MOCK_MODE==="true"){extraction={certificateHolder:"Development extraction",eventDate:null,coverageTypes:[],limits:{},additionalInsuredWording:null,waiverOfSubrogation:null,primaryNoncontributory:null,confidence:0,missingFields:["Live Vertex AI configuration"]}}else{const project=process.env.VERTEX_AI_PROJECT_ID;const location=process.env.VERTEX_AI_LOCATION??"us-central1";const model=process.env.VERTEX_AI_EXTRACTION_MODEL;if(!project||!model)throw new Error("VERTEX_AI_NOT_CONFIGURED");const token=await cloudAccessToken();const object=string(insurance.get("temporaryObject"));const parts:Array<Json>=[{text:"Extract factual certificate-of-insurance fields. Do not decide legal sufficiency or approval. Return JSON only and use null for unknown values."}];if(object.startsWith("gs://"))parts.push({fileData:{mimeType:"application/pdf",fileUri:object}});const response=await fetch(`https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`,{method:"POST",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({contents:[{role:"user",parts}],generationConfig:{temperature:0,responseMimeType:"application/json",responseSchema:{type:"OBJECT",properties:{certificateHolder:{type:"STRING",nullable:true},eventDate:{type:"STRING",nullable:true},coverageTypes:{type:"ARRAY",items:{type:"STRING"}},limits:{type:"OBJECT"},additionalInsuredWording:{type:"STRING",nullable:true},waiverOfSubrogation:{type:"STRING",nullable:true},primaryNoncontributory:{type:"STRING",nullable:true},confidence:{type:"NUMBER"},missingFields:{type:"ARRAY",items:{type:"STRING"}}},required:["coverageTypes","limits","confidence","missingFields"]}}})});if(!response.ok)throw new Error(`VERTEX_AI_FAILED:${response.status}`);const body=record(await response.json());const candidates=Array.isArray(body.candidates)?body.candidates:[];const content=record(record(candidates[0]).content);const responseParts=Array.isArray(content.parts)?content.parts:[];const output=string(record(responseParts[0]).text);if(!output)throw new Error("VERTEX_AI_EMPTY_OUTPUT");extraction=record(JSON.parse(output))}
   const requirement=await db.doc(`insuranceRequirements/${String(insurance.get("requirementId"))}`).get();if(!requirement.exists)throw new Error("INSURANCE_REQUIREMENT_NOT_FOUND");
   const normalize=(value:unknown)=>String(value??"").trim().toLowerCase().replace(/\s+/g," ");

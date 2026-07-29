@@ -30,3 +30,44 @@ export function assertProjectTransition(from: ProjectState, to: ProjectState): v
     throw new Error(`Project transition ${from} → ${to} is not allowed.`);
   }
 }
+
+export const evidenceControlledProjectTransitions: ReadonlyArray<{
+  from: ProjectState;
+  to: ProjectState;
+  authority: "proposal" | "docusign" | "booking_gate" | "readiness" | "delivery";
+}> = [
+  { from: "PROPOSAL", to: "CONTRACT_PENDING", authority: "proposal" },
+  {
+    from: "CONTRACT_PENDING",
+    to: "RETAINER_PENDING",
+    authority: "docusign",
+  },
+  { from: "RETAINER_PENDING", to: "BOOKED", authority: "booking_gate" },
+  { from: "POSTPONED", to: "BOOKED", authority: "booking_gate" },
+  { from: "PLANNING", to: "READY", authority: "readiness" },
+  { from: "POST_PRODUCTION", to: "DELIVERED", authority: "delivery" },
+];
+
+export function transitionAuthority(
+  from: ProjectState,
+  to: ProjectState,
+): (typeof evidenceControlledProjectTransitions)[number]["authority"] | null {
+  return (
+    evidenceControlledProjectTransitions.find(
+      (transition) => transition.from === from && transition.to === to,
+    )?.authority ?? null
+  );
+}
+
+export function assertManualProjectTransition(
+  from: ProjectState,
+  to: ProjectState,
+): void {
+  assertProjectTransition(from, to);
+  const authority = transitionAuthority(from, to);
+  if (authority) {
+    throw new Error(
+      `Project transition ${from} → ${to} requires ${authority.replaceAll("_", " ")} evidence.`,
+    );
+  }
+}

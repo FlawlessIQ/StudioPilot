@@ -153,3 +153,36 @@ export function decideClientProposal(
     idempotencyKey: crypto.randomUUID(),
   });
 }
+
+export function getClientAvailablePackages(
+  tenantId: string,
+  projectId: string,
+) {
+  return portalRequest<{
+    packages: Array<Record<string, unknown> & { id: string }>;
+  }>({
+    type: "available_packages",
+    tenantId,
+    projectId,
+  });
+}
+
+export function selectClientPackage(
+  tenantId: string,
+  projectId: string,
+  packageId: string,
+  selectedAddOns: Array<{ addOnId: string; quantity: number }>,
+) {
+  return portalRequest<{
+    snapshotId: string;
+    totalCents: number;
+    retainerCents: number;
+  }>({
+    type: "select_package",
+    tenantId,
+    projectId,
+    packageId,
+    selectedAddOns,
+    idempotencyKey: crypto.randomUUID(),
+  });
+}

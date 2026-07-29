@@ -47,7 +47,7 @@ const commandSchema = z.discriminatedUnion("type", [
     input: z.object({
       projectId: z.string().min(1),
       packageSnapshotId: z.string().min(1),
-      customerId: z.string().min(1),
+      customerId: z.string().min(1).nullable().default(null),
       dueDate: z.string().date(),
     }),
   }),
@@ -58,8 +58,6 @@ const commandSchema = z.discriminatedUnion("type", [
     input: z.object({
       projectId: z.string().min(1),
       expectedProjectVersion: z.number().int().nonnegative(),
-      eventDateAvailable: z.boolean(),
-      requiredContactsComplete: z.boolean(),
       approvedRetainerExceptionId: z.string().nullable(),
     }),
   }),
@@ -202,6 +200,35 @@ export const bookingCommand = onRequest(
           providerState: mockMode ? "completed_mock" : "queued",
         };
       } else if (command.type === "createEnvelope") {
+        const [project, proposal, existingContracts] = await Promise.all([
+          firestore.doc(`projects/${command.input.projectId}`).get(),
+          firestore.doc(`proposals/${command.input.proposalId}`).get(),
+          firestore
+            .collection("contracts")
+            .where("tenantId", "==", command.tenantId)
+            .where("projectId", "==", command.input.projectId)
+            .where("proposalId", "==", command.input.proposalId)
+            .limit(1)
+            .get(),
+        ]);
+        if (
+          !project.exists ||
+          project.get("tenantId") !== command.tenantId ||
+          project.get("state") !== "CONTRACT_PENDING"
+        ) {
+          throw new Error("CONTRACT_NOT_READY");
+        }
+        if (
+          !proposal.exists ||
+          proposal.get("tenantId") !== command.tenantId ||
+          proposal.get("projectId") !== command.input.projectId ||
+          proposal.get("status") !== "accepted"
+        ) {
+          throw new Error("ACCEPTED_PROPOSAL_REQUIRED");
+        }
+        if (!existingContracts.empty) {
+          throw new Error("CONTRACT_ALREADY_EXISTS");
+        }
         const contractId = stableId(
           "contract",
           command.tenantId,
@@ -255,14 +282,36 @@ export const bookingCommand = onRequest(
           providerState: mockMode ? "completed_mock" : "queued",
         };
       } else if (command.type === "createRetainerInvoice") {
-        const packageSnapshot = await firestore
-          .doc(`packageSnapshots/${command.input.packageSnapshotId}`)
-          .get();
+        const [project, packageSnapshot, existingInvoices] = await Promise.all([
+          firestore.doc(`projects/${command.input.projectId}`).get(),
+          firestore
+            .doc(`packageSnapshots/${command.input.packageSnapshotId}`)
+            .get(),
+          firestore
+            .collection("invoiceReferences")
+            .where("tenantId", "==", command.tenantId)
+            .where("projectId", "==", command.input.projectId)
+            .where("kind", "==", "retainer")
+            .limit(1)
+            .get(),
+        ]);
+        if (
+          !project.exists ||
+          project.get("tenantId") !== command.tenantId ||
+          project.get("state") !== "RETAINER_PENDING" ||
+          project.get("packageSnapshotId") !==
+            command.input.packageSnapshotId
+        ) {
+          throw new Error("RETAINER_NOT_READY");
+        }
         if (
           !packageSnapshot.exists ||
           packageSnapshot.get("tenantId") !== command.tenantId
         )
           throw new Error("PACKAGE_SNAPSHOT_NOT_FOUND");
+        if (!existingInvoices.empty) {
+          throw new Error("RETAINER_INVOICE_ALREADY_EXISTS");
+        }
         const invoiceId = stableId(
           "invoice",
           command.tenantId,
@@ -277,7 +326,8 @@ export const bookingCommand = onRequest(
           kind: "retainer",
           provider: "quickbooks",
           providerInvoiceId,
-          providerCustomerId: command.input.customerId,
+          providerCustomerId:
+            command.input.customerId ?? `pending_${command.input.projectId}`,
           status: "sent",
           currency: packageSnapshot.get("currency"),
           amountCents: packageSnapshot.get("retainerCents"),
@@ -314,6 +364,72 @@ export const bookingCommand = onRequest(
           providerState: mockMode ? "completed_mock" : "queued",
         };
       } else {
+        const projectBeforeGate = await firestore
+          .doc(`projects/${command.input.projectId}`)
+          .get();
+        if (
+          !projectBeforeGate.exists ||
+          projectBeforeGate.get("tenantId") !== command.tenantId
+        ) {
+          throw new Error("PROJECT_NOT_FOUND");
+        }
+        const eventDate = String(projectBeforeGate.get("eventDate") ?? "");
+        const contactIds = Array.isArray(
+          projectBeforeGate.get("clientContactIds"),
+        )
+          ? (projectBeforeGate.get("clientContactIds") as unknown[]).filter(
+              (value): value is string => typeof value === "string",
+            )
+          : [];
+        const [sameDateProjects, contacts, approvedException] =
+          await Promise.all([
+            firestore
+              .collection("projects")
+              .where("tenantId", "==", command.tenantId)
+              .where("eventDate", "==", eventDate)
+              .get(),
+            Promise.all(
+              contactIds.map((contactId) =>
+                firestore.doc(`contacts/${contactId}`).get(),
+              ),
+            ),
+            command.input.approvedRetainerExceptionId
+              ? firestore
+                  .doc(
+                    `bookingExceptions/${command.input.approvedRetainerExceptionId}`,
+                  )
+                  .get()
+              : Promise.resolve(null),
+          ]);
+        const blockingStates = new Set([
+          "BOOKED",
+          "PLANNING",
+          "READY",
+          "EVENT_COMPLETE",
+        ]);
+        const eventDateAvailable = !sameDateProjects.docs.some(
+          (candidate) =>
+            candidate.id !== command.input.projectId &&
+            blockingStates.has(String(candidate.get("state"))),
+        );
+        const requiredContactsComplete =
+          contactIds.length > 0 &&
+          contacts.every(
+            (contact) =>
+              contact.exists &&
+              contact.get("tenantId") === command.tenantId &&
+              typeof contact.get("email") === "string" &&
+              String(contact.get("email")).includes("@") &&
+              typeof contact.get("displayName") === "string" &&
+              String(contact.get("displayName")).trim().length > 0,
+          );
+        const exceptionApproved = Boolean(
+          approvedException?.exists &&
+            approvedException.get("tenantId") === command.tenantId &&
+            approvedException.get("projectId") === command.input.projectId &&
+            approvedException.get("type") === "retainer" &&
+            approvedException.get("status") === "approved",
+        );
         result = await firestore.runTransaction(async (transaction) => {
           const projectReference = firestore.doc(
             `projects/${command.input.projectId}`,
@@ -347,14 +463,12 @@ export const bookingCommand = onRequest(
               invoice.get("status") === "paid" &&
               invoice.get("balanceCents") === 0,
           );
-          const exceptionApproved =
-            command.input.approvedRetainerExceptionId !== null;
           const checks = {
             contractCompleted: !contracts.empty,
             retainerInvoiceCreated: invoiceCreated,
             retainerSatisfied: retainerPaid || exceptionApproved,
-            eventDateAvailable: command.input.eventDateAvailable,
-            requiredContactsComplete: command.input.requiredContactsComplete,
+            eventDateAvailable,
+            requiredContactsComplete,
           };
           const blockers = Object.entries(checks)
             .filter(([, passed]) => !passed)
@@ -378,13 +492,45 @@ export const bookingCommand = onRequest(
           if (blockers.length === 0) {
             if (project.get("state") !== "RETAINER_PENDING")
               throw new Error("INVALID_BOOKING_STATE");
+            const priorStateVersion = Number(project.get("stateVersion"));
             transaction.update(projectReference, {
               state: "BOOKED",
-              stateVersion: command.input.expectedProjectVersion + 1,
+              stateVersion: priorStateVersion + 1,
               bookingCompletedAt: timestamp,
               clientPortalActive: true,
               updatedAt: timestamp,
               updatedBy: identity.uid,
+            });
+            const auditId = stableId(
+              "audit_booking",
+              command.tenantId,
+              command.idempotencyKey,
+            );
+            transaction.create(firestore.doc(`auditEvents/${auditId}`), {
+              id: auditId,
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              actorId: identity.uid,
+              actorType: "user",
+              action: "project.booked",
+              entityType: "project",
+              entityId: command.input.projectId,
+              timestamp,
+              before: {
+                state: "RETAINER_PENDING",
+                stateVersion: priorStateVersion,
+              },
+              after: {
+                state: "BOOKED",
+                stateVersion: priorStateVersion + 1,
+                bookingGateId: gateId,
+              },
+              ipAddress: null,
+              userAgent: request.header("user-agent") ?? null,
+              correlationId:
+                request.header("x-correlation-id") ?? command.idempotencyKey,
+              automationRunId: null,
+              providerEventId: null,
             });
             transaction.create(
               firestore.doc(`providerJobs/booking_${command.input.projectId}`),
