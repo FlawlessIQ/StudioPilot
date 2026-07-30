@@ -62,6 +62,11 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: NEXT_PUBLIC_STUDIO_IMPORT_FUNCTIONS_URL
+    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: NEXT_PUBLIC_BOOKING_FUNCTIONS_URL
     value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
     availability:
