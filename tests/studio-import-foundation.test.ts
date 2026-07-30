@@ -25,6 +25,11 @@ import {
   type StudioImportSessionBundle,
   type StudioImportStore,
 } from "@/server/services/studio-import-service";
+import {
+  studioImportObjectPath,
+  validateStudioImportMetadata,
+  verifyStudioImportFileSignature,
+} from "../functions/src/studio-import/domain";
 
 const timestamp = "2026-07-29T20:00:00.000Z";
 
@@ -332,4 +337,74 @@ test("roadmap feature registry has unique keys and keeps future releases off", (
   assert.equal(defaults.studio_import_foundation, true);
   assert.equal(defaults.studio_import_processing, false);
   assert.equal(defaults.inquiry_booking_autopilot, false);
+});
+
+test("trusted import metadata and object paths are deterministic", () => {
+  assert.deepEqual(
+    validateStudioImportMetadata({
+      name: "Wedding Contract.PDF",
+      sizeBytes: 4096,
+      contentType: "application/pdf",
+    }),
+    { extension: "pdf", contentType: "application/pdf" },
+  );
+  assert.equal(
+    studioImportObjectPath({
+      tenantId: "tenant-1",
+      sessionId: "session-1",
+      itemId: "item-1",
+      uploadId: "upload-1",
+      extension: "pdf",
+    }),
+    "tenants/tenant-1/studio-imports/session-1/item-1/upload-1/source.pdf",
+  );
+  assert.throws(
+    () =>
+      studioImportObjectPath({
+        tenantId: "../tenant",
+        sessionId: "session-1",
+        itemId: "item-1",
+        uploadId: "upload-1",
+        extension: "pdf",
+      }),
+    /INVALID_STORAGE_PATH_PART/,
+  );
+});
+
+test("file signatures must match the approved studio import type", () => {
+  assert.equal(
+    verifyStudioImportFileSignature(
+      new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]),
+      "pdf",
+    ),
+    true,
+  );
+  assert.equal(
+    verifyStudioImportFileSignature(
+      new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x00]),
+      "docx",
+    ),
+    true,
+  );
+  assert.equal(
+    verifyStudioImportFileSignature(
+      new TextEncoder().encode("client,package\nA,Wedding"),
+      "csv",
+    ),
+    true,
+  );
+  assert.equal(
+    verifyStudioImportFileSignature(
+      new TextEncoder().encode("<script>alert(1)</script>"),
+      "pdf",
+    ),
+    false,
+  );
+  assert.equal(
+    verifyStudioImportFileSignature(
+      new Uint8Array([0x00, 0x01, 0x02]),
+      "txt",
+    ),
+    false,
+  );
 });

@@ -29,6 +29,51 @@ service firebase.storage {
         );
     }
 
+    function safeStudioImportUpload(tenantId, sessionId, itemId, uploadId, fileName) {
+      let item = firestore.get(
+        /databases/(default)/documents/studioImportItems/$(itemId)
+      ).data;
+      return item.tenantId == tenantId
+        && item.sessionId == sessionId
+        && item.uploadId == uploadId
+        && item.status == "awaiting_upload"
+        && item.expectedObjectName == request.resource.name
+        && item.sizeBytes == request.resource.size
+        && item.contentType == request.resource.contentType
+        && request.resource.size > 0
+        && request.resource.size <= 12 * 1024 * 1024
+        && request.resource.metadata.scanStatus == "pending"
+        && request.resource.metadata.visibility == "studio"
+        && request.resource.metadata.tenantId == tenantId
+        && request.resource.metadata.importSessionId == sessionId
+        && request.resource.metadata.importItemId == itemId
+        && request.resource.metadata.uploadId == uploadId
+        && request.resource.metadata.uploaderId == request.auth.uid
+        && fileName.matches(
+          "source\\.(pdf|doc|docx|txt|csv|rtf)"
+        )
+        && request.resource.contentType.matches(
+          "application/pdf|application/msword|application/vnd.openxmlformats-officedocument.wordprocessingml.document|text/plain|text/csv|application/rtf|text/rtf|application/octet-stream"
+        );
+    }
+
+    match /tenants/{tenantId}/studio-imports/{sessionId}/{itemId}/{uploadId}/{fileName} {
+      allow read: if resource.metadata.scanStatus == "clean"
+        && activeMember(tenantId)
+        && membership(tenantId).role in ["studio_owner", "studio_admin"];
+      allow create: if activeMember(tenantId)
+        && membership(tenantId).role in ["studio_owner", "studio_admin"]
+        && resource == null
+        && safeStudioImportUpload(
+          tenantId,
+          sessionId,
+          itemId,
+          uploadId,
+          fileName
+        );
+      allow update, delete: if false;
+    }
+
     match /tenants/{tenantId}/projects/{projectId}/crew/{userId}/{allPaths=**} {
       allow read: if resource.metadata.scanStatus == "clean"
         && activeMember(tenantId)

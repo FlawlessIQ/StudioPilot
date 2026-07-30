@@ -227,6 +227,37 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /studioImportSessions/{sessionId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
+      allow write: if false;
+    }
+
+    match /studioImportItems/{itemId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
+      allow write: if false;
+    }
+
+    match /studioAssets/{assetId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
+      allow write: if false;
+    }
+
+    match /studioAssetVersions/{versionId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
+      allow write: if false;
+    }
+
+    match /aiActions/{actionId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
+      allow write: if false;
+    }
+
+    match /productEvents/{eventId} {
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
+      allow write: if false;
+    }
+
     match /domainEvents/{eventId} {
       allow read: if isPlatformAdmin()
         || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);

@@ -13,6 +13,7 @@ import {
   Mail,
   MessageSquareText,
   PackageCheck,
+  RefreshCw,
   ShieldCheck,
   Sparkles,
   Upload,
@@ -27,6 +28,13 @@ import {
   studioImportAllowedExtensions,
   validateStudioImportFileCandidate,
 } from "@/features/studio-import/schema";
+import {
+  cancelStudioImport,
+  retryStudioImportItem,
+  uploadStudioImportFiles,
+  type StudioImportRemoteItem,
+  type StudioImportUploadProgress,
+} from "@/lib/studio-import/command-client";
 
 type SourceMode = "files" | "email" | "website";
 type ImportKind =
@@ -43,6 +51,7 @@ type SourceFile = {
   size: number;
   type: string;
   kind: ImportKind;
+  file: File;
 };
 
 type RejectedSourceFile = {
@@ -130,6 +139,18 @@ function readableSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function importStatusLabel(status: string | undefined) {
+  if (!status) return null;
+  if (status === "awaiting_upload") return "Waiting for secure upload";
+  if (status === "quarantined") return "In private quarantine";
+  if (status === "scanning") return "Running file-safety checks";
+  if (status === "ready_for_analysis") return "Verified and ready for AI";
+  if (status === "rejected") return "Rejected by file safety";
+  if (status === "failed") return "Safety check needs attention";
+  if (status === "cancelled") return "Cancelled";
+  return status.replaceAll("_", " ");
+}
+
 export function TemplateImportStudio() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [sourceMode, setSourceMode] = useState<SourceMode>("files");
@@ -141,6 +162,11 @@ export function TemplateImportStudio() {
   const [busy, setBusy] = useState(false);
   const [complete, setComplete] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [uploadProgress, setUploadProgress] =
+    useState<StudioImportUploadProgress | null>(null);
+  const [pipelineError, setPipelineError] = useState<string | null>(null);
+  const [secureSourcesReady, setSecureSourcesReady] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   const suggestions = useMemo(() => {
     const kinds = new Set<ImportKind>(files.map((file) => file.kind));
@@ -173,6 +199,7 @@ export function TemplateImportStudio() {
               size: validation.candidate.sizeBytes,
               type: validation.candidate.contentType,
               kind: inferKind(file.name),
+              file,
             },
           ]
         : [],
@@ -197,11 +224,57 @@ export function TemplateImportStudio() {
       ].slice(0, STUDIO_IMPORT_MAX_FILES);
     });
     setComplete(false);
+    setSelected([]);
+    setSecureSourcesReady(false);
+    setUploadProgress(null);
+    setPipelineError(null);
   }
 
-  function buildPlan() {
+  async function buildPlan() {
     setBusy(true);
     setComplete(false);
+    setPipelineError(null);
+    setSecureSourcesReady(false);
+    if (sourceMode === "files" && files.length > 0) {
+      const controller = new AbortController();
+      abortRef.current = controller;
+      try {
+        const result = await uploadStudioImportFiles({
+          files: files.map((source) => source.file),
+          signal: controller.signal,
+          onProgress: setUploadProgress,
+        });
+        if (result.persisted) {
+          if (!result.ready) {
+            const failed = result.result.items.find(
+              (item) => item.failure?.message,
+            );
+            throw new Error(
+              failed?.failure?.message ??
+                "One or more files did not pass safety checks.",
+            );
+          }
+          setSelected(suggestions);
+          setSecureSourcesReady(true);
+          setBusy(false);
+          abortRef.current = null;
+          return;
+        }
+      } catch (caught: unknown) {
+        const cancelled =
+          caught instanceof DOMException && caught.name === "AbortError";
+        setPipelineError(
+          cancelled
+            ? "Import cancelled. No source was activated."
+            : caught instanceof Error
+              ? caught.message
+              : "The secure import could not be completed.",
+        );
+        setBusy(false);
+        abortRef.current = null;
+        return;
+      }
+    }
     window.setTimeout(() => {
       setSelected(suggestions);
       setBusy(false);
@@ -214,6 +287,72 @@ export function TemplateImportStudio() {
       setBusy(false);
       setComplete(true);
     }, 700);
+  }
+
+  async function retryFile(
+    source: SourceFile,
+    item: StudioImportRemoteItem,
+  ) {
+    const sessionId = uploadProgress?.sessionId;
+    if (!sessionId) return;
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setBusy(true);
+    setPipelineError(null);
+    try {
+      const retried = await retryStudioImportItem({
+        sessionId,
+        itemId: item.id,
+        file: source.file,
+        signal: controller.signal,
+        onProgress: (fraction) =>
+          setUploadProgress((current) => ({
+            phase: "uploading",
+            percent: Math.max(4, Math.round(fraction * 70)),
+            message: `Re-uploading ${source.name} to private quarantine…`,
+            sessionId,
+            items: current?.items ?? [],
+          })),
+        onSafetyProgress: (result) =>
+          setUploadProgress({
+            phase: "scanning",
+            percent: 82,
+            message: "Repeating file-signature and malware checks…",
+            sessionId,
+            items: result.items,
+          }),
+      });
+      setUploadProgress({
+        phase: retried.ready ? "ready" : "failed",
+        percent: retried.ready ? 100 : 96,
+        message: retried.ready
+          ? "Every source passed file-safety checks."
+          : "The source still needs attention.",
+        sessionId,
+        items: retried.result.items,
+      });
+      if (retried.ready) {
+        setSelected(suggestions);
+        setSecureSourcesReady(true);
+      } else {
+        const failed = retried.result.items.find(
+          (candidate) => candidate.failure?.message,
+        );
+        setPipelineError(
+          failed?.failure?.message ??
+            "The source still needs attention.",
+        );
+      }
+    } catch (caught: unknown) {
+      setPipelineError(
+        caught instanceof Error
+          ? caught.message
+          : "The source could not be retried.",
+      );
+    } finally {
+      abortRef.current = null;
+      setBusy(false);
+    }
   }
 
   const hasSource =
@@ -261,6 +400,10 @@ export function TemplateImportStudio() {
                   onClick={() => {
                     setSourceMode(mode.id);
                     setComplete(false);
+                    setSelected([]);
+                    setSecureSourcesReady(false);
+                    setUploadProgress(null);
+                    setPipelineError(null);
                   }}
                   role="tab"
                   type="button"
@@ -316,6 +459,9 @@ export function TemplateImportStudio() {
                   {files.map((file) => {
                     const detail = kindDetails[file.kind];
                     const Icon = detail.icon;
+                    const remoteItem = uploadProgress?.items.find(
+                      (item) => item.clientId === file.id,
+                    );
                     return (
                       <article key={file.id}>
                         <span className={`template-file-icon tone-${detail.tone}`}>
@@ -323,19 +469,41 @@ export function TemplateImportStudio() {
                         </span>
                         <span>
                           <strong>{file.name}</strong>
-                          <small>{readableSize(file.size)} · looks like a {file.kind.toLowerCase()}</small>
+                          <small>
+                            {readableSize(file.size)} ·{" "}
+                            {importStatusLabel(remoteItem?.status) ??
+                              `looks like a ${file.kind.toLowerCase()}`}
+                          </small>
                         </span>
-                        <button
-                          aria-label={`Remove ${file.name}`}
-                          onClick={() =>
-                            setFiles((current) =>
-                              current.filter((item) => item.id !== file.id),
-                            )
-                          }
-                          type="button"
-                        >
-                          <X size={15} />
-                        </button>
+                        {remoteItem?.failure?.retryable &&
+                        uploadProgress?.sessionId ? (
+                          <button
+                            aria-label={`Retry ${file.name}`}
+                            disabled={busy}
+                            onClick={() => void retryFile(file, remoteItem)}
+                            title="Retry safety checks"
+                            type="button"
+                          >
+                            <RefreshCw size={15} />
+                          </button>
+                        ) : (
+                          <button
+                            aria-label={`Remove ${file.name}`}
+                            disabled={busy}
+                            onClick={() => {
+                              setFiles((current) =>
+                                current.filter((item) => item.id !== file.id),
+                              );
+                              setSelected([]);
+                              setSecureSourcesReady(false);
+                              setUploadProgress(null);
+                              setPipelineError(null);
+                            }}
+                            type="button"
+                          >
+                            <X size={15} />
+                          </button>
+                        )}
                       </article>
                     );
                   })}
@@ -375,6 +543,7 @@ export function TemplateImportStudio() {
                 onChange={(event) => {
                   setEmailText(event.target.value);
                   setComplete(false);
+                  setPipelineError(null);
                 }}
                 placeholder="Hi {{first name}}, thank you for reaching out about your wedding…"
                 value={emailText}
@@ -390,6 +559,7 @@ export function TemplateImportStudio() {
                 onChange={(event) => {
                   setWebsiteUrl(event.target.value);
                   setComplete(false);
+                  setPipelineError(null);
                 }}
                 placeholder="https://yourstudio.com/wedding-info"
                 type="url"
@@ -402,13 +572,50 @@ export function TemplateImportStudio() {
           <button
             className="template-analyze-button"
             disabled={!hasSource || busy}
-            onClick={buildPlan}
+            onClick={() => void buildPlan()}
             type="button"
           >
             {busy && !selected.length ? <LoaderCircle className="spin" /> : <WandSparkles />}
-            {busy && !selected.length ? "Mapping your workflow…" : "Preview AI import"}
+            {busy && uploadProgress
+              ? uploadProgress.phase === "uploading"
+                ? "Uploading securely…"
+                : "Running safety checks…"
+              : busy && !selected.length
+                ? "Mapping your workflow…"
+                : sourceMode === "files"
+                  ? "Upload and verify sources"
+                  : "Preview AI import"}
             <ArrowRight size={16} />
           </button>
+          {busy && uploadProgress?.sessionId ? (
+            <button
+              className="template-cancel-import"
+              onClick={() => {
+                abortRef.current?.abort();
+                void cancelStudioImport(uploadProgress.sessionId ?? "");
+              }}
+              type="button"
+            >
+              Cancel secure import
+            </button>
+          ) : null}
+          {uploadProgress ? (
+            <div
+              className={`template-import-progress is-${uploadProgress.phase}`}
+              role="status"
+            >
+              <span>
+                <i style={{ width: `${uploadProgress.percent}%` }} />
+              </span>
+              <small>{uploadProgress.message}</small>
+            </div>
+          ) : null}
+          {pipelineError ? (
+            <p className="template-pipeline-error" role="alert">
+              <CircleAlert size={15} />
+              {pipelineError}
+            </p>
+          ) : null}
         </section>
 
         <section className="template-plan-panel">
@@ -471,17 +678,36 @@ export function TemplateImportStudio() {
 
               <button
                 className="template-create-button"
-                disabled={!selected.length || busy || complete}
+                disabled={
+                  !selected.length || busy || complete || secureSourcesReady
+                }
                 onClick={createDrafts}
                 type="button"
               >
-                {busy ? <LoaderCircle className="spin" /> : complete ? <CheckCircle2 /> : <Sparkles />}
-                {busy
+                {busy ? (
+                  <LoaderCircle className="spin" />
+                ) : secureSourcesReady ? (
+                  <ShieldCheck />
+                ) : complete ? (
+                  <CheckCircle2 />
+                ) : (
+                  <Sparkles />
+                )}
+                {secureSourcesReady
+                  ? "Sources verified—ready for AI analysis"
+                  : busy
                   ? "Creating drafts…"
                   : complete
                     ? `${selected.length} drafts ready to review`
                     : `Create ${selected.length} draft ${selected.length === 1 ? "template" : "templates"}`}
               </button>
+              {secureSourcesReady ? (
+                <p className="template-complete-note" role="status">
+                  <ShieldCheck size={15} />
+                  Files are private, signature-verified, and malware-scanned.
+                  Nothing has been activated.
+                </p>
+              ) : null}
               {complete ? (
                 <p className="template-complete-note" role="status">
                   <CheckCircle2 size={15} />

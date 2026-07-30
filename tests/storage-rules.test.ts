@@ -30,6 +30,8 @@ test(
         rules: await readFile(new URL("../storage.rules", import.meta.url), "utf8"),
       },
     });
+    const importPath =
+      "tenants/tenant-a/studio-imports/session-a/item-a/upload-a/source.pdf";
     try {
       await environment.withSecurityRulesDisabled(async (context) => {
         await setDoc(doc(context.firestore(), "memberships/tenant-a_crew-a"), {
@@ -39,6 +41,23 @@ test(
         await setDoc(doc(context.firestore(), "memberships/tenant-a_client-a"), {
           tenantId: "tenant-a", userId: "client-a", status: "active",
           role: "client", projectIds: ["project-a"],
+        });
+        await setDoc(doc(context.firestore(), "memberships/tenant-a_owner-a"), {
+          tenantId: "tenant-a", userId: "owner-a", status: "active",
+          role: "studio_owner", projectIds: [],
+        });
+        await setDoc(doc(context.firestore(), "memberships/tenant-a_coordinator-a"), {
+          tenantId: "tenant-a", userId: "coordinator-a", status: "active",
+          role: "studio_coordinator", projectIds: ["project-a"],
+        });
+        await setDoc(doc(context.firestore(), "studioImportItems/item-a"), {
+          tenantId: "tenant-a",
+          sessionId: "session-a",
+          uploadId: "upload-a",
+          status: "awaiting_upload",
+          expectedObjectName: importPath,
+          sizeBytes: 5,
+          contentType: "application/pdf",
         });
         const storage = context.storage();
         for (const [name, visibility] of [
@@ -113,6 +132,80 @@ test(
         ref(crewStorage, "tenants/tenant-a/projects/project-a/crew/crew-a/script.html"),
         new TextEncoder().encode("<script>alert(1)</script>"),
         { contentType: "text/html", customMetadata: { scanStatus: "pending" } },
+      ));
+      const ownerStorage = environment.authenticatedContext("owner-a").storage();
+      await assertSucceeds(uploadBytes(
+        ref(ownerStorage, importPath),
+        new Uint8Array([37, 80, 68, 70, 45]),
+        {
+          contentType: "application/pdf",
+          customMetadata: {
+            scanStatus: "pending",
+            visibility: "studio",
+            tenantId: "tenant-a",
+            importSessionId: "session-a",
+            importItemId: "item-a",
+            uploadId: "upload-a",
+            uploaderId: "owner-a",
+          },
+        },
+      ));
+      await assertFails(uploadBytes(
+        ref(
+          ownerStorage,
+          "tenants/tenant-a/studio-imports/session-a/item-a/upload-forged/source.pdf",
+        ),
+        new Uint8Array([37, 80, 68, 70, 45]),
+        {
+          contentType: "application/pdf",
+          customMetadata: {
+            scanStatus: "pending",
+            visibility: "studio",
+            tenantId: "tenant-a",
+            importSessionId: "session-a",
+            importItemId: "item-a",
+            uploadId: "upload-forged",
+            uploaderId: "owner-a",
+          },
+        },
+      ));
+      await assertFails(uploadBytes(
+        ref(
+          environment.authenticatedContext("coordinator-a").storage(),
+          "tenants/tenant-a/studio-imports/session-b/item-b/upload-b/source.pdf",
+        ),
+        new Uint8Array([37, 80, 68, 70, 45]),
+        {
+          contentType: "application/pdf",
+          customMetadata: {
+            scanStatus: "pending",
+            visibility: "studio",
+            tenantId: "tenant-a",
+            importSessionId: "session-b",
+            importItemId: "item-b",
+            uploadId: "upload-b",
+            uploaderId: "coordinator-a",
+          },
+        },
+      ));
+      await assertFails(uploadBytes(
+        ref(
+          ownerStorage,
+          "tenants/tenant-a/studio-imports/session-c/item-c/upload-c/source.pdf",
+        ),
+        new Uint8Array([37, 80, 68, 70, 45]),
+        {
+          contentType: "application/pdf",
+          customMetadata: {
+            scanStatus: "clean",
+            visibility: "studio",
+            tenantId: "tenant-a",
+            importSessionId: "session-c",
+            importItemId: "item-c",
+            uploadId: "upload-c",
+            uploaderId: "owner-a",
+          },
+        },
       ));
     } finally {
       await environment.cleanup();

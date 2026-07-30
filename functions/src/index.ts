@@ -39,6 +39,7 @@ export {
   providerJobTaskDispatch,
 } from "./operations/task-queue.js";
 export { fileSafetyOnFinalize } from "./operations/file-safety.js";
+export { studioImportCommand } from "./studio-import/commands.js";
 export { integrationOAuth } from "./integrations/oauth.js";
 export {
   tenantDataCommand,

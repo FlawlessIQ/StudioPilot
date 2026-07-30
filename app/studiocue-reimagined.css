@@ -1043,6 +1043,69 @@
   margin-top: auto;
 }
 
+.template-cancel-import {
+  background: transparent;
+  border: 0;
+  color: #8c6688;
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 700;
+  justify-self: start;
+  padding: 0;
+}
+
+.template-import-progress {
+  display: grid;
+  gap: 7px;
+}
+
+.template-import-progress > span {
+  background: #eee8f1;
+  border-radius: 999px;
+  display: block;
+  height: 6px;
+  overflow: hidden;
+}
+
+.template-import-progress > span i {
+  background: linear-gradient(90deg, var(--cue-violet), var(--cue-coral));
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  transition: width 180ms ease;
+}
+
+.template-import-progress.is-ready > span i {
+  background: var(--cue-mint);
+}
+
+.template-import-progress.is-failed > span i {
+  background: var(--cue-rose);
+}
+
+.template-import-progress small {
+  color: #776d7a;
+  font-size: 9px;
+}
+
+.template-pipeline-error {
+  align-items: flex-start;
+  background: rgba(190, 24, 93, 0.07);
+  border: 1px solid rgba(190, 24, 93, 0.18);
+  border-radius: 10px;
+  color: #9d174d;
+  display: flex;
+  font-size: 9px;
+  gap: 8px;
+  line-height: 1.45;
+  margin: 0;
+  padding: 9px 10px;
+}
+
+.template-pipeline-error svg {
+  flex: 0 0 auto;
+}
+
 .template-analyze-button svg:last-child {
   margin-left: 6px;
 }

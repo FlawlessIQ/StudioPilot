@@ -1,5 +1,43 @@
 # StudioCue Build Progress
 
+## Roadmap execution pass 2 — secure source ingestion — 2026-07-29
+
+Status: implemented and validated.
+
+Delivered:
+
+- App Check- and authentication-protected studio import commands for persisted
+  session creation, status retrieval, cancellation, and bounded retries
+- owner/admin authorization, tenant membership enforcement, idempotent command
+  execution, deterministic object paths, and immutable import audit evidence
+- tenant-scoped Firebase Storage quarantine uploads with browser writes limited
+  to the exact server-authorized path, content type, size, and pending metadata
+- trusted file-finalization processing that verifies upload authorization,
+  metadata, size, content type, extension signature, and SHA-256 before scanning
+- malware scanning through the configured private scanner with fail-closed
+  behavior when the scanner is unavailable or returns an unsafe result
+- explicit `awaiting_upload`, `quarantined`, `scanning`,
+  `ready_for_analysis`, `failed`, `rejected`, and `cancelled` states
+- persisted session safety summaries plus retryable/non-retryable failure
+  evidence; only verified sources can advance to AI analysis
+- Import Studio progress, cancellation, per-file status, failure messaging, and
+  retry controls connected to resumable Firebase Storage uploads
+- Firestore and Storage rules that keep reusable studio imports private and
+  prevent browser-side mutation of trusted import, AI, and asset records
+
+Validation record:
+
+- strict browser-app TypeScript: passed
+- strict Cloud Functions TypeScript and emitted build: passed
+- complete unit/domain suite: 127 passed
+- Firestore and Storage emulator rule suite: passed
+
+Next pass:
+
+- asynchronous source classification and structured extraction
+- persisted, versioned AI draft assets with citations and confidence
+- side-by-side review, correction, approval, activation, and rollback workflow
+
 ## Roadmap execution pass 1 — import and AI foundation — 2026-07-29
 
 Status: implemented and validated.
