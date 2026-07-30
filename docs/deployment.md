@@ -61,7 +61,7 @@ organization. After every production Function deployment, run:
 
 The script grants the App Hosting runtime account access only to browser-facing
 application APIs and grants the Functions runtime account access only to the
-four Scheduler-backed services.
+declared Scheduler-backed services.
 
 ## Provisioning checklist
 

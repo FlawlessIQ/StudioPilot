@@ -8,6 +8,7 @@ app_hosting_service_account="firebase-app-hosting-compute@${project_id}.iam.gser
 functions_service_account="${project_number}-compute@developer.gserviceaccount.com"
 
 app_services=(
+  aiactioncommand
   aicopilotcommand
   aischedulecommand
   authemailcommand
@@ -42,7 +43,9 @@ app_services=(
 )
 
 scheduler_services=(
+  albumreminderscheduler
   automationretryscheduler
+  crewcascadeexpiryscheduler
   domaineventoutboxscheduler
   finalinvoicescheduler
   operationshealthscheduler

@@ -2,8 +2,7 @@
 
 ## AI-native workflow roadmap — passes 3 through 9 — 2026-07-29
 
-Status: implementation and final local release validation complete; production
-promotion follows this record.
+Status: implementation, final validation, and production promotion complete.
 
 Delivered:
 
@@ -40,6 +39,20 @@ Validation record:
 - Sites production build: passed
 - production dependency audit: no high or critical advisories; inherited
   moderate Firebase/Google Cloud `uuid` advisories remain tracked
+
+Production record:
+
+- roadmap release `f023d8cbe8b7d030a3a337666234b128dc2cf641` promoted
+  from `main` through Firebase App Hosting
+- Firestore rules and indexes, Storage rules, and the complete Cloud Functions
+  set deployed successfully to `studiohub-prod`
+- new AI action, album reminder, and crew cascade expiry services deployed with
+  verified least-privilege Cloud Run invoker bindings
+- final release source includes the same-origin AI action proxy allowlist and
+  the updated production invoker policy script
+- `/api/health` reported live auth, data, and provider modes, and the studio,
+  import, AI queue, booking, reports, client, delivery, crew, and schedule
+  surfaces returned successful production responses
 
 Operational acceptance that requires real provider accounts, observed handling
 times, legal/business decisions, or human sign-off remains explicitly amber in
