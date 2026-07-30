@@ -32,6 +32,7 @@ app_services=(
   sendgrideventwebhook
   sendgridinboundcoi
   stripewebhook
+  studioimportcommand
   supporttenantsummary
   tenantbrandingcommand
   tenantdatacommand
