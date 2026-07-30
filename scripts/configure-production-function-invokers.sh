@@ -50,6 +50,7 @@ scheduler_services=(
   finalinvoicescheduler
   operationshealthscheduler
   operationsjobscheduler
+  relativedatescheduler
   reviewrequestscheduler
   scheduledemailrelease
   tenantexportscheduler

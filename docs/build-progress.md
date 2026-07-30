@@ -2,7 +2,7 @@
 
 ## Photographer workflow acceptance follow-up — 2026-07-30
 
-Status: implemented with targeted local validation; not deployed.
+Status: implemented, fully validated, and deployed to production.
 
 Delivered:
 
@@ -25,17 +25,37 @@ Delivered:
 - public inquiry lookup supports the studio's public slug, and the booking
   workspace explains the one-time Docusign migration/mapping boundary
 
-Targeted validation:
+Release validation:
 
-- syntax transpilation passed for all 26 changed TypeScript and TSX files
-- transactional email suite passed 5 of 5 tests
-- timezone-aware 30-day and one-day milestone assertions passed
-- native message, delivery-default, and review-link import assertions passed
-- authenticated Firestore emulator query returned exactly the assigned crew
-  record through the production security rules
+- strict browser-app TypeScript: passed
+- strict Cloud Functions TypeScript and emitted build: passed
+- ESLint: passed with zero errors; the existing React Hook Form compiler
+  advisory remains non-blocking
+- unit and domain suite: 154 passed
+- Firestore tenant, role, project, and assigned-crew rules: passed
+- Storage upload-path, assignment, content-type, and size rules: passed
+- Next.js production build: passed with 100 routes
+- Sites-compatible Vinext production build: passed
+- desktop and mobile Chromium acceptance suite: 40 passed
+- production dependency audit: no high or critical runtime advisories; six
+  inherited moderate Firebase/Google Cloud `uuid` advisories remain tracked
 
-No deployment was performed. Live provider pilots and role-based human
-usability sign-off remain governed by the manual launch checklist.
+Production record:
+
+- release commit `eb0cf41279a66c5bd012ee1651cc7487a67b2b51` promoted from
+  `main` through Firebase App Hosting
+- Firestore rules and indexes plus Storage rules deployed successfully to
+  `studiohub-prod`
+- affected AI schedule, automation, communication, post-event, onboarding, and
+  Studio Import Functions deployed successfully
+- the new `relativeDateScheduler` service and hourly UTC Scheduler job are
+  ready, enabled, and protected by the documented private invoker policy
+- production health reported live auth, data, and provider modes, and the home,
+  studio, schedule, questionnaire, delivery, import, client, and crew surfaces
+  returned HTTP 200
+
+Live provider pilots and role-based human usability sign-off remain governed by
+the manual launch checklist.
 
 ## AI-native workflow roadmap — passes 3 through 9 — 2026-07-29
 
