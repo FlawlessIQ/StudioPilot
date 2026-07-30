@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Bell,
+  BrainCircuit,
   CalendarDays,
   ChevronDown,
   CircleGauge,
@@ -40,6 +41,7 @@ const navSections = [
       { label: "Home", href: "/studio", icon: CircleGauge },
       { label: "Inbox", href: "/studio/leads", icon: ContactRound },
       { label: "Projects", href: "/studio/projects", icon: FolderKanban },
+      { label: "AI review", href: "/studio/ai-queue", icon: BrainCircuit },
       { label: "Calendar", href: "/studio/calendar", icon: CalendarDays },
     ],
   },
@@ -63,6 +65,7 @@ const navSections = [
 
 const activeGroups: Record<string, string[]> = {
   Home: ["Dashboard", "Notifications", "Copilot", "AI setup"],
+  "AI review": ["AI queue"],
   Inbox: ["Leads", "Inquiries", "Proposals", "Contracts", "Invoices", "Booking"],
   Projects: [
     "Projects",
@@ -86,6 +89,7 @@ const StudioShellContext = createContext(false);
 
 const studioRouteLabels: Record<string, string> = {
   audit: "Workflows",
+  "ai-queue": "AI queue",
   automations: "Workflows",
   booking: "Booking",
   calendar: "Calendar",

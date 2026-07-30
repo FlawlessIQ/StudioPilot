@@ -4,23 +4,35 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
+  BrainCircuit,
   CalendarPlus,
+  CalendarRange,
   ContactRound,
+  FileCheck2,
   FolderKanban,
   ListTodo,
+  Mail,
   Plus,
   Search,
   UserPlus,
   X,
 } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
+import { useWorkspace } from "@/features/auth/workspace-context";
 
 type SearchResult = {
   id: string;
   label: string;
   detail: string;
   href: string;
-  kind: "Project" | "Client" | "Task";
+  kind:
+    | "Project"
+    | "Client"
+    | "Task"
+    | "Contract"
+    | "Schedule"
+    | "Message"
+    | "AI review";
 };
 
 function text(value: unknown): string {
@@ -28,12 +40,33 @@ function text(value: unknown): string {
 }
 
 export function GlobalSearch() {
+  const workspace = useWorkspace();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const { records: projects } = useTenantDocuments("projects");
-  const { records: contacts } = useTenantDocuments("contacts");
+  const privileged = ["studio_owner", "studio_admin"].includes(
+    workspace.role ?? "",
+  );
+  const operator = [
+    "studio_owner",
+    "studio_admin",
+    "studio_coordinator",
+  ].includes(workspace.role ?? "");
+  const { records: contacts } = useTenantDocuments("contacts", {
+    enabled: privileged,
+  });
   const { records: tasks } = useTenantDocuments("tasks");
+  const { records: contracts } = useTenantDocuments("contracts", {
+    enabled: operator,
+  });
+  const { records: schedules } = useTenantDocuments("schedules");
+  const { records: messages } = useTenantDocuments("messages", {
+    enabled: operator,
+  });
+  const { records: aiActions } = useTenantDocuments("aiActions", {
+    enabled: operator,
+  });
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -84,6 +117,56 @@ export function GlobalSearch() {
           : "/studio/tasks",
         kind: "Task" as const,
       })),
+      ...(contracts ?? []).map((contract) => ({
+        id: `contract-${contract.id}`,
+        label:
+          text(contract.projectName) ||
+          text(contract.title) ||
+          "Project contract",
+        detail: text(contract.status),
+        href: `/studio/contracts?project=${encodeURIComponent(
+          text(contract.projectId),
+        )}`,
+        kind: "Contract" as const,
+      })),
+      ...(schedules ?? []).map((schedule) => ({
+        id: `schedule-${schedule.id}`,
+        label:
+          text(schedule.projectName) ||
+          text(schedule.name) ||
+          "Project schedule",
+        detail: [
+          text(schedule.status),
+          schedule.version ? `Version ${String(schedule.version)}` : "",
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        href: `/studio/schedules/${schedule.id}`,
+        kind: "Schedule" as const,
+      })),
+      ...(messages ?? []).map((message) => ({
+        id: `message-${message.id}`,
+        label:
+          text(message.subject) ||
+          text(message.bodyPreview) ||
+          "Client message",
+        detail: text(message.deliveryStatus) || text(message.channel),
+        href: `/studio/messages?project=${encodeURIComponent(
+          text(message.projectId),
+        )}`,
+        kind: "Message" as const,
+      })),
+      ...(aiActions ?? [])
+        .filter((action) => action.status === "review_required")
+        .map((action) => ({
+          id: `ai-${action.id}`,
+          label:
+            text(action.title) ||
+            `Review ${text(action.capability).replaceAll("_", " ")}`,
+          detail: "AI approval required",
+          href: "/studio/ai-queue",
+          kind: "AI review" as const,
+        })),
     ];
     return values
       .filter((result) =>
@@ -92,7 +175,16 @@ export function GlobalSearch() {
           .includes(needle),
       )
       .slice(0, 10);
-  }, [contacts, projects, query, tasks]);
+  }, [
+    aiActions,
+    contacts,
+    contracts,
+    messages,
+    projects,
+    query,
+    schedules,
+    tasks,
+  ]);
 
   function close() {
     setOpen(false);
@@ -109,7 +201,7 @@ export function GlobalSearch() {
         type="button"
       >
         <Search size={17} />
-        <span>Search projects, clients, or tasks</span>
+        <span>Search projects or run a command</span>
         <kbd>⌘ K</kbd>
       </button>
       {open ? (
@@ -129,9 +221,9 @@ export function GlobalSearch() {
             <header>
               <Search size={19} />
               <input
-                aria-label="Search projects, clients, or tasks"
+                aria-label="Search records and commands"
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search by name, date, email, or task"
+                placeholder="Search projects, dates, contracts, messages, or AI work"
                 ref={inputRef}
                 value={query}
               />
@@ -142,27 +234,36 @@ export function GlobalSearch() {
             {!query.trim() ? (
               <div className="search-quick-actions">
                 <p>Quick actions</p>
-                <Link href="/studio/projects/new" onClick={close}>
+                {operator ? <Link href="/studio/projects/new" onClick={close}>
                   <Plus size={17} />
                   <span>
                     <strong>Create project</strong>
                     <small>Start a new photography job</small>
                   </span>
-                </Link>
-                <Link href="/studio/clients/new" onClick={close}>
+                </Link> : null}
+                {operator ? <Link href="/studio/clients/new" onClick={close}>
                   <UserPlus size={17} />
                   <span>
                     <strong>Add client</strong>
                     <small>Create a client contact</small>
                   </span>
-                </Link>
-                <Link href="/studio/calendar" onClick={close}>
+                </Link> : null}
+                {operator ? <Link href="/studio/calendar" onClick={close}>
                   <CalendarPlus size={17} />
                   <span>
                     <strong>Schedule consultation</strong>
                     <small>Find a time and create the meeting</small>
                   </span>
-                </Link>
+                </Link> : null}
+                {operator ? (
+                  <Link href="/studio/ai-queue" onClick={close}>
+                    <BrainCircuit size={17} />
+                    <span>
+                      <strong>Review AI work</strong>
+                      <small>Approve, edit, reject, snooze, or explain</small>
+                    </span>
+                  </Link>
+                ) : null}
               </div>
             ) : results.length ? (
               <div className="search-results">
@@ -172,7 +273,15 @@ export function GlobalSearch() {
                       ? FolderKanban
                       : result.kind === "Client"
                         ? ContactRound
-                        : ListTodo;
+                        : result.kind === "Contract"
+                          ? FileCheck2
+                          : result.kind === "Schedule"
+                            ? CalendarRange
+                            : result.kind === "Message"
+                              ? Mail
+                              : result.kind === "AI review"
+                                ? BrainCircuit
+                                : ListTodo;
                   return (
                     <Link href={result.href} key={result.id} onClick={close}>
                       <Icon size={17} />
@@ -192,7 +301,9 @@ export function GlobalSearch() {
               <div className="search-no-results">
                 <Search size={20} />
                 <strong>No matching records</strong>
-                <small>Try a client name, project date, or task title.</small>
+                <small>
+                  Try a project name, date, contract, schedule, message, or task.
+                </small>
               </div>
             )}
           </section>

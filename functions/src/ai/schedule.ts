@@ -1,10 +1,11 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { consumeAiQuota } from "../saas/usage.js";
+import { productEvent } from "../operations/product-events.js";
 
 type Json = Record<string, unknown>;
 const record = (value: unknown): Json =>
@@ -45,6 +46,22 @@ const draftItemSchema = z.object({
   notes: z.string().max(1000).nullable(),
   visibility: z.enum(["studio", "client", "crew", "shared"]),
   blockingIssues: z.array(z.string()),
+  sourceReferences: z
+    .array(
+      z.object({
+        type: z.enum([
+          "project_fact",
+          "questionnaire_answer",
+          "timing_rule",
+          "package_fact",
+          "crew_fact",
+          "assumption",
+        ]),
+        sourceId: z.string().min(1),
+        label: z.string().min(1),
+      }),
+    )
+    .max(20),
 });
 
 const outputSchema = z.object({
@@ -87,7 +104,7 @@ async function generate(input: z.infer<typeof inputSchema>, context: Json) {
           parts: [
             {
               text:
-                "Draft a photography run-of-show from only the supplied facts. Never invent a confirmed venue, person, vendor, travel time, approval, or provider status. Put unknowns in missingInformation and assumptions. Use ISO 8601 timestamps with offsets. All items must fit within coverage start and end unless a conflict is explicitly reported. This is an unapproved draft requiring human review.",
+                "Draft a photography run-of-show from only the supplied facts. Never invent a confirmed venue, person, vendor, travel time, approval, or provider status. Put unknowns in missingInformation and assumptions. Use ISO 8601 timestamps with offsets. All items must fit within coverage start and end unless a conflict is explicitly reported. Every item must cite at least one sourceReferences entry from a project_fact, questionnaire_answer, timing_rule, package_fact, or crew_fact. If no verified source supports an item, cite an assumption and label it plainly. This is an unapproved draft requiring human review.",
             },
           ],
         },
@@ -122,6 +139,28 @@ async function generate(input: z.infer<typeof inputSchema>, context: Json) {
                     notes: { type: "STRING", nullable: true },
                     visibility: { type: "STRING", enum: ["studio", "client", "crew", "shared"] },
                     blockingIssues: { type: "ARRAY", items: { type: "STRING" } },
+                    sourceReferences: {
+                      type: "ARRAY",
+                      items: {
+                        type: "OBJECT",
+                        properties: {
+                          type: {
+                            type: "STRING",
+                            enum: [
+                              "project_fact",
+                              "questionnaire_answer",
+                              "timing_rule",
+                              "package_fact",
+                              "crew_fact",
+                              "assumption",
+                            ],
+                          },
+                          sourceId: { type: "STRING" },
+                          label: { type: "STRING" },
+                        },
+                        required: ["type", "sourceId", "label"],
+                      },
+                    },
                   },
                   required: [
                     "startAt",
@@ -138,6 +177,7 @@ async function generate(input: z.infer<typeof inputSchema>, context: Json) {
                     "notes",
                     "visibility",
                     "blockingIssues",
+                    "sourceReferences",
                   ],
                 },
               },
@@ -208,6 +248,57 @@ export const aiScheduleCommand = onRequest(
       await db.runTransaction((transaction) =>
         consumeAiQuota(transaction, db, input.tenantId, now),
       );
+      const [questionnaires, timingRules, crewAssignments, packageSnapshot] =
+        await Promise.all([
+          db
+            .collection("questionnaireResponses")
+            .where("tenantId", "==", input.tenantId)
+            .where("projectId", "==", input.projectId)
+            .get(),
+          db
+            .collection("timingRules")
+            .where("tenantId", "==", input.tenantId)
+            .get(),
+          db
+            .collection("crewAssignments")
+            .where("tenantId", "==", input.tenantId)
+            .where("projectId", "==", input.projectId)
+            .get(),
+          typeof project.get("packageSnapshotId") === "string"
+            ? db
+                .doc(
+                  `packageSnapshots/${String(project.get("packageSnapshotId"))}`,
+                )
+                .get()
+            : Promise.resolve(null),
+        ]);
+      const questionnaireFacts = questionnaires.docs
+        .filter((item) =>
+          ["submitted", "locked"].includes(String(item.get("status"))),
+        )
+        .map((item) => ({
+          sourceId: item.id,
+          templateName: item.get("templateName"),
+          answers: item.get("answers"),
+          answerProvenance: item.get("answerProvenance"),
+        }));
+      const approvedTimingRules = timingRules.docs
+        .filter(
+          (item) =>
+            item.get("active") === true &&
+            String(item.get("eventTypeId")) ===
+              String(project.get("eventType") ?? "wedding"),
+        )
+        .map((item) => ({
+          sourceId: item.id,
+          name: item.get("name"),
+          anchor: item.get("anchor"),
+          offsetMinutes: item.get("offsetMinutes"),
+          durationMinutes: item.get("durationMinutes"),
+          bufferBeforeMinutes: item.get("bufferBeforeMinutes"),
+          bufferAfterMinutes: item.get("bufferAfterMinutes"),
+          version: item.get("version"),
+        }));
       const result = await generate(input, {
         project: {
           id: project.id,
@@ -218,11 +309,41 @@ export const aiScheduleCommand = onRequest(
           venueName: project.get("venueName"),
           city: project.get("city"),
         },
+        questionnaireFacts,
+        approvedTimingRules,
+        packageFact:
+          packageSnapshot?.exists
+            ? {
+                sourceId: packageSnapshot.id,
+                packageName: packageSnapshot.get("packageName"),
+                coverageMinutes: packageSnapshot.get("coverageMinutes"),
+                addOns: packageSnapshot.get("selectedAddOns"),
+              }
+            : null,
+        crewFacts: crewAssignments.docs
+          .filter((item) => item.get("status") === "accepted")
+          .map((item) => ({
+            sourceId: item.id,
+            role: item.get("role"),
+            crewProfileId: item.get("crewProfileId"),
+          })),
       });
       const start = Date.parse(input.coverageStartsAt);
       const end = Date.parse(input.coverageEndsAt);
       const normalized = result.items
-        .map((item, index) => ({ ...item, id: `draft_${index + 1}` }))
+        .map((item, index) => ({
+          ...item,
+          id: `draft_${index + 1}`,
+          sourceReferences: item.sourceReferences.length
+            ? item.sourceReferences
+            : [
+                {
+                  type: "assumption" as const,
+                  sourceId: `assumption_draft_${index + 1}`,
+                  label: "AI draft assumption requiring human review",
+                },
+              ],
+        }))
         .sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt));
       const deterministicConflicts = normalized.flatMap((item, index) => {
         const issues: string[] = [];
@@ -243,19 +364,63 @@ export const aiScheduleCommand = onRequest(
         conflicts: Array.from(
           new Set([...result.conflicts, ...deterministicConflicts]),
         ),
+        sourceTrace: {
+          questionnaireCount: questionnaireFacts.length,
+          timingRuleCount: approvedTimingRules.length,
+          crewFactCount: crewAssignments.docs.filter(
+            (item) => item.get("status") === "accepted",
+          ).length,
+          assumptionItemCount: normalized.filter((item) =>
+            item.sourceReferences.some(
+              (source) => source.type === "assumption",
+            ),
+          ).length,
+        },
         draft: true,
         humanReviewRequired: true,
         interactionId,
       };
       const batch = db.batch();
+      const safeInputSummary = {
+        coverageMinutes: input.coverageMinutes,
+        coverageStartsAt: input.coverageStartsAt,
+        coverageEndsAt: input.coverageEndsAt,
+        hasCeremonyTime: Boolean(input.ceremonyTime),
+        hasReceptionTime: Boolean(input.receptionTime),
+        photographerCount: input.photographerIds.length,
+        locationCount: input.locations.length,
+        hasPreferences: input.preferences.trim().length > 0,
+        preferencesSha256: input.preferences.trim()
+          ? createHash("sha256").update(input.preferences).digest("hex")
+          : null,
+      };
       batch.create(db.doc(`aiInteractions/${interactionId}`), {
         id: interactionId,
         tenantId: input.tenantId,
         projectId: input.projectId,
         userId: identity.uid,
         type: "schedule_draft",
-        input,
-        result: output,
+        inputSummary: safeInputSummary,
+        sourceReferences: {
+          projectId: input.projectId,
+          questionnaireIds: questionnaireFacts.map((item) => item.sourceId),
+          timingRuleIds: approvedTimingRules.map((item) => item.sourceId),
+          packageSnapshotId: packageSnapshot?.exists
+            ? packageSnapshot.id
+            : null,
+          crewAssignmentIds: crewAssignments.docs
+            .filter((item) => item.get("status") === "accepted")
+            .map((item) => item.id),
+        },
+        resultSummary: {
+          itemCount: normalized.length,
+          assumptionCount: result.assumptions.length,
+          missingInformationCount: result.missingInformation.length,
+          conflictCount: output.conflicts.length,
+          riskCount: result.risks.length,
+          sourceTrace: output.sourceTrace,
+          humanReviewRequired: true,
+        },
         model: process.env.VERTEX_AI_SCHEDULE_MODEL,
         createdAt: now,
       });
@@ -281,6 +446,23 @@ export const aiScheduleCommand = onRequest(
         automationRunId: null,
         providerEventId: null,
       });
+      const event = productEvent({
+        tenantId: input.tenantId,
+        projectId: input.projectId,
+        actorId: identity.uid,
+        name: "ai_action.completed",
+        occurredAt: now,
+        correlationId: interactionId,
+        sourceEntityType: "aiInteraction",
+        sourceEntityId: interactionId,
+        properties: {
+          capability: "schedule_draft",
+          itemCount: normalized.length,
+          sourceTrace: output.sourceTrace,
+          humanReviewRequired: true,
+        },
+      });
+      batch.create(db.doc(`productEvents/${event.id}`), event);
       await batch.commit();
       response.status(200).json(output);
     } catch (caught: unknown) {

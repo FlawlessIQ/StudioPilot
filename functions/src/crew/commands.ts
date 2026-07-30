@@ -1,8 +1,14 @@
 import { createHash, randomBytes } from "node:crypto";
-import { getFirestore } from "firebase-admin/firestore";
+import {
+  getFirestore,
+  type DocumentData,
+  type DocumentSnapshot,
+} from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
+import { productEvent } from "../operations/product-events.js";
 import { studioHubCors } from "../security/cors.js";
 
 const requirement = z.object({
@@ -45,6 +51,36 @@ const command = z.discriminatedUnion("type", [
       crewProfileId: z.string(),
       userId: z.string().nullable(),
       role: z.string().min(1).max(120),
+      compensationCents: z.number().int().nonnegative().nullable(),
+      compensationType: z.enum(["hourly", "event"]).nullable(),
+      currency: z.string().length(3),
+      compensationVisibleToCrew: z.boolean(),
+      arrivalAt: z.string().datetime(),
+      departureAt: z.string().datetime(),
+      locations: z
+        .array(
+          z.object({
+            name: z.string().min(1),
+            address: z.string().nullable(),
+          }),
+        )
+        .min(1),
+      responsibilities: z.array(z.string().min(1)),
+      scheduleItemIds: z.array(z.string()),
+      currentScheduleId: z.string().nullable(),
+      currentScheduleVersion: z.number().int().nonnegative(),
+      requirements: z.array(requirement),
+    }),
+  }),
+  z.object({
+    type: z.literal("createCrewCascade"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      role: z.string().min(1).max(120),
+      candidateIds: z.array(z.string().min(1)).min(1).max(20),
+      responseWindowHours: z.number().int().min(1).max(168),
       compensationCents: z.number().int().nonnegative().nullable(),
       compensationType: z.enum(["hourly", "event"]).nullable(),
       currency: z.string().length(3),
@@ -120,6 +156,15 @@ const command = z.discriminatedUnion("type", [
     }),
   }),
   z.object({
+    type: z.literal("completeAssignment"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      assignmentId: z.string(),
+    }),
+  }),
+  z.object({
     type: z.literal("submitRequirement"),
     tenantId: z.string(),
     idempotencyKey: z.string().min(8),
@@ -141,6 +186,99 @@ const hash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
 const stable = (scope: string, tenantId: string, key: string) =>
   `${scope}_${hash(`${tenantId}:${key}`).slice(0, 32)}`;
+const appUrl = () =>
+  process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app";
+
+function cascadeAssignment(input: {
+  id: string;
+  tenantId: string;
+  cascadeId: string;
+  candidateIndex: number;
+  profile: DocumentSnapshot;
+  cascade: DocumentData;
+  token: string;
+  now: string;
+  actorId: string;
+}) {
+  const expiresAt = new Date(
+    Date.parse(input.now) +
+      Number(input.cascade.responseWindowHours ?? 24) * 60 * 60 * 1000,
+  ).toISOString();
+  return {
+    assignment: {
+      id: input.id,
+      tenantId: input.tenantId,
+      projectId: input.cascade.projectId,
+      crewProfileId: input.profile.id,
+      userId: input.profile.get("userId") ?? null,
+      role: input.cascade.role,
+      compensationCents: input.cascade.compensationCents,
+      compensationType: input.cascade.compensationType,
+      currency: input.cascade.currency,
+      compensationVisibleToCrew: input.cascade.compensationVisibleToCrew,
+      arrivalAt: input.cascade.arrivalAt,
+      departureAt: input.cascade.departureAt,
+      locations: input.cascade.locations,
+      responsibilities: input.cascade.responsibilities,
+      scheduleItemIds: input.cascade.scheduleItemIds,
+      notes: null,
+      status: "invited",
+      invitationSentAt: input.now,
+      viewedAt: null,
+      respondedAt: null,
+      calendarStatus: "not_added",
+      calendarAcknowledgedAt: null,
+      currentScheduleId: input.cascade.currentScheduleId,
+      currentScheduleVersion: input.cascade.currentScheduleVersion,
+      acknowledgedScheduleVersion: null,
+      scheduleAcknowledgedAt: null,
+      requirements: Array.isArray(input.cascade.requirements)
+        ? input.cascade.requirements.map((itemValue: unknown) => {
+            const item =
+              typeof itemValue === "object" &&
+              itemValue !== null &&
+              !Array.isArray(itemValue)
+                ? (itemValue as Record<string, unknown>)
+                : {};
+            return {
+              ...item,
+              status: "missing",
+              documentId: null,
+              completedAt: null,
+              completedBy: null,
+              notes: null,
+            };
+          })
+        : [],
+      inviteTokenHash: hash(input.token),
+      inviteExpiresAt: expiresAt,
+      cascadeId: input.cascadeId,
+      cascadeCandidateIndex: input.candidateIndex,
+      createdAt: input.now,
+      updatedAt: input.now,
+      createdBy: input.actorId,
+      updatedBy: input.actorId,
+      archivedAt: null,
+    },
+    emailJob: {
+      id: `crew_invite_${input.id}`,
+      tenantId: input.tenantId,
+      projectId: input.cascade.projectId,
+      type: "crew_invitation",
+      assignmentId: input.id,
+      cascadeId: input.cascadeId,
+      recipient: input.profile.get("email"),
+      recipientName: input.profile.get("name"),
+      inviteToken: input.token,
+      inviteUrl: `${appUrl()}/auth/crew-invite?token=${encodeURIComponent(input.token)}`,
+      status: "queued",
+      attempts: 0,
+      createdAt: input.now,
+      updatedAt: input.now,
+    },
+    expiresAt,
+  };
+}
 
 export const crewCommand = onRequest(
   {
@@ -204,6 +342,164 @@ export const crewCommand = onRequest(
           archivedAt: null,
         });
         result = { crewProfileId: id };
+      } else if (parsed.type === "createCrewCascade") {
+        if (!internalRoles.has(role) || !hasProject(parsed.input.projectId))
+          throw new Error("FORBIDDEN");
+        if (
+          Date.parse(parsed.input.departureAt) <=
+          Date.parse(parsed.input.arrivalAt)
+        )
+          throw new Error("INVALID_ASSIGNMENT_RANGE");
+        if (new Set(parsed.input.candidateIds).size !== parsed.input.candidateIds.length)
+          throw new Error("DUPLICATE_CASCADE_CANDIDATE");
+        const profiles = await Promise.all(
+          parsed.input.candidateIds.map((profileId) =>
+            db.doc(`crewProfiles/${profileId}`).get(),
+          ),
+        );
+        if (
+          profiles.some(
+            (profile) =>
+              !profile.exists ||
+              profile.get("tenantId") !== parsed.tenantId ||
+              profile.get("active") !== true,
+          )
+        )
+          throw new Error("CASCADE_CANDIDATE_INVALID");
+        const conflicts = await db
+          .collection("crewAssignments")
+          .where("tenantId", "==", parsed.tenantId)
+          .where("status", "==", "accepted")
+          .get();
+        const hasConflict = (profileId: string) =>
+          conflicts.docs.some(
+            (assignment) =>
+              assignment.get("crewProfileId") === profileId &&
+              Date.parse(String(assignment.get("arrivalAt"))) <
+                Date.parse(parsed.input.departureAt) &&
+              Date.parse(String(assignment.get("departureAt"))) >
+                Date.parse(parsed.input.arrivalAt),
+          );
+        if (parsed.input.candidateIds.some(hasConflict))
+          throw new Error("CASCADE_CANDIDATE_HAS_ACCEPTED_CONFLICT");
+
+        const cascadeId = stable(
+          "crew_cascade",
+          parsed.tenantId,
+          parsed.idempotencyKey,
+        );
+        const assignmentId = `${cascadeId}_offer_1`;
+        const token = randomBytes(32).toString("base64url");
+        const cascadeRecord = {
+          id: cascadeId,
+          tenantId: parsed.tenantId,
+          ...parsed.input,
+          status: "active",
+          currentCandidateIndex: 0,
+          currentAssignmentId: assignmentId,
+          acceptedAssignmentId: null,
+          handlingStartedAt: now,
+          handlingCompletedAt: null,
+          escalatedAt: null,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: identity.uid,
+          updatedBy: identity.uid,
+          archivedAt: null,
+        };
+        const prepared = cascadeAssignment({
+          id: assignmentId,
+          tenantId: parsed.tenantId,
+          cascadeId,
+          candidateIndex: 0,
+          profile: profiles[0]!,
+          cascade: cascadeRecord,
+          token,
+          now,
+          actorId: identity.uid,
+        });
+        const batch = db.batch();
+        batch.create(db.doc(`crewCascades/${cascadeId}`), {
+          ...cascadeRecord,
+          currentOfferExpiresAt: prepared.expiresAt,
+        });
+        batch.create(
+          db.doc(`crewAssignments/${assignmentId}`),
+          prepared.assignment,
+        );
+        batch.create(
+          db.doc(`emailJobs/${prepared.emailJob.id}`),
+          prepared.emailJob,
+        );
+        batch.create(db.doc(`aiActions/ai_crew_${cascadeId}`), {
+          id: `ai_crew_${cascadeId}`,
+          tenantId: parsed.tenantId,
+          projectId: parsed.input.projectId,
+          actorId: identity.uid,
+          title: "Crew recommendation approved for cascade",
+          capability: "crew_recommendation",
+          authorityBoundary: "human_approval_required",
+          status: "approved",
+          modelProvider: "studiocue_eligibility_engine",
+          modelVersion: "crew-ranking-v1",
+          instructionVersion: "crew-ranking-v1",
+          outputSchemaVersion: "crew-ranking-v1",
+          sourceReferences: parsed.input.candidateIds.map((candidateId) => ({
+            entityType: "crew_profile",
+            entityId: candidateId,
+            versionId: null,
+            label: String(
+              profiles.find((profile) => profile.id === candidateId)?.get(
+                "name",
+              ) ?? candidateId,
+            ),
+            locator: "owner-ranked candidate order",
+          })),
+          structuredOutput: {
+            role: parsed.input.role,
+            orderedCandidateIds: parsed.input.candidateIds,
+            responseWindowHours: parsed.input.responseWindowHours,
+          },
+          confidence: {
+            overall: 1,
+            label: "high",
+            uncertainFields: [],
+          },
+          validation: { status: "passed", issues: [] },
+          decision: {
+            actorId: identity.uid,
+            action: "approved",
+            decidedAt: now,
+            note: "Owner confirmed the candidate order before release.",
+            editDelta: null,
+          },
+          downstreamCommand: {
+            commandType: "create_crew_cascade",
+            commandId: cascadeId,
+            executedAt: now,
+          },
+          usage: {
+            inputTokens: 0,
+            outputTokens: 0,
+            estimatedCostMicros: 0,
+            latencyMs: 0,
+            estimatedMinutesSaved: 45,
+          },
+          failure: null,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: identity.uid,
+          updatedBy: identity.uid,
+          archivedAt: null,
+        });
+        await batch.commit();
+        result = {
+          cascadeId,
+          assignmentId,
+          status: "active",
+          currentCandidateIndex: 0,
+          currentOfferExpiresAt: prepared.expiresAt,
+        };
       } else if (parsed.type === "inviteAssignment") {
         if (!internalRoles.has(role) || !hasProject(parsed.input.projectId))
           throw new Error("FORBIDDEN");
@@ -221,9 +517,7 @@ export const crewCommand = onRequest(
         const inviteExpiresAt = new Date(
           Date.now() + 7 * 86400000,
         ).toISOString();
-        const appUrl =
-          process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app";
-        const inviteUrl = `${appUrl}/auth/crew-invite?token=${encodeURIComponent(inviteToken)}`;
+        const inviteUrl = `${appUrl()}/auth/crew-invite?token=${encodeURIComponent(inviteToken)}`;
         const batch = db.batch();
         batch.create(db.doc(`crewAssignments/${id}`), {
           id,
@@ -350,14 +644,255 @@ export const crewCommand = onRequest(
               !["invited", "viewed"].includes(String(current.get("status")))
             )
               throw new Error("ASSIGNMENT_NOT_RESPONDABLE");
-            transaction.update(reference, {
-              status: parsed.input.decision,
-              respondedAt: now,
-              calendarStatus:
-                parsed.input.decision === "declined" ? "declined" : "not_added",
-              updatedAt: now,
-              updatedBy: identity.uid,
-            });
+            if (
+              Date.parse(String(current.get("inviteExpiresAt"))) <=
+              Date.parse(now)
+            )
+              throw new Error("ASSIGNMENT_OFFER_EXPIRED");
+            const cascadeId = String(current.get("cascadeId") ?? "");
+            if (!cascadeId) {
+              transaction.update(reference, {
+                status: parsed.input.decision,
+                respondedAt: now,
+                calendarStatus:
+                  parsed.input.decision === "declined"
+                    ? "declined"
+                    : "not_added",
+                updatedAt: now,
+                updatedBy: identity.uid,
+              });
+            } else {
+              const cascadeReference = db.doc(`crewCascades/${cascadeId}`);
+              const cascade = await transaction.get(cascadeReference);
+              if (
+                !cascade.exists ||
+                cascade.get("status") !== "active" ||
+                cascade.get("currentAssignmentId") !== reference.id
+              )
+                throw new Error("CASCADE_OFFER_IS_NOT_CURRENT");
+              if (parsed.input.decision === "accepted") {
+                const currentScheduleId = String(
+                  current.get("currentScheduleId") ?? "",
+                );
+                const currentSchedule = currentScheduleId
+                  ? await transaction.get(
+                      db.doc(`schedules/${currentScheduleId}`),
+                    )
+                  : null;
+                transaction.update(reference, {
+                  status: "accepted",
+                  respondedAt: now,
+                  calendarStatus: "not_added",
+                  updatedAt: now,
+                  updatedBy: identity.uid,
+                });
+                transaction.update(cascadeReference, {
+                  status: "filled",
+                  acceptedAssignmentId: reference.id,
+                  handlingCompletedAt: now,
+                  currentOfferExpiresAt: null,
+                  updatedAt: now,
+                  updatedBy: identity.uid,
+                });
+                const handlingStartedAt = String(
+                  cascade.get("handlingStartedAt") ?? "",
+                );
+                const activeSeconds = Math.max(
+                  0,
+                  Math.round(
+                    (Date.parse(now) - Date.parse(handlingStartedAt)) / 1000,
+                  ) || 0,
+                );
+                const event = productEvent({
+                  tenantId: parsed.tenantId,
+                  projectId: parsed.input.projectId,
+                  actorId: identity.uid,
+                  actorType: "subcontractor",
+                  name: "lifecycle.crew_staffed",
+                  occurredAt: now,
+                  correlationId: parsed.idempotencyKey,
+                  sourceEntityType: "crewCascade",
+                  sourceEntityId: cascadeId,
+                  properties: {
+                    assignmentId: reference.id,
+                    candidateIndex: cascade.get("currentCandidateIndex"),
+                    role: cascade.get("role"),
+                  },
+                  handling: {
+                    activeSeconds,
+                    baselineSeconds: null,
+                    verifiedSecondsSaved: null,
+                    measurementMethod: "workflow_timestamps",
+                  },
+                });
+                transaction.create(
+                  db.doc(`productEvents/${event.id}`),
+                  event,
+                );
+                transaction.set(
+                  db.doc(`crewCalendarEvents/${reference.id}`),
+                  {
+                    id: reference.id,
+                    tenantId: parsed.tenantId,
+                    projectId: parsed.input.projectId,
+                    assignmentId: reference.id,
+                    crewProfileId: current.get("crewProfileId"),
+                    userId: identity.uid,
+                    title: `${String(
+                      cascade.get("role"),
+                    )} · photography assignment`,
+                    startsAt: current.get("arrivalAt"),
+                    endsAt: current.get("departureAt"),
+                    locations: current.get("locations"),
+                    currentScheduleId: current.get("currentScheduleId"),
+                    status: "ready",
+                    externalCalendarAuthority: "crew_download_or_provider",
+                    createdAt: now,
+                    updatedAt: now,
+                  },
+                  { merge: false },
+                );
+                if (
+                  currentSchedule?.exists &&
+                  currentSchedule.get("tenantId") === parsed.tenantId &&
+                  currentSchedule.get("projectId") === parsed.input.projectId
+                ) {
+                  const allowedIds = Array.isArray(
+                    current.get("scheduleItemIds"),
+                  )
+                    ? new Set(
+                        (current.get("scheduleItemIds") as unknown[]).map(
+                          String,
+                        ),
+                      )
+                    : new Set<string>();
+                  const scopedItems = Array.isArray(
+                    currentSchedule.get("items"),
+                  )
+                    ? (
+                        currentSchedule.get("items") as Array<
+                          Record<string, unknown>
+                        >
+                      ).filter(
+                        (item) =>
+                          ["crew", "shared"].includes(
+                            String(item.visibility),
+                          ) &&
+                          (allowedIds.size === 0 ||
+                            allowedIds.has(String(item.id))),
+                      )
+                    : [];
+                  transaction.set(
+                    db.doc(
+                      `crewScheduleViews/${currentScheduleId}_${reference.id}`,
+                    ),
+                    {
+                      id: `${currentScheduleId}_${reference.id}`,
+                      tenantId: parsed.tenantId,
+                      projectId: parsed.input.projectId,
+                      assignmentId: reference.id,
+                      userId: identity.uid,
+                      crewProfileId: current.get("crewProfileId"),
+                      sourceScheduleId: currentScheduleId,
+                      version: currentSchedule.get("version"),
+                      status: "published",
+                      timezone: currentSchedule.get("timezone"),
+                      items: scopedItems,
+                      publishedAt: currentSchedule.get("publishedAt"),
+                      createdAt: now,
+                      updatedAt: now,
+                    },
+                    { merge: false },
+                  );
+                }
+              } else {
+                const candidateIds = Array.isArray(
+                  cascade.get("candidateIds"),
+                )
+                  ? (cascade.get("candidateIds") as unknown[]).map(String)
+                  : [];
+                const nextIndex =
+                  Number(cascade.get("currentCandidateIndex") ?? 0) + 1;
+                const nextCandidateId = candidateIds[nextIndex];
+                const nextProfile = nextCandidateId
+                  ? await transaction.get(
+                      db.doc(`crewProfiles/${nextCandidateId}`),
+                    )
+                  : null;
+                transaction.update(reference, {
+                  status: "declined",
+                  respondedAt: now,
+                  calendarStatus: "declined",
+                  updatedAt: now,
+                  updatedBy: identity.uid,
+                });
+                if (
+                  nextCandidateId &&
+                  nextProfile?.exists &&
+                  nextProfile.get("tenantId") === parsed.tenantId &&
+                  nextProfile.get("active") === true
+                ) {
+                  const nextAssignmentId = `${cascadeId}_offer_${nextIndex + 1}`;
+                  const nextToken = randomBytes(32).toString("base64url");
+                  const prepared = cascadeAssignment({
+                    id: nextAssignmentId,
+                    tenantId: parsed.tenantId,
+                    cascadeId,
+                    candidateIndex: nextIndex,
+                    profile: nextProfile,
+                    cascade: cascade.data() ?? {},
+                    token: nextToken,
+                    now,
+                    actorId: identity.uid,
+                  });
+                  transaction.create(
+                    db.doc(`crewAssignments/${nextAssignmentId}`),
+                    prepared.assignment,
+                  );
+                  transaction.create(
+                    db.doc(`emailJobs/${prepared.emailJob.id}`),
+                    prepared.emailJob,
+                  );
+                  transaction.update(cascadeReference, {
+                    currentCandidateIndex: nextIndex,
+                    currentAssignmentId: nextAssignmentId,
+                    currentOfferExpiresAt: prepared.expiresAt,
+                    updatedAt: now,
+                    updatedBy: identity.uid,
+                  });
+                } else {
+                  transaction.update(cascadeReference, {
+                    status: "exhausted",
+                    currentOfferExpiresAt: null,
+                    handlingCompletedAt: now,
+                    escalatedAt: now,
+                    updatedAt: now,
+                    updatedBy: identity.uid,
+                  });
+                  transaction.set(
+                    db.doc(`notifications/crew_cascade_${cascadeId}`),
+                    {
+                      id: `crew_cascade_${cascadeId}`,
+                      tenantId: parsed.tenantId,
+                      projectId: parsed.input.projectId,
+                      audience: ["studio_owner", "studio_admin"],
+                      title: "Crew role remains unfilled",
+                      body: `${String(
+                        cascade.get("role"),
+                      )} exhausted every approved candidate.`,
+                      severity: "warning",
+                      href: `/studio/crew?project=${encodeURIComponent(
+                        parsed.input.projectId,
+                      )}`,
+                      readBy: [],
+                      createdAt: now,
+                      updatedAt: now,
+                    },
+                    { merge: true },
+                  );
+                }
+              }
+            }
           } else if (parsed.type === "acknowledgeCalendar") {
             if (!ownsAssignment || current.get("status") !== "accepted")
               throw new Error("ASSIGNMENT_NOT_ACCEPTED");
@@ -380,6 +915,29 @@ export const crewCommand = onRequest(
             transaction.update(reference, {
               acknowledgedScheduleVersion: parsed.input.scheduleVersion,
               scheduleAcknowledgedAt: now,
+              updatedAt: now,
+              updatedBy: identity.uid,
+            });
+          } else if (parsed.type === "completeAssignment") {
+            if (!internal || current.get("status") !== "accepted")
+              throw new Error("ASSIGNMENT_NOT_COMPLETABLE");
+            const requirements = Array.isArray(current.get("requirements"))
+              ? (current.get("requirements") as Array<
+                  Record<string, unknown>
+                >)
+              : [];
+            if (
+              requirements.some(
+                (item) =>
+                  item.required === true &&
+                  !["complete", "waived"].includes(String(item.status)),
+              )
+            )
+              throw new Error("ASSIGNMENT_REQUIREMENTS_INCOMPLETE");
+            transaction.update(reference, {
+              status: "completed",
+              completedAt: now,
+              completedBy: identity.uid,
               updatedAt: now,
               updatedBy: identity.uid,
             });
@@ -483,6 +1041,130 @@ export const crewCommand = onRequest(
       response
         .status(message === "FORBIDDEN" ? 403 : 400)
         .json({ error: message });
+    }
+  },
+);
+
+export const crewCascadeExpiryScheduler = onSchedule(
+  {
+    schedule: "every 15 minutes",
+    timeZone: "UTC",
+    retryCount: 3,
+  },
+  async () => {
+    const db = getFirestore();
+    const now = new Date().toISOString();
+    const active = await db
+      .collection("crewCascades")
+      .where("status", "==", "active")
+      .limit(100)
+      .get();
+    for (const cascadeSnapshot of active.docs) {
+      if (
+        Date.parse(String(cascadeSnapshot.get("currentOfferExpiresAt"))) >
+        Date.parse(now)
+      )
+        continue;
+      await db.runTransaction(async (transaction) => {
+        const cascade = await transaction.get(cascadeSnapshot.ref);
+        if (
+          !cascade.exists ||
+          cascade.get("status") !== "active" ||
+          Date.parse(String(cascade.get("currentOfferExpiresAt"))) >
+            Date.parse(now)
+        )
+          return;
+        const assignmentReference = db.doc(
+          `crewAssignments/${String(cascade.get("currentAssignmentId"))}`,
+        );
+        const assignment = await transaction.get(assignmentReference);
+        if (
+          !assignment.exists ||
+          !["invited", "viewed"].includes(String(assignment.get("status")))
+        )
+          return;
+        const candidateIds = Array.isArray(cascade.get("candidateIds"))
+          ? (cascade.get("candidateIds") as unknown[]).map(String)
+          : [];
+        const nextIndex =
+          Number(cascade.get("currentCandidateIndex") ?? 0) + 1;
+        const nextCandidateId = candidateIds[nextIndex];
+        const nextProfile = nextCandidateId
+          ? await transaction.get(db.doc(`crewProfiles/${nextCandidateId}`))
+          : null;
+        transaction.update(assignmentReference, {
+          status: "expired",
+          respondedAt: now,
+          calendarStatus: "declined",
+          updatedAt: now,
+          updatedBy: "crew-cascade-expiry",
+        });
+        if (
+          nextCandidateId &&
+          nextProfile?.exists &&
+          nextProfile.get("tenantId") === cascade.get("tenantId") &&
+          nextProfile.get("active") === true
+        ) {
+          const nextAssignmentId = `${cascade.id}_offer_${nextIndex + 1}`;
+          const token = randomBytes(32).toString("base64url");
+          const prepared = cascadeAssignment({
+            id: nextAssignmentId,
+            tenantId: String(cascade.get("tenantId")),
+            cascadeId: cascade.id,
+            candidateIndex: nextIndex,
+            profile: nextProfile,
+            cascade: cascade.data() ?? {},
+            token,
+            now,
+            actorId: "crew-cascade-expiry",
+          });
+          transaction.create(
+            db.doc(`crewAssignments/${nextAssignmentId}`),
+            prepared.assignment,
+          );
+          transaction.create(
+            db.doc(`emailJobs/${prepared.emailJob.id}`),
+            prepared.emailJob,
+          );
+          transaction.update(cascade.ref, {
+            currentCandidateIndex: nextIndex,
+            currentAssignmentId: nextAssignmentId,
+            currentOfferExpiresAt: prepared.expiresAt,
+            updatedAt: now,
+            updatedBy: "crew-cascade-expiry",
+          });
+        } else {
+          transaction.update(cascade.ref, {
+            status: "exhausted",
+            currentOfferExpiresAt: null,
+            handlingCompletedAt: now,
+            escalatedAt: now,
+            updatedAt: now,
+            updatedBy: "crew-cascade-expiry",
+          });
+          transaction.set(
+            db.doc(`notifications/crew_cascade_${cascade.id}`),
+            {
+              id: `crew_cascade_${cascade.id}`,
+              tenantId: cascade.get("tenantId"),
+              projectId: cascade.get("projectId"),
+              audience: ["studio_owner", "studio_admin"],
+              title: "Crew role remains unfilled",
+              body: `${String(
+                cascade.get("role"),
+              )} exhausted every approved candidate.`,
+              severity: "warning",
+              href: `/studio/crew?project=${encodeURIComponent(
+                String(cascade.get("projectId")),
+              )}`,
+              readBy: [],
+              createdAt: now,
+              updatedAt: now,
+            },
+            { merge: true },
+          );
+        }
+      });
     }
   },
 );

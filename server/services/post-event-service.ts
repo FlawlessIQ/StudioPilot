@@ -54,6 +54,34 @@ export function reviewSchedule(deliveryDate: string) {
   };
 }
 
+export function reviewReleasePlan(deliveryDate: string) {
+  const schedule = reviewSchedule(deliveryDate);
+  return [
+    {
+      sequence: 1,
+      channel: "portal" as const,
+      scheduledAt: schedule.firstAt,
+    },
+    {
+      sequence: 2,
+      channel: "email" as const,
+      scheduledAt: schedule.reminderAt,
+    },
+  ];
+}
+
+export function albumReminderDecision(input: {
+  workflowStatus: string;
+  stopOnStatuses: readonly string[];
+  reminderStatus: "scheduled" | "sent" | "skipped";
+}) {
+  if (input.reminderStatus !== "scheduled")
+    return { shouldSend: false, nextStatus: input.reminderStatus };
+  if (input.stopOnStatuses.includes(input.workflowStatus))
+    return { shouldSend: false, nextStatus: "skipped" as const };
+  return { shouldSend: true, nextStatus: "sent" as const };
+}
+
 export function recordReviewEngagement(
   request: ReviewRequest,
   event: "delivered" | "opened" | "clicked" | "client_confirmed" | "manually_confirmed",

@@ -49,6 +49,27 @@ arbitrary services.
 - file signature verification and malware scanning are performed in a restricted processing service before approval workflows
 - PDFs are parsed/rendered in isolated Cloud Run workers with time and memory limits
 - signed Docusign PDFs are immutable
+- reusable studio files remain quarantined until signature validation and
+  malware scanning pass; only trusted workers may create extracted drafts
+- imported legal, payment, signature, insurance, approval, and provider-state
+  claims are blocking validation issues and cannot be activated as truth
+
+## AI privacy and authority
+
+- persisted AI action records contain source identifiers, model/instruction
+  versions, structured drafts, confidence, validation, human decisions, and
+  downstream command references
+- AI actions cannot execute a `never_ai_authoritative` or
+  `provider_evidence_required` decision; reviewed-draft capabilities require an
+  explicit approval record before a deterministic command can run
+- schedule-generation interaction telemetry stores counts, timestamps,
+  source-record IDs, and a one-way preferences hash—not questionnaire answers,
+  preference text, participant names, venue addresses, or the generated brief
+- product telemetry contains bounded operational properties and measurements;
+  it must not contain message bodies, document text, provider tokens, payment
+  instruments, or client access codes
+- evaluation fixtures use redacted synthetic wedding materials and assert
+  classification, citation, human-review, and unsupported-authority thresholds
 
 ## Audit and support
 
@@ -85,11 +106,18 @@ Feature flags cannot bypass an entitlement, role, project assignment, or quota.
 - client invitation tokens are random, expire after seven days, are stored only
   as hashes, rotate on resend, and can be revoked by an authorized studio user
 - subcontractors can read only their own profile, availability, assignments, scoped documents, and assigned schedule
+- subcontractors receive a server-materialized `crewScheduleView` containing
+  only their published crew/shared schedule items; the full schedule,
+  compensation, private client notes, and studio-only items are not cached
+- offline crew storage caches only the sanitized role brief and is cleared when
+  the assignment or published schedule changes
 - publishing a new schedule clears accepted crew acknowledgements so obsolete versions cannot satisfy readiness
 - crew uploads are user/project path-bound, create-only, type and size validated, and remain under studio review
 - post-production, delivery, review, and closeout records are server-write-only
 - delivery commands require backup, editing, gallery, project-state, tenant, and permission gates
 - review clicks are engagement evidence only and cannot complete the review workflow
+- album reminders stop when selection, design, revision, approval, or
+  fulfillment evidence exists; AI never selects images or approves album design
 - closeout requires every deterministic evidence gate and Studio Owner or Admin authority
 - report export jobs are restricted to financial-reporting roles and retain tenant-scoped filters
 

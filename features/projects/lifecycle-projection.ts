@@ -1,0 +1,369 @@
+import type { ProjectState } from "@/features/projects/schema";
+
+export type LifecycleRecord = Record<string, unknown> & { id: string };
+
+export type LifecycleLaneKey =
+  | "studiocue"
+  | "studio"
+  | "client"
+  | "crew";
+
+export type LifecycleWorkItem = {
+  id: string;
+  label: string;
+  detail: string;
+  status: "working" | "waiting" | "blocked" | "ready" | "complete";
+  owner: "StudioCue" | "Studio" | "Client" | "Crew";
+  dueAt: string | null;
+  href: string;
+  evidence: string | null;
+};
+
+export type ProjectLifecycleProjection = {
+  currentStage: "Inquiry" | "Booking" | "Planning" | "Event" | "Delivery";
+  readiness: number;
+  nextAction: {
+    label: string;
+    owner: LifecycleWorkItem["owner"];
+    dueAt: string | null;
+    href: string;
+  };
+  primaryBlocker: string | null;
+  waitingOn: LifecycleWorkItem["owner"] | null;
+  lanes: Record<LifecycleLaneKey, LifecycleWorkItem[]>;
+};
+
+const stateStage: Record<ProjectState, ProjectLifecycleProjection["currentStage"]> = {
+  LEAD: "Inquiry",
+  CONSULTATION: "Inquiry",
+  PROPOSAL: "Booking",
+  CONTRACT_PENDING: "Booking",
+  RETAINER_PENDING: "Booking",
+  BOOKED: "Planning",
+  PLANNING: "Planning",
+  READY: "Event",
+  EVENT_COMPLETE: "Delivery",
+  POST_PRODUCTION: "Delivery",
+  DELIVERED: "Delivery",
+  REVIEW_REQUESTED: "Delivery",
+  CLOSED: "Delivery",
+  CANCELLED: "Inquiry",
+  POSTPONED: "Planning",
+  ARCHIVED: "Delivery",
+};
+
+const text = (value: unknown): string =>
+  typeof value === "string" ? value : "";
+const number = (value: unknown): number =>
+  Number.isFinite(Number(value)) ? Number(value) : 0;
+const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+
+function due(record: LifecycleRecord): string | null {
+  return (
+    text(record.resolvedDueDate) ||
+    text(record.dueDate) ||
+    text(record.expiresAt) ||
+    text(record.scheduledFor) ||
+    text(record.startsAt) ||
+    null
+  );
+}
+
+function overdue(value: string | null, now: string): boolean {
+  if (!value) return false;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) && parsed < Date.parse(now);
+}
+
+function route(projectId: string, domain: string): string {
+  const direct: Record<string, string> = {
+    projects: `/studio/projects/${projectId}`,
+    consultations: `/studio/calendar?project=${projectId}`,
+    proposals: `/studio/proposals?project=${projectId}`,
+    contracts: `/studio/contracts?project=${projectId}`,
+    invoices: `/studio/invoices?project=${projectId}`,
+    questionnaires: `/studio/questionnaires?project=${projectId}`,
+    insurance: `/studio/insurance?project=${projectId}`,
+    schedules: `/studio/schedules?project=${projectId}`,
+    crew: `/studio/crew?project=${projectId}`,
+    delivery: `/studio/delivery?project=${projectId}`,
+    reviews: `/studio/reviews?project=${projectId}`,
+    tasks: `/studio/tasks?project=${projectId}`,
+    automations: "/studio/ai-queue",
+  };
+  return direct[domain] ?? `/studio/projects/${projectId}`;
+}
+
+function item(input: Omit<LifecycleWorkItem, "evidence"> & {
+  evidence?: string | null;
+}): LifecycleWorkItem {
+  return { evidence: null, ...input };
+}
+
+export function projectLifecycleProjection(input: {
+  project: LifecycleRecord;
+  checkpoints?: LifecycleRecord[];
+  tasks?: LifecycleRecord[];
+  contracts?: LifecycleRecord[];
+  invoices?: LifecycleRecord[];
+  questionnaires?: LifecycleRecord[];
+  insurance?: LifecycleRecord[];
+  schedules?: LifecycleRecord[];
+  crewAssignments?: LifecycleRecord[];
+  automationRuns?: LifecycleRecord[];
+  aiActions?: LifecycleRecord[];
+  deliveries?: LifecycleRecord[];
+  reviewRequests?: LifecycleRecord[];
+  now?: string;
+}): ProjectLifecycleProjection {
+  const now = input.now ?? new Date().toISOString();
+  const projectId = input.project.id;
+  const state = text(input.project.state) as ProjectState;
+  const lanes: ProjectLifecycleProjection["lanes"] = {
+    studiocue: [],
+    studio: [],
+    client: [],
+    crew: [],
+  };
+
+  for (const run of input.automationRuns ?? []) {
+    if (
+      ["queued", "running", "retry_scheduled"].includes(text(run.status))
+    ) {
+      lanes.studiocue.push(
+        item({
+          id: `automation-${run.id}`,
+          label: text(run.name) || text(run.triggerType) || "Workflow run",
+          detail:
+            text(run.status) === "retry_scheduled"
+              ? "Retry is scheduled with the recorded backoff."
+              : "StudioCue is processing the next deterministic step.",
+          status: "working",
+          owner: "StudioCue",
+          dueAt: due(run),
+          href: route(projectId, "automations"),
+          evidence: run.id,
+        }),
+      );
+    }
+  }
+  for (const action of input.aiActions ?? []) {
+    if (["queued", "running"].includes(text(action.status))) {
+      lanes.studiocue.push(
+        item({
+          id: `ai-${action.id}`,
+          label: text(action.title) || "AI is preparing a draft",
+          detail: text(action.capability).replaceAll("_", " "),
+          status: "working",
+          owner: "StudioCue",
+          dueAt: due(action),
+          href: route(projectId, "automations"),
+          evidence: action.id,
+        }),
+      );
+    } else if (text(action.status) === "review_required") {
+      lanes.studio.push(
+        item({
+          id: `ai-review-${action.id}`,
+          label: text(action.title) || "Review AI-prepared work",
+          detail:
+            "Sources, confidence, affected record, and downstream consequence are ready to inspect.",
+          status: "ready",
+          owner: "Studio",
+          dueAt: due(action),
+          href: route(projectId, "automations"),
+          evidence: action.id,
+        }),
+      );
+    }
+  }
+
+  for (const checkpoint of input.checkpoints ?? []) {
+    if (["complete", "waived"].includes(text(checkpoint.status))) continue;
+    const ownerType = text(checkpoint.ownerType);
+    const owner =
+      ownerType === "client"
+        ? "Client"
+        : ["crew", "subcontractor", "photographer"].includes(ownerType)
+          ? "Crew"
+          : "Studio";
+    const lane =
+      owner === "Client" ? lanes.client : owner === "Crew" ? lanes.crew : lanes.studio;
+    const dueAt = due(checkpoint);
+    lane.push(
+      item({
+        id: `checkpoint-${checkpoint.id}`,
+        label: text(checkpoint.name) || "Readiness requirement",
+        detail:
+          checkpoint.blocking === true
+            ? "Blocks event readiness until resolved."
+            : "Required project follow-up.",
+        status: overdue(dueAt, now)
+          ? "blocked"
+          : checkpoint.blocking === true
+            ? "waiting"
+            : "ready",
+        owner,
+        dueAt,
+        href: route(projectId, "projects"),
+        evidence: checkpoint.id,
+      }),
+    );
+  }
+
+  for (const task of input.tasks ?? []) {
+    if (["complete", "completed", "cancelled"].includes(text(task.status)))
+      continue;
+    const dueAt = due(task);
+    lanes.studio.push(
+      item({
+        id: `task-${task.id}`,
+        label: text(task.title) || text(task.name) || "Studio task",
+        detail: text(task.description) || "Studio-owned project work.",
+        status: overdue(dueAt, now) ? "blocked" : "ready",
+        owner: "Studio",
+        dueAt,
+        href: route(projectId, "tasks"),
+        evidence: task.id,
+      }),
+    );
+  }
+
+  const activeContract = (input.contracts ?? []).find(
+    (contract) =>
+      !["completed", "voided", "declined"].includes(text(contract.status)),
+  );
+  if (activeContract) {
+    lanes.client.push(
+      item({
+        id: `contract-${activeContract.id}`,
+        label: "Complete contract signatures",
+        detail: `${list(activeContract.signers).length || "Required"} signer records · provider evidence pending`,
+        status: "waiting",
+        owner: "Client",
+        dueAt: due(activeContract),
+        href: route(projectId, "contracts"),
+        evidence: text(activeContract.providerEnvelopeId) || activeContract.id,
+      }),
+    );
+  }
+  const unpaid = (input.invoices ?? []).filter(
+    (invoice) =>
+      number(invoice.balanceCents) > 0 &&
+      !["voided", "refunded"].includes(text(invoice.status)),
+  );
+  for (const invoice of unpaid) {
+    const dueAt = due(invoice);
+    lanes.client.push(
+      item({
+        id: `invoice-${invoice.id}`,
+        label:
+          text(invoice.kind) === "retainer"
+            ? "Pay booking retainer"
+            : "Pay outstanding invoice",
+        detail: `${number(invoice.balanceCents)} cents balance · QuickBooks remains authoritative`,
+        status: overdue(dueAt, now) ? "blocked" : "waiting",
+        owner: "Client",
+        dueAt,
+        href: route(projectId, "invoices"),
+        evidence: text(invoice.providerInvoiceId) || invoice.id,
+      }),
+    );
+  }
+  for (const response of input.questionnaires ?? []) {
+    if (["submitted", "reviewed", "complete"].includes(text(response.status)))
+      continue;
+    lanes.client.push(
+      item({
+        id: `questionnaire-${response.id}`,
+        label: "Finish planning questionnaire",
+        detail: `${number(response.completionPercent)}% complete`,
+        status: overdue(due(response), now) ? "blocked" : "waiting",
+        owner: "Client",
+        dueAt: due(response),
+        href: route(projectId, "questionnaires"),
+        evidence: response.id,
+      }),
+    );
+  }
+
+  for (const assignment of input.crewAssignments ?? []) {
+    if (["accepted", "complete", "declined", "cancelled"].includes(
+      text(assignment.status),
+    )) {
+      if (
+        text(assignment.status) === "accepted" &&
+        number(assignment.acknowledgedScheduleVersion) <
+          number(assignment.currentScheduleVersion)
+      ) {
+        lanes.crew.push(
+          item({
+            id: `crew-ack-${assignment.id}`,
+            label: "Acknowledge the current schedule",
+            detail: `${text(assignment.role) || "Crew role"} has a newer published version.`,
+            status: "waiting",
+            owner: "Crew",
+            dueAt: due(assignment),
+            href: route(projectId, "crew"),
+            evidence: assignment.id,
+          }),
+        );
+      }
+      continue;
+    }
+    lanes.crew.push(
+      item({
+        id: `crew-${assignment.id}`,
+        label: `Respond to ${text(assignment.role) || "crew"} offer`,
+        detail: "The next offer waits for accept, decline, or expiration.",
+        status: "waiting",
+        owner: "Crew",
+        dueAt: due(assignment),
+        href: route(projectId, "crew"),
+        evidence: assignment.id,
+      }),
+    );
+  }
+
+  const currentStage = stateStage[state] ?? "Inquiry";
+  const all = [
+    ...lanes.studio,
+    ...lanes.client,
+    ...lanes.crew,
+    ...lanes.studiocue,
+  ];
+  const order = { blocked: 0, ready: 1, waiting: 2, working: 3, complete: 4 };
+  const prioritized = [...all].sort((left, right) => {
+    const status = order[left.status] - order[right.status];
+    if (status !== 0) return status;
+    return (left.dueAt ?? "9999").localeCompare(right.dueAt ?? "9999");
+  });
+  const next = prioritized[0];
+  return {
+    currentStage,
+    readiness: Math.max(
+      0,
+      Math.min(100, number(input.project.readinessScore)),
+    ),
+    nextAction: next
+      ? {
+          label: next.label,
+          owner: next.owner,
+          dueAt: next.dueAt,
+          href: next.href,
+        }
+      : {
+          label: text(input.project.nextAction) || "Review the project",
+          owner: "Studio",
+          dueAt: null,
+          href: route(projectId, "projects"),
+        },
+    primaryBlocker:
+      prioritized.find((work) => work.status === "blocked")?.label ?? null,
+    waitingOn:
+      prioritized.find((work) =>
+        ["waiting", "blocked"].includes(work.status),
+      )?.owner ?? null,
+    lanes,
+  };
+}

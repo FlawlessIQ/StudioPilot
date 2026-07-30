@@ -1,8 +1,14 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { DeliveryForm } from "@/components/post-event/delivery-form";
+import { DeliveryCloseoutWorkspace } from "@/components/post-event/delivery-closeout-workspace";
 import { LiveDomainView } from "@/components/studio/live-domain-view";
 
-export default function DeliveryPage() {
+export default async function DeliveryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ project?: string }>;
+}) {
+  const { project } = await searchParams;
   return (
     <AppShell active="Delivery">
       <div className="live-domain-page">
@@ -23,8 +29,9 @@ export default function DeliveryPage() {
               <h2>Record gallery</h2>
             </div>
           </div>
-          <DeliveryForm />
+          <DeliveryForm projectId={project} />
         </section>
+        <DeliveryCloseoutWorkspace projectId={project} />
         <section>
           <div className="section-heading-row">
             <div>
@@ -32,7 +39,7 @@ export default function DeliveryPage() {
               <h2>Delivery records</h2>
             </div>
           </div>
-          <LiveDomainView domain="delivery" />
+          <LiveDomainView domain="delivery" projectId={project} />
         </section>
       </div>
     </AppShell>

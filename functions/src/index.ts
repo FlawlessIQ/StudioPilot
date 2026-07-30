@@ -19,11 +19,17 @@ export {
   communicationsCommand,
   scheduledEmailRelease,
 } from "./communications/commands.js";
-export { crewCommand } from "./crew/commands.js";
+export {
+  crewCascadeExpiryScheduler,
+  crewCommand,
+} from "./crew/commands.js";
 export { crewInvitationCommand } from "./crew/invitations.js";
 export { clientInvitationCommand } from "./client/invitations.js";
 export { postEventCommand } from "./post-event/commands.js";
-export { reviewRequestScheduler } from "./post-event/jobs.js";
+export {
+  albumReminderScheduler,
+  reviewRequestScheduler,
+} from "./post-event/jobs.js";
 export { billingCommand, stripeWebhook } from "./saas/stripe.js";
 export { saasAdminCommand } from "./saas/admin.js";
 export { operationsHealthScheduler } from "./saas/jobs.js";
@@ -50,6 +56,7 @@ export { supportTenantSummary } from "./saas/support.js";
 export { finalInvoiceScheduler } from "./operations/invoice-scheduler.js";
 export { aiCopilotCommand } from "./ai/copilot.js";
 export { aiScheduleCommand } from "./ai/schedule.js";
+export { aiActionCommand } from "./ai/actions.js";
 export { authEmailCommand } from "./auth/emails.js";
 export {
   automationRetryScheduler,

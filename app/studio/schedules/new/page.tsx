@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { AiScheduleGenerator } from "@/components/planning/ai-schedule-generator";
+import { TimingRuleEditor } from "@/components/planning/timing-rule-editor";
 
 export const metadata: Metadata = { title: "Generate Schedule" };
 
@@ -18,6 +19,7 @@ export default function NewSchedulePage() {
             <p>Generate a first draft, review every assumption, then save it for your team to refine.</p>
           </div>
         </header>
+        <TimingRuleEditor />
         <AiScheduleGenerator />
       </div>
     </AppShell>

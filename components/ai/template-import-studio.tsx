@@ -28,11 +28,14 @@ import {
   studioImportAllowedExtensions,
   validateStudioImportFileCandidate,
 } from "@/features/studio-import/schema";
+import { StudioImportReviewWorkspace } from "@/components/ai/studio-import-review-workspace";
 import {
   cancelStudioImport,
   retryStudioImportItem,
   uploadStudioImportFiles,
+  waitForStudioImportReview,
   type StudioImportRemoteItem,
+  type StudioImportReview,
   type StudioImportUploadProgress,
 } from "@/lib/studio-import/command-client";
 
@@ -145,6 +148,10 @@ function importStatusLabel(status: string | undefined) {
   if (status === "quarantined") return "In private quarantine";
   if (status === "scanning") return "Running file-safety checks";
   if (status === "ready_for_analysis") return "Verified and ready for AI";
+  if (status === "analyzing") return "AI is mapping reusable content";
+  if (status === "review_ready") return "Drafts ready for review";
+  if (status === "approved") return "Approved for activation";
+  if (status === "ignored") return "Ignored";
   if (status === "rejected") return "Rejected by file safety";
   if (status === "failed") return "Safety check needs attention";
   if (status === "cancelled") return "Cancelled";
@@ -166,6 +173,7 @@ export function TemplateImportStudio() {
     useState<StudioImportUploadProgress | null>(null);
   const [pipelineError, setPipelineError] = useState<string | null>(null);
   const [secureSourcesReady, setSecureSourcesReady] = useState(false);
+  const [review, setReview] = useState<StudioImportReview | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const suggestions = useMemo(() => {
@@ -228,6 +236,7 @@ export function TemplateImportStudio() {
     setSecureSourcesReady(false);
     setUploadProgress(null);
     setPipelineError(null);
+    setReview(null);
   }
 
   async function buildPlan() {
@@ -235,6 +244,7 @@ export function TemplateImportStudio() {
     setComplete(false);
     setPipelineError(null);
     setSecureSourcesReady(false);
+    setReview(null);
     if (sourceMode === "files" && files.length > 0) {
       const controller = new AbortController();
       abortRef.current = controller;
@@ -254,8 +264,34 @@ export function TemplateImportStudio() {
                 "One or more files did not pass safety checks.",
             );
           }
-          setSelected(suggestions);
           setSecureSourcesReady(true);
+          setUploadProgress({
+            phase: "ready",
+            percent: 100,
+            message: "Files are safe. AI is creating cited drafts…",
+            sessionId: result.result.session.id,
+            items: result.result.items,
+          });
+          const importedReview = await waitForStudioImportReview({
+            sessionId: result.result.session.id,
+            signal: controller.signal,
+            onReview: (next) =>
+              setUploadProgress((current) => ({
+                phase: "ready",
+                percent: 100,
+                message:
+                  next.drafts.length > 0
+                    ? `AI found ${next.drafts.length} reusable draft${
+                        next.drafts.length === 1 ? "" : "s"
+                      }.`
+                    : "AI is classifying the verified sources…",
+                sessionId: result.result.session.id,
+                items: current?.items ?? result.result.items,
+              })),
+          });
+          setReview(importedReview);
+          setSelected(suggestions);
+          setComplete(true);
           setBusy(false);
           abortRef.current = null;
           return;
@@ -334,6 +370,12 @@ export function TemplateImportStudio() {
       if (retried.ready) {
         setSelected(suggestions);
         setSecureSourcesReady(true);
+        const importedReview = await waitForStudioImportReview({
+          sessionId,
+          signal: controller.signal,
+        });
+        setReview(importedReview);
+        setComplete(true);
       } else {
         const failed = retried.result.items.find(
           (candidate) => candidate.failure?.message,
@@ -404,6 +446,7 @@ export function TemplateImportStudio() {
                     setSecureSourcesReady(false);
                     setUploadProgress(null);
                     setPipelineError(null);
+                    setReview(null);
                   }}
                   role="tab"
                   type="button"
@@ -498,6 +541,7 @@ export function TemplateImportStudio() {
                               setSecureSourcesReady(false);
                               setUploadProgress(null);
                               setPipelineError(null);
+                              setReview(null);
                             }}
                             type="button"
                           >
@@ -544,6 +588,7 @@ export function TemplateImportStudio() {
                   setEmailText(event.target.value);
                   setComplete(false);
                   setPipelineError(null);
+                  setReview(null);
                 }}
                 placeholder="Hi {{first name}}, thank you for reaching out about your wedding…"
                 value={emailText}
@@ -560,6 +605,7 @@ export function TemplateImportStudio() {
                   setWebsiteUrl(event.target.value);
                   setComplete(false);
                   setPipelineError(null);
+                  setReview(null);
                 }}
                 placeholder="https://yourstudio.com/wedding-info"
                 type="url"
@@ -694,7 +740,11 @@ export function TemplateImportStudio() {
                   <Sparkles />
                 )}
                 {secureSourcesReady
-                  ? "Sources verified—ready for AI analysis"
+                  ? review
+                    ? `${review.drafts.length} AI draft${
+                        review.drafts.length === 1 ? "" : "s"
+                      } ready below`
+                    : "AI is building cited drafts…"
                   : busy
                   ? "Creating drafts…"
                   : complete
@@ -733,6 +783,13 @@ export function TemplateImportStudio() {
           )}
         </section>
       </div>
+      {review ? (
+        <StudioImportReviewWorkspace
+          onError={setPipelineError}
+          onReview={setReview}
+          review={review}
+        />
+      ) : null}
     </div>
   );
 }

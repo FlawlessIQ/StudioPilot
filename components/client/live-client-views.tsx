@@ -5,10 +5,12 @@ import Link from "next/link";
 import {
   ArrowRight,
   BadgeCheck,
+  BookOpenCheck,
   CalendarDays,
   CheckCircle2,
   CircleCheck,
   Clock3,
+  CreditCard,
   ExternalLink,
   FileText,
   FolderOpen,
@@ -346,6 +348,12 @@ const statusTone = (status: unknown) =>
 export function LiveClientHome() {
   const workspace = useWorkspace();
   const project = useProject();
+  const contracts = useProjectRecords("contracts");
+  const invoices = useProjectRecords("invoiceReferences");
+  const schedules = useProjectRecords("schedules");
+  const documents = useProjectRecords("documents");
+  const deliveries = useProjectRecords("deliveryRecords");
+  const albums = useProjectRecords("albumWorkflows");
   const [renderedAt] = useState(() => Date.now());
   if (project.loading || project.error || !project.value)
     return (
@@ -369,6 +377,79 @@ export function LiveClientHome() {
   const progress = value.clientProgress;
   const nextAction = value.nextClientAction;
   const studioIsWorking = nextAction.responsibility === "studio";
+  const signedContract = contracts.value.find((contract) =>
+    ["completed", "signed"].includes(String(contract.status)),
+  );
+  const paidInvoice = invoices.value.find(
+    (invoice) =>
+      invoice.status === "paid" || Number(invoice.balanceCents ?? 1) === 0,
+  );
+  const currentSchedule = [...schedules.value].sort(
+    (left, right) => number(right.version) - number(left.version),
+  )[0];
+  const sharedCoi = documents.value.find(
+    (document) => document.category === "coi",
+  );
+  const sharedVideo = documents.value.find((document) =>
+    ["video", "film", "highlight_film"].includes(String(document.category)),
+  );
+  const delivery = deliveries.value[0];
+  const album = albums.value[0];
+  const artifacts = [
+    {
+      label: "Signed contract",
+      detail: signedContract ? "Signed copy available" : "Awaiting completion",
+      ready: Boolean(signedContract),
+      href: "/client/contract",
+      icon: FileText,
+    },
+    {
+      label: "Payment",
+      detail: paidInvoice ? "Payment evidence recorded" : "Check provider status",
+      ready: Boolean(paidInvoice),
+      href: "/client/payments",
+      icon: CreditCard,
+    },
+    {
+      label: "Approved schedule",
+      detail: currentSchedule
+        ? `Version ${number(currentSchedule.version)}`
+        : "Not published yet",
+      ready: Boolean(currentSchedule),
+      href: "/client/schedule",
+      icon: CalendarDays,
+    },
+    {
+      label: "Shared COI",
+      detail: sharedCoi ? "Approved certificate available" : "Not shared",
+      ready: Boolean(sharedCoi),
+      href: "/client/documents",
+      icon: ShieldCheck,
+    },
+    {
+      label: "Gallery",
+      detail: delivery ? "Gallery delivered" : "In production",
+      ready: Boolean(delivery),
+      href: "/client/delivery",
+      icon: Images,
+    },
+    {
+      label: "Video",
+      detail: sharedVideo ? "Film available" : "Not available yet",
+      ready: Boolean(sharedVideo),
+      href: "/client/documents",
+      icon: ExternalLink,
+    },
+    {
+      label: "Album",
+      detail: album
+        ? text(album.status).replaceAll("_", " ")
+        : "Not included or not started",
+      ready: Boolean(album),
+      href: "/client/delivery",
+      icon: BookOpenCheck,
+    },
+  ];
   return (
     <>
       <div className="portal-hero">
@@ -414,6 +495,42 @@ export function LiveClientHome() {
         <Link className="button button-dark" href={nextAction.href}>
           {nextAction.actionLabel}
         </Link>
+      </section>
+      <section className="panel client-artifact-hub">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">Project memory</p>
+            <h2>Everything promised, in one place</h2>
+            <p>
+              Current approved artifacts stay here so you never need to search
+              an email thread.
+            </p>
+          </div>
+          <FolderOpen aria-hidden="true" />
+        </div>
+        <div>
+          {artifacts.map((artifact) => {
+            const Icon = artifact.icon;
+            return (
+              <Link
+                className={artifact.ready ? "is-ready" : ""}
+                href={artifact.href}
+                key={artifact.label}
+              >
+                <Icon />
+                <span>
+                  <strong>{artifact.label}</strong>
+                  <small>{artifact.detail}</small>
+                </span>
+                {artifact.ready ? (
+                  <CheckCircle2 />
+                ) : (
+                  <Clock3 />
+                )}
+              </Link>
+            );
+          })}
+        </div>
       </section>
       <div className="client-grid">
         <section className="panel client-journey-card">
@@ -1481,7 +1598,9 @@ export function LiveClientSchedule() {
 export function LiveClientDelivery() {
   const workspace = useWorkspace();
   const deliveries = useProjectRecords("deliveryRecords");
+  const albums = useProjectRecords("albumWorkflows");
   const delivery = deliveries.value[0];
+  const album = albums.value[0];
   if (deliveries.loading || deliveries.error || !delivery)
     return <PortalPageState eyebrow="Your photographs" title="Delivery" description="Open your gallery and confirm when your download is complete." loading={deliveries.loading} error={deliveries.error} empty={!deliveries.loading && !deliveries.error ? "Your secure gallery details will appear after delivery." : undefined} />;
   return (
@@ -1529,6 +1648,145 @@ export function LiveClientDelivery() {
           />
         </div>
       </section>
+      {album ? (
+        <section className="client-album-workflow">
+          <header>
+            <span>
+              <p className="eyebrow">Album</p>
+              <h2>Your album, in one clear timeline</h2>
+              <p>
+                StudioCue coordinates milestones and reminders. Your
+                photographer remains the creative authority for the design.
+              </p>
+            </span>
+            <BookOpenCheck aria-hidden="true" />
+          </header>
+          <div className="album-status-track">
+            {[
+              "instructions_available",
+              "selections_received",
+              "design_sent",
+              "approved",
+              "fulfilled",
+            ].map((status, index, statuses) => {
+              const currentIndex = statuses.indexOf(String(album.status));
+              const revision = album.status === "revision_requested";
+              return (
+                <span
+                  className={
+                    index <= currentIndex && !revision ? "is-complete" : ""
+                  }
+                  key={status}
+                >
+                  <i />
+                  <small>{status.replaceAll("_", " ")}</small>
+                </span>
+              );
+            })}
+          </div>
+          {typeof album.instructionsUrl === "string" &&
+          album.instructionsUrl ? (
+            <a
+              className="button button-light"
+              href={album.instructionsUrl}
+              rel="noreferrer"
+              target="_blank"
+            >
+              <ExternalLink /> Watch selection instructions
+            </a>
+          ) : null}
+          {album.status === "instructions_available" ? (
+            <PostEventAction
+              completedLabel="Instructions viewed"
+              input={{
+                projectId: album.projectId,
+                albumWorkflowId: album.id,
+                status: "instructions_viewed",
+                evidenceUrl: null,
+                evidenceId: null,
+                notes: "Client confirmed viewing instructions in the portal.",
+              }}
+              label="I’ve viewed the instructions"
+              type="updateAlbumStatus"
+            />
+          ) : null}
+          {["instructions_viewed", "selections_pending"].includes(
+            String(album.status),
+          ) ? (
+            <PostEventAction
+              completedLabel="Selections recorded"
+              input={{
+                projectId: album.projectId,
+                albumWorkflowId: album.id,
+                status: "selections_received",
+                evidenceUrl: null,
+                evidenceId: null,
+                notes: "Client confirmed album selections were submitted.",
+              }}
+              label="I submitted my selections"
+              type="updateAlbumStatus"
+            />
+          ) : null}
+          {album.status === "design_sent" ? (
+            <div className="album-decision-actions">
+              {typeof album.designProofUrl === "string" &&
+              album.designProofUrl ? (
+                <a
+                  className="button button-light"
+                  href={album.designProofUrl}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  <ExternalLink /> Open design proof
+                </a>
+              ) : null}
+              <PostEventAction
+                completedLabel="Album approved"
+                input={{
+                  projectId: album.projectId,
+                  albumWorkflowId: album.id,
+                  status: "approved",
+                  evidenceUrl: null,
+                  evidenceId: null,
+                  notes: "Client approved the album design in the portal.",
+                }}
+                label="Approve this design"
+                type="updateAlbumStatus"
+              />
+              <PostEventAction
+                completedLabel="Revision requested"
+                input={{
+                  projectId: album.projectId,
+                  albumWorkflowId: album.id,
+                  status: "revision_requested",
+                  evidenceUrl: null,
+                  evidenceId: null,
+                  notes: "Client requested a revision in the portal.",
+                }}
+                label="Request a revision"
+                type="updateAlbumStatus"
+              />
+            </div>
+          ) : null}
+          {["selections_received", "revision_requested", "approved"].includes(
+            String(album.status),
+          ) ? (
+            <div className="album-studio-working">
+              <ShieldCheck />
+              <span>
+                <strong>Your studio is working on the next milestone.</strong>
+                <small>
+                  No action is needed until a new proof or fulfillment update
+                  appears.
+                </small>
+              </span>
+            </div>
+          ) : null}
+          {album.status === "fulfilled" ? (
+            <StatusBadge tone="success">Album fulfilled</StatusBadge>
+          ) : null}
+        </section>
+      ) : null}
     </div>
   );
 }

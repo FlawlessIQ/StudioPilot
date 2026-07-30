@@ -66,6 +66,7 @@ export type ClientPortalCollection =
   | "documents"
   | "messages"
   | "deliveryRecords"
+  | "albumWorkflows"
   | "reviewRequests";
 
 async function portalRequest<T>(body: Record<string, unknown>): Promise<T> {

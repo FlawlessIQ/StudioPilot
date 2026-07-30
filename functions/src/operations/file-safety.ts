@@ -99,6 +99,74 @@ async function refreshImportSession(sessionId: string, now: string) {
   });
 }
 
+async function queueStudioImportAnalysis(input: {
+  tenantId: string;
+  sessionId: string;
+  itemId: string;
+  sha256: string;
+  now: string;
+}) {
+  const db = getFirestore();
+  const itemReference = db.doc(`studioImportItems/${input.itemId}`);
+  const jobReference = db.doc(`aiJobs/studio_import_${input.itemId}`);
+  const checksumId = createHash("sha256")
+    .update(`${input.tenantId}:${input.sha256}`)
+    .digest("hex");
+  const checksumReference = db.doc(`studioImportChecksums/${checksumId}`);
+  await db.runTransaction(async (transaction) => {
+    const [item, job, checksum] = await Promise.all([
+      transaction.get(itemReference),
+      transaction.get(jobReference),
+      transaction.get(checksumReference),
+    ]);
+    if (!item.exists || item.get("tenantId") !== input.tenantId)
+      throw new Error("IMPORT_ITEM_NOT_FOUND");
+    if (job.exists) return;
+    await consumeAiQuota(transaction, db, input.tenantId, input.now);
+    const duplicateItemId =
+      checksum.exists &&
+      checksum.get("itemId") !== input.itemId
+        ? String(checksum.get("itemId"))
+        : null;
+    if (!checksum.exists) {
+      transaction.create(checksumReference, {
+        id: checksumId,
+        tenantId: input.tenantId,
+        sha256: input.sha256,
+        itemId: input.itemId,
+        sessionId: input.sessionId,
+        createdAt: input.now,
+        updatedAt: input.now,
+      });
+    }
+    transaction.update(itemReference, {
+      bucket: item.get("bucket"),
+      duplicate: duplicateItemId
+        ? {
+            status: "possible_duplicate",
+            itemId: duplicateItemId,
+            detectedAt: input.now,
+          }
+        : null,
+      aiQueueError: null,
+      updatedAt: input.now,
+      updatedBy: "file-safety",
+    });
+    transaction.create(jobReference, {
+      id: jobReference.id,
+      tenantId: input.tenantId,
+      sessionId: input.sessionId,
+      itemId: input.itemId,
+      type: "studio_import_extraction",
+      status: "queued",
+      attempts: 0,
+      humanReviewRequired: true,
+      createdAt: input.now,
+      updatedAt: input.now,
+    });
+  });
+}
+
 async function handleStudioImport(input: {
   bucket: string;
   objectName: string;
@@ -157,6 +225,9 @@ async function handleStudioImport(input: {
 
   await itemReference.update({
     status: "quarantined",
+    bucket: input.bucket,
+    storageProvider: "gcs",
+    storageObjectKey: input.objectName,
     generation: input.generation,
     updatedAt: now,
     updatedBy: "file-safety",
@@ -307,6 +378,24 @@ async function handleStudioImport(input: {
       updatedAt: now,
       updatedBy: "file-safety",
     });
+    if (clean) {
+      try {
+        await queueStudioImportAnalysis({
+          tenantId,
+          sessionId,
+          itemId,
+          sha256,
+          now,
+        });
+      } catch (caught: unknown) {
+        await itemReference.update({
+          aiQueueError:
+            caught instanceof Error ? caught.message : "AI_QUEUE_FAILED",
+          updatedAt: now,
+          updatedBy: "file-safety",
+        });
+      }
+    }
   } catch (caught: unknown) {
     const message =
       caught instanceof Error ? caught.message : "SCAN_FAILED";

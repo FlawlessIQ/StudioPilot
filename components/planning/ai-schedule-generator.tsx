@@ -29,6 +29,17 @@ type ScheduleItem = {
   notes: string | null;
   visibility: "studio" | "client" | "crew" | "shared";
   blockingIssues: string[];
+  sourceReferences: Array<{
+    type:
+      | "project_fact"
+      | "questionnaire_answer"
+      | "timing_rule"
+      | "package_fact"
+      | "crew_fact"
+      | "assumption";
+    sourceId: string;
+    label: string;
+  }>;
 };
 
 type Draft = {
@@ -40,6 +51,12 @@ type Draft = {
   suggestedQuestions: string[];
   interactionId: string;
   humanReviewRequired: true;
+  sourceTrace: {
+    questionnaireCount: number;
+    timingRuleCount: number;
+    crewFactCount: number;
+    assumptionItemCount: number;
+  };
 };
 
 const isoOrNull = (value: FormDataEntryValue | null) => {
@@ -205,6 +222,18 @@ export function AiScheduleGenerator() {
       {draft ? (
         <>
           <section className="schedule-review-summary">
+            <article className="panel schedule-source-summary">
+              <strong>Grounded inputs</strong>
+              <p>
+                {draft.sourceTrace.questionnaireCount} questionnaire ·{" "}
+                {draft.sourceTrace.timingRuleCount} timing rules ·{" "}
+                {draft.sourceTrace.crewFactCount} crew facts
+              </p>
+              <small>
+                {draft.sourceTrace.assumptionItemCount} schedule items still
+                include a labeled assumption.
+              </small>
+            </article>
             {[
               ["Assumptions", draft.assumptions],
               ["Missing information", draft.missingInformation],
@@ -237,6 +266,18 @@ export function AiScheduleGenerator() {
                 <input aria-label="End time" type="datetime-local" value={item.endAt.slice(0, 16)} onChange={(event) => updateItem(index, { endAt: new Date(event.target.value).toISOString() })} />
                 <input aria-label="Location" value={item.location ?? ""} onChange={(event) => updateItem(index, { location: event.target.value || null })} />
                 <small>{item.blockingIssues.join(" · ") || "No model-reported issue"}</small>
+                <div className="schedule-item-sources">
+                  {item.sourceReferences.map((source) => (
+                    <span
+                      className={
+                        source.type === "assumption" ? "is-assumption" : ""
+                      }
+                      key={`${source.type}-${source.sourceId}`}
+                    >
+                      {source.type.replaceAll("_", " ")} · {source.label}
+                    </span>
+                  ))}
+                </div>
               </article>
             ))}
           </section>

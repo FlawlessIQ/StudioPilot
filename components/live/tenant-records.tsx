@@ -16,6 +16,8 @@ import {
   Mail,
   MapPin,
   Phone,
+  ShieldCheck,
+  Sparkles,
 } from "lucide-react";
 import {
   collection,
@@ -68,10 +70,11 @@ async function tenantDocuments(
   projectIds: string[],
 ): Promise<TenantDocument[]> {
   const { firestore } = getFirebaseClient();
+  const restrictedToAssignments =
+    role !== "studio_owner" && role !== "studio_admin";
   if (
     collectionName === "projects" &&
-    role !== "studio_owner" &&
-    role !== "studio_admin"
+    restrictedToAssignments
   ) {
     const documents = await Promise.all(
       projectIds.slice(0, 100).map((projectId) =>
@@ -85,6 +88,64 @@ async function tenantDocuments(
           ({ id: document.id, ...document.data() }) as TenantDocument,
       )
       .filter((document) => document.tenantId === tenantId);
+  }
+  const projectScopedCollections = new Set([
+    "tasks",
+    "checkpoints",
+    "proposals",
+    "contracts",
+    "invoiceReferences",
+    "documents",
+    "questionnaireResponses",
+    "insuranceRequests",
+    "schedules",
+    "crewAssignments",
+    "crewCascades",
+    "albumWorkflows",
+    "projectCloseouts",
+    "messages",
+    "communicationDrafts",
+    "aiActions",
+    "actionReceipts",
+  ]);
+  if (
+    restrictedToAssignments &&
+    projectScopedCollections.has(collectionName)
+  ) {
+    if (!projectIds.length) return [];
+    const snapshots = await Promise.all([
+      ...projectIds.slice(0, 100).map((projectId) =>
+        getDocs(
+          query(
+            collection(firestore, collectionName),
+            where("tenantId", "==", tenantId),
+            where("projectId", "==", projectId),
+            limit(100),
+          ),
+        ),
+      ),
+      ...(["aiActions", "actionReceipts", "communicationDrafts"].includes(collectionName)
+        ? [
+            getDocs(
+              query(
+                collection(firestore, collectionName),
+                where("tenantId", "==", tenantId),
+                where("projectId", "==", null),
+                limit(100),
+              ),
+            ),
+          ]
+        : []),
+    ]);
+    const documents = snapshots.flatMap((snapshot) =>
+      snapshot.docs.map(
+        (document) =>
+          ({ id: document.id, ...document.data() }) as TenantDocument,
+      ),
+    );
+    return [
+      ...new Map(documents.map((document) => [document.id, document])).values(),
+    ];
   }
   const snapshot = await getDocs(
     query(
@@ -129,11 +190,22 @@ async function cachedTenantDocuments(
   return request;
 }
 
-export function useTenantDocuments(collectionName: string) {
+export function useTenantDocuments(
+  collectionName: string,
+  options: { enabled?: boolean } = {},
+) {
   const workspace = useWorkspace();
+  const enabled = options.enabled ?? true;
   const [records, setRecords] = useState<TenantDocument[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
+    if (!enabled) {
+      queueMicrotask(() => {
+        setRecords([]);
+        setError(null);
+      });
+      return;
+    }
     if (!dataIsLive || workspace.loading) return;
     if (!workspace.tenantId) return;
     let active = true;
@@ -174,6 +246,7 @@ export function useTenantDocuments(collectionName: string) {
     };
   }, [
     collectionName,
+    enabled,
     workspace.error,
     workspace.loading,
     workspace.projectIds,
@@ -188,6 +261,7 @@ export function useTenantDocuments(collectionName: string) {
         ? workspace.error ?? "No active studio was found."
         : null),
     loading:
+      enabled &&
       dataIsLive &&
       (workspace.loading || (workspace.tenantId !== null && records === null)),
   };
@@ -546,6 +620,7 @@ export function LiveLeadRows({ view, q }: { view: string; q: string }) {
 
 export function LiveLeadDetail({ id }: { id: string }) {
   const { records, error, loading } = useTenantDocuments("leads");
+  const aiState = useTenantDocuments("aiActions");
   const liveLead = records?.find((item) => item.id === id);
   const demoLead = !dataIsLive
     ? crmLeads.find((item) => item.id === id)
@@ -576,6 +651,26 @@ export function LiveLeadDetail({ id }: { id: string }) {
     : [];
   const email = typeof lead.email === "string" ? lead.email : "";
   const phone = typeof lead.phone === "string" ? lead.phone : "";
+  const replyAction = (aiState.records ?? []).find(
+    (action) =>
+      action.capability === "inquiry_reply_draft" &&
+      Array.isArray(action.sourceReferences) &&
+      action.sourceReferences.some((reference) => {
+        if (
+          typeof reference !== "object" ||
+          reference === null ||
+          Array.isArray(reference)
+        )
+          return false;
+        return (reference as Record<string, unknown>).entityId === id;
+      }),
+  );
+  const replyOutput =
+    replyAction?.structuredOutput &&
+    typeof replyAction.structuredOutput === "object" &&
+    !Array.isArray(replyAction.structuredOutput)
+      ? (replyAction.structuredOutput as Record<string, unknown>)
+      : null;
   return (
     <div className="live-detail-page lead-detail-page">
       <Link className="back-link" href="/studio/leads"><ArrowLeft /> Back to inquiries</Link>
@@ -637,6 +732,37 @@ export function LiveLeadDetail({ id }: { id: string }) {
             </div>
           </div>
           <p>{lead.aiSummary}</p>
+        </section>
+      ) : null}
+      {replyAction && replyOutput ? (
+        <section className="lead-ai-reply-card">
+          <header>
+            <span><Sparkles size={16} /></span>
+            <div>
+              <p className="eyebrow">AI-prepared · unsent</p>
+              <h2>Personalized inquiry reply</h2>
+            </div>
+            <StatusBadge
+              tone={replyAction.status === "approved" ? "success" : "warning"}
+            >
+              {String(replyAction.status).replaceAll("_", " ")}
+            </StatusBadge>
+          </header>
+          <div>
+            <small>Subject</small>
+            <strong>{String(replyOutput.subject ?? "Inquiry follow-up")}</strong>
+            <p>{String(replyOutput.body ?? "")}</p>
+          </div>
+          <footer>
+            <span>
+              <ShieldCheck size={14} />
+              Grounded in the original inquiry. No availability or pricing was
+              invented.
+            </span>
+            <Link href="/studio/ai-queue">
+              Review, edit, or approve <ArrowRight size={14} />
+            </Link>
+          </footer>
         </section>
       ) : null}
       <section className="lead-detail-grid">

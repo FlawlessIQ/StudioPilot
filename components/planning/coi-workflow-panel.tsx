@@ -223,11 +223,6 @@ export function CoiWorkflowPanel() {
         </div>
         <div className="coi-review-list">
           {requests
-            .filter((request) =>
-              ["under_review", "correction_required", "approved"].includes(
-                String(request.status),
-              ),
-            )
             .map((request) => {
               const discrepancies = Array.isArray(request.discrepancies)
                 ? request.discrepancies
@@ -243,6 +238,39 @@ export function CoiWorkflowPanel() {
                       {String(request.status).replaceAll("_", " ")}
                     </StatusBadge>
                   </header>
+                  <div className="coi-status-track" aria-label="COI progress">
+                    {[
+                      ["requested", "Requested"],
+                      ["under_review", "Received"],
+                      ["approved", "Approved"],
+                      ["sent_to_venue", "Delivered"],
+                    ].map(([status, label], index, stages) => {
+                      const currentIndex = stages.findIndex(
+                        ([candidate]) => candidate === request.status,
+                      );
+                      const correction =
+                        request.status === "correction_required";
+                      return (
+                        <span
+                          className={
+                            index <= currentIndex && !correction
+                              ? "is-complete"
+                              : correction && index === 1
+                                ? "needs-action"
+                                : ""
+                          }
+                          key={status}
+                        >
+                          <i />
+                          <small>
+                            {correction && index === 1
+                              ? "Needs correction"
+                              : label}
+                          </small>
+                        </span>
+                      );
+                    })}
+                  </div>
                   <ul>
                     {discrepancies.map((item, index) => {
                       const value =
@@ -262,7 +290,9 @@ export function CoiWorkflowPanel() {
                     <button className="button button-dark" disabled={busy} type="button" onClick={() => void sendToVenue(request)}>
                       <Send /> Send approved PDF to venue
                     </button>
-                  ) : (
+                  ) : ["under_review", "correction_required"].includes(
+                      String(request.status),
+                    ) ? (
                     <>
                       <label>
                         Required review reason
@@ -277,6 +307,14 @@ export function CoiWorkflowPanel() {
                         </button>
                       </footer>
                     </>
+                  ) : (
+                    <p className="coi-status-note">
+                      {request.status === "requested"
+                        ? "Waiting for the insurance agent to reply through the secure project address."
+                        : request.status === "sent_to_venue"
+                          ? "The approved certificate was queued for venue delivery and recorded in this project."
+                          : "StudioCue is waiting for the next provider event."}
+                    </p>
                   )}
                 </article>
               );

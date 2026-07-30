@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft,
   ArrowRight,
+  Bot,
   CalendarDays,
   CheckCircle2,
   CircleAlert,
@@ -16,6 +17,7 @@ import {
   PartyPopper,
   Send,
   Sparkles,
+  Store,
   UserRound,
   UsersRound,
 } from "lucide-react";
@@ -38,6 +40,11 @@ import {
   projectStateSchema,
   type ProjectState,
 } from "@/features/projects/schema";
+import {
+  projectLifecycleProjection,
+  type LifecycleLaneKey,
+  type LifecycleRecord,
+} from "@/features/projects/lifecycle-projection";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
@@ -45,6 +52,33 @@ import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
 
 type ProjectRecord = Record<string, unknown> & { id: string };
 type CheckpointRecord = Record<string, unknown> & { id: string };
+type RelatedRecords = {
+  tasks: LifecycleRecord[];
+  contracts: LifecycleRecord[];
+  invoices: LifecycleRecord[];
+  questionnaires: LifecycleRecord[];
+  insurance: LifecycleRecord[];
+  schedules: LifecycleRecord[];
+  crewAssignments: LifecycleRecord[];
+  automationRuns: LifecycleRecord[];
+  aiActions: LifecycleRecord[];
+  deliveries: LifecycleRecord[];
+  reviewRequests: LifecycleRecord[];
+};
+
+const emptyRelatedRecords: RelatedRecords = {
+  tasks: [],
+  contracts: [],
+  invoices: [],
+  questionnaires: [],
+  insurance: [],
+  schedules: [],
+  crewAssignments: [],
+  automationRuns: [],
+  aiActions: [],
+  deliveries: [],
+  reviewRequests: [],
+};
 
 const projectPhases: ReadonlyArray<{
   label: string;
@@ -170,9 +204,10 @@ function projectAction(
       detail: "Qualify the inquiry, then choose a time with the client.",
     },
     CONSULTATION: {
-      href: `/studio/proposals?project=${projectId}`,
-      label: "Prepare proposal",
-      detail: "Turn the consultation outcome into a clear client offer.",
+      href: `/studio/booking?project=${projectId}`,
+      label: "Run booking autopilot",
+      detail:
+        "Turn consultation notes into a cited brief, package fit, and unsent proposal draft.",
     },
     PROPOSAL: {
       href: `/studio/proposals?project=${projectId}`,
@@ -379,6 +414,112 @@ function checkpointTone(status: string) {
   return "warning" as const;
 }
 
+const laneDetails: Record<
+  LifecycleLaneKey,
+  { title: string; icon: typeof Bot; empty: string }
+> = {
+  studiocue: {
+    title: "StudioCue is doing",
+    icon: Bot,
+    empty: "No background work is running.",
+  },
+  studio: {
+    title: "Studio needs",
+    icon: Store,
+    empty: "Nothing needs studio attention.",
+  },
+  client: {
+    title: "Client needs",
+    icon: UserRound,
+    empty: "Nothing is waiting on the client.",
+  },
+  crew: {
+    title: "Crew needs",
+    icon: UsersRound,
+    empty: "Nothing is waiting on crew.",
+  },
+};
+
+function ProjectLifecycleLanes({
+  project,
+  checkpoints,
+  related,
+}: {
+  project: ProjectRecord;
+  checkpoints: CheckpointRecord[];
+  related: RelatedRecords;
+}) {
+  const projection = projectLifecycleProjection({
+    project,
+    checkpoints,
+    ...related,
+  });
+  return (
+    <section className="project-lifecycle-cockpit">
+      <header>
+        <div>
+          <p className="eyebrow">One operational truth</p>
+          <h2>Who needs to do what next</h2>
+          <p>
+            {projection.primaryBlocker
+              ? `Main blocker: ${projection.primaryBlocker}`
+              : `No hard blocker. Next action belongs to ${projection.nextAction.owner.toLowerCase()}.`}
+          </p>
+        </div>
+        <Link href={projection.nextAction.href}>
+          <small>Recommended next</small>
+          <strong>{projection.nextAction.label}</strong>
+          <span>
+            {projection.nextAction.owner}
+            {projection.nextAction.dueAt
+              ? ` · ${displayDate(projection.nextAction.dueAt.slice(0, 10))}`
+              : ""}
+          </span>
+          <ArrowRight size={16} />
+        </Link>
+      </header>
+      <div className="project-work-lanes">
+        {(Object.keys(laneDetails) as LifecycleLaneKey[]).map((laneKey) => {
+          const detail = laneDetails[laneKey];
+          const Icon = detail.icon;
+          const values = projection.lanes[laneKey];
+          return (
+            <section className={`project-work-lane lane-${laneKey}`} key={laneKey}>
+              <h3>
+                <span><Icon size={15} /></span>
+                {detail.title}
+                <em>{values.length}</em>
+              </h3>
+              <div>
+                {values.slice(0, 5).map((work) => (
+                  <Link href={work.href} key={work.id}>
+                    <span className={`work-state is-${work.status}`} />
+                    <span>
+                      <strong>{work.label}</strong>
+                      <small>{work.detail}</small>
+                      <em>
+                        {work.dueAt
+                          ? `Due ${displayDate(work.dueAt.slice(0, 10))}`
+                          : work.evidence
+                            ? `Evidence ${work.evidence.slice(0, 12)}`
+                            : work.status}
+                      </em>
+                    </span>
+                    <ArrowRight size={14} />
+                  </Link>
+                ))}
+                {!values.length ? (
+                  <p><CheckCircle2 size={14} /> {detail.empty}</p>
+                ) : null}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 export function LiveProjectDetail({ projectId }: { projectId: string }) {
   const workspace = useWorkspace();
   const [project, setProject] = useState<ProjectRecord | null>(
@@ -387,12 +528,29 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
   const [checkpoints, setCheckpoints] = useState<CheckpointRecord[]>(
     dataIsLive ? [] : mockCheckpoints,
   );
+  const [related, setRelated] = useState<RelatedRecords>(emptyRelatedRecords);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!dataIsLive || workspace.loading || !workspace.tenantId) return;
     let active = true;
     const { firestore } = getFirebaseClient();
+    const relatedCollections: Array<{
+      key: keyof RelatedRecords;
+      collectionName: string;
+    }> = [
+      { key: "tasks", collectionName: "tasks" },
+      { key: "contracts", collectionName: "contracts" },
+      { key: "invoices", collectionName: "invoiceReferences" },
+      { key: "questionnaires", collectionName: "questionnaireResponses" },
+      { key: "insurance", collectionName: "insuranceRequests" },
+      { key: "schedules", collectionName: "schedules" },
+      { key: "crewAssignments", collectionName: "crewAssignments" },
+      { key: "automationRuns", collectionName: "automationRuns" },
+      { key: "aiActions", collectionName: "aiActions" },
+      { key: "deliveries", collectionName: "deliveries" },
+      { key: "reviewRequests", collectionName: "reviewRequests" },
+    ];
     void Promise.all([
       getDoc(doc(firestore, "projects", projectId)),
       getDocs(
@@ -402,8 +560,19 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           where("projectId", "==", projectId),
         ),
       ),
+      Promise.allSettled(
+        relatedCollections.map(({ collectionName }) =>
+          getDocs(
+            query(
+              collection(firestore, collectionName),
+              where("tenantId", "==", workspace.tenantId),
+              where("projectId", "==", projectId),
+            ),
+          ),
+        ),
+      ),
     ])
-      .then(([projectSnapshot, checkpointSnapshot]) => {
+      .then(([projectSnapshot, checkpointSnapshot, relatedSnapshots]) => {
         if (!active) return;
         if (
           !projectSnapshot.exists() ||
@@ -420,6 +589,22 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
             id: checkpoint.id,
             ...checkpoint.data(),
           })),
+        );
+        setRelated(
+          relatedCollections.reduce<RelatedRecords>(
+            (records, definition, index) => {
+              const outcome = relatedSnapshots[index];
+              records[definition.key] =
+                outcome?.status === "fulfilled"
+                  ? outcome.value.docs.map((document) => ({
+                      id: document.id,
+                      ...document.data(),
+                    }))
+                  : [];
+              return records;
+            },
+            { ...emptyRelatedRecords },
+          ),
         );
       })
       .catch((caught: unknown) => {
@@ -607,6 +792,11 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           />
         </aside>
       </div>
+      <ProjectLifecycleLanes
+        checkpoints={checkpoints}
+        project={project}
+        related={related}
+      />
       <section className="panel project-checkpoints-panel">
         <div className="panel-heading">
           <div>

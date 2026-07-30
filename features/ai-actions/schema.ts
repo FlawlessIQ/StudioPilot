@@ -60,6 +60,7 @@ export const aiActionSchema = auditFieldsSchema.extend({
   tenantId: z.string().min(1),
   projectId: z.string().nullable(),
   actorId: z.string().min(1),
+  title: z.string().min(1).max(240).optional(),
   capability: aiCapabilitySchema,
   authorityBoundary: aiAuthorityBoundarySchema,
   status: aiActionStatusSchema,
@@ -108,6 +109,7 @@ export const aiActionSchema = auditFieldsSchema.extend({
       retryable: z.boolean(),
     })
     .nullable(),
+  snoozedUntil: z.string().datetime().nullable().optional(),
   archivedAt: z.string().datetime().nullable(),
 });
 
@@ -131,4 +133,43 @@ export function aiActionMayExecute(action: AiAction): boolean {
     return action.status === "approved" && action.decision?.action === "approved";
   }
   return action.status === "approved" || action.status === "review_required";
+}
+
+export const actionReceiptSchema = auditFieldsSchema.extend({
+  id: z.string().min(1),
+  tenantId: z.string().min(1),
+  projectId: z.string().nullable(),
+  title: z.string().min(1).max(240),
+  summary: z.string().min(1).max(2000),
+  status: z.enum([
+    "queued",
+    "running",
+    "completed",
+    "failed",
+    "cancelled",
+    "retry_scheduled",
+  ]),
+  source: z.string().min(1).max(120),
+  affectedEntityType: z.string().min(1).max(120),
+  affectedEntityId: z.string().min(1).max(240),
+  providerEvidence: z.record(z.string(), z.unknown()).nullable(),
+  reversible: z.boolean(),
+  retryable: z.boolean(),
+  canCancel: z.boolean(),
+  canRetry: z.boolean(),
+  attempts: z.number().int().nonnegative(),
+  completedAt: z.string().datetime().nullable(),
+  archivedAt: z.string().datetime().nullable(),
+});
+
+export type ActionReceipt = z.infer<typeof actionReceiptSchema>;
+
+export function aiActionVisibleInQueue(
+  action: Pick<AiAction, "status" | "snoozedUntil">,
+  now: string,
+): boolean {
+  if (!["queued", "running", "review_required"].includes(action.status))
+    return false;
+  if (!action.snoozedUntil) return true;
+  return Date.parse(action.snoozedUntil) <= Date.parse(now);
 }

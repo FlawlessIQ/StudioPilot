@@ -22,6 +22,9 @@ export type StudioImportRemoteItem = {
   uploadId: string | null;
   retryCount: number;
   safety: Record<string, unknown> | null;
+  classification?: Record<string, unknown> | null;
+  draftVersionIds?: string[];
+  duplicate?: Record<string, unknown> | null;
   failure: {
     code?: string;
     message?: string;
@@ -53,7 +56,18 @@ export type StudioImportUploadProgress = {
 };
 
 type CommandEnvelope = {
-  type: "createSession" | "getSession" | "cancelSession" | "retryItem";
+  type:
+    | "createSession"
+    | "getSession"
+    | "getReview"
+    | "simulateSession"
+    | "reviewDraft"
+    | "splitDraft"
+    | "mergeDrafts"
+    | "activateSession"
+    | "rollbackAsset"
+    | "cancelSession"
+    | "retryItem";
   tenantId: string;
   idempotencyKey: string;
   input: Record<string, unknown>;
@@ -169,6 +183,12 @@ const activeSafetyStatuses = new Set([
   "quarantined",
   "scanning",
 ]);
+const cleanPipelineStatuses = new Set([
+  "ready_for_analysis",
+  "analyzing",
+  "review_ready",
+  "approved",
+]);
 
 export async function uploadStudioImportFiles(input: {
   files: readonly File[];
@@ -249,15 +269,15 @@ export async function uploadStudioImportFiles(input: {
         idempotencyKey: crypto.randomUUID(),
         input: { sessionId: created.session.id },
       });
-      const ready = current.items.every(
-        (item) => item.status === "ready_for_analysis",
+      const ready = current.items.every((item) =>
+        cleanPipelineStatuses.has(item.status),
       );
       const active = current.items.some((item) =>
         activeSafetyStatuses.has(item.status),
       );
       const completed = current.items.filter(
         (item) =>
-          item.status === "ready_for_analysis" ||
+          cleanPipelineStatuses.has(item.status) ||
           item.status === "rejected" ||
           item.status === "failed",
       ).length;
@@ -273,7 +293,7 @@ export async function uploadStudioImportFiles(input: {
                 ),
             ),
         message: ready
-          ? "Every source passed file-safety checks."
+          ? "Every source passed file-safety checks and entered AI analysis."
           : active
             ? "Verifying file signatures and scanning for malware…"
             : "One or more sources need attention.",
@@ -369,8 +389,8 @@ export async function retryStudioImportItem(input: {
       input: { sessionId: input.sessionId },
     });
     input.onSafetyProgress?.(current);
-    const ready = current.items.every(
-      (item) => item.status === "ready_for_analysis",
+    const ready = current.items.every((item) =>
+      cleanPipelineStatuses.has(item.status),
     );
     const active = current.items.some((item) =>
       activeSafetyStatuses.has(item.status),
@@ -379,4 +399,168 @@ export async function retryStudioImportItem(input: {
     await new Promise((resolve) => window.setTimeout(resolve, 1500));
   }
   throw new Error("File safety checks are taking longer than expected.");
+}
+
+export type StudioImportReviewDraft = {
+  id: string;
+  assetId: string;
+  assetType: string;
+  name: string;
+  confidence: number;
+  status: string;
+  reviewDecision: string;
+  structuredContent: Record<string, unknown>;
+  sourceCitations: Array<{
+    itemId?: string;
+    locator?: string;
+    excerpt?: string;
+    excerptHash?: string;
+  }>;
+  validation: {
+    status?: string;
+    issues?: Array<{
+      code?: string;
+      severity?: string;
+      message?: string;
+    }>;
+  };
+  sourceItemIds: string[];
+  updatedAt: string;
+};
+
+export type StudioImportReview = {
+  session: {
+    id: string;
+    status: string;
+    reviewReadyAt: string | null;
+    approvedAt: string | null;
+    activatedAt: string | null;
+    activatedAssetVersionIds: string[];
+  };
+  sources: Array<{
+    id: string;
+    name: string;
+    status: string;
+    duplicate: Record<string, unknown> | null;
+    classification: Record<string, unknown> | null;
+    failure: Record<string, unknown> | null;
+  }>;
+  drafts: StudioImportReviewDraft[];
+  coverage: {
+    sections: Array<{
+      key: string;
+      label: string;
+      matched: string[];
+      expected: string[];
+      complete: boolean;
+    }>;
+    completed: number;
+    total: number;
+    percent: number;
+  };
+};
+
+async function studioImportEnvelope<T>(
+  type: CommandEnvelope["type"],
+  input: Record<string, unknown>,
+): Promise<T> {
+  const client = getFirebaseClient();
+  const user = client.auth.currentUser;
+  if (!user) throw new Error("Sign in before managing studio imports.");
+  const membership = await activeMembership(client.firestore, user.uid);
+  return command<T>({
+    type,
+    tenantId: String(membership.data().tenantId),
+    idempotencyKey: crypto.randomUUID(),
+    input,
+  });
+}
+
+export async function getStudioImportReview(sessionId: string) {
+  return studioImportEnvelope<StudioImportReview>("getReview", { sessionId });
+}
+
+export async function waitForStudioImportReview(input: {
+  sessionId: string;
+  signal?: AbortSignal;
+  onReview?: (review: StudioImportReview) => void;
+}) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < 180_000) {
+    if (input.signal?.aborted)
+      throw new DOMException("Cancelled", "AbortError");
+    const review = await getStudioImportReview(input.sessionId);
+    input.onReview?.(review);
+    const active = review.sources.some((source) =>
+      ["ready_for_analysis", "analyzing"].includes(source.status),
+    );
+    if (!active) return review;
+    await new Promise((resolve) => window.setTimeout(resolve, 1500));
+  }
+  throw new Error("AI analysis is taking longer than expected.");
+}
+
+export async function reviewStudioImportDraft(input: {
+  sessionId: string;
+  versionId: string;
+  action: "approve" | "reject" | "ignore" | "update";
+  name?: string;
+  assetType?: string;
+  structuredContent?: Record<string, unknown>;
+  confirmClassification?: boolean;
+}) {
+  return studioImportEnvelope<{
+    versionId: string;
+    reviewDecision: string;
+    validation: Record<string, unknown>;
+  }>("reviewDraft", input);
+}
+
+export async function splitStudioImportDraft(input: {
+  sessionId: string;
+  versionId: string;
+  parts: Array<{
+    name: string;
+    assetType: string;
+    structuredContent: Record<string, unknown>;
+  }>;
+}) {
+  return studioImportEnvelope("splitDraft", input);
+}
+
+export async function mergeStudioImportDrafts(input: {
+  sessionId: string;
+  targetVersionId: string;
+  sourceVersionId: string;
+}) {
+  return studioImportEnvelope("mergeDrafts", input);
+}
+
+export async function simulateStudioImport(sessionId: string) {
+  return studioImportEnvelope<{
+    scenario: string;
+    providerActionsExecuted: false;
+    steps: Array<{
+      stage: string;
+      status: string;
+      source: string | null;
+      outcome: string;
+      providerActionExecuted: false;
+    }>;
+  }>("simulateSession", { sessionId });
+}
+
+export async function activateStudioImport(sessionId: string) {
+  return studioImportEnvelope<{
+    sessionId: string;
+    status: string;
+    activatedAssetVersionIds: string[];
+  }>("activateSession", { sessionId });
+}
+
+export async function rollbackStudioImportAsset(input: {
+  assetId: string;
+  targetVersionId: string;
+}) {
+  return studioImportEnvelope("rollbackAsset", input);
 }

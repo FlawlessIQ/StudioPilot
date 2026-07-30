@@ -6,10 +6,11 @@ import type {
 
 const allowedTransitions: Readonly<Record<AssignmentStatus, readonly AssignmentStatus[]>> = {
   draft: ["invited", "cancelled"],
-  invited: ["viewed", "accepted", "declined", "cancelled"],
-  viewed: ["accepted", "declined", "cancelled"],
+  invited: ["viewed", "accepted", "declined", "expired", "cancelled"],
+  viewed: ["accepted", "declined", "expired", "cancelled"],
   accepted: ["reassigned", "cancelled", "completed"],
   declined: ["reassigned"],
+  expired: ["reassigned"],
   reassigned: [],
   cancelled: [],
   completed: [],

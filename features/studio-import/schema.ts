@@ -172,9 +172,9 @@ export const studioImportSafetySchema = z.object({
 
 export const studioImportClassificationSchema = z.object({
   assetTypes: z.array(studioAssetTypeSchema).min(1),
-  confidence: z.number().min(0).max(1),
-  modelVersion: z.string().min(1),
-  instructionVersion: z.string().min(1),
+  confidence: z.number().min(0).max(1).default(0),
+  modelVersion: z.string().min(1).default("legacy"),
+  instructionVersion: z.string().min(1).default("legacy"),
   citations: z.array(
     z.object({
       sourceLabel: z.string().min(1).max(240),
@@ -198,6 +198,15 @@ export const studioImportItemSchema = auditFieldsSchema.extend({
   status: studioImportItemStatusSchema,
   safety: studioImportSafetySchema,
   classification: studioImportClassificationSchema.nullable(),
+  draftVersionIds: z.array(z.string().min(1)).default([]),
+  duplicate: z
+    .object({
+      status: z.literal("possible_duplicate"),
+      itemId: z.string().min(1),
+      detectedAt: z.string().datetime(),
+    })
+    .nullable()
+    .optional(),
   failure: z
     .object({
       code: z.string().min(1).max(120),
@@ -254,10 +263,14 @@ export const studioAssetVersionSchema = auditFieldsSchema.extend({
   version: z.number().int().positive(),
   status: z.enum(["draft", "active", "superseded", "archived"]),
   structuredContent: z.record(z.string(), z.unknown()),
+  confidence: z.number().min(0).max(1).default(0),
+  modelVersion: z.string().min(1).default("legacy"),
+  instructionVersion: z.string().min(1).default("legacy"),
   sourceCitations: z.array(
     z.object({
       itemId: z.string().min(1),
       locator: z.string().min(1).max(500),
+      excerpt: z.string().max(500).optional(),
       excerptHash: z.string().min(16).max(128).nullable(),
     }),
   ),
@@ -272,6 +285,16 @@ export const studioAssetVersionSchema = auditFieldsSchema.extend({
     ),
   }),
   approvedBy: z.string().nullable(),
+  reviewDecision: z
+    .enum([
+      "pending",
+      "approved",
+      "rejected",
+      "ignored",
+      "split",
+      "merged",
+    ])
+    .default("pending"),
   approvedAt: z.string().datetime().nullable(),
   activatedAt: z.string().datetime().nullable(),
   supersededAt: z.string().datetime().nullable(),
@@ -291,3 +314,32 @@ export const studioAssetSchema = auditFieldsSchema.extend({
 });
 
 export type StudioAsset = z.infer<typeof studioAssetSchema>;
+
+export const studioImportCoverageSchema = z.object({
+  sections: z.array(
+    z.object({
+      key: z.string().min(1),
+      label: z.string().min(1),
+      matched: z.array(studioAssetTypeSchema),
+      expected: z.array(studioAssetTypeSchema),
+      complete: z.boolean(),
+    }),
+  ),
+  completed: z.number().int().nonnegative(),
+  total: z.number().int().positive(),
+  percent: z.number().int().min(0).max(100),
+});
+
+export const studioImportSimulationSchema = z.object({
+  scenario: z.string().min(1),
+  providerActionsExecuted: z.literal(false),
+  steps: z.array(
+    z.object({
+      stage: z.string().min(1),
+      status: z.enum(["configured", "gap"]),
+      source: z.string().nullable(),
+      outcome: z.string().min(1),
+      providerActionExecuted: z.literal(false),
+    }),
+  ),
+});

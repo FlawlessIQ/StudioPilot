@@ -56,6 +56,7 @@ export const assignmentStatusSchema = z.enum([
   "viewed",
   "accepted",
   "declined",
+  "expired",
   "reassigned",
   "cancelled",
   "completed",

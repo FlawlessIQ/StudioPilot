@@ -1,5 +1,5 @@
-const CACHE_NAME = "studiohub-event-day-v1";
-const OFFLINE_ROUTES = ["/offline", "/crew/schedule", "/client/schedule", "/favicon.svg", "/manifest.webmanifest"];
+const CACHE_NAME = "studiocue-event-day-v2";
+const OFFLINE_ROUTES = ["/offline", "/crew/accepted", "/crew/schedule", "/client/schedule", "/favicon.svg", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(OFFLINE_ROUTES)));
@@ -22,7 +22,7 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          if (url.pathname === "/crew/schedule" || url.pathname === "/client/schedule") {
+          if (url.pathname === "/crew/accepted" || url.pathname === "/crew/schedule" || url.pathname === "/client/schedule") {
             const copy = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
           }

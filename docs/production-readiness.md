@@ -26,6 +26,14 @@ acceptance path. Local development remains mock by default.
 - time-bounded audited support summary access
 - web and function Sentry envelopes containing operational codes/tags rather than business document payloads
 - PWA manifest, service worker, offline fallback, and cached event-day schedules
+- role-scoped crew schedule projections and sanitized event-day offline cache
+- measured product events, AI decision/correction outcomes, automation receipts,
+  staffing duration, provider failure, and S1/S2 incident release gates
+- redacted Studio Import evaluation fixtures with enforced accuracy, citation,
+  review-recall, and authority-claim blocking thresholds
+- clean-account synthetic lifecycle pilot covering import, booking, planning,
+  provider-evidence reconciliation, crew cascade, delivery, review, album
+  reminder stop conditions, and launch evidence
 
 ## Release gates requiring external configuration
 
@@ -38,6 +46,9 @@ acceptance path. Local development remains mock by default.
 7. Configure alerts for dead letters, webhook/scanner failures, quota exhaustion, and provider reauthorization.
 8. Perform backup/restore, export, deletion, incident-response, and support-access drills.
 9. Obtain legal review for contracts, insurance language, privacy/retention, SMS consent, and workflows involving minors.
+10. Run the clean-account acceptance pilot with real owner, client, and crew
+    personas; record measured handling baselines and resolve every amber launch
+    gate in **Reports → Release evidence**.
 
 No provider credential, payment instrument, signature, insurance approval, or
 legal determination is supplied by this repository.
@@ -70,6 +81,10 @@ files or demo credentials.
 
 The current external-account and business-approval work is maintained in
 [`docs/manual-launch-checklist.md`](./manual-launch-checklist.md).
+Failure diagnosis and recovery procedures are maintained in
+[`docs/support-runbook.md`](./support-runbook.md).
+The implementation and release-evidence record is maintained in
+[`docs/studiocue-release-evidence-2026-07-29.md`](./studiocue-release-evidence-2026-07-29.md).
 The prioritized continuation sequence, including engineering work that can
 proceed while provider approvals are pending, is maintained in
 [`docs/roadmap.md`](./roadmap.md).

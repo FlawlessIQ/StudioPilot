@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { postProductionRecordSchema, projectCloseoutSchema, reviewRequestSchema } from "../features/post-production/schema";
-import { aggregateStudioReport, completePostProductionStep, evaluateCloseout, recordReviewEngagement, reviewSchedule } from "../server/services/post-event-service";
+import { aggregateStudioReport, albumReminderDecision, completePostProductionStep, evaluateCloseout, recordReviewEngagement, reviewReleasePlan, reviewSchedule } from "../server/services/post-event-service";
 
 const audit = { createdAt:"2026-07-01T12:00:00.000Z",updatedAt:"2026-07-01T12:00:00.000Z",createdBy:"owner",updatedBy:"owner" };
 const emptyStep = { complete:false,completedAt:null,completedBy:null,evidenceId:null,notes:null };
@@ -20,6 +20,40 @@ test("review timing starts three days after delivery and reminders seven days la
   assert.deepEqual(reviewSchedule("2026-07-01"),{
     firstAt:"2026-07-04T12:00:00.000Z",reminderAt:"2026-07-11T12:00:00.000Z",
   });
+});
+
+test("review request is portal-first with only one email reminder", () => {
+  assert.deepEqual(reviewReleasePlan("2026-07-01"), [
+    {
+      sequence: 1,
+      channel: "portal",
+      scheduledAt: "2026-07-04T12:00:00.000Z",
+    },
+    {
+      sequence: 2,
+      channel: "email",
+      scheduledAt: "2026-07-11T12:00:00.000Z",
+    },
+  ]);
+});
+
+test("album reminders stop as soon as selection evidence arrives", () => {
+  assert.deepEqual(
+    albumReminderDecision({
+      workflowStatus: "selections_received",
+      stopOnStatuses: ["selections_received", "design_sent"],
+      reminderStatus: "scheduled",
+    }),
+    { shouldSend: false, nextStatus: "skipped" },
+  );
+  assert.deepEqual(
+    albumReminderDecision({
+      workflowStatus: "selections_pending",
+      stopOnStatuses: ["selections_received", "design_sent"],
+      reminderStatus: "scheduled",
+    }),
+    { shouldSend: true, nextStatus: "sent" },
+  );
 });
 
 test("a review click never claims a review was posted", () => {

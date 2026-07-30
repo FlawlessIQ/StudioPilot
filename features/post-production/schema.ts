@@ -63,7 +63,7 @@ export const reviewRequestSchema = auditFieldsSchema.extend({
   tenantId: z.string().min(1),
   projectId: z.string().min(1),
   deliveryRecordId: z.string().min(1),
-  channel: z.enum(["email", "sms"]),
+  channel: z.enum(["portal", "email", "sms"]),
   destinationLabel: z.enum(["google", "weddingwire", "the_knot", "facebook", "custom"]),
   destinationUrl: z.string().url(),
   status: reviewRequestStatusSchema,
@@ -76,6 +76,32 @@ export const reviewRequestSchema = auditFieldsSchema.extend({
   confirmedAt: z.string().datetime().nullable(),
   confirmedBy: z.string().nullable(),
   messageId: z.string().nullable(),
+  archivedAt: z.string().datetime().nullable(),
+});
+
+export const albumWorkflowStatusSchema = z.enum([
+  "instructions_available",
+  "instructions_viewed",
+  "selections_pending",
+  "selections_received",
+  "design_sent",
+  "revision_requested",
+  "approved",
+  "fulfilled",
+]);
+
+export const albumWorkflowSchema = auditFieldsSchema.extend({
+  id: z.string().min(1),
+  tenantId: z.string().min(1),
+  projectId: z.string().min(1),
+  deliveryRecordId: z.string().min(1),
+  status: albumWorkflowStatusSchema,
+  instructionsUrl: z.string().url().nullable(),
+  selectionUrl: z.string().url().nullable(),
+  designProofUrl: z.string().url().nullable(),
+  fulfillmentEvidenceId: z.string().nullable(),
+  creativeAuthority: z.literal("studio_human"),
+  statusHistory: z.array(z.record(z.string(), z.unknown())),
   archivedAt: z.string().datetime().nullable(),
 });
 
@@ -101,3 +127,4 @@ export type PostProductionStep = z.infer<typeof postProductionStepSchema>;
 export type DeliveryRecord = z.infer<typeof deliveryRecordSchema>;
 export type ReviewRequest = z.infer<typeof reviewRequestSchema>;
 export type ProjectCloseout = z.infer<typeof projectCloseoutSchema>;
+export type AlbumWorkflow = z.infer<typeof albumWorkflowSchema>;

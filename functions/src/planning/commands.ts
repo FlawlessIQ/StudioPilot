@@ -3,6 +3,7 @@ import { getFirestore, type DocumentData } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
+import { productEvent } from "../operations/product-events.js";
 import { studioHubCors } from "../security/cors.js";
 
 const item = z.object({
@@ -21,6 +22,22 @@ const item = z.object({
   notes: z.string().nullable(),
   visibility: z.enum(["studio", "client", "crew", "shared"]),
   blockingIssues: z.array(z.string()),
+  sourceReferences: z
+    .array(
+      z.object({
+        type: z.enum([
+          "project_fact",
+          "questionnaire_answer",
+          "timing_rule",
+          "package_fact",
+          "crew_fact",
+          "assumption",
+        ]),
+        sourceId: z.string().min(1),
+        label: z.string().min(1),
+      }),
+    )
+    .optional(),
 });
 const questionnaireField = z.object({
   id: z.string().min(1),
@@ -91,6 +108,22 @@ const command = z.discriminatedUnion("type", [
     input: z.object({
       projectId: z.string(),
       templateId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal("saveTimingRule"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      ruleId: z.string().nullable(),
+      name: z.string().min(2).max(160),
+      eventTypeId: z.string().min(1).max(80),
+      anchor: z.string().min(1).max(120),
+      offsetMinutes: z.number().int().min(-1440).max(1440),
+      durationMinutes: z.number().int().positive().max(1440),
+      bufferBeforeMinutes: z.number().int().nonnegative().max(600),
+      bufferAfterMinutes: z.number().int().nonnegative().max(600),
+      active: z.boolean(),
     }),
   }),
   z.object({
@@ -174,6 +207,84 @@ const internalRoles = new Set([
   "studio_admin",
   "studio_coordinator",
 ]);
+const plainRecord = (value: unknown): Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+const normalizedLabel = (value: unknown) =>
+  String(value ?? "")
+    .trim()
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9]+/g, " ");
+const projectFactAliases = [
+  {
+    labels: ["event date", "wedding date", "date"],
+    field: "eventDate",
+    label: "Project event date",
+  },
+  {
+    labels: ["venue", "venue name", "ceremony venue"],
+    field: "venueName",
+    label: "Project venue",
+  },
+  {
+    labels: ["venue address", "event address", "ceremony address"],
+    field: "venueAddress",
+    label: "Project venue address",
+  },
+  {
+    labels: ["client", "couple", "client name", "couple names"],
+    field: "clientName",
+    label: "Project client",
+  },
+  {
+    labels: ["timezone", "time zone"],
+    field: "timezone",
+    label: "Project timezone",
+  },
+] as const;
+
+function verifiedPrefill(
+  projectId: string,
+  project: DocumentData,
+  sections: unknown,
+) {
+  const answers: Record<string, unknown> = {};
+  const answerProvenance: Record<string, unknown> = {};
+  const sectionValues = Array.isArray(sections) ? sections : [];
+  for (const section of sectionValues) {
+    const sectionRecord = plainRecord(section);
+    const fields = Array.isArray(sectionRecord.fields)
+      ? sectionRecord.fields
+      : [];
+    for (const candidate of fields) {
+      const field = plainRecord(candidate);
+      const fieldId = String(field.id ?? "");
+      const label = normalizedLabel(field.label ?? field.id);
+      const alias = projectFactAliases.find((item) =>
+        item.labels.some((candidateLabel) => candidateLabel === label),
+      );
+      if (!fieldId || !alias) continue;
+      const value = project.get(alias.field);
+      if (
+        value === null ||
+        value === undefined ||
+        (typeof value === "string" && !value.trim())
+      )
+        continue;
+      answers[fieldId] = value;
+      answerProvenance[fieldId] = {
+        sourceType: "project_fact",
+        sourceId: projectId,
+        sourceField: alias.field,
+        label: alias.label,
+        verified: true,
+      };
+    }
+  }
+  return { answers, answerProvenance };
+}
+
 function stable(scope: string, tenantId: string, key: string) {
   return `${scope}_${createHash("sha256").update(`${tenantId}:${key}`).digest("hex").slice(0, 32)}`;
 }
@@ -230,9 +341,43 @@ export const planningCommand = onRequest(
           snapshot.get("projectId") !== parsed.input.projectId
         )
           throw new Error("RESPONSE_NOT_FOUND");
+        const priorAnswers = plainRecord(snapshot.get("answers"));
+        const answerProvenance = {
+          ...plainRecord(snapshot.get("answerProvenance")),
+        };
+        const changes = Object.entries(parsed.input.answers).flatMap(
+          ([fieldId, after]) => {
+            const before = priorAnswers[fieldId];
+            if (JSON.stringify(before) === JSON.stringify(after)) return [];
+            answerProvenance[fieldId] = {
+              sourceType: role === "client" ? "client_answer" : "studio_answer",
+              sourceId: fieldId,
+              label: role === "client" ? "Client answer" : "Studio answer",
+              verified: role !== "client",
+              changedAt: now,
+              changedFrom: before ?? null,
+            };
+            return [
+              {
+                fieldId,
+                before: before ?? null,
+                after,
+                affectsPlanning: true,
+                changedAt: now,
+                changedBy: identity.uid,
+              },
+            ];
+          },
+        );
+        const changeHistory = Array.isArray(snapshot.get("changeHistory"))
+          ? (snapshot.get("changeHistory") as unknown[])
+          : [];
         const batch = db.batch();
         batch.update(reference, {
           answers: parsed.input.answers,
+          answerProvenance,
+          changeHistory: [...changeHistory, ...changes].slice(-200),
+          hasPlanningChanges: changes.length > 0,
           status: parsed.input.submit ? "submitted" : "in_progress",
           completionPercent: parsed.input.submit
             ? 100
@@ -328,6 +473,28 @@ export const planningCommand = onRequest(
           parsed.tenantId,
           parsed.idempotencyKey,
         );
+        const sections = template.get("sections");
+        const prefill = verifiedPrefill(
+          parsed.input.projectId,
+          project,
+          sections,
+        );
+        const fieldValues = Array.isArray(sections)
+          ? sections.flatMap((section) => {
+              const fields = plainRecord(section).fields;
+              return Array.isArray(fields) ? fields : [];
+            })
+          : [];
+        const requiredFieldIds = fieldValues
+          .map(plainRecord)
+          .filter((field) => field.required === true)
+          .map((field) => String(field.id));
+        const completedRequired = requiredFieldIds.filter((fieldId) =>
+          Object.prototype.hasOwnProperty.call(prefill.answers, fieldId),
+        ).length;
+        const completionPercent = requiredFieldIds.length
+          ? Math.round((completedRequired / requiredFieldIds.length) * 100)
+          : 0;
         await db.doc(`questionnaireResponses/${id}`).create({
           id,
           tenantId: parsed.tenantId,
@@ -335,9 +502,16 @@ export const planningCommand = onRequest(
           templateId: parsed.input.templateId,
           templateVersion: Number(template.get("version")),
           templateName: String(template.get("name")),
+          templateSnapshot: {
+            name: String(template.get("name")),
+            sections,
+          },
           status: "not_started",
-          answers: {},
-          completionPercent: 0,
+          answers: prefill.answers,
+          answerProvenance: prefill.answerProvenance,
+          changeHistory: [],
+          hasPlanningChanges: false,
+          completionPercent,
           dueDate: due.toISOString().slice(0, 10),
           submittedAt: null,
           createdAt: now,
@@ -346,7 +520,47 @@ export const planningCommand = onRequest(
           updatedBy: identity.uid,
           archivedAt: null,
         });
-        result = { responseId: id, status: "not_started" };
+        result = {
+          responseId: id,
+          status: "not_started",
+          prefilledFieldCount: Object.keys(prefill.answers).length,
+        };
+      } else if (parsed.type === "saveTimingRule") {
+        if (!["studio_owner", "studio_admin"].includes(role))
+          throw new Error("FORBIDDEN");
+        const id =
+          parsed.input.ruleId ||
+          stable("timing_rule", parsed.tenantId, parsed.idempotencyKey);
+        const reference = db.doc(`timingRules/${id}`);
+        const current = await reference.get();
+        if (current.exists && current.get("tenantId") !== parsed.tenantId)
+          throw new Error("TIMING_RULE_NOT_FOUND");
+        const version = Number(current.get("version") ?? 0) + 1;
+        await reference.set(
+          {
+            id,
+            tenantId: parsed.tenantId,
+            name: parsed.input.name,
+            eventTypeId: parsed.input.eventTypeId,
+            anchor: parsed.input.anchor,
+            offsetMinutes: parsed.input.offsetMinutes,
+            durationMinutes: parsed.input.durationMinutes,
+            bufferBeforeMinutes: parsed.input.bufferBeforeMinutes,
+            bufferAfterMinutes: parsed.input.bufferAfterMinutes,
+            active: parsed.input.active,
+            version,
+            source: String(current.get("source") ?? "studio"),
+            approvedAt: parsed.input.active ? now : null,
+            approvedBy: parsed.input.active ? identity.uid : null,
+            createdAt: current.get("createdAt") ?? now,
+            createdBy: current.get("createdBy") ?? identity.uid,
+            updatedAt: now,
+            updatedBy: identity.uid,
+            archivedAt: null,
+          },
+          { merge: true },
+        );
+        result = { ruleId: id, version, active: parsed.input.active };
       } else if (parsed.type === "createVendor") {
         if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
         const id = stable("vendor", parsed.tenantId, parsed.idempotencyKey);
@@ -543,7 +757,8 @@ export const planningCommand = onRequest(
             contentType: "application/pdf",
             sizeBytes: null,
             hash: null,
-            visibility: "studio",
+            visibility: "shared",
+            clientVisible: true,
             category: "coi",
             status: "approved",
             createdAt: now,
@@ -638,7 +853,19 @@ export const planningCommand = onRequest(
                 : {},
             )
           : [];
-        const currentItems = parsed.input.items;
+        const currentItems = parsed.input.items.map((scheduleItem) => ({
+          ...scheduleItem,
+          sourceReferences:
+            scheduleItem.sourceReferences?.length
+              ? scheduleItem.sourceReferences
+              : [
+                  {
+                    type: "assumption" as const,
+                    sourceId: `assumption_${scheduleItem.id}`,
+                    label: "Human-reviewed schedule assumption",
+                  },
+                ],
+        }));
         const priorById = new Map(
           priorItems.map((scheduleItem) => [String(scheduleItem.id), scheduleItem]),
         );
@@ -693,7 +920,16 @@ export const planningCommand = onRequest(
           version,
           status: "published",
           timezone: parsed.input.timezone,
-          items: parsed.input.items,
+          items: currentItems,
+          sourceTrace: {
+            traceableItemCount: currentItems.length,
+            assumptionItemCount: currentItems.filter((scheduleItem) =>
+              scheduleItem.sourceReferences.some(
+                (source) => source.type === "assumption",
+              ),
+            ).length,
+            verifiedAt: now,
+          },
           approvalState: "client_pending",
           publishedAt: now,
           approvedBy: null,
@@ -726,6 +962,36 @@ export const planningCommand = onRequest(
             updatedBy: identity.uid,
           });
           const profile = crewProfiles[assignmentIndex];
+          const scopedItemIds = Array.isArray(assignment.get("scheduleItemIds"))
+            ? new Set(
+                (assignment.get("scheduleItemIds") as unknown[]).map(String),
+              )
+            : new Set<string>();
+          batch.set(
+            db.doc(`crewScheduleViews/${id}_${assignment.id}`),
+            {
+              id: `${id}_${assignment.id}`,
+              tenantId: parsed.tenantId,
+              projectId: parsed.input.projectId,
+              assignmentId: assignment.id,
+              userId: assignment.get("userId") ?? null,
+              crewProfileId: assignment.get("crewProfileId"),
+              sourceScheduleId: id,
+              version,
+              status: "published",
+              timezone: parsed.input.timezone,
+              items: currentItems.filter(
+                (scheduleItem) =>
+                  ["crew", "shared"].includes(scheduleItem.visibility) &&
+                  (scopedItemIds.size === 0 ||
+                    scopedItemIds.has(scheduleItem.id)),
+              ),
+              publishedAt: now,
+              createdAt: now,
+              updatedAt: now,
+            },
+            { merge: false },
+          );
           if (profile?.exists && typeof profile.get("email") === "string") {
             batch.set(
               db.doc(`emailJobs/schedule_crew_${id}_${assignment.id}`),
@@ -787,6 +1053,28 @@ export const planningCommand = onRequest(
           automationRunId: null,
           providerEventId: null,
         });
+        const event = productEvent({
+          tenantId: parsed.tenantId,
+          projectId: parsed.input.projectId,
+          actorId: identity.uid,
+          name: "lifecycle.schedule_published",
+          occurredAt: now,
+          correlationId: parsed.idempotencyKey,
+          sourceEntityType: "schedule",
+          sourceEntityId: id,
+          properties: {
+            version,
+            itemCount: currentItems.length,
+            assumptionItemCount: currentItems.filter((scheduleItem) =>
+              scheduleItem.sourceReferences.some(
+                (source) => source.type === "assumption",
+              ),
+            ).length,
+            crewNotified: acceptedAssignments.size,
+            changedItemCount: changeImpact.changedItemCount,
+          },
+        });
+        batch.create(db.doc(`productEvents/${event.id}`), event);
         await batch.commit();
         result = {
           scheduleId: id,

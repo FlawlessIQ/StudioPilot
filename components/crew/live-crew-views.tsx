@@ -45,9 +45,27 @@ type CrewData = {
   loading: boolean;
   error: string | null;
 };
+type CachedCrewBrief = {
+  projectName: string;
+  role: string;
+  arrivalAt: string;
+  departureAt: string;
+  locations: Array<{ name: string; address: string | null }>;
+  responsibilities: string[];
+  scheduleId: string;
+  scheduleVersion: number;
+  timezone: string;
+  items: Array<Record<string, unknown>>;
+  cachedAt: string;
+};
 
 const text = (value: unknown, fallback = "Pending") =>
   typeof value === "string" && value ? value : fallback;
+const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+const record = (value: unknown): Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 const number = (value: unknown) =>
   typeof value === "number" && Number.isFinite(value) ? value : 0;
 const dateTime = (value: unknown) => {
@@ -500,26 +518,129 @@ export function LiveCrewAccepted() {
   );
 }
 
+function OfflineCrewBrief({ brief }: { brief: CachedCrewBrief }) {
+  return (
+    <div className="crew-mobile-page crew-event-day">
+      <header className="crew-portal-hero">
+        <div>
+          <p className="eyebrow">
+            Offline-safe copy · Version {brief.scheduleVersion}
+          </p>
+          <h1>{brief.projectName}</h1>
+          <p>
+            {brief.role} · Cached{" "}
+            {new Date(brief.cachedAt).toLocaleString()}
+          </p>
+        </div>
+        <StatusBadge tone="warning">Read-only offline</StatusBadge>
+      </header>
+      <section className="crew-event-timeline">
+        {brief.items.map((item) => (
+          <article key={text(item.id)}>
+            <time>
+              <strong>{dateTime(item.startAt)}</strong>
+              <small>{dateTime(item.endAt)}</small>
+            </time>
+            <i />
+            <div>
+              <h2>{text(item.title)}</h2>
+              <p>
+                <MapPin /> {text(item.location, "Location pending")}
+              </p>
+              <small>{text(item.description, "See assignment brief")}</small>
+            </div>
+          </article>
+        ))}
+      </section>
+      <div className="crew-scope-note">
+        <ShieldCheck />
+        <span>
+          <strong>Role-scoped copy available without a connection</strong>
+          <small>
+            Reconnect before acknowledging this version or changing any record.
+            Compensation and client-private data are not stored in this brief.
+          </small>
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function LiveCrewSchedule() {
+  const workspace = useWorkspace();
   const data = useCrewData();
   const assignment = data.assignments.find(
     (item) => item.status === "accepted" && item.currentScheduleId,
   );
   const [schedule, setSchedule] = useState<Value | null>(null);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [cachedBrief, setCachedBrief] = useState<CachedCrewBrief | null>(null);
+  const cacheKey = workspace.userId
+    ? `studiocue:crew-event-brief:${workspace.userId}`
+    : null;
+  useEffect(() => {
+    if (!cacheKey) return;
+    const timer = window.setTimeout(() => {
+      try {
+        const value = window.localStorage.getItem(cacheKey);
+        if (value) setCachedBrief(JSON.parse(value) as CachedCrewBrief);
+      } catch {
+        // A malformed or blocked cache never replaces live project data.
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [cacheKey]);
   useEffect(() => {
     if (!assignment?.currentScheduleId) return;
     let active = true;
     void getDoc(
       doc(
         getFirebaseClient().firestore,
-        "schedules",
-        String(assignment.currentScheduleId),
+        "crewScheduleViews",
+        `${String(assignment.currentScheduleId)}_${assignment.id}`,
       ),
     )
       .then((value) => {
-        if (active && value.exists())
-          setSchedule({ id: value.id, ...value.data() } as Value);
+        if (active && value.exists()) {
+          const scheduleValue = {
+            id: value.id,
+            ...value.data(),
+          } as Value;
+          setSchedule(scheduleValue);
+          if (cacheKey && assignment) {
+            const allowedIds = new Set(
+              list(assignment.scheduleItemIds).map(String),
+            );
+            const scopedItems = list(scheduleValue.items)
+              .map(record)
+              .filter(
+                (item) =>
+                  ["crew", "shared"].includes(
+                    text(item.visibility, "crew"),
+                  ) &&
+                  (allowedIds.size === 0 || allowedIds.has(text(item.id))),
+              );
+            const project = projectFor(data, assignment);
+            const brief: CachedCrewBrief = {
+              projectName: text(project?.name),
+              role: text(assignment.role),
+              arrivalAt: text(assignment.arrivalAt),
+              departureAt: text(assignment.departureAt),
+              locations: list(assignment.locations).map((location) => ({
+                name: text(record(location).name),
+                address: text(record(location).address) || null,
+              })),
+              responsibilities: list(assignment.responsibilities).map(String),
+              scheduleId: text(scheduleValue.sourceScheduleId),
+              scheduleVersion: number(scheduleValue.version),
+              timezone: text(scheduleValue.timezone),
+              items: scopedItems,
+              cachedAt: new Date().toISOString(),
+            };
+            window.localStorage.setItem(cacheKey, JSON.stringify(brief));
+            setCachedBrief(brief);
+          }
+        }
       })
       .catch((caught: unknown) => {
         if (active)
@@ -530,8 +651,12 @@ export function LiveCrewSchedule() {
     return () => {
       active = false;
     };
-  }, [assignment?.currentScheduleId]);
-  if (data.loading || data.error) return <CrewPageState eyebrow="Event day" title="Schedule" description="Your assigned timeline and the version you need to acknowledge." data={data} />;
+  }, [assignment, cacheKey, data]);
+  if (data.loading)
+    return <CrewPageState eyebrow="Event day" title="Schedule" description="Your assigned timeline and the version you need to acknowledge." data={data} />;
+  if (data.error && cachedBrief) return <OfflineCrewBrief brief={cachedBrief} />;
+  if (data.error)
+    return <CrewPageState eyebrow="Event day" title="Schedule" description="Your assigned timeline and the version you need to acknowledge." data={data} />;
   if (!assignment || !schedule)
     return (
       <CrewPageState
@@ -592,7 +717,7 @@ export function LiveCrewSchedule() {
           assignmentId={assignment.id}
           projectId={text(assignment.projectId)}
           initialStatus="accepted"
-          currentScheduleId={schedule.id}
+          currentScheduleId={text(schedule.sourceScheduleId)}
           currentScheduleVersion={number(schedule.version)}
           startsAt={text(assignment.arrivalAt)}
           endsAt={text(assignment.departureAt)}

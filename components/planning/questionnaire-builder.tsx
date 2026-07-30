@@ -37,13 +37,16 @@ type FieldRow = {
   label: string;
   type: (typeof fieldTypes)[number][0];
   required: boolean;
+  options: string;
+  conditionalFieldId: string;
+  conditionalEquals: string;
 };
 
 const startingFields: FieldRow[] = [
-  { id: "planner", label: "Planner", type: "contact", required: false },
-  { id: "ceremony-time", label: "Ceremony time", type: "time", required: true },
-  { id: "family-photo-list", label: "Family photo list", type: "long_text", required: true },
-  { id: "accessibility", label: "Accessibility needs", type: "long_text", required: false },
+  { id: "planner", label: "Planner", type: "contact", required: false, options: "", conditionalFieldId: "", conditionalEquals: "" },
+  { id: "ceremony-time", label: "Ceremony time", type: "time", required: true, options: "", conditionalFieldId: "", conditionalEquals: "" },
+  { id: "family-photo-list", label: "Family photo list", type: "long_text", required: true, options: "", conditionalFieldId: "", conditionalEquals: "" },
+  { id: "accessibility", label: "Accessibility needs", type: "long_text", required: false, options: "", conditionalFieldId: "", conditionalEquals: "" },
 ];
 
 export function QuestionnaireBuilder() {
@@ -91,15 +94,23 @@ export function QuestionnaireBuilder() {
           {
             id: "section-1",
             title: String(form.get("sectionTitle")),
-            fields: fields.map((field, index) => ({
-              id: `field-${index + 1}`,
+            fields: fields.map((field) => ({
+              id: field.id,
               label: field.label.trim(),
               type: field.type,
               required: field.required,
               locked: false,
               internalOnly: false,
-              options: [],
-              conditionalOn: null,
+              options: field.options
+                .split(",")
+                .map((option) => option.trim())
+                .filter(Boolean),
+              conditionalOn: field.conditionalFieldId
+                ? {
+                    fieldId: field.conditionalFieldId,
+                    equals: field.conditionalEquals,
+                  }
+                : null,
             })),
           },
         ],
@@ -165,6 +176,9 @@ export function QuestionnaireBuilder() {
                 <span className="field-order">{index + 1}</span>
                 <label>Question or label<input aria-label={`Field ${index + 1} label`} onChange={(event) => updateField(field.id, { label: event.target.value })} value={field.label} /></label>
                 <label>Answer type<select aria-label={`Field ${index + 1} type`} onChange={(event) => updateField(field.id, { type: event.target.value as FieldRow["type"] })} value={field.type}>{fieldTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                {["dropdown", "multi_select", "radio"].includes(field.type) ? <label>Options<input aria-label={`Field ${index + 1} options`} onChange={(event) => updateField(field.id, { options: event.target.value })} placeholder="Yes, No, Unsure" value={field.options} /></label> : null}
+                <label>Show after<select aria-label={`Field ${index + 1} condition`} onChange={(event) => updateField(field.id, { conditionalFieldId: event.target.value })} value={field.conditionalFieldId}><option value="">Always visible</option>{fields.slice(0, index).map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.label || candidate.id}</option>)}</select></label>
+                {field.conditionalFieldId ? <label>When answer is<input aria-label={`Field ${index + 1} condition value`} onChange={(event) => updateField(field.id, { conditionalEquals: event.target.value })} value={field.conditionalEquals} /></label> : null}
                 <label className="field-required"><input aria-label={`${field.label || `Field ${index + 1}`} required`} checked={field.required} onChange={(event) => updateField(field.id, { required: event.target.checked })} type="checkbox" /> Required</label>
                 <div className="field-row-actions">
                   <button aria-label={`Move ${field.label || `field ${index + 1}`} up`} disabled={index === 0} onClick={() => moveField(index, -1)} type="button"><ArrowUp size={15} /></button>
@@ -173,7 +187,7 @@ export function QuestionnaireBuilder() {
                 </div>
               </div>
             ))}
-            <button className="button button-light button-sm" onClick={() => setFields((current) => [...current, { id: crypto.randomUUID(), label: "", type: "text", required: false }])} type="button"><Plus size={15} /> Add field</button>
+            <button className="button button-light button-sm" onClick={() => setFields((current) => [...current, { id: crypto.randomUUID(), label: "", type: "text", required: false, options: "", conditionalFieldId: "", conditionalEquals: "" }])} type="button"><Plus size={15} /> Add field</button>
           </fieldset>
           <button className="button button-dark" disabled={busy} type="submit"><ClipboardPlus size={16} /> {busy ? "Saving…" : "Save template"}</button>
         </form>

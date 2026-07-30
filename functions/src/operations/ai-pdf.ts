@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { getFirestore,type DocumentSnapshot } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
+import { runStudioImportAnalysis } from "../studio-import/extraction.js";
 
 type Json=Record<string,unknown>;
 const record=(value:unknown):Json=>typeof value==="object"&&value!==null&&!Array.isArray(value)?value as Json:{};
@@ -22,6 +23,8 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
       summary:string(lead.get("aiSummary"))||"Inquiry received and ready for studio review.",
       missingInformation:missing.map(String),
       suggestedConsultationQuestions:Array.isArray(lead.get("suggestedConsultationQuestions"))?lead.get("suggestedConsultationQuestions"):[],
+      replySubject:`Thank you for your ${string(lead.get("eventTypeLabel"))||"photography"} inquiry`,
+      replyBody:`Hi ${string(lead.get("firstName"))||"there"},\n\nThank you for reaching out. I would love to learn more about what matters most to you and your plans for ${string(lead.get("eventDate"))||"your event date"}.\n\nThe next step is a short consultation so we can confirm the details and make sure the experience is a great fit.\n\nWarmly,`,
     };
   }else{
     const project=process.env.VERTEX_AI_PROJECT_ID;
@@ -39,13 +42,14 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
       budgetRange:lead.get("budgetRange"),
       referralSource:lead.get("referralSource"),
       message:lead.get("message"),
+      availabilityStatus:lead.get("availabilityStatus"),
       knownMissingInformation:missing,
     };
     const response=await fetch(`https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`,{
       method:"POST",
       headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},
       body:JSON.stringify({
-        systemInstruction:{parts:[{text:"You summarize photography inquiries using only supplied facts. Never invent pricing, availability, dates, venues, or client preferences. Missing information and questions are suggestions for a human consultation."}]},
+        systemInstruction:{parts:[{text:"You summarize photography inquiries and draft a warm studio reply using only supplied facts. Never invent pricing, availability, dates, venues, or client preferences. Never claim the date is available unless availabilityStatus says available. Missing information and questions are suggestions for a human consultation. The reply is an unsent draft requiring studio approval."}]},
         contents:[{role:"user",parts:[{text:JSON.stringify(facts)}]}],
         generationConfig:{
           temperature:0,
@@ -56,8 +60,10 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
               summary:{type:"STRING"},
               missingInformation:{type:"ARRAY",items:{type:"STRING"}},
               suggestedConsultationQuestions:{type:"ARRAY",items:{type:"STRING"}},
+              replySubject:{type:"STRING"},
+              replyBody:{type:"STRING"},
             },
-            required:["summary","missingInformation","suggestedConsultationQuestions"],
+            required:["summary","missingInformation","suggestedConsultationQuestions","replySubject","replyBody"],
           },
         },
       }),
@@ -75,7 +81,12 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
   const missingInformation=Array.isArray(analysis.missingInformation)?analysis.missingInformation.map(String).filter(Boolean).slice(0,12):missing.map(String);
   const suggestedConsultationQuestions=Array.isArray(analysis.suggestedConsultationQuestions)?analysis.suggestedConsultationQuestions.map(String).filter(Boolean).slice(0,8):[];
   const now=new Date().toISOString();
-  await lead.ref.update({
+  const replySubject=string(analysis.replySubject)||`Thank you for your ${string(lead.get("eventTypeLabel"))||"photography"} inquiry`;
+  const replyBody=string(analysis.replyBody);
+  const confidence=missingInformation.length===0?0.93:0.82;
+  const actionId=`ai_reply_${leadId}`;
+  const batch=db.batch();
+  batch.update(lead.ref,{
     aiSummary:summary||lead.get("aiSummary")||null,
     missingInformation,
     suggestedConsultationQuestions,
@@ -83,7 +94,212 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
     updatedAt:now,
     updatedBy:"vertex-ai-worker",
   });
-  return{leadId,missingInformationCount:missingInformation.length,questionCount:suggestedConsultationQuestions.length};
+  batch.set(db.doc(`aiActions/${actionId}`),{
+    id:actionId,
+    tenantId:job.get("tenantId"),
+    projectId:null,
+    actorId:"vertex-ai-worker",
+    title:`Reply to ${string(lead.get("displayName"))||"new inquiry"}`,
+    capability:"inquiry_reply_draft",
+    authorityBoundary:"draft_requires_review",
+    status:"review_required",
+    modelProvider:"google_vertex_ai",
+    modelVersion:process.env.PROVIDER_MOCK_MODE==="true"?"deterministic-mock":process.env.VERTEX_AI_EXTRACTION_MODEL,
+    instructionVersion:"inquiry-reply-v1",
+    outputSchemaVersion:"inquiry-reply-v1",
+    sourceReferences:[{entityType:"lead",entityId:leadId,versionId:null,label:"Original inquiry",locator:"lead.message"}],
+    structuredOutput:{subject:replySubject,body:replyBody,recipientEmail:lead.get("email"),suggestedConsultationQuestions},
+    confidence:{overall:confidence,label:confidence>=0.9?"high":"medium",uncertainFields:missingInformation},
+    validation:{status:replyBody?"passed":"failed",issues:replyBody?[]:[{code:"EMPTY_REPLY",severity:"blocking",message:"The reply draft is empty.",field:"body"}]},
+    decision:null,
+    downstreamCommand:{commandType:"create_communication_draft",commandId:`reply_${leadId}`,executedAt:null},
+    usage:{inputTokens:0,outputTokens:0,estimatedCostMicros:0,latencyMs:0,estimatedMinutesSaved:8},
+    failure:null,
+    snoozedUntil:null,
+    createdAt:now,
+    updatedAt:now,
+    createdBy:"vertex-ai-worker",
+    updatedBy:"vertex-ai-worker",
+    archivedAt:null,
+  },{merge:true});
+  await batch.commit();
+  return{leadId,missingInformationCount:missingInformation.length,questionCount:suggestedConsultationQuestions.length,replyActionId:actionId};
+}
+
+async function runConsultationAnalysis(job:DocumentSnapshot){
+  const db=getFirestore();
+  const consultationId=string(job.get("consultationId"));
+  const consultation=await db.doc(`consultations/${consultationId}`).get();
+  if(!consultation.exists)throw new Error("CONSULTATION_NOT_FOUND");
+  if(consultation.get("tenantId")!==job.get("tenantId"))throw new Error("FORBIDDEN");
+  if(consultation.get("status")!=="completed")throw new Error("CONSULTATION_NOT_COMPLETED");
+  if(job.get("humanReviewRequired")!==true)throw new Error("AI_HUMAN_REVIEW_GUARD_MISSING");
+  const projectId=string(consultation.get("projectId"));
+  const [project,packages]=await Promise.all([
+    db.doc(`projects/${projectId}`).get(),
+    db.collection("packages").where("tenantId","==",job.get("tenantId")).where("active","==",true).limit(50).get(),
+  ]);
+  if(!project.exists||project.get("tenantId")!==job.get("tenantId"))throw new Error("PROJECT_NOT_FOUND");
+  const packageFacts=packages.docs.map(document=>({
+    id:document.id,
+    name:document.get("name"),
+    description:document.get("description"),
+    basePriceCents:document.get("basePriceCents"),
+    currency:document.get("currency"),
+    includedCoverageMinutes:document.get("includedCoverageMinutes"),
+    includedPhotographers:document.get("includedPhotographers"),
+    includedDeliverables:document.get("includedDeliverables"),
+    includedTravelArea:document.get("includedTravelArea"),
+    terms:document.get("terms"),
+  }));
+  const facts={
+    project:{id:project.id,name:project.get("name"),eventType:project.get("eventType"),eventDate:project.get("eventDate"),venueName:project.get("venueName"),city:project.get("city")},
+    consultationNotes:consultation.get("internalNotes"),
+    packages:packageFacts,
+  };
+  let analysis:Json;
+  if(process.env.PROVIDER_MOCK_MODE==="true"){
+    const recommended=packageFacts[0];
+    analysis={
+      summary:string(consultation.get("internalNotes"))||"Consultation completed.",
+      priorities:[],
+      missingInformation:[],
+      packageId:recommended?.id??null,
+      packageRationale:recommended?`${String(recommended.name)} is the first active package available for human review.`:"No active package is available.",
+      fitGaps:recommended?[]:["Create or activate a package."],
+      proposalIntroduction:"Thank you for sharing what matters most for your celebration. This draft reflects the priorities discussed during your consultation.",
+      followUpQuestions:[],
+      confidence:recommended?0.82:0.45,
+    };
+  }else{
+    const vertexProject=process.env.VERTEX_AI_PROJECT_ID;
+    const location=process.env.VERTEX_AI_LOCATION??"us-east4";
+    const model=process.env.VERTEX_AI_EXTRACTION_MODEL;
+    if(!vertexProject||!model)throw new Error("VERTEX_AI_NOT_CONFIGURED");
+    const token=await cloudAccessToken();
+    const response=await fetch(`https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(vertexProject)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`,{
+      method:"POST",
+      headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},
+      body:JSON.stringify({
+        systemInstruction:{parts:[{text:"Analyze wedding photography consultation notes using only supplied project facts and the exact active package catalog. Summarize stated priorities, missing information, and follow-up questions. Recommend only a supplied package id or null. Do not invent pricing, discounts, availability, deliverables, legal terms, or client agreement. Draft a short proposal introduction in the studio's professional voice. All outputs require human review."}]},
+        contents:[{role:"user",parts:[{text:JSON.stringify(facts)}]}],
+        generationConfig:{temperature:0,responseMimeType:"application/json",responseSchema:{type:"OBJECT",properties:{
+          summary:{type:"STRING"},
+          priorities:{type:"ARRAY",items:{type:"STRING"}},
+          missingInformation:{type:"ARRAY",items:{type:"STRING"}},
+          packageId:{type:"STRING",nullable:true},
+          packageRationale:{type:"STRING"},
+          fitGaps:{type:"ARRAY",items:{type:"STRING"}},
+          proposalIntroduction:{type:"STRING"},
+          followUpQuestions:{type:"ARRAY",items:{type:"STRING"}},
+          confidence:{type:"NUMBER"},
+        },required:["summary","priorities","missingInformation","packageId","packageRationale","fitGaps","proposalIntroduction","followUpQuestions","confidence"]}},
+      }),
+    });
+    if(!response.ok)throw new Error(`VERTEX_AI_FAILED:${response.status}`);
+    const payload=record(await response.json());
+    const candidates=Array.isArray(payload.candidates)?payload.candidates:[];
+    const parts=Array.isArray(record(record(candidates[0]).content).parts)?record(record(candidates[0]).content).parts as unknown[]:[];
+    const output=string(record(parts[0]).text);
+    if(!output)throw new Error("VERTEX_AI_EMPTY_OUTPUT");
+    analysis=record(JSON.parse(output));
+  }
+  const requestedPackageId=string(analysis.packageId);
+  const recommended=packages.docs.find(document=>document.id===requestedPackageId)??null;
+  const list=(value:unknown,limit=20)=>Array.isArray(value)?value.map(String).map(item=>item.trim()).filter(Boolean).slice(0,limit):[];
+  const confidence=Math.max(0,Math.min(1,Number(analysis.confidence??0)));
+  const missingInformation=list(analysis.missingInformation,20);
+  const validationIssues:Array<Json>=[
+    ...(!recommended?[{code:"PACKAGE_RECOMMENDATION_REQUIRED",severity:"blocking",message:"AI did not select an active package.",field:"packageId"}]:[]),
+    ...(confidence<0.8?[{code:"LOW_CONFIDENCE",severity:"blocking",message:"Confirm the consultation summary and package fit.",field:null}]:[]),
+  ];
+  const now=new Date().toISOString();
+  const modelVersion=process.env.PROVIDER_MOCK_MODE==="true"?"deterministic-mock":string(process.env.VERTEX_AI_EXTRACTION_MODEL);
+  const base={
+    tenantId:job.get("tenantId"),
+    projectId,
+    actorId:"vertex-ai-worker",
+    modelProvider:"google_vertex_ai",
+    modelVersion,
+    instructionVersion:"consultation-booking-v1",
+    outputSchemaVersion:"consultation-booking-v1",
+    confidence:{overall:confidence,label:confidence>=0.9?"high":confidence>=0.7?"medium":"low",uncertainFields:missingInformation},
+    decision:null,
+    usage:{inputTokens:0,outputTokens:0,estimatedCostMicros:0,latencyMs:0,estimatedMinutesSaved:25},
+    failure:null,
+    snoozedUntil:null,
+    createdAt:now,
+    updatedAt:now,
+    createdBy:"vertex-ai-worker",
+    updatedBy:"vertex-ai-worker",
+    archivedAt:null,
+  };
+  const sourceReferences=[
+    {entityType:"consultation",entityId:consultationId,versionId:null,label:"Consultation notes",locator:"internalNotes"},
+    {entityType:"project",entityId:projectId,versionId:null,label:String(project.get("name")??"Project"),locator:"project facts"},
+  ];
+  const batch=db.batch();
+  batch.update(consultation.ref,{
+    aiReview:{
+      status:"ready",
+      summary:string(analysis.summary),
+      priorities:list(analysis.priorities,20),
+      missingInformation,
+      packageId:recommended?.id??null,
+      packageRationale:string(analysis.packageRationale),
+      fitGaps:list(analysis.fitGaps,20),
+      proposalIntroduction:string(analysis.proposalIntroduction),
+      followUpQuestions:list(analysis.followUpQuestions,20),
+      confidence,
+      humanReviewRequired:true,
+      generatedAt:now,
+    },
+    aiReviewedAt:now,
+    updatedAt:now,
+    updatedBy:"vertex-ai-worker",
+  });
+  const summaryActionId=`ai_consultation_${consultationId}`;
+  batch.set(db.doc(`aiActions/${summaryActionId}`),{
+    ...base,
+    id:summaryActionId,
+    title:"Confirm consultation brief",
+    capability:"consultation_summary",
+    authorityBoundary:"human_approval_required",
+    status:"review_required",
+    sourceReferences,
+    structuredOutput:{summary:string(analysis.summary),priorities:list(analysis.priorities,20),missingInformation,followUpQuestions:list(analysis.followUpQuestions,20)},
+    validation:{status:confidence>=0.8?"passed":"failed",issues:validationIssues.filter(issue=>issue.code==="LOW_CONFIDENCE")},
+    downstreamCommand:null,
+  },{merge:true});
+  const packageActionId=`ai_package_${consultationId}`;
+  batch.set(db.doc(`aiActions/${packageActionId}`),{
+    ...base,
+    id:packageActionId,
+    title:"Review package recommendation",
+    capability:"package_recommendation",
+    authorityBoundary:"human_approval_required",
+    status:"review_required",
+    sourceReferences:[...sourceReferences,...(recommended?[{entityType:"package",entityId:recommended.id,versionId:String(recommended.get("version")??1),label:String(recommended.get("name")??"Package"),locator:"active package catalog"}]:[])],
+    structuredOutput:{packageId:recommended?.id??null,packageName:recommended?.get("name")??null,rationale:string(analysis.packageRationale),fitGaps:list(analysis.fitGaps,20),basePriceCents:recommended?.get("basePriceCents")??null,currency:recommended?.get("currency")??null},
+    validation:{status:validationIssues.length?"failed":"passed",issues:validationIssues},
+    downstreamCommand:{commandType:"select_package_snapshot",commandId:`select_${projectId}`,executedAt:null},
+  },{merge:true});
+  const proposalActionId=`ai_proposal_${consultationId}`;
+  const termsSummary=recommended?string(recommended.get("terms")):"";
+  batch.set(db.doc(`aiActions/${proposalActionId}`),{
+    ...base,
+    id:proposalActionId,
+    title:"Prepare proposal draft",
+    capability:"proposal_draft",
+    authorityBoundary:"human_approval_required",
+    status:"review_required",
+    sourceReferences:[...sourceReferences,...(recommended?[{entityType:"package",entityId:recommended.id,versionId:String(recommended.get("version")??1),label:String(recommended.get("name")??"Package"),locator:"approved terms and pricing"}]:[])],
+    structuredOutput:{packageId:recommended?.id??null,notes:string(analysis.proposalIntroduction),termsSummary,expiresInDays:14,retainerDueInDays:7,balanceDueDaysBeforeEvent:30},
+    validation:{status:recommended&&termsSummary?"passed":"failed",issues:[...(!recommended?[{code:"PACKAGE_REQUIRED",severity:"blocking",message:"Approve a package before drafting the proposal.",field:"packageId"}]:[]),...(!termsSummary?[{code:"APPROVED_TERMS_REQUIRED",severity:"blocking",message:"The recommended package has no approved terms.",field:"termsSummary"}]:[])]},
+    downstreamCommand:{commandType:"create_proposal_draft",commandId:`proposal_${projectId}`,executedAt:null},
+  },{merge:true});
+  await batch.commit();
+  return{consultationId,projectId,summaryActionId,packageActionId,proposalActionId,recommendedPackageId:recommended?.id??null,humanReviewRequired:true};
 }
 
 async function runQuestionnaireAnalysis(job:DocumentSnapshot){
@@ -152,11 +368,49 @@ async function runQuestionnaireAnalysis(job:DocumentSnapshot){
     generatedAt:now,
     modelMode:process.env.PROVIDER_MOCK_MODE==="true"?"mock":"vertex",
   };
-  await response.ref.update({aiReview,aiReviewedAt:now,updatedAt:now,updatedBy:"vertex-ai-worker"});
-  return{responseId,missingCount:missingInformation.length,riskCount:aiReview.planningRisks.length,humanReviewRequired:true};
+  const actionId=`ai_questionnaire_${responseId}`;
+  const projectId=String(response.get("projectId"));
+  const warnings=[
+    ...missingInformation.map((message)=>({code:"MISSING_INFORMATION",severity:"warning",message,field:null})),
+    ...aiReview.contradictions.map((message)=>({code:"POSSIBLE_CONTRADICTION",severity:"warning",message,field:null})),
+  ];
+  const batch=db.batch();
+  batch.update(response.ref,{aiReview,aiReviewedAt:now,updatedAt:now,updatedBy:"vertex-ai-worker"});
+  batch.set(db.doc(`aiActions/${actionId}`),{
+    id:actionId,
+    tenantId:job.get("tenantId"),
+    projectId,
+    actorId:"vertex-ai-worker",
+    title:"Review questionnaire planning flags",
+    capability:"questionnaire_review",
+    authorityBoundary:"human_approval_required",
+    status:"review_required",
+    modelProvider:process.env.PROVIDER_MOCK_MODE==="true"?"mock":"vertex_ai",
+    modelVersion:process.env.VERTEX_AI_EXTRACTION_MODEL??"mock-questionnaire-v1",
+    instructionVersion:"questionnaire-review-v2",
+    outputSchemaVersion:"questionnaire-review-v2",
+    sourceReferences:[
+      {entityType:"questionnaire_response",entityId:responseId,versionId:String(response.get("templateVersion")??1),label:String(response.get("templateName")??"Questionnaire"),locator:"submitted answers"},
+      {entityType:"project",entityId:projectId,versionId:null,label:String(project.get("name")??"Project"),locator:"verified project facts"},
+    ],
+    structuredOutput:aiReview,
+    confidence:{overall:missingInformation.length?0.82:0.93,label:missingInformation.length?"medium":"high",uncertainFields:[...missingInformation,...aiReview.contradictions].slice(0,20)},
+    validation:{status:"passed",issues:warnings},
+    decision:null,
+    downstreamCommand:null,
+    usage:{inputTokens:0,outputTokens:0,estimatedCostMicros:0,latencyMs:0,estimatedMinutesSaved:20},
+    failure:null,
+    createdAt:now,
+    updatedAt:now,
+    createdBy:"vertex-ai-worker",
+    updatedBy:"vertex-ai-worker",
+    archivedAt:null,
+  },{merge:true});
+  await batch.commit();
+  return{responseId,actionId,missingCount:missingInformation.length,riskCount:aiReview.planningRisks.length,humanReviewRequired:true};
 }
 
-export async function runAiJob(job:DocumentSnapshot){if(String(job.get("type"))==="lead_intake_analysis")return runLeadIntakeAnalysis(job);if(String(job.get("type"))==="questionnaire_analysis")return runQuestionnaireAnalysis(job);if(String(job.get("type"))!=="coi_extraction")throw new Error("UNSUPPORTED_AI_JOB");const db=getFirestore();const requestId=job.id.replace(/^coi_/,"");const insurance=await db.doc(`insuranceRequests/${requestId}`).get();if(!insurance.exists)throw new Error("INSURANCE_REQUEST_NOT_FOUND");if(job.get("humanApprovalRequired")!==true)throw new Error("AI_HUMAN_REVIEW_GUARD_MISSING");if(insurance.get("scanStatus")!=="clean")throw new Error("COI_FILE_NOT_CLEARED");let extraction:Json;
+export async function runAiJob(job:DocumentSnapshot){if(String(job.get("type"))==="studio_import_extraction")return runStudioImportAnalysis(job);if(String(job.get("type"))==="lead_intake_analysis")return runLeadIntakeAnalysis(job);if(String(job.get("type"))==="consultation_analysis")return runConsultationAnalysis(job);if(String(job.get("type"))==="questionnaire_analysis")return runQuestionnaireAnalysis(job);if(String(job.get("type"))!=="coi_extraction")throw new Error("UNSUPPORTED_AI_JOB");const db=getFirestore();const requestId=job.id.replace(/^coi_/,"");const insurance=await db.doc(`insuranceRequests/${requestId}`).get();if(!insurance.exists)throw new Error("INSURANCE_REQUEST_NOT_FOUND");if(job.get("humanApprovalRequired")!==true)throw new Error("AI_HUMAN_REVIEW_GUARD_MISSING");if(insurance.get("scanStatus")!=="clean")throw new Error("COI_FILE_NOT_CLEARED");let extraction:Json;
   if(process.env.PROVIDER_MOCK_MODE==="true"){extraction={certificateHolder:"Development extraction",eventDate:null,coverageTypes:[],limits:{},additionalInsuredWording:null,waiverOfSubrogation:null,primaryNoncontributory:null,confidence:0,missingFields:["Live Vertex AI configuration"]}}else{const project=process.env.VERTEX_AI_PROJECT_ID;const location=process.env.VERTEX_AI_LOCATION??"us-central1";const model=process.env.VERTEX_AI_EXTRACTION_MODEL;if(!project||!model)throw new Error("VERTEX_AI_NOT_CONFIGURED");const token=await cloudAccessToken();const object=string(insurance.get("temporaryObject"));const parts:Array<Json>=[{text:"Extract factual certificate-of-insurance fields. Do not decide legal sufficiency or approval. Return JSON only and use null for unknown values."}];if(object.startsWith("gs://"))parts.push({fileData:{mimeType:"application/pdf",fileUri:object}});const response=await fetch(`https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`,{method:"POST",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({contents:[{role:"user",parts}],generationConfig:{temperature:0,responseMimeType:"application/json",responseSchema:{type:"OBJECT",properties:{certificateHolder:{type:"STRING",nullable:true},eventDate:{type:"STRING",nullable:true},coverageTypes:{type:"ARRAY",items:{type:"STRING"}},limits:{type:"OBJECT"},additionalInsuredWording:{type:"STRING",nullable:true},waiverOfSubrogation:{type:"STRING",nullable:true},primaryNoncontributory:{type:"STRING",nullable:true},confidence:{type:"NUMBER"},missingFields:{type:"ARRAY",items:{type:"STRING"}}},required:["coverageTypes","limits","confidence","missingFields"]}}})});if(!response.ok)throw new Error(`VERTEX_AI_FAILED:${response.status}`);const body=record(await response.json());const candidates=Array.isArray(body.candidates)?body.candidates:[];const content=record(record(candidates[0]).content);const responseParts=Array.isArray(content.parts)?content.parts:[];const output=string(record(responseParts[0]).text);if(!output)throw new Error("VERTEX_AI_EMPTY_OUTPUT");extraction=record(JSON.parse(output))}
   const requirement=await db.doc(`insuranceRequirements/${String(insurance.get("requirementId"))}`).get();if(!requirement.exists)throw new Error("INSURANCE_REQUIREMENT_NOT_FOUND");
   const normalize=(value:unknown)=>String(value??"").trim().toLowerCase().replace(/\s+/g," ");

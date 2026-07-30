@@ -22,6 +22,8 @@ export const questionnaireResponseSchema = auditFieldsSchema.extend({
   id: z.string(), tenantId: z.string(), projectId: z.string(), templateId: z.string(),
   templateVersion: z.number().int().positive(), status: z.enum(["not_started", "in_progress", "submitted", "locked"]),
   answers: z.record(z.string(), z.unknown()), completionPercent: z.number().min(0).max(100),
+  answerProvenance: z.record(z.string(), z.unknown()).default({}),
+  changeHistory: z.array(z.record(z.string(), z.unknown())).default([]),
   submittedAt: z.string().datetime().nullable(), archivedAt: z.string().datetime().nullable(),
 });
 export type QuestionnaireTemplate = z.infer<typeof questionnaireTemplateSchema>;

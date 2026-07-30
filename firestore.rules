@@ -168,8 +168,11 @@ service cloud.firestore {
     match /packageSnapshots/{snapshotId} {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
         || (
-          isAssignedToProject(resource.data.tenantId, resource.data.projectId)
-          && hasRole(resource.data.tenantId, ["studio_coordinator"])
+          hasRole(resource.data.tenantId, ["studio_coordinator"])
+          && (
+            resource.data.projectId == null
+            || isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+          )
         );
       allow write: if false;
     }
@@ -248,11 +251,33 @@ service cloud.firestore {
     }
 
     match /aiActions/{actionId} {
-      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+        || (
+          hasRole(resource.data.tenantId, ["studio_coordinator"])
+          && (
+            resource.data.projectId == null
+            || isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+          )
+        );
+      allow write: if false;
+    }
+
+    match /actionReceipts/{receiptId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+        || (
+          isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+          && hasRole(resource.data.tenantId, ["studio_coordinator"])
+        );
       allow write: if false;
     }
 
     match /productEvents/{eventId} {
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
+      allow write: if false;
+    }
+
+    match /incidentRecords/{incidentId} {
       allow read: if isPlatformAdmin()
         || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
       allow write: if false;
@@ -371,8 +396,12 @@ service cloud.firestore {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
-          && hasRole(resource.data.tenantId, ["studio_coordinator"])
+          && hasRole(resource.data.tenantId, ["studio_coordinator","client"])
         );
+      allow write: if false;
+    }
+    match /timingRules/{ruleId} {
+      allow read: if isStudioOperator(resource.data.tenantId);
       allow write: if false;
     }
     match /vendors/{vendorId} {
@@ -404,9 +433,17 @@ service cloud.firestore {
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && (
-            hasRole(resource.data.tenantId, ["studio_coordinator","staff_photographer","subcontractor"])
+            hasRole(resource.data.tenantId, ["studio_coordinator","staff_photographer","client"])
           )
         );
+      allow write: if false;
+    }
+    match /crewScheduleViews/{viewId} {
+      allow read: if (
+        hasRole(resource.data.tenantId, ["subcontractor"])
+        && isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+        && resource.data.userId == request.auth.uid
+      );
       allow write: if false;
     }
     match /aiJobs/{jobId} {
@@ -422,6 +459,27 @@ service cloud.firestore {
       allow write: if false;
     }
     match /crewAssignments/{assignmentId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+        || (
+          hasRole(resource.data.tenantId, ["studio_coordinator"])
+          && isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+        )
+        || (
+          hasRole(resource.data.tenantId, ["subcontractor"])
+          && isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+          && resource.data.userId == request.auth.uid
+        );
+      allow write: if false;
+    }
+    match /crewCascades/{cascadeId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+        || (
+          hasRole(resource.data.tenantId, ["studio_coordinator"])
+          && isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+        );
+      allow write: if false;
+    }
+    match /crewCalendarEvents/{eventId} {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (
           hasRole(resource.data.tenantId, ["studio_coordinator"])
@@ -460,7 +518,10 @@ service cloud.firestore {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (
           hasRole(resource.data.tenantId, ["studio_coordinator"])
-          && isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+          && (
+            resource.data.projectId == null
+            || isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+          )
         );
       allow write: if false;
     }
@@ -502,6 +563,22 @@ service cloud.firestore {
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && hasRole(resource.data.tenantId, ["studio_coordinator"])
         );
+      allow write: if false;
+    }
+    match /albumWorkflows/{albumId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+        || (
+          isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+          && hasRole(resource.data.tenantId, ["studio_coordinator"])
+        );
+      allow write: if false;
+    }
+    match /albumReminders/{reminderId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"]);
+      allow write: if false;
+    }
+    match /archiveHandoffs/{handoffId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"]);
       allow write: if false;
     }
     match /reportJobs/{jobId} {

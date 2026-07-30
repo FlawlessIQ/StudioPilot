@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/layout/app-shell";
+import { FinalInvoiceReconciliation } from "@/components/planning/final-invoice-reconciliation";
 import { StudioDomainPage } from "@/components/studio/live-domain-view";
 
 export default function InvoicesPage() {
@@ -10,6 +11,7 @@ export default function InvoicesPage() {
         title="Invoices"
         description="See retainer and final invoice status synced from QuickBooks."
       />
+      <FinalInvoiceReconciliation />
     </AppShell>
   );
 }

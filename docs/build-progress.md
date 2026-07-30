@@ -1,5 +1,50 @@
 # StudioCue Build Progress
 
+## AI-native workflow roadmap — passes 3 through 9 — 2026-07-29
+
+Status: implementation and final local release validation complete; production
+promotion follows this record.
+
+Delivered:
+
+- AI classification and structured extraction for imported studio templates
+  with citations, confidence, correction, approval, activation, simulation, and
+  rollback
+- project-first lifecycle cockpit, AI work queue, plain-language receipts,
+  role-aware search, and mobile daily agenda
+- approval-led inquiry, consultation, package recommendation, and proposal
+  drafting without automatic client delivery
+- sourced questionnaire prefill, change provenance, approved timing rules,
+  explainable schedule generation, QuickBooks reconciliation, and COI workflow
+- owner-approved, one-at-a-time crew cascade with deterministic ranking,
+  conflict protection, expiry, escalation, role-scoped schedules, and a
+  sanitized offline brief
+- persistent client artifact hub, gallery, album, considerate review,
+  deterministic closeout, archive handoff, and human creative authority
+- production-record release evidence for verified time saved, AI outcomes,
+  authority violations, automation reliability/retry/cancel, staffing time,
+  provider health, and S1/S2 incidents
+- redacted AI evaluation fixtures, unsupported-authority blocking, privacy-safe
+  schedule telemetry, clean-account lifecycle pilot, and support runbook
+
+Validation record:
+
+- strict browser-app TypeScript: passed
+- strict Cloud Functions TypeScript and emitted build: passed
+- ESLint: passed with zero warnings
+- unit, domain, authority, AI-evaluation, and clean-pilot suite: 149 passed
+- Firestore tenant/role/project and server-only-write rules: passed
+- Storage upload-path, assignment, content-type, and size rules: passed
+- desktop and mobile Chromium acceptance suite: 40 passed
+- Next.js production build: passed with 100 routes
+- Sites production build: passed
+- production dependency audit: no high or critical advisories; inherited
+  moderate Firebase/Google Cloud `uuid` advisories remain tracked
+
+Operational acceptance that requires real provider accounts, observed handling
+times, legal/business decisions, or human sign-off remains explicitly amber in
+the release-evidence dashboard and manual launch checklist.
+
 ## Roadmap execution pass 2 — secure source ingestion — 2026-07-29
 
 Status: implemented and validated.

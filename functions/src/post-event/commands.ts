@@ -3,6 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
+import { productEvent } from "../operations/product-events.js";
 import { studioHubCors } from "../security/cors.js";
 
 const step = z.enum([
@@ -41,6 +42,33 @@ const command = z.discriminatedUnion("type", [
       deliveryDate: z.string().date(),
       notes: z.string().max(3000).nullable(),
       reviewDestinationUrl: z.string().url(),
+      reviewDestinationLabel: z
+        .enum(["google", "weddingwire", "the_knot", "facebook", "custom"])
+        .default("google"),
+      albumIncluded: z.boolean().default(false),
+      albumInstructionsUrl: z.string().url().nullable().default(null),
+    }),
+  }),
+  z.object({
+    type: z.literal("updateAlbumStatus"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      albumWorkflowId: z.string(),
+      status: z.enum([
+        "instructions_available",
+        "instructions_viewed",
+        "selections_pending",
+        "selections_received",
+        "design_sent",
+        "revision_requested",
+        "approved",
+        "fulfilled",
+      ]),
+      evidenceUrl: z.string().url().nullable(),
+      evidenceId: z.string().nullable(),
+      notes: z.string().max(2000).nullable(),
     }),
   }),
   z.object({
@@ -57,6 +85,18 @@ const command = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("closeProject"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({ projectId: z.string(), closeoutId: z.string() }),
+  }),
+  z.object({
+    type: z.literal("prepareCloseout"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({ projectId: z.string() }),
+  }),
+  z.object({
+    type: z.literal("archiveProject"),
     tenantId: z.string(),
     idempotencyKey: z.string().min(8),
     input: z.object({ projectId: z.string(), closeoutId: z.string() }),
@@ -239,9 +279,9 @@ export const postEventCommand = onRequest(
           updatedBy: identity.uid,
           archivedAt: null,
         });
-        for (const [sequence, scheduledAt] of [
-          [1, firstAt],
-          [2, reminderAt],
+        for (const [sequence, scheduledAt, channel] of [
+          [1, firstAt, "portal"],
+          [2, reminderAt, "email"],
         ] as const) {
           const reviewId = `review_${deliveryId}_${sequence}`;
           batch.create(db.doc(`reviewRequests/${reviewId}`), {
@@ -249,8 +289,8 @@ export const postEventCommand = onRequest(
             tenantId: parsed.tenantId,
             projectId: parsed.input.projectId,
             deliveryRecordId: deliveryId,
-            channel: "email",
-            destinationLabel: "google",
+            channel,
+            destinationLabel: parsed.input.reviewDestinationLabel,
             destinationUrl: parsed.input.reviewDestinationUrl,
             status: "scheduled",
             sequence,
@@ -268,6 +308,62 @@ export const postEventCommand = onRequest(
             updatedBy: identity.uid,
             archivedAt: null,
           });
+        }
+        if (parsed.input.albumIncluded) {
+          const albumId = `album_${deliveryId}`;
+          batch.create(db.doc(`albumWorkflows/${albumId}`), {
+            id: albumId,
+            tenantId: parsed.tenantId,
+            projectId: parsed.input.projectId,
+            deliveryRecordId: deliveryId,
+            status: "instructions_available",
+            instructionsUrl: parsed.input.albumInstructionsUrl,
+            selectionUrl: null,
+            designProofUrl: null,
+            fulfillmentEvidenceId: null,
+            creativeAuthority: "studio_human",
+            statusHistory: [
+              {
+                status: "instructions_available",
+                occurredAt: now,
+                actorId: identity.uid,
+                notes: "Album workflow created with gallery delivery.",
+              },
+            ],
+            createdAt: now,
+            updatedAt: now,
+            createdBy: identity.uid,
+            updatedBy: identity.uid,
+            archivedAt: null,
+          });
+          for (const [sequence, daysAfter] of [
+            [1, 7],
+            [2, 14],
+          ] as const) {
+            const scheduledAt = new Date(
+              new Date(deliveredAt).getTime() + daysAfter * 86400000,
+            ).toISOString();
+            const reminderId = `album_reminder_${deliveryId}_${sequence}`;
+            batch.create(db.doc(`albumReminders/${reminderId}`), {
+              id: reminderId,
+              tenantId: parsed.tenantId,
+              projectId: parsed.input.projectId,
+              albumWorkflowId: albumId,
+              deliveryRecordId: deliveryId,
+              sequence,
+              scheduledAt,
+              status: "scheduled",
+              stopOnStatuses: [
+                "selections_received",
+                "design_sent",
+                "revision_requested",
+                "approved",
+                "fulfilled",
+              ],
+              createdAt: now,
+              updatedAt: now,
+            });
+          }
         }
         batch.update(projectReference, {
           state: "DELIVERED",
@@ -288,11 +384,156 @@ export const postEventCommand = onRequest(
           updatedAt: now,
           updatedBy: identity.uid,
         });
+        const deliveryEvent = productEvent({
+          tenantId: parsed.tenantId,
+          projectId: parsed.input.projectId,
+          actorId: identity.uid,
+          name: "lifecycle.gallery_delivered",
+          occurredAt: now,
+          correlationId: parsed.idempotencyKey,
+          sourceEntityType: "deliveryRecord",
+          sourceEntityId: deliveryId,
+          properties: {
+            provider: parsed.input.provider,
+            albumIncluded: parsed.input.albumIncluded,
+          },
+        });
+        batch.create(
+          db.doc(`productEvents/${deliveryEvent.id}`),
+          deliveryEvent,
+        );
         await batch.commit();
         result = {
           deliveryRecordId: deliveryId,
           projectState: "DELIVERED",
           reviewRequestsScheduled: 2,
+          albumWorkflowCreated: parsed.input.albumIncluded,
+        };
+      } else if (parsed.type === "updateAlbumStatus") {
+        const reference = db.doc(
+          `albumWorkflows/${parsed.input.albumWorkflowId}`,
+        );
+        const current = await reference.get();
+        if (
+          !current.exists ||
+          current.get("tenantId") !== parsed.tenantId ||
+          current.get("projectId") !== parsed.input.projectId
+        )
+          throw new Error("ALBUM_WORKFLOW_NOT_FOUND");
+        const clientAllowed = new Set([
+          "instructions_viewed",
+          "selections_received",
+          "revision_requested",
+          "approved",
+        ]);
+        if (role === "client" && !clientAllowed.has(parsed.input.status))
+          throw new Error("FORBIDDEN");
+        if (role !== "client" && !internalRoles.has(role))
+          throw new Error("FORBIDDEN");
+        const order = [
+          "instructions_available",
+          "instructions_viewed",
+          "selections_pending",
+          "selections_received",
+          "design_sent",
+          "revision_requested",
+          "approved",
+          "fulfilled",
+        ];
+        const currentIndex = order.indexOf(String(current.get("status")));
+        const nextIndex = order.indexOf(parsed.input.status);
+        if (
+          nextIndex < 0 ||
+          (parsed.input.status !== "revision_requested" &&
+            nextIndex < currentIndex)
+        )
+          throw new Error("ALBUM_STATUS_REGRESSION");
+        if (
+          ["design_sent", "fulfilled"].includes(parsed.input.status) &&
+          !["studio_owner", "studio_admin", "studio_coordinator"].includes(role)
+        )
+          throw new Error("ALBUM_CREATIVE_AUTHORITY_REQUIRED");
+        const history = Array.isArray(current.get("statusHistory"))
+          ? (current.get("statusHistory") as unknown[])
+          : [];
+        const batch = db.batch();
+        batch.update(reference, {
+          status: parsed.input.status,
+          selectionUrl:
+            parsed.input.status === "selections_received"
+              ? parsed.input.evidenceUrl
+              : current.get("selectionUrl") ?? null,
+          designProofUrl:
+            parsed.input.status === "design_sent"
+              ? parsed.input.evidenceUrl
+              : current.get("designProofUrl") ?? null,
+          fulfillmentEvidenceId:
+            parsed.input.status === "fulfilled"
+              ? parsed.input.evidenceId
+              : current.get("fulfillmentEvidenceId") ?? null,
+          statusHistory: [
+            ...history,
+            {
+              status: parsed.input.status,
+              occurredAt: now,
+              actorId: identity.uid,
+              notes: parsed.input.notes,
+            },
+          ].slice(-100),
+          updatedAt: now,
+          updatedBy: identity.uid,
+        });
+        if (
+          [
+            "selections_received",
+            "design_sent",
+            "revision_requested",
+            "approved",
+            "fulfilled",
+          ].includes(parsed.input.status)
+        ) {
+          const reminders = await db
+            .collection("albumReminders")
+            .where("tenantId", "==", parsed.tenantId)
+            .where("albumWorkflowId", "==", reference.id)
+            .where("status", "==", "scheduled")
+            .get();
+          for (const reminder of reminders.docs)
+            batch.update(reminder.ref, {
+              status: "skipped",
+              stoppedByStatus: parsed.input.status,
+              updatedAt: now,
+            });
+        }
+        if (parsed.input.status === "approved") {
+          const event = productEvent({
+            tenantId: parsed.tenantId,
+            projectId: parsed.input.projectId,
+            actorId: identity.uid,
+            actorType: role === "client" ? "client" : "user",
+            name: "lifecycle.album_approved",
+            occurredAt: now,
+            correlationId: parsed.idempotencyKey,
+            sourceEntityType: "albumWorkflow",
+            sourceEntityId: reference.id,
+            properties: {
+              creativeAuthority: "studio_human",
+            },
+          });
+          batch.create(db.doc(`productEvents/${event.id}`), event);
+        }
+        await batch.commit();
+        result = {
+          albumWorkflowId: reference.id,
+          status: parsed.input.status,
+          remindersStopped: [
+            "selections_received",
+            "design_sent",
+            "revision_requested",
+            "approved",
+            "fulfilled",
+          ].includes(parsed.input.status),
+          creativeAuthority: "studio_human",
         };
       } else if (parsed.type === "markDeliveryDownloaded") {
         const reference = db.doc(
@@ -355,6 +596,205 @@ export const postEventCommand = onRequest(
           status: client ? "client_confirmed" : "manually_confirmed",
           remainingRequestsStopped: true,
         };
+      } else if (parsed.type === "prepareCloseout") {
+        if (
+          !["studio_owner", "studio_admin", "studio_coordinator"].includes(role)
+        )
+          throw new Error("FORBIDDEN");
+        const [
+          project,
+          contracts,
+          invoices,
+          schedules,
+          deliveries,
+          albums,
+          reviews,
+          crewAssignments,
+          insuranceRequests,
+        ] = await Promise.all([
+          db.doc(`projects/${parsed.input.projectId}`).get(),
+          db
+            .collection("contracts")
+            .where("tenantId", "==", parsed.tenantId)
+            .where("projectId", "==", parsed.input.projectId)
+            .get(),
+          db
+            .collection("invoiceReferences")
+            .where("tenantId", "==", parsed.tenantId)
+            .where("projectId", "==", parsed.input.projectId)
+            .get(),
+          db
+            .collection("schedules")
+            .where("tenantId", "==", parsed.tenantId)
+            .where("projectId", "==", parsed.input.projectId)
+            .get(),
+          db
+            .collection("deliveryRecords")
+            .where("tenantId", "==", parsed.tenantId)
+            .where("projectId", "==", parsed.input.projectId)
+            .get(),
+          db
+            .collection("albumWorkflows")
+            .where("tenantId", "==", parsed.tenantId)
+            .where("projectId", "==", parsed.input.projectId)
+            .get(),
+          db
+            .collection("reviewRequests")
+            .where("tenantId", "==", parsed.tenantId)
+            .where("projectId", "==", parsed.input.projectId)
+            .get(),
+          db
+            .collection("crewAssignments")
+            .where("tenantId", "==", parsed.tenantId)
+            .where("projectId", "==", parsed.input.projectId)
+            .get(),
+          db
+            .collection("insuranceRequests")
+            .where("tenantId", "==", parsed.tenantId)
+            .where("projectId", "==", parsed.input.projectId)
+            .get(),
+        ]);
+        if (
+          !project.exists ||
+          project.get("tenantId") !== parsed.tenantId ||
+          !["DELIVERED", "REVIEW_REQUESTED", "CLOSED"].includes(
+            String(project.get("state")),
+          )
+        )
+          throw new Error("PROJECT_NOT_READY_FOR_CLOSEOUT");
+        const signedContract = contracts.docs.find((item) =>
+          ["completed", "signed"].includes(String(item.get("status"))),
+        );
+        const finalInvoice = invoices.docs.find(
+          (item) => item.get("kind") === "final",
+        );
+        const currentSchedule = schedules.docs
+          .filter((item) =>
+            ["approved", "published"].includes(String(item.get("status"))),
+          )
+          .sort(
+            (left, right) =>
+              Number(right.get("version")) - Number(left.get("version")),
+          )[0];
+        const delivery = deliveries.docs.find((item) =>
+          ["downloaded", "viewed"].includes(String(item.get("status"))),
+        );
+        const unfinishedAlbum = albums.docs.find(
+          (item) => item.get("status") !== "fulfilled",
+        );
+        const reviewAsk = reviews.docs.find((item) =>
+          [
+            "sent",
+            "delivered",
+            "opened",
+            "clicked",
+            "client_confirmed",
+            "manually_confirmed",
+          ].includes(String(item.get("status"))),
+        );
+        const incompleteCrew = crewAssignments.docs.find(
+          (item) =>
+            !["completed", "cancelled", "reassigned", "declined", "expired"].includes(
+              String(item.get("status")),
+            ),
+        );
+        const undeliveredCoi = insuranceRequests.docs.find(
+          (item) =>
+            !["sent_to_venue", "venue_acknowledged"].includes(
+              String(item.get("status")),
+            ),
+        );
+        const requirements = [
+          {
+            key: "contract",
+            label: "Signed contract recorded",
+            complete: Boolean(signedContract),
+            evidenceId: signedContract?.id ?? null,
+          },
+          {
+            key: "final_balance",
+            label: "Final QuickBooks balance settled",
+            complete:
+              Boolean(finalInvoice) &&
+              Number(finalInvoice?.get("balanceCents") ?? 1) === 0 &&
+              finalInvoice?.get("status") === "paid",
+            evidenceId: finalInvoice?.id ?? null,
+          },
+          {
+            key: "schedule",
+            label: "Final schedule published",
+            complete: Boolean(currentSchedule),
+            evidenceId: currentSchedule?.id ?? null,
+          },
+          {
+            key: "delivery",
+            label: "Gallery delivered and accessed",
+            complete: Boolean(delivery),
+            evidenceId: delivery?.id ?? null,
+          },
+          {
+            key: "album",
+            label: "Album fulfilled or not included",
+            complete: albums.empty || !unfinishedAlbum,
+            evidenceId:
+              albums.docs.find((item) => item.get("status") === "fulfilled")
+                ?.id ?? null,
+          },
+          {
+            key: "review_request",
+            label: "Review request sent",
+            complete: Boolean(reviewAsk),
+            evidenceId: reviewAsk?.id ?? null,
+          },
+          {
+            key: "crew",
+            label: "Crew assignments closed",
+            complete: !incompleteCrew,
+            evidenceId: incompleteCrew ? null : "crew_assignments_complete",
+          },
+          {
+            key: "insurance",
+            label: "Required COI delivered",
+            complete: insuranceRequests.empty || !undeliveredCoi,
+            evidenceId:
+              insuranceRequests.docs.find((item) =>
+                ["sent_to_venue", "venue_acknowledged"].includes(
+                  String(item.get("status")),
+                ),
+              )?.id ?? null,
+          },
+        ];
+        const closeoutId = `closeout_${parsed.input.projectId}`;
+        const reference = db.doc(`projectCloseouts/${closeoutId}`);
+        const current = await reference.get();
+        const status = requirements.every((item) => item.complete)
+          ? "ready"
+          : "blocked";
+        await reference.set(
+          {
+            id: closeoutId,
+            tenantId: parsed.tenantId,
+            projectId: parsed.input.projectId,
+            status,
+            requirements,
+            completedAt: current.get("completedAt") ?? null,
+            completedBy: current.get("completedBy") ?? null,
+            summaryDocumentId: current.get("summaryDocumentId") ?? null,
+            createdAt: current.get("createdAt") ?? now,
+            updatedAt: now,
+            createdBy: current.get("createdBy") ?? identity.uid,
+            updatedBy: identity.uid,
+            archivedAt: null,
+          },
+          { merge: true },
+        );
+        result = {
+          closeoutId,
+          status,
+          blockers: requirements
+            .filter((item) => !item.complete)
+            .map((item) => item.label),
+        };
       } else if (parsed.type === "closeProject") {
         if (!["studio_owner", "studio_admin"].includes(role))
           throw new Error("FORBIDDEN");
@@ -404,11 +844,90 @@ export const postEventCommand = onRequest(
           status: "queued",
           createdAt: now,
         });
+        const event = productEvent({
+          tenantId: parsed.tenantId,
+          projectId: parsed.input.projectId,
+          actorId: identity.uid,
+          name: "lifecycle.project_closed",
+          occurredAt: now,
+          correlationId: parsed.idempotencyKey,
+          sourceEntityType: "projectCloseout",
+          sourceEntityId: parsed.input.closeoutId,
+          properties: {
+            requirementCount: requirements?.length ?? 0,
+            closeoutSummaryQueued: true,
+          },
+        });
+        batch.create(db.doc(`productEvents/${event.id}`), event);
         await batch.commit();
         result = {
           projectId: parsed.input.projectId,
           state: "CLOSED",
           summaryQueued: true,
+        };
+      } else if (parsed.type === "archiveProject") {
+        if (!["studio_owner", "studio_admin"].includes(role))
+          throw new Error("FORBIDDEN");
+        const [project, closeout] = await Promise.all([
+          db.doc(`projects/${parsed.input.projectId}`).get(),
+          db.doc(`projectCloseouts/${parsed.input.closeoutId}`).get(),
+        ]);
+        if (
+          !project.exists ||
+          project.get("tenantId") !== parsed.tenantId ||
+          project.get("state") !== "CLOSED" ||
+          !closeout.exists ||
+          closeout.get("tenantId") !== parsed.tenantId ||
+          closeout.get("projectId") !== parsed.input.projectId ||
+          closeout.get("status") !== "completed"
+        )
+          throw new Error("ARCHIVE_HANDOFF_BLOCKED");
+        const productionReference = db.doc(
+          `postProductionRecords/${parsed.input.projectId}`,
+        );
+        const batch = db.batch();
+        batch.update(project.ref, {
+          archivedAt: now,
+          nextAction: "Archived",
+          updatedAt: now,
+          updatedBy: identity.uid,
+        });
+        batch.set(
+          productionReference,
+          {
+            "steps.project_archived": {
+              complete: true,
+              completedAt: now,
+              completedBy: identity.uid,
+              evidenceId: parsed.input.closeoutId,
+              notes: "Archive handoff completed after deterministic closeout.",
+            },
+            currentStep: "project_archived",
+            updatedAt: now,
+            updatedBy: identity.uid,
+          },
+          { merge: true },
+        );
+        batch.create(
+          db.doc(`archiveHandoffs/${parsed.input.closeoutId}`),
+          {
+            id: parsed.input.closeoutId,
+            tenantId: parsed.tenantId,
+            projectId: parsed.input.projectId,
+            closeoutId: parsed.input.closeoutId,
+            status: "completed",
+            retentionReviewRequired: true,
+            completedAt: now,
+            completedBy: identity.uid,
+            createdAt: now,
+            updatedAt: now,
+          },
+        );
+        await batch.commit();
+        result = {
+          projectId: parsed.input.projectId,
+          archivedAt: now,
+          retentionReviewRequired: true,
         };
       } else {
         if (!["studio_owner", "studio_admin"].includes(role))

@@ -10,6 +10,7 @@ export const roadmapFeatureKeySchema = z.enum([
   "planning_intelligence",
   "crew_offer_cascade",
   "client_delivery_hub",
+  "pilot_release_evidence",
 ]);
 
 export type RoadmapFeatureKey = z.infer<typeof roadmapFeatureKeySchema>;
@@ -37,7 +38,7 @@ export const roadmapFeatureRegistry: readonly RoadmapFeatureDefinition[] = [
     release: 1,
     label: "Studio import processing",
     description: "Secure upload, file safety, classification, and extraction.",
-    defaultEnabled: false,
+    defaultEnabled: true,
     ownerOnly: true,
   },
   {
@@ -45,7 +46,7 @@ export const roadmapFeatureRegistry: readonly RoadmapFeatureDefinition[] = [
     release: 1,
     label: "Studio import activation",
     description: "Review, approve, activate, and roll back imported studio assets.",
-    defaultEnabled: false,
+    defaultEnabled: true,
     ownerOnly: true,
   },
   {
@@ -53,7 +54,7 @@ export const roadmapFeatureRegistry: readonly RoadmapFeatureDefinition[] = [
     release: 2,
     label: "Project lifecycle cockpit",
     description: "Project-first operation across inquiry, booking, planning, event, and delivery.",
-    defaultEnabled: false,
+    defaultEnabled: true,
     ownerOnly: false,
   },
   {
@@ -61,7 +62,7 @@ export const roadmapFeatureRegistry: readonly RoadmapFeatureDefinition[] = [
     release: 2,
     label: "AI approval queue",
     description: "Prepared, cited AI work with approval and deterministic execution.",
-    defaultEnabled: false,
+    defaultEnabled: true,
     ownerOnly: false,
   },
   {
@@ -69,7 +70,7 @@ export const roadmapFeatureRegistry: readonly RoadmapFeatureDefinition[] = [
     release: 3,
     label: "Inquiry and booking autopilot",
     description: "Inquiry, consultation, proposal, contract, and retainer preparation.",
-    defaultEnabled: false,
+    defaultEnabled: true,
     ownerOnly: false,
   },
   {
@@ -77,7 +78,7 @@ export const roadmapFeatureRegistry: readonly RoadmapFeatureDefinition[] = [
     release: 4,
     label: "Planning intelligence",
     description: "Questionnaire review, timing rules, schedule drafts, invoice, and COI assistance.",
-    defaultEnabled: false,
+    defaultEnabled: true,
     ownerOnly: false,
   },
   {
@@ -85,7 +86,7 @@ export const roadmapFeatureRegistry: readonly RoadmapFeatureDefinition[] = [
     release: 5,
     label: "Crew offer cascade",
     description: "Ranked, expiring crew offers with deterministic assignment.",
-    defaultEnabled: false,
+    defaultEnabled: true,
     ownerOnly: false,
   },
   {
@@ -93,8 +94,17 @@ export const roadmapFeatureRegistry: readonly RoadmapFeatureDefinition[] = [
     release: 6,
     label: "Client delivery hub",
     description: "Persistent artifacts, gallery, album, review, and closeout workflow.",
-    defaultEnabled: false,
+    defaultEnabled: true,
     ownerOnly: false,
+  },
+  {
+    key: "pilot_release_evidence",
+    release: 7,
+    label: "Pilot release evidence",
+    description:
+      "Measured value, AI quality, authority, reliability, incident, staffing, and provider launch gates.",
+    defaultEnabled: true,
+    ownerOnly: true,
   },
 ] as const;
 

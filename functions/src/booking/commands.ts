@@ -4,6 +4,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
+import { consumeAiQuota } from "../saas/usage.js";
 
 const commandSchema = z.discriminatedUnion("type", [
   z.object({
@@ -18,6 +19,16 @@ const commandSchema = z.discriminatedUnion("type", [
       endsAt: z.string().datetime(),
       timezone: z.string().min(1),
       location: z.string().max(500).nullable(),
+    }),
+  }),
+  z.object({
+    type: z.literal("completeConsultation"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      consultationId: z.string().min(1),
+      notes: z.string().trim().min(20).max(20_000),
     }),
   }),
   z.object({
@@ -137,7 +148,111 @@ export const bookingCommand = onRequest(
       const mockMode = process.env.PROVIDER_MOCK_MODE === "true";
       let result: Record<string, unknown>;
 
-      if (command.type === "scheduleConsultation") {
+      if (command.type === "completeConsultation") {
+        const consultationReference = firestore.doc(
+          `consultations/${command.input.consultationId}`,
+        );
+        const projectReference = firestore.doc(
+          `projects/${command.input.projectId}`,
+        );
+        const aiJobReference = firestore.doc(
+          `aiJobs/consultation_${command.input.consultationId}`,
+        );
+        const receiptReference = firestore.doc(
+          `actionReceipts/consultation_${command.input.consultationId}`,
+        );
+        result = await firestore.runTransaction(async (transaction) => {
+          const [consultation, project, existingJob] = await Promise.all([
+            transaction.get(consultationReference),
+            transaction.get(projectReference),
+            transaction.get(aiJobReference),
+          ]);
+          if (
+            !consultation.exists ||
+            consultation.get("tenantId") !== command.tenantId ||
+            consultation.get("projectId") !== command.input.projectId
+          )
+            throw new Error("CONSULTATION_NOT_FOUND");
+          if (
+            !project.exists ||
+            project.get("tenantId") !== command.tenantId ||
+            project.get("state") !== "CONSULTATION"
+          )
+            throw new Error("PROJECT_NOT_IN_CONSULTATION");
+          if (
+            !["scheduled", "completed"].includes(
+              String(consultation.get("status")),
+            )
+          )
+            throw new Error("CONSULTATION_NOT_COMPLETABLE");
+          if (!existingJob.exists)
+            await consumeAiQuota(
+              transaction,
+              firestore,
+              command.tenantId,
+              timestamp,
+            );
+          transaction.update(consultationReference, {
+            status: "completed",
+            internalNotes: command.input.notes,
+            completedAt: consultation.get("completedAt") ?? timestamp,
+            aiReview: {
+              status: "queued",
+              humanReviewRequired: true,
+            },
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          transaction.update(projectReference, {
+            nextAction: "Review consultation brief and package recommendation",
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          if (!existingJob.exists) {
+            transaction.create(aiJobReference, {
+              id: aiJobReference.id,
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              consultationId: command.input.consultationId,
+              type: "consultation_analysis",
+              status: "queued",
+              attempts: 0,
+              humanReviewRequired: true,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            });
+          }
+          transaction.set(receiptReference, {
+            id: receiptReference.id,
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            title: "Consultation notes saved",
+            summary:
+              "StudioCue queued a grounded consultation brief, package recommendation, and proposal draft. Nothing was sent to the client.",
+            status: "completed",
+            source: "booking_autopilot",
+            affectedEntityType: "consultation",
+            affectedEntityId: command.input.consultationId,
+            providerEvidence: null,
+            reversible: true,
+            retryable: false,
+            canCancel: false,
+            canRetry: false,
+            attempts: 1,
+            completedAt: timestamp,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            createdBy: identity.uid,
+            updatedBy: identity.uid,
+            archivedAt: null,
+          },{merge:true});
+          return {
+            consultationId: command.input.consultationId,
+            status: "completed",
+            analysisStatus: existingJob.exists ? "already_queued" : "queued",
+          };
+        });
+      } else if (command.type === "scheduleConsultation") {
         const start = new Date(command.input.startsAt);
         const end = new Date(command.input.endsAt);
         if (!Number.isFinite(start.valueOf()) || end <= start)

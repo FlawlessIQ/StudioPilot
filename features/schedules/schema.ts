@@ -8,6 +8,11 @@ export const scheduleItemSchema = z.object({
   photographerIds: z.array(z.string()), participants: z.array(z.string()),
   vendorContactIds: z.array(z.string()), equipment: z.array(z.string()), notes: z.string().nullable(),
   visibility: z.enum(["studio","client","crew","shared"]), blockingIssues: z.array(z.string()),
+  sourceReferences: z.array(z.object({
+    type: z.enum(["project_fact","questionnaire_answer","timing_rule","package_fact","crew_fact","assumption"]),
+    sourceId: z.string().min(1),
+    label: z.string().min(1),
+  })).default([]),
 });
 export const scheduleSchema = auditFieldsSchema.extend({
   id: z.string(), tenantId: z.string(), projectId: z.string(), version: z.number().int().positive(),

@@ -330,13 +330,18 @@ test("product events calculate non-negative verified time saved", () => {
   assert.equal(event.success, true);
 });
 
-test("roadmap feature registry has unique keys and keeps future releases off", () => {
+test("roadmap feature registry enables every completed release", () => {
   const keys = roadmapFeatureRegistry.map((feature) => feature.key);
   assert.equal(new Set(keys).size, keys.length);
   const defaults = roadmapFeatureDefaults();
   assert.equal(defaults.studio_import_foundation, true);
-  assert.equal(defaults.studio_import_processing, false);
-  assert.equal(defaults.inquiry_booking_autopilot, false);
+  assert.equal(defaults.studio_import_processing, true);
+  assert.equal(defaults.studio_import_activation, true);
+  assert.equal(defaults.inquiry_booking_autopilot, true);
+  assert.equal(defaults.planning_intelligence, true);
+  assert.equal(defaults.crew_offer_cascade, true);
+  assert.equal(defaults.client_delivery_hub, true);
+  assert.equal(defaults.pilot_release_evidence, true);
 });
 
 test("trusted import metadata and object paths are deterministic", () => {

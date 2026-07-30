@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   ArrowRight,
   ArrowUpRight,
+  BrainCircuit,
   CalendarDays,
   CircleAlert,
   Clock3,
@@ -170,6 +171,8 @@ function DashboardSummary() {
       {workspace.role !== "staff_photographer" ? (
         <DashboardPriorityStrip />
       ) : null}
+
+      <MobileTodayAgenda />
 
       {["studio_owner", "studio_admin"].includes(workspace.role ?? "") ? (
         <OwnerAutomationSignal />
@@ -339,6 +342,111 @@ function DashboardSummary() {
         </div>
       </section>
     </>
+  );
+}
+
+function MobileTodayAgenda() {
+  const workspace = useWorkspace();
+  const tasks = useTenantDocuments("tasks");
+  const consultations = useTenantDocuments("consultations", {
+    enabled: workspace.role !== "staff_photographer",
+  });
+  const projects = useTenantDocuments("projects");
+  const aiActions = useTenantDocuments("aiActions", {
+    enabled: ["studio_owner", "studio_admin", "studio_coordinator"].includes(
+      workspace.role ?? "",
+    ),
+  });
+  const today = new Date().toISOString().slice(0, 10);
+  const values = [
+    ...(tasks.records ?? [])
+      .filter(
+        (task) =>
+          !["complete", "completed", "cancelled"].includes(
+            String(task.status),
+          ) && String(task.dueDate ?? "").slice(0, 10) <= today,
+      )
+      .map((task) => ({
+        id: `task-${task.id}`,
+        label: String(task.title ?? task.name ?? "Task due"),
+        detail:
+          String(task.dueDate ?? "").slice(0, 10) < today
+            ? "Overdue · Studio"
+            : "Due today · Studio",
+        href: task.projectId
+          ? `/studio/projects/${String(task.projectId)}`
+          : "/studio/tasks",
+        tone: "urgent",
+        icon: Clock3,
+      })),
+    ...(consultations.records ?? [])
+      .filter(
+        (consultation) =>
+          String(consultation.startsAt ?? "").slice(0, 10) === today,
+      )
+      .map((consultation) => ({
+        id: `consultation-${consultation.id}`,
+        label: String(
+          consultation.projectName ?? consultation.title ?? "Consultation",
+        ),
+        detail: `${new Date(String(consultation.startsAt)).toLocaleTimeString(
+          undefined,
+          { hour: "numeric", minute: "2-digit" },
+        )} · Client`,
+        href: "/studio/calendar",
+        tone: "today",
+        icon: CalendarDays,
+      })),
+    ...(aiActions.records ?? [])
+      .filter((action) => action.status === "review_required")
+      .map((action) => ({
+        id: `ai-${action.id}`,
+        label: String(action.title ?? "Review AI-prepared work"),
+        detail: "Approval needed · Studio",
+        href: "/studio/ai-queue",
+        tone: "ai",
+        icon: BrainCircuit,
+      })),
+    ...(projects.records ?? [])
+      .filter(
+        (project) =>
+          activeStates.has(String(project.state)) &&
+          Number(project.readinessScore ?? 0) < 100,
+      )
+      .map((project) => ({
+        id: `project-${project.id}`,
+        label: String(project.nextAction ?? "Review project readiness"),
+        detail: `${String(project.name)} · ${Number(project.readinessScore ?? 0)}% ready`,
+        href: `/studio/projects/${project.id}`,
+        tone: "project",
+        icon: CircleAlert,
+      })),
+  ].slice(0, 6);
+  return (
+    <section className="mobile-today-agenda" aria-label="Today’s agenda">
+      <header>
+        <span>
+          <small>Mobile command view</small>
+          <strong>Today</strong>
+        </span>
+        <em>{values.length} actions</em>
+      </header>
+      <div>
+        {values.map((value) => {
+          const Icon = value.icon;
+          return (
+            <Link href={value.href} key={value.id}>
+              <span className={`is-${value.tone}`}><Icon size={16} /></span>
+              <span><strong>{value.label}</strong><small>{value.detail}</small></span>
+              <ArrowRight size={14} />
+            </Link>
+          );
+        })}
+        {!values.length ? (
+          <p><ShieldCheck size={16} /> No urgent work right now.</p>
+        ) : null}
+      </div>
+    </section>
   );
 }
 

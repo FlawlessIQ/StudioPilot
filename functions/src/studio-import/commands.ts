@@ -3,12 +3,23 @@ import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
+import { productEvent } from "../operations/product-events.js";
 import { studioHubCors } from "../security/cors.js";
 import {
   studioImportMaxFiles,
   studioImportObjectPath,
   validateStudioImportMetadata,
 } from "./domain.js";
+import { studioAssetTypes } from "./extraction.js";
+import {
+  activateStudioImport,
+  mergeStudioImportDrafts,
+  readStudioImportReview,
+  reviewStudioImportDraft,
+  rollbackStudioAsset,
+  simulateStudioImportSession,
+  splitStudioImportDraft,
+} from "./review.js";
 
 const fileInputSchema = z.object({
   clientId: z.string().min(1).max(240),
@@ -32,6 +43,76 @@ const commandSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(240),
     input: z.object({ sessionId: z.string().min(1).max(240) }),
+  }),
+  z.object({
+    type: z.literal("getReview"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(240),
+    input: z.object({ sessionId: z.string().min(1).max(240) }),
+  }),
+  z.object({
+    type: z.literal("simulateSession"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(240),
+    input: z.object({ sessionId: z.string().min(1).max(240) }),
+  }),
+  z.object({
+    type: z.literal("reviewDraft"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(240),
+    input: z.object({
+      sessionId: z.string().min(1).max(240),
+      versionId: z.string().min(1).max(240),
+      action: z.enum(["approve", "reject", "ignore", "update"]),
+      name: z.string().trim().min(1).max(240).optional(),
+      assetType: z.enum(studioAssetTypes).optional(),
+      structuredContent: z.record(z.string(), z.unknown()).optional(),
+      confirmClassification: z.boolean().optional(),
+    }),
+  }),
+  z.object({
+    type: z.literal("splitDraft"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(240),
+    input: z.object({
+      sessionId: z.string().min(1).max(240),
+      versionId: z.string().min(1).max(240),
+      parts: z
+        .array(
+          z.object({
+            name: z.string().trim().min(1).max(240),
+            assetType: z.enum(studioAssetTypes),
+            structuredContent: z.record(z.string(), z.unknown()),
+          }),
+        )
+        .min(2)
+        .max(8),
+    }),
+  }),
+  z.object({
+    type: z.literal("mergeDrafts"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(240),
+    input: z.object({
+      sessionId: z.string().min(1).max(240),
+      targetVersionId: z.string().min(1).max(240),
+      sourceVersionId: z.string().min(1).max(240),
+    }),
+  }),
+  z.object({
+    type: z.literal("activateSession"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(240),
+    input: z.object({ sessionId: z.string().min(1).max(240) }),
+  }),
+  z.object({
+    type: z.literal("rollbackAsset"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(240),
+    input: z.object({
+      assetId: z.string().min(1).max(240),
+      targetVersionId: z.string().min(1).max(240),
+    }),
   }),
   z.object({
     type: z.literal("cancelSession"),
@@ -93,6 +174,11 @@ function itemResult(data: FirebaseFirestore.DocumentData) {
       data.status === "awaiting_upload" ? String(data.uploadId) : null,
     retryCount: Number(data.retryCount ?? 0),
     safety: data.safety ?? null,
+    classification: data.classification ?? null,
+    draftVersionIds: Array.isArray(data.draftVersionIds)
+      ? data.draftVersionIds
+      : [],
+    duplicate: data.duplicate ?? null,
     failure: data.failure ?? null,
   };
 }
@@ -164,6 +250,24 @@ export const studioImportCommand = onRequest(
         );
         return;
       }
+      if (parsed.type === "getReview") {
+        response.status(200).json(
+          await readStudioImportReview(
+            parsed.tenantId,
+            parsed.input.sessionId,
+          ),
+        );
+        return;
+      }
+      if (parsed.type === "simulateSession") {
+        response.status(200).json(
+          await simulateStudioImportSession(
+            parsed.tenantId,
+            parsed.input.sessionId,
+          ),
+        );
+        return;
+      }
 
       const executionId = stable(
         `studio_import_${parsed.type}`,
@@ -177,6 +281,73 @@ export const studioImportCommand = onRequest(
         return;
       }
       const now = new Date().toISOString();
+
+      if (parsed.type === "reviewDraft") {
+        response.status(200).json(
+          await reviewStudioImportDraft({
+            tenantId: parsed.tenantId,
+            sessionId: parsed.input.sessionId,
+            versionId: parsed.input.versionId,
+            actorId: identity.uid,
+            action: parsed.input.action,
+            name: parsed.input.name,
+            assetType: parsed.input.assetType,
+            structuredContent: parsed.input.structuredContent,
+            confirmClassification: parsed.input.confirmClassification,
+            executionId,
+          }),
+        );
+        return;
+      }
+      if (parsed.type === "splitDraft") {
+        response.status(200).json(
+          await splitStudioImportDraft({
+            tenantId: parsed.tenantId,
+            sessionId: parsed.input.sessionId,
+            versionId: parsed.input.versionId,
+            actorId: identity.uid,
+            parts: parsed.input.parts,
+            executionId,
+          }),
+        );
+        return;
+      }
+      if (parsed.type === "mergeDrafts") {
+        response.status(200).json(
+          await mergeStudioImportDrafts({
+            tenantId: parsed.tenantId,
+            sessionId: parsed.input.sessionId,
+            targetVersionId: parsed.input.targetVersionId,
+            sourceVersionId: parsed.input.sourceVersionId,
+            actorId: identity.uid,
+            executionId,
+          }),
+        );
+        return;
+      }
+      if (parsed.type === "activateSession") {
+        response.status(200).json(
+          await activateStudioImport({
+            tenantId: parsed.tenantId,
+            sessionId: parsed.input.sessionId,
+            actorId: identity.uid,
+            executionId,
+          }),
+        );
+        return;
+      }
+      if (parsed.type === "rollbackAsset") {
+        response.status(200).json(
+          await rollbackStudioAsset({
+            tenantId: parsed.tenantId,
+            assetId: parsed.input.assetId,
+            targetVersionId: parsed.input.targetVersionId,
+            actorId: identity.uid,
+            executionId,
+          }),
+        );
+        return;
+      }
 
       if (parsed.type === "createSession") {
         const clientIds = new Set<string>();
@@ -317,6 +488,21 @@ export const studioImportCommand = onRequest(
             automationRunId: null,
             providerEventId: null,
           });
+          const event = productEvent({
+            tenantId: parsed.tenantId,
+            actorId: identity.uid,
+            name: "studio_import.session_created",
+            occurredAt: now,
+            correlationId: executionId,
+            sourceEntityType: "studioImportSession",
+            sourceEntityId: sessionId,
+            properties: {
+              itemCount: session.itemCount,
+              totalBytes: session.totalBytes,
+              sourceMode: session.sourceMode,
+            },
+          });
+          transaction.create(db.doc(`productEvents/${event.id}`), event);
           transaction.create(execution, {
             id: executionId,
             tenantId: parsed.tenantId,

@@ -184,6 +184,31 @@ test(
         await setDoc(doc(adminDb, "featureFlags/advanced-ai"), { key: "advanced-ai", enabled: true, tenantIds: ["tenant-a"] });
         await setDoc(doc(adminDb, "supportAccess/support-a"), { tenantId: "tenant-a", platformUserId: "platform-a", status: "active" });
         await setDoc(doc(adminDb, "systemHealth/health-a"), { tenantId: "tenant-a", status: "healthy" });
+        await setDoc(doc(adminDb, "productEvents/product-a"), {
+          tenantId: "tenant-a",
+          projectId: "project-a",
+          name: "lifecycle.schedule_published",
+        });
+        await setDoc(doc(adminDb, "productEvents/product-b"), {
+          tenantId: "tenant-b",
+          projectId: "project-b",
+          name: "lifecycle.schedule_published",
+        });
+        await setDoc(doc(adminDb, "incidentRecords/incident-a"), {
+          tenantId: "tenant-a",
+          severity: "S2",
+          status: "resolved",
+        });
+        await setDoc(doc(adminDb, "aiActions/ai-a"), {
+          tenantId: "tenant-a",
+          projectId: "project-a",
+          status: "approved",
+        });
+        await setDoc(doc(adminDb, "actionReceipts/receipt-a"), {
+          tenantId: "tenant-a",
+          projectId: "project-a",
+          status: "completed",
+        });
       });
 
       const userDb = environment.authenticatedContext("user-a").firestore();
@@ -249,8 +274,8 @@ test(
       await assertFails(getDoc(doc(clientDb, "documents/document-studio")));
       await assertFails(getDoc(doc(clientDb, "integrationConnections/connection-a")));
       await assertSucceeds(getDoc(doc(clientDb, "consultations/consultation-a")));
-      await assertFails(getDoc(doc(clientDb, "questionnaireResponses/questionnaire-a")));
-      await assertFails(getDoc(doc(clientDb, "schedules/schedule-a")));
+      await assertSucceeds(getDoc(doc(clientDb, "questionnaireResponses/questionnaire-a")));
+      await assertSucceeds(getDoc(doc(clientDb, "schedules/schedule-a")));
       await assertFails(getDoc(doc(clientDb, "insuranceRequests/coi-a")));
       await assertFails(updateDoc(doc(clientDb, "schedules/schedule-a"), { status: "approved" }));
       await assertFails(getDoc(doc(clientDb, "postProductionRecords/post-a")));
@@ -294,6 +319,16 @@ test(
       await assertSucceeds(getDoc(doc(ownerDb, "messages/message-studio")));
       await assertSucceeds(getDoc(doc(ownerDb, "messageTemplates/tenant-a_client_invitation_v1")));
       await assertSucceeds(getDoc(doc(ownerDb, "messageTemplatePointers/tenant-a_client_invitation")));
+      await assertSucceeds(getDoc(doc(ownerDb, "productEvents/product-a")));
+      await assertFails(getDoc(doc(ownerDb, "productEvents/product-b")));
+      await assertSucceeds(getDoc(doc(ownerDb, "incidentRecords/incident-a")));
+      await assertSucceeds(getDoc(doc(ownerDb, "aiActions/ai-a")));
+      await assertSucceeds(getDoc(doc(ownerDb, "actionReceipts/receipt-a")));
+      await assertFails(
+        updateDoc(doc(ownerDb, "incidentRecords/incident-a"), {
+          status: "closed",
+        }),
+      );
       await assertFails(updateDoc(doc(ownerDb, "messageTemplates/tenant-a_client_invitation_v1"), { status: "superseded" }));
       await assertFails(
         updateDoc(doc(ownerDb, "tenantInvitations/invite-a"), { status: "accepted" }),
@@ -303,6 +338,8 @@ test(
       const platformDb = environment.authenticatedContext("platform-a", { platformAdmin: true }).firestore();
       await assertSucceeds(getDoc(doc(platformDb, "featureFlags/advanced-ai")));
       await assertSucceeds(getDoc(doc(platformDb, "supportAccess/support-a")));
+      await assertSucceeds(getDoc(doc(platformDb, "productEvents/product-a")));
+      await assertSucceeds(getDoc(doc(platformDb, "incidentRecords/incident-a")));
       await assertFails(getDoc(doc(platformDb, "projects/project-a")));
       await assertFails(getDoc(doc(platformDb, "contacts/contact-a")));
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { UserPlus } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
+import { CrewCascadeWorkspace } from "@/components/crew/crew-cascade-workspace";
 import { LiveDomainView, ProjectContextBar } from "@/components/studio/live-domain-view";
 
 export default async function StudioCrewPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
@@ -22,6 +23,7 @@ export default async function StudioCrewPage({ searchParams }: { searchParams: P
           </Link>
         </header>
         {project ? <ProjectContextBar projectId={project} /> : null}
+        {project ? <CrewCascadeWorkspace projectId={project} /> : null}
         <section>
           <div className="section-heading-row">
             <div>
