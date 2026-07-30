@@ -7,6 +7,7 @@ import {
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { z } from "zod";
+import { photographerRelativeDateMilestone } from "./relative-date.js";
 
 const domainEventTopic = "studiocue-domain-events";
 
@@ -281,6 +282,44 @@ async function executeRun(runReference: FirebaseFirestore.DocumentReference) {
           { merge: false },
         );
         result[actionKey] = { status: "created", notificationId: artifactId };
+        continue;
+      }
+
+      if (actionType === "send_email") {
+        const configuration = z
+          .record(z.string(), z.unknown())
+          .parse(action.configuration ?? {});
+        const templateKey =
+          text(configuration.templateKey) ?? text(configuration.template);
+        if (!templateKey || !run.projectId) {
+          throw new Error("EMAIL_TEMPLATE_AND_PROJECT_REQUIRED");
+        }
+        const configuredValues = z
+          .record(z.string(), z.unknown())
+          .safeParse(configuration.values);
+        const appUrl =
+          process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app";
+        await db.doc(`emailJobs/${artifactId}`).set(
+          {
+            id: artifactId,
+            tenantId: run.tenantId,
+            projectId: run.projectId,
+            type: templateKey,
+            values: {
+              ...(configuredValues.success ? configuredValues.data : {}),
+              portalUrl: `${appUrl}/client`,
+              scheduleUrl: `${appUrl}/client/schedule`,
+            },
+            automationRunId: runReference.id,
+            status: "queued",
+            attempts: 0,
+            maxAttempts: 5,
+            createdAt: now,
+            updatedAt: now,
+          },
+          { merge: false },
+        );
+        result[actionKey] = { status: "queued", emailJobId: artifactId };
         continue;
       }
 
@@ -674,5 +713,76 @@ export const automationRetryScheduler = onSchedule(
       .limit(100)
       .get();
     for (const run of retryable.docs) await executeRun(run.ref);
+  },
+);
+
+export async function createRelativeDateDomainEvents(now = new Date()) {
+  const db = getFirestore();
+  const projects = await db
+    .collection("projects")
+    .where("state", "in", ["BOOKED", "PLANNING", "READY"])
+    .limit(500)
+    .get();
+  let created = 0;
+  for (const project of projects.docs) {
+    const eventDate = text(project.get("eventDate"));
+    const tenantId = text(project.get("tenantId"));
+    if (!eventDate || !tenantId) continue;
+    const timeZone = text(project.get("timezone")) ?? "UTC";
+    const milestone = photographerRelativeDateMilestone({
+      eventDate,
+      now,
+      timeZone,
+    });
+    if (!milestone) continue;
+    const eventId = stable(
+      "relative-date",
+      project.id,
+      eventDate,
+      milestone.key,
+    );
+    try {
+      await db.doc(`domainEvents/${eventId}`).create({
+        id: eventId,
+        tenantId,
+        projectId: project.id,
+        type: "relative_date_reached",
+        occurredAt: now.toISOString(),
+        source: "relative-date-scheduler",
+        correlationId: eventId,
+        payload: {
+          entityId: project.id,
+          collectionId: "projects",
+          eventDate,
+          eventType: String(
+            project.get("eventTypeId") ?? project.get("eventType") ?? "",
+          ).toLowerCase(),
+          daysBeforeEvent: milestone.daysBeforeEvent,
+          relativeDateKey: milestone.key,
+        },
+        processingStatus: "pending",
+        createdAt: now.toISOString(),
+      });
+      created += 1;
+    } catch (caught: unknown) {
+      if (
+        !(caught instanceof Error) ||
+        !caught.message.toLowerCase().includes("already exists")
+      ) {
+        throw caught;
+      }
+    }
+  }
+  return { scanned: projects.size, created };
+}
+
+export const relativeDateScheduler = onSchedule(
+  {
+    schedule: "every 1 hours",
+    timeZone: "UTC",
+    retryCount: 3,
+  },
+  async () => {
+    await createRelativeDateDomainEvents();
   },
 );

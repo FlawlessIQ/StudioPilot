@@ -64,6 +64,7 @@ export {
   domainEventOutboxScheduler,
   normalizeDomainEvent,
   processDomainEvent,
+  relativeDateScheduler,
 } from "./automation/runtime.js";
 
 if (getApps().length === 0) {

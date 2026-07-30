@@ -286,8 +286,12 @@ export const aiScheduleCommand = onRequest(
         .filter(
           (item) =>
             item.get("active") === true &&
-            String(item.get("eventTypeId")) ===
-              String(project.get("eventType") ?? "wedding"),
+            String(item.get("eventTypeId")).toLowerCase() ===
+              String(
+                project.get("eventTypeId") ??
+                  project.get("eventType") ??
+                  "wedding",
+              ).toLowerCase(),
         )
         .map((item) => ({
           sourceId: item.id,
@@ -316,8 +320,12 @@ export const aiScheduleCommand = onRequest(
             ? {
                 sourceId: packageSnapshot.id,
                 packageName: packageSnapshot.get("packageName"),
-                coverageMinutes: packageSnapshot.get("coverageMinutes"),
-                addOns: packageSnapshot.get("selectedAddOns"),
+                coverageMinutes:
+                  packageSnapshot.get("includedCoverageMinutes") ??
+                  packageSnapshot.get("coverageMinutes"),
+                addOns:
+                  packageSnapshot.get("addOns") ??
+                  packageSnapshot.get("selectedAddOns"),
               }
             : null,
         crewFacts: crewAssignments.docs

@@ -3,17 +3,121 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Images, Send } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
+import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendPostEventCommand } from "@/lib/post-event/command-client";
 
+const record = (value: unknown): Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+const text = (value: unknown) =>
+  typeof value === "string" ? value : "";
+const dateFromToday = (days: number) => {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+};
+const reviewKey = (label: string) =>
+  label === "the_knot" ? "theKnot" : label;
+
 export function DeliveryForm({ projectId }: { projectId?: string }) {
+  const workspace = useWorkspace();
   const { records: projects, loading } = useTenantDocuments("projects");
+  const { records: tenants } = useTenantDocuments("tenants");
+  const { records: packageSnapshots } =
+    useTenantDocuments("packageSnapshots");
   const [interactive, setInteractive] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState(projectId ?? "");
+  const [provider, setProvider] = useState("manual");
+  const [expirationDate, setExpirationDate] = useState("");
+  const [reviewDestinationLabel, setReviewDestinationLabel] =
+    useState("google");
+  const [reviewDestinationUrl, setReviewDestinationUrl] = useState("");
   const [albumIncluded, setAlbumIncluded] = useState(false);
+  const [albumInstructionsUrl, setAlbumInstructionsUrl] = useState("");
+  const [studioDefaultsHydrated, setStudioDefaultsHydrated] = useState(false);
+  const [projectDefaultsHydrated, setProjectDefaultsHydrated] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
+  const tenant =
+    tenants?.find((candidate) => candidate.id === workspace.tenantId) ??
+    tenants?.[0];
+  const reviewLinks = record(tenant?.reviewLinks);
+  const deliveryDefaults = record(tenant?.deliveryDefaults);
+
   useEffect(() => {
     const frame = requestAnimationFrame(() => setInteractive(true));
     return () => cancelAnimationFrame(frame);
   }, []);
+
+  useEffect(() => {
+    if (!tenant || studioDefaultsHydrated) return;
+    const preferredReview = [
+      ["google", reviewLinks.google],
+      ["weddingwire", reviewLinks.weddingwire],
+      ["the_knot", reviewLinks.theKnot],
+      ["facebook", reviewLinks.facebook],
+      ["custom", reviewLinks.custom],
+    ].find(([, value]) => text(value));
+    const expirationDays = Number(deliveryDefaults.galleryExpirationDays ?? 90);
+    const frame = requestAnimationFrame(() => {
+      if (preferredReview) {
+        setReviewDestinationLabel(String(preferredReview[0]));
+        setReviewDestinationUrl(text(preferredReview[1]));
+      }
+      setProvider(text(deliveryDefaults.galleryProvider) || "manual");
+      setExpirationDate(
+        dateFromToday(
+          Number.isFinite(expirationDays) && expirationDays >= 0
+            ? expirationDays
+            : 90,
+        ),
+      );
+      setAlbumInstructionsUrl(
+        text(deliveryDefaults.albumInstructionsUrl),
+      );
+      setStudioDefaultsHydrated(true);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [
+    deliveryDefaults,
+    reviewLinks,
+    studioDefaultsHydrated,
+    tenant,
+  ]);
+
+  useEffect(() => {
+    if (
+      !selectedProjectId ||
+      !projects ||
+      !packageSnapshots ||
+      projectDefaultsHydrated === selectedProjectId
+    ) {
+      return;
+    }
+    const project = projects.find(
+      (candidate) => candidate.id === selectedProjectId,
+    );
+    const snapshot = packageSnapshots.find(
+      (candidate) =>
+        candidate.id === project?.packageSnapshotId ||
+        candidate.projectId === selectedProjectId,
+    );
+    const deliverables = Array.isArray(snapshot?.includedDeliverables)
+      ? snapshot.includedDeliverables.map(String)
+      : [];
+    const frame = requestAnimationFrame(() => {
+      setAlbumIncluded(
+        deliverables.some((deliverable) => /album/i.test(deliverable)),
+      );
+      setProjectDefaultsHydrated(selectedProjectId);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [
+    packageSnapshots,
+    projectDefaultsHydrated,
+    projects,
+    selectedProjectId,
+  ]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -35,6 +139,7 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
           albumIncluded && String(data.get("albumInstructionsUrl"))
             ? String(data.get("albumInstructionsUrl"))
             : null,
+        saveStudioDefaults: data.get("saveStudioDefaults") === "on",
       });
       setNotice(
         response.persisted
@@ -53,10 +158,11 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
       <label>
         Project
         <select
-          defaultValue={projectId ?? ""}
           disabled={loading || Boolean(projectId)}
           name={projectId ? undefined : "projectId"}
+          onChange={(event) => setSelectedProjectId(event.target.value)}
           required
+          value={selectedProjectId}
         >
           <option value="">Select a project</option>
           {projects?.map((project) => (
@@ -69,7 +175,11 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
       </label>
       <label>
         Gallery provider
-        <select defaultValue="manual" name="provider">
+        <select
+          name="provider"
+          onChange={(event) => setProvider(event.target.value)}
+          value={provider}
+        >
           <option value="manual">Manual / other</option>
           <option value="pixieset">Pixieset</option>
           <option value="pic_time">Pic-Time</option>
@@ -95,11 +205,24 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
       </label>
       <label>
         Gallery expiration
-        <input name="expirationDate" type="date" />
+        <input
+          name="expirationDate"
+          onChange={(event) => setExpirationDate(event.target.value)}
+          type="date"
+          value={expirationDate}
+        />
       </label>
       <label>
         Review destination
-        <select defaultValue="google" name="reviewDestinationLabel">
+        <select
+          name="reviewDestinationLabel"
+          onChange={(event) => {
+            const label = event.target.value;
+            setReviewDestinationLabel(label);
+            setReviewDestinationUrl(text(reviewLinks[reviewKey(label)]));
+          }}
+          value={reviewDestinationLabel}
+        >
           <option value="google">Google</option>
           <option value="weddingwire">WeddingWire</option>
           <option value="the_knot">The Knot</option>
@@ -109,7 +232,14 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
       </label>
       <label className="form-span">
         Review destination URL
-        <input name="reviewDestinationUrl" type="url" required />
+        <input
+          name="reviewDestinationUrl"
+          onChange={(event) => setReviewDestinationUrl(event.target.value)}
+          type="url"
+          required
+          value={reviewDestinationUrl}
+        />
+        <small>Filled from your studio review settings; edit only for this project.</small>
       </label>
       <label className="delivery-album-toggle">
         <input
@@ -122,12 +252,24 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
       {albumIncluded ? (
         <label className="form-span">
           Album selection instructions
-          <input name="albumInstructionsUrl" type="url" required />
+          <input
+            name="albumInstructionsUrl"
+            onChange={(event) => setAlbumInstructionsUrl(event.target.value)}
+            type="url"
+            required
+            value={albumInstructionsUrl}
+          />
+          <small>Filled from your approved studio delivery instructions.</small>
         </label>
       ) : null}
       <label className="form-span">
         Delivery notes
         <textarea name="notes" />
+      </label>
+      <label className="delivery-album-toggle">
+        <input defaultChecked name="saveStudioDefaults" type="checkbox" />
+        Remember the provider, review destination, expiration, and album
+        instructions for future projects
       </label>
       <button className="button button-dark" disabled={!interactive} type="submit">
         <Send size={16} /> Record and release delivery

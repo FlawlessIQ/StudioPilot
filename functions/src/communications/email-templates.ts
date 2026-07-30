@@ -500,6 +500,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         paragraphs: [
           greeting,
           `${brand.studioName} is looking forward to your event${project}. Review the current schedule, arrival details, and any remaining next action in your portal.`,
+          "To help photography begin on time, please have the wedding dress on a hanger and keep the shoes, flowers, rings, and invitation suite together before the team arrives.",
         ],
         action: portalUrl
           ? { label: "Open project portal", url: portalUrl }

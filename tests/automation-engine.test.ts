@@ -8,6 +8,11 @@ import {
   type AutomationRunStore,
 } from "@/server/services/automation-service";
 import type { AutomationRule } from "@/server/services/automation-types";
+import {
+  calendarDateInTimeZone,
+  daysUntilEvent,
+  photographerRelativeDateMilestone,
+} from "../functions/src/automation/relative-date.ts";
 import { workflowTimestamp } from "./fixtures/workflow";
 
 class MemoryAutomationStore implements AutomationRunStore {
@@ -75,4 +80,48 @@ test("automation runs are idempotent and execute actions once", async () => {
   assert.equal(second.id, first.id);
   assert.equal(executions, 1);
   assert.equal(store.runs.length, 1);
+});
+
+test("photographer reminders follow the studio calendar date across time zones", () => {
+  const instant = new Date("2027-05-13T03:30:00.000Z");
+  assert.equal(
+    calendarDateInTimeZone(instant, "America/New_York"),
+    "2027-05-12",
+  );
+  assert.equal(calendarDateInTimeZone(instant, "UTC"), "2027-05-13");
+  assert.equal(daysUntilEvent("2027-05-12", "2027-06-11"), 30);
+  assert.deepEqual(
+    photographerRelativeDateMilestone({
+      eventDate: "2027-06-11",
+      now: instant,
+      timeZone: "America/New_York",
+    }),
+    {
+      key: "schedule_confirmation_30_days",
+      daysBeforeEvent: 30,
+    },
+  );
+});
+
+test("photographer reminders only fire on an exact supported milestone", () => {
+  assert.deepEqual(
+    photographerRelativeDateMilestone({
+      eventDate: "2027-06-11",
+      now: new Date("2027-06-10T16:00:00.000Z"),
+      timeZone: "America/New_York",
+    }),
+    {
+      key: "event_preparation_1_day",
+      daysBeforeEvent: 1,
+    },
+  );
+  assert.equal(
+    photographerRelativeDateMilestone({
+      eventDate: "2027-06-11",
+      now: new Date("2027-06-09T16:00:00.000Z"),
+      timeZone: "America/New_York",
+    }),
+    null,
+  );
+  assert.equal(daysUntilEvent("not-a-date", "2027-06-11"), null);
 });

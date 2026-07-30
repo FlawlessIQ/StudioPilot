@@ -5,7 +5,12 @@ import {
   deterministicExtraction,
   simulateStudioImport,
   validateExtractedAsset,
-} from "../functions/src/studio-import/extraction";
+} from "../functions/src/studio-import/extraction.ts";
+import {
+  importedDeliveryDefaults,
+  importedMessageTemplate,
+  importedReviewLink,
+} from "../functions/src/studio-import/native-assets.ts";
 
 test("studio import deterministically classifies and structures familiar source text", () => {
   const [asset] = deterministicExtraction({
@@ -67,5 +72,52 @@ test("coverage and simulation expose lifecycle gaps without provider actions", (
   assert.equal(
     simulation.steps.find((step) => step.stage === "Delivery")?.status,
     "gap",
+  );
+});
+
+test("approved message imports become native reusable template drafts", () => {
+  const template = importedMessageTemplate({
+    name: "Wedding preparation reminder",
+    structuredContent: {
+      subject: "Tomorrow is the day",
+      body: [
+        "Subject: Tomorrow is the day",
+        "",
+        "Hi {{recipientName}},",
+        "",
+        "Please review https://example.com/details before the team arrives.",
+      ].join("\n"),
+    },
+  });
+  assert.equal(template.key, "event_reminder");
+  assert.equal(template.subject, "Tomorrow is the day");
+  assert.deepEqual(template.paragraphs, [
+    "Hi {{recipientName}},",
+    "Please review https://example.com/details before the team arrives.",
+  ]);
+  assert.equal(template.actionLabel, "Open details");
+});
+
+test("approved delivery and review instructions populate native studio defaults", () => {
+  assert.deepEqual(
+    importedDeliveryDefaults({
+      sourceText:
+        "Deliver galleries through Pic-Time. Galleries expire after 120 days. Album instructions: https://example.com/albums",
+    }),
+    {
+      "deliveryDefaults.galleryProvider": "pic_time",
+      "deliveryDefaults.galleryExpirationDays": 120,
+      "deliveryDefaults.albumInstructionsUrl": "https://example.com/albums",
+    },
+  );
+  assert.deepEqual(
+    importedReviewLink({
+      sourceText:
+        "Please leave a Google review: https://example.com/google-review",
+    }),
+    {
+      field: "google",
+      url: "https://example.com/google-review",
+    },
   );
 });

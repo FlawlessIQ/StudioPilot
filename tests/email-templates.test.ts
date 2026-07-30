@@ -111,3 +111,22 @@ test("tenant template versions substitute only allow-listed variables and escape
   assert.doesNotMatch(rendered.html, /\{\{notAllowed\}\}/);
   assert.match(rendered.text, /Open Rivera wedding/);
 });
+
+test("the event preparation reminder includes the photographer's detail checklist", () => {
+  const rendered = renderEmailTemplate({
+    key: "event_reminder",
+    brand,
+    recipientName: "Jordan Rivera",
+    projectName: "Rivera wedding",
+    values,
+  });
+  for (const item of [
+    "dress on a hanger",
+    "shoes",
+    "flowers",
+    "rings",
+    "invitation suite",
+  ]) {
+    assert.match(rendered.text.toLowerCase(), new RegExp(item));
+  }
+});

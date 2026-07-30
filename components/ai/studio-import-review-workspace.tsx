@@ -17,6 +17,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   activateStudioImport,
@@ -503,6 +504,20 @@ export function StudioImportReviewWorkspace({
             : `Activate ${approved} approved`}
         </button>
       </div>
+      {review.session.status === "activated" ? (
+        <div className="studio-import-native-links" role="status">
+          <div>
+            <strong>Your approved content is now native StudioCue data.</strong>
+            <small>
+              Questionnaires and timing rules are active. Imported messages
+              are ready for one-click activation; approved delivery and review
+              instructions are saved as studio defaults.
+            </small>
+          </div>
+          <Link href="/studio/messages/templates">Review messages</Link>
+          <Link href="/studio/library">Open studio library</Link>
+        </div>
+      ) : null}
 
       {simulation ? (
         <div className="studio-import-simulation" role="dialog">

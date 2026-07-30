@@ -109,13 +109,19 @@ function useCrewData(): CrewData {
     }
     let active = true;
     const { firestore } = getFirebaseClient();
+    const assignedProjectIds = workspace.projectIds.slice(0, 100);
     void Promise.all([
-      getDocs(
-        query(
-          collection(firestore, "crewAssignments"),
-          where("tenantId", "==", workspace.tenantId),
-          where("userId", "==", workspace.userId),
-          limit(100),
+      Promise.all(
+        assignedProjectIds.map((projectId) =>
+          getDocs(
+            query(
+              collection(firestore, "crewAssignments"),
+              where("tenantId", "==", workspace.tenantId),
+              where("projectId", "==", projectId),
+              where("userId", "==", workspace.userId),
+              limit(100),
+            ),
+          ),
         ),
       ),
       getDocs(
@@ -135,10 +141,12 @@ function useCrewData(): CrewData {
         ),
       ),
     ])
-      .then(async ([assignmentsSnapshot, profileSnapshot, availabilitySnapshot]) => {
-        const assignments = assignmentsSnapshot.docs.map(
-          (document) =>
-            ({ id: document.id, ...document.data() }) as Value,
+      .then(async ([assignmentSnapshots, profileSnapshot, availabilitySnapshot]) => {
+        const assignments = assignmentSnapshots.flatMap((snapshot) =>
+          snapshot.docs.map(
+            (document) =>
+              ({ id: document.id, ...document.data() }) as Value,
+          ),
         );
         const projectIds = Array.from(
           new Set(
@@ -193,6 +201,7 @@ function useCrewData(): CrewData {
     };
   }, [
     workspace.loading,
+    workspace.projectIds,
     workspace.tenantId,
     workspace.userId,
   ]);

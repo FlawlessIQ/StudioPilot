@@ -47,6 +47,7 @@ const command = z.discriminatedUnion("type", [
         .default("google"),
       albumIncluded: z.boolean().default(false),
       albumInstructionsUrl: z.string().url().nullable().default(null),
+      saveStudioDefaults: z.boolean().default(false),
     }),
   }),
   z.object({
@@ -384,6 +385,39 @@ export const postEventCommand = onRequest(
           updatedAt: now,
           updatedBy: identity.uid,
         });
+        if (
+          parsed.input.saveStudioDefaults &&
+          ["studio_owner", "studio_admin"].includes(role)
+        ) {
+          const reviewKey =
+            parsed.input.reviewDestinationLabel === "the_knot"
+              ? "theKnot"
+              : parsed.input.reviewDestinationLabel;
+          const expirationDays = parsed.input.expirationDate
+            ? Math.max(
+                0,
+                Math.round(
+                  (Date.parse(`${parsed.input.expirationDate}T12:00:00.000Z`) -
+                    Date.parse(deliveredAt)) /
+                    86400000,
+                ),
+              )
+            : 90;
+          batch.update(db.doc(`tenants/${parsed.tenantId}`), {
+            [`reviewLinks.${reviewKey}`]:
+              parsed.input.reviewDestinationUrl,
+            "deliveryDefaults.galleryProvider": parsed.input.provider,
+            "deliveryDefaults.galleryExpirationDays": expirationDays,
+            ...(parsed.input.albumInstructionsUrl
+              ? {
+                  "deliveryDefaults.albumInstructionsUrl":
+                    parsed.input.albumInstructionsUrl,
+                }
+              : {}),
+            updatedAt: now,
+            updatedBy: identity.uid,
+          });
+        }
         const deliveryEvent = productEvent({
           tenantId: parsed.tenantId,
           projectId: parsed.input.projectId,

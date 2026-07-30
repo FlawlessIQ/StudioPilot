@@ -1,5 +1,42 @@
 # StudioCue Build Progress
 
+## Photographer workflow acceptance follow-up — 2026-07-30
+
+Status: implemented with targeted local validation; not deployed.
+
+Delivered:
+
+- project context now follows schedule generation from the project workspace,
+  with coverage, ceremony, reception, locations, package duration, and
+  submitted questionnaire details filled automatically
+- project questionnaire review stays focused on the client response instead of
+  repeating the full template builder
+- crew workspace queries now satisfy assigned-project security rules, and crew
+  cascades inherit current schedule times/responsibilities plus the approved
+  crew rate
+- gallery provider, expiration, review destination, album inclusion, and album
+  instructions are prefilled and can be remembered as studio defaults
+- wedding workflows include deterministic 30-day schedule confirmation and
+  one-day preparation messages, including the photographer's dress, hanger,
+  shoes, flowers, rings, and invitation-suite checklist
+- approved imported messages become native editable StudioCue message drafts;
+  approved delivery and review instructions populate native studio defaults
+  without manual re-entry
+- public inquiry lookup supports the studio's public slug, and the booking
+  workspace explains the one-time Docusign migration/mapping boundary
+
+Targeted validation:
+
+- syntax transpilation passed for all 26 changed TypeScript and TSX files
+- transactional email suite passed 5 of 5 tests
+- timezone-aware 30-day and one-day milestone assertions passed
+- native message, delivery-default, and review-link import assertions passed
+- authenticated Firestore emulator query returned exactly the assigned crew
+  record through the production security rules
+
+No deployment was performed. Live provider pilots and role-based human
+usability sign-off remain governed by the manual launch checklist.
+
 ## AI-native workflow roadmap — passes 3 through 9 — 2026-07-29
 
 Status: implementation, final validation, and production promotion complete.

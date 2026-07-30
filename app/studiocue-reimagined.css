@@ -1686,6 +1686,44 @@
   font-size: 8px;
 }
 
+.studio-import-native-links {
+  align-items: center;
+  background: linear-gradient(110deg, #e7f7f0, #f4effb);
+  border-top: 1px solid var(--cue-line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 18px;
+}
+
+.studio-import-native-links > div {
+  display: grid;
+  gap: 2px;
+  margin-right: auto;
+  max-width: 580px;
+}
+
+.studio-import-native-links strong {
+  color: #2a5748;
+  font-size: 10px;
+}
+
+.studio-import-native-links small {
+  color: #65716c;
+  font-size: 8px;
+}
+
+.studio-import-native-links a {
+  background: #fff;
+  border: 1px solid rgba(80, 53, 91, .14);
+  border-radius: 9px;
+  color: var(--cue-plum);
+  font-size: 8px;
+  font-weight: 760;
+  padding: 9px 11px;
+  text-decoration: none;
+}
+
 .studio-import-simulation {
   background: #2f1f38;
   color: #fff;

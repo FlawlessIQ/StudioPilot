@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -64,15 +64,176 @@ const isoOrNull = (value: FormDataEntryValue | null) => {
   return text ? new Date(text).toISOString() : null;
 };
 
-export function AiScheduleGenerator() {
+const record = (value: unknown): Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+
+const answer = (
+  answers: Record<string, unknown>,
+  keys: readonly string[],
+): string => {
+  for (const key of keys) {
+    const value = answers[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+};
+
+const eventDateTime = (eventDate: string, time: string) =>
+  eventDate && /^\d{2}:\d{2}$/.test(time)
+    ? `${eventDate}T${time}`
+    : "";
+
+const shiftLocalMinutes = (value: string, minutes: number) => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.valueOf())) return "";
+  const shifted = new Date(parsed.valueOf() + minutes * 60_000);
+  const offset = shifted.getTimezoneOffset() * 60_000;
+  return new Date(shifted.valueOf() - offset).toISOString().slice(0, 16);
+};
+
+export function AiScheduleGenerator({
+  initialProjectId = "",
+}: {
+  initialProjectId?: string;
+}) {
   const workspace = useWorkspace();
   const { records: projects, loading } = useTenantDocuments("projects");
+  const { records: questionnaires } = useTenantDocuments(
+    "questionnaireResponses",
+  );
+  const { records: packageSnapshots } =
+    useTenantDocuments("packageSnapshots");
   const [draft, setDraft] = useState<Draft | null>(null);
   const [coverageMinutes, setCoverageMinutes] = useState(480);
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(initialProjectId);
+  const [coverageStartsAt, setCoverageStartsAt] = useState("");
+  const [coverageEndsAt, setCoverageEndsAt] = useState("");
+  const [ceremonyTime, setCeremonyTime] = useState("");
+  const [receptionTime, setReceptionTime] = useState("");
+  const [locations, setLocations] = useState("");
+  const [preferences, setPreferences] = useState("");
+  const [prefillSummary, setPrefillSummary] = useState("");
   const [busy, setBusy] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+
+  const selectedProject = useMemo(
+    () => projects?.find((project) => project.id === projectId),
+    [projectId, projects],
+  );
+  const selectedQuestionnaire = useMemo(
+    () =>
+      questionnaires
+        ?.filter(
+          (response) =>
+            response.projectId === projectId &&
+            ["submitted", "locked"].includes(String(response.status)),
+        )
+        .sort((left, right) =>
+          String(right.updatedAt ?? right.submittedAt ?? "").localeCompare(
+            String(left.updatedAt ?? left.submittedAt ?? ""),
+          ),
+        )[0],
+    [projectId, questionnaires],
+  );
+  const selectedPackage = useMemo(
+    () =>
+      packageSnapshots?.find(
+        (snapshot) =>
+          snapshot.id === selectedProject?.packageSnapshotId ||
+          snapshot.projectId === projectId,
+      ),
+    [packageSnapshots, projectId, selectedProject?.packageSnapshotId],
+  );
+
+  useEffect(() => {
+    if (!selectedProject || !questionnaires || !packageSnapshots) return;
+    const eventDate = String(selectedProject.eventDate ?? "");
+    if (!eventDate) return;
+    const answers = record(selectedQuestionnaire?.answers);
+    const ceremony = answer(answers, [
+      "ceremonyTime",
+      "ceremony-time",
+      "ceremony_time",
+    ]);
+    const reception = answer(answers, [
+      "receptionTime",
+      "reception-time",
+      "reception_time",
+    ]);
+    const minutes = Number(
+      selectedPackage?.includedCoverageMinutes ??
+        selectedPackage?.coverageMinutes ??
+        480,
+    );
+    const safeMinutes =
+      Number.isFinite(minutes) && minutes >= 30 && minutes <= 1440
+        ? minutes
+        : 480;
+    const ceremonyLocal = eventDateTime(eventDate, ceremony);
+    const configuredStart = answer(answers, [
+      "coverageStartsAt",
+      "coverageStartTime",
+      "photographyStartTime",
+    ]);
+    const start =
+      (configuredStart.includes("T")
+        ? configuredStart.slice(0, 16)
+        : eventDateTime(eventDate, configuredStart)) ||
+      (ceremonyLocal
+        ? shiftLocalMinutes(ceremonyLocal, -120)
+        : `${eventDate}T12:00`);
+    const configuredEnd = answer(answers, [
+      "coverageEndsAt",
+      "coverageEndTime",
+      "photographyEndTime",
+    ]);
+    const end =
+      (configuredEnd.includes("T")
+        ? configuredEnd.slice(0, 16)
+        : eventDateTime(eventDate, configuredEnd)) ||
+      shiftLocalMinutes(start, safeMinutes);
+    const venue = String(selectedProject.venueName ?? "").trim();
+    const questionnaireLocations = [
+      answer(answers, ["gettingReadyLocation", "getting-ready-location"]),
+      answer(answers, ["ceremonyLocation", "ceremony-location"]),
+      answer(answers, ["receptionLocation", "reception-location"]),
+    ].filter(Boolean);
+    const nextLocations = Array.from(
+      new Set([...questionnaireLocations, venue].filter(Boolean)),
+    );
+    const nextPreferences = [
+      answer(answers, ["firstLook", "first-look"]),
+      answer(answers, ["familyPhotoList", "family-photo-list"]),
+      answer(answers, ["accessibility", "accessibilityNeeds"]),
+      answer(answers, ["timelineNotes", "planningNotes"]),
+    ].filter(Boolean);
+
+    const frame = requestAnimationFrame(() => {
+      setCoverageMinutes(safeMinutes);
+      setCoverageStartsAt(start);
+      setCoverageEndsAt(end);
+      setCeremonyTime(ceremonyLocal);
+      setReceptionTime(eventDateTime(eventDate, reception));
+      setLocations(nextLocations.join("\n"));
+      setPreferences(nextPreferences.join("\n"));
+      setPrefillSummary(
+        selectedQuestionnaire
+          ? "Project, package, and submitted questionnaire details were filled automatically."
+          : "Project and package details were filled automatically. Missing times are clearly treated as assumptions.",
+      );
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [
+    packageSnapshots,
+    questionnaires,
+    selectedPackage,
+    selectedProject,
+    selectedQuestionnaire,
+  ]);
 
   async function generate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -90,7 +251,7 @@ export function AiScheduleGenerator() {
       const user = auth.currentUser;
       if (!user) throw new Error("Sign in before generating a schedule.");
       const appCheckToken = await getAppCheckToken();
-      const locations = String(form.get("locations") ?? "")
+      const parsedLocations = String(form.get("locations") ?? "")
         .split("\n")
         .map((name) => name.trim())
         .filter(Boolean)
@@ -113,7 +274,7 @@ export function AiScheduleGenerator() {
             coverageEndsAt: endsAt,
             ceremonyTime: isoOrNull(form.get("ceremonyTime")),
             receptionTime: isoOrNull(form.get("receptionTime")),
-            locations,
+            locations: parsedLocations,
             preferences: String(form.get("preferences") ?? ""),
           }),
         },
@@ -179,18 +340,35 @@ export function AiScheduleGenerator() {
         <form className="schedule-generator-form" onSubmit={(event) => void generate(event)}>
           <label>
             Project
-            <select required disabled={loading} value={projectId} onChange={(event) => setProjectId(event.target.value)}>
+            <select
+              required
+              disabled={loading || Boolean(initialProjectId)}
+              value={projectId}
+              onChange={(event) => setProjectId(event.target.value)}
+            >
               <option value="">{loading ? "Loading projects…" : "Select a project"}</option>
               {projects?.map((project) => <option key={project.id} value={project.id}>{String(project.name)}</option>)}
             </select>
           </label>
           <label>
             Coverage starts
-            <input required name="coverageStartsAt" type="datetime-local" />
+            <input
+              required
+              name="coverageStartsAt"
+              onChange={(event) => setCoverageStartsAt(event.target.value)}
+              type="datetime-local"
+              value={coverageStartsAt}
+            />
           </label>
           <label>
             Coverage ends
-            <input required name="coverageEndsAt" type="datetime-local" />
+            <input
+              required
+              name="coverageEndsAt"
+              onChange={(event) => setCoverageEndsAt(event.target.value)}
+              type="datetime-local"
+              value={coverageEndsAt}
+            />
           </label>
           <label>
             Coverage minutes
@@ -198,20 +376,43 @@ export function AiScheduleGenerator() {
           </label>
           <label>
             Ceremony time
-            <input name="ceremonyTime" type="datetime-local" />
+            <input
+              name="ceremonyTime"
+              onChange={(event) => setCeremonyTime(event.target.value)}
+              type="datetime-local"
+              value={ceremonyTime}
+            />
           </label>
           <label>
             Reception time
-            <input name="receptionTime" type="datetime-local" />
+            <input
+              name="receptionTime"
+              onChange={(event) => setReceptionTime(event.target.value)}
+              type="datetime-local"
+              value={receptionTime}
+            />
           </label>
           <label className="form-span">
             Locations, one per line
-            <textarea name="locations" placeholder="Getting-ready location&#10;Ceremony venue&#10;Reception venue" />
+            <textarea
+              name="locations"
+              onChange={(event) => setLocations(event.target.value)}
+              placeholder="Getting-ready location&#10;Ceremony venue&#10;Reception venue"
+              value={locations}
+            />
           </label>
           <label className="form-span">
             Preferences and known constraints
-            <textarea name="preferences" placeholder="First look, family-photo duration, venue rules, important moments…" />
+            <textarea
+              name="preferences"
+              onChange={(event) => setPreferences(event.target.value)}
+              placeholder="First look, family-photo duration, venue rules, important moments…"
+              value={preferences}
+            />
           </label>
+          {prefillSummary ? (
+            <p className="form-notice form-span">{prefillSummary}</p>
+          ) : null}
           <button className="button button-dark" disabled={busy} type="submit">
             {busy ? <LoaderCircle className="spin" /> : <Sparkles />}
             {busy ? "Generating…" : "Generate draft"}

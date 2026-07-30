@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/layout/app-shell";
+import Link from "next/link";
 import { QuestionnaireBuilder } from "@/components/planning/questionnaire-builder";
 import { QuestionnaireReviewInsights } from "@/components/planning/questionnaire-review-insights";
 import { LiveDomainView, ProjectContextBar } from "@/components/studio/live-domain-view";
@@ -21,7 +22,23 @@ export default async function QuestionnairesPage({ searchParams }: { searchParam
         {project ? <ProjectContextBar projectId={project} /> : null}
         {project ? <QuestionnaireReviewInsights projectId={project} /> : null}
         <LiveDomainView domain="questionnaires" projectId={project} />
-        <QuestionnaireBuilder />
+        {project ? (
+          <section className="panel focused-tool-link">
+            <div>
+              <p className="eyebrow">Reusable setup</p>
+              <h2>Need to change the questionnaire itself?</h2>
+              <p>
+                Keep client review focused. Template building and assignment
+                tools live in the questionnaire library.
+              </p>
+            </div>
+            <Link className="button button-light" href="/studio/questionnaires">
+              Manage questionnaire templates
+            </Link>
+          </section>
+        ) : (
+          <QuestionnaireBuilder />
+        )}
       </div>
     </AppShell>
   );

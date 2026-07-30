@@ -16,6 +16,7 @@ production acceptance. Missing live evidence is not represented as success.
 | 5 | Crew cascade | explainable eligibility/ranking, one active offer, expiry/decline advancement, conflict protection, role-scoped schedule, offline sanitized brief |
 | 6 | Client delivery hub | persistent artifact hub, gallery, album, considerate review workflow, deterministic closeout, archive handoff |
 | 7 | Pilot hardening | measured-value dashboard, AI outcomes and violations, reliability/retry/cancel evidence, provider health, incidents, evaluation thresholds, privacy hardening, clean-account pilot |
+| 8 | Photographer workflow acceptance | project-aware schedule prefill, focused questionnaire review, rule-safe crew workspace, schedule/rate-driven crew handoff, remembered delivery defaults, date-relative wedding messages, and native activation of approved imported messages/delivery instructions |
 
 Every roadmap feature flag is enabled in the registry. Provider, accounting,
 signature, insurance, and creative authority remain deterministic and human- or

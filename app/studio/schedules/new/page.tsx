@@ -7,11 +7,25 @@ import { TimingRuleEditor } from "@/components/planning/timing-rule-editor";
 
 export const metadata: Metadata = { title: "Generate Schedule" };
 
-export default function NewSchedulePage() {
+export default async function NewSchedulePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ project?: string }>;
+}) {
+  const { project } = await searchParams;
   return (
     <AppShell active="Schedules">
       <div className="planning-page">
-        <Link className="back-link" href="/studio/schedules"><ArrowLeft /> Back to schedules</Link>
+        <Link
+          className="back-link"
+          href={
+            project
+              ? `/studio/schedules?project=${encodeURIComponent(project)}`
+              : "/studio/schedules"
+          }
+        >
+          <ArrowLeft /> Back to schedules
+        </Link>
         <header className="page-heading">
           <div>
             <p className="eyebrow">AI-assisted planning</p>
@@ -20,7 +34,7 @@ export default function NewSchedulePage() {
           </div>
         </header>
         <TimingRuleEditor />
-        <AiScheduleGenerator />
+        <AiScheduleGenerator initialProjectId={project} />
       </div>
     </AppShell>
   );

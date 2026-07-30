@@ -95,6 +95,7 @@ async function tenantDocuments(
     "proposals",
     "contracts",
     "invoiceReferences",
+    "packageSnapshots",
     "documents",
     "questionnaireResponses",
     "insuranceRequests",

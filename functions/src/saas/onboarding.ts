@@ -94,6 +94,18 @@ export const tenantOnboardingCommand = onRequest(
           timezone: input.timezone,
           currency: input.currency,
           dateFormat: "MMM d, yyyy",
+          reviewLinks: {
+            google: null,
+            weddingwire: null,
+            theKnot: null,
+            facebook: null,
+            custom: null,
+          },
+          deliveryDefaults: {
+            galleryProvider: "manual",
+            galleryExpirationDays: 90,
+            albumInstructionsUrl: null,
+          },
           status: "trial",
           subscriptionPlan: "solo",
           trialEndAt,

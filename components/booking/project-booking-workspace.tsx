@@ -353,6 +353,14 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
             The accepted proposal supplies the exact package and price. Docusign
             remains the authority for signature completion.
           </p>
+          <aside className="booking-provider-migration">
+            <strong>Coming from Dropbox Sign?</strong>
+            <small>
+              Import the current agreement once. StudioCue preserves its
+              wording and signer fields, then maps the approved version to a
+              Docusign template so you never place fields again.
+            </small>
+          </aside>
           {contract ? (
             <div className="booking-evidence">
               <span><small>Envelope</small><strong>{String(contract.providerEnvelopeId ?? "Creating…")}</strong></span>

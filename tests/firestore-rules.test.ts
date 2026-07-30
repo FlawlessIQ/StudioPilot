@@ -6,7 +6,16 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  setDoc,
+  updateDoc,
+  where,
+} from "firebase/firestore";
 
 const emulatorHost = process.env.FIRESTORE_EMULATOR_HOST;
 
@@ -297,6 +306,16 @@ test(
       await assertFails(getDoc(doc(crewDb, "crewProfiles/profile-private")));
       await assertSucceeds(getDoc(doc(crewDb, "crewAssignments/assignment-a")));
       await assertFails(getDoc(doc(crewDb, "crewAssignments/assignment-private")));
+      await assertSucceeds(
+        getDocs(
+          query(
+            collection(crewDb, "crewAssignments"),
+            where("tenantId", "==", "tenant-a"),
+            where("projectId", "==", "project-a"),
+            where("userId", "==", "crew-a"),
+          ),
+        ),
+      );
       await assertSucceeds(getDoc(doc(crewDb, "crewAvailability/availability-a")));
       await assertFails(updateDoc(doc(crewDb, "crewAssignments/assignment-a"), { status: "completed" }));
       await assertFails(getDoc(doc(crewDb, "invoiceReferences/invoice-a")));

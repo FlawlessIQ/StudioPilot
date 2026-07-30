@@ -193,12 +193,66 @@ const bookingAutomation = {
   active: true,
 };
 
+const scheduleConfirmationAutomation = {
+  key: "schedule-confirmation-30-days",
+  name: "Request the final schedule confirmation",
+  trigger: "relative_date_reached",
+  conditions: [
+    {
+      field: "relativeDateKey",
+      operator: "equals",
+      value: "schedule_confirmation_30_days",
+    },
+  ],
+  actions: [
+    {
+      key: "send-schedule-confirmation",
+      type: "send_email",
+      configuration: {
+        templateKey: "schedule_review",
+        values: { scheduleStatus: "review" },
+      },
+      requiresApproval: false,
+    },
+  ],
+  active: true,
+};
+
+const eventPreparationAutomation = {
+  key: "event-preparation-1-day",
+  name: "Send the day-before preparation note",
+  trigger: "relative_date_reached",
+  conditions: [
+    {
+      field: "relativeDateKey",
+      operator: "equals",
+      value: "event_preparation_1_day",
+    },
+  ],
+  actions: [
+    {
+      key: "send-event-preparation",
+      type: "send_email",
+      configuration: { templateKey: "event_reminder" },
+      requiresApproval: false,
+    },
+  ],
+  active: true,
+};
+
+const weddingAutomationRules = [
+  bookingAutomation,
+  scheduleConfirmationAutomation,
+  eventPreparationAutomation,
+];
+
 const batch = firestore.batch();
 batch.set(firestore.doc(`tenants/${tenantId}`), {
   ...audit,
   id: tenantId,
   tenantId,
   slug: "alder-and-muse",
+  publicSlug: "alder-and-muse",
   businessName: "Alder & Muse Photography",
   legalName: "Alder & Muse Photography LLC",
   brandName: "Alder & Muse",
@@ -215,6 +269,12 @@ batch.set(firestore.doc(`tenants/${tenantId}`), {
     theKnot: null,
     facebook: null,
     custom: null,
+  },
+  deliveryDefaults: {
+    galleryProvider: "pic_time",
+    galleryExpirationDays: 90,
+    albumInstructionsUrl:
+      "https://example.com/alder-muse-album-instructions",
   },
 });
 
@@ -468,7 +528,10 @@ for (const template of [
     version: 1,
     status: "active",
     checkpointTemplates: template.checkpoints,
-    automationRules: [bookingAutomation],
+    automationRules:
+      template.eventTypeId === "wedding"
+        ? weddingAutomationRules
+        : [bookingAutomation],
     immutable: true,
     publishedAt: now,
     publishedBy: ownerId,
@@ -570,7 +633,10 @@ for (const project of projectSeeds.filter((seed) =>
       eventTypeLabel: project.type,
       version: 1,
       checkpointTemplates: templates,
-      automationRules: [bookingAutomation],
+      automationRules:
+        templateId === "wedding-v1"
+          ? weddingAutomationRules
+          : [bookingAutomation],
     },
     checkpointIds,
     startedAt: now,
@@ -1003,9 +1069,9 @@ for (const provider of ["google_calendar", "zoom", "docusign", "quickbooks", "dr
 
 batch.set(firestore.doc("questionnaireResponses/wedding-booked-planning"), {
   ...audit, id: "wedding-booked-planning", tenantId, projectId: "wedding-booked",
-  templateId: "wedding-planning-v1", templateVersion: 1, status: "in_progress",
+  templateId: "wedding-planning-v1", templateVersion: 1, status: "submitted",
   answers: { planner: "Gather & Grace", ceremonyTime: "16:30" },
-  completionPercent: 82, submittedAt: null, archivedAt: null,
+  completionPercent: 100, submittedAt: now, archivedAt: null,
 });
 batch.set(firestore.doc("vendors/vendor-foundry"), {
   ...audit, id: "vendor-foundry", tenantId, company: "The Foundry", contactName: "Elena Cruz",

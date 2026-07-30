@@ -10,7 +10,12 @@ export default async function SchedulesPage({ searchParams }: { searchParams: Pr
         eyebrow="Run of show"
         title="Schedules"
         description="Build, review, publish, and track approval of each project’s run of show."
-        action={{ href: "/studio/schedules/new", label: "Generate schedule" }}
+        action={{
+          href: project
+            ? `/studio/schedules/new?project=${encodeURIComponent(project)}`
+            : "/studio/schedules/new",
+          label: "Generate schedule",
+        }}
         projectId={project}
       />
     </AppShell>

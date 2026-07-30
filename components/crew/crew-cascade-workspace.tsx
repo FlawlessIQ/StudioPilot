@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -22,6 +22,10 @@ import { sendCrewCommand } from "@/lib/crew/command-client";
 const text = (value: unknown) =>
   typeof value === "string" ? value : "";
 const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+const record = (value: unknown): Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 const localDateTime = (value: Date) => {
   const offset = value.getTimezoneOffset() * 60_000;
   return new Date(value.valueOf() - offset).toISOString().slice(0, 16);
@@ -48,6 +52,11 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
   const [specialty, setSpecialty] = useState("weddings");
   const [startsAt, setStartsAt] = useState(localDateTime(initialStart));
   const [endsAt, setEndsAt] = useState(localDateTime(initialEnd));
+  const [compensationDollars, setCompensationDollars] = useState("800");
+  const [responsibilities, setResponsibilities] = useState(
+    "Ceremony reactions\nCocktail-hour candids\nBackup primary photographer",
+  );
+  const [defaultsHydrated, setDefaultsHydrated] = useState(false);
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [manualOrder, setManualOrder] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -130,11 +139,73 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
   const latestSchedule = [...(schedules ?? [])]
     .filter(
       (schedule) =>
-        schedule.projectId === projectId && schedule.status === "published",
+        schedule.projectId === projectId &&
+        !["superseded", "archived"].includes(String(schedule.status)),
     )
     .sort((left, right) => Number(right.version) - Number(left.version))[0];
   const projectCascades =
     cascades?.filter((cascade) => cascade.projectId === projectId) ?? [];
+
+  useEffect(() => {
+    if (
+      defaultsHydrated ||
+      !project ||
+      !profiles ||
+      !schedules
+    ) {
+      return;
+    }
+    const items = list(latestSchedule?.items)
+      .map(record)
+      .filter(
+        (item) =>
+          Number.isFinite(Date.parse(text(item.startAt))) &&
+          Number.isFinite(Date.parse(text(item.endAt))),
+      )
+      .sort(
+        (left, right) =>
+          Date.parse(text(left.startAt)) - Date.parse(text(right.startAt)),
+      );
+    const firstItem = items[0];
+    const lastItem = items.at(-1);
+    const nextStart = firstItem
+      ? localDateTime(new Date(text(firstItem.startAt)))
+      : localDateTime(new Date(`${eventDate}T12:00:00`));
+    const nextEnd = lastItem
+      ? localDateTime(new Date(text(lastItem.endAt)))
+      : localDateTime(new Date(`${eventDate}T20:00:00`));
+    const preferredProfile =
+      profiles.find(
+        (profile) =>
+          profile.active === true &&
+          list(profile.specialties).map(String).includes(specialty),
+      ) ?? profiles.find((profile) => profile.active === true);
+    const rateCents = Number(preferredProfile?.rateCents);
+    const scheduleResponsibilities = items
+      .map((item) => text(item.title))
+      .filter(Boolean);
+
+    const frame = requestAnimationFrame(() => {
+      setStartsAt(nextStart);
+      setEndsAt(nextEnd);
+      if (Number.isFinite(rateCents) && rateCents >= 0) {
+        setCompensationDollars(String(rateCents / 100));
+      }
+      if (scheduleResponsibilities.length) {
+        setResponsibilities(scheduleResponsibilities.join("\n"));
+      }
+      setDefaultsHydrated(true);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [
+    defaultsHydrated,
+    eventDate,
+    latestSchedule,
+    profiles,
+    project,
+    schedules,
+    specialty,
+  ]);
 
   function move(candidateId: string, direction: -1 | 1) {
     const ids = included.map((candidate) => candidate.crewProfileId);
@@ -271,10 +342,11 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
           <label>
             Event rate
             <input
-              defaultValue="800"
               min="0"
               name="compensationDollars"
+              onChange={(event) => setCompensationDollars(event.target.value)}
               type="number"
+              value={compensationDollars}
             />
           </label>
           <label>
@@ -289,10 +361,16 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
           <label className="form-span">
             Responsibilities, one per line
             <textarea
-              defaultValue={"Ceremony reactions\nCocktail-hour candids\nBackup primary photographer"}
               name="responsibilities"
+              onChange={(event) => setResponsibilities(event.target.value)}
+              value={responsibilities}
             />
           </label>
+          <p className="form-notice form-span">
+            Times come from the current schedule, rate from the crew profile,
+            and responsibilities from scheduled coverage. Review the suggested
+            order, then approve the cascade.
+          </p>
         </div>
         <div className="crew-recommendation-heading">
           <span>

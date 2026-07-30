@@ -14,6 +14,11 @@ import {
   type StudioAssetType,
 } from "./extraction.js";
 import { productEvent } from "../operations/product-events.js";
+import {
+  importedDeliveryDefaults,
+  importedMessageTemplate,
+  importedReviewLink,
+} from "./native-assets.js";
 
 type Json = Record<string, unknown>;
 
@@ -726,6 +731,54 @@ export async function activateStudioImport(input: {
           { merge: true },
         );
       }
+      if (assetType === "message_template") {
+        const template = importedMessageTemplate({
+          name: string(version.get("name")) || "Imported message",
+          structuredContent: version.get("structuredContent"),
+        });
+        const templateId = `imported_message_${assetId}_v${nextVersion}`;
+        transaction.set(
+          db.doc(`messageTemplates/${templateId}`),
+          {
+            id: templateId,
+            tenantId: input.tenantId,
+            ...template,
+            version: nextVersion,
+            status: "draft",
+            sourceStudioAssetId: assetId,
+            sourceStudioAssetVersionId: version.id,
+            createdAt: asset.exists ? asset.get("createdAt") : now,
+            updatedAt: now,
+            createdBy: asset.exists ? asset.get("createdBy") : input.actorId,
+            updatedBy: input.actorId,
+          },
+          { merge: true },
+        );
+      }
+      if (assetType === "delivery_instruction") {
+        const defaults = importedDeliveryDefaults(
+          version.get("structuredContent"),
+        );
+        if (Object.keys(defaults).length) {
+          transaction.update(db.doc(`tenants/${input.tenantId}`), {
+            ...defaults,
+            updatedAt: now,
+            updatedBy: input.actorId,
+          });
+        }
+      }
+      if (assetType === "review_request") {
+        const reviewLink = importedReviewLink(
+          version.get("structuredContent"),
+        );
+        if (reviewLink) {
+          transaction.update(db.doc(`tenants/${input.tenantId}`), {
+            [`reviewLinks.${reviewLink.field}`]: reviewLink.url,
+            updatedAt: now,
+            updatedBy: input.actorId,
+          });
+        }
+      }
     });
     const value = {
       sessionId: input.sessionId,
@@ -940,6 +993,53 @@ export async function rollbackStudioAsset(input: {
         },
         { merge: true },
       );
+    }
+    if (targetAssetType === "message_template") {
+      const version = Number(target.get("version") ?? 1);
+      const template = importedMessageTemplate({
+        name: string(target.get("name")) || "Imported message",
+        structuredContent: target.get("structuredContent"),
+      });
+      const templateId = `imported_message_${input.assetId}_v${version}`;
+      transaction.set(
+        db.doc(`messageTemplates/${templateId}`),
+        {
+          id: templateId,
+          tenantId: input.tenantId,
+          ...template,
+          version,
+          status: "draft",
+          sourceStudioAssetId: input.assetId,
+          sourceStudioAssetVersionId: target.id,
+          updatedAt: now,
+          updatedBy: input.actorId,
+        },
+        { merge: true },
+      );
+    }
+    if (targetAssetType === "delivery_instruction") {
+      const defaults = importedDeliveryDefaults(
+        target.get("structuredContent"),
+      );
+      if (Object.keys(defaults).length) {
+        transaction.update(db.doc(`tenants/${input.tenantId}`), {
+          ...defaults,
+          updatedAt: now,
+          updatedBy: input.actorId,
+        });
+      }
+    }
+    if (targetAssetType === "review_request") {
+      const reviewLink = importedReviewLink(
+        target.get("structuredContent"),
+      );
+      if (reviewLink) {
+        transaction.update(db.doc(`tenants/${input.tenantId}`), {
+          [`reviewLinks.${reviewLink.field}`]: reviewLink.url,
+          updatedAt: now,
+          updatedBy: input.actorId,
+        });
+      }
     }
     const result = {
       assetId: input.assetId,

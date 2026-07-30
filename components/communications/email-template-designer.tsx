@@ -46,6 +46,7 @@ const templateKeys = [
   "thank_you",
   "delivery",
   "review_request",
+  "manual_message",
 ] as const;
 
 type TemplateKey = (typeof templateKeys)[number];

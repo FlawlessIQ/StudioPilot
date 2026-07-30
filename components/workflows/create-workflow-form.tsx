@@ -129,6 +129,55 @@ const automationChoices = [
       },
     ],
   },
+  {
+    key: "schedule-confirmation-30-days",
+    name: "Request the final schedule confirmation",
+    detail:
+      "Thirty days before a wedding, send the current schedule for client review.",
+    trigger: "relative_date_reached",
+    conditions: [
+      {
+        field: "relativeDateKey",
+        operator: "equals",
+        value: "schedule_confirmation_30_days",
+      },
+    ],
+    eventTypes: ["Wedding"],
+    actions: [
+      {
+        key: "send-schedule-confirmation",
+        type: "send_email",
+        configuration: {
+          templateKey: "schedule_review",
+          values: { scheduleStatus: "review" },
+        },
+        requiresApproval: false,
+      },
+    ],
+  },
+  {
+    key: "event-preparation-1-day",
+    name: "Send the day-before preparation note",
+    detail:
+      "One day before a wedding, remind the client to gather the dress, shoes, flowers, rings, and invitation.",
+    trigger: "relative_date_reached",
+    conditions: [
+      {
+        field: "relativeDateKey",
+        operator: "equals",
+        value: "event_preparation_1_day",
+      },
+    ],
+    eventTypes: ["Wedding"],
+    actions: [
+      {
+        key: "send-event-preparation",
+        type: "send_email",
+        configuration: { templateKey: "event_reminder" },
+        requiresApproval: false,
+      },
+    ],
+  },
 ] as const;
 
 export function CreateWorkflowForm() {
@@ -140,7 +189,12 @@ export function CreateWorkflowForm() {
   );
   const [outcome, setOutcome] = useState<{ persisted: boolean; reference: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "Wedding Photography",
@@ -149,6 +203,12 @@ export function CreateWorkflowForm() {
       status: "draft",
     },
   });
+  const eventType = watch("eventType");
+  const availableAutomations = automationChoices.filter(
+    (automation) =>
+      !("eventTypes" in automation) ||
+      (automation.eventTypes as readonly string[]).includes(eventType),
+  );
 
   const submit = handleSubmit(async (values) => {
     setError(null);
@@ -189,13 +249,18 @@ export function CreateWorkflowForm() {
           })),
         automationRules: automationChoices
           .filter((automation) =>
-            selectedAutomations.includes(automation.key),
+            selectedAutomations.includes(automation.key) &&
+            (!("eventTypes" in automation) ||
+              (automation.eventTypes as readonly string[]).includes(
+                values.eventType,
+              )),
           )
           .map((automation) => ({
             key: automation.key,
             name: automation.name,
             trigger: automation.trigger,
-            conditions: [],
+            conditions:
+              "conditions" in automation ? automation.conditions : [],
             actions: automation.actions,
             active: true,
           })),
@@ -253,7 +318,7 @@ export function CreateWorkflowForm() {
       </fieldset>
       <fieldset className="checkpoint-picker">
         <legend>Starting automations</legend>
-        {automationChoices.map((automation) => (
+        {availableAutomations.map((automation) => (
           <label key={automation.key}>
             <input
               checked={selectedAutomations.includes(automation.key)}
