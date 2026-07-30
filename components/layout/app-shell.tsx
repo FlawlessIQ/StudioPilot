@@ -19,7 +19,6 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { Logo } from "@/components/brand/logo";
 import { GlobalSearch } from "@/components/layout/global-search";
 import { PlatformReturnLink } from "@/components/layout/platform-return-link";
 import { cn } from "@/lib/utils";
@@ -94,11 +93,13 @@ export function AppShell({
   children: React.ReactNode;
   active?: string;
 }) {
-  return <AuthBoundary area="studio">
-    <WorkspaceProvider area="studio">
-      <StudioShell active={active}>{children}</StudioShell>
-    </WorkspaceProvider>
-  </AuthBoundary>;
+  return (
+    <AuthBoundary area="studio">
+      <WorkspaceProvider area="studio">
+        <StudioShell active={active}>{children}</StudioShell>
+      </WorkspaceProvider>
+    </AuthBoundary>
+  );
 }
 
 function StudioShell({
@@ -112,20 +113,10 @@ function StudioShell({
   const workspace = useWorkspace();
   const tenantName = workspace.error ? "Workspace unavailable" : workspace.tenantName;
   const userName = workspace.error ? "Signed-in user" : workspace.userName;
-  const staffAllowed = new Set([
-    "Home",
-    "Projects",
-    "Calendar",
-    "Tasks",
-  ]);
-  const coordinatorExcluded = new Set([
-    "Reports",
-    "Library",
-    "Studio setup",
-  ]);
+  const staffAllowed = new Set(["Home", "Projects", "Calendar", "Tasks"]);
+  const coordinatorExcluded = new Set(["Reports", "Library", "Studio setup"]);
   const canSee = (label: string) => {
-    if (workspace.role === "staff_photographer")
-      return staffAllowed.has(label);
+    if (workspace.role === "staff_photographer") return staffAllowed.has(label);
     if (workspace.role === "studio_coordinator")
       return !coordinatorExcluded.has(label);
     return true;
@@ -139,75 +130,76 @@ function StudioShell({
   const currentGroup =
     Object.entries(activeGroups).find(([, values]) => values.includes(active))?.[0] ??
     "Home";
+
   return (
-    <div className={cn("app-frame", navigationOpen && "navigation-is-open")}>
-      <button
-        aria-label="Close navigation"
-        className="navigation-backdrop"
-        onClick={() => setNavigationOpen(false)}
-        type="button"
-      />
-      <aside
-        aria-label="Studio workspace"
-        className={cn("sidebar", navigationOpen && "sidebar-open")}
-        id="studio-navigation"
-      >
-        <div className="sidebar-brand">
-          <Logo />
-          <button
-            aria-label="Close navigation"
-            className="sidebar-close"
-            onClick={() => setNavigationOpen(false)}
-            type="button"
-          >
-            <X size={19} />
-          </button>
-        </div>
-        <Link className="tenant-switcher" href="/auth/workspaces" aria-label="Switch workspace">
-          <span className="avatar avatar-sand">{initials(tenantName)}</span>
-          <span className="tenant-copy">
-            <strong>{tenantName}</strong>
-            <small>{workspace.tenantPlan || "Studio workspace"}</small>
-          </span>
-          <ChevronDown size={15} />
-        </Link>
-
-        <nav className="main-nav" aria-label="Studio navigation">
-          {visibleSections.map((section) => (
-            <div className="nav-section" key={section.label}>
-              <span className="nav-section-label">{section.label}</span>
-              {section.items.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    href={item.href}
-                    key={item.label}
-                    onClick={() => setNavigationOpen(false)}
-                    className={cn(
-                      "nav-item",
-                      item.label === currentGroup && "nav-active",
-                    )}
-                  >
-                    <Icon size={17} strokeWidth={1.8} />
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
+    <div className="ds-root" data-ds-theme="emerald">
+      <div className={cn("ds-shell", navigationOpen && "ds-nav-open")}>
+        <button
+          aria-label="Close navigation"
+          className="ds-nav-backdrop"
+          onClick={() => setNavigationOpen(false)}
+          type="button"
+        />
+        <aside aria-label="Studio workspace" className="ds-sidebar" id="studio-navigation">
+          <div className="ds-brand-row">
+            <div className="ds-brand">
+              <span className="ds-brand-mark">S</span>
+              <span className="ds-brand-word">
+                Studio<b>Cue</b>
+              </span>
             </div>
-          ))}
-        </nav>
+            <button
+              aria-label="Close navigation"
+              className="ds-sidebar-close"
+              onClick={() => setNavigationOpen(false)}
+              type="button"
+            >
+              <X size={19} />
+            </button>
+          </div>
 
-        <div className="sidebar-bottom">
-          <details className="user-menu">
-            <summary className="user-card">
-              <span className="avatar avatar-ink">{initials(userName)}</span>
-              <span className="tenant-copy">
+          <Link className="ds-switcher" href="/auth/workspaces" aria-label="Switch workspace">
+            <span className="ds-avatar">{initials(tenantName)}</span>
+            <span className="ds-switcher-copy">
+              <strong>{tenantName}</strong>
+              <small>{workspace.tenantPlan || "Studio workspace"}</small>
+            </span>
+            <ChevronDown size={15} />
+          </Link>
+
+          <nav className="ds-nav" aria-label="Studio navigation">
+            {visibleSections.map((section) => (
+              <div className="ds-nav-section" key={section.label}>
+                <span className="ds-nav-label">{section.label}</span>
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      href={item.href}
+                      key={item.label}
+                      onClick={() => setNavigationOpen(false)}
+                      className="ds-nav-item"
+                      data-active={item.label === currentGroup ? "true" : "false"}
+                    >
+                      <Icon size={17} strokeWidth={1.8} />
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
+          </nav>
+
+          <details className="ds-user">
+            <summary className="ds-sidebar-foot">
+              <span className="ds-avatar ds-avatar-ink">{initials(userName)}</span>
+              <span className="ds-switcher-copy">
                 <strong>{userName}</strong>
                 <small>{workspaceRoleLabel(workspace.role)}</small>
               </span>
               <ChevronDown size={15} />
             </summary>
-            <div className="user-menu-popover">
+            <div className="ds-user-pop">
               <Link href="/auth/workspaces">Switch workspace</Link>
               {workspace.role === "studio_owner" ? (
                 <Link href="/studio/setup">
@@ -215,39 +207,40 @@ function StudioShell({
                 </Link>
               ) : null}
               <PlatformReturnLink />
-              <SignOutButton className="user-menu-signout" />
+              <SignOutButton className="ds-user-signout" />
             </div>
           </details>
-        </div>
-      </aside>
+        </aside>
 
-      <div className="app-main">
-        <header className="topbar">
-          <button
-            aria-controls="studio-navigation"
-            aria-expanded={navigationOpen}
-            aria-label="Open navigation"
-            className="mobile-menu"
-            onClick={() => setNavigationOpen(true)}
-            type="button"
-          >
-            <Menu size={20} />
-          </button>
-          <span className="topbar-context">
-            {active === "Dashboard" ? "Home" : active}
-          </span>
-          <GlobalSearch />
-          <div className="topbar-actions">
-            <Link className="icon-button" href="/studio/notifications" aria-label="Notifications">
-              <Bell size={19} />
+        <div className="ds-main">
+          <header className="ds-topbar">
+            <button
+              aria-controls="studio-navigation"
+              aria-expanded={navigationOpen}
+              aria-label="Open navigation"
+              className="ds-mobile-menu"
+              onClick={() => setNavigationOpen(true)}
+              type="button"
+            >
+              <Menu size={20} />
+            </button>
+            <span className="ds-crumb">
+              <b>Workspace ·</b> {active === "Dashboard" ? "Home" : active}
+            </span>
+            <GlobalSearch />
+            <Link
+              className="ds-btn ds-btn-ghost ds-btn-sm"
+              href="/studio/notifications"
+              aria-label="Notifications"
+            >
+              <Bell size={18} />
             </Link>
-            <Link href="/studio/copilot" className="copilot-button">
-              <Sparkles size={16} />
-              Ask Copilot
+            <Link href="/studio/copilot" className="ds-action">
+              <Sparkles size={15} /> Ask Copilot
             </Link>
-          </div>
-        </header>
-        <main className="app-content">{children}</main>
+          </header>
+          <main className="ds-content">{children}</main>
+        </div>
       </div>
     </div>
   );
