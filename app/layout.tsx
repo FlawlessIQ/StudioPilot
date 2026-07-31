@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Fraunces, Instrument_Sans } from "next/font/google";
 import { RegisterServiceWorker } from "@/components/pwa/register-service-worker";
 import { ErrorReporter } from "@/components/observability/error-reporter";
 import "./globals.css";
+import "./design-system.css";
+import "./legacy-bridge.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -12,6 +14,20 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// Editorial redesign type system: Fraunces (display serif) + Instrument Sans (UI).
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
+  display: "swap",
+  style: ["normal", "italic"],
+});
+
+const instrumentSans = Instrument_Sans({
+  variable: "--font-instrument",
+  subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -58,7 +74,9 @@ export default function RootLayout({
 }>) {
   return (
     <html data-scroll-behavior="smooth" lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${instrumentSans.variable} antialiased`}
+      >
         <ErrorReporter />
         <RegisterServiceWorker />
         {children}

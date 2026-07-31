@@ -8,6 +8,7 @@ import {
   BrainCircuit,
   CalendarDays,
   ChevronDown,
+  CircleAlert,
   CircleGauge,
   ContactRound,
   FolderKanban,
@@ -21,7 +22,6 @@ import {
   WandSparkles,
   X,
 } from "lucide-react";
-import { Logo } from "@/components/brand/logo";
 import { GlobalSearch } from "@/components/layout/global-search";
 import { PlatformReturnLink } from "@/components/layout/platform-return-link";
 import { cn } from "@/lib/utils";
@@ -160,19 +160,10 @@ function StudioShell({
     active ?? studioRouteLabels[routeSegment] ?? "Dashboard";
   const tenantName = workspace.error ? "Workspace unavailable" : workspace.tenantName;
   const userName = workspace.error ? "Signed-in user" : workspace.userName;
-  const staffAllowed = new Set([
-    "Home",
-    "Projects",
-    "Calendar",
-    "People",
-  ]);
-  const coordinatorExcluded = new Set([
-    "Insights",
-    "Library",
-  ]);
+  const staffAllowed = new Set(["Home", "Projects", "Calendar", "People"]);
+  const coordinatorExcluded = new Set(["Insights", "Library"]);
   const canSee = (label: string) => {
-    if (workspace.role === "staff_photographer")
-      return staffAllowed.has(label);
+    if (workspace.role === "staff_photographer") return staffAllowed.has(label);
     if (workspace.role === "studio_coordinator")
       return !coordinatorExcluded.has(label);
     return true;
@@ -186,94 +177,94 @@ function StudioShell({
   const currentGroup =
     Object.entries(activeGroups).find(([, values]) =>
       values.includes(resolvedActive),
-    )?.[0] ??
-    "Home";
+    )?.[0] ?? "Home";
+
   return (
-    <div className={cn("app-frame", navigationOpen && "navigation-is-open")}>
-      <button
-        aria-label="Close navigation"
-        className="navigation-backdrop"
-        onClick={() => setNavigationOpen(false)}
-        type="button"
-      />
-      <aside
-        aria-label="Studio workspace"
-        className={cn("sidebar", navigationOpen && "sidebar-open")}
-        id="studio-navigation"
-      >
-        <div className="sidebar-brand">
-          <Logo />
-          <button
-            aria-label="Close navigation"
-            className="sidebar-close"
-            onClick={() => setNavigationOpen(false)}
-            type="button"
-          >
-            <X size={19} />
-          </button>
-        </div>
-        <Link className="tenant-switcher" href="/auth/workspaces" aria-label="Switch workspace">
-          <span className="avatar avatar-sand">{initials(tenantName)}</span>
-          <span className="tenant-copy">
-            <strong>{tenantName}</strong>
-            <small>{workspace.tenantPlan || "Studio workspace"}</small>
-          </span>
-          <ChevronDown size={15} />
-        </Link>
-
-        <nav className="main-nav" aria-label="Studio navigation">
-          {visibleSections.map((section) => (
-            <div className="nav-section" key={section.label}>
-              <span className="nav-section-label">{section.label}</span>
-              {section.items.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    href={item.href}
-                    key={item.label}
-                    onClick={() => setNavigationOpen(false)}
-                    className={cn(
-                      "nav-item",
-                      item.label === currentGroup && "nav-active",
-                    )}
-                  >
-                    <Icon size={17} strokeWidth={1.8} />
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
+    <div className="ds-root" data-ds-theme="emerald">
+      <div className={cn("ds-shell", navigationOpen && "ds-nav-open")}>
+        <button
+          aria-label="Close navigation"
+          className="ds-nav-backdrop"
+          onClick={() => setNavigationOpen(false)}
+          type="button"
+        />
+        <aside aria-label="Studio workspace" className="ds-sidebar" id="studio-navigation">
+          <div className="ds-brand-row">
+            <div className="ds-brand">
+              <span className="ds-brand-mark">S</span>
+              <span className="ds-brand-word">
+                Studio<b>Cue</b>
+              </span>
             </div>
-          ))}
-        </nav>
+            <button
+              aria-label="Close navigation"
+              className="ds-sidebar-close"
+              onClick={() => setNavigationOpen(false)}
+              type="button"
+            >
+              <X size={19} />
+            </button>
+          </div>
 
-        {workspace.role !== "staff_photographer" ? (
-          <Link
-            className="sidebar-ai-card"
-            href="/studio/import"
-            onClick={() => setNavigationOpen(false)}
-          >
-            <span className="sidebar-ai-icon">
-              <WandSparkles size={17} />
+          <Link className="ds-switcher" href="/auth/workspaces" aria-label="Switch workspace">
+            <span className="ds-avatar">{initials(tenantName)}</span>
+            <span className="ds-switcher-copy">
+              <strong>{tenantName}</strong>
+              <small>{workspace.tenantPlan || "Studio workspace"}</small>
             </span>
-            <span>
-              <small>AI studio</small>
-              <strong>Import your workflow</strong>
-              <em>Turn existing files into templates</em>
-            </span>
+            <ChevronDown size={15} />
           </Link>
-        ) : null}
 
-        <div className="sidebar-bottom">
-          <details className="user-menu">
-            <summary className="user-card">
-              <span className="avatar avatar-ink">{initials(userName)}</span>
-              <span className="tenant-copy">
+          <nav className="ds-nav" aria-label="Studio navigation">
+            {visibleSections.map((section) => (
+              <div className="ds-nav-section" key={section.label}>
+                <span className="ds-nav-label">{section.label}</span>
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      href={item.href}
+                      key={item.label}
+                      onClick={() => setNavigationOpen(false)}
+                      className="ds-nav-item"
+                      data-active={item.label === currentGroup ? "true" : "false"}
+                    >
+                      <Icon size={17} strokeWidth={1.8} />
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
+          </nav>
+
+          {workspace.role !== "staff_photographer" ? (
+            <Link
+              className="ds-side-ai"
+              href="/studio/import"
+              onClick={() => setNavigationOpen(false)}
+            >
+              <span className="ds-side-ai-icon">
+                <WandSparkles size={17} />
+              </span>
+              <span className="ds-side-ai-copy">
+                <small>AI studio</small>
+                <strong>Import your workflow</strong>
+                <em>Turn existing files into templates</em>
+              </span>
+            </Link>
+          ) : null}
+
+          <details className="ds-user">
+            <summary className="ds-sidebar-foot">
+              <span className="ds-avatar ds-avatar-ink">{initials(userName)}</span>
+              <span className="ds-switcher-copy">
                 <strong>{userName}</strong>
                 <small>{workspaceRoleLabel(workspace.role)}</small>
               </span>
               <ChevronDown size={15} />
             </summary>
-            <div className="user-menu-popover">
+            <div className="ds-user-pop">
               <Link href="/auth/workspaces">Switch workspace</Link>
               {workspace.role === "studio_owner" ? (
                 <Link href="/studio/setup">
@@ -281,54 +272,61 @@ function StudioShell({
                 </Link>
               ) : null}
               <PlatformReturnLink />
-              <SignOutButton className="user-menu-signout" />
+              <SignOutButton className="ds-user-signout" />
             </div>
           </details>
-        </div>
-      </aside>
+        </aside>
 
-      <div className="app-main">
-        <header className="topbar">
-          <button
-            aria-controls="studio-navigation"
-            aria-expanded={navigationOpen}
-            aria-label="Open navigation"
-            className="mobile-menu"
-            onClick={() => setNavigationOpen(true)}
-            type="button"
-          >
-            <Menu size={20} />
-          </button>
-          <span className="topbar-context">
-            {resolvedActive === "Dashboard" ? "Home" : resolvedActive}
-          </span>
-          <GlobalSearch />
-          <div className="topbar-actions">
-            <Link className="topbar-gallery-link" href="/studio/delivery">
-              <Images size={17} />
-              Deliveries
-            </Link>
-            <Link className="icon-button" href="/studio/notifications" aria-label="Notifications">
-              <Bell size={19} />
-            </Link>
-            <Link href="/studio/import" className="copilot-button">
-              <Sparkles size={16} />
-              Create with AI
-            </Link>
-          </div>
-        </header>
-        {workspace.error ? (
-          <div className="workspace-load-error" role="alert">
-            <span>
-              <strong>Studio data is temporarily unavailable</strong>
-              <small>{workspace.error}</small>
-            </span>
-            <button onClick={workspace.retry} type="button">
-              Retry
+        <div className="ds-main">
+          <header className="ds-topbar">
+            <button
+              aria-controls="studio-navigation"
+              aria-expanded={navigationOpen}
+              aria-label="Open navigation"
+              className="ds-mobile-menu"
+              onClick={() => setNavigationOpen(true)}
+              type="button"
+            >
+              <Menu size={20} />
             </button>
-          </div>
-        ) : null}
-        <main className="app-content">{children}</main>
+            <span className="ds-crumb">
+              <b>Workspace ·</b> {resolvedActive === "Dashboard" ? "Home" : resolvedActive}
+            </span>
+            <GlobalSearch />
+            <Link className="ds-btn ds-btn-ghost ds-btn-sm" href="/studio/delivery">
+              <Images size={16} /> Deliveries
+            </Link>
+            <Link
+              className="ds-btn ds-btn-ghost ds-btn-sm"
+              href="/studio/notifications"
+              aria-label="Notifications"
+            >
+              <Bell size={18} />
+            </Link>
+            <Link href="/studio/import" className="ds-action">
+              <Sparkles size={15} /> Create with AI
+            </Link>
+          </header>
+          {workspace.error ? (
+            <div className="ds-topbar-error" role="alert">
+              <span className="ds-alert-ico">
+                <CircleAlert size={18} />
+              </span>
+              <div className="ds-alert-copy">
+                <strong>Studio data is temporarily unavailable</strong>
+                <small>{workspace.error}</small>
+              </div>
+              <button
+                className="ds-btn ds-btn-ghost ds-btn-sm"
+                onClick={workspace.retry}
+                type="button"
+              >
+                Retry
+              </button>
+            </div>
+          ) : null}
+          <main className="ds-content">{children}</main>
+        </div>
       </div>
     </div>
   );

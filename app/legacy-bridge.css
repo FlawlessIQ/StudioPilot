@@ -1,0 +1,160 @@
+/* =========================================================================
+   Legacy bridge — maps the original globals.css design language onto the
+   editorial design system, scoped to `.ds-root`. Because every promoted
+   surface (studio shell, and later client/crew) is wrapped in `.ds-root`,
+   this re-skins all legacy page CONTENT without editing each page's markup.
+   Phase-out target: as pages migrate to `ds-*` primitives, these overrides
+   become dead and can be removed.
+   ========================================================================= */
+
+.ds-root {
+  /* Remap legacy custom properties onto emerald tokens */
+  --ink: var(--ds-ink);
+  --ink-soft: var(--ds-ink-soft);
+  --muted: var(--ds-muted);
+  --line: var(--ds-line);
+  --line-strong: var(--ds-line);
+  --paper: var(--ds-paper);
+  --surface: var(--ds-paper);
+  --canvas: var(--ds-canvas);
+  --background: var(--ds-canvas);
+  --border: var(--ds-line);
+  --soft: var(--ds-line-soft);
+  --accent: var(--ds-claret);
+  --success: var(--ds-forest);
+  --danger: var(--ds-danger);
+  --cream: var(--ds-brass-soft);
+  --sage: var(--ds-forest-soft);
+  --sage-dark: var(--ds-forest);
+  --amber: var(--ds-amber-soft);
+  --amber-dark: var(--ds-amber);
+  --rose: var(--ds-danger-soft);
+  --rose-dark: var(--ds-danger);
+  --blue: #e7eef3;
+  --blue-dark: #35617e;
+  --violet: #ece7f4;
+  --violet-dark: #6a5690;
+  --workspace-canvas: var(--ds-canvas);
+  --workspace-surface: var(--ds-paper);
+  --workspace-surface-soft: var(--ds-canvas);
+  --workspace-line: var(--ds-line);
+  --workspace-shadow: var(--ds-shadow-sm);
+  --workspace-shadow-raised: var(--ds-shadow-md);
+  --font-display: var(--ds-serif);
+  --shadow-sm: var(--ds-shadow-sm);
+  --shadow-lg: var(--ds-shadow-lg);
+}
+
+/* ---- Headings → editorial serif (broad: every page title & section header) ---- */
+.ds-root .ds-content h1 {
+  font-family: var(--ds-serif);
+  font-weight: 460;
+  letter-spacing: -0.022em;
+  color: var(--ds-ink);
+}
+.ds-root .ds-content h2 {
+  font-family: var(--ds-serif);
+  font-weight: 480;
+  letter-spacing: -0.015em;
+  color: var(--ds-ink);
+}
+.ds-root .page-heading::before {
+  background: var(--ds-claret);
+}
+.ds-root .panel-heading h2,
+.ds-root .panel > h2,
+.ds-root .panel header h2 {
+  font-family: var(--ds-serif);
+  font-weight: 480;
+  letter-spacing: -0.015em;
+  color: var(--ds-ink);
+}
+.ds-root .eyebrow {
+  color: var(--ds-brass-deep);
+  letter-spacing: 0.12em;
+}
+
+/* ---- Buttons ---- */
+.ds-root .button {
+  border-radius: 11px;
+  font-weight: 600;
+  min-height: 42px;
+}
+.ds-root .button-dark {
+  background: linear-gradient(160deg, var(--ds-claret-bright) 0%, var(--ds-claret-deep) 100%);
+  color: #f3fbf7;
+  border-color: transparent;
+  box-shadow: var(--ds-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+.ds-root .button-dark:hover {
+  filter: brightness(1.06);
+}
+.ds-root .button-light,
+.ds-root .button-secondary {
+  background: var(--ds-paper);
+  border-color: var(--ds-line);
+  color: var(--ds-ink);
+  box-shadow: var(--ds-shadow-sm);
+}
+.ds-root .button-light:hover,
+.ds-root .button-secondary:hover {
+  border-color: var(--ds-claret);
+  color: var(--ds-claret-deep);
+}
+.ds-root .button-quiet:hover {
+  background: var(--ds-brass-soft);
+  color: var(--ds-ink);
+}
+.ds-root .button-danger {
+  background: var(--ds-danger);
+  color: #fff;
+}
+
+/* ---- Form controls (kills the unstyled-native look app-wide) ---- */
+.ds-root input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.ds-root select,
+.ds-root textarea {
+  border: 1px solid var(--ds-line);
+  border-radius: 10px;
+  background: var(--ds-paper);
+  color: var(--ds-ink);
+  padding: 10px 12px;
+  min-height: 42px;
+  font: inherit;
+}
+.ds-root textarea {
+  min-height: 84px;
+}
+.ds-root select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%238b929d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 15px;
+}
+.ds-root input:focus-visible,
+.ds-root select:focus-visible,
+.ds-root textarea:focus-visible {
+  outline: none;
+  border-color: var(--ds-claret);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ds-claret) 20%, transparent);
+}
+
+/* ---- Status badges / pills ---- */
+.ds-root .status-badge {
+  background: var(--ds-line-soft);
+  color: var(--ds-ink-soft);
+}
+.ds-root .status-success { background: var(--ds-forest-soft); color: var(--ds-forest); }
+.ds-root .status-warning { background: var(--ds-amber-soft); color: var(--ds-amber); }
+.ds-root .status-danger { background: var(--ds-danger-soft); color: var(--ds-danger); }
+.ds-root .status-info { background: var(--ds-brass-soft); color: var(--ds-brass-deep); }
+
+/* ---- Panels: unify to editorial radius/shadow ---- */
+.ds-root .panel {
+  border-radius: var(--ds-r-lg);
+  border-color: var(--ds-line);
+  box-shadow: var(--ds-shadow-sm);
+}

@@ -79,31 +79,34 @@ export function SetupChecklist() {
   const next = steps.find((step) => !step.done);
 
   return (
-    <section className="setup-checklist">
-      <header>
+    <section className="ds-card ds-setup">
+      <div className="ds-setup-head">
         <div>
-          <p className="eyebrow">Get started</p>
+          <span className="ds-eyebrow">Get started</span>
           <h2>Set up your studio workspace</h2>
           <p>Complete these essentials to start moving real projects through StudioCue.</p>
         </div>
-        <span className="setup-count">{completed} of {steps.length} complete</span>
-      </header>
-      <div className="setup-progress" aria-label={`${completed} of ${steps.length} setup steps complete`}>
+        <span className="ds-badge ds-badge-brass">{completed} of {steps.length} complete</span>
+      </div>
+      <div className="ds-setup-track" aria-label={`${completed} of ${steps.length} setup steps complete`}>
         <i style={{ width: `${(completed / steps.length) * 100}%` }} />
       </div>
-      <div className="setup-steps">
+      <div className="ds-setup-steps">
         {steps.map((step) => {
           const Icon = step.icon;
           return (
-            <Link className={step.done ? "complete" : ""} href={step.href} key={step.label}>
-              <span>{step.done ? <Check size={16} /> : <Icon size={17} />}</span>
+            <Link className={step.done ? "is-done" : ""} href={step.href} key={step.label}>
+              <span>{step.done ? <Check size={16} /> : <Icon size={16} />}</span>
               <div><strong>{step.label}</strong><small>{step.detail}</small></div>
-              <ArrowRight size={15} />
             </Link>
           );
         })}
       </div>
-      {next ? <Link className="button button-dark" href={next.href}>Continue setup <ArrowRight size={16} /></Link> : null}
+      {next ? (
+        <Link className="ds-btn ds-btn-primary" href={next.href}>
+          Continue setup <ArrowRight size={16} />
+        </Link>
+      ) : null}
     </section>
   );
 }
