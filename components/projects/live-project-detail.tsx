@@ -31,6 +31,7 @@ import {
 } from "firebase/firestore";
 import { ReadinessMeter } from "@/components/ui/readiness-meter";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { stateTone } from "@/lib/status-tone";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import {
   allowedProjectTransitions,
@@ -667,7 +668,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           <p className="eyebrow">Project command center</p>
           <div className="project-title-line">
             <h1>{String(project.name)}</h1>
-            <StatusBadge tone={state === "READY" ? "success" : "info"} dot>
+            <StatusBadge tone={stateTone(state)} dot>
               {stateLabel(state)}
             </StatusBadge>
           </div>

@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 
 type StatusBadgeProps = {
   children: React.ReactNode;
-  tone?: "neutral" | "success" | "warning" | "danger" | "info";
+  tone?: "neutral" | "success" | "warning" | "danger" | "info" | "brand";
   dot?: boolean;
   className?: string;
 };

@@ -21,6 +21,7 @@ import {
   type QueryConstraint,
 } from "firebase/firestore";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { stateTone } from "@/lib/status-tone";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
@@ -405,15 +406,9 @@ function display(
 
 function tone(value: unknown) {
   const status = String(value).toLowerCase();
-  if (
-    ["true", "active", "accepted", "approved", "complete", "completed", "paid", "published", "ready", "sent"].includes(status)
-  )
-    return "success" as const;
-  if (
-    ["false", "cancelled", "declined", "error", "failed", "overdue", "revoked"].includes(status)
-  )
-    return "danger" as const;
-  return "warning" as const;
+  if (status === "true") return "brand" as const;
+  if (status === "false" || status === "revoked") return "danger" as const;
+  return stateTone(status);
 }
 
 export function LiveDomainView({

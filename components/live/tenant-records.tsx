@@ -36,6 +36,7 @@ import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { withTimeout } from "@/lib/async/with-timeout";
 import { runCrmCommand } from "@/lib/crm/command-client";
+import { stateTone } from "@/lib/status-tone";
 import { ReadinessMeter } from "@/components/ui/readiness-meter";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ClientPortalInvite } from "@/components/clients/client-portal-invite";
@@ -482,15 +483,7 @@ export function LiveProjectRows({
             <small>{project.venue}</small>
           </span>
           <span>
-            <StatusBadge
-              tone={
-                project.state === "READY"
-                  ? "success"
-                  : project.state === "CONTRACT_PENDING"
-                    ? "warning"
-                    : "info"
-              }
-            >
+            <StatusBadge tone={stateTone(project.state)}>
               {project.state.replaceAll("_", " ")}
             </StatusBadge>
           </span>
@@ -593,12 +586,7 @@ export function LiveLeadRows({ view, q }: { view: string; q: string }) {
           <span>{lead.source}</span>
           <span>{lead.assigned}</span>
           <span>
-            <StatusBadge
-              tone={
-                String(lead.status).toLowerCase() === "new" ? "info" : "warning"
-              }
-              dot
-            >
+            <StatusBadge tone={stateTone(lead.status)} dot>
               {lead.status}
             </StatusBadge>
             {lead.missing > 0 ? (
@@ -681,7 +669,7 @@ export function LiveLeadDetail({ id }: { id: string }) {
           <h1>{fullName}</h1>
           <p>{String(lead.eventType ?? "Photography")} inquiry for {String(lead.eventDate ?? "a date to be confirmed")}.</p>
         </div>
-        <StatusBadge tone={String(lead.status).toLowerCase() === "new" ? "info" : "warning"}>
+        <StatusBadge tone={stateTone(String(lead.status ?? ""))}>
           {String(lead.status ?? "new").replaceAll("_", " ")}
         </StatusBadge>
       </header>
@@ -921,10 +909,7 @@ export function LiveUpcomingRows() {
           </span>
           <time role="cell">{project.date}</time>
           <span role="cell">
-            <StatusBadge
-              tone={project.state === "READY" ? "success" : "neutral"}
-              dot
-            >
+            <StatusBadge tone={stateTone(project.state)} dot>
               {project.state.replaceAll("_", " ")}
             </StatusBadge>
           </span>

@@ -150,7 +150,7 @@
 .ds-root .status-success { background: var(--ds-forest-soft); color: var(--ds-forest); }
 .ds-root .status-warning { background: var(--ds-amber-soft); color: var(--ds-amber); }
 .ds-root .status-danger { background: var(--ds-danger-soft); color: var(--ds-danger); }
-.ds-root .status-info { background: var(--ds-brass-soft); color: var(--ds-brass-deep); }
+.ds-root .status-info { background: #e6eef5; color: #35607d; border-color: #cddef0; }
 
 /* ---- Panels: unify to editorial radius/shadow ---- */
 .ds-root .panel {
@@ -243,4 +243,55 @@
 .ds-root .studio-command-kicker,
 .ds-root .studio-command-badge {
   color: #ddefe3;
+}
+
+/* =========================================================================
+   Post-audit polish
+   ========================================================================= */
+
+/* Semantic "brand" status pill (emerald) — used for won/ready/active states */
+.ds-root .status-brand {
+  background: var(--ds-claret-soft);
+  color: var(--ds-claret-deep);
+  border-color: color-mix(in srgb, var(--ds-claret) 30%, transparent);
+}
+
+/* Project "Recommended next move" card — charcoal → emerald */
+.ds-root .next-action-card {
+  background:
+    radial-gradient(360px 200px at 90% -10%, rgba(176, 138, 82, 0.18), transparent 60%),
+    linear-gradient(150deg, #0f8a5e 0%, #0a5c40 60%, #063826 100%);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 22px 52px rgb(6 42 28 / 20%);
+}
+
+/* Heading unification — give .dashboard-heading the same editorial accent bar
+   + rule as .page-heading, so every page title reads the same */
+.ds-root .dashboard-heading {
+  position: relative;
+  padding: 0 0 26px 20px;
+  border-bottom: 1px solid var(--ds-line);
+}
+.ds-root .dashboard-heading::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 3px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--ds-claret);
+}
+
+/* Date inputs — tint the native picker indicator so it reads as intentional */
+.ds-root input[type="date"]::-webkit-calendar-picker-indicator,
+.ds-root input[type="time"]::-webkit-calendar-picker-indicator,
+.ds-root input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+}
+.ds-root input[type="date"]:hover::-webkit-calendar-picker-indicator,
+.ds-root input[type="time"]:hover::-webkit-calendar-picker-indicator {
+  opacity: 0.9;
 }
