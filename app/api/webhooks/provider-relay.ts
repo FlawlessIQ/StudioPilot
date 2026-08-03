@@ -1,10 +1,11 @@
 export const maxProviderWebhookBytes = 2 * 1024 * 1024;
 
 type RelayConfig = {
-  functionName: "docusignWebhook" | "quickbooksWebhook";
-  signatureHeader: "x-docusign-signature-1" | "intuit-signature";
+  functionName: "docusignWebhook" | "dropboxSignWebhook" | "quickbooksWebhook";
+  signatureHeader: "x-docusign-signature-1" | "content-sha256" | "intuit-signature";
   signatureRequiredError:
     | "DOCUSIGN_SIGNATURE_REQUIRED"
+    | "DROPBOX_SIGN_SIGNATURE_REQUIRED"
     | "QUICKBOOKS_SIGNATURE_REQUIRED";
   forwardedHeaders?: readonly string[];
 };

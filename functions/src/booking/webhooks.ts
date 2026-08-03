@@ -1,8 +1,10 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import Busboy from "busboy";
 import { getFirestore } from "firebase-admin/firestore";
-import { onRequest } from "firebase-functions/v2/https";
+import { onRequest, type Request } from "firebase-functions/v2/https";
 import {
   normalizeDocusignWebhook,
+  normalizeDropboxSignWebhook,
   normalizeQuickBooksWebhooks,
 } from "./webhook-normalizers.js";
 
@@ -122,6 +124,167 @@ export const docusignWebhook = onRequest(
       }
     });
     response.status(204).send();
+  },
+);
+
+// Dropbox Sign delivers callbacks as multipart/form-data with the event
+// JSON in a "json" field (developers.hellosign.com/docs/events/walkthrough),
+// not a raw JSON body — busboy is already a functions/ dependency, used the
+// same way by planning/inbound.ts for inbound-email attachments.
+function parseDropboxSignJsonField(request: Request): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const fields: Record<string, string> = {};
+    const parser = Busboy({
+      headers: request.headers,
+      limits: { files: 0, fields: 10, fieldSize: 1024 * 1024 },
+    });
+    parser.on("field", (name, value) => { fields[name] = value; });
+    parser.on("error", reject);
+    parser.on("finish", () => {
+      try {
+        resolve(fields.json ? JSON.parse(fields.json) : null);
+      } catch (caught) {
+        reject(caught);
+      }
+    });
+    parser.end(request.rawBody);
+  });
+}
+
+export const dropboxSignWebhook = onRequest(
+  { cors: false, invoker: "private", secrets: ["DROPBOX_SIGN_API_KEY"] },
+  async (request, response) => {
+    if (request.method !== "POST") {
+      response.status(405).send("METHOD_NOT_ALLOWED");
+      return;
+    }
+    let body: unknown;
+    try {
+      body = await parseDropboxSignJsonField(request);
+    } catch {
+      response.status(400).send("INVALID_PAYLOAD");
+      return;
+    }
+    const event = normalizeDropboxSignWebhook(body);
+    if (!event) {
+      response.status(400).send("INVALID_PAYLOAD");
+      return;
+    }
+    // Verification per Dropbox Sign's documented event_hash mechanism:
+    // HMAC-SHA256(event_time + event_type, key=apiKey), hex-encoded.
+    const apiKey = process.env.DROPBOX_SIGN_API_KEY;
+    if (!apiKey) {
+      response.status(401).send("INVALID_SIGNATURE");
+      return;
+    }
+    const expectedHash = createHmac("sha256", apiKey)
+      .update(`${event.eventTime}${event.eventType}`)
+      .digest("hex");
+    const suppliedHash = Buffer.from(event.eventHash);
+    const expectedHashBuffer = Buffer.from(expectedHash);
+    if (
+      suppliedHash.length !== expectedHashBuffer.length ||
+      !timingSafeEqual(suppliedHash, expectedHashBuffer)
+    ) {
+      response.status(401).send("INVALID_SIGNATURE");
+      return;
+    }
+    const firestore = getFirestore();
+    const eventReference = firestore.doc(
+      `webhookEvents/${safeEventId("dropbox_sign", event.providerEventId)}`,
+    );
+    const connections = await firestore.collection("integrationConnections")
+      .where("provider", "==", "dropbox_sign")
+      .where("providerAccountId", "==", event.accountId)
+      .limit(1)
+      .get();
+    const connection = connections.docs[0];
+    if (!connection) {
+      response.status(404).send("CONNECTION_NOT_FOUND");
+      return;
+    }
+    const tenantId = String(connection.get("tenantId"));
+    const contracts = await firestore.collection("contracts")
+      .where("tenantId", "==", tenantId)
+      .where("providerEnvelopeId", "==", event.signatureRequestId)
+      .limit(1)
+      .get();
+    await firestore.runTransaction(async (transaction) => {
+      if ((await transaction.get(eventReference)).exists) return;
+      transaction.create(eventReference, {
+        tenantId,
+        provider: "dropbox_sign",
+        providerEventId: event.providerEventId,
+        payload: {
+          eventType: event.eventType,
+          accountId: event.accountId,
+          signatureRequestId: event.signatureRequestId,
+          occurredAt: event.eventTime,
+        },
+        status: "processed",
+        createdAt: new Date().toISOString(),
+      });
+      const contract = contracts.docs[0];
+      if (contract && event.eventType === "signature_request_all_signed") {
+        const timestamp = new Date().toISOString();
+        const projectReference = firestore.doc(
+          `projects/${String(contract.get("projectId"))}`,
+        );
+        const project = await transaction.get(projectReference);
+        transaction.update(contract.ref, {
+          status: "completed",
+          completedAt: timestamp,
+          lastProviderEventId: event.providerEventId,
+          completionEvidence: {
+            provider: "dropbox_sign",
+            eventId: event.providerEventId,
+          },
+          updatedAt: timestamp,
+          updatedBy: "dropbox-sign-webhook",
+        });
+        if (
+          project.exists &&
+          project.get("tenantId") === tenantId &&
+          project.get("state") === "CONTRACT_PENDING"
+        ) {
+          const stateVersion = Number(project.get("stateVersion") ?? 0);
+          transaction.update(projectReference, {
+            state: "RETAINER_PENDING",
+            stateVersion: stateVersion + 1,
+            updatedAt: timestamp,
+            updatedBy: "dropbox-sign-webhook",
+          });
+          const auditReference = firestore.doc(
+            `auditEvents/dropbox_sign_contract_completed_${createHash("sha256").update(event.providerEventId).digest("hex")}`,
+          );
+          transaction.create(auditReference, {
+            id: auditReference.id,
+            tenantId,
+            projectId: project.id,
+            actorId: "dropbox-sign-webhook",
+            actorType: "provider",
+            action: "contract.completed",
+            entityType: "contract",
+            entityId: contract.id,
+            timestamp,
+            before: { projectState: "CONTRACT_PENDING", stateVersion },
+            after: {
+              projectState: "RETAINER_PENDING",
+              stateVersion: stateVersion + 1,
+            },
+            ipAddress: null,
+            userAgent: null,
+            correlationId: event.providerEventId,
+            automationRunId: null,
+            providerEventId: event.providerEventId,
+          });
+        }
+      }
+    });
+    // Dropbox Sign requires this exact response body/content-type to treat
+    // the callback as acknowledged, or it will retry (and eventually
+    // deactivate the callback URL after repeated failures).
+    response.status(200).set("content-Type", "text/plain").send("Hello API Event Received");
   },
 );
 

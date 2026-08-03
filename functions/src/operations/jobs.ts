@@ -15,6 +15,7 @@ import {
   completeBookingResources,
   createConsultationResources,
   createDocusignEnvelope,
+  createDropboxSignRequest,
   createQuickBooksInvoice,
   reconcileQuickBooksInvoice,
   uploadDropboxDocument,
@@ -127,6 +128,8 @@ async function providerJob(document: DocumentSnapshot) {
     return createConsultationResources(document);
   if (type === "create_docusign_envelope")
     return createDocusignEnvelope(document);
+  if (type === "create_dropbox_sign_request")
+    return createDropboxSignRequest(document);
   if (type === "create_quickbooks_invoice")
     return createQuickBooksInvoice(document);
   if (type === "reconcile_quickbooks_invoice")

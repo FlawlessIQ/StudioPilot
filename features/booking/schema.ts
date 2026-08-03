@@ -17,7 +17,7 @@ export const bookingGateResultSchema = z.object({
     key: z.string().min(1),
     label: z.string().min(1),
     passed: z.boolean(),
-    source: z.enum(["docusign", "quickbooks", "calendar", "project", "approved_exception"]),
+    source: z.enum(["docusign", "dropbox_sign", "quickbooks", "calendar", "project", "approved_exception"]),
   })),
   blockers: z.array(z.string()),
   evaluatedAt: z.string().datetime(),

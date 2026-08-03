@@ -5,13 +5,33 @@ import {
   POST as postDocusign,
 } from "../app/api/webhooks/docusign/route.ts";
 import {
+  GET as getDropboxSign,
+  POST as postDropboxSign,
+} from "../app/api/webhooks/dropbox-sign/route.ts";
+import {
   GET as getQuickBooks,
   POST as postQuickBooks,
 } from "../app/api/webhooks/quickbooks/route.ts";
 
 test("provider webhook relays reject non-POST requests", () => {
   assert.equal(getDocusign().status, 405);
+  assert.equal(getDropboxSign().status, 405);
   assert.equal(getQuickBooks().status, 405);
+});
+
+test("Dropbox Sign webhook relay requires its signature header", async () => {
+  const response = await postDropboxSign(
+    new Request("https://studiohub.test/api/webhooks/dropbox-sign", {
+      method: "POST",
+      body: "{}",
+      headers: { "content-type": "multipart/form-data" },
+    }),
+  );
+
+  assert.equal(response.status, 401);
+  assert.deepEqual(await response.json(), {
+    error: "DROPBOX_SIGN_SIGNATURE_REQUIRED",
+  });
 });
 
 test("Docusign webhook relay requires its HMAC signature", async () => {
@@ -57,6 +77,17 @@ test("provider webhook relays reject oversized payloads", async () => {
       },
     }),
   );
+  const dropboxSign = await postDropboxSign(
+    new Request("https://studiohub.test/api/webhooks/dropbox-sign", {
+      method: "POST",
+      body: "{}",
+      headers: {
+        "content-length": oversized,
+        "content-type": "multipart/form-data",
+        "content-sha256": "invalid",
+      },
+    }),
+  );
   const quickbooks = await postQuickBooks(
     new Request("https://studiohub.test/api/webhooks/quickbooks", {
       method: "POST",
@@ -70,5 +101,6 @@ test("provider webhook relays reject oversized payloads", async () => {
   );
 
   assert.equal(docusign.status, 413);
+  assert.equal(dropboxSign.status, 413);
   assert.equal(quickbooks.status, 413);
 });

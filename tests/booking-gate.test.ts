@@ -22,6 +22,19 @@ test("booking gate cannot pass while a deterministic requirement is missing", ()
   assert.deepEqual(result.blockers, ["Docusign contract completed"]);
 });
 
+test("the contract-completed requirement is labeled for the active signing provider", () => {
+  const result = evaluateBookingGate({
+    tenantId: "tenant-a",
+    projectId: "project-a",
+    evidence: { ...completeEvidence, contractCompleted: false },
+    evaluatedAt: "2026-07-26T12:00:00.000Z",
+    signingProvider: "dropbox_sign",
+  });
+  assert.equal(result.passed, false);
+  assert.deepEqual(result.blockers, ["Dropbox Sign contract completed"]);
+  assert.equal(result.requirements.find((item) => item.key === "contractCompleted")?.source, "dropbox_sign");
+});
+
 test("an approved retainer exception is explicit gate evidence", () => {
   const result = evaluateBookingGate({
     tenantId: "tenant-a",

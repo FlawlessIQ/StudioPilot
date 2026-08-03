@@ -13,6 +13,7 @@ const providerSchema = z.enum([
   "zoom",
   "dropbox",
   "docusign",
+  "dropbox_sign",
   "quickbooks",
 ]);
 type Provider = z.infer<typeof providerSchema>;
@@ -75,6 +76,18 @@ const config = (provider: Provider): Config => {
       authorizeUrl: "https://account-d.docusign.com/oauth/auth",
       tokenUrl: "https://account-d.docusign.com/oauth/token",
       scopes: ["signature", "extended"],
+      extra: {},
+    },
+    // Verify against the Dropbox Sign API app dashboard before enabling
+    // live mode — the webhook mechanics in booking/webhooks.ts were
+    // confirmed against developers.hellosign.com's rendered docs, but
+    // their OAuth doc pages returned empty/404 shells during this change,
+    // so these two URLs rest on the long-stable HelloSign OAuth convention
+    // rather than a page fetched live.
+    dropbox_sign: {
+      authorizeUrl: "https://app.hellosign.com/oauth/authorize",
+      tokenUrl: "https://app.hellosign.com/oauth/token",
+      scopes: ["basic_account_info", "request_signature"],
       extra: {},
     },
     quickbooks: {
@@ -188,6 +201,7 @@ export const integrationOAuth = onRequest(
       "GOOGLE_CALENDAR_CLIENT_SECRET",
       "ZOOM_CLIENT_SECRET",
       "DOCUSIGN_CLIENT_SECRET",
+      "DROPBOX_SIGN_CLIENT_SECRET",
       "QUICKBOOKS_CLIENT_ID",
       "QUICKBOOKS_CLIENT_SECRET",
     ],
@@ -356,6 +370,16 @@ export const integrationOAuth = onRequest(
         credential.accountId = accountId;
         credential.baseUrl = account?.base_uri;
         displayName = account?.account_name ?? provider;
+      } else if (provider === "dropbox_sign") {
+        const account = await fetch("https://api.hellosign.com/v3/account", {
+          headers: { authorization: `Bearer ${String(token.access_token)}` },
+        });
+        const body = (await account.json()) as {
+          account?: { account_id?: string; email_address?: string };
+        };
+        accountId = body.account?.account_id ?? "";
+        credential.accountId = accountId;
+        displayName = body.account?.email_address ?? provider;
       } else if (provider === "quickbooks") {
         credential.realmId = accountId;
       }

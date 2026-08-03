@@ -2,6 +2,7 @@ export type OAuthProvider =
   | "quickbooks"
   | "google_calendar"
   | "docusign"
+  | "dropbox_sign"
   | "dropbox"
   | "zoom";
 

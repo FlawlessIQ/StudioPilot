@@ -59,6 +59,57 @@ export function normalizeDocusignWebhook(
   };
 }
 
+// Shape confirmed against Dropbox Sign's documented webhook payload
+// (developers.hellosign.com/docs/events/walkthrough): the callback is
+// delivered as multipart/form-data with the JSON payload in a "json" field
+// (parsed by the caller before this normalizer runs), and every event
+// carries `event.event_type` / `event.event_time` / `event.event_hash` plus
+// an `event.event_metadata` block. `event_hash` is documented as
+// HMAC-SHA256(event_time + event_type, key=apiKey) — verification happens
+// in the webhook handler, not here. Dropbox Sign does not send a discrete
+// event id, so providerEventId is derived the same way normalizeDocusignWebhook
+// derives one when a provider omits it.
+export type DropboxSignWebhookEvent = {
+  providerEventId: string;
+  eventType: string;
+  eventTime: string;
+  eventHash: string;
+  accountId: string;
+  signatureRequestId: string;
+};
+
+export function normalizeDropboxSignWebhook(
+  input: unknown,
+): DropboxSignWebhookEvent | null {
+  const payload = asRecord(input);
+  const eventBlock = asRecord(payload.event);
+  const eventMetadata = asRecord(eventBlock.event_metadata);
+  const signatureRequest = asRecord(payload.signature_request);
+
+  const eventType = asString(eventBlock.event_type);
+  const eventTime = asString(eventBlock.event_time);
+  const eventHash = asString(eventBlock.event_hash);
+  const accountId = asString(eventMetadata.reported_for_account_id);
+  const signatureRequestId =
+    asString(signatureRequest.signature_request_id) ||
+    asString(eventMetadata.related_signature_id);
+
+  if (!eventType || !eventTime || !eventHash || !accountId || !signatureRequestId) {
+    return null;
+  }
+
+  return {
+    providerEventId: digest(
+      [accountId, signatureRequestId, eventType, eventTime].join(":"),
+    ),
+    eventType,
+    eventTime,
+    eventHash,
+    accountId,
+    signatureRequestId,
+  };
+}
+
 export type QuickBooksWebhookEvent = {
   providerEventId: string;
   realmId: string;

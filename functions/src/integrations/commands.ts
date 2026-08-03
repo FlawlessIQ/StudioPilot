@@ -4,40 +4,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
-
-// Mirrors features/integrations/schema.ts. functions/ is a separate package
-// (own tsconfig, no path alias to the root), so these are intentionally
-// re-declared here rather than imported — the same pattern oauth.ts already
-// uses for its provider list.
-const capabilitySchema = z.enum([
-  "signing",
-  "invoicing",
-  "calendar",
-  "meetings",
-  "storage",
-]);
-type Capability = z.infer<typeof capabilitySchema>;
-
-const providerSchema = z.enum([
-  "google_calendar",
-  "zoom",
-  "docusign",
-  "dropbox_sign",
-  "quickbooks",
-  "stripe",
-  "dropbox",
-]);
-type Provider = z.infer<typeof providerSchema>;
-
-const providerCapabilities: Readonly<Record<Provider, readonly Capability[]>> = {
-  google_calendar: ["calendar"],
-  zoom: ["meetings"],
-  docusign: ["signing"],
-  dropbox_sign: ["signing"],
-  quickbooks: ["invoicing"],
-  stripe: ["invoicing"],
-  dropbox: ["storage"],
-};
+import { capabilitySchema, providerSchema, providerCapabilities, type Provider } from "./capability-resolution.js";
 
 const allowedRoles = ["studio_owner", "studio_admin"];
 

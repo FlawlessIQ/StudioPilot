@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { consumeAiQuota } from "../saas/usage.js";
+import { resolveProviderForTenant } from "../integrations/capability-resolution.js";
 
 const commandSchema = z.discriminatedUnion("type", [
   z.object({
@@ -344,6 +345,12 @@ export const bookingCommand = onRequest(
         if (!existingContracts.empty) {
           throw new Error("CONTRACT_ALREADY_EXISTS");
         }
+        const signingProvider = await resolveProviderForTenant(
+          firestore,
+          command.tenantId,
+          "signing",
+          "docusign",
+        );
         const contractId = stableId(
           "contract",
           command.tenantId,
@@ -357,7 +364,7 @@ export const bookingCommand = onRequest(
           projectId: command.input.projectId,
           proposalId: command.input.proposalId,
           status: "sent",
-          provider: "docusign",
+          provider: signingProvider,
           providerEnvelopeId: envelopeId,
           templateId: command.input.templateId,
           signers: command.input.signers.map((signer) => ({
@@ -382,7 +389,9 @@ export const bookingCommand = onRequest(
           batch.create(firestore.doc(`providerJobs/contract_${contractId}`), {
             tenantId: command.tenantId,
             projectId: command.input.projectId,
-            type: "create_docusign_envelope",
+            type: signingProvider === "dropbox_sign"
+              ? "create_dropbox_sign_request"
+              : "create_docusign_envelope",
             contractId,
             idempotencyKey: command.idempotencyKey,
             status: "queued",

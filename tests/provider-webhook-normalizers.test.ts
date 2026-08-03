@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   normalizeDocusignWebhook,
+  normalizeDropboxSignWebhook,
   normalizeQuickBooksWebhooks,
 } from "../functions/src/booking/webhook-normalizers.ts";
 
@@ -27,6 +28,59 @@ test("Docusign JSON SIM completion events normalize deterministically", () => {
   assert.equal(first.accountId, "account-a");
   assert.equal(first.envelopeId, "envelope-a");
   assert.equal(first.providerEventId, second?.providerEventId);
+});
+
+test("Dropbox Sign completion events normalize deterministically", () => {
+  const payload = {
+    event: {
+      event_time: "1348177752",
+      event_type: "signature_request_all_signed",
+      event_hash: "3a31324d1919d7cdc849ff407adf38fc01e01107d9400b028ff8c892469ca947",
+      event_metadata: {
+        related_signature_id: "ad4d8a769b555fa5ef38691465d426682bf2c992",
+        reported_for_account_id: "account-a",
+        reported_for_app_id: null,
+      },
+    },
+    signature_request: {
+      signature_request_id: "signature-request-a",
+    },
+  };
+
+  const first = normalizeDropboxSignWebhook(payload);
+  const second = normalizeDropboxSignWebhook(payload);
+
+  assert.ok(first);
+  assert.equal(first.eventType, "signature_request_all_signed");
+  assert.equal(first.eventTime, "1348177752");
+  assert.equal(first.accountId, "account-a");
+  assert.equal(first.signatureRequestId, "signature-request-a");
+  assert.equal(first.providerEventId, second?.providerEventId);
+});
+
+test("Dropbox Sign normalizer falls back to event_metadata's related_signature_id when no signature_request object is present", () => {
+  const event = normalizeDropboxSignWebhook({
+    event: {
+      event_time: "1348177752",
+      event_type: "signature_request_sent",
+      event_hash: "3a31324d1919d7cdc849ff407adf38fc01e01107d9400b028ff8c892469ca947",
+      event_metadata: {
+        related_signature_id: "ad4d8a769b555fa5ef38691465d426682bf2c992",
+        reported_for_account_id: "account-a",
+      },
+    },
+  });
+
+  assert.ok(event);
+  assert.equal(event.signatureRequestId, "ad4d8a769b555fa5ef38691465d426682bf2c992");
+});
+
+test("Dropbox Sign normalizer rejects payloads missing required fields", () => {
+  assert.equal(normalizeDropboxSignWebhook({}), null);
+  assert.equal(
+    normalizeDropboxSignWebhook({ event: { event_type: "signature_request_all_signed" } }),
+    null,
+  );
 });
 
 test("QuickBooks CloudEvents arrays normalize invoice changes", () => {

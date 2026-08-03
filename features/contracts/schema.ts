@@ -28,7 +28,7 @@ export const contractSchema = auditFieldsSchema.extend({
   projectId: z.string().min(1),
   proposalId: z.string().nullable(),
   status: contractStatusSchema,
-  provider: z.literal("docusign"),
+  provider: z.enum(["docusign", "dropbox_sign"]),
   providerEnvelopeId: z.string().min(1),
   templateId: z.string().min(1),
   signers: z.array(contractSignerSchema).min(1),

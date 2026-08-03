@@ -1,7 +1,13 @@
 import { bookingGateResultSchema, type BookingGateEvidence, type BookingGateResult } from "@/features/booking/schema";
 
-const labels: Readonly<Record<keyof BookingGateEvidence, { label: string; source: BookingGateResult["requirements"][number]["source"] }>> = {
-  contractCompleted: { label: "Docusign contract completed", source: "docusign" },
+type SigningProvider = "docusign" | "dropbox_sign";
+
+const signingLabels: Readonly<Record<SigningProvider, string>> = {
+  docusign: "Docusign contract completed",
+  dropbox_sign: "Dropbox Sign contract completed",
+};
+
+const labels: Readonly<Record<Exclude<keyof BookingGateEvidence, "contractCompleted">, { label: string; source: BookingGateResult["requirements"][number]["source"] }>> = {
   retainerInvoiceCreated: { label: "QuickBooks retainer invoice created", source: "quickbooks" },
   retainerSatisfied: { label: "Retainer paid", source: "quickbooks" },
   retainerExceptionApproved: { label: "Retainer exception approved", source: "approved_exception" },
@@ -14,7 +20,13 @@ export function evaluateBookingGate(input: {
   projectId: string;
   evidence: BookingGateEvidence;
   evaluatedAt: string;
+  // Which signing provider the contract was (or would be) completed
+  // through — determines the requirement's label/source. Defaults to
+  // "docusign" for callers that predate multi-provider signing.
+  signingProvider?: SigningProvider;
 }): BookingGateResult {
+  const signingProvider = input.signingProvider ?? "docusign";
+  const contractCompletedMeta = { label: signingLabels[signingProvider], source: signingProvider };
   const effective = {
     contractCompleted: input.evidence.contractCompleted,
     retainerInvoiceCreated: input.evidence.retainerInvoiceCreated,
@@ -22,14 +34,17 @@ export function evaluateBookingGate(input: {
     eventDateAvailable: input.evidence.eventDateAvailable,
     requiredContactsComplete: input.evidence.requiredContactsComplete,
   };
-  const requirements = (Object.keys(effective) as (keyof typeof effective)[]).map((key) => ({
-    key,
-    label: labels[key].label,
-    passed: effective[key],
-    source: effective[key] && key === "retainerSatisfied" && input.evidence.retainerExceptionApproved
-      ? "approved_exception" as const
-      : labels[key].source,
-  }));
+  const requirements = (Object.keys(effective) as (keyof typeof effective)[]).map((key) => {
+    const meta = key === "contractCompleted" ? contractCompletedMeta : labels[key];
+    return {
+      key,
+      label: meta.label,
+      passed: effective[key],
+      source: effective[key] && key === "retainerSatisfied" && input.evidence.retainerExceptionApproved
+        ? "approved_exception" as const
+        : meta.source,
+    };
+  });
   return bookingGateResultSchema.parse({
     tenantId: input.tenantId,
     projectId: input.projectId,

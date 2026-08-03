@@ -3,7 +3,7 @@ import { getFirestore,type DocumentSnapshot } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { buildIntegrationDiagnostics } from "../integrations/diagnostics.js";
 
-export type Provider="google_calendar"|"zoom"|"dropbox"|"docusign"|"quickbooks";
+export type Provider="google_calendar"|"zoom"|"dropbox"|"docusign"|"dropbox_sign"|"quickbooks";
 type Credential={
   accessToken:string;
   refreshToken?:string;
@@ -44,6 +44,7 @@ const tokenUrl=(provider:Provider)=>({
   zoom:"https://zoom.us/oauth/token",
   dropbox:"https://api.dropboxapi.com/oauth2/token",
   docusign:"https://account-d.docusign.com/oauth/token",
+  dropbox_sign:"https://app.hellosign.com/oauth/token",
   quickbooks:"https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer",
 })[provider];
 async function refreshCredential(reference:string,provider:Provider,current:Credential):Promise<Credential>{
@@ -151,6 +152,7 @@ export async function checkProviderConnection(tenantId:string,provider:Provider)
     zoom:()=>fetch("https://api.zoom.us/v2/users/me",{headers:{authorization:`Bearer ${credential.accessToken}`}}),
     dropbox:()=>fetch("https://api.dropboxapi.com/2/users/get_current_account",{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`}}),
     docusign:()=>fetch("https://account-d.docusign.com/oauth/userinfo",{headers:{authorization:`Bearer ${credential.accessToken}`}}),
+    dropbox_sign:()=>fetch("https://api.hellosign.com/v3/account",{headers:{authorization:`Bearer ${credential.accessToken}`}}),
     quickbooks:()=>fetch(`https://quickbooks.api.intuit.com/v3/company/${encodeURIComponent(credential.realmId??String(current.document.get("providerAccountId")??""))}/companyinfo/${encodeURIComponent(credential.realmId??String(current.document.get("providerAccountId")??""))}?minorversion=75`,{headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json"}}),
   };
   const response=await probes[provider]();
@@ -178,6 +180,16 @@ export async function createDocusignEnvelope(job:DocumentSnapshot){const db=getF
   if(contract.get("providerState")==="completed")return{contractId,envelopeId:contract.get("providerEnvelopeId")};
   const provider=await connection(String(job.get("tenantId")),"docusign");let envelopeId:string;if(provider.mock)envelopeId=mockId("envelope",job.id);else{const credential=provider.credential;if(!credential?.accountId)throw new Error("DOCUSIGN_ACCOUNT_MISSING");const signers=Array.isArray(contract.get("signers"))?contract.get("signers") as Array<Json>:[];const value=await providerJson(`${credential.baseUrl??"https://demo.docusign.net"}/restapi/v2.1/accounts/${encodeURIComponent(credential.accountId)}/envelopes`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/json"},body:JSON.stringify({transactionId:createHash("sha256").update(job.id).digest("hex").slice(0,32),templateId:contract.get("templateId"),templateRoles:signers.map(signer=>({name:text(signer.name),email:text(signer.email),roleName:text(signer.role),routingOrder:number(signer.order)})),status:"sent"})},"DOCUSIGN_CREATE_FAILED");envelopeId=text(value.envelopeId)}
   if(!envelopeId)throw new Error("DOCUSIGN_ENVELOPE_ID_MISSING");await reference.update({providerEnvelopeId:envelopeId,status:"sent",sentAt:new Date().toISOString(),providerState:"completed",updatedAt:new Date().toISOString(),updatedBy:"provider-worker"});return{contractId,envelopeId}}
+
+// Uses Dropbox Sign's send_with_template endpoint — the template-based
+// equivalent of createDocusignEnvelope's templateRoles call, matching the
+// pre-configured-template model our contracts already assume via
+// contract.templateId. Endpoint + auth confirmed against
+// developers.hellosign.com's rendered API docs during this change.
+export async function createDropboxSignRequest(job:DocumentSnapshot){const db=getFirestore();const contractId=String(job.get("contractId"));const reference=db.doc(`contracts/${contractId}`);const contract=await reference.get();if(!contract.exists)throw new Error("CONTRACT_NOT_FOUND");
+  if(contract.get("providerState")==="completed")return{contractId,envelopeId:contract.get("providerEnvelopeId")};
+  const provider=await connection(String(job.get("tenantId")),"dropbox_sign");let signatureRequestId:string;if(provider.mock)signatureRequestId=mockId("signature_request",job.id);else{const credential=provider.credential;if(!credential)throw new Error("DROPBOX_SIGN_ACCOUNT_MISSING");const signers=Array.isArray(contract.get("signers"))?contract.get("signers") as Array<Json>:[];const value=await providerJson("https://api.hellosign.com/v3/signature_request/send_with_template",{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/json"},body:JSON.stringify({template_ids:[contract.get("templateId")],subject:"Please sign your StudioCue contract",signers:signers.map(signer=>({role:text(signer.role),name:text(signer.name),email_address:text(signer.email)}))})},"DROPBOX_SIGN_CREATE_FAILED");signatureRequestId=text(asRecord(value.signature_request).signature_request_id)}
+  if(!signatureRequestId)throw new Error("DROPBOX_SIGN_REQUEST_ID_MISSING");await reference.update({providerEnvelopeId:signatureRequestId,status:"sent",sentAt:new Date().toISOString(),providerState:"completed",updatedAt:new Date().toISOString(),updatedBy:"provider-worker"});return{contractId,envelopeId:signatureRequestId}}
 
 async function quickBooksCustomerId(
   tenantId:string,
