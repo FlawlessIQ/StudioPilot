@@ -317,7 +317,18 @@
   color: #ddefe3;
 }
 
-/* Flush panels — footer CTA cards that only had padding inside a media query */
+/* Template-import hero — purple → emerald (heading is already white) */
+.ds-root .template-import-hero {
+  background:
+    radial-gradient(520px 300px at 86% -8%, rgba(176, 138, 82, 0.22), transparent 60%),
+    radial-gradient(560px 340px at 60% 122%, rgba(255, 255, 255, 0.07), transparent 60%),
+    linear-gradient(124deg, #0f8a5e 0%, #0a5c40 62%, #063826 100%);
+}
+
+/* Flush panels — .panel has no base padding, so any modifier class that
+   defines no rule of its own renders its content hard against the edges.
+   .focused-tool-link + .client-message-composer were the visible ones; the
+   rest below are the remaining unstyled .panel modifiers found by sweep. */
 .ds-root .focused-tool-link {
   display: flex;
   align-items: center;
@@ -326,7 +337,19 @@
   flex-wrap: wrap;
   padding: 22px 24px;
 }
-.ds-root .client-message-composer {
+.ds-root .client-message-composer,
+.ds-root .booking-project-prompt,
+.ds-root .booking-workspace-loading,
+.ds-root .communications-approval-queue,
+.ds-root .communications-compose,
+.ds-root .communications-timeline,
+.ds-root .email-designer-form,
+.ds-root .email-designer-test,
+.ds-root .email-version-history,
+.ds-root .questionnaire-ai-card,
+.ds-root .questionnaire-ai-loading,
+.ds-root .schedule-impact-card,
+.ds-root .today-panel {
   padding: 24px;
 }
 

@@ -350,7 +350,21 @@ export function buildClientPortalExperience({
             href: "/client/messages",
             actionLabel: "Message your studio",
           }
-        : null;
+        : state === "PROPOSAL" && !availability.proposal
+          ? {
+              // Project is in the proposal stage, but the studio has not shared a
+              // proposal with the client yet — don't tell them to review something
+              // the proposal page reports as "still preparing".
+              name: "Your studio is preparing your proposal",
+              description:
+                "No action is needed yet. You’ll be notified as soon as your proposal is ready to review.",
+              dueDate: null,
+              ownerType: "studio",
+              responsibility: "studio",
+              href: "/client/project",
+              actionLabel: "View project details",
+            }
+          : null;
   const nextClientAction: ClientNextAction = clientCheckpoint
     ? {
         name: clientCheckpoint.name,

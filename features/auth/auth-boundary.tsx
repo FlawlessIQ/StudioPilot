@@ -100,7 +100,7 @@ export function AuthBoundary({
   return status === "authorized" ? (
     <>{children}</>
   ) : status === "error" ? (
-    <main className="auth-loading auth-loading-error" role="alert">
+    <main className="ds-root auth-loading auth-loading-error" data-ds-theme="emerald" role="alert">
       <strong>Workspace access could not be verified</strong>
       <span>{message}</span>
       <button
