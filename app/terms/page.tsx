@@ -4,7 +4,7 @@ import { Logo } from "@/components/brand/logo";
 
 export default function TermsPage() {
   return (
-    <main className="legal-page">
+    <main className="ds-root legal-page" data-ds-theme="emerald">
       <header><Link href="/"><Logo /></Link><Link href="/"><ArrowLeft size={15} /> Back home</Link></header>
       <article>
         <p className="eyebrow">Terms framework · Draft for legal review</p>

@@ -14,7 +14,7 @@ export function MarketingLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="marketing-page marketing-subpage">
+    <div className="ds-root marketing-page marketing-subpage" data-ds-theme="emerald">
       <header className="marketing-nav">
         <Link href="/" aria-label="StudioCue home"><Logo /></Link>
         <nav aria-label="Main navigation">

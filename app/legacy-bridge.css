@@ -158,3 +158,70 @@
   border-color: var(--ds-line);
   box-shadow: var(--ds-shadow-sm);
 }
+
+/* =========================================================================
+   Auth & onboarding (/auth/*) — editorial emerald split panel
+   ========================================================================= */
+.ds-root .auth-page {
+  background: var(--ds-canvas);
+}
+.ds-root .auth-brand-panel {
+  background:
+    radial-gradient(520px 300px at 82% 6%, rgba(176, 138, 82, 0.22), transparent 60%),
+    radial-gradient(560px 340px at 8% 108%, rgba(255, 255, 255, 0.08), transparent 60%),
+    linear-gradient(158deg, #0f8a5e 0%, #0a5c40 60%, #063826 100%);
+  color: #eef7f1;
+}
+.ds-root .auth-brand-panel .brand-logo { color: #ffffff; }
+.ds-root .auth-brand-panel .brand-mark {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+.ds-root .auth-back {
+  color: rgba(238, 247, 241, 0.82);
+}
+.ds-root .auth-back:hover { color: #ffffff; }
+.ds-root .auth-quote blockquote {
+  font-family: var(--ds-serif);
+  font-optical-sizing: auto;
+  font-weight: 440;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+.ds-root .quote-author span {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+.ds-root .quote-author strong { color: #ffffff; }
+.ds-root .quote-author small,
+.ds-root .auth-trust { color: rgba(238, 247, 241, 0.72); }
+.ds-root .auth-trust svg { color: var(--ds-brass); }
+
+.ds-root .auth-form-wrap h1,
+.ds-root .auth-action-page h1 {
+  font-family: var(--ds-serif);
+  font-optical-sizing: auto;
+  font-weight: 470;
+  letter-spacing: -0.02em;
+  color: var(--ds-ink);
+}
+.ds-root .auth-legal { color: var(--ds-muted); }
+
+/* =========================================================================
+   Marketing & public (/, /features, /pricing, industries, legal) — editorial
+   ========================================================================= */
+.ds-root .marketing-page h1,
+.ds-root .marketing-subhero h1,
+.ds-root .marketing-page h2,
+.ds-root .legal-page h1,
+.ds-root .inquiry-page h1,
+.ds-root .public-scheduler-layout h1 {
+  font-family: var(--ds-serif);
+  font-optical-sizing: auto;
+  font-weight: 460;
+  letter-spacing: -0.022em;
+}
+.ds-root .section-kicker,
+.ds-root .marketing-nav .brand-logo b {
+  color: var(--ds-brass-deep);
+}

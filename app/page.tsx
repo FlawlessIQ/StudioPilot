@@ -46,7 +46,7 @@ const productPoints = [
 
 export default function MarketingHome() {
   return (
-    <div className="marketing-page">
+    <div className="ds-root marketing-page" data-ds-theme="emerald">
       <header className="marketing-nav">
         <Link href="/" aria-label="StudioCue home">
           <Logo />
