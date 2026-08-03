@@ -295,3 +295,57 @@
 .ds-root input[type="time"]:hover::-webkit-calendar-picker-indicator {
   opacity: 0.9;
 }
+
+/* Brand mark (Logo component) — serif "S" monogram, unified with the shells */
+.ds-root .brand-mark {
+  font-family: var(--ds-serif);
+  font-weight: 500;
+  font-size: 17px;
+}
+
+/* AI review "control center" hero — purple → emerald + guaranteed white heading */
+.ds-root .ai-queue-hero {
+  background:
+    radial-gradient(520px 300px at 84% 6%, rgba(176, 138, 82, 0.20), transparent 60%),
+    radial-gradient(560px 340px at 55% 118%, rgba(255, 255, 255, 0.07), transparent 60%),
+    linear-gradient(122deg, #0f8a5e 0%, #0a5c40 62%, #063826 100%);
+}
+.ds-root .ai-queue-hero h1 {
+  color: #ffffff;
+}
+.ds-root .ai-queue-hero .eyebrow {
+  color: #ddefe3;
+}
+
+/* Flush panels — footer CTA cards that only had padding inside a media query */
+.ds-root .focused-tool-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 22px 24px;
+}
+.ds-root .client-message-composer {
+  padding: 24px;
+}
+
+/* Auth loading gate — editorial instead of a bare spinner */
+.ds-root.auth-loading {
+  background: var(--ds-canvas);
+  color: var(--ds-ink);
+}
+.ds-root.auth-loading strong {
+  font-family: var(--ds-serif);
+  font-optical-sizing: auto;
+  font-weight: 480;
+  font-size: 22px;
+  letter-spacing: -0.015em;
+  color: var(--ds-ink);
+}
+.ds-root.auth-loading > span:last-child {
+  color: var(--ds-muted);
+}
+.ds-root.auth-loading .auth-loading-spinner {
+  border-top-color: var(--ds-claret);
+}

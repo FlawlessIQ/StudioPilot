@@ -116,7 +116,7 @@ export function AuthBoundary({
       </button>
     </main>
   ) : (
-    <main className="auth-loading" aria-live="polite">
+    <main className="ds-root auth-loading" data-ds-theme="emerald" aria-live="polite">
       <span className="auth-loading-spinner" aria-hidden="true" />
       <strong>Opening your workspace</strong>
       <span>Checking your secure studio access…</span>
