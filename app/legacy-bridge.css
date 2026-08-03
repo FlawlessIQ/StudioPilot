@@ -225,3 +225,22 @@
 .ds-root .marketing-nav .brand-logo b {
   color: var(--ds-brass-deep);
 }
+
+/* =========================================================================
+   Studio dashboard command hero — harmonized from purple/coral to emerald
+   ========================================================================= */
+.ds-root .studio-command-hero {
+  background:
+    radial-gradient(520px 300px at 88% 18%, rgba(176, 138, 82, 0.20), transparent 60%),
+    radial-gradient(560px 340px at 58% 118%, rgba(255, 255, 255, 0.07), transparent 60%),
+    linear-gradient(128deg, #0f8a5e 0%, #0a5c40 58%, #063826 100%);
+}
+.ds-root .studio-ai-primary {
+  background: #fbf6ea;
+  color: var(--ds-claret-deep);
+  box-shadow: 0 12px 26px rgb(6 42 28 / 28%);
+}
+.ds-root .studio-command-kicker,
+.ds-root .studio-command-badge {
+  color: #ddefe3;
+}
