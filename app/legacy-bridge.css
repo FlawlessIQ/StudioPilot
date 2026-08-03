@@ -50,13 +50,13 @@
   font-family: var(--ds-serif);
   font-weight: 460;
   letter-spacing: -0.022em;
-  color: var(--ds-ink);
+  /* No color: headings inherit their surface (ink on light pages, white on
+     dark hero/cards) so the bridge never forces dark-on-dark. */
 }
 .ds-root .ds-content h2 {
   font-family: var(--ds-serif);
   font-weight: 480;
   letter-spacing: -0.015em;
-  color: var(--ds-ink);
 }
 .ds-root .page-heading::before {
   background: var(--ds-claret);
