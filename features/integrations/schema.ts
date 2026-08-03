@@ -5,9 +5,41 @@ export const integrationProviderSchema = z.enum([
   "google_calendar",
   "zoom",
   "docusign",
+  "dropbox_sign",
   "quickbooks",
+  "stripe",
   "dropbox",
 ]);
+
+export type IntegrationProvider = z.infer<typeof integrationProviderSchema>;
+
+// A capability is a job a feature needs done (send a contract for signature,
+// create an invoice, ...). Multiple providers can serve the same capability;
+// the studio picks which connected provider is active for each one via
+// features/integrations/routing.ts.
+export const integrationCapabilitySchema = z.enum([
+  "signing",
+  "invoicing",
+  "calendar",
+  "meetings",
+  "storage",
+]);
+
+export type IntegrationCapability = z.infer<typeof integrationCapabilitySchema>;
+
+// Which capabilities each provider can serve. A provider may serve more than
+// one capability; a capability may be served by more than one provider.
+export const providerCapabilities: Readonly<
+  Record<IntegrationProvider, readonly IntegrationCapability[]>
+> = {
+  google_calendar: ["calendar"],
+  zoom: ["meetings"],
+  docusign: ["signing"],
+  dropbox_sign: ["signing"],
+  quickbooks: ["invoicing"],
+  stripe: ["invoicing"],
+  dropbox: ["storage"],
+};
 
 export const integrationConnectionSchema = auditFieldsSchema.extend({
   id: z.string().min(1),
