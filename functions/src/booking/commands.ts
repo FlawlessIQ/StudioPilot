@@ -436,19 +436,27 @@ export const bookingCommand = onRequest(
         if (!existingInvoices.empty) {
           throw new Error("RETAINER_INVOICE_ALREADY_EXISTS");
         }
+        const invoicingProvider = await resolveProviderForTenant(
+          firestore,
+          command.tenantId,
+          "invoicing",
+          "quickbooks",
+        );
         const invoiceId = stableId(
           "invoice",
           command.tenantId,
           command.idempotencyKey,
         );
-        const providerInvoiceId = `qbo_invoice_${command.idempotencyKey}`;
+        const providerInvoiceId = invoicingProvider === "stripe"
+          ? `stripe_invoice_${command.idempotencyKey}`
+          : `qbo_invoice_${command.idempotencyKey}`;
         const batch = firestore.batch();
         batch.create(firestore.doc(`invoiceReferences/${invoiceId}`), {
           id: invoiceId,
           tenantId: command.tenantId,
           projectId: command.input.projectId,
           kind: "retainer",
-          provider: "quickbooks",
+          provider: invoicingProvider,
           providerInvoiceId,
           providerCustomerId:
             command.input.customerId ?? `pending_${command.input.projectId}`,
@@ -473,7 +481,9 @@ export const bookingCommand = onRequest(
           batch.create(firestore.doc(`providerJobs/invoice_${invoiceId}`), {
             tenantId: command.tenantId,
             projectId: command.input.projectId,
-            type: "create_quickbooks_invoice",
+            type: invoicingProvider === "stripe"
+              ? "create_stripe_invoice"
+              : "create_quickbooks_invoice",
             invoiceId,
             idempotencyKey: command.idempotencyKey,
             status: "queued",

@@ -4,7 +4,8 @@ export type OAuthProvider =
   | "docusign"
   | "dropbox_sign"
   | "dropbox"
-  | "zoom";
+  | "zoom"
+  | "stripe";
 
 const pkceProviders: ReadonlySet<OAuthProvider> = new Set([
   "google_calendar",

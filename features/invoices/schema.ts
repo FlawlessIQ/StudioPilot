@@ -18,7 +18,7 @@ export const invoiceReferenceSchema = auditFieldsSchema.extend({
   tenantId: z.string().min(1),
   projectId: z.string().min(1),
   kind: z.enum(["retainer", "final", "adjustment"]),
-  provider: z.literal("quickbooks"),
+  provider: z.enum(["quickbooks", "stripe"]),
   providerInvoiceId: z.string().min(1),
   providerCustomerId: z.string().min(1),
   status: invoiceStatusSchema,

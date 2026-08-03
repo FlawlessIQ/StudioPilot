@@ -11,7 +11,7 @@ export { workflowCommand } from "./workflow/commands.js";
 export { bookingCommand } from "./booking/commands.js";
 export { publicConsultationScheduling } from "./booking/public-scheduling.js";
 export { proposalCommand } from "./booking/proposals.js";
-export { docusignWebhook, dropboxSignWebhook, quickbooksWebhook } from "./booking/webhooks.js";
+export { docusignWebhook, dropboxSignWebhook, quickbooksWebhook, stripeConnectWebhook } from "./booking/webhooks.js";
 export { planningCommand } from "./planning/commands.js";
 export { sendgridInboundCoi } from "./planning/inbound.js";
 export { sendgridEventWebhook } from "./communications/sendgrid-events.js";

@@ -2,6 +2,8 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import Busboy from "busboy";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest, type Request } from "firebase-functions/v2/https";
+import { z } from "zod";
+import { signatureValid } from "../saas/stripe.js";
 import {
   normalizeDocusignWebhook,
   normalizeDropboxSignWebhook,
@@ -374,5 +376,109 @@ export const quickbooksWebhook = onRequest(
       });
     }
     response.status(200).json({ accepted: events.length });
+  },
+);
+
+const stripeConnectEventSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  account: z.string().optional(),
+  data: z.object({ object: z.record(z.string(), z.unknown()) }),
+});
+
+// Connect events (studios' own client invoices) are delivered to a
+// separate endpoint from saas/stripe.ts's stripeWebhook, which only ever
+// carries platform-level subscription events for StudioCue's own Stripe
+// account. Connect webhook events carry a top-level "account" field
+// identifying which connected account (studio) the event is for — that's
+// how the two are told apart, and why this needs its own signing secret
+// (STRIPE_CONNECT_WEBHOOK_SECRET) registered separately in the Stripe
+// dashboard's Connect webhook settings. Reuses the same signature scheme
+// saas/stripe.ts already implements (and exports) since Stripe signs both
+// kinds of webhook identically.
+export const stripeConnectWebhook = onRequest(
+  { cors: false, invoker: "private", secrets: ["STRIPE_CONNECT_WEBHOOK_SECRET"] },
+  async (request, response) => {
+    if (request.method !== "POST") {
+      response.status(405).send("METHOD_NOT_ALLOWED");
+      return;
+    }
+    const secret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET;
+    const header = request.header("stripe-signature");
+    const raw = request.rawBody.toString("utf8");
+    if (!secret || !header || !signatureValid(raw, header, secret)) {
+      response.status(401).send("INVALID_SIGNATURE");
+      return;
+    }
+    const parsed = stripeConnectEventSchema.safeParse(JSON.parse(raw));
+    if (!parsed.success) {
+      response.status(400).send("INVALID_PAYLOAD");
+      return;
+    }
+    const event = parsed.data;
+    const firestore = getFirestore();
+    const eventReference = firestore.doc(
+      `webhookEvents/${safeEventId("stripe_connect", event.id)}`,
+    );
+    if ((await eventReference.get()).exists) {
+      response.status(200).json({ received: true, duplicate: true });
+      return;
+    }
+    const accountId = event.account ?? "";
+    const connections = accountId
+      ? await firestore.collection("integrationConnections")
+        .where("provider", "==", "stripe")
+        .where("providerAccountId", "==", accountId)
+        .limit(1)
+        .get()
+      : null;
+    const connection = connections?.docs[0];
+    const tenantId = connection ? String(connection.get("tenantId")) : null;
+    const object = event.data.object;
+    const supported = [
+      "invoice.paid",
+      "invoice.payment_failed",
+      "invoice.voided",
+    ].includes(event.type);
+    const stripeInvoiceId = typeof object.id === "string" ? object.id : "";
+    const invoices = tenantId && supported && stripeInvoiceId
+      ? await firestore.collection("invoiceReferences")
+        .where("tenantId", "==", tenantId)
+        .where("providerInvoiceId", "==", stripeInvoiceId)
+        .limit(1)
+        .get()
+      : null;
+    const invoice = invoices?.docs[0];
+    await firestore.runTransaction(async (transaction) => {
+      if ((await transaction.get(eventReference)).exists) return;
+      const now = new Date().toISOString();
+      transaction.create(eventReference, {
+        tenantId,
+        provider: "stripe",
+        providerEventId: event.id,
+        payload: { type: event.type, accountId, stripeInvoiceId },
+        status: invoice ? "processed" : "ignored",
+        createdAt: now,
+      });
+      if (!invoice) return;
+      const amountRemaining = Number(object.amount_remaining ?? 0);
+      const amountPaid = Number(object.amount_paid ?? 0);
+      const status = event.type === "invoice.voided"
+        ? "voided"
+        : amountRemaining === 0
+          ? "paid"
+          : amountPaid > 0
+            ? "partially_paid"
+            : "sent";
+      transaction.update(invoice.ref, {
+        status,
+        balanceCents: Math.max(0, amountRemaining),
+        lastProviderEventId: event.id,
+        lastSyncedAt: now,
+        updatedAt: now,
+        updatedBy: "stripe-connect-webhook",
+      });
+    });
+    response.status(200).json({ received: true });
   },
 );

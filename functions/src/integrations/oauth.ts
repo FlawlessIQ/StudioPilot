@@ -15,6 +15,7 @@ const providerSchema = z.enum([
   "docusign",
   "dropbox_sign",
   "quickbooks",
+  "stripe",
 ]);
 type Provider = z.infer<typeof providerSchema>;
 const startSchema = z.object({
@@ -36,7 +37,15 @@ const environment = (provider: Provider, key: "CLIENT_ID" | "CLIENT_SECRET") =>
   ] ?? "";
 const config = (provider: Provider): Config => {
   const clientId = environment(provider, "CLIENT_ID");
-  const clientSecret = environment(provider, "CLIENT_SECRET");
+  // Stripe Connect's token exchange takes the platform's own secret API
+  // key as "client_secret" — Stripe doesn't issue a separate OAuth client
+  // secret the way other providers do — so this reuses STRIPE_SECRET_KEY
+  // (already configured for saas/stripe.ts's subscription billing) rather
+  // than asking for a redundant STRIPE_CLIENT_SECRET.
+  const clientSecret =
+    provider === "stripe"
+      ? (process.env.STRIPE_SECRET_KEY ?? "")
+      : environment(provider, "CLIENT_SECRET");
   if (!clientId || !clientSecret)
     throw new Error("OAUTH_PROVIDER_NOT_CONFIGURED");
   const configs: Record<Provider, Omit<Config, "clientId" | "clientSecret">> = {
@@ -94,6 +103,20 @@ const config = (provider: Provider): Config => {
       authorizeUrl: "https://appcenter.intuit.com/connect/oauth2",
       tokenUrl: "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer",
       scopes: ["com.intuit.quickbooks.accounting"],
+      extra: {},
+    },
+    // Stripe Connect (Standard) OAuth — distinct from the platform's own
+    // STRIPE_SECRET_KEY/STRIPE_WEBHOOK_SECRET in saas/stripe.ts, which bill
+    // the studio for its StudioCue subscription. This is per-tenant: each
+    // studio connects its own Stripe account so client retainer payments
+    // land directly with the studio, the same "studio owns the account"
+    // shape as QuickBooks. Connect's token endpoint wants client_secret as
+    // a body param (not Basic auth) and no redirect_uri — both handled as
+    // special cases in exchange() below, alongside google_calendar's.
+    stripe: {
+      authorizeUrl: "https://connect.stripe.com/oauth/authorize",
+      tokenUrl: "https://connect.stripe.com/oauth/token",
+      scopes: ["read_write"],
       extra: {},
     },
   };
@@ -168,16 +191,15 @@ async function exchange(
   redirectUri: string,
 ) {
   const current = config(provider);
-  const params = new URLSearchParams({
-    grant_type: "authorization_code",
-    code,
-    redirect_uri: redirectUri,
-  });
+  const params = new URLSearchParams({ grant_type: "authorization_code", code });
+  // Stripe Connect's token endpoint doesn't take redirect_uri — the
+  // redirect is validated against the Connect app's own settings instead.
+  if (provider !== "stripe") params.set("redirect_uri", redirectUri);
   if (verifier) params.set("code_verifier", verifier);
   const headers: Record<string, string> = {
     "content-type": "application/x-www-form-urlencoded",
   };
-  if (provider === "google_calendar") {
+  if (provider === "google_calendar" || provider === "stripe") {
     params.set("client_id", current.clientId);
     params.set("client_secret", current.clientSecret);
   } else headers.authorization = basic(current.clientId, current.clientSecret);
@@ -204,6 +226,7 @@ export const integrationOAuth = onRequest(
       "DROPBOX_SIGN_CLIENT_SECRET",
       "QUICKBOOKS_CLIENT_ID",
       "QUICKBOOKS_CLIENT_SECRET",
+      "STRIPE_SECRET_KEY",
     ],
   },
   async (request, response) => {
@@ -340,11 +363,20 @@ export const integrationOAuth = onRequest(
           : null,
         String(saved.get("redirectUri")),
       );
-      const expiresIn = Number(token.expires_in ?? 3600);
+      // Stripe Connect (Standard) access tokens don't expire and aren't
+      // issued with a refresh_token — token.expires_in is genuinely absent,
+      // not just omitted. Defaulting to a 1-hour expiry there (as the other
+      // providers correctly do when their response omits it) would make
+      // refreshCredential() demand reauthorization every hour with no
+      // refresh_token to actually do it with.
+      const expiresAt =
+        provider === "stripe"
+          ? null
+          : new Date(Date.now() + Number(token.expires_in ?? 3600) * 1000).toISOString();
       const credential: Record<string, unknown> = {
         accessToken: token.access_token,
         refreshToken: token.refresh_token ?? null,
-        expiresAt: new Date(Date.now() + expiresIn * 1000).toISOString(),
+        expiresAt,
       };
       let accountId = String(request.query.realmId ?? "");
       let displayName: string = provider;
@@ -382,6 +414,12 @@ export const integrationOAuth = onRequest(
         displayName = body.account?.email_address ?? provider;
       } else if (provider === "quickbooks") {
         credential.realmId = accountId;
+      } else if (provider === "stripe") {
+        // Connect returns the connected account id directly in the token
+        // response — no separate userinfo call needed.
+        accountId = String(token.stripe_user_id ?? "");
+        credential.accountId = accountId;
+        displayName = accountId;
       }
       const credentialReference = await saveCredential(
         tenantId,

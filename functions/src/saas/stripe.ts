@@ -93,7 +93,7 @@ const normalizeStatus = (
     : value === "canceled" || value === "cancelled"
       ? "cancelled"
       : "incomplete";
-const signatureValid = (raw: string, header: string, secret: string) => {
+export const signatureValid = (raw: string, header: string, secret: string) => {
   const parts = Object.fromEntries(
     header.split(",").map((part) => part.split("=", 2)),
   );

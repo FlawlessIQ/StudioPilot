@@ -12,11 +12,31 @@ import {
   GET as getQuickBooks,
   POST as postQuickBooks,
 } from "../app/api/webhooks/quickbooks/route.ts";
+import {
+  GET as getStripeConnect,
+  POST as postStripeConnect,
+} from "../app/api/webhooks/stripe-connect/route.ts";
 
 test("provider webhook relays reject non-POST requests", () => {
   assert.equal(getDocusign().status, 405);
   assert.equal(getDropboxSign().status, 405);
   assert.equal(getQuickBooks().status, 405);
+  assert.equal(getStripeConnect().status, 405);
+});
+
+test("Stripe Connect webhook relay requires its signature header", async () => {
+  const response = await postStripeConnect(
+    new Request("https://studiohub.test/api/webhooks/stripe-connect", {
+      method: "POST",
+      body: "{}",
+      headers: { "content-type": "application/json" },
+    }),
+  );
+
+  assert.equal(response.status, 401);
+  assert.deepEqual(await response.json(), {
+    error: "STRIPE_CONNECT_SIGNATURE_REQUIRED",
+  });
 });
 
 test("Dropbox Sign webhook relay requires its signature header", async () => {

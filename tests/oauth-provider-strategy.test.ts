@@ -14,4 +14,6 @@ test("Google Calendar and Zoom retain PKCE protection", () => {
 test("other confidential provider adapters do not opt into PKCE implicitly", () => {
   assert.equal(providerUsesPkce("quickbooks"), false);
   assert.equal(providerUsesPkce("docusign"), false);
+  assert.equal(providerUsesPkce("dropbox_sign"), false);
+  assert.equal(providerUsesPkce("stripe"), false);
 });

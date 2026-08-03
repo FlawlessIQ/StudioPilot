@@ -3,7 +3,7 @@ import { getFirestore,type DocumentSnapshot } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { buildIntegrationDiagnostics } from "../integrations/diagnostics.js";
 
-export type Provider="google_calendar"|"zoom"|"dropbox"|"docusign"|"dropbox_sign"|"quickbooks";
+export type Provider="google_calendar"|"zoom"|"dropbox"|"docusign"|"dropbox_sign"|"quickbooks"|"stripe";
 type Credential={
   accessToken:string;
   refreshToken?:string;
@@ -46,6 +46,11 @@ const tokenUrl=(provider:Provider)=>({
   docusign:"https://account-d.docusign.com/oauth/token",
   dropbox_sign:"https://app.hellosign.com/oauth/token",
   quickbooks:"https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer",
+  // Unreachable in practice: Stripe Connect credentials are stored with no
+  // expiresAt (see oauth.ts), so refreshCredential's early-return means
+  // this is never actually called for stripe. Present only so the map
+  // stays exhaustive over Provider.
+  stripe:"https://connect.stripe.com/oauth/token",
 })[provider];
 async function refreshCredential(reference:string,provider:Provider,current:Credential):Promise<Credential>{
   if(!current.expiresAt||new Date(current.expiresAt).valueOf()>Date.now()+5*60_000)return current;
@@ -153,6 +158,7 @@ export async function checkProviderConnection(tenantId:string,provider:Provider)
     dropbox:()=>fetch("https://api.dropboxapi.com/2/users/get_current_account",{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`}}),
     docusign:()=>fetch("https://account-d.docusign.com/oauth/userinfo",{headers:{authorization:`Bearer ${credential.accessToken}`}}),
     dropbox_sign:()=>fetch("https://api.hellosign.com/v3/account",{headers:{authorization:`Bearer ${credential.accessToken}`}}),
+    stripe:()=>fetch("https://api.stripe.com/v1/account",{headers:{authorization:`Bearer ${credential.accessToken}`}}),
     quickbooks:()=>fetch(`https://quickbooks.api.intuit.com/v3/company/${encodeURIComponent(credential.realmId??String(current.document.get("providerAccountId")??""))}/companyinfo/${encodeURIComponent(credential.realmId??String(current.document.get("providerAccountId")??""))}?minorversion=75`,{headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json"}}),
   };
   const response=await probes[provider]();
@@ -227,6 +233,61 @@ async function quickBooksCustomerId(
   await contact.ref.update({providerIds:{...asRecord(contact.get("providerIds")),quickbooksCustomerId:customerId},updatedAt:new Date().toISOString(),updatedBy:"quickbooks-worker"});
   return customerId;
 }
+
+// Stripe's REST API takes application/x-www-form-urlencoded bodies (not
+// JSON, unlike every other provider in this file) and has no single
+// "create invoice" call — an invoice is an empty shell that draws in
+// invoice items, then gets finalized to become payable and get a
+// hosted_invoice_url. Auth is the connected account's own OAuth
+// access_token as a Bearer credential (Standard Connect accounts don't
+// need a separate Stripe-Account header the way platform-key calls do).
+async function stripeCustomerId(
+  tenantId:string,
+  projectId:string,
+  invoice:DocumentSnapshot,
+  credential:Credential,
+  idempotencyKey:string,
+):Promise<string>{
+  const existing=text(invoice.get("providerCustomerId"));
+  if(existing&&!existing.startsWith("pending_"))return existing;
+  const db=getFirestore();
+  const project=await db.doc(`projects/${projectId}`).get();
+  const contactIds=Array.isArray(project.get("clientContactIds"))?project.get("clientContactIds") as unknown[]:[];
+  const contactId=contactIds.find((value):value is string=>typeof value==="string");
+  if(!contactId)throw new Error("STRIPE_CUSTOMER_CONTACT_MISSING");
+  const contact=await db.doc(`contacts/${contactId}`).get();
+  if(!contact.exists||contact.get("tenantId")!==tenantId)throw new Error("STRIPE_CUSTOMER_CONTACT_MISSING");
+  const stored=text(asRecord(contact.get("providerIds")).stripeCustomerId);
+  if(stored)return stored;
+  const email=text(contact.get("email"));
+  const displayName=text(contact.get("displayName"))||email;
+  if(!email||!displayName)throw new Error("STRIPE_CUSTOMER_DETAILS_MISSING");
+  const found=await providerJson(`https://api.stripe.com/v1/customers?email=${encodeURIComponent(email)}&limit=1`,{headers:{authorization:`Bearer ${credential.accessToken}`}},"STRIPE_CUSTOMER_SEARCH_FAILED");
+  const existingCustomers=Array.isArray(found.data)?found.data as Array<Json>:[];
+  let customerId=text(asRecord(existingCustomers[0]).id);
+  if(!customerId){
+    const created=await providerJson("https://api.stripe.com/v1/customers",{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/x-www-form-urlencoded","idempotency-key":`${idempotencyKey}-customer`},body:new URLSearchParams({email,name:displayName})},"STRIPE_CUSTOMER_CREATE_FAILED");
+    customerId=text(created.id);
+  }
+  if(!customerId)throw new Error("STRIPE_CUSTOMER_ID_MISSING");
+  await contact.ref.update({providerIds:{...asRecord(contact.get("providerIds")),stripeCustomerId:customerId},updatedAt:new Date().toISOString(),updatedBy:"stripe-worker"});
+  return customerId;
+}
+
+export async function createStripeInvoice(job:DocumentSnapshot){const db=getFirestore();const invoiceId=String(job.get("invoiceId"));const reference=db.doc(`invoiceReferences/${invoiceId}`);const invoice=await reference.get();if(!invoice.exists)throw new Error("INVOICE_NOT_FOUND");
+  if(invoice.get("providerState")==="completed")return{invoiceId,providerInvoiceId:invoice.get("providerInvoiceId")};
+  const tenantId=String(job.get("tenantId"));const idempotencyKey=String(job.get("idempotencyKey")??job.id);const provider=await connection(tenantId,"stripe");let providerInvoiceId:string;let hostedUrl:string|null;let providerCustomerId=text(invoice.get("providerCustomerId"));
+  if(provider.mock){providerInvoiceId=mockId("stripe_invoice",job.id);providerCustomerId=providerCustomerId.startsWith("pending_")?mockId("stripe_customer",String(invoice.get("projectId"))):providerCustomerId;hostedUrl=`https://invoice.example.test/${providerInvoiceId}`}
+  else{
+    const credential=provider.credential;if(!credential)throw new Error("STRIPE_ACCOUNT_MISSING");
+    providerCustomerId=await stripeCustomerId(tenantId,String(invoice.get("projectId")),invoice,credential,idempotencyKey);
+    await providerJson("https://api.stripe.com/v1/invoiceitems",{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/x-www-form-urlencoded","idempotency-key":`${idempotencyKey}-item`},body:new URLSearchParams({customer:providerCustomerId,amount:String(invoice.get("amountCents")),currency:String(invoice.get("currency")).toLowerCase(),description:`StudioCue ${String(invoice.get("kind"))} — ${invoiceId}`})},"STRIPE_INVOICE_ITEM_FAILED");
+    const dueDate=Math.floor(new Date(`${String(invoice.get("dueDate"))}T00:00:00Z`).valueOf()/1000);
+    const created=await providerJson("https://api.stripe.com/v1/invoices",{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/x-www-form-urlencoded","idempotency-key":idempotencyKey},body:new URLSearchParams({customer:providerCustomerId,collection_method:"send_invoice",due_date:String(dueDate),"metadata[tenantId]":tenantId,"metadata[invoiceId]":invoiceId})},"STRIPE_INVOICE_CREATE_FAILED");
+    const finalized=await providerJson(`https://api.stripe.com/v1/invoices/${encodeURIComponent(text(created.id))}/finalize`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/x-www-form-urlencoded"}},"STRIPE_INVOICE_FINALIZE_FAILED");
+    providerInvoiceId=text(finalized.id);hostedUrl=text(finalized.hosted_invoice_url)||null;
+  }
+  if(!providerInvoiceId)throw new Error("STRIPE_INVOICE_ID_MISSING");const now=new Date().toISOString();await reference.update({providerInvoiceId,providerCustomerId,hostedUrl,status:"sent",providerState:"completed",lastSyncedAt:now,updatedAt:now,updatedBy:"provider-worker"});return{invoiceId,providerInvoiceId}}
 
 export async function createQuickBooksInvoice(job:DocumentSnapshot){const db=getFirestore();const invoiceId=String(job.get("invoiceId"));const reference=db.doc(`invoiceReferences/${invoiceId}`);const invoice=await reference.get();if(!invoice.exists)throw new Error("INVOICE_NOT_FOUND");
   if(invoice.get("providerState")==="completed")return{invoiceId,providerInvoiceId:invoice.get("providerInvoiceId")};
