@@ -317,12 +317,18 @@
   color: #ddefe3;
 }
 
-/* Template-import hero — purple → emerald (heading is already white) */
-.ds-root .template-import-hero {
+/* AI-feature surfaces — purple → emerald, matching the command + ai-queue
+   heroes. Headings/copy on these already set color:#fff. */
+.ds-root .template-import-hero,
+.ds-root .crew-cascade-hero,
+.ds-root .studio-import-review-summary {
   background:
     radial-gradient(520px 300px at 86% -8%, rgba(176, 138, 82, 0.22), transparent 60%),
     radial-gradient(560px 340px at 60% 122%, rgba(255, 255, 255, 0.07), transparent 60%),
     linear-gradient(124deg, #0f8a5e 0%, #0a5c40 62%, #063826 100%);
+}
+.ds-root .crew-cascade-hero > svg {
+  color: #ddefe3;
 }
 
 /* Flush panels — .panel has no base padding, so any modifier class that
