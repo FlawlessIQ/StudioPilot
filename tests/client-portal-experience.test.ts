@@ -36,6 +36,21 @@ test("proposal stage points to a dedicated decision experience", () => {
   assert.equal(experience.nextClientAction.actionLabel, "Review proposal");
 });
 
+test("proposal stage without a shared proposal does not nag the client to review", () => {
+  // Project has entered PROPOSAL but the studio has not shared a proposal yet
+  // (availability.proposal is false). The client must not be told to "review"
+  // a proposal the proposal page reports as still being prepared.
+  const experience = buildClientPortalExperience({
+    state: "PROPOSAL",
+    availability: {},
+    checkpoints: [],
+  });
+
+  assert.equal(experience.nextClientAction.responsibility, "studio");
+  assert.match(experience.nextClientAction.name, /preparing/i);
+  assert.notEqual(experience.nextClientAction.actionLabel, "Review proposal");
+});
+
 test("accepted proposal unlocks the preserved package and contract stage", () => {
   const experience = buildClientPortalExperience({
     state: "CONTRACT_PENDING",

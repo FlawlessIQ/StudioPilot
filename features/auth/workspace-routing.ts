@@ -29,8 +29,15 @@ export function destinationAfterSignIn({
     return "/auth/workspaces";
   if (platformAdmin) return "/platform-admin";
   if (memberships.length === 0) return "/auth/onboarding";
-  const first = memberships[0];
-  if (first?.role === "client") return "/client";
-  if (first?.role === "subcontractor") return "/crew";
+  // A user may hold several memberships at once — e.g. a studio owner who is
+  // also a client on their own test project. Route by role precedence
+  // (operator > crew > client) rather than off whichever membership happens to
+  // be first in the array, which is non-deterministic and would bounce such a
+  // user to the wrong workspace.
+  if (memberships.some(isStudioMembership)) return "/studio";
+  if (memberships.some((membership) => membership.role === "subcontractor"))
+    return "/crew";
+  if (memberships.some((membership) => membership.role === "client"))
+    return "/client";
   return "/studio";
 }

@@ -38,3 +38,27 @@ test("tenant roles route to their constrained portal", () => {
     "/crew",
   );
 });
+
+test("a studio operator who is also a client lands in the studio workspace", () => {
+  // Order must not matter: a studio membership always wins over portal roles.
+  assert.equal(
+    destinationAfterSignIn({
+      platformAdmin: false,
+      memberships: [
+        { tenantId: "tenant-a", role: "client" },
+        { tenantId: "tenant-b", role: "studio_owner" },
+      ],
+    }),
+    "/studio",
+  );
+  assert.equal(
+    destinationAfterSignIn({
+      platformAdmin: false,
+      memberships: [
+        { tenantId: "tenant-b", role: "studio_owner" },
+        { tenantId: "tenant-a", role: "client" },
+      ],
+    }),
+    "/studio",
+  );
+});
