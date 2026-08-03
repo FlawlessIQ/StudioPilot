@@ -15,7 +15,6 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { Logo } from "@/components/brand/logo";
 import { PlatformWorkspaceSwitcher } from "@/components/platform/workspace-switcher";
 import { AuthBoundary, SignOutButton } from "@/features/auth/auth-boundary";
 
@@ -42,61 +41,80 @@ export function AdminShell({
   const [navigationOpen, setNavigationOpen] = useState(false);
   return (
     <AuthBoundary area="platform">
-      <div className={navigationOpen ? "admin-frame admin-navigation-open" : "admin-frame"}>
-        <button
-          aria-label="Close navigation"
-          className="admin-navigation-backdrop"
-          onClick={() => setNavigationOpen(false)}
-          type="button"
-        />
-        <aside className={navigationOpen ? "admin-sidebar admin-sidebar-open" : "admin-sidebar"} id="admin-navigation">
-          <div className="admin-sidebar-brand">
-            <Link href="/platform-admin" onClick={() => setNavigationOpen(false)}>
-              <Logo />
-            </Link>
-            <button aria-label="Close navigation" className="admin-sidebar-close" onClick={() => setNavigationOpen(false)} type="button">
-              <X size={19} />
-            </button>
-          </div>
-          <span className="admin-label">Platform administration</span>
-          <PlatformWorkspaceSwitcher />
-          <nav aria-label="Platform administration navigation">
-            {nav.map(([label, href, Icon]) => (
-              <Link
-                className={label === active ? "active" : ""}
-                href={href}
-                key={label}
-                onClick={() => setNavigationOpen(false)}
-              >
-                <Icon size={17} />
-                {label}
+      <div className="ds-root" data-ds-theme="emerald">
+        <div className={navigationOpen ? "ds-shell ds-nav-open" : "ds-shell"}>
+          <button
+            aria-label="Close navigation"
+            className="ds-nav-backdrop"
+            onClick={() => setNavigationOpen(false)}
+            type="button"
+          />
+          <aside className="ds-sidebar" id="admin-navigation">
+            <div className="ds-brand-row">
+              <Link className="ds-brand" href="/platform-admin" onClick={() => setNavigationOpen(false)}>
+                <span className="ds-brand-mark">S</span>
+                <span className="ds-brand-word">
+                  Studio<b>Cue</b>
+                </span>
               </Link>
-            ))}
-          </nav>
-          <div className="admin-access-note">
-            <ScrollText />
-            <div>
-              <strong>Support access is audited</strong>
-              <small>Reasoned, time-bounded, revocable.</small>
+              <button
+                aria-label="Close navigation"
+                className="ds-sidebar-close"
+                onClick={() => setNavigationOpen(false)}
+                type="button"
+              >
+                <X size={19} />
+              </button>
             </div>
+
+            <PlatformWorkspaceSwitcher />
+
+            <nav className="ds-nav" aria-label="Platform administration navigation">
+              <div className="ds-nav-section">
+                <span className="ds-nav-label">Platform administration</span>
+                {nav.map(([label, href, Icon]) => (
+                  <Link
+                    className="ds-nav-item"
+                    data-active={label === active ? "true" : "false"}
+                    href={href}
+                    key={label}
+                    onClick={() => setNavigationOpen(false)}
+                  >
+                    <Icon size={17} strokeWidth={1.8} />
+                    <span>{label}</span>
+                  </Link>
+                ))}
+              </div>
+            </nav>
+
+            <div className="ds-crew-privacy">
+              <ScrollText size={16} />
+              <div>
+                <strong>Support access is audited</strong>
+                <small>Reasoned, time-bounded, revocable.</small>
+              </div>
+            </div>
+          </aside>
+
+          <div className="ds-main">
+            <header className="ds-topbar">
+              <button
+                aria-controls="admin-navigation"
+                aria-expanded={navigationOpen}
+                aria-label="Open navigation"
+                className="ds-mobile-menu"
+                onClick={() => setNavigationOpen(true)}
+                type="button"
+              >
+                <Menu size={20} />
+              </button>
+              <span className="ds-crumb" style={{ marginRight: "auto" }}>
+                <b>Platform ·</b> {active}
+              </span>
+              <SignOutButton className="ds-btn ds-btn-ghost ds-btn-sm" />
+            </header>
+            <main className="ds-content">{children}</main>
           </div>
-        </aside>
-        <div className="admin-main">
-          <header className="admin-topbar">
-            <button
-              aria-controls="admin-navigation"
-              aria-expanded={navigationOpen}
-              aria-label="Open navigation"
-              className="mobile-menu"
-              onClick={() => setNavigationOpen(true)}
-              type="button"
-            >
-              <Menu size={20} />
-            </button>
-            <strong>{active}</strong>
-            <SignOutButton />
-          </header>
-          <main className="admin-content">{children}</main>
         </div>
       </div>
     </AuthBoundary>
