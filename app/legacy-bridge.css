@@ -378,3 +378,86 @@
 .ds-root.auth-loading .auth-loading-spinner {
   border-top-color: var(--ds-claret);
 }
+
+/* Integrations hero — flat charcoal, missed by the earlier hero sweep
+   because it's a solid color rather than a purple gradient. Same emerald
+   treatment as the other AI-feature heroes. */
+.ds-root .integration-overview {
+  background:
+    radial-gradient(520px 300px at 84% -10%, rgba(176, 138, 82, 0.2), transparent 60%),
+    radial-gradient(560px 340px at 58% 122%, rgba(255, 255, 255, 0.07), transparent 60%),
+    linear-gradient(122deg, #0f8a5e 0%, #0a5c40 62%, #063826 100%);
+}
+
+/* Capability routing — "which connected provider handles this job" */
+.ds-root .integration-routing {
+  background: var(--ds-paper);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-r-lg);
+  box-shadow: var(--ds-shadow-sm);
+  padding: 24px;
+  display: grid;
+  gap: 16px;
+}
+.ds-root .integration-routing header h2 {
+  font-family: var(--ds-serif);
+  font-weight: 560;
+  font-size: 19px;
+  letter-spacing: -0.01em;
+  margin: 0 0 4px;
+}
+.ds-root .integration-routing header p {
+  color: var(--ds-muted);
+  font-size: 13.5px;
+  margin: 0;
+}
+.ds-root .integration-routing-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.ds-root .integration-routing-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 20px;
+  padding: 14px 2px;
+  border-top: 1px solid var(--ds-line);
+}
+.ds-root .integration-routing-row:first-child {
+  border-top: 0;
+}
+.ds-root .integration-routing-copy {
+  display: grid;
+  gap: 3px;
+}
+.ds-root .integration-routing-copy strong {
+  font-size: 14px;
+  font-weight: 620;
+}
+.ds-root .integration-routing-copy small {
+  color: var(--ds-muted);
+  font-size: 12.5px;
+}
+.ds-root .integration-routing-row select {
+  min-width: 200px;
+  font-size: 13px;
+}
+.ds-root .integration-routing-row select:disabled {
+  opacity: 0.6;
+}
+.ds-root .integration-routing-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--ds-muted);
+  white-space: nowrap;
+}
+.ds-root .integration-routing-status svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}

@@ -18,23 +18,42 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive, providersAreLive } from "@/lib/runtime-mode";
 import { activeMembership } from "@/lib/firebase/active-membership";
+import { setCapabilityProvider } from "@/lib/integrations/command-client";
+import {
+  eligibleProvidersFor,
+  resolveActiveProvider,
+  type CapabilitySelections,
+} from "@/features/integrations/routing";
+import type {
+  IntegrationCapability,
+  IntegrationProvider,
+} from "@/features/integrations/schema";
 
-type Provider =
-  | "quickbooks"
-  | "google_calendar"
-  | "docusign"
-  | "dropbox"
-  | "zoom";
+// The connect/disconnect UI below only has cards for the providers a studio
+// can currently OAuth-connect (definitions, further down). The capability
+// routing section can reference any provider in the full catalog — e.g. once
+// connected, dropbox_sign or stripe become eligible there too — so it uses
+// the full schema type rather than a narrower local one.
+type Provider = IntegrationProvider;
+
+const connectionStatuses = ["connected", "degraded", "disconnected", "error"] as const;
+type ConnectionStatus = (typeof connectionStatuses)[number];
+function asConnectionStatus(value: unknown): ConnectionStatus {
+  return connectionStatuses.includes(value as ConnectionStatus)
+    ? (value as ConnectionStatus)
+    : "error";
+}
 
 type Connection = {
   provider: Provider;
-  status: string;
+  status: ConnectionStatus;
+  archivedAt: string | null;
   mockMode: boolean;
   displayName: string | null;
   lastHealthCheckAt: string | null;
@@ -50,6 +69,31 @@ type Connection = {
     lastReconciledAt?: string | null;
     recommendedAction?: string;
   } | null;
+};
+
+const capabilityCopy: Readonly<
+  Record<IntegrationCapability, { label: string; description: string }>
+> = {
+  signing: {
+    label: "Document signing",
+    description: "Which connected provider sends contracts for signature.",
+  },
+  invoicing: {
+    label: "Invoicing & payment",
+    description: "Which connected provider creates and tracks invoices.",
+  },
+  calendar: {
+    label: "Calendar",
+    description: "Which connected calendar governs studio availability.",
+  },
+  meetings: {
+    label: "Video meetings",
+    description: "Which connected provider creates consultation meeting links.",
+  },
+  storage: {
+    label: "File storage",
+    description: "Which connected provider holds project folders and documents.",
+  },
 };
 
 type Notice = {
@@ -165,9 +209,12 @@ function relativeCheck(value: string | null): string {
 
 export function IntegrationManager() {
   const [connections, setConnections] = useState<Connection[]>([]);
+  const [selections, setSelections] = useState<CapabilitySelections>({});
   const [notice, setNotice] = useState<Notice | null>(null);
   const [ready, setReady] = useState(false);
   const [busyProvider, setBusyProvider] = useState<Provider | null>(null);
+  const [savingCapability, setSavingCapability] =
+    useState<IntegrationCapability | null>(null);
 
   const load = useCallback(async () => {
     if (!dataIsLive) {
@@ -181,18 +228,23 @@ export function IntegrationManager() {
       const membership = await activeMembership(firestore, user.uid);
       const tenantId = membership.data().tenantId;
       if (typeof tenantId !== "string") return;
-      const snapshot = await getDocs(
-        query(
-          collection(firestore, "integrationConnections"),
-          where("tenantId", "==", tenantId),
+      const [snapshot, routingDocument] = await Promise.all([
+        getDocs(
+          query(
+            collection(firestore, "integrationConnections"),
+            where("tenantId", "==", tenantId),
+          ),
         ),
-      );
+        getDoc(doc(firestore, "integrationRouting", tenantId)),
+      ]);
       setConnections(
         snapshot.docs.map((document) => {
           const value = document.data();
           return {
             provider: value.provider as Provider,
-            status: String(value.status),
+            status: asConnectionStatus(value.status),
+            archivedAt:
+              typeof value.archivedAt === "string" ? value.archivedAt : null,
             mockMode: Boolean(value.mockMode),
             displayName:
               typeof value.displayName === "string" ? value.displayName : null,
@@ -213,6 +265,12 @@ export function IntegrationManager() {
                 : null,
           };
         }),
+      );
+      const routingData = routingDocument.data();
+      setSelections(
+        routingData && typeof routingData.selections === "object"
+          ? (routingData.selections as CapabilitySelections)
+          : {},
       );
     } catch {
       setNotice({
@@ -254,6 +312,54 @@ export function IntegrationManager() {
       ).length,
     [connections],
   );
+
+  const capabilityRows = useMemo(
+    () =>
+      (Object.keys(capabilityCopy) as IntegrationCapability[]).map(
+        (capability) => {
+          const eligible = eligibleProvidersFor(capability, connections);
+          const resolution = resolveActiveProvider({
+            capability,
+            routing: { selections },
+            connections,
+          });
+          return { capability, eligible, resolution };
+        },
+      ),
+    [connections, selections],
+  );
+
+  async function changeCapabilityProvider(
+    capability: IntegrationCapability,
+    provider: Provider | "",
+  ) {
+    const nextProvider = provider === "" ? null : provider;
+    setSavingCapability(capability);
+    const previous = selections;
+    setSelections((current) => ({ ...current, [capability]: nextProvider }));
+    try {
+      await setCapabilityProvider(capability, nextProvider);
+      setNotice({
+        tone: "success",
+        message: `${capabilityCopy[capability].label} now uses ${
+          nextProvider
+            ? definitions.find((definition) => definition.provider === nextProvider)?.label ?? nextProvider
+            : "automatic selection"
+        }.`,
+      });
+    } catch (caught: unknown) {
+      setSelections(previous);
+      setNotice({
+        tone: "danger",
+        message:
+          caught instanceof Error
+            ? readableError(caught.message)
+            : "Could not change the connected provider.",
+      });
+    } finally {
+      setSavingCapability(null);
+    }
+  }
 
   async function tenantContext() {
     const { auth, firestore } = getFirebaseClient();
@@ -585,6 +691,73 @@ export function IntegrationManager() {
             </article>
           );
         })}
+      </section>
+
+      <section className="integration-routing">
+        <header>
+          <h2>Capability routing</h2>
+          <p>
+            When more than one connected provider can do a job, choose which
+            one StudioCue uses.
+          </p>
+        </header>
+        <ul className="integration-routing-list">
+          {capabilityRows.map(({ capability, eligible, resolution }) => {
+            const copy = capabilityCopy[capability];
+            const saving = savingCapability === capability;
+            const selectedValue =
+              resolution.outcome === "resolved" &&
+              eligible.length > 1
+                ? resolution.provider
+                : "";
+            return (
+              <li key={capability} className="integration-routing-row">
+                <span className="integration-routing-copy">
+                  <strong>{copy.label}</strong>
+                  <small>{copy.description}</small>
+                </span>
+                {eligible.length > 1 ? (
+                  <select
+                    value={selectedValue}
+                    disabled={saving}
+                    onChange={(event) =>
+                      void changeCapabilityProvider(
+                        capability,
+                        event.target.value as Provider | "",
+                      )
+                    }
+                  >
+                    <option value="">Choose a provider…</option>
+                    {eligible.map((provider) => (
+                      <option key={provider} value={provider}>
+                        {definitions.find(
+                          (definition) => definition.provider === provider,
+                        )?.label ?? provider}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="integration-routing-status">
+                    {resolution.outcome === "resolved" ? (
+                      <>
+                        <CheckCircle2 />
+                        {definitions.find(
+                          (definition) =>
+                            definition.provider === resolution.provider,
+                        )?.label ?? resolution.provider}
+                      </>
+                    ) : (
+                      <>
+                        <TriangleAlert />
+                        Connect a provider to enable this
+                      </>
+                    )}
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       </section>
     </div>
   );

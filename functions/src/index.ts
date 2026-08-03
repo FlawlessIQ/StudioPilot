@@ -47,6 +47,7 @@ export {
 export { fileSafetyOnFinalize } from "./operations/file-safety.js";
 export { studioImportCommand } from "./studio-import/commands.js";
 export { integrationOAuth } from "./integrations/oauth.js";
+export { integrationsCommand } from "./integrations/commands.js";
 export {
   tenantDataCommand,
   tenantExportDownload,

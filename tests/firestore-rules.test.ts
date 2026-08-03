@@ -169,6 +169,10 @@ test(
           tenantId: "tenant-a",
           provider: "quickbooks",
         });
+        await setDoc(doc(adminDb, "integrationRouting/tenant-a"), {
+          tenantId: "tenant-a",
+          selections: { signing: "docusign" },
+        });
         await setDoc(doc(adminDb, "questionnaireResponses/questionnaire-a"), { tenantId: "tenant-a", projectId: "project-a" });
         await setDoc(doc(adminDb, "vendors/vendor-a"), { tenantId: "tenant-a", projectIds: ["project-a"] });
         await setDoc(doc(adminDb, "insuranceRequests/coi-a"), { tenantId: "tenant-a", projectId: "project-a" });
@@ -282,6 +286,7 @@ test(
       await assertFails(getDoc(doc(clientDb, "documents/document-client")));
       await assertFails(getDoc(doc(clientDb, "documents/document-studio")));
       await assertFails(getDoc(doc(clientDb, "integrationConnections/connection-a")));
+      await assertFails(getDoc(doc(clientDb, "integrationRouting/tenant-a")));
       await assertSucceeds(getDoc(doc(clientDb, "consultations/consultation-a")));
       await assertSucceeds(getDoc(doc(clientDb, "questionnaireResponses/questionnaire-a")));
       await assertSucceeds(getDoc(doc(clientDb, "schedules/schedule-a")));
@@ -324,6 +329,13 @@ test(
       await assertSucceeds(getDoc(doc(ownerDb, "workflowTemplates/workflow-a")));
       await assertSucceeds(getDoc(doc(ownerDb, "automationRuns/run-a")));
       await assertSucceeds(getDoc(doc(ownerDb, "integrationConnections/connection-a")));
+      await assertSucceeds(getDoc(doc(ownerDb, "integrationRouting/tenant-a")));
+      await assertFails(
+        setDoc(doc(ownerDb, "integrationRouting/tenant-a"), {
+          tenantId: "tenant-a",
+          selections: { signing: "dropbox_sign" },
+        }),
+      );
       await assertFails(
         updateDoc(doc(ownerDb, "contracts/contract-a"), { status: "completed" }),
       );
