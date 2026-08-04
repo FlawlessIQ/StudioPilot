@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Fraunces, Instrument_Sans } from "next/font/google";
 import { RegisterServiceWorker } from "@/components/pwa/register-service-worker";
 import { ErrorReporter } from "@/components/observability/error-reporter";
+import { SITE_URL } from "@/lib/site";
 import "./globals.css";
 import "./design-system.css";
 import "./legacy-bridge.css";
@@ -31,7 +32,7 @@ const instrumentSans = Instrument_Sans({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "StudioCue · Photography Operations OS",
     template: "%s · StudioCue",
