@@ -12543,6 +12543,150 @@ textarea:focus-visible {
   margin: 0;
 }
 
+.consultation-availability {
+  margin-bottom: 28px;
+}
+
+.consultation-availability form {
+  display: grid;
+  gap: 24px;
+  padding: 28px;
+}
+
+.consultation-availability-durations {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.consultation-availability-durations label {
+  display: grid;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.consultation-availability-durations input {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink);
+  padding: 0 14px;
+}
+
+.consultation-availability-days {
+  display: grid;
+  gap: 10px;
+}
+
+.consultation-availability-day {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.consultation-availability-day-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.consultation-availability-day-times {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.consultation-availability-day-times input {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 8px 10px;
+  font: inherit;
+  background: #fff;
+  color: var(--ink);
+}
+
+.consultation-availability-day-times input:disabled {
+  opacity: 0.5;
+}
+
+.consultation-availability-blocked {
+  display: grid;
+  gap: 10px;
+}
+
+.consultation-availability-blocked > label {
+  display: grid;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.consultation-availability-blocked-add {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-weight: 500;
+}
+
+.consultation-availability-blocked-add input {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 12px;
+}
+
+.consultation-availability-blocked-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.consultation-availability-blocked-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.82rem;
+  color: var(--ink);
+  background: #fff;
+}
+
+.consultation-availability-blocked-list button {
+  display: inline-flex;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+}
+
+@media (max-width: 760px) {
+  .consultation-availability-durations {
+    grid-template-columns: 1fr;
+  }
+  .consultation-availability-day {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+
 .email-preview {
   overflow: hidden;
   display: flex;

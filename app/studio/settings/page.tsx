@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/layout/app-shell";
+import { ConsultationAvailability } from "@/components/settings/consultation-availability";
 import { DataControls } from "@/components/settings/data-controls";
 import { EmailBranding } from "@/components/settings/email-branding";
 
@@ -16,6 +17,7 @@ export default function SettingsPage() {
           </div>
         </header>
         <EmailBranding />
+        <ConsultationAvailability />
         <DataControls />
       </div>
     </AppShell>

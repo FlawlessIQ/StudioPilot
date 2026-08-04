@@ -6,6 +6,7 @@ import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { consumeAiQuota } from "../saas/usage.js";
 import { resolveProviderForTenant } from "../integrations/capability-resolution.js";
+import { availabilityWindowSchema } from "./availability.js";
 
 const commandSchema = z.discriminatedUnion("type", [
   z.object({
@@ -73,6 +74,17 @@ const commandSchema = z.discriminatedUnion("type", [
       approvedRetainerExceptionId: z.string().nullable(),
     }),
   }),
+  z.object({
+    type: z.literal("setConsultationSettings"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      durationMinutes: z.number().int().min(15).max(120),
+      bufferMinutes: z.number().int().min(0).max(60),
+      windows: z.array(availabilityWindowSchema).max(21),
+      blockedDates: z.array(z.string().date()).max(200),
+    }),
+  }),
 ]);
 
 const permittedRoles = new Set([
@@ -130,7 +142,11 @@ export const bookingCommand = onRequest(
       const identity = await requireIdentity(request);
       const command = commandSchema.parse(request.body);
       const membership = await membershipFor(command.tenantId, identity.uid);
-      assertProjectAccess(membership, command.input.projectId);
+      // setConsultationSettings is tenant-wide (studio business hours, not
+      // scoped to a project) — it does the owner/admin check itself below.
+      if ("projectId" in command.input) {
+        assertProjectAccess(membership, command.input.projectId);
+      }
       const firestore = getFirestore();
       const executionId = stableId(
         "booking",
@@ -497,7 +513,7 @@ export const bookingCommand = onRequest(
           providerInvoiceId,
           providerState: mockMode ? "completed_mock" : "queued",
         };
-      } else {
+      } else if (command.type === "runBookingGate") {
         const projectBeforeGate = await firestore
           .doc(`projects/${command.input.projectId}`)
           .get();
@@ -691,6 +707,49 @@ export const bookingCommand = onRequest(
             blockers,
           };
         });
+      } else if (command.type === "setConsultationSettings") {
+        if (!["studio_owner", "studio_admin"].includes(String(membership.role))) {
+          throw new Error("FORBIDDEN");
+        }
+        const settingsReference = firestore.doc(
+          `consultationSettings/${command.tenantId}`,
+        );
+        const existing = await settingsReference.get();
+        const before = existing.exists ? existing.data() : null;
+        await settingsReference.set(
+          {
+            tenantId: command.tenantId,
+            durationMinutes: command.input.durationMinutes,
+            bufferMinutes: command.input.bufferMinutes,
+            windows: command.input.windows,
+            blockedDates: command.input.blockedDates,
+            createdAt: existing.exists ? existing.get("createdAt") : timestamp,
+            createdBy: existing.exists ? existing.get("createdBy") : identity.uid,
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          },
+          { merge: false },
+        );
+        await firestore.collection("auditEvents").doc().create({
+          tenantId: command.tenantId,
+          projectId: null,
+          actorId: identity.uid,
+          actorType: "user",
+          action: "consultation.settings_updated",
+          entityType: "consultationSettings",
+          entityId: command.tenantId,
+          timestamp,
+          before,
+          after: command.input,
+          ipAddress: request.ip ?? null,
+          userAgent: request.get("user-agent") ?? null,
+          correlationId: command.idempotencyKey,
+          automationRunId: null,
+          providerEventId: null,
+        });
+        result = { tenantId: command.tenantId, ...command.input };
+      } else {
+        throw new Error("UNKNOWN_COMMAND");
       }
 
       await executionReference.create({

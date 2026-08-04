@@ -4,6 +4,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
+import { generateConsultationSlots, getConsultationSettings } from "./availability.js";
 
 const commandSchema = z.discriminatedUnion("type", [
   z.object({
@@ -62,66 +63,32 @@ async function slotsFor(link: FirebaseFirestore.QueryDocumentSnapshot) {
   const tenantId = String(link.get("tenantId"));
   const tenant = await db.doc(`tenants/${tenantId}`).get();
   const timezone = String(tenant.get("timezone") ?? "America/New_York");
-  const settings =
-    typeof tenant.get("consultationSettings") === "object" &&
-    tenant.get("consultationSettings") !== null
-      ? (tenant.get("consultationSettings") as Record<string, unknown>)
-      : {};
-  const durationMinutes = Math.min(
-    120,
-    Math.max(15, Number(settings.durationMinutes ?? 45)),
-  );
-  const bufferMinutes = Math.min(
-    60,
-    Math.max(0, Number(settings.bufferMinutes ?? 15)),
-  );
-  const startHour = Math.min(18, Math.max(7, Number(settings.startHour ?? 9)));
-  const endHour = Math.min(21, Math.max(startHour + 1, Number(settings.endHour ?? 17)));
+  const settings = await getConsultationSettings(db, tenantId);
   const rangeStart = new Date();
-  rangeStart.setUTCDate(rangeStart.getUTCDate() + 1);
-  rangeStart.setUTCHours(0, 0, 0, 0);
-  const rangeEnd = new Date(rangeStart);
-  rangeEnd.setUTCDate(rangeEnd.getUTCDate() + 28);
+  rangeStart.setUTCDate(rangeStart.getUTCDate() + 29);
   const existing = await db
     .collection("consultations")
     .where("tenantId", "==", tenantId)
-    .where("startsAt", ">=", rangeStart.toISOString())
-    .where("startsAt", "<", rangeEnd.toISOString())
+    .where("startsAt", ">=", new Date().toISOString())
+    .where("startsAt", "<", rangeStart.toISOString())
     .limit(500)
     .get();
   const busy = existing.docs
     .filter((document) => document.get("status") === "scheduled")
     .map((document) => ({
-      start: Date.parse(String(document.get("startsAt"))),
-      end: Date.parse(String(document.get("endsAt"))),
+      start: String(document.get("startsAt")),
+      end: String(document.get("endsAt")),
     }));
-  const slots: Array<{ startsAt: string; endsAt: string }> = [];
-  for (let day = 0; day < 28 && slots.length < 40; day += 1) {
-    const date = new Date(rangeStart);
-    date.setUTCDate(date.getUTCDate() + day);
-    if ([0, 6].includes(date.getUTCDay())) continue;
-    for (
-      let minutes = startHour * 60;
-      minutes + durationMinutes <= endHour * 60 && slots.length < 40;
-      minutes += durationMinutes + bufferMinutes
-    ) {
-      const start = new Date(date);
-      start.setUTCHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
-      const end = new Date(start.getTime() + durationMinutes * 60_000);
-      const overlaps = busy.some(
-        (interval) =>
-          start.getTime() < interval.end + bufferMinutes * 60_000 &&
-          end.getTime() + bufferMinutes * 60_000 > interval.start,
-      );
-      if (!overlaps) {
-        slots.push({
-          startsAt: start.toISOString(),
-          endsAt: end.toISOString(),
-        });
-      }
-    }
-  }
-  return { timezone, durationMinutes, slots };
+  const slots = generateConsultationSlots({
+    settings,
+    timezone,
+    now: new Date(),
+    startInDays: 1,
+    daysAhead: 28,
+    busy,
+    maxSlots: 40,
+  });
+  return { timezone, durationMinutes: settings.durationMinutes, slots };
 }
 
 export const publicConsultationScheduling = onRequest(
