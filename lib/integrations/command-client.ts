@@ -2,7 +2,6 @@
 
 import { getOptionalAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
-import { activeMembership } from "@/lib/firebase/active-membership";
 import type {
   IntegrationCapability,
   IntegrationProvider,
@@ -22,6 +21,7 @@ export type SetCapabilityProviderResult = {
 export async function setCapabilityProvider(
   capability: IntegrationCapability,
   provider: IntegrationProvider | null,
+  tenantId: string,
 ): Promise<{ persisted: boolean; result: SetCapabilityProviderResult }> {
   const endpoint = process.env.NEXT_PUBLIC_INTEGRATION_FUNCTIONS_URL;
   if (!endpoint) {
@@ -30,12 +30,10 @@ export async function setCapabilityProvider(
     return { persisted: false, result: { capability, provider } };
   }
 
-  const { auth, firestore } = getFirebaseClient();
+  const { auth } = getFirebaseClient();
   const user = auth.currentUser;
   if (!user) throw new Error("Sign in before changing a connected provider.");
-  const membership = await activeMembership(firestore, user.uid);
-  const tenantId = membership.get("tenantId");
-  if (typeof tenantId !== "string") {
+  if (!tenantId) {
     throw new Error("No active studio membership was found.");
   }
 

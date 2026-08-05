@@ -18,12 +18,10 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { getOptionalAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive, providersAreLive } from "@/lib/runtime-mode";
-import { activeMembership } from "@/lib/firebase/active-membership";
 import { setCapabilityProvider } from "@/lib/integrations/command-client";
 import {
   eligibleProvidersFor,
@@ -100,6 +98,38 @@ type Notice = {
   tone: "success" | "danger" | "info";
   message: string;
 };
+
+type IntegrationStatus = {
+  tenantId: string;
+  connections: Connection[];
+  selections: CapabilitySelections;
+};
+
+async function fetchIntegrationStatus(
+  user: { getIdToken(): Promise<string> },
+): Promise<IntegrationStatus> {
+  const preferredTenantId = window.localStorage.getItem(
+    "studiohub.activeTenantId",
+  );
+  const parameters = preferredTenantId
+    ? `?tenantId=${encodeURIComponent(preferredTenantId)}`
+    : "";
+  const response = await fetch(`/api/integrations/status${parameters}`, {
+    headers: { authorization: `Bearer ${await user.getIdToken()}` },
+    cache: "no-store",
+  });
+  const result = (await response.json()) as
+    | IntegrationStatus
+    | { error?: string };
+  if (!response.ok || !("tenantId" in result)) {
+    throw new Error(
+      "error" in result && typeof result.error === "string"
+        ? result.error
+        : "INTEGRATION_STATUS_UNAVAILABLE",
+    );
+  }
+  return result;
+}
 
 type Definition = {
   provider: Provider;
@@ -210,6 +240,7 @@ function relativeCheck(value: string | null): string {
 export function IntegrationManager() {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [selections, setSelections] = useState<CapabilitySelections>({});
+  const [tenantId, setTenantId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [ready, setReady] = useState(false);
   const [busyProvider, setBusyProvider] = useState<Provider | null>(null);
@@ -222,56 +253,18 @@ export function IntegrationManager() {
       return;
     }
     try {
-      const { auth, firestore } = getFirebaseClient();
+      const { auth } = getFirebaseClient();
       const user = auth.currentUser;
       if (!user) return;
-      const membership = await activeMembership(firestore, user.uid);
-      const tenantId = membership.data().tenantId;
-      if (typeof tenantId !== "string") return;
-      const [snapshot, routingDocument] = await Promise.all([
-        getDocs(
-          query(
-            collection(firestore, "integrationConnections"),
-            where("tenantId", "==", tenantId),
-          ),
-        ),
-        getDoc(doc(firestore, "integrationRouting", tenantId)),
-      ]);
+      const status = await fetchIntegrationStatus(user);
+      setTenantId(status.tenantId);
       setConnections(
-        snapshot.docs.map((document) => {
-          const value = document.data();
-          return {
-            provider: value.provider as Provider,
-            status: asConnectionStatus(value.status),
-            archivedAt:
-              typeof value.archivedAt === "string" ? value.archivedAt : null,
-            mockMode: Boolean(value.mockMode),
-            displayName:
-              typeof value.displayName === "string" ? value.displayName : null,
-            lastHealthCheckAt:
-              typeof value.lastHealthCheckAt === "string"
-                ? value.lastHealthCheckAt
-                : null,
-            lastHealthLatencyMs:
-              typeof value.lastHealthLatencyMs === "number"
-                ? value.lastHealthLatencyMs
-                : null,
-            lastError:
-              typeof value.lastError === "string" ? value.lastError : null,
-            diagnostics:
-              typeof value.diagnostics === "object" &&
-              value.diagnostics !== null
-                ? value.diagnostics
-                : null,
-          };
-        }),
+        status.connections.map((connection) => ({
+          ...connection,
+          status: asConnectionStatus(connection.status),
+        })),
       );
-      const routingData = routingDocument.data();
-      setSelections(
-        routingData && typeof routingData.selections === "object"
-          ? (routingData.selections as CapabilitySelections)
-          : {},
-      );
+      setSelections(status.selections);
     } catch {
       setNotice({
         tone: "danger",
@@ -338,7 +331,8 @@ export function IntegrationManager() {
     const previous = selections;
     setSelections((current) => ({ ...current, [capability]: nextProvider }));
     try {
-      await setCapabilityProvider(capability, nextProvider);
+      if (!tenantId) throw new Error("No active studio membership was found.");
+      await setCapabilityProvider(capability, nextProvider, tenantId);
       setNotice({
         tone: "success",
         message: `${capabilityCopy[capability].label} now uses ${
@@ -362,14 +356,13 @@ export function IntegrationManager() {
   }
 
   async function tenantContext() {
-    const { auth, firestore } = getFirebaseClient();
+    const { auth } = getFirebaseClient();
     const user = auth.currentUser;
     if (!user) throw new Error("Sign in before managing an integration.");
-    const membership = await activeMembership(firestore, user.uid);
-    const tenantId = membership.get("tenantId");
-    if (typeof tenantId !== "string")
-      throw new Error("No active studio membership was found.");
-    return { user, tenantId };
+    if (tenantId) return { user, tenantId };
+    const status = await fetchIntegrationStatus(user);
+    setTenantId(status.tenantId);
+    return { user, tenantId: status.tenantId };
   }
 
   async function connect(provider: Provider) {
