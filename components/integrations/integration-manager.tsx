@@ -191,6 +191,16 @@ const definitions: ReadonlyArray<Definition> = [
     icon: FileSignature,
     accent: "docusign",
   },
+  {
+    provider: "dropbox_sign",
+    label: "Dropbox Sign",
+    description:
+      "Send template-based agreements and automatically record completion evidence.",
+    scope: "Photography agreements",
+    capabilities: ["Templates", "Signatures", "Evidence"],
+    icon: FileSignature,
+    accent: "dropbox",
+  },
 ];
 
 const enabledOAuthProviders = new Set(

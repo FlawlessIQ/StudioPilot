@@ -17,9 +17,11 @@ import {
   POST as postStripeConnect,
 } from "../app/api/webhooks/stripe-connect/route.ts";
 
-test("provider webhook relays reject non-POST requests", () => {
+test("provider webhook relays reject non-POST requests except Dropbox Sign verification", async () => {
   assert.equal(getDocusign().status, 405);
-  assert.equal(getDropboxSign().status, 405);
+  const dropboxSign = getDropboxSign();
+  assert.equal(dropboxSign.status, 200);
+  assert.equal(await dropboxSign.text(), "Hello API Event Received");
   assert.equal(getQuickBooks().status, 405);
   assert.equal(getStripeConnect().status, 405);
 });
@@ -39,7 +41,7 @@ test("Stripe Connect webhook relay requires its signature header", async () => {
   });
 });
 
-test("Dropbox Sign webhook relay requires its signature header", async () => {
+test("Dropbox Sign webhook relay forwards signature verification to the private handler", async () => {
   const response = await postDropboxSign(
     new Request("https://studiohub.test/api/webhooks/dropbox-sign", {
       method: "POST",
@@ -48,9 +50,9 @@ test("Dropbox Sign webhook relay requires its signature header", async () => {
     }),
   );
 
-  assert.equal(response.status, 401);
+  assert.equal(response.status, 503);
   assert.deepEqual(await response.json(), {
-    error: "DROPBOX_SIGN_SIGNATURE_REQUIRED",
+    error: "FUNCTION_PROXY_NOT_CONFIGURED",
   });
 });
 

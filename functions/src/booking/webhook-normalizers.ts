@@ -88,13 +88,21 @@ export function normalizeDropboxSignWebhook(
 
   const eventType = asString(eventBlock.event_type);
   const eventTime = asString(eventBlock.event_time);
+  const eventSeconds = Number(eventTime);
   const eventHash = asString(eventBlock.event_hash);
   const accountId = asString(eventMetadata.reported_for_account_id);
   const signatureRequestId =
     asString(signatureRequest.signature_request_id) ||
     asString(eventMetadata.related_signature_id);
 
-  if (!eventType || !eventTime || !eventHash || !accountId || !signatureRequestId) {
+  if (
+    !eventType ||
+    !eventTime ||
+    !Number.isFinite(eventSeconds) ||
+    !eventHash ||
+    !accountId ||
+    !signatureRequestId
+  ) {
     return null;
   }
 

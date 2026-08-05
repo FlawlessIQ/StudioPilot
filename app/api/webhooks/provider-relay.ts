@@ -2,8 +2,8 @@ export const maxProviderWebhookBytes = 2 * 1024 * 1024;
 
 type RelayConfig = {
   functionName: "docusignWebhook" | "dropboxSignWebhook" | "quickbooksWebhook" | "stripeConnectWebhook";
-  signatureHeader: "x-docusign-signature-1" | "content-sha256" | "intuit-signature" | "stripe-signature";
-  signatureRequiredError:
+  signatureHeader?: "x-docusign-signature-1" | "intuit-signature" | "stripe-signature";
+  signatureRequiredError?:
     | "DOCUSIGN_SIGNATURE_REQUIRED"
     | "DROPBOX_SIGN_SIGNATURE_REQUIRED"
     | "QUICKBOOKS_SIGNATURE_REQUIRED"
@@ -22,10 +22,12 @@ export async function relayProviderWebhook(
   request: Request,
   config: RelayConfig,
 ): Promise<Response> {
-  const signature = request.headers.get(config.signatureHeader);
-  if (!signature) {
+  const signature = config.signatureHeader
+    ? request.headers.get(config.signatureHeader)
+    : null;
+  if (config.signatureHeader && !signature) {
     return Response.json(
-      { error: config.signatureRequiredError },
+      { error: config.signatureRequiredError ?? "SIGNATURE_REQUIRED" },
       { status: 401 },
     );
   }
@@ -65,9 +67,10 @@ export async function relayProviderWebhook(
     authorization,
     "content-type":
       request.headers.get("content-type") ?? "application/json",
-    [config.signatureHeader]: signature,
     "x-studiohub-proxy": "app-hosting",
   });
+  if (config.signatureHeader && signature)
+    headers.set(config.signatureHeader, signature);
   for (const name of config.forwardedHeaders ?? []) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);

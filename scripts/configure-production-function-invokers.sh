@@ -20,6 +20,7 @@ app_services=(
   crewcommand
   crewinvitationcommand
   crmcommand
+  dropboxsignwebhook
   docusignwebhook
   integrationoauth
   membershipcommand
