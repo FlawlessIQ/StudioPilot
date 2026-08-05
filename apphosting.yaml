@@ -54,7 +54,7 @@ env:
     availability:
       - RUNTIME
   - variable: INTEGRATION_OAUTH_FUNCTION_URL
-    value: https://integrationoauth-yehtrtcieq-uk.a.run.app
+    value: https://us-east4-studiohub-prod.cloudfunctions.net/integrationOAuth
     availability:
       - RUNTIME
   - variable: NEXT_PUBLIC_CRM_FUNCTIONS_URL
