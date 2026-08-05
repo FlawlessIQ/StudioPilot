@@ -154,7 +154,7 @@ export async function checkProviderConnection(tenantId:string,provider:Provider)
   if(!credential)throw new Error("CREDENTIAL_UNAVAILABLE");
   const probes:Record<Provider,()=>Promise<Response>>={
     google_calendar:()=>fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=1",{headers:{authorization:`Bearer ${credential.accessToken}`}}),
-    zoom:()=>fetch("https://api.zoom.us/v2/users/me",{headers:{authorization:`Bearer ${credential.accessToken}`}}),
+    zoom:()=>fetch("https://api.zoom.us/v2/users/me/meetings?page_size=1",{headers:{authorization:`Bearer ${credential.accessToken}`}}),
     dropbox:()=>fetch("https://api.dropboxapi.com/2/users/get_current_account",{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`}}),
     docusign:()=>fetch("https://account-d.docusign.com/oauth/userinfo",{headers:{authorization:`Bearer ${credential.accessToken}`}}),
     dropbox_sign:()=>fetch("https://api.hellosign.com/v3/account",{headers:{authorization:`Bearer ${credential.accessToken}`}}),
