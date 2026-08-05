@@ -264,8 +264,9 @@ export function IntegrationManager() {
     }
     try {
       const { auth } = getFirebaseClient();
+      await auth.authStateReady();
       const user = auth.currentUser;
-      if (!user) return;
+      if (!user) throw new Error("AUTH_SESSION_UNAVAILABLE");
       const status = await fetchIntegrationStatus(user);
       setTenantId(status.tenantId);
       setConnections(
