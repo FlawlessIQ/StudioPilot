@@ -7,7 +7,7 @@ runConfig:
 
 env:
   - variable: NEXT_PUBLIC_APP_URL
-    value: https://studiohub--studiohub-prod.us-east4.hosted.app
+    value: https://studio-cue.com
     availability:
       - BUILD
       - RUNTIME
