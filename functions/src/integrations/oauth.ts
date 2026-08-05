@@ -3,7 +3,10 @@ import { getApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
-import { requireAppCheck, requireIdentity } from "../crm/security.js";
+import {
+  requireAppCheckOrAppHostingProxy,
+  requireIdentity,
+} from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { checkProviderConnection } from "../operations/provider-runtime.js";
 import { providerUsesPkce } from "./oauth-strategy.js";
@@ -240,7 +243,7 @@ export const integrationOAuth = onRequest(
     }
     try {
       if (request.method === "POST") {
-        await requireAppCheck(request);
+        await requireAppCheckOrAppHostingProxy(request);
         const identity = await requireIdentity(request);
         const input = startSchema.parse(request.body);
         failureProvider = input.provider;

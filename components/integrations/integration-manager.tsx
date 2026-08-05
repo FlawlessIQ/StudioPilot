@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { getAppCheckToken } from "@/lib/firebase/app-check";
+import { getOptionalAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive, providersAreLive } from "@/lib/runtime-mode";
 import { activeMembership } from "@/lib/firebase/active-membership";
@@ -392,7 +392,7 @@ export function IntegrationManager() {
     setBusyProvider(provider);
     try {
       const { user, tenantId } = await tenantContext();
-      const appCheckToken = await getAppCheckToken();
+      const appCheckToken = await getOptionalAppCheckToken();
       const response = await fetch(
         `${endpoint.replace(/\/$/, "")}/integrationOAuth`,
         {
@@ -438,7 +438,7 @@ export function IntegrationManager() {
     setBusyProvider(provider);
     try {
       const { user, tenantId } = await tenantContext();
-      const appCheckToken = await getAppCheckToken();
+      const appCheckToken = await getOptionalAppCheckToken();
       const response = await fetch(
         `${endpoint.replace(/\/$/, "")}/integrationOAuth`,
         {

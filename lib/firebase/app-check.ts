@@ -7,3 +7,11 @@ export async function getAppCheckToken(): Promise<string | null> {
   if (!appCheck) return null;
   return (await getToken(appCheck)).token;
 }
+
+export async function getOptionalAppCheckToken(): Promise<string | null> {
+  try {
+    return await getAppCheckToken();
+  } catch {
+    return null;
+  }
+}

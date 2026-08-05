@@ -1,6 +1,6 @@
 "use client";
 
-import { getAppCheckToken } from "@/lib/firebase/app-check";
+import { getOptionalAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { activeMembership } from "@/lib/firebase/active-membership";
 import type {
@@ -39,7 +39,7 @@ export async function setCapabilityProvider(
     throw new Error("No active studio membership was found.");
   }
 
-  const appCheckToken = await getAppCheckToken();
+  const appCheckToken = await getOptionalAppCheckToken();
   const response = await fetch(
     `${endpoint.replace(/\/$/, "")}/integrationsCommand`,
     {

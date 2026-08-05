@@ -2,7 +2,10 @@ import { randomUUID } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
-import { requireAppCheck, requireIdentity } from "../crm/security.js";
+import {
+  requireAppCheckOrAppHostingProxy,
+  requireIdentity,
+} from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { capabilitySchema, providerSchema, providerCapabilities, type Provider } from "./capability-resolution.js";
 
@@ -35,7 +38,7 @@ export const integrationsCommand = onRequest(
 
     let identity;
     try {
-      await requireAppCheck(request);
+      await requireAppCheckOrAppHostingProxy(request);
       identity = await requireIdentity(request);
     } catch {
       response.status(401).json({ error: "AUTHENTICATION_REQUIRED" });

@@ -10,6 +10,13 @@ export async function requireAppCheck(request: Request): Promise<void> {
   await getAppCheck().verifyToken(token);
 }
 
+export async function requireAppCheckOrAppHostingProxy(
+  request: Request,
+): Promise<void> {
+  if (request.header("x-studiohub-proxy") === "app-hosting") return;
+  await requireAppCheck(request);
+}
+
 export async function requireIdentity(request: Request): Promise<DecodedIdToken> {
   const authorization =
     request.header("x-studiohub-user-authorization") ??
