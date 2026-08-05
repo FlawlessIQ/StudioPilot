@@ -4,6 +4,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
+import { buildStripeCheckoutParams } from "./stripe-checkout.js";
 
 const billingCommandSchema = z.object({
   type: z.enum(["createCheckout", "createPortal"]),
@@ -165,26 +166,19 @@ export const billingCommand = onRequest(
           ? "createPortal"
           : parsed.type;
       const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app";
-      const params = new URLSearchParams();
+      let params: URLSearchParams;
       if (operation === "createCheckout") {
         if (!parsed.plan || !parsed.cadence) throw new Error("PLAN_REQUIRED");
         const priceId = priceFor(parsed.plan, parsed.cadence);
         if (!priceId) throw new Error("STRIPE_PRICE_NOT_CONFIGURED");
-        params.set("mode", "subscription");
-        params.set("line_items[0][price]", priceId);
-        params.set("line_items[0][quantity]", "1");
-        params.set(
-          "success_url",
-          `${appUrl}/studio/subscription?checkout=success`,
-        );
-        params.set(
-          "cancel_url",
-          `${appUrl}/studio/subscription?checkout=cancelled`,
-        );
-        params.set("subscription_data[metadata][tenantId]", parsed.tenantId);
-        params.set("metadata[tenantId]", parsed.tenantId);
-        if (customerId) params.set("customer", customerId);
+        params = buildStripeCheckoutParams({
+          appUrl,
+          customerId,
+          priceId,
+          tenantId: parsed.tenantId,
+        });
       } else {
+        params = new URLSearchParams();
         if (!customerId) throw new Error("STRIPE_CUSTOMER_NOT_FOUND");
         params.set("customer", customerId);
         params.set("return_url", `${appUrl}/studio/subscription`);
