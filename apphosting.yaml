@@ -58,77 +58,77 @@ env:
     availability:
       - RUNTIME
   - variable: NEXT_PUBLIC_CRM_FUNCTIONS_URL
-    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    value: /api/functions
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_WORKFLOW_FUNCTIONS_URL
-    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    value: /api/functions
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_STUDIO_IMPORT_FUNCTIONS_URL
-    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    value: /api/functions
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_BOOKING_FUNCTIONS_URL
-    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    value: /api/functions
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_PROPOSAL_FUNCTIONS_URL
-    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    value: /api/functions
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_BILLING_FUNCTIONS_URL
-    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    value: /api/functions
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_PLANNING_FUNCTIONS_URL
-    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    value: /api/functions
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_CREW_FUNCTIONS_URL
-    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    value: /api/functions
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_POST_EVENT_FUNCTIONS_URL
-    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    value: /api/functions
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_SAAS_ADMIN_FUNCTIONS_URL
-    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    value: /api/functions
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_ONBOARDING_FUNCTIONS_URL
-    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    value: /api/functions
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_MEMBERSHIP_FUNCTIONS_URL
-    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    value: /api/functions
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_DATA_FUNCTIONS_URL
-    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    value: /api/functions
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_INTEGRATION_FUNCTIONS_URL
-    value: https://studio-cue.com/api/functions
+    value: /api/functions
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_AI_FUNCTIONS_URL
-    value: https://studiohub--studiohub-prod.us-east4.hosted.app/api/functions
+    value: /api/functions
     availability:
       - BUILD
       - RUNTIME
