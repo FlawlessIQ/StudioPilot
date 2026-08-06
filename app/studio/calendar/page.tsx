@@ -1,7 +1,6 @@
-import { ScheduleConsultationForm } from "@/components/booking/schedule-consultation-form";
+import { ConsultationAvailabilityCalendar } from "@/components/booking/consultation-availability-calendar";
 import { StudioCalendar } from "@/components/booking/studio-calendar";
 import { AppShell } from "@/components/layout/app-shell";
-import { LiveDomainView } from "@/components/studio/live-domain-view";
 
 export default function CalendarPage() {
   return (
@@ -18,21 +17,12 @@ export default function CalendarPage() {
         <section>
           <div className="section-heading-row">
             <div>
-              <p className="eyebrow">Upcoming</p>
-              <h2>Consultations</h2>
+              <p className="eyebrow">Availability</p>
+              <h2>Consultation availability</h2>
             </div>
           </div>
-          <LiveDomainView domain="consultations" />
+          <ConsultationAvailabilityCalendar />
         </section>
-        <details className="creation-disclosure panel">
-          <summary>
-            <div>
-              <h2>Schedule consultation</h2>
-              <p>Choose a project and meeting type, then confirm the time.</p>
-            </div>
-          </summary>
-          <div className="creation-disclosure-body"><ScheduleConsultationForm /></div>
-        </details>
       </div>
     </AppShell>
   );
