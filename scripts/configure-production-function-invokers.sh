@@ -16,6 +16,7 @@ app_services=(
   bookingcommand
   clientinvitationcommand
   communicationscommand
+  consultationavailabilityquery
   createsession
   crewcommand
   crewinvitationcommand

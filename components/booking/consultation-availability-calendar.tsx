@@ -336,8 +336,8 @@ export function ConsultationAvailabilityCalendar() {
           <p className="calendar-loading">Loading availability…</p>
         ) : calendarStatus === "unavailable" ? (
           <p className="calendar-loading">
-            Google Calendar isn’t connected — only internal bookings are shown. Connect it in{" "}
-            <a href="/studio/integrations">Integrations</a>.
+            Live calendar sync is unavailable right now — only internal bookings are shown.
+            Check its status in <a href="/studio/integrations">Integrations</a>.
           </p>
         ) : null}
       </div>
