@@ -1086,6 +1086,26 @@
   box-shadow: var(--ds-shadow-md);
   z-index: 10;
 }
+.ds-user-pop-identity {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 11px 11px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--ds-line-soft);
+}
+.ds-user-pop-identity .ds-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+}
+.ds-user-pop-identity .ds-switcher-copy strong {
+  font-size: 12.5px;
+  color: var(--ds-ink);
+}
+.ds-user-pop-identity .ds-switcher-copy small {
+  font-size: 11px;
+}
 .ds-user-pop a,
 .ds-user-pop button {
   display: flex;

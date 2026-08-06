@@ -59,6 +59,11 @@ const navSections = [
         href: "/studio/reports",
         icon: ChartNoAxesColumn,
       },
+      {
+        label: "Studio setup",
+        href: "/studio/setup",
+        icon: Settings,
+      },
     ],
   },
 ] as const;
@@ -83,6 +88,7 @@ const activeGroups: Record<string, string[]> = {
   People: ["Clients", "Crew", "Team", "Vendors"],
   Library: ["Library", "Packages", "Workflows", "Tasks", "Documents"],
   Insights: ["Reports"],
+  "Studio setup": ["Studio setup"],
 };
 
 const StudioShellContext = createContext(false);
@@ -163,6 +169,7 @@ function StudioShell({
   const staffAllowed = new Set(["Home", "Projects", "Calendar", "People"]);
   const coordinatorExcluded = new Set(["Insights", "Library"]);
   const canSee = (label: string) => {
+    if (label === "Studio setup") return workspace.role === "studio_owner";
     if (workspace.role === "staff_photographer") return staffAllowed.has(label);
     if (workspace.role === "studio_coordinator")
       return !coordinatorExcluded.has(label);
@@ -206,15 +213,6 @@ function StudioShell({
             </button>
           </div>
 
-          <Link className="ds-switcher" href="/auth/workspaces" aria-label="Switch workspace">
-            <span className="ds-avatar">{initials(tenantName)}</span>
-            <span className="ds-switcher-copy">
-              <strong>{tenantName}</strong>
-              <small>{workspace.tenantPlan || "Studio workspace"}</small>
-            </span>
-            <ChevronDown size={15} />
-          </Link>
-
           <nav className="ds-nav" aria-label="Studio navigation">
             {visibleSections.map((section) => (
               <div className="ds-nav-section" key={section.label}>
@@ -256,21 +254,23 @@ function StudioShell({
           ) : null}
 
           <details className="ds-user">
-            <summary className="ds-sidebar-foot">
-              <span className="ds-avatar ds-avatar-ink">{initials(userName)}</span>
+            <summary className="ds-sidebar-foot" aria-label="Workspace and account menu">
+              <span className="ds-avatar">{initials(tenantName)}</span>
               <span className="ds-switcher-copy">
-                <strong>{userName}</strong>
-                <small>{workspaceRoleLabel(workspace.role)}</small>
+                <strong>{tenantName}</strong>
+                <small>{workspace.tenantPlan || "Studio workspace"}</small>
               </span>
               <ChevronDown size={15} />
             </summary>
             <div className="ds-user-pop">
+              <div className="ds-user-pop-identity">
+                <span className="ds-avatar ds-avatar-ink">{initials(userName)}</span>
+                <span className="ds-switcher-copy">
+                  <strong>{userName}</strong>
+                  <small>{workspaceRoleLabel(workspace.role)}</small>
+                </span>
+              </div>
               <Link href="/auth/workspaces">Switch workspace</Link>
-              {workspace.role === "studio_owner" ? (
-                <Link href="/studio/setup">
-                  <Settings size={16} /> Studio setup
-                </Link>
-              ) : null}
               <PlatformReturnLink />
               <SignOutButton className="ds-user-signout" />
             </div>
