@@ -1,4 +1,4 @@
-const CACHE_NAME = "studiocue-event-day-v3";
+const CACHE_NAME = "studiocue-event-day-v4";
 const OFFLINE_ROUTES = ["/offline", "/crew/accepted", "/crew/schedule", "/client/schedule", "/favicon.svg", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
