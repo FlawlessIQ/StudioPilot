@@ -1,4 +1,4 @@
-const CACHE_NAME = "studiocue-event-day-v2";
+const CACHE_NAME = "studiocue-event-day-v3";
 const OFFLINE_ROUTES = ["/offline", "/crew/accepted", "/crew/schedule", "/client/schedule", "/favicon.svg", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -32,9 +32,23 @@ self.addEventListener("fetch", (event) => {
     );
     return;
   }
+  if (["style", "script"].includes(request.destination) || url.pathname.startsWith("/_next/")) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(async () => (await caches.match(request)) || Response.error()),
+    );
+    return;
+  }
   event.respondWith(
     caches.match(request).then((cached) => cached || fetch(request).then((response) => {
-      if (response.ok && ["style", "script", "font", "image"].includes(request.destination)) {
+      if (response.ok && ["font", "image"].includes(request.destination)) {
         const copy = response.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
       }
