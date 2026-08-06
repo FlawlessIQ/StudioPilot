@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpRight,
   CalendarDays,
-  Check,
   CheckCircle2,
   FileSignature,
   HardDrive,
@@ -540,7 +539,7 @@ export function IntegrationManager() {
         </div>
       ) : null}
 
-      <section className="integration-provider-grid">
+      <section className="ds-card ds-int-list" aria-label="Connected providers">
         {definitions.map((definition) => {
           const connection = connections.find(
             (value) => value.provider === definition.provider,
@@ -551,70 +550,103 @@ export function IntegrationManager() {
           const available = oauthEnabled(definition.provider);
           const busy = busyProvider === definition.provider;
           const Icon = definition.icon;
+          const healthText = connection?.lastError
+            ? readableError(connection.lastError)
+            : connection?.lastHealthLatencyMs
+              ? `${relativeCheck(connection.lastHealthCheckAt)} · ${connection.lastHealthLatencyMs} ms`
+              : connected
+                ? relativeCheck(connection?.lastHealthCheckAt ?? null)
+                : available
+                  ? "Ready to authorize"
+                  : "Setup not finished";
           return (
             <article
-              className={`integration-provider-card ${connected ? "is-connected" : ""}`}
+              className={`ds-int-row ${connected ? "is-connected" : ""}`}
               key={definition.provider}
             >
-              <header>
-                <span
-                  className={`integration-provider-icon provider-${definition.accent}`}
-                >
-                  <Icon />
+              <span
+                className={`ds-int-icon provider-${definition.accent}`}
+              >
+                <Icon />
+              </span>
+              <span className="ds-int-copy">
+                <strong>{definition.label}</strong>
+                <p>{definition.description}</p>
+                <span className="ds-int-caps">
+                  {definition.capabilities.join(" · ")}
                 </span>
-                <span>
-                  <h3>{definition.label}</h3>
-                  <small>{definition.scope}</small>
-                </span>
-                <StatusBadge
-                  dot
-                  tone={connected ? "success" : available ? "info" : "neutral"}
-                >
-                  {connected
-                    ? "Connected"
-                    : available
-                      ? "Ready to connect"
-                      : "Development mode"}
-                </StatusBadge>
-              </header>
-
-              <p>{definition.description}</p>
-
-              <ul className="integration-capabilities">
-                {definition.capabilities.map((capability) => (
-                  <li key={capability}>
-                    <Check /> {capability}
-                  </li>
-                ))}
-              </ul>
-
-              <div className="integration-connection-meta">
-                <span>
-                  <small>Connection</small>
-                  <strong>
-                    {connected
-                      ? connection?.displayName ?? definition.label
-                      : available
-                        ? "Ready to authorize"
-                        : "Setup not finished"}
-                  </strong>
-                </span>
-                <span>
-                  <small>Health</small>
-                  <strong>
-                    {connection?.lastError
-                      ? readableError(connection.lastError)
-                      : connection?.lastHealthLatencyMs
-                        ? `${relativeCheck(connection.lastHealthCheckAt)} · ${connection.lastHealthLatencyMs} ms`
-                        : relativeCheck(connection?.lastHealthCheckAt ?? null)}
-                  </strong>
-                </span>
+              </span>
+              <StatusBadge
+                dot
+                tone={connected ? "success" : available ? "info" : "neutral"}
+              >
+                {connected
+                  ? "Connected"
+                  : available
+                    ? "Ready to connect"
+                    : "Development mode"}
+              </StatusBadge>
+              <span className="ds-int-health">
+                <small>Health</small>
+                <strong>{healthText}</strong>
+              </span>
+              <div className="ds-int-actions">
+                {connected ? (
+                  <>
+                    <button
+                      className="ds-btn ds-btn-ghost ds-btn-sm"
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        void manage(definition.provider, "health")
+                      }
+                    >
+                      <RefreshCw size={14} className={busy ? "spin" : ""} />
+                      Test
+                    </button>
+                    <button
+                      className="ds-btn ds-btn-ghost ds-btn-sm"
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        void manage(definition.provider, "disconnect")
+                      }
+                    >
+                      <Unplug size={14} />
+                      Disconnect
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    className="ds-btn ds-btn-primary ds-btn-sm"
+                    type="button"
+                    disabled={!ready || busy}
+                    onClick={() => void connect(definition.provider)}
+                  >
+                    {busy ? (
+                      <RefreshCw size={14} className="spin" />
+                    ) : (
+                      <ArrowUpRight size={14} />
+                    )}
+                    {available ? "Connect" : "View setup"}
+                  </button>
+                )}
               </div>
 
               {connection?.diagnostics ? (
-                <details className="integration-diagnostics">
+                <details className="ds-int-detail">
                   <summary>Connection diagnostics</summary>
                   <dl>
+                    <div>
+                      <dt>Connection</dt>
+                      <dd>
+                        {connected
+                          ? connection?.displayName ?? definition.label
+                          : available
+                            ? "Ready to authorize"
+                            : "Setup not finished"}
+                      </dd>
+                    </div>
                     <div>
                       <dt>Credential vault</dt>
                       <dd>
@@ -642,66 +674,6 @@ export function IntegrationManager() {
                   </p>
                 </details>
               ) : null}
-
-              <footer>
-                <span className={connected ? "connection-live" : ""}>
-                  {connected ? (
-                    <>
-                      <CheckCircle2 /> Encrypted and active
-                    </>
-                  ) : available ? (
-                    <>
-                      <LockKeyhole /> Secure sign-in available
-                    </>
-                  ) : (
-                    <>
-                      <ShieldCheck /> Awaiting production setup
-                    </>
-                  )}
-                </span>
-                <div className="integration-card-actions">
-                  {connected ? (
-                    <>
-                      <button
-                        className="integration-action-secondary"
-                        type="button"
-                        disabled={busy}
-                        onClick={() =>
-                          void manage(definition.provider, "health")
-                        }
-                      >
-                        <RefreshCw className={busy ? "spin" : ""} />
-                        Test
-                      </button>
-                      <button
-                        className="integration-action-secondary"
-                        type="button"
-                        disabled={busy}
-                        onClick={() =>
-                          void manage(definition.provider, "disconnect")
-                        }
-                      >
-                        <Unplug />
-                        Disconnect
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      className="integration-connect-button"
-                      type="button"
-                      disabled={!ready || busy}
-                      onClick={() => void connect(definition.provider)}
-                    >
-                      {busy ? (
-                        <RefreshCw className="spin" />
-                      ) : (
-                        <ArrowUpRight />
-                      )}
-                      {available ? "Connect" : "View setup"}
-                    </button>
-                  )}
-                </div>
-              </footer>
             </article>
           );
         })}
