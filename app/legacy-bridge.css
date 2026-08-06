@@ -485,7 +485,6 @@
 /* Metadata / secondary text: was 6-10px (globals.css:11481's .em was the
    smallest text found anywhere in the app at 6px). */
 .ds-root .crm-table article small,           /* globals.css:4822, was 8px */
-.ds-root .crm-search-form input,             /* globals.css:4729, was 9px */
 .ds-root .crm-tabs button,
 .ds-root .crm-tabs a,                        /* globals.css:4692, was 10px */
 .ds-root .crm-list-empty span,               /* globals.css:4753, was 9px */
@@ -696,7 +695,6 @@
 .ds-root .crew-cascade-config label,
 .ds-root .crew-empty-guide span,
 .ds-root .crew-upcoming-card dt,
-.ds-root .crm-search-form input:not([type="hidden"]),
 .ds-root .crm-search-form select,
 .ds-root .crm-table article,
 .ds-root .crm-tabs a span,
@@ -711,7 +709,6 @@
 .ds-root .feature-card a,
 .ds-root .field-order,
 .ds-root .form-error,
-.ds-root .form-grid input,
 .ds-root .form-grid label,
 .ds-root .form-grid label > small,
 .ds-root .form-grid select,
@@ -917,4 +914,51 @@
 .ds-root .template-plan-list strong,
 .ds-root .template-source-tabs strong {
   font-size: 14.5px;
+}
+
+/* Density pass, part 4 — gaps in parts 1-3 caused by two real audit-script
+   limitations, found while investigating the AI import review workspace:
+   (a) the script only matched explicit `font-size:` declarations, missing
+   everywhere this codebase uses the `font: <weight> <size>/<line-height>
+   <family>` shorthand instead (globals.css:7145's `.support-summary` etc.);
+   (b) `.panel-heading p` was mistakenly placed in the "already fixed"
+   exclusion list during part 3 — it never actually got an override, despite
+   being used across ~17 component files. */
+.ds-root .panel-heading p {              /* globals.css:9729, was 12px */
+  font-size: 12.5px;
+}
+
+.ds-root .studio-import-source-proof blockquote p, /* reimagined.css:1467 font: 500 11px, shorthand-missed */
+.ds-root .automation-queue-card pre,     /* reimagined.css:2346 font: 500 9px, shorthand-missed */
+.ds-root .crew-recommendation-list article em, /* globals.css:7163 font: 600 10px, shorthand-missed */
+.ds-root .integration-card-actions button, /* globals.css:7188 font: 650 11px, shorthand-missed */
+.ds-root .support-summary {              /* globals.css:7145 font: 12px, shorthand-missed */
+  font-size: 12.5px;
+}
+
+/* Editable text fields deserve the higher end of the scale, not just the
+   metadata floor — this is content someone is actively typing/reading
+   line-by-line, not a label. */
+.ds-root .studio-import-draft-editor textarea,
+.ds-root .studio-import-merge-control select, /* reimagined.css:1544-1546 font: 500 10px, shorthand-missed */
+.ds-root .ai-queue-editor textarea {     /* reimagined.css:2346 font: 500 9px, shorthand-missed */
+  font-size: 13px;
+}
+
+/* Specificity fix: the base input-reset rule below (`.ds-root
+   input:not([type="checkbox"]):not([type="radio"]):not([type="range"])`)
+   carries three :not() clauses, each contributing the specificity of its
+   argument — (0,4,1) total, higher than any `.ds-root .container input`
+   override written above (0,2,1 to 0,3,1). It resets font-size to
+   "inherit" via the `font` shorthand, silently defeating every such
+   override for <input> specifically (select/textarea don't have this
+   problem — their branch of the same base rule has no :not() clauses).
+   Confirmed via computed-style inspection: .crm-search-form input was
+   still resolving to the browser default (16px) despite three separate
+   override attempts above. !important is the same fix already used for
+   .crm-primary strong elsewhere in this file for the identical problem. */
+.ds-root .crm-search-form input:not([type="hidden"]),
+.ds-root .form-grid input,
+.ds-root .studio-import-draft-editor input {
+  font-size: 12.5px !important;
 }
