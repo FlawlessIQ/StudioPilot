@@ -43,7 +43,7 @@ export default async function ClientsPage({
               <button type="submit">Search</button>
             </form>
           </div>
-          <div className="client-card-grid">
+          <div className="ds-card ds-people-list">
             <LiveClientCards q={q} view={view} />
           </div>
         </section>

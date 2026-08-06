@@ -335,41 +335,51 @@ export function LiveClientCards({
             )
           : [];
         return (
-          <article key={client.id}>
-            <div className="client-card-head">
-              <span className="avatar avatar-sand">
-                {name
-                  .split(/\s+/)
-                  .slice(0, 2)
-                  .map((part) => part.charAt(0))
-                  .join("")}
-              </span>
-              <StatusBadge tone={client.portalUserId ? "success" : "neutral"}>
-                {client.portalUserId ? "Portal active" : "Portal inactive"}
-              </StatusBadge>
-            </div>
-            <h2>{name}</h2>
-            <p>{email ?? "No email recorded"}</p>
-            <dl>
-              <div>
-                <dt>Projects</dt>
-                <dd>{projectCount}</dd>
-              </div>
-              <div>
-                <dt>Company</dt>
-                <dd>{String(client.company ?? "—")}</dd>
-              </div>
-            </dl>
+          <article className="ds-people-row" key={client.id}>
+            <span className="ds-people-avatar">
+              {name
+                .split(/\s+/)
+                .slice(0, 2)
+                .map((part) => part.charAt(0))
+                .join("")}
+            </span>
+            <span className="ds-people-copy">
+              <strong>{name}</strong>
+              <small>{email ?? "No email recorded"}</small>
+            </span>
+            <StatusBadge tone={client.portalUserId ? "success" : "neutral"}>
+              {client.portalUserId ? "Portal active" : "Portal inactive"}
+            </StatusBadge>
+            <span className="ds-people-stat">
+              <small>Projects</small>
+              <strong>{projectCount}</strong>
+            </span>
+            <span className="ds-people-stat">
+              <small>Company</small>
+              <strong>{String(client.company ?? "—")}</strong>
+            </span>
             {email ? (
-              <a href={`mailto:${email}`}>
-                <ArrowUpRight size={15} /> Message client
+              <a
+                className="ds-people-message"
+                href={`mailto:${email}`}
+                aria-label={`Message ${name}`}
+                title="Message client"
+              >
+                <Mail size={15} />
               </a>
-            ) : null}
+            ) : (
+              <span />
+            )}
             {!client.portalUserId && email ? (
-              <ClientPortalInvite
-                contactId={client.id}
-                projectIds={projectIds}
-              />
+              <details className="ds-people-invite">
+                <summary>Invite to client portal</summary>
+                <div>
+                  <ClientPortalInvite
+                    contactId={client.id}
+                    projectIds={projectIds}
+                  />
+                </div>
+              </details>
             ) : null}
           </article>
         );

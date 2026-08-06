@@ -2028,3 +2028,135 @@
     justify-self: start;
   }
 }
+
+/* =========================================================================
+   People (clients/prospects) — compact connection list, same pattern as
+   the integrations row list, so a growing client roster stays scannable
+   instead of large mostly-empty tiles.
+   ========================================================================= */
+.ds-people-list {
+  padding: 0;
+  overflow: hidden;
+}
+
+.ds-people-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto auto auto auto;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--ds-line);
+}
+.ds-people-row:last-child {
+  border-bottom: 0;
+}
+
+.ds-people-avatar {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fdf4ef;
+  background: linear-gradient(150deg, var(--ds-brass) 0%, var(--ds-brass-deep) 100%);
+  flex-shrink: 0;
+}
+
+.ds-people-copy {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+.ds-people-copy strong {
+  font-family: var(--ds-serif);
+  font-optical-sizing: auto;
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--ds-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ds-people-copy small {
+  font-size: 12px;
+  color: var(--ds-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-people-stat {
+  display: grid;
+  gap: 1px;
+  text-align: right;
+  min-width: 72px;
+}
+.ds-people-stat small {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ds-muted);
+}
+.ds-people-stat strong {
+  font-size: 12.5px;
+  color: var(--ds-ink-soft);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-people-message {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--ds-r-sm);
+  border: 1px solid var(--ds-line);
+  background: var(--ds-paper);
+  color: var(--ds-ink-soft);
+  flex-shrink: 0;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.ds-people-message:hover {
+  border-color: var(--ds-brass);
+  color: var(--ds-brass-deep);
+}
+
+.ds-people-invite {
+  grid-column: 1 / -1;
+}
+.ds-people-invite > summary {
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 650;
+  color: var(--ds-brass-deep);
+  list-style: none;
+}
+.ds-people-invite > summary::-webkit-details-marker {
+  display: none;
+}
+.ds-people-invite > summary:hover {
+  color: var(--ds-claret);
+}
+.ds-people-invite > div {
+  margin-top: 10px;
+}
+
+@media (max-width: 760px) {
+  .ds-people-row {
+    grid-template-columns: 36px minmax(0, 1fr);
+    row-gap: 8px;
+  }
+  .ds-people-stat {
+    display: none;
+  }
+  .ds-people-row > .status-badge,
+  .ds-people-message {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
