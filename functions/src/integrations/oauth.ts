@@ -216,6 +216,16 @@ async function exchange(
   return body;
 }
 
+// Every provider shares OAUTH_CALLBACK_URL by default, but each provider's
+// registered redirect URI lives in that provider's own dashboard — if one
+// was set up against a different host (e.g. Dropbox Sign's app is
+// registered against studio-cue.com rather than the *.hosted.app default),
+// an env var named `${PROVIDER}_OAUTH_CALLBACK_URL` overrides just that
+// provider without touching the others' already-working redirect URI.
+function redirectUriFor(provider: Provider, fallback: string): string {
+  return process.env[`${provider.toUpperCase()}_OAUTH_CALLBACK_URL`] || fallback;
+}
+
 export const integrationOAuth = onRequest(
   {
     cors: studioHubCors,
@@ -233,10 +243,10 @@ export const integrationOAuth = onRequest(
   },
   async (request, response) => {
     const db = getFirestore();
-    const redirectUri = process.env.OAUTH_CALLBACK_URL;
+    const defaultRedirectUri = process.env.OAUTH_CALLBACK_URL;
     let failureProvider: string | null = null;
     let failureTenantId: string | null = null;
-    if (!redirectUri) {
+    if (!defaultRedirectUri) {
       response.status(503).json({ error: "OAUTH_CALLBACK_URL_REQUIRED" });
       return;
     }
@@ -303,6 +313,7 @@ export const integrationOAuth = onRequest(
           return;
         }
         const current = config(input.provider);
+        const redirectUri = redirectUriFor(input.provider, defaultRedirectUri);
         const verifier = providerUsesPkce(input.provider)
           ? base64url(randomBytes(48))
           : null;
