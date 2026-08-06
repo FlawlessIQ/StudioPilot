@@ -201,7 +201,14 @@ async function exchange(
   const headers: Record<string, string> = {
     "content-type": "application/x-www-form-urlencoded",
   };
-  if (provider === "google_calendar" || provider === "stripe") {
+  // Confirmed live: HelloSign's token endpoint rejects HTTP Basic auth
+  // ("Parameter client_id is missing") — like google_calendar and stripe,
+  // it wants client_id/client_secret as body params instead.
+  if (
+    provider === "google_calendar" ||
+    provider === "stripe" ||
+    provider === "dropbox_sign"
+  ) {
     params.set("client_id", current.clientId);
     params.set("client_secret", current.clientSecret);
   } else headers.authorization = basic(current.clientId, current.clientSecret);
@@ -211,8 +218,14 @@ async function exchange(
     body: params,
   });
   const body = (await response.json()) as Record<string, unknown>;
-  if (!response.ok || typeof body.access_token !== "string")
+  if (!response.ok || typeof body.access_token !== "string") {
+    console.error("integration_oauth_token_exchange_failed", {
+      provider,
+      status: response.status,
+      body,
+    });
     throw new Error("OAUTH_TOKEN_EXCHANGE_FAILED");
+  }
   return body;
 }
 
