@@ -90,16 +90,15 @@ const config = (provider: Provider): Config => {
       scopes: ["signature", "extended"],
       extra: {},
     },
-    // Verify against the Dropbox Sign API app dashboard before enabling
-    // live mode — the webhook mechanics in booking/webhooks.ts were
-    // confirmed against developers.hellosign.com's rendered docs, but
-    // their OAuth doc pages returned empty/404 shells during this change,
-    // so these two URLs rest on the long-stable HelloSign OAuth convention
-    // rather than a page fetched live.
+    // Confirmed live against a real HelloSign OAuth app: unlike every other
+    // provider here, HelloSign rejects any `scope` param outright ("Custom
+    // scopes are not supported yet") — access is fixed by what the API app
+    // itself is configured for, not requested at authorize time. Keep
+    // scopes empty so the URL builder below omits the param entirely.
     dropbox_sign: {
       authorizeUrl: "https://app.hellosign.com/oauth/authorize",
       tokenUrl: "https://app.hellosign.com/oauth/token",
-      scopes: ["basic_account_info", "request_signature"],
+      scopes: [],
       extra: {},
     },
     quickbooks: {
@@ -327,7 +326,9 @@ export const integrationOAuth = onRequest(
         url.searchParams.set("response_type", "code");
         url.searchParams.set("client_id", current.clientId);
         url.searchParams.set("redirect_uri", redirectUri);
-        url.searchParams.set("scope", current.scopes.join(" "));
+        if (current.scopes.length > 0) {
+          url.searchParams.set("scope", current.scopes.join(" "));
+        }
         url.searchParams.set("state", state);
         if (challenge) {
           url.searchParams.set("code_challenge", challenge);
