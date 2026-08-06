@@ -28,6 +28,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Lock,
+  Settings2,
   Unlock,
 } from "lucide-react";
 import { generateConsultationSlots, type ConsultationSlot } from "@/features/consultations/slots";
@@ -339,18 +340,23 @@ export function StudioCalendar() {
         </div>
 
         <div className="ds-cal-legend">
-          <span className="ds-cal-legend-item is-project">
-            <span className="ds-cal-legend-dot" /> Project event
-          </span>
-          <span className="ds-cal-legend-item is-booked">
-            <span className="ds-cal-legend-dot" /> Booked
-          </span>
-          <span className="ds-cal-legend-item is-open">
-            <span className="ds-cal-legend-dot" /> Open slots
-          </span>
-          <span className="ds-cal-legend-item is-blocked">
-            <span className="ds-cal-legend-dot" /> Blocked
-          </span>
+          <div className="ds-cal-legend-items">
+            <span className="ds-cal-legend-item is-project">
+              <span className="ds-cal-legend-dot" /> Project event
+            </span>
+            <span className="ds-cal-legend-item is-booked">
+              <span className="ds-cal-legend-dot" /> Booked
+            </span>
+            <span className="ds-cal-legend-item is-open">
+              <span className="ds-cal-legend-dot" /> Open slots
+            </span>
+            <span className="ds-cal-legend-item is-blocked">
+              <span className="ds-cal-legend-dot" /> Blocked
+            </span>
+          </div>
+          <a className="ds-cal-legend-link" href="/studio/settings">
+            <Settings2 size={13} aria-hidden="true" /> Manage availability hours
+          </a>
         </div>
 
         <div className="ds-cal-weekdays" aria-hidden="true">
