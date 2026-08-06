@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpRight,
   CalendarDays,
@@ -256,6 +256,15 @@ export function IntegrationManager() {
   const [busyProvider, setBusyProvider] = useState<Provider | null>(null);
   const [savingCapability, setSavingCapability] =
     useState<IntegrationCapability | null>(null);
+  const noticeRef = useRef<HTMLDivElement | null>(null);
+
+  // The notice banner renders near the top of a long, scrollable page — a
+  // provider card far down the list (e.g. Dropbox Sign) can leave a new
+  // notice entirely off-screen, which reads as "clicking Connect did
+  // nothing." Bring it into view whenever a new one appears.
+  useEffect(() => {
+    if (notice) noticeRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [notice]);
 
   const load = useCallback(async () => {
     if (!dataIsLive) {
@@ -511,6 +520,7 @@ export function IntegrationManager() {
 
       {notice ? (
         <div
+          ref={noticeRef}
           className={`integration-notice integration-notice-${notice.tone}`}
           role={notice.tone === "danger" ? "alert" : "status"}
         >
