@@ -108,6 +108,69 @@ test("maxSlots caps the result even when more windows are available", () => {
   assert.equal(slots.length, 3);
 });
 
+test("open_default mode books the full envelope when there are no carve-outs", () => {
+  const slots = generateConsultationSlots({
+    settings: {
+      durationMinutes: 60,
+      bufferMinutes: 0,
+      mode: "open_default",
+      windows: mondayNineToFive,
+      unavailableWindows: [],
+      blockedDates: [],
+    },
+    timezone: "America/New_York",
+    now: winterSunday,
+    startInDays: 1,
+    daysAhead: 1,
+    busy: [],
+    maxSlots: 40,
+  });
+  assert.equal(slots.length, 8);
+  assert.equal(slots[0]?.startsAt, "2026-01-05T14:00:00.000Z");
+});
+
+test("open_default mode subtracts unavailableWindows from the envelope (lunch break carve-out)", () => {
+  const slots = generateConsultationSlots({
+    settings: {
+      durationMinutes: 60,
+      bufferMinutes: 0,
+      mode: "open_default",
+      windows: mondayNineToFive, // 9am-5pm envelope
+      unavailableWindows: [{ day: "mon", startMinute: 12 * 60, endMinute: 13 * 60 }], // 12-1pm blocked
+      blockedDates: [],
+    },
+    timezone: "America/New_York",
+    now: winterSunday,
+    startInDays: 1,
+    daysAhead: 1,
+    busy: [],
+    maxSlots: 40,
+  });
+  // 9-12 (3 slots) + 13-17 (4 slots) = 7, with no slot starting at noon.
+  assert.equal(slots.length, 7);
+  assert.ok(!slots.some((slot) => slot.startsAt === "2026-01-05T17:00:00.000Z")); // noon EST
+});
+
+test("open_default mode with an empty envelope for a weekday stays closed that day (no implicit 24/7)", () => {
+  const slots = generateConsultationSlots({
+    settings: {
+      durationMinutes: 60,
+      bufferMinutes: 0,
+      mode: "open_default",
+      windows: mondayNineToFive, // only Monday has an envelope
+      unavailableWindows: [],
+      blockedDates: [],
+    },
+    timezone: "America/New_York",
+    now: winterSunday,
+    startInDays: 2, // Tuesday
+    daysAhead: 1,
+    busy: [],
+    maxSlots: 40,
+  });
+  assert.deepEqual(slots, []);
+});
+
 test("a weekday with no configured windows produces no slots", () => {
   const slots = generateConsultationSlots({
     settings: { durationMinutes: 60, bufferMinutes: 0, windows: mondayNineToFive, blockedDates: [] },

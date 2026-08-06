@@ -78,12 +78,19 @@ const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("setConsultationSettings"),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
-    input: z.object({
-      durationMinutes: z.number().int().min(15).max(120),
-      bufferMinutes: z.number().int().min(0).max(60),
-      windows: z.array(availabilityWindowSchema).max(21),
-      blockedDates: z.array(z.string().date()).max(200),
-    }),
+    input: z
+      .object({
+        durationMinutes: z.number().int().min(15).max(120),
+        bufferMinutes: z.number().int().min(0).max(60),
+        mode: z.enum(["closed_default", "open_default"]).default("closed_default"),
+        windows: z.array(availabilityWindowSchema).max(21),
+        unavailableWindows: z.array(availabilityWindowSchema).max(50).default([]),
+        blockedDates: z.array(z.string().date()).max(200),
+      })
+      .refine(
+        (settings) => settings.mode !== "open_default" || settings.windows.length > 0,
+        { message: "open_default mode needs at least one envelope window", path: ["windows"] },
+      ),
   }),
 ]);
 
@@ -721,7 +728,9 @@ export const bookingCommand = onRequest(
             tenantId: command.tenantId,
             durationMinutes: command.input.durationMinutes,
             bufferMinutes: command.input.bufferMinutes,
+            mode: command.input.mode,
             windows: command.input.windows,
+            unavailableWindows: command.input.unavailableWindows,
             blockedDates: command.input.blockedDates,
             createdAt: existing.exists ? existing.get("createdAt") : timestamp,
             createdBy: existing.exists ? existing.get("createdBy") : identity.uid,

@@ -13,7 +13,14 @@ import {
   startOfWeek,
   subMonths,
 } from "date-fns";
-import { doc, getDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  onSnapshot,
+  query,
+  where,
+} from "firebase/firestore";
 import {
   ArrowUpRight,
   CalendarClock,
@@ -24,25 +31,30 @@ import {
 } from "lucide-react";
 import { generateConsultationSlots, type ConsultationSlot } from "@/features/consultations/slots";
 import type { ConsultationSettings, Weekday } from "@/features/consultations/availability-schema";
-import { activeMembership } from "@/lib/firebase/active-membership";
+import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
-import { sendBookingCommand } from "@/lib/booking/command-client";
+import {
+  queryConsultationAvailability,
+  sendBookingCommand,
+} from "@/lib/booking/command-client";
 import { useTenantDocuments, type TenantDocument } from "@/components/live/tenant-records";
 
 type SettingsShape = Pick<
   ConsultationSettings,
-  "durationMinutes" | "bufferMinutes" | "windows" | "blockedDates"
+  "durationMinutes" | "bufferMinutes" | "mode" | "windows" | "unavailableWindows" | "blockedDates"
 >;
 
 const defaultSettings: SettingsShape = {
   durationMinutes: 45,
   bufferMinutes: 15,
+  mode: "closed_default",
   windows: (["mon", "tue", "wed", "thu", "fri"] as const).map((day: Weekday) => ({
     day,
     startMinute: 9 * 60,
     endMinute: 17 * 60,
   })),
+  unavailableWindows: [],
   blockedDates: [],
 };
 
@@ -61,54 +73,115 @@ function weekdayHasWindow(day: Date, windows: SettingsShape["windows"]): boolean
 }
 
 export function ConsultationAvailabilityCalendar() {
+  const workspace = useWorkspace();
   const [month, setMonth] = useState(startOfMonth(new Date()));
-  const [tenantId, setTenantId] = useState("");
   const [timezone, setTimezone] = useState("America/New_York");
   const [settings, setSettings] = useState<SettingsShape>(defaultSettings);
   const [loadingSettings, setLoadingSettings] = useState(dataIsLive);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   const [blockNotice, setBlockNotice] = useState<string | null>(null);
   const [blocking, setBlocking] = useState(false);
+  const [consultations, setConsultations] = useState<TenantDocument[]>([]);
+  const [consultationsLoading, setConsultationsLoading] = useState(dataIsLive);
+  const [calendarBusy, setCalendarBusy] = useState<{ start: string; end: string }[]>([]);
+  const [calendarStatus, setCalendarStatus] = useState<"connected" | "unavailable" | "unknown">(
+    "unknown",
+  );
 
-  const { records: consultations, loading: consultationsLoading } =
-    useTenantDocuments("consultations");
+  const tenantId = workspace.tenantId ?? "";
   const { records: projects } = useTenantDocuments("projects");
 
+  // Studio-local timezone + the weekly-availability settings doc, kept live
+  // so a change made in Settings (or another tab) shows up here without a
+  // manual reload.
   useEffect(() => {
+    if (!dataIsLive) return;
+    if (workspace.loading || !workspace.tenantId) return;
+    const id = workspace.tenantId;
     let active = true;
-    async function load() {
-      if (!dataIsLive) return;
-      try {
-        const { auth, firestore } = getFirebaseClient();
-        const user = auth.currentUser;
-        if (!user) return;
-        const membership = await activeMembership(firestore, user.uid);
-        const id = String(membership.get("tenantId") ?? "");
-        const [tenant, settingsDoc] = await Promise.all([
-          getDoc(doc(firestore, "tenants", id)),
-          getDoc(doc(firestore, "consultationSettings", id)),
-        ]);
+    const { firestore } = getFirebaseClient();
+    void getDoc(doc(firestore, "tenants", id)).then((tenant) => {
+      if (active) setTimezone(String(tenant.get("timezone") ?? "America/New_York"));
+    });
+    const unsubscribe = onSnapshot(
+      doc(firestore, "consultationSettings", id),
+      (settingsDoc) => {
         if (!active) return;
-        setTenantId(id);
-        setTimezone(String(tenant.get("timezone") ?? "America/New_York"));
         if (settingsDoc.exists()) {
           const data = settingsDoc.data();
           setSettings({
             durationMinutes: Number(data.durationMinutes ?? defaultSettings.durationMinutes),
             bufferMinutes: Number(data.bufferMinutes ?? defaultSettings.bufferMinutes),
+            mode: data.mode === "open_default" ? "open_default" : "closed_default",
             windows: Array.isArray(data.windows) ? data.windows : defaultSettings.windows,
-            blockedDates: Array.isArray(data.blockedDates) ? data.blockedDates.map(String) : [],
+            unavailableWindows: Array.isArray(data.unavailableWindows)
+              ? data.unavailableWindows
+              : [],
+            blockedDates: Array.isArray(data.blockedDates)
+              ? data.blockedDates.map(String)
+              : [],
           });
         }
-      } finally {
-        if (active) setLoadingSettings(false);
-      }
-    }
-    void load();
+        setLoadingSettings(false);
+      },
+      () => setLoadingSettings(false),
+    );
     return () => {
       active = false;
+      unsubscribe();
     };
-  }, []);
+  }, [workspace.loading, workspace.tenantId]);
+
+  // Real-time booking refresh — booking a slot (from this tab, another
+  // tab, or the public scheduler) updates the grid without a manual
+  // reload.
+  useEffect(() => {
+    if (!dataIsLive) return;
+    if (workspace.loading || !workspace.tenantId) return;
+    const { firestore } = getFirebaseClient();
+    return onSnapshot(
+      query(
+        collection(firestore, "consultations"),
+        where("tenantId", "==", workspace.tenantId),
+      ),
+      (snapshot) => {
+        setConsultations(
+          snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as TenantDocument),
+        );
+        setConsultationsLoading(false);
+      },
+      () => setConsultationsLoading(false),
+    );
+  }, [workspace.loading, workspace.tenantId]);
+
+  // Real Google Calendar conflicts, merged into slot generation below so
+  // they auto-block alongside internal bookings. Google has no push
+  // channel wired up here, so this polls on an interval rather than
+  // updating instantly — it degrades to "internal bookings only" if the
+  // studio hasn't connected a calendar or the provider call fails.
+  useEffect(() => {
+    if (!dataIsLive) return;
+    if (workspace.loading || !workspace.tenantId) return;
+    let active = true;
+    async function loadCalendarBusy() {
+      try {
+        const outcome = await queryConsultationAvailability();
+        if (!active) return;
+        if (outcome.mode === "live") {
+          setCalendarBusy(outcome.payload.busy);
+          setCalendarStatus(outcome.payload.calendarStatus);
+        }
+      } catch {
+        if (active) setCalendarStatus("unavailable");
+      }
+    }
+    void loadCalendarBusy();
+    const interval = setInterval(loadCalendarBusy, 3 * 60_000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [workspace.loading, workspace.tenantId]);
 
   const days = useMemo(
     () =>
@@ -121,7 +194,7 @@ export function ConsultationAvailabilityCalendar() {
 
   const consultationsByDate = useMemo(() => {
     const map = new Map<string, TenantDocument[]>();
-    for (const consultation of consultations ?? []) {
+    for (const consultation of consultations) {
       const startsAt = consultation.startsAt;
       if (typeof startsAt !== "string" || consultation.status !== "scheduled") continue;
       const key = localDateKey(startsAt, timezone);
@@ -133,15 +206,17 @@ export function ConsultationAvailabilityCalendar() {
   }, [consultations, timezone]);
 
   const busy = useMemo(
-    () =>
-      (consultations ?? [])
+    () => [
+      ...consultations
         .filter((consultation) => consultation.status === "scheduled")
         .flatMap((consultation) =>
           typeof consultation.startsAt === "string" && typeof consultation.endsAt === "string"
             ? [{ start: consultation.startsAt, end: consultation.endsAt }]
             : [],
         ),
-    [consultations],
+      ...calendarBusy,
+    ],
+    [consultations, calendarBusy],
   );
 
   const slotsByDate = useMemo(() => {
@@ -240,7 +315,7 @@ export function ConsultationAvailabilityCalendar() {
                 type="button"
                 key={dateKey}
                 className={[
-                  `availability-day availability-day-${state}`,
+                  `availability-day availability-day-state-${state}`,
                   !isSameMonth(day, month) ? "outside-month" : "",
                   isToday(day) ? "is-today" : "",
                   selected ? "is-selected" : "",
@@ -259,6 +334,11 @@ export function ConsultationAvailabilityCalendar() {
         </div>
         {loadingSettings || consultationsLoading ? (
           <p className="calendar-loading">Loading availability…</p>
+        ) : calendarStatus === "unavailable" ? (
+          <p className="calendar-loading">
+            Google Calendar isn’t connected — only internal bookings are shown. Connect it in{" "}
+            <a href="/studio/integrations">Integrations</a>.
+          </p>
         ) : null}
       </div>
 

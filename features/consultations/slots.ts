@@ -74,6 +74,48 @@ function isoDate(year: number, month: number, day: number): string {
   return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+type MinuteWindow = { startMinute: number; endMinute: number };
+
+/** Sorted-interval subtraction: `base` minus every overlapping `carve` window, in minute-of-day space. */
+function subtractIntervals(base: readonly MinuteWindow[], carve: readonly MinuteWindow[]): MinuteWindow[] {
+  let remaining: MinuteWindow[] = base.map((w) => ({ ...w }));
+  for (const cut of carve) {
+    const next: MinuteWindow[] = [];
+    for (const window of remaining) {
+      if (cut.endMinute <= window.startMinute || cut.startMinute >= window.endMinute) {
+        next.push(window);
+        continue;
+      }
+      if (cut.startMinute > window.startMinute) {
+        next.push({ startMinute: window.startMinute, endMinute: Math.min(cut.startMinute, window.endMinute) });
+      }
+      if (cut.endMinute < window.endMinute) {
+        next.push({ startMinute: Math.max(cut.endMinute, window.startMinute), endMinute: window.endMinute });
+      }
+    }
+    remaining = next;
+  }
+  return remaining;
+}
+
+/**
+ * Which minute-of-day windows are bookable on `weekday`, given the studio's
+ * mode. closed_default: `windowsByDay` IS the bookable set. open_default:
+ * `windowsByDay` is the outer envelope and `unavailableByDay` is subtracted
+ * from it — a weekday absent from `windowsByDay` is closed regardless of
+ * mode, so there is no implicit "always open" fallback.
+ */
+function resolveDayWindows(
+  mode: "closed_default" | "open_default",
+  windowsByDay: Map<Weekday, MinuteWindow[]>,
+  unavailableByDay: Map<Weekday, MinuteWindow[]>,
+  weekday: Weekday,
+): MinuteWindow[] {
+  const envelope = windowsByDay.get(weekday) ?? [];
+  if (mode === "closed_default") return envelope;
+  return subtractIntervals(envelope, unavailableByDay.get(weekday) ?? []);
+}
+
 /**
  * Deterministic, timezone-correct consultation slot generation. Walks
  * calendar dates as observed in `timezone` (not UTC dates — a studio's
@@ -83,7 +125,8 @@ function isoDate(year: number, month: number, day: number): string {
  * `bufferMinutes` padding is applied on both sides.
  */
 export function generateConsultationSlots(input: {
-  settings: Pick<ConsultationSettings, "durationMinutes" | "bufferMinutes" | "windows" | "blockedDates">;
+  settings: Pick<ConsultationSettings, "durationMinutes" | "bufferMinutes" | "windows" | "blockedDates"> &
+    Partial<Pick<ConsultationSettings, "mode" | "unavailableWindows">>;
   timezone: string;
   now: Date;
   startInDays: number;
@@ -92,16 +135,23 @@ export function generateConsultationSlots(input: {
   maxSlots: number;
 }): ConsultationSlot[] {
   const { settings, timezone, now, startInDays, daysAhead, busy, maxSlots } = input;
+  const mode = settings.mode ?? "closed_default";
   const busyMs = busy.map((interval) => ({
     start: Date.parse(interval.start),
     end: Date.parse(interval.end),
   }));
   const blocked = new Set(settings.blockedDates);
-  const windowsByDay = new Map<Weekday, Array<{ startMinute: number; endMinute: number }>>();
+  const windowsByDay = new Map<Weekday, MinuteWindow[]>();
   for (const window of settings.windows) {
     const list = windowsByDay.get(window.day) ?? [];
     list.push({ startMinute: window.startMinute, endMinute: window.endMinute });
     windowsByDay.set(window.day, list);
+  }
+  const unavailableByDay = new Map<Weekday, MinuteWindow[]>();
+  for (const window of settings.unavailableWindows ?? []) {
+    const list = unavailableByDay.get(window.day) ?? [];
+    list.push({ startMinute: window.startMinute, endMinute: window.endMinute });
+    unavailableByDay.set(window.day, list);
   }
 
   const today = zonedCalendarDate(now, timezone);
@@ -112,7 +162,7 @@ export function generateConsultationSlots(input: {
     const { year, month, day } = addCalendarDays(rangeStart.year, rangeStart.month, rangeStart.day, offset);
     if (blocked.has(isoDate(year, month, day))) continue;
     const weekday = zonedCalendarDate(zonedTimeToUtc(year, month, day, 12 * 60, timezone), timezone).weekday;
-    const windows = windowsByDay.get(weekday) ?? [];
+    const windows = resolveDayWindows(mode, windowsByDay, unavailableByDay, weekday);
     for (const window of windows) {
       for (
         let minute = window.startMinute;

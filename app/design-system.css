@@ -1529,11 +1529,11 @@
   box-shadow: inset 0 0 0 2px var(--ds-claret);
 }
 
-.availability-day-blocked {
+.availability-day-state-blocked {
   background: var(--ds-danger-soft);
 }
 
-.availability-day-closed {
+.availability-day-state-closed {
   background: var(--ds-line-soft);
 }
 

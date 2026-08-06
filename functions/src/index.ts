@@ -9,6 +9,7 @@ export { crmCommand } from "./crm/commands.js";
 export { publicLeadIntake } from "./crm/public-lead.js";
 export { workflowCommand } from "./workflow/commands.js";
 export { bookingCommand } from "./booking/commands.js";
+export { consultationAvailabilityQuery } from "./booking/consultation-availability-query.js";
 export { publicConsultationScheduling } from "./booking/public-scheduling.js";
 export { proposalCommand } from "./booking/proposals.js";
 export { docusignWebhook, dropboxSignWebhook, quickbooksWebhook, stripeConnectWebhook } from "./booking/webhooks.js";

@@ -18,13 +18,26 @@ export const availabilityWindowSchema = z
   });
 export type AvailabilityWindow = z.infer<typeof availabilityWindowSchema>;
 
+// closed_default: `windows` are the bookable hours — everything else is
+// closed (the original, still-default model). open_default: `windows`
+// become the outer envelope per weekday (e.g. "Mon-Sat 7am-9pm") and
+// `unavailableWindows` are carve-outs subtracted from it. A weekday with no
+// envelope window is closed that day in either mode — there is no literal
+// "always open" default.
+export const availabilityModeSchema = z.enum(["closed_default", "open_default"]);
+export type AvailabilityMode = z.infer<typeof availabilityModeSchema>;
+
 export const consultationSettingsSchema = auditFieldsSchema.extend({
   tenantId: z.string().min(1),
   durationMinutes: z.number().int().min(15).max(120),
   bufferMinutes: z.number().int().min(0).max(60),
+  mode: availabilityModeSchema.default("closed_default"),
   windows: z.array(availabilityWindowSchema).max(21),
+  // Only meaningful in open_default mode — ignored in closed_default.
+  unavailableWindows: z.array(availabilityWindowSchema).max(50).default([]),
   // ISO calendar dates (studio-local) with no bookable slots at all —
-  // holidays, days off — regardless of what windows say for that weekday.
+  // holidays, days off — regardless of what windows/unavailableWindows say
+  // for that weekday, in either mode.
   blockedDates: z.array(z.string().date()).max(200),
 });
 export type ConsultationSettings = z.infer<typeof consultationSettingsSchema>;

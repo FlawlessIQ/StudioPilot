@@ -173,6 +173,64 @@ export async function checkProviderConnection(tenantId:string,provider:Provider)
   await current.document.ref.update({status:"connected",lastHealthCheckAt:now,lastHealthLatencyMs:latencyMs,diagnosticSeverity:diagnostics.severity,diagnosticRecommendation:diagnostics.recommendedAction,diagnosticFailedJobs7d:diagnostics.failedJobs7d,diagnostics,lastError:null,updatedAt:now});
   return{provider,status:"connected",mockMode:false,diagnostics};
 }
+export type BusyInterval={start:string;end:string};
+type FreeBusyResult={ok:true;busy:BusyInterval[]}|{ok:false;reason:string};
+type FreeBusyFetcher=(tenantId:string,timeMinIso:string,timeMaxIso:string)=>Promise<FreeBusyResult>;
+
+async function googleCalendarBusyIntervals(tenantId:string,timeMinIso:string,timeMaxIso:string):Promise<FreeBusyResult>{
+  let current:Awaited<ReturnType<typeof connection>>;
+  try{
+    current=await connection(tenantId,"google_calendar");
+  }catch(caught:unknown){
+    return{ok:false,reason:caught instanceof Error?caught.message:"GOOGLE_CALENDAR_NOT_CONNECTED"};
+  }
+  if(current.mock)return{ok:true,busy:[]};
+  const credential=current.credential;
+  if(!credential)return{ok:false,reason:"GOOGLE_CALENDAR_CREDENTIAL_UNAVAILABLE"};
+  const calendarId=String(current.document.get("selectedResourceId")??"primary");
+  const response=await fetch("https://www.googleapis.com/calendar/v3/freeBusy",{
+    method:"POST",
+    headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/json"},
+    body:JSON.stringify({timeMin:timeMinIso,timeMax:timeMaxIso,items:[{id:calendarId}]}),
+  });
+  if(!response.ok)return{ok:false,reason:`GOOGLE_CALENDAR_FREEBUSY_FAILED:${response.status}`};
+  const body=asRecord(await response.json().catch(()=>({})));
+  const entry=asRecord(asRecord(body.calendars)[calendarId]);
+  const busyRaw=Array.isArray(entry.busy)?entry.busy as unknown[]:[];
+  const busy=busyRaw
+    .map((value)=>asRecord(value))
+    .map((value)=>({start:text(value.start),end:text(value.end)}))
+    .filter((interval)=>interval.start&&interval.end);
+  return{ok:true,busy};
+}
+
+// Provider-pluggable so a future Outlook freebusy fetcher is one map entry,
+// not a rewrite — mirrors this file's existing `probes` map convention.
+const freeBusyFetchers:Partial<Record<Provider,FreeBusyFetcher>>={
+  google_calendar:googleCalendarBusyIntervals,
+};
+
+/**
+ * Real busy intervals from the tenant's connected calendar provider, for
+ * merging into consultation slot generation. Never throws — an unconnected
+ * or failing provider degrades to `{ok:false, reason}` so callers can
+ * proceed with `busy=[]` rather than fail the whole read.
+ */
+export async function getCalendarBusyIntervals(
+  tenantId:string,
+  timeMinIso:string,
+  timeMaxIso:string,
+  provider:Provider="google_calendar",
+):Promise<FreeBusyResult>{
+  const fetcher=freeBusyFetchers[provider];
+  if(!fetcher)return{ok:false,reason:`${provider.toUpperCase()}_FREEBUSY_UNSUPPORTED`};
+  try{
+    return await fetcher(tenantId,timeMinIso,timeMaxIso);
+  }catch(caught:unknown){
+    return{ok:false,reason:caught instanceof Error?caught.message:"FREEBUSY_FAILED"};
+  }
+}
+
 async function providerJson(url:string,init:RequestInit,code:string):Promise<Json>{const response=await fetch(url,init);const body=asRecord(await response.json().catch(()=>({})));if(!response.ok)throw new Error(`${code}:${response.status}:${text(asRecord(body.error).message)||text(body.message)||"PROVIDER_ERROR"}`);return body}
 const mockId=(scope:string,id:string)=>`mock_${scope}_${createHash("sha256").update(id).digest("hex").slice(0,16)}`;
 

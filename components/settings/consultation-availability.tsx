@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { doc, getDoc } from "firebase/firestore";
-import { CalendarClock, X } from "lucide-react";
+import { CalendarClock, Plus, X } from "lucide-react";
 import { activeMembership } from "@/lib/firebase/active-membership";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
@@ -19,28 +19,42 @@ const weekdays = [
 ] as const;
 type WeekdayKey = (typeof weekdays)[number]["key"];
 
-type DayWindow = { open: boolean; start: string; end: string };
+type TimeRange = { start: string; end: string };
+type WeeklyWindows = Record<WeekdayKey, TimeRange[]>;
+type AvailabilityMode = "closed_default" | "open_default";
+
 type FormState = {
   durationMinutes: number;
   bufferMinutes: number;
-  days: Record<WeekdayKey, DayWindow>;
+  mode: AvailabilityMode;
+  // Bookable hours in closed_default mode; the outer envelope (the widest
+  // hours ever considered) in open_default mode.
+  windows: WeeklyWindows;
+  // Only meaningful in open_default mode — carve-outs subtracted from
+  // `windows`. Ignored (and not sent) in closed_default mode.
+  unavailable: WeeklyWindows;
   blockedDates: string[];
 };
 
-const defaultDays: Record<WeekdayKey, DayWindow> = {
-  sun: { open: false, start: "09:00", end: "17:00" },
-  mon: { open: true, start: "09:00", end: "17:00" },
-  tue: { open: true, start: "09:00", end: "17:00" },
-  wed: { open: true, start: "09:00", end: "17:00" },
-  thu: { open: true, start: "09:00", end: "17:00" },
-  fri: { open: true, start: "09:00", end: "17:00" },
-  sat: { open: false, start: "09:00", end: "17:00" },
+function emptyWeek(): WeeklyWindows {
+  return { sun: [], mon: [], tue: [], wed: [], thu: [], fri: [], sat: [] };
+}
+
+const defaultWindows: WeeklyWindows = {
+  ...emptyWeek(),
+  mon: [{ start: "09:00", end: "17:00" }],
+  tue: [{ start: "09:00", end: "17:00" }],
+  wed: [{ start: "09:00", end: "17:00" }],
+  thu: [{ start: "09:00", end: "17:00" }],
+  fri: [{ start: "09:00", end: "17:00" }],
 };
 
 const defaultState: FormState = {
   durationMinutes: 45,
   bufferMinutes: 15,
-  days: defaultDays,
+  mode: "closed_default",
+  windows: defaultWindows,
+  unavailable: emptyWeek(),
   blockedDates: [],
 };
 
@@ -53,6 +67,101 @@ function minutesToTime(minutes: number): string {
 function timeToMinutes(value: string): number {
   const [hour, minute] = value.split(":").map(Number);
   return (hour || 0) * 60 + (minute || 0);
+}
+
+function windowsFromDocField(value: unknown): WeeklyWindows {
+  const result = emptyWeek();
+  if (!Array.isArray(value)) return result;
+  for (const window of value) {
+    const day = String(window?.day) as WeekdayKey;
+    if (!(day in result)) continue;
+    result[day].push({
+      start: minutesToTime(Number(window.startMinute)),
+      end: minutesToTime(Number(window.endMinute)),
+    });
+  }
+  return result;
+}
+
+function windowsToDocField(value: WeeklyWindows) {
+  return weekdays.flatMap(({ key }) =>
+    value[key].map((range) => ({
+      day: key,
+      startMinute: timeToMinutes(range.start),
+      endMinute: timeToMinutes(range.end),
+    })),
+  );
+}
+
+function validateWeek(value: WeeklyWindows) {
+  for (const { key, label } of weekdays) {
+    for (const range of value[key]) {
+      if (timeToMinutes(range.end) <= timeToMinutes(range.start)) {
+        throw new Error(`${label}'s end time must be after its start time.`);
+      }
+    }
+  }
+}
+
+/** One weekday's list of time ranges, with add/remove — reused for both the
+    open-hours editor and the (mode-conditional) unavailable-hours editor. */
+function WeekdayWindowEditor({
+  value,
+  onChange,
+  addLabel,
+}: {
+  value: WeeklyWindows;
+  onChange: (next: WeeklyWindows) => void;
+  addLabel: string;
+}) {
+  function updateRange(day: WeekdayKey, index: number, patch: Partial<TimeRange>) {
+    const next = { ...value, [day]: value[day].map((range, i) => (i === index ? { ...range, ...patch } : range)) };
+    onChange(next);
+  }
+  function addRange(day: WeekdayKey) {
+    onChange({ ...value, [day]: [...value[day], { start: "09:00", end: "17:00" }] });
+  }
+  function removeRange(day: WeekdayKey, index: number) {
+    onChange({ ...value, [day]: value[day].filter((_, i) => i !== index) });
+  }
+
+  return (
+    <div className="consultation-availability-days" role="group">
+      {weekdays.map(({ key, label }) => (
+        <div className="consultation-availability-day" key={key}>
+          <strong>{label}</strong>
+          {value[key].length === 0 ? <span className="consultation-availability-day-closed">Closed</span> : null}
+          {value[key].map((range, index) => (
+            <div className="consultation-availability-day-times" key={index}>
+              <input
+                type="time"
+                aria-label={`${label} range ${index + 1} starts`}
+                value={range.start}
+                onChange={(event) => updateRange(key, index, { start: event.target.value })}
+              />
+              <span aria-hidden="true">–</span>
+              <input
+                type="time"
+                aria-label={`${label} range ${index + 1} ends`}
+                value={range.end}
+                onChange={(event) => updateRange(key, index, { end: event.target.value })}
+              />
+              <button
+                type="button"
+                aria-label={`Remove this ${label} time range`}
+                onClick={() => removeRange(key, index)}
+              >
+                <X aria-hidden="true" size={14} />
+              </button>
+            </div>
+          ))}
+          <button type="button" className="consultation-availability-add-range" onClick={() => addRange(key)}>
+            <Plus aria-hidden="true" size={14} /> {addLabel}
+          </button>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function ConsultationAvailability() {
@@ -81,32 +190,13 @@ export function ConsultationAvailability() {
         setTimezone(String(tenant.get("timezone") ?? "America/New_York"));
         if (!settings.exists()) return;
         const data = settings.data();
-        const days: Record<WeekdayKey, DayWindow> = {
-          sun: { ...defaultDays.sun, open: false },
-          mon: { ...defaultDays.mon, open: false },
-          tue: { ...defaultDays.tue, open: false },
-          wed: { ...defaultDays.wed, open: false },
-          thu: { ...defaultDays.thu, open: false },
-          fri: { ...defaultDays.fri, open: false },
-          sat: { ...defaultDays.sat, open: false },
-        };
-        const windows = Array.isArray(data.windows) ? data.windows : [];
-        for (const window of windows) {
-          const day = String(window.day) as WeekdayKey;
-          if (!(day in days)) continue;
-          days[day] = {
-            open: true,
-            start: minutesToTime(Number(window.startMinute)),
-            end: minutesToTime(Number(window.endMinute)),
-          };
-        }
         setForm({
           durationMinutes: Number(data.durationMinutes ?? defaultState.durationMinutes),
           bufferMinutes: Number(data.bufferMinutes ?? defaultState.bufferMinutes),
-          days,
-          blockedDates: Array.isArray(data.blockedDates)
-            ? data.blockedDates.map(String)
-            : [],
+          mode: data.mode === "open_default" ? "open_default" : "closed_default",
+          windows: windowsFromDocField(data.windows),
+          unavailable: windowsFromDocField(data.unavailableWindows),
+          blockedDates: Array.isArray(data.blockedDates) ? data.blockedDates.map(String) : [],
         });
       } catch (caught: unknown) {
         if (active) {
@@ -125,13 +215,6 @@ export function ConsultationAvailability() {
       active = false;
     };
   }, []);
-
-  function updateDay(day: WeekdayKey, patch: Partial<DayWindow>) {
-    setForm((current) => ({
-      ...current,
-      days: { ...current.days, [day]: { ...current.days[day], ...patch } },
-    }));
-  }
 
   function addBlockedDate() {
     if (!newBlockedDate || form.blockedDates.includes(newBlockedDate)) return;
@@ -154,17 +237,12 @@ export function ConsultationAvailability() {
     setSaving(true);
     setNotice(null);
     try {
-      const windows = weekdays
-        .filter(({ key }) => form.days[key].open)
-        .map(({ key }) => ({
-          day: key,
-          startMinute: timeToMinutes(form.days[key].start),
-          endMinute: timeToMinutes(form.days[key].end),
-        }));
-      for (const window of windows) {
-        if (window.endMinute <= window.startMinute) {
+      validateWeek(form.windows);
+      if (form.mode === "open_default") {
+        validateWeek(form.unavailable);
+        if (windowsToDocField(form.windows).length === 0) {
           throw new Error(
-            `${weekdays.find((day) => day.key === window.day)?.label}'s close time must be after its open time.`,
+            "Open-by-default mode needs at least one day with an hours envelope — set the widest hours you'd ever take a consultation, then mark specific times unavailable below.",
           );
         }
       }
@@ -174,7 +252,9 @@ export function ConsultationAvailability() {
         input: {
           durationMinutes: form.durationMinutes,
           bufferMinutes: form.bufferMinutes,
-          windows,
+          mode: form.mode,
+          windows: windowsToDocField(form.windows),
+          unavailableWindows: form.mode === "open_default" ? windowsToDocField(form.unavailable) : [],
           blockedDates: form.blockedDates,
         },
       });
@@ -214,6 +294,33 @@ export function ConsultationAvailability() {
           </div>
         </div>
 
+        <div className="consultation-availability-mode" role="radiogroup" aria-label="Availability mode">
+          <label>
+            <input
+              type="radio"
+              name="availability-mode"
+              checked={form.mode === "closed_default"}
+              onChange={() => setForm((current) => ({ ...current, mode: "closed_default" }))}
+            />
+            <span>
+              <strong>Closed by default</strong>
+              <small>Set the specific hours you&apos;re available — everything else is closed.</small>
+            </span>
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="availability-mode"
+              checked={form.mode === "open_default"}
+              onChange={() => setForm((current) => ({ ...current, mode: "open_default" }))}
+            />
+            <span>
+              <strong>Open by default</strong>
+              <small>Set your widest possible hours, then mark specific times unavailable.</small>
+            </span>
+          </label>
+        </div>
+
         <div className="consultation-availability-durations">
           <label>
             Consultation length (minutes)
@@ -251,40 +358,27 @@ export function ConsultationAvailability() {
           </label>
         </div>
 
-        <div className="consultation-availability-days" role="group" aria-label="Weekly hours">
-          {weekdays.map(({ key, label }) => {
-            const day = form.days[key];
-            return (
-              <div className="consultation-availability-day" key={key}>
-                <label className="consultation-availability-day-toggle">
-                  <input
-                    type="checkbox"
-                    checked={day.open}
-                    onChange={(event) => updateDay(key, { open: event.target.checked })}
-                  />
-                  {label}
-                </label>
-                <div className="consultation-availability-day-times">
-                  <input
-                    type="time"
-                    aria-label={`${label} opens`}
-                    disabled={!day.open}
-                    value={day.start}
-                    onChange={(event) => updateDay(key, { start: event.target.value })}
-                  />
-                  <span aria-hidden="true">–</span>
-                  <input
-                    type="time"
-                    aria-label={`${label} closes`}
-                    disabled={!day.open}
-                    value={day.end}
-                    onChange={(event) => updateDay(key, { end: event.target.value })}
-                  />
-                </div>
-              </div>
-            );
-          })}
+        <div className="consultation-availability-section">
+          <p className="consultation-availability-section-label">
+            {form.mode === "open_default" ? "Widest possible hours" : "Hours you're available"}
+          </p>
+          <WeekdayWindowEditor
+            value={form.windows}
+            onChange={(windows) => setForm((current) => ({ ...current, windows }))}
+            addLabel="Add time range"
+          />
         </div>
+
+        {form.mode === "open_default" ? (
+          <div className="consultation-availability-section">
+            <p className="consultation-availability-section-label">Mark unavailable</p>
+            <WeekdayWindowEditor
+              value={form.unavailable}
+              onChange={(unavailable) => setForm((current) => ({ ...current, unavailable }))}
+              addLabel="Add unavailable range"
+            />
+          </div>
+        ) : null}
 
         <div className="consultation-availability-blocked">
           <label>

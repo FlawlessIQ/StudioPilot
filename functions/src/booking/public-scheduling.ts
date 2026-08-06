@@ -3,6 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
+import { getCalendarBusyIntervals } from "../operations/provider-runtime.js";
 import { studioHubCors } from "../security/cors.js";
 import { generateConsultationSlots, getConsultationSettings } from "./availability.js";
 
@@ -79,6 +80,15 @@ async function slotsFor(link: FirebaseFirestore.QueryDocumentSnapshot) {
       start: String(document.get("startsAt")),
       end: String(document.get("endsAt")),
     }));
+  // Real calendar conflicts auto-block alongside internal bookings; an
+  // unconnected or failing provider degrades to no extra busy time rather
+  // than failing the whole scheduling read.
+  const calendarBusy = await getCalendarBusyIntervals(
+    tenantId,
+    new Date().toISOString(),
+    rangeStart.toISOString(),
+  );
+  if (calendarBusy.ok) busy.push(...calendarBusy.busy);
   const slots = generateConsultationSlots({
     settings,
     timezone,

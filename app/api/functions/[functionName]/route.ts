@@ -12,6 +12,7 @@ const functionNames = [
   "communicationsCommand",
   "billingCommand",
   "clientInvitationCommand",
+  "consultationAvailabilityQuery",
   "createSession",
   "crewCommand",
   "crewInvitationCommand",
