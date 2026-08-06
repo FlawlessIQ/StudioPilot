@@ -4858,7 +4858,7 @@ textarea:focus-visible {
 .client-card-grid,
 .package-grid {
   display: grid;
-  gap: 12px;
+  gap: 16px;
   grid-template-columns: repeat(3, 1fr);
   padding: 18px;
 }
@@ -7212,7 +7212,7 @@ textarea:focus-visible {
   .live-detail-page
 ) {
   margin-inline: auto;
-  max-width: 1240px;
+  max-width: 1400px;
   width: 100%;
 }
 

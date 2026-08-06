@@ -461,3 +461,460 @@
   height: 15px;
   flex: none;
 }
+
+/* =========================================================================
+   Density pass — type floor + spacing (post visual-density audit).
+   globals.css/studiocue-reimagined.css redefine several of these selectors
+   more than once; the values below match whichever declaration actually
+   wins the cascade (verified live), not just the first grep hit. Headings
+   are intentionally untouched — they already render large via their own
+   winning declaration.
+   ========================================================================= */
+
+/* Eyebrow / uppercase labels: was 8-10px, anchored to the existing
+   .ds-eyebrow scale (11.5px) rather than a new arbitrary size. */
+.ds-root .lifecycle-heading small,      /* studiocue-reimagined.css:450, was 8px */
+.ds-root .project-current-stage small,  /* globals.css:11071, was 9px */
+.ds-root .project-phase small,          /* globals.css:11144, was 8px */
+.ds-root .crm-table-head,               /* globals.css:4777, was 8px */
+.ds-root .studio-command-kicker,        /* globals.css:242, was 10px */
+.ds-root .studio-command-badge {        /* globals.css:359, was 9px */
+  font-size: 11.5px;
+}
+
+/* Metadata / secondary text: was 6-10px (globals.css:11481's .em was the
+   smallest text found anywhere in the app at 6px). */
+.ds-root .crm-table article small,           /* globals.css:4822, was 8px */
+.ds-root .crm-search-form input,             /* globals.css:4729, was 9px */
+.ds-root .crm-tabs button,
+.ds-root .crm-tabs a,                        /* globals.css:4692, was 10px */
+.ds-root .crm-list-empty span,               /* globals.css:4753, was 9px */
+.ds-root .crm-empty-hint,                    /* globals.css:4855, was 9px */
+.ds-root .project-facts small,               /* globals.css:11027, was 10px */
+.ds-root .project-work-lane > div > a small, /* globals.css:11479, was 7px */
+.ds-root .project-work-lane > div > a em,    /* globals.css:11486, was 6px */
+.ds-root .project-work-lane > h3 em,         /* globals.css:11412, was 7px */
+.ds-root .project-work-lane > h3,            /* globals.css:11375, was 9px */
+.ds-root .lifecycle-stage small {            /* studiocue-reimagined.css:530, was 8px */
+  font-size: 12.5px;
+}
+
+/* Primary body / row / cell text: was 8-11px. */
+.ds-root .crm-table article strong,           /* globals.css:4814, was 10px */
+.ds-root .project-work-lane > div > a strong, /* globals.css:11473, was 8px */
+.ds-root .lifecycle-stage strong,             /* studiocue-reimagined.css:525, was 11px */
+.ds-root .project-facts strong {              /* globals.css:11031, was 12px */
+  font-size: 14.5px;
+}
+
+/* !important because the source rule (globals.css:4826) also uses
+   !important — a non-important override never beats it regardless of
+   specificity or source order. */
+.ds-root .crm-primary strong {
+  font-size: 14.5px !important;
+}
+
+/* Panel padding: the winning declaration (globals.css:9715-9718) is
+   27px 28px 21px against a heading that's already large — trimmed
+   modestly rather than aggressively, since the "dead space" complaint is
+   mostly the undersized text above, not oversized padding. */
+.ds-root .panel-heading {
+  padding: 24px 26px 20px;
+}
+
+/* Density pass, part 2 — gaps found during browser verification of the
+   dashboard, clients, and project-detail pages: several offending
+   selectors weren't caught by the original audit's class list (it named
+   the parent block, e.g. ".project-table-row", but not the child
+   strong/small elements that actually carry the undersized text). Same
+   bands as above. */
+.ds-root .project-table-head {          /* globals.css:3394, was 9px */
+  font-size: 11.5px;
+}
+
+.ds-root .project-name small,
+.ds-root .blocker-cell small,             /* globals.css:3433, was 9px */
+.ds-root .project-table-row > time,       /* globals.css:3470, was 10px */
+.ds-root .today-row small,
+.ds-root .today-row time,
+.ds-root .day-divider small,              /* globals.css:3282, was 9px */
+.ds-root .next-action-preview small,
+.ds-root .next-action-preview span,       /* globals.css:492, was 9px */
+.ds-root .automation-next-list small,     /* studiocue-reimagined.css:619, was 8px */
+.ds-root .client-card-grid > article > p, /* globals.css:4889, was 9px */
+.ds-root .client-card-grid dl div,        /* globals.css:4902, was 9px */
+.ds-root .client-card-grid article > a,   /* globals.css:4919, was 10px */
+.ds-root .next-action-card > p:not(.eyebrow), /* globals.css:5176, was 10px */
+.ds-root .project-checkpoint-list small,  /* globals.css:6207, was 8px */
+.ds-root .project-readiness-summary small, /* globals.css:10970, was 10px */
+.ds-root .project-stage-control form small, /* globals.css:11250, was 8px */
+.ds-root .project-stage-control form > p, /* globals.css:11267, was 9px */
+.ds-root .project-consultation-invite small { /* globals.css:12890, unset (inherited) */
+  font-size: 12.5px;
+}
+
+.ds-root .project-name strong,
+.ds-root .blocker-cell strong,      /* globals.css:3428, was 10px */
+.ds-root .readiness-cell > strong,  /* globals.css:3480, was 10px */
+.ds-root .today-row strong,         /* globals.css:3286, was 11px */
+.ds-root .next-action-preview strong, /* globals.css:497, was 12px */
+.ds-root .automation-next-list strong, /* studiocue-reimagined.css:615, was 10px */
+.ds-root .project-checkpoint-list strong, /* globals.css:6202, was 10px */
+.ds-root .crm-list-empty strong,    /* globals.css:4746, was 11px */
+.ds-root .project-stage-control > summary, /* globals.css:11222, was 11px */
+.ds-root .project-stage-control form strong { /* globals.css:11256, was 10px */
+  font-size: 14.5px;
+}
+/* =========================================================================
+   Density pass, part 3 — app-wide sweep. Same mechanism/bands as parts 1-2
+   in this file (11.5px eyebrow / 12.5px secondary / 14.5px primary), applied
+   to every remaining sub-13px selector found across app/globals.css and
+   app/studiocue-reimagined.css that's actually referenced by a className
+   somewhere in app/ or components/. Generated by a script that: extracted
+   every font-size<13px rule, filtered out unused selectors and the ones
+   already covered above, then banded by role (uppercase/kicker text -> 11.5,
+   `strong` text -> 14.5, everything else -> 12.5) with a floor-only rule (a
+   selector already >= its band's size is left untouched). Verify the source
+   declaration by grepping the class name in globals.css/studiocue-reimagined.css
+   if you need the exact original value.
+   ========================================================================= */
+
+/* Eyebrow / uppercase / kicker text — 28 selectors */
+.ds-root .ai-queue-card > header small,
+.ds-root .booking-ai-brief aside small,
+.ds-root .booking-package-options small,
+.ds-root .client-milestone em,
+.ds-root .client-proposal-summary small,
+.ds-root .client-questionnaire-section label>span em,
+.ds-root .eyebrow,
+.ds-root .feature-card small,
+.ds-root .integration-band p,
+.ds-root .integration-connection-meta small,
+.ds-root .integration-overview-copy>span,
+.ds-root .lead-detail-card dt,
+.ds-root .marketing-plan-heading small,
+.ds-root .mobile-today-agenda > header small,
+.ds-root .plan-card > div:first-child small,
+.ds-root .project-context-bar small,
+.ds-root .project-lifecycle-cockpit > header > a small,
+.ds-root .proposal-composer-preview-label,
+.ds-root .report-performance-grid small,
+.ds-root .required-mark,
+.ds-root .search-quick-actions > p,
+.ds-root .section-kicker,
+.ds-root .studio-import-draft-nav small,
+.ds-root .studio-import-review-summary > div:first-child > span,
+.ds-root .studio-import-simulation > div > span,
+.ds-root .studio-import-simulation li > span,
+.ds-root .studio-import-source-proof blockquote small,
+.ds-root .template-import-kicker {
+  font-size: 11.5px;
+}
+
+/* Secondary / metadata / body text — 270 selectors */
+.ds-root .ai-confidence,
+.ds-root .ai-queue-card > footer button,
+.ds-root .ai-queue-card > header em,
+.ds-root .ai-queue-editor > span,
+.ds-root .ai-queue-empty small,
+.ds-root .ai-queue-explanation > div > span small,
+.ds-root .ai-queue-explanation p,
+.ds-root .ai-queue-explanation summary,
+.ds-root .ai-queue-hero > div > p:last-child,
+.ds-root .ai-queue-hero aside small,
+.ds-root .ai-queue-impact small,
+.ds-root .ai-queue-issues p,
+.ds-root .ai-queue-notice,
+.ds-root .ai-queue-page-error,
+.ds-root .ai-queue-tabs button,
+.ds-root .ai-queue-tabs button span,
+.ds-root .ai-receipt > button,
+.ds-root .ai-receipt em,
+.ds-root .ai-receipt p,
+.ds-root .ai-receipt small,
+.ds-root .album-status-track small,
+.ds-root .auth-back,
+.ds-root .auth-legal,
+.ds-root .auth-trust,
+.ds-root .avatar,
+.ds-root .back-link,
+.ds-root .booking-ai-brief > div > div span,
+.ds-root .booking-ai-brief > div > p:not(.eyebrow),
+.ds-root .booking-ai-brief aside a,
+.ds-root .booking-ai-brief aside span,
+.ds-root .booking-autopilot-empty > a,
+.ds-root .booking-autopilot-empty small,
+.ds-root .booking-autopilot-hero > div > p:last-child,
+.ds-root .booking-autopilot-hero aside > span,
+.ds-root .booking-autopilot-loading small,
+.ds-root .booking-autopilot-notice,
+.ds-root .booking-consultation-capture > button,
+.ds-root .booking-consultation-capture > div > p:last-child,
+.ds-root .booking-consultation-capture label > span,
+.ds-root .booking-consultation-capture label small,
+.ds-root .booking-evidence-heading p:last-child,
+.ds-root .booking-form label,
+.ds-root .booking-package-options em,
+.ds-root .booking-package-rationale p,
+.ds-root .booking-package-rationale span,
+.ds-root .booking-proposal-release > a,
+.ds-root .booking-proposal-release > button,
+.ds-root .booking-proposal-release p,
+.ds-root .calendar-grid article > small,
+.ds-root .calendar-grid article > span,
+.ds-root .calendar-grid article time,
+.ds-root .calendar-loading,
+.ds-root .calendar-weekdays span,
+.ds-root .checkpoint-picker i,
+.ds-root .checkpoint-picker legend,
+.ds-root .checkpoint-picker small,
+.ds-root .client-access-actions .button,
+.ds-root .client-access-card > label,
+.ds-root .client-access-empty,
+.ds-root .client-access-heading small,
+.ds-root .client-access-notice,
+.ds-root .client-action-due,
+.ds-root .client-message-composer label,
+.ds-root .client-message-composer-actions p,
+.ds-root .client-milestone small,
+.ds-root .client-payment-card footer,
+.ds-root .client-proposal-change-request label,
+.ds-root .client-proposal-notice,
+.ds-root .client-proposal-payment-plan > div > span:first-child,
+.ds-root .client-proposal-payment-plan > p:last-child,
+.ds-root .coi-request-form label,
+.ds-root .coi-review-list article>label,
+.ds-root .coi-status-track small,
+.ds-root .command-search,
+.ds-root .command-search kbd,
+.ds-root .command-success p,
+.ds-root .command-success small,
+.ds-root .consent-row,
+.ds-root .copilot-boundary small,
+.ds-root .copilot-prompts button,
+.ds-root .crew-availability-form label,
+.ds-root .crew-cascade-config label,
+.ds-root .crew-empty-guide span,
+.ds-root .crew-upcoming-card dt,
+.ds-root .crm-search-form input:not([type="hidden"]),
+.ds-root .crm-search-form select,
+.ds-root .crm-table article,
+.ds-root .crm-tabs a span,
+.ds-root .crm-tabs button span,
+.ds-root .crm-toolbar button,
+.ds-root .dashboard-empty-action > a,
+.ds-root .dashboard-heading > div > p:last-child,
+.ds-root .deletion-control label,
+.ds-root .delivery-release-form label,
+.ds-root .event-countdown span,
+.ds-root .event-detail small,
+.ds-root .feature-card a,
+.ds-root .field-order,
+.ds-root .form-error,
+.ds-root .form-grid input,
+.ds-root .form-grid label,
+.ds-root .form-grid label > small,
+.ds-root .form-grid select,
+.ds-root .form-grid textarea,
+.ds-root .form-notice,
+.ds-root .form-section-heading > span,
+.ds-root .form-section-heading p,
+.ds-root .gallery-art span,
+.ds-root .gallery-copy dt,
+.ds-root .hero-proof,
+.ds-root .hub-grid p,
+.ds-root .inline-form-action,
+.ds-root .inquiry-assurance small,
+.ds-root .inquiry-page > header > a:last-child,
+.ds-root .inquiry-success > p:not(.eyebrow),
+.ds-root .inquiry-success > small,
+.ds-root .integration-capabilities li,
+.ds-root .integration-provider-card footer>span,
+.ds-root .integration-provider-card header small,
+.ds-root .integrations-heading-note,
+.ds-root .invoice-calculation-lines em,
+.ds-root .lead-ai-reply-card > div p,
+.ds-root .lead-ai-reply-card > div small,
+.ds-root .lead-ai-reply-card > footer a,
+.ds-root .lead-ai-reply-card > footer span,
+.ds-root .legal-page > header > a:last-child,
+.ds-root .lifecycle-heading > a,
+.ds-root .live-detail-grid > .panel small,
+.ds-root .live-domain-state small,
+.ds-root .live-record-state small,
+.ds-root .live-state-action,
+.ds-root .marketing-annual-price,
+.ds-root .marketing-footer,
+.ds-root .marketing-plan-price span,
+.ds-root .marketing-price-card li,
+.ds-root .marketing-pricing-note,
+.ds-root .mobile-today-agenda > div > a small,
+.ds-root .mobile-today-agenda > div > p,
+.ds-root .mobile-today-agenda > header em,
+.ds-root .nav-item,
+.ds-root .next-action-preview a,
+.ds-root .panel-heading a,
+.ds-root .pdf-preview footer,
+.ds-root .pdf-preview header p,
+.ds-root .pdf-preview header small,
+.ds-root .plan-card > strong small,
+.ds-root .portal-empty-guide span,
+.ds-root .portal-hero > div > p:last-child,
+.ds-root .project-avatar,
+.ds-root .project-context-bar a,
+.ds-root .project-detail-header p,
+.ds-root .project-lifecycle-cockpit > header > a span,
+.ds-root .project-lifecycle-cockpit > header p:last-child,
+.ds-root .project-mini-header p,
+.ds-root .project-mini-header small,
+.ds-root .project-work-lane > div > p,
+.ds-root .project-workspace-nav a,
+.ds-root .proposal-action-stack > small,
+.ds-root .proposal-approval-checks > span,
+.ds-root .proposal-center-list-main small,
+.ds-root .proposal-center-list-main span,
+.ds-root .proposal-center-list-meta small,
+.ds-root .proposal-client-activity > div,
+.ds-root .proposal-command-error,
+.ds-root .proposal-command-notice,
+.ds-root .proposal-composer-section-number,
+.ds-root .proposal-delivery-state small,
+.ds-root .proposal-outcome p,
+.ds-root .proposal-pdf-state small,
+.ds-root .proposal-permission-note,
+.ds-root .proposal-selected-project > p,
+.ds-root .proposal-selected-project small,
+.ds-root .proposal-send-confirm small,
+.ds-root .proposal-version-history > a > span,
+.ds-root .proposal-version-history small,
+.ds-root .proposal-workspace-client p,
+.ds-root .proposal-workspace-client small,
+.ds-root .proposal-workspace-lines dt,
+.ds-root .proposal-workspace-lines small,
+.ds-root .proposal-workspace-payment-cards small,
+.ds-root .proposal-workspace-payment-cards span,
+.ds-root .proposal-workspace-terms > div > small,
+.ds-root .public-scheduler-layout dt,
+.ds-root .questionnaire-assign-form label,
+.ds-root .questionnaire-template-form label,
+.ds-root .questionnaire-workspace-header p,
+.ds-root .quote-author > span,
+.ds-root .quote-author small,
+.ds-root .readiness-orbit span,
+.ds-root .readiness-row,
+.ds-root .receipt-status,
+.ds-root .report-estimate-note,
+.ds-root .report-filter-heading small,
+.ds-root .report-filters label,
+.ds-root .report-funnel article > span,
+.ds-root .report-metric-copy > span,
+.ds-root .report-metric-copy small,
+.ds-root .report-performance-grid p,
+.ds-root .report-source-note p,
+.ds-root .schedule-generator-form label,
+.ds-root .schedule-item-sources span,
+.ds-root .search-no-results small,
+.ds-root .search-quick-actions small,
+.ds-root .search-results small,
+.ds-root .section-heading p,
+.ds-root .section-heading-row > div > p:last-child,
+.ds-root .segmented-control button,
+.ds-root .setup-inquiry-card p,
+.ds-root .sidebar .nav-item,
+.ds-root .signal-row,
+.ds-root .studio-ai-primary,
+.ds-root .studio-ai-secondary,
+.ds-root .studio-album-list label,
+.ds-root .studio-calendar > header button,
+.ds-root .studio-command-preview > a,
+.ds-root .studio-import-advanced-review button,
+.ds-root .studio-import-advanced-review summary,
+.ds-root .studio-import-coverage small,
+.ds-root .studio-import-draft-editor > label > span,
+.ds-root .studio-import-draft-nav em,
+.ds-root .studio-import-editor-actions button,
+.ds-root .studio-import-editor-heading > span,
+.ds-root .studio-import-missing-proof,
+.ds-root .studio-import-native-links a,
+.ds-root .studio-import-native-links small,
+.ds-root .studio-import-release-bar button,
+.ds-root .studio-import-release-bar small,
+.ds-root .studio-import-review-empty p,
+.ds-root .studio-import-review-summary > div:first-child > small,
+.ds-root .studio-import-simulation > button,
+.ds-root .studio-import-simulation > div > small,
+.ds-root .studio-import-simulation li small,
+.ds-root .studio-import-source-file small,
+.ds-root .studio-import-source-file span,
+.ds-root .studio-import-source-proof blockquote span,
+.ds-root .studio-import-validation p,
+.ds-root .studio-import-validation-passed,
+.ds-root .support-access-form label,
+.ds-root .team-invite-form label,
+.ds-root .template-ai-guard small,
+.ds-root .template-analyze-button,
+.ds-root .template-cancel-import,
+.ds-root .template-complete-note,
+.ds-root .template-create-button,
+.ds-root .template-dropzone > em,
+.ds-root .template-dropzone > small,
+.ds-root .template-file-errors article small,
+.ds-root .template-file-list small,
+.ds-root .template-import-hero aside small,
+.ds-root .template-import-progress small,
+.ds-root .template-paste-source > span,
+.ds-root .template-paste-source small,
+.ds-root .template-pipeline-error,
+.ds-root .template-plan-empty > p,
+.ds-root .template-plan-empty li,
+.ds-root .template-plan-list small,
+.ds-root .template-review-badge,
+.ds-root .template-source-tabs small,
+.ds-root .template-step-heading .eyebrow,
+.ds-root .timing-rule-form label,
+.ds-root .timing-rule-list>button em,
+.ds-root .trust-strip,
+.ds-root .usage-card em,
+.ds-root .usage-card small,
+.ds-root .vendor-create-panel label,
+.ds-root .visual-field-builder label,
+.ds-root .visual-field-builder legend,
+.ds-root .window-status,
+.ds-root .window-title,
+.ds-root .workflow-template-grid > a > p:not(.eyebrow) {
+  font-size: 12.5px;
+}
+
+/* Primary text (strong) — 30 selectors */
+.ds-root .ai-queue-empty strong,
+.ds-root .ai-queue-explanation > div > span strong,
+.ds-root .ai-queue-impact strong,
+.ds-root .ai-receipt strong,
+.ds-root .booking-ai-brief aside strong,
+.ds-root .booking-package-options strong,
+.ds-root .booking-package-rationale strong,
+.ds-root .checkpoint-picker strong,
+.ds-root .client-access-heading strong,
+.ds-root .client-milestone strong,
+.ds-root .event-detail strong,
+.ds-root .inquiry-assurance strong,
+.ds-root .integration-connection-meta strong,
+.ds-root .lead-ai-reply-card > div strong,
+.ds-root .mobile-today-agenda > div > a strong,
+.ds-root .project-current-stage strong,
+.ds-root .project-lifecycle-cockpit > header > a strong,
+.ds-root .proposal-selected-project strong,
+.ds-root .quote-author strong,
+.ds-root .signal-row strong,
+.ds-root .studio-import-draft-nav strong,
+.ds-root .studio-import-native-links strong,
+.ds-root .studio-import-release-bar strong,
+.ds-root .studio-import-simulation li strong,
+.ds-root .studio-import-source-file strong,
+.ds-root .template-ai-guard strong,
+.ds-root .template-file-errors article strong,
+.ds-root .template-file-list strong,
+.ds-root .template-plan-list strong,
+.ds-root .template-source-tabs strong {
+  font-size: 14.5px;
+}
