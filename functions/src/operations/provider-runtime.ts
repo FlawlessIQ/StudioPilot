@@ -534,3 +534,99 @@ export async function uploadDropboxDocument(job:DocumentSnapshot){
   const now=new Date().toISOString();await document.ref.update({provider:"dropbox",providerFileId,providerRevision:revision,canonicalPath,cloudStorageSource:source,updatedAt:now,updatedBy:"dropbox-worker"});
   return{documentId,providerFileId,canonicalPath};
 }
+
+/**
+ * Crew calendar closure: when a cascade offer is accepted, invite the crew
+ * member to a Google Calendar event carrying the assignment window and a link
+ * to the current schedule in their portal. Mock connections produce
+ * deterministic mock events so development never contacts Google.
+ */
+export async function addCrewCalendarInvite(job: DocumentSnapshot) {
+  const db = getFirestore();
+  const assignmentId = String(job.get("assignmentId") ?? "");
+  const reference = db.doc(`crewAssignments/${assignmentId}`);
+  const assignment = await reference.get();
+  if (!assignment.exists) throw new Error("ASSIGNMENT_NOT_FOUND");
+  if (assignment.get("status") !== "accepted")
+    return { assignmentId, skipped: "not_accepted" };
+  const existingEventId = String(assignment.get("calendarEventId") ?? "");
+  if (existingEventId) return { assignmentId, calendarEventId: existingEventId };
+  const tenantId = String(job.get("tenantId"));
+  const projectId = String(assignment.get("projectId") ?? "");
+  const project = await db.doc(`projects/${projectId}`).get();
+  const projectName = text(project.get("name")) || "Photography event";
+  const profileId = String(assignment.get("crewProfileId") ?? "");
+  const profile = profileId
+    ? await db.doc(`crewProfiles/${profileId}`).get()
+    : null;
+  const attendeeEmail =
+    profile && profile.exists ? text(profile.get("email")) : "";
+  const calendar = await connection(tenantId, "google_calendar");
+  let calendarEventId: string;
+  let calendarHtmlLink: string | null = null;
+  if (calendar.mock) {
+    calendarEventId = mockId("gcal_crew", job.id);
+    calendarHtmlLink = `https://calendar.example.test/${calendarEventId}`;
+  } else {
+    const calendarId = encodeURIComponent(
+      String(calendar.document.get("selectedResourceId") ?? "primary"),
+    );
+    const providerEventId = createHash("sha256")
+      .update(`crew_assignment:${assignmentId}`)
+      .digest("hex")
+      .slice(0, 32);
+    const url = `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?sendUpdates=all`;
+    const create = await fetch(url, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${calendar.credential?.accessToken}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        id: providerEventId,
+        summary: `${text(assignment.get("role")) || "Crew"} · ${projectName}`,
+        description:
+          "Your StudioCue assignment. The current schedule is always in your crew portal: /crew",
+        start: {
+          dateTime: assignment.get("arrivalAt"),
+          timeZone: text(project.get("timezone")) || "UTC",
+        },
+        end: {
+          dateTime: assignment.get("departureAt"),
+          timeZone: text(project.get("timezone")) || "UTC",
+        },
+        attendees: attendeeEmail ? [{ email: attendeeEmail }] : [],
+        extendedProperties: {
+          private: { studioHubCrewAssignmentId: assignmentId },
+        },
+      }),
+    });
+    if (create.status === 409) {
+      const value = await providerJson(
+        `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${providerEventId}`,
+        {
+          headers: {
+            authorization: `Bearer ${calendar.credential?.accessToken}`,
+          },
+        },
+        "CALENDAR_READ_FAILED",
+      );
+      calendarEventId = text(value.id);
+      calendarHtmlLink = text(value.htmlLink) || null;
+    } else {
+      const value = asRecord(await create.json().catch(() => ({})));
+      if (!create.ok) throw new Error(`CALENDAR_CREATE_FAILED:${create.status}`);
+      calendarEventId = text(value.id);
+      calendarHtmlLink = text(value.htmlLink) || null;
+    }
+  }
+  await reference.update({
+    calendarEventId,
+    calendarInviteLink: calendarHtmlLink,
+    calendarStatus: "invited",
+    calendarInvitedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    updatedBy: "provider-worker",
+  });
+  return { assignmentId, calendarEventId };
+}

@@ -702,11 +702,21 @@ async function selectPackageForClient(input: {
       (studioPackage.get("retainerRule") as
         | { type: "fixed"; amountCents: number }
         | { type: "percentage"; basisPoints: number }
+        | { type: "per_crew_member"; amountPerCrewCents: number }
         | undefined) ?? { type: "fixed", amountCents: 0 };
     const retainerCents =
       retainerRule.type === "fixed"
         ? Math.min(totalCents, Number(retainerRule.amountCents))
-        : Math.round((totalCents * Number(retainerRule.basisPoints)) / 10000);
+        : retainerRule.type === "per_crew_member"
+          ? Math.min(
+              totalCents,
+              Number(retainerRule.amountPerCrewCents) *
+                Math.max(
+                  1,
+                  Number(studioPackage.get("includedPhotographers") ?? 1),
+                ),
+            )
+          : Math.round((totalCents * Number(retainerRule.basisPoints)) / 10000);
     const snapshotId = `package_snapshot_${executionId}`;
     const now = new Date().toISOString();
     transaction.create(adminFirestore.doc(`packageSnapshots/${snapshotId}`), {

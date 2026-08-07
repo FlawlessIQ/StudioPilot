@@ -54,6 +54,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { withTimeout } from "@/lib/async/with-timeout";
+import { requestMessageDraft } from "@/lib/ai/message-draft-client";
 import { getStudioRecords } from "@/lib/studio/records-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { stateTone } from "@/lib/status-tone";
@@ -1017,6 +1018,9 @@ export function LiveLeadDetail({ id }: { id: string }) {
         </StatusBadge>
       </header>
       <div className="lead-action-row">
+        {!replyAction && String(lead.status) !== "converted" ? (
+          <DraftReplyButton leadId={lead.id} />
+        ) : null}
         {String(lead.status) !== "converted" ? (
           <ConvertInquiryButton lead={lead} />
         ) : lead.projectId ? (
@@ -1112,6 +1116,57 @@ export function LiveLeadDetail({ id }: { id: string }) {
         </article>
       </section>
     </div>
+  );
+}
+
+function DraftReplyButton({ leadId }: { leadId: string }) {
+  const workspace = useWorkspace();
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  async function draft() {
+    if (!workspace.tenantId) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      const result = await requestMessageDraft({
+        tenantId: workspace.tenantId,
+        trigger: "inquiry_reply",
+        leadId,
+      });
+      if (result.mode === "preview") {
+        setNotice(
+          "Preview: a personalized reply draft would be prepared for review.",
+        );
+      } else {
+        setNotice("Reply drafted — it's waiting in your review queue.");
+        router.refresh();
+      }
+    } catch (caught: unknown) {
+      setNotice(
+        caught instanceof Error
+          ? caught.message
+          : "We couldn't prepare this draft. Try again.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <button
+        className="button button-dark"
+        disabled={busy}
+        onClick={() => void draft()}
+        type="button"
+      >
+        {busy ? <LoaderCircle className="spin" /> : <Sparkles />}
+        {busy ? "Drafting reply…" : "Review reply"}
+      </button>
+      {notice ? <small className="lead-action-notice" role="status">{notice}</small> : null}
+    </>
   );
 }
 

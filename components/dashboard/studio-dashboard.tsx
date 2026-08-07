@@ -17,20 +17,8 @@ import {
 } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { dailyCommandProjection } from "@/features/dashboard/daily-command-center";
+import { activeProjectStates } from "@/features/dashboard/active-states";
 
-const activeStates = new Set([
-  "CONSULTATION",
-  "PROPOSAL",
-  "CONTRACT_PENDING",
-  "RETAINER_PENDING",
-  "BOOKED",
-  "PLANNING",
-  "READY",
-  "EVENT_COMPLETE",
-  "POST_PRODUCTION",
-  "DELIVERED",
-  "REVIEW_REQUESTED",
-]);
 
 function firstName(value: string) {
   return value.trim().split(/\s+/)[0] || "there";
@@ -40,7 +28,7 @@ function DashboardSummary() {
   const workspace = useWorkspace();
   const projects = useTenantDocuments("projects");
   const active = (projects.records ?? [])
-    .filter((project) => activeStates.has(String(project.state)))
+    .filter((project) => activeProjectStates.has(String(project.state)))
     .sort((left, right) =>
       String(left.eventDate ?? "").localeCompare(String(right.eventDate ?? "")),
     );

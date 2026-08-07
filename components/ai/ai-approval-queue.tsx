@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { Send } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { runAiQueueCommand } from "@/lib/ai-actions/command-client";
@@ -24,6 +25,7 @@ import {
   StructuredContentFields,
   StructuredContentPreview,
 } from "@/components/ai/structured-content-fields";
+import { sendCommunicationsCommand } from "@/lib/communications/command-client";
 
 type RecordValue = Record<string, unknown> & { id: string };
 
@@ -58,10 +60,21 @@ export function AiQueueCard({
   action: RecordValue;
   onDecision: (id: string, status: string) => void;
 }) {
+  const output = object(action.structuredOutput);
+  // Message drafts (subject + body) get a friendly editor and preview instead
+  // of raw JSON — the DraftCard pattern.
+  const isMessageDraft =
+    typeof output.subject === "string" && typeof output.body === "string";
   const [editing, setEditing] = useState(false);
   const [editor, setEditor] = useState(object(action.structuredOutput));
+  const [subjectDraft, setSubjectDraft] = useState(text(output.subject));
+  const [bodyDraft, setBodyDraft] = useState(text(output.body));
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [approvedReplyDraftId, setApprovedReplyDraftId] = useState<
+    string | null
+  >(null);
+  const [dispatched, setDispatched] = useState(false);
   const confidence = object(action.confidence);
   const validation = object(action.validation);
   const issues = list(validation.issues).map(object);
@@ -77,7 +90,11 @@ export function AiQueueCard({
     setNotice(null);
     try {
       let editDelta: Record<string, unknown> | undefined;
-      if (editing) {
+      if (editing && isMessageDraft) {
+        if (!subjectDraft.trim() || !bodyDraft.trim())
+          throw new Error("Subject and message body are both required.");
+        editDelta = { subject: subjectDraft, body: bodyDraft };
+      } else if (editing) {
         editDelta = editor;
       }
       const result = await runAiQueueCommand({
@@ -89,12 +106,49 @@ export function AiQueueCard({
         },
       });
       setNotice(text(result.downstreamConsequence));
-      onDecision(action.id, decision);
+      if (
+        decision === "approved" &&
+        text(action.capability) === "inquiry_reply_draft" &&
+        typeof output.recipientEmail === "string" &&
+        output.recipientEmail
+      ) {
+        // Keep the card visible so the approved reply can be sent in one tap.
+        setApprovedReplyDraftId(`ai_reply_${action.id}`);
+      } else {
+        onDecision(action.id, decision);
+      }
     } catch (caught: unknown) {
       setNotice(
         caught instanceof Error
           ? caught.message.replaceAll("_", " ")
           : "The decision could not be saved.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function dispatchReply() {
+    if (!approvedReplyDraftId) return;
+    setBusy("dispatch");
+    setNotice(null);
+    try {
+      const result = await sendCommunicationsCommand({
+        type: "sendApprovedDraft",
+        idempotencyKey: `dispatch_${approvedReplyDraftId}`,
+        input: { draftId: approvedReplyDraftId },
+      });
+      if (result.mode === "preview") {
+        setNotice("Preview: the approved reply would be sent to the client.");
+      } else {
+        setNotice("Reply queued for delivery.");
+      }
+      setDispatched(true);
+    } catch (caught: unknown) {
+      setNotice(
+        caught instanceof Error
+          ? caught.message.replaceAll("_", " ")
+          : "The reply could not be sent.",
       );
     } finally {
       setBusy(null);
@@ -208,15 +262,65 @@ export function AiQueueCard({
         </div>
       </details>
 
-      {editing ? (
+      {isMessageDraft && !editing ? (
+        <div className="ai-message-preview">
+          <small>
+            To {text(output.recipientName) || text(output.recipientEmail) || "client"}
+            {text(output.recipientEmail) ? ` · ${text(output.recipientEmail)}` : ""}
+          </small>
+          <strong>{text(output.subject)}</strong>
+          <p>{text(output.body)}</p>
+        </div>
+      ) : null}
+
+      {editing && isMessageDraft ? (
+        <div className="ai-queue-editor ai-message-editor">
+          <label>
+            <span>Subject</span>
+            <input
+              aria-label="Edited subject"
+              onChange={(event) => setSubjectDraft(event.target.value)}
+              value={subjectDraft}
+            />
+          </label>
+          <label>
+            <span>Message</span>
+            <textarea
+              aria-label="Edited message body"
+              onChange={(event) => setBodyDraft(event.target.value)}
+              value={bodyDraft}
+            />
+          </label>
+        </div>
+      ) : editing ? (
         <div className="ai-queue-editor">
           <span>Review and edit the prepared details</span>
           <StructuredContentFields onChange={setEditor} value={editor} />
         </div>
-      ) : (
+      ) : !isMessageDraft ? (
         <StructuredContentPreview value={object(action.structuredOutput)} />
-      )}
+      ) : null}
 
+      {approvedReplyDraftId ? (
+        <footer>
+          <button
+            className="is-primary"
+            disabled={Boolean(busy) || dispatched}
+            onClick={() => void dispatchReply()}
+            type="button"
+          >
+            {busy === "dispatch" ? <LoaderCircle className="spin" /> : <Send />}
+            {dispatched ? "Reply queued" : "Send reply now"}
+          </button>
+          <button
+            disabled={Boolean(busy)}
+            onClick={() => onDecision(action.id, "approved")}
+            type="button"
+          >
+            <Check /> Done
+          </button>
+        </footer>
+      ) : (
       <footer>
         <button
           className="is-primary"
@@ -256,6 +360,7 @@ export function AiQueueCard({
           Dismiss
         </button>
       </footer>
+      )}
       {notice ? <p className="ai-queue-notice" role="status">{notice}</p> : null}
     </article>
   );

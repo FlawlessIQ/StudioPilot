@@ -57,7 +57,13 @@ export function createPackageSnapshot(input: {
   const retainerCents =
     input.package.retainerRule.type === "fixed"
       ? Math.min(input.package.retainerRule.amountCents, totalCents)
-      : percentageOf(totalCents, input.package.retainerRule.basisPoints);
+      : input.package.retainerRule.type === "per_crew_member"
+        ? Math.min(
+            input.package.retainerRule.amountPerCrewCents *
+              Math.max(1, input.package.includedPhotographers),
+            totalCents,
+          )
+        : percentageOf(totalCents, input.package.retainerRule.basisPoints);
 
   const snapshot = packageSnapshotSchema.parse({
     id: input.id,

@@ -16,6 +16,12 @@ export const packageAddOnSchema = z.object({
 export const retainerRuleSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("fixed"), amountCents: centsSchema }),
   z.object({ type: z.literal("percentage"), basisPoints: basisPointsSchema }),
+  // "I charge $1,000 per crew member" — retainer scales with the crew the
+  // package fields (includedPhotographers), capped at the package total.
+  z.object({
+    type: z.literal("per_crew_member"),
+    amountPerCrewCents: centsSchema,
+  }),
 ]);
 
 export const packageSchema = auditFieldsSchema.extend({

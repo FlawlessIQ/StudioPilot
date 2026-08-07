@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Images, ScanText, Send, Sparkles } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { requestMessageDraft } from "@/lib/ai/message-draft-client";
 import { sendPostEventCommand } from "@/lib/post-event/command-client";
 import { parseGalleryAnnouncement } from "@/features/post-event/gallery-announcement";
 
@@ -183,11 +184,30 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
         saveStudioDefaults: data.get("saveStudioDefaults") === "on",
         deliveryDraftId: activeDraftId,
       });
-      setNotice(
-        response.persisted
-          ? "Gallery delivery recorded. The portal artifact and context-aware follow-ups are ready."
-          : "Development preview: delivery gates passed; no record, email, or project state was changed.",
-      );
+      if (response.persisted && workspace.tenantId) {
+        // Chain the delivery email draft automatically — it waits in the AI
+        // review queue; nothing sends without approval.
+        try {
+          await requestMessageDraft({
+            tenantId: workspace.tenantId,
+            trigger: "delivery_note",
+            projectId: String(data.get("projectId")),
+          });
+          setNotice(
+            "Gallery delivery recorded. A delivery email draft is waiting in your AI review queue.",
+          );
+        } catch {
+          setNotice(
+            "Gallery delivery recorded. The portal artifact and context-aware follow-ups are ready.",
+          );
+        }
+      } else {
+        setNotice(
+          response.persisted
+            ? "Gallery delivery recorded. The portal artifact and context-aware follow-ups are ready."
+            : "Development preview: delivery gates passed; no record, email, or project state was changed.",
+        );
+      }
     } catch (caught: unknown) {
       setNotice(
         caught instanceof Error ? caught.message : "Delivery could not be recorded.",

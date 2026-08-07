@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { friendlyAiError } from "@/lib/ai/friendly-error";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
@@ -127,6 +128,7 @@ export function AiScheduleGenerator({
   const [busy, setBusy] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
 
   const selectedProject = useMemo(
     () => projects?.find((project) => project.id === projectId),
@@ -338,9 +340,13 @@ export function AiScheduleGenerator({
       const result = (await response.json()) as Draft & { error?: string };
       if (!response.ok) throw new Error(result.error ?? "Generation failed.");
       setDraft(result);
+      setFailed(false);
       setNotice("Draft generated. Review every item and conflict before publishing.");
     } catch (caught: unknown) {
-      setNotice(caught instanceof Error ? caught.message : "Generation failed.");
+      setFailed(true);
+      setNotice(
+        friendlyAiError(caught, "We couldn't draft this schedule. Try again."),
+      );
     } finally {
       setBusy(false);
     }
@@ -496,7 +502,15 @@ export function AiScheduleGenerator({
           </button>
         </form>
       </section>
-      {notice ? <p className="form-notice" role="status">{notice}</p> : null}
+      {notice ? (
+        <p
+          className={failed ? "form-notice form-notice-error" : "form-notice"}
+          role={failed ? "alert" : "status"}
+        >
+          {failed ? <AlertTriangle aria-hidden size={16} /> : null}
+          {notice}
+        </p>
+      ) : null}
       {draft ? (
         <>
           <section className="schedule-review-summary">

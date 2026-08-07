@@ -1156,6 +1156,24 @@ export const crewCommand = onRequest(
                   },
                   { merge: false },
                 );
+                // Close the loop: queue the Google Calendar invite for the
+                // accepted crew member. Mock connections resolve locally.
+                transaction.set(
+                  db.doc(`providerJobs/crew_calendar_${reference.id}`),
+                  {
+                    id: `crew_calendar_${reference.id}`,
+                    tenantId: parsed.tenantId,
+                    projectId: parsed.input.projectId,
+                    assignmentId: reference.id,
+                    type: "add_crew_calendar_invite",
+                    idempotencyKey: `crew_calendar_${reference.id}`,
+                    status: "queued",
+                    attempts: 0,
+                    createdAt: now,
+                    updatedAt: now,
+                  },
+                  { merge: true },
+                );
                 if (
                   currentSchedule?.exists &&
                   currentSchedule.get("tenantId") === parsed.tenantId &&
