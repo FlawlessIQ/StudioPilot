@@ -317,6 +317,15 @@
   color: #ddefe3;
 }
 
+/* Eyebrows on dark emerald surfaces. `.ds-root .eyebrow` (brass) and the
+   card's own `.next-action-card .eyebrow` (light sage) have equal
+   specificity, so the bridge — loaded last — was winning and painting dark
+   brass on a dark gradient (~1.2:1, effectively invisible). Same fix shape
+   as the .ai-queue-hero rule above. */
+.ds-root .next-action-card .eyebrow {
+  color: #ddefe3;
+}
+
 /* AI-feature surfaces — purple → emerald, matching the command + ai-queue
    heroes. Headings/copy on these already set color:#fff. */
 .ds-root .template-import-hero,
