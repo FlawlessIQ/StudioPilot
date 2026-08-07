@@ -21,6 +21,7 @@ import {
   Workflow,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
+import { JourneyUpNext } from "@/components/dashboard/journey-up-next";
 import { SetupChecklist } from "@/components/dashboard/setup-checklist";
 import { LiveUpcomingRows, useTenantDocuments } from "@/components/live/tenant-records";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -214,47 +215,14 @@ function DashboardSummary() {
         <section className="panel today-panel">
           <div className="panel-heading">
             <div>
-              <h2>Next actions</h2>
-              <p>Highest-priority project guidance</p>
+              <h2>Up next</h2>
+              <p>One next step per project, in order</p>
             </div>
-            <Link href="/studio/tasks">
-              Open tasks <ArrowRight size={14} />
+            <Link href="/studio/projects">
+              All projects <ArrowRight size={14} />
             </Link>
           </div>
           <div className="today-list">
-            {atRisk
-              .sort((a, b) =>
-                String(a.eventDate).localeCompare(String(b.eventDate)),
-              )
-              .slice(0, 4)
-              .map((project) => (
-                <Link
-                  className="today-row"
-                  href={`/studio/projects/${project.id}`}
-                  key={project.id}
-                >
-                  <span className="today-icon icon-amber">
-                    <CalendarDays size={18} />
-                  </span>
-                  <div>
-                    <small>{String(project.name)}</small>
-                    <strong>
-                      {String(project.nextAction ?? "Review project readiness")}
-                    </strong>
-                  </div>
-                  <time>{String(project.eventDate)}</time>
-                  <ArrowRight size={16} />
-                </Link>
-              ))}
-            {!loading && !atRisk.length && active.length ? (
-              <div className="live-record-state">
-                <ShieldCheck size={18} />
-                <span>
-                  <strong>No active readiness blockers</strong>
-                  <small>New required actions will appear here.</small>
-                </span>
-              </div>
-            ) : null}
             {!loading && !active.length ? (
               <div className="dashboard-empty-action">
                 <FolderKanban size={20} />
@@ -264,7 +232,9 @@ function DashboardSummary() {
                 </span>
                 <Link href="/studio/projects/new">Create project <ArrowRight size={14} /></Link>
               </div>
-            ) : null}
+            ) : (
+              <JourneyUpNext />
+            )}
           </div>
         </section>
         <section className="panel automation-next-panel">

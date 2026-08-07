@@ -110,3 +110,27 @@ and `cd functions && npm run build`.
 - Auto-approve maturity ("auto after 5 clean approvals") for AI-personalized
   drafts — the dial currently governs deterministic lifecycle messages only,
   deliberately.
+
+## Pass 5 — The Journey (easy-flow UX reimagining)
+
+Feedback: the product still read as an operations console; Gabriel thinks in
+one thread per couple. This pass makes that thread the primary UI.
+
+- **`features/journey/steps.ts`** (new, 8 unit tests): deterministic engine
+  that turns a project's real records (lead, consultation, proposal,
+  contract, invoices, questionnaire, schedule, crew, COI, delivery, drafts)
+  into Gabriel's 15-step journey. Every step gets a plain-English status —
+  complete / current / waiting on the client / in motion / upcoming — and
+  exactly ONE step is ever "current", carrying the single next action.
+  Waiting-on-client steps never block the studio's own next move.
+- **`ProjectJourney`** (new component): replaces the "Project lifecycle"
+  phase rail on the project page. Vertical timeline, progress count, and the
+  one next action inline — as a link to the right surface or a one-tap draft
+  button (day-before checklist, review request) that feeds the AI queue.
+- **`JourneyUpNext`** (new component): the dashboard "Next actions" panel is
+  now "Up next" — every active project contributes its single current journey
+  step, ordered by event date; waiting-on-client projects say so instead of
+  demanding attention. Top-to-bottom is the workday.
+
+No new endpoints or nav items; the journey composes existing commands and
+surfaces. Verified: typecheck, lint, 210 unit tests passing.
