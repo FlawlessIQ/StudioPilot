@@ -11,7 +11,9 @@ app_services=(
   aiactioncommand
   aicommunicationscommand
   aicopilotcommand
+  aimessagedraftcommand
   aischedulecommand
+  aitimingrulescommand
   authemailcommand
   billingcommand
   bookingcommand
@@ -26,6 +28,7 @@ app_services=(
   docusignwebhook
   integrationoauth
   integrationoautheast4
+  lifecyclesettingscommand
   membershipcommand
   planningcommand
   posteventcommand
@@ -52,9 +55,11 @@ app_services=(
 scheduler_services=(
   albumreminderscheduler
   automationretryscheduler
+  coichasescheduler
   crewcascadeexpiryscheduler
   domaineventoutboxscheduler
   finalinvoicescheduler
+  lifecyclemessagescheduler
   operationshealthscheduler
   operationsjobscheduler
   relativedatescheduler
