@@ -983,9 +983,21 @@
   border-radius: 12px;
   display: grid;
   gap: 4px;
+  /* minmax(0, 1fr) — plain 1fr keeps each track's automatic min-content
+     floor, and the button copy ("Paste a message you already send") then
+     forces this nested grid wider than the panel it sits in, spilling the
+     third source out past the card edge. Same pattern the parent
+     .template-import-layout already uses. */
   grid-template-columns: repeat(3, minmax(0, 1fr));
   padding: 4px;
   width: 100%;
+}
+
+/* Grid items default to min-width:auto and refuse to shrink below their
+   content, which is what let the rows above overflow the card. */
+.template-source-panel > *,
+.template-plan-panel > * {
+  min-width: 0;
 }
 
 .template-source-tabs button {
@@ -1012,7 +1024,13 @@
 .template-source-tabs button > span {
   display: grid;
   gap: 2px;
+  /* Flex items default to min-width:auto, so this label block refused to
+     shrink and pushed its copy out past the button. */
   min-width: 0;
+}
+
+.template-source-tabs button > svg {
+  flex-shrink: 0;
 }
 
 .template-source-tabs strong {
@@ -1022,6 +1040,9 @@
 .template-source-tabs small {
   color: #99909c;
   font-size: 7px;
+  /* No nowrap: these labels were sized for 7px copy, but the density pass
+     raised them to 12.5px, at which point a non-wrapping description is
+     far wider than its ~130px tab and spills across its neighbours. */
   line-height: 1.35;
   overflow-wrap: anywhere;
   white-space: normal;
