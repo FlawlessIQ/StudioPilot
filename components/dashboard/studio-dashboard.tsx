@@ -19,7 +19,6 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { dailyCommandProjection } from "@/features/dashboard/daily-command-center";
 import { activeProjectStates } from "@/features/dashboard/active-states";
 
-
 function firstName(value: string) {
   return value.trim().split(/\s+/)[0] || "there";
 }

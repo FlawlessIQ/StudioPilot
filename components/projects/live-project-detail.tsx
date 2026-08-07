@@ -14,7 +14,6 @@ import {
   FolderKanban,
   LoaderCircle,
   MapPin,
-  PartyPopper,
   Send,
   Store,
   UserRound,
@@ -28,6 +27,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
+import { ProjectJourney } from "@/components/projects/project-journey";
 import { ReadinessMeter } from "@/components/ui/readiness-meter";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { stateTone } from "@/lib/status-tone";
@@ -83,44 +83,6 @@ const emptyRelatedRecords: RelatedRecords = {
   deliveries: [],
   reviewRequests: [],
 };
-
-const projectPhases: ReadonlyArray<{
-  label: string;
-  detail: string;
-  states: readonly ProjectState[];
-  icon: typeof ClipboardCheck;
-}> = [
-  {
-    label: "Inquiry",
-    detail: "Qualify the lead and schedule a consultation.",
-    states: ["LEAD", "CONSULTATION"],
-    icon: ClipboardCheck,
-  },
-  {
-    label: "Booking",
-    detail: "Proposal, contract, and retainer.",
-    states: ["PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING", "BOOKED"],
-    icon: FileCheck2,
-  },
-  {
-    label: "Planning",
-    detail: "Details, crew, insurance, and schedule.",
-    states: ["PLANNING", "READY"],
-    icon: FolderKanban,
-  },
-  {
-    label: "Event",
-    detail: "Execute coverage and finish event-day work.",
-    states: ["EVENT_COMPLETE"],
-    icon: PartyPopper,
-  },
-  {
-    label: "Delivery",
-    detail: "Post-production, delivery, review, and closeout.",
-    states: ["POST_PRODUCTION", "DELIVERED", "REVIEW_REQUESTED", "CLOSED"],
-    icon: Send,
-  },
-];
 
 const forwardStage: Partial<Record<ProjectState, ProjectState>> = {
   LEAD: "CONSULTATION",
@@ -650,10 +612,6 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
 
   const parsedState = projectStateSchema.safeParse(project.state);
   const state: ProjectState = parsedState.success ? parsedState.data : "LEAD";
-  const phaseIndex = Math.max(
-    0,
-    projectPhases.findIndex((phase) => phase.states.includes(state)),
-  );
   const readiness = Number(project.readinessScore ?? 0);
   const action = projectAction(state, projectId);
   return (
@@ -702,50 +660,14 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
         </span>
       </div>
       <div className="project-detail-grid">
-        <section className="panel project-lifecycle-card">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Workflow</p>
-              <h2>Project lifecycle</h2>
-              <p>Five clear phases from inquiry through delivery and closeout.</p>
-            </div>
-            <span className="project-current-stage">
-              <small>Current stage</small>
-              <strong>{stateLabel(state)}</strong>
-            </span>
-          </div>
-          <div className="project-phase-rail">
-            {projectPhases.map((phase, index) => {
-              const Icon = phase.icon;
-              const isCurrent = index === phaseIndex;
-              const isComplete = index < phaseIndex;
-              return (
-                <article
-                  aria-current={isCurrent ? "step" : undefined}
-                  className={
-                    isCurrent
-                      ? "project-phase is-current"
-                      : isComplete
-                        ? "project-phase is-complete"
-                        : "project-phase"
-                  }
-                  key={phase.label}
-                >
-                  <span className="project-phase-icon">
-                    {isComplete ? <CheckCircle2 size={17} /> : <Icon size={17} />}
-                  </span>
-                  <span>
-                    <small>
-                      {isComplete ? "Complete" : isCurrent ? stateLabel(state) : "Upcoming"}
-                    </small>
-                    <strong>{phase.label}</strong>
-                    <em>{phase.detail}</em>
-                  </span>
-                </article>
-              );
-            })}
-          </div>
-        </section>
+        <ProjectJourney
+          eventDate={
+            typeof project.eventDate === "string" ? project.eventDate : null
+          }
+          leadId={typeof project.leadId === "string" ? project.leadId : null}
+          projectId={projectId}
+          projectState={state}
+        />
         <aside className="next-action-card">
           <p className="eyebrow">Recommended next move</p>
           <span className="next-action-icon"><CircleAlert size={21} /></span>
