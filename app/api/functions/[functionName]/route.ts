@@ -6,7 +6,9 @@ export const dynamic = "force-dynamic";
 const functionNames = [
   "aiActionCommand",
   "aiCopilotCommand",
+  "aiMessageDraftCommand",
   "aiScheduleCommand",
+  "aiTimingRulesCommand",
   "authEmailCommand",
   "bookingCommand",
   "communicationsCommand",
@@ -19,6 +21,7 @@ const functionNames = [
   "crmCommand",
   "integrationOAuth",
   "integrationsCommand",
+  "lifecycleSettingsCommand",
   "membershipCommand",
   "planningCommand",
   "postEventCommand",

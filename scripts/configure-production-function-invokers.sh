@@ -10,7 +10,9 @@ functions_service_account="${project_number}-compute@developer.gserviceaccount.c
 app_services=(
   aiactioncommand
   aicopilotcommand
+  aimessagedraftcommand
   aischedulecommand
+  aitimingrulescommand
   authemailcommand
   billingcommand
   bookingcommand
@@ -24,6 +26,7 @@ app_services=(
   dropboxsignwebhook
   docusignwebhook
   integrationoauth
+  lifecyclesettingscommand
   membershipcommand
   planningcommand
   posteventcommand
@@ -47,9 +50,11 @@ app_services=(
 scheduler_services=(
   albumreminderscheduler
   automationretryscheduler
+  coichasescheduler
   crewcascadeexpiryscheduler
   domaineventoutboxscheduler
   finalinvoicescheduler
+  lifecyclemessagescheduler
   operationshealthscheduler
   operationsjobscheduler
   relativedatescheduler
