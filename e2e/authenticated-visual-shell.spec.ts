@@ -217,10 +217,12 @@ test.describe("authenticated visual shell", () => {
 
   test("dynamic record workflows remain usable and legible", async ({ page }) => {
     await expectHealthyAuthenticatedShell(page, "/studio/projects/demo-project");
-    await expect(page.locator(".project-phase")).toHaveCount(5);
-    await expect(
-      page.locator('.project-phase[aria-current="step"] strong'),
-    ).toHaveText("Planning");
+    // Pass 5 replaced the five-phase lifecycle rail with the journey timeline.
+    // 14 of the 15 steps: "first reply" only exists for lead-sourced projects,
+    // and the demo project is created directly.
+    await expect(page.locator(".journey-step")).toHaveCount(14);
+    // The engine guarantees exactly one "current" step, carrying the next action.
+    await expect(page.locator(".journey-step.is-current")).toHaveCount(1);
     await expect(
       page.getByRole("navigation", { name: "Project workspace" }).getByRole("link"),
     ).toHaveText(["Overview", "Client & booking", "Plan", "Delivery"]);
