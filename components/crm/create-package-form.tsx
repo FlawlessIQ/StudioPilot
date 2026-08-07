@@ -12,7 +12,8 @@ const schema = z.object({
   description: z.string().trim().min(10).max(3000),
   eventType: z.enum(["Wedding", "Corporate", "Sports"]),
   basePrice: z.coerce.number().positive(),
-  retainerPercent: z.coerce.number().min(0).max(100),
+  retainerMode: z.enum(["percentage", "fixed", "per_crew_member"]),
+  retainerAmount: z.coerce.number().min(0),
   coverageHours: z.coerce.number().positive(),
   photographers: z.coerce.number().int().positive(),
   deliverables: z.string().trim().min(2),
@@ -25,10 +26,11 @@ type FormValues = z.output<typeof schema>;
 export function CreatePackageForm() {
   const [outcome, setOutcome] = useState<{ persisted: boolean; reference: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormInput, unknown, FormValues>({
+  const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", description: "", eventType: "Wedding", basePrice: 0, retainerPercent: 30, coverageHours: 8, photographers: 2, deliverables: "Online gallery, High-resolution downloads", travelArea: "Within 50 miles", terms: "Subject to the completed studio agreement." },
+    defaultValues: { name: "", description: "", eventType: "Wedding", basePrice: 0, retainerMode: "percentage", retainerAmount: 30, coverageHours: 8, photographers: 2, deliverables: "Online gallery, High-resolution downloads", travelArea: "Within 50 miles", terms: "Subject to the completed studio agreement." },
   });
+  const retainerMode = watch("retainerMode");
   const submit = handleSubmit(async (values) => {
     setError(null);
     try {
@@ -39,7 +41,12 @@ export function CreatePackageForm() {
         eventTypeLabel: values.eventType,
         basePriceCents: Math.round(values.basePrice * 100),
         currency: "USD",
-        retainerRule: { type: "percentage", basisPoints: Math.round(values.retainerPercent * 100) },
+        retainerRule:
+          values.retainerMode === "percentage"
+            ? { type: "percentage" as const, basisPoints: Math.round(values.retainerAmount * 100) }
+            : values.retainerMode === "fixed"
+              ? { type: "fixed" as const, amountCents: Math.round(values.retainerAmount * 100) }
+              : { type: "per_crew_member" as const, amountPerCrewCents: Math.round(values.retainerAmount * 100) },
         includedCoverageMinutes: Math.round(values.coverageHours * 60),
         includedPhotographers: values.photographers,
         includedDeliverables: values.deliverables.split(",").map((item) => item.trim()).filter(Boolean),
@@ -67,7 +74,8 @@ export function CreatePackageForm() {
         <label className="form-span">Description<textarea {...register("description")} rows={3} /><small>{errors.description?.message}</small></label>
         <label>Event type<select {...register("eventType")}><option>Wedding</option><option>Corporate</option><option>Sports</option></select></label>
         <label>Base price (USD)<input {...register("basePrice")} min="0.01" step="0.01" type="number" /></label>
-        <label>Retainer percent<input {...register("retainerPercent")} min="0" max="100" step="0.01" type="number" /></label>
+        <label>Retainer type<select {...register("retainerMode")}><option value="percentage">Percent of total</option><option value="fixed">Fixed amount</option><option value="per_crew_member">Per crew member</option></select></label>
+        <label>{retainerMode === "percentage" ? "Retainer percent" : retainerMode === "fixed" ? "Retainer amount (USD)" : "Amount per crew member (USD)"}<input {...register("retainerAmount")} min="0" step="0.01" type="number" /><small>{errors.retainerAmount?.message}</small></label>
         <label>Coverage hours<input {...register("coverageHours")} min="0.5" step="0.5" type="number" /></label>
         <label>Photographers<input {...register("photographers")} min="1" type="number" /></label>
         <label>Travel area<input {...register("travelArea")} /></label>

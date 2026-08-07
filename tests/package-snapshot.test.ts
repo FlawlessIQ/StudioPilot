@@ -115,3 +115,46 @@ test("snapshot rejects unavailable add-ons and cross-tenant packages", () => {
     },
   }), /tenant/);
 });
+
+test("per-crew-member retainers scale with included photographers", () => {
+  const perCrewPackage = structuredClone(studioPackage);
+  perCrewPackage.retainerRule = {
+    type: "per_crew_member",
+    amountPerCrewCents: 100000,
+  };
+  perCrewPackage.includedPhotographers = 3;
+  perCrewPackage.taxRateBasisPoints = 0;
+  const snapshot = createPackageSnapshot({
+    id: "snapshot-5",
+    tenantId: "tenant-a",
+    projectId: "project-5",
+    selectedBy: "owner",
+    selectedAt: timestamp,
+    package: perCrewPackage,
+    selection: {
+      packageId: "package-1",
+      selectedAddOns: [],
+      discount: { type: "none" },
+    },
+  });
+  // $1,000 per crew member × 3 crew = $3,000 retainer.
+  assert.equal(snapshot.retainerCents, 300000);
+
+  // The retainer never exceeds the package total.
+  const tinyPackage = structuredClone(perCrewPackage);
+  tinyPackage.basePriceCents = 150000;
+  const capped = createPackageSnapshot({
+    id: "snapshot-6",
+    tenantId: "tenant-a",
+    projectId: "project-6",
+    selectedBy: "owner",
+    selectedAt: timestamp,
+    package: tinyPackage,
+    selection: {
+      packageId: "package-1",
+      selectedAddOns: [],
+      discount: { type: "none" },
+    },
+  });
+  assert.equal(capped.retainerCents, 150000);
+});

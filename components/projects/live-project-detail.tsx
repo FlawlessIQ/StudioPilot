@@ -651,9 +651,9 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
   const workspaceLinks = [
     { label: "Overview", href: `/studio/projects/${projectId}`, icon: Sparkles },
     { label: "Tasks", href: `/studio/tasks?project=${projectId}`, icon: ClipboardCheck },
-    { label: "Client details", href: `/studio/questionnaires?project=${projectId}`, icon: UserRound },
+    { label: "Questionnaires", href: `/studio/questionnaires?project=${projectId}`, icon: UserRound },
     { label: "Booking", href: `/studio/contracts?project=${projectId}`, icon: FileCheck2 },
-    { label: "Planning", href: `/studio/vendors?project=${projectId}`, icon: FolderKanban },
+    { label: "Vendors & venues", href: `/studio/vendors?project=${projectId}`, icon: FolderKanban },
     { label: "Crew", href: `/studio/crew?project=${projectId}`, icon: UsersRound },
     { label: "Schedule", href: `/studio/schedules?project=${projectId}`, icon: CalendarDays },
     { label: "Files", href: `/studio/documents?project=${projectId}`, icon: Send },

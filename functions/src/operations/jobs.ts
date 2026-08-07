@@ -12,6 +12,7 @@ import {
 import { runAiJob, runPdfJob } from "./ai-pdf.js";
 import { captureOperationalError } from "./observability.js";
 import {
+  addCrewCalendarInvite,
   completeBookingResources,
   createConsultationResources,
   createDocusignEnvelope,
@@ -141,6 +142,8 @@ async function providerJob(document: DocumentSnapshot) {
     return completeBookingResources(document);
   if (type === "upload_dropbox_document")
     return uploadDropboxDocument(document);
+  if (type === "add_crew_calendar_invite")
+    return addCrewCalendarInvite(document);
   throw new Error("UNSUPPORTED_PROVIDER_JOB");
 }
 

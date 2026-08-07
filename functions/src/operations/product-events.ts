@@ -23,6 +23,7 @@ export type ProductEventName =
   | "lifecycle.gallery_delivered"
   | "lifecycle.album_approved"
   | "lifecycle.review_requested"
+  | "lifecycle.coi_chased"
   | "lifecycle.project_closed";
 
 type ProductEventInput = {

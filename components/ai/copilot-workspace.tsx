@@ -12,6 +12,10 @@ import {
 } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { askCopilot, type CopilotResult } from "@/lib/ai/copilot-client";
+import {
+  requestMessageDraft,
+  type MessageDraftTrigger,
+} from "@/lib/ai/message-draft-client";
 
 const prompts = [
   "What needs my attention today?",
@@ -152,7 +156,94 @@ export function CopilotWorkspace() {
               ))}
             </footer>
           ) : null}
+          <PreparedActions citations={result.citations} />
         </section>
+      ) : null}
+    </div>
+  );
+}
+
+const preparedActionOptions: Array<{
+  trigger: MessageDraftTrigger;
+  label: string;
+}> = [
+  { trigger: "day_before_checklist", label: "Draft the day-before checklist" },
+  { trigger: "delivery_note", label: "Draft a delivery email" },
+  { trigger: "review_request", label: "Draft a review request" },
+];
+
+/**
+ * Copilot with hands: answers can end in prepared drafts. Each chip creates a
+ * draft that lands in the AI review queue — Copilot never sends anything.
+ */
+function PreparedActions({
+  citations,
+}: {
+  citations: Array<{ label: string; href: string }>;
+}) {
+  const workspace = useWorkspace();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [drafted, setDrafted] = useState(false);
+  const projectCitation = citations.find((citation) =>
+    citation.href.startsWith("/studio/projects/"),
+  );
+  const projectId = projectCitation?.href.split("/").pop() ?? null;
+  if (!projectId || !workspace.tenantId) return null;
+
+  async function prepare(trigger: MessageDraftTrigger, label: string) {
+    if (!workspace.tenantId) return;
+    setBusy(trigger);
+    setNotice(null);
+    try {
+      const result = await requestMessageDraft({
+        tenantId: workspace.tenantId,
+        trigger,
+        projectId,
+      });
+      setDrafted(result.mode === "live");
+      setNotice(
+        result.mode === "preview"
+          ? `Preview: "${label}" would wait in your review queue.`
+          : `Draft prepared — review it in your AI queue.`,
+      );
+    } catch (caught: unknown) {
+      setNotice(
+        caught instanceof Error ? caught.message : "The draft could not be prepared.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="copilot-prepared-actions">
+      <small>
+        Prepared next steps for {projectCitation?.label ?? "this project"} —
+        every draft waits for your approval:
+      </small>
+      <div>
+        {preparedActionOptions.map((option) => (
+          <button
+            disabled={busy !== null}
+            key={option.trigger}
+            onClick={() => void prepare(option.trigger, option.label)}
+            type="button"
+          >
+            {busy === option.trigger ? (
+              <LoaderCircle className="spin" size={13} />
+            ) : (
+              <Sparkles size={13} />
+            )}
+            {option.label}
+          </button>
+        ))}
+      </div>
+      {notice ? (
+        <p role="status">
+          {notice}{" "}
+          {drafted ? <Link href="/studio/ai-queue">Open review queue</Link> : null}
+        </p>
       ) : null}
     </div>
   );

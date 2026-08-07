@@ -1,9 +1,13 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Check, Clock3, Plus, ShieldCheck } from "lucide-react";
+import { Check, Clock3, LoaderCircle, Plus, ShieldCheck, Sparkles } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import {
+  proposeTimingRules,
+  type ProposedTimingRule,
+} from "@/lib/ai/timing-rules-client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 
 type RuleRecord = Record<string, unknown> & { id: string };
@@ -18,9 +22,75 @@ export function TimingRuleEditor() {
   const [showForm, setShowForm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [showLearn, setShowLearn] = useState(false);
+  const [learnText, setLearnText] = useState("");
+  const [learnBusy, setLearnBusy] = useState(false);
+  const [proposals, setProposals] = useState<ProposedTimingRule[]>([]);
+  const [assumptions, setAssumptions] = useState<string[]>([]);
+  const [savingProposal, setSavingProposal] = useState<string | null>(null);
   const canEdit = ["studio_owner", "studio_admin"].includes(
     String(workspace.role),
   );
+
+  async function learn() {
+    if (!workspace.tenantId || learnText.trim().length < 40) {
+      setNotice("Paste a full past schedule first — at least a few lines.");
+      return;
+    }
+    setLearnBusy(true);
+    setNotice(null);
+    try {
+      const result = await proposeTimingRules({
+        tenantId: workspace.tenantId,
+        eventTypeId: "wedding",
+        scheduleText: learnText,
+      });
+      setProposals(result.rules);
+      setAssumptions(result.assumptions);
+      if (result.mode === "preview")
+        setNotice("Preview mode: example proposal shown without analysis.");
+    } catch (caught: unknown) {
+      setNotice(
+        caught instanceof Error
+          ? caught.message
+          : "We couldn't read timing rules from that schedule. Try again.",
+      );
+    } finally {
+      setLearnBusy(false);
+    }
+  }
+
+  async function saveProposal(rule: ProposedTimingRule, active: boolean) {
+    setSavingProposal(rule.name);
+    setNotice(null);
+    try {
+      await sendPlanningCommand("saveTimingRule", {
+        ruleId: null,
+        name: rule.name,
+        eventTypeId: "wedding",
+        anchor: rule.anchor,
+        offsetMinutes: rule.offsetMinutes,
+        durationMinutes: rule.durationMinutes,
+        bufferBeforeMinutes: rule.bufferBeforeMinutes,
+        bufferAfterMinutes: rule.bufferAfterMinutes,
+        active,
+      });
+      setProposals((current) =>
+        current.filter((candidate) => candidate.name !== rule.name),
+      );
+      setNotice(
+        active
+          ? `"${rule.name}" approved. Future schedule drafts will use it.`
+          : `"${rule.name}" saved as a draft rule.`,
+      );
+    } catch (caught: unknown) {
+      setNotice(
+        caught instanceof Error ? caught.message : "The rule could not be saved.",
+      );
+    } finally {
+      setSavingProposal(null);
+    }
+  }
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -102,16 +172,92 @@ export function TimingRuleEditor() {
         ))}
       </div>
       {canEdit && !showForm ? (
-        <button
-          className="button button-light button-sm"
-          onClick={() => {
-            setEditing(null);
-            setShowForm(true);
-          }}
-          type="button"
-        >
-          <Plus size={15} /> Add timing rule
-        </button>
+        <div className="timing-rule-actions">
+          <button
+            className="button button-light button-sm"
+            onClick={() => {
+              setEditing(null);
+              setShowForm(true);
+            }}
+            type="button"
+          >
+            <Plus size={15} /> Add timing rule
+          </button>
+          <button
+            className="button button-light button-sm"
+            onClick={() => setShowLearn((current) => !current)}
+            type="button"
+          >
+            <Sparkles size={15} /> Learn from a past schedule
+          </button>
+        </div>
+      ) : null}
+      {canEdit && showLearn ? (
+        <div className="timing-rule-learn">
+          <p>
+            Paste one of your past run-of-show documents. StudioCue proposes
+            reusable timing rules — nothing becomes a rule until you approve
+            it here.
+          </p>
+          <textarea
+            aria-label="Past schedule text"
+            onChange={(event) => setLearnText(event.target.value)}
+            placeholder={"1:00–1:15 Details with bride\n1:30 Robe/PJ shot\n3:00–4:15 Ceremony…"}
+            value={learnText}
+          />
+          <button
+            className="button button-dark button-sm"
+            disabled={learnBusy}
+            onClick={() => void learn()}
+            type="button"
+          >
+            {learnBusy ? <LoaderCircle className="spin" size={15} /> : <Sparkles size={15} />}
+            {learnBusy ? "Reading schedule…" : "Propose rules"}
+          </button>
+          {proposals.map((rule) => (
+            <article className="timing-rule-proposal" key={rule.name}>
+              <span>
+                <strong>{rule.name}</strong>
+                <small>
+                  {rule.anchor} · {rule.offsetMinutes} min offset ·{" "}
+                  {rule.durationMinutes} min · buffers {rule.bufferBeforeMinutes}
+                  /{rule.bufferAfterMinutes}
+                </small>
+                <em>{rule.rationale}</em>
+              </span>
+              <span className="timing-rule-proposal-actions">
+                <button
+                  className="button button-dark button-sm"
+                  disabled={savingProposal !== null}
+                  onClick={() => void saveProposal(rule, true)}
+                  type="button"
+                >
+                  {savingProposal === rule.name ? (
+                    <LoaderCircle className="spin" size={14} />
+                  ) : (
+                    <Check size={14} />
+                  )}
+                  Approve
+                </button>
+                <button
+                  className="button button-light button-sm"
+                  disabled={savingProposal !== null}
+                  onClick={() => void saveProposal(rule, false)}
+                  type="button"
+                >
+                  Save draft
+                </button>
+              </span>
+            </article>
+          ))}
+          {assumptions.length ? (
+            <ul className="timing-rule-assumptions">
+              {assumptions.map((assumption) => (
+                <li key={assumption}>{assumption}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
       ) : null}
       {showForm ? (
         <form className="timing-rule-form" onSubmit={(event) => void save(event)}>

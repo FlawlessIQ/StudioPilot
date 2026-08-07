@@ -15,6 +15,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
+import { LifecyclePackPanel } from "@/components/communications/lifecycle-pack-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendCommunicationsCommand } from "@/lib/communications/command-client";
@@ -354,6 +355,7 @@ export function CommunicationsCenter({
       </section>
 
       <aside className="communications-history">
+        <LifecyclePackPanel />
         {drafts.length ? (
           <section className="panel communications-approval-queue">
             <div className="panel-heading">

@@ -124,6 +124,10 @@ const commandSchema = z.discriminatedUnion("type", [
           type: z.literal("percentage"),
           basisPoints: z.number().int().min(0).max(10000),
         }),
+        z.object({
+          type: z.literal("per_crew_member"),
+          amountPerCrewCents: z.number().int().nonnegative().safe(),
+        }),
       ]),
       includedCoverageMinutes: z.number().int().positive(),
       includedPhotographers: z.number().int().positive(),
@@ -618,7 +622,8 @@ export const crmCommand = onRequest(
                 version: number;
                 retainerRule:
                   | { type: "fixed"; amountCents: number }
-                  | { type: "percentage"; basisPoints: number };
+                  | { type: "percentage"; basisPoints: number }
+                  | { type: "per_crew_member"; amountPerCrewCents: number };
                 includedCoverageMinutes: number;
                 includedPhotographers: number;
                 includedDeliverables: string[];
@@ -688,9 +693,16 @@ export const crmCommand = onRequest(
           const retainerCents =
             studioPackage.retainerRule.type === "fixed"
               ? Math.min(totalCents, studioPackage.retainerRule.amountCents)
-              : Math.round(
-                  (totalCents * studioPackage.retainerRule.basisPoints) / 10000,
-                );
+              : studioPackage.retainerRule.type === "per_crew_member"
+                ? Math.min(
+                    totalCents,
+                    studioPackage.retainerRule.amountPerCrewCents *
+                      Math.max(1, studioPackage.includedPhotographers),
+                  )
+                : Math.round(
+                    (totalCents * studioPackage.retainerRule.basisPoints) /
+                      10000,
+                  );
           const packageSnapshotId = randomUUID();
           transaction.create(db.doc(`packageSnapshots/${packageSnapshotId}`), {
             id: packageSnapshotId,

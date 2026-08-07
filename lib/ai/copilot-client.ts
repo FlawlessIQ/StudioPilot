@@ -1,5 +1,6 @@
 "use client";
 
+import { friendlyAiError } from "@/lib/ai/friendly-error";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 
@@ -37,6 +38,11 @@ export async function askCopilot(input: {
   );
   const result = (await response.json()) as CopilotResult & { error?: string };
   if (!response.ok)
-    throw new Error(result.error ?? "Copilot could not answer the question.");
+    throw new Error(
+      friendlyAiError(
+        new Error(result.error ?? ""),
+        "The assistant couldn't answer that. Try again.",
+      ),
+    );
   return result;
 }

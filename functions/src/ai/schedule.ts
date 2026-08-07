@@ -31,9 +31,33 @@ const inputSchema = z.object({
   preferences: z.string().max(4000),
 });
 
+/**
+ * The model is instructed to emit ISO 8601 timestamps with offsets. Accept any
+ * parseable ISO form (offset, Z, or missing seconds) and normalize to UTC so a
+ * formatting choice by the model never fails the whole draft.
+ */
+const flexibleDatetime = z
+  .string()
+  .min(1)
+  .transform((value, context) => {
+    const candidate =
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(value)
+        ? `${value}Z`
+        : value;
+    const parsed = Date.parse(candidate);
+    if (!Number.isFinite(parsed)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Not a parseable ISO 8601 datetime",
+      });
+      return z.NEVER;
+    }
+    return new Date(parsed).toISOString();
+  });
+
 const draftItemSchema = z.object({
-  startAt: z.string().datetime(),
-  endAt: z.string().datetime(),
+  startAt: flexibleDatetime,
+  endAt: flexibleDatetime,
   title: z.string().min(1).max(160),
   description: z.string().max(1000),
   location: z.string().max(160).nullable(),
@@ -91,9 +115,9 @@ async function generate(input: z.infer<typeof inputSchema>, context: Json) {
   const model = process.env.VERTEX_AI_SCHEDULE_MODEL;
   if (!project || !model) throw new Error("VERTEX_AI_SCHEDULE_NOT_CONFIGURED");
   const token = await accessToken();
-  const response = await fetch(
-    `https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`,
-    {
+  const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`;
+  const callModel = async (contents: Array<Record<string, unknown>>) => {
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: {
         authorization: `Bearer ${token}`,
@@ -108,12 +132,7 @@ async function generate(input: z.infer<typeof inputSchema>, context: Json) {
             },
           ],
         },
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: JSON.stringify({ input, context }) }],
-          },
-        ],
+        contents,
         generationConfig: {
           temperature: 0.15,
           responseMimeType: "application/json",
@@ -198,17 +217,60 @@ async function generate(input: z.infer<typeof inputSchema>, context: Json) {
           },
         },
       }),
+    });
+    if (!response.ok)
+      throw new Error(`VERTEX_AI_SCHEDULE_FAILED:${response.status}`);
+    const body = record(await response.json());
+    const candidates = Array.isArray(body.candidates) ? body.candidates : [];
+    const parts = Array.isArray(record(record(candidates[0]).content).parts)
+      ? (record(record(candidates[0]).content).parts as unknown[])
+      : [];
+    const text = record(parts[0]).text;
+    if (typeof text !== "string") throw new Error("VERTEX_AI_EMPTY_OUTPUT");
+    return text;
+  };
+  const parseDraft = (
+    text: string,
+  ):
+    | { success: true; data: z.infer<typeof outputSchema> }
+    | { success: false; issues: string } => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      return { success: false, issues: "The response was not valid JSON." };
+    }
+    const result = outputSchema.safeParse(parsed);
+    if (result.success) return { success: true, data: result.data };
+    const issues = result.error.issues
+      .slice(0, 12)
+      .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+      .join("\n");
+    return { success: false, issues };
+  };
+  const firstTurn = {
+    role: "user",
+    parts: [{ text: JSON.stringify({ input, context }) }],
+  };
+  const firstText = await callModel([firstTurn]);
+  const first = parseDraft(firstText);
+  if (first.success) return first.data;
+  // One repair pass: hand the validator's complaints back to the model before failing.
+  const repairText = await callModel([
+    firstTurn,
+    { role: "model", parts: [{ text: firstText }] },
+    {
+      role: "user",
+      parts: [
+        {
+          text: `Your previous response failed validation:\n${first.issues}\nReturn the corrected JSON object only, matching the required schema exactly. Timestamps must be ISO 8601 (e.g. 2026-10-14T15:00:00-04:00 or 2026-10-14T19:00:00Z).`,
+        },
+      ],
     },
-  );
-  if (!response.ok) throw new Error(`VERTEX_AI_SCHEDULE_FAILED:${response.status}`);
-  const body = record(await response.json());
-  const candidates = Array.isArray(body.candidates) ? body.candidates : [];
-  const parts = Array.isArray(record(record(candidates[0]).content).parts)
-    ? (record(record(candidates[0]).content).parts as unknown[])
-    : [];
-  const text = record(parts[0]).text;
-  if (typeof text !== "string") throw new Error("VERTEX_AI_EMPTY_OUTPUT");
-  return outputSchema.parse(JSON.parse(text));
+  ]);
+  const repaired = parseDraft(repairText);
+  if (repaired.success) return repaired.data;
+  throw new Error("AI_OUTPUT_INVALID");
 }
 
 export const aiScheduleCommand = onRequest(
@@ -474,8 +536,15 @@ export const aiScheduleCommand = onRequest(
       await batch.commit();
       response.status(200).json(output);
     } catch (caught: unknown) {
+      // Never leak raw validation or provider internals to the client.
+      // Only short SCREAMING_SNAKE codes pass through; everything else is generic.
+      const raw = caught instanceof Error ? caught.message : "";
       const message =
-        caught instanceof Error ? caught.message : "AI_SCHEDULE_FAILED";
+        /^[A-Z0-9_:.]{1,64}$/.test(raw) && !(caught instanceof z.ZodError)
+          ? raw
+          : caught instanceof z.ZodError
+            ? "INVALID_REQUEST"
+            : "AI_SCHEDULE_FAILED";
       response
         .status(message === "FORBIDDEN" ? 403 : 400)
         .json({ error: message });

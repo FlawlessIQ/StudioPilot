@@ -12893,3 +12893,60 @@ textarea:focus-visible {
   height: 42px;
   width: 42px;
 }
+
+/* AI failure notices: calm, human-readable, with a warning glyph. */
+.form-notice-error{display:flex;gap:8px;align-items:center;padding:12px 14px;border-radius:12px;background:#faf1ec;color:#7a3c22;border:1px solid #ecd5c8}
+.form-notice-error svg{flex-shrink:0}
+
+/* Whole-row click targets: the trailing arrow link stretches across its row. */
+.crm-table article{position:relative}
+.crm-table article > a[href]::after{content:"";position:absolute;inset:0;border-radius:0}
+.crm-table article:has(> a[href]):hover{background:#f8f9f7}
+.crm-table article > a[href]:focus-visible::after{outline:2px solid var(--accent);outline-offset:-2px}
+
+/* DraftCard: friendly message preview + editor inside AI queue cards. */
+.ai-message-preview{display:grid;gap:6px;padding:14px 16px;border:1px solid var(--border,#e3e6e2);border-radius:12px;background:#fbfcfa}
+.ai-message-preview small{color:var(--muted,#6b7570);font-size:11px}
+.ai-message-preview strong{font-size:14px}
+.ai-message-preview p{margin:0;white-space:pre-wrap;color:var(--ink-soft,#3c443f);font-size:13px;line-height:1.55}
+.ai-message-editor{display:grid;gap:10px}
+.ai-message-editor label{display:grid;gap:6px;font-size:12px;font-weight:650}
+.ai-message-editor input,.ai-message-editor textarea{border:1px solid var(--border,#e3e6e2);border-radius:10px;padding:10px;font:inherit}
+.ai-message-editor textarea{min-height:180px;line-height:1.5}
+.lead-action-notice{align-self:center;color:var(--muted,#6b7570)}
+
+/* Lifecycle pack summary in Communications. */
+.communications-lifecycle-note{color:var(--muted,#6b7570);font-size:12px;margin:0 0 10px}
+.communications-lifecycle-list{list-style:none;margin:0;padding:0;display:grid}
+.communications-lifecycle-list li{display:grid;gap:2px;padding:10px 0;border-top:1px solid var(--border,#e7eae6)}
+.communications-lifecycle-list small{color:var(--muted,#6b7570)}
+
+/* Timing-rule learning flow. */
+.timing-rule-actions{display:flex;gap:9px;flex-wrap:wrap}
+.timing-rule-learn{display:grid;gap:11px;margin-top:12px;padding:14px;border:1px dashed var(--border,#dfe3de);border-radius:12px}
+.timing-rule-learn p{margin:0;color:var(--muted,#6b7570);font-size:12px}
+.timing-rule-learn textarea{min-height:130px;border:1px solid var(--border,#e3e6e2);border-radius:10px;padding:10px;font:inherit;line-height:1.5}
+.timing-rule-learn .button{justify-self:start}
+.timing-rule-proposal{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:11px 12px;border:1px solid var(--border,#e7eae6);border-radius:11px;background:#fbfcfa}
+.timing-rule-proposal>span:first-child{display:grid;gap:3px}
+.timing-rule-proposal small{color:var(--muted,#6b7570)}
+.timing-rule-proposal em{color:var(--muted,#6b7570);font-style:normal;font-size:11px}
+.timing-rule-proposal-actions{display:flex;gap:7px}
+.timing-rule-assumptions{margin:0;padding-left:18px;color:var(--muted,#6b7570);font-size:12px;display:grid;gap:4px}
+
+/* Lifecycle pack controls (trust dial). */
+.communications-lifecycle-list li{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+.communications-lifecycle-list li>span:first-child{display:grid;gap:2px}
+.communications-lifecycle-controls{display:flex;gap:9px;align-items:center}
+.communications-lifecycle-controls label{display:flex;gap:5px;align-items:center;font-size:12px;font-weight:650}
+.communications-lifecycle-controls select{border:1px solid var(--border,#e3e6e2);border-radius:8px;padding:6px 8px;font:inherit;font-size:12px}
+.communications-lifecycle-pack .button{margin-top:10px}
+
+/* Copilot prepared actions. */
+.copilot-prepared-actions{display:grid;gap:9px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border,#e7eae6)}
+.copilot-prepared-actions>small{color:var(--muted,#6b7570)}
+.copilot-prepared-actions>div{display:flex;gap:8px;flex-wrap:wrap}
+.copilot-prepared-actions button{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--border,#dfe3de);border-radius:99px;background:var(--surface,#fff);padding:7px 13px;font:inherit;font-size:12px;font-weight:650;cursor:pointer}
+.copilot-prepared-actions button:hover{background:#f6f8f5}
+.copilot-prepared-actions p{margin:0;font-size:12px;color:var(--muted,#6b7570)}
+.copilot-prepared-actions p a{font-weight:700}

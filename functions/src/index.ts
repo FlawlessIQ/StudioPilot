@@ -15,6 +15,7 @@ export { proposalCommand } from "./booking/proposals.js";
 export { docusignWebhook, dropboxSignWebhook, quickbooksWebhook, stripeConnectWebhook } from "./booking/webhooks.js";
 export { planningCommand } from "./planning/commands.js";
 export { sendgridInboundCoi } from "./planning/inbound.js";
+export { coiChaseScheduler } from "./planning/coi-chase-scheduler.js";
 export { sendgridEventWebhook } from "./communications/sendgrid-events.js";
 export {
   communicationsCommand,
@@ -59,6 +60,10 @@ export { finalInvoiceScheduler } from "./operations/invoice-scheduler.js";
 export { aiCopilotCommand } from "./ai/copilot.js";
 export { aiScheduleCommand } from "./ai/schedule.js";
 export { aiActionCommand } from "./ai/actions.js";
+export { aiMessageDraftCommand } from "./ai/message-draft.js";
+export { aiTimingRulesCommand } from "./ai/timing-rules.js";
+export { lifecycleMessageScheduler } from "./communications/lifecycle-scheduler.js";
+export { lifecycleSettingsCommand } from "./communications/lifecycle-settings.js";
 export { authEmailCommand } from "./auth/emails.js";
 export {
   automationRetryScheduler,

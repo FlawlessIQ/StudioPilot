@@ -256,6 +256,15 @@ export function GlobalSearch() {
                   </span>
                 </Link> : null}
                 {operator ? (
+                  <Link href="/studio/schedules/new" onClick={close}>
+                    <CalendarRange size={17} />
+                    <span>
+                      <strong>Draft a run of show</strong>
+                      <small>Generate a schedule draft to review</small>
+                    </span>
+                  </Link>
+                ) : null}
+                {operator ? (
                   <Link href="/studio/ai-queue" onClick={close}>
                     <BrainCircuit size={17} />
                     <span>

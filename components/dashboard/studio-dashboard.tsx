@@ -456,7 +456,11 @@ function DashboardPriorityStrip() {
   const consultationsState = useTenantDocuments("consultations");
   const questionnaireState = useTenantDocuments("questionnaireResponses");
   const projectsState = useTenantDocuments("projects");
+  const aiActionsState = useTenantDocuments("aiActions");
   const today = new Date().toISOString().slice(0, 10);
+  const draftsWaiting = (aiActionsState.records ?? []).filter(
+    (action) => String(action.status) === "review_required",
+  );
   const dueTasks = (tasksState.records ?? []).filter(
     (task) =>
       !["complete", "completed", "cancelled"].includes(String(task.status)) &&
@@ -478,6 +482,11 @@ function DashboardPriorityStrip() {
       className="dashboard-priority-strip"
       aria-label="Today’s operational signals"
     >
+      <Link href="/studio/ai-queue">
+        <Sparkles />
+        <span><small>Drafts waiting for approval</small><strong>{draftsWaiting.length}</strong></span>
+        <ArrowRight />
+      </Link>
       <Link href="/studio/tasks">
         <Clock3 />
         <span><small>Tasks due or overdue</small><strong>{dueTasks.length}</strong></span>
