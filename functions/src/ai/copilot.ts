@@ -9,6 +9,7 @@ import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { consumeAiQuota } from "../saas/usage.js";
+import { productEvent } from "../operations/product-events.js";
 
 type Json = Record<string, unknown>;
 
@@ -96,6 +97,8 @@ function compact(document: DocumentSnapshot): Json & { id: string } {
     "company",
     "contactName",
     "type",
+    "planningPackage",
+    "approvalState",
   ];
   return {
     id: document.id,
@@ -247,6 +250,7 @@ export const aiCopilotCommand = onRequest(
         schedules,
         insurance,
         vendors,
+        questionnaires,
       ] =
         await Promise.all([
           scopedDocuments("projects", input.tenantId, permittedProjectIds),
@@ -258,6 +262,7 @@ export const aiCopilotCommand = onRequest(
           scopedDocuments("schedules", input.tenantId, permittedProjectIds),
           scopedDocuments("insuranceRequests", input.tenantId, permittedProjectIds),
           scopedDocuments("vendors", input.tenantId, permittedProjectIds),
+          scopedDocuments("questionnaireResponses", input.tenantId, permittedProjectIds),
         ]);
       const citationCandidates = projects.map((project) => ({
         label: String(project.name ?? project.id),
@@ -274,6 +279,9 @@ export const aiCopilotCommand = onRequest(
         schedules,
         insurance,
         vendors,
+        planningPackages: questionnaires
+          .filter((item) => item.planningPackage)
+          .map((item) => ({ id: item.id, projectId: item.projectId, planningPackage: item.planningPackage })),
         citationCandidates,
       });
       const allowedLinks = new Set(citationCandidates.map((item) => item.href));
@@ -316,6 +324,22 @@ export const aiCopilotCommand = onRequest(
         automationRunId: null,
         providerEventId: null,
       });
+      const preparedEvent = productEvent({
+        tenantId: input.tenantId,
+        projectId: input.projectId ?? null,
+        actorId: identity.uid,
+        name: "event_day.brief_prepared",
+        occurredAt: now,
+        correlationId: interactionId,
+        sourceEntityType: "aiInteraction",
+        sourceEntityId: interactionId,
+        properties: {
+          factCount: safeResult.facts.length,
+          suggestionCount: safeResult.suggestions.length,
+          proactive: input.question.includes("event-day brief"),
+        },
+      });
+      batch.create(db.doc(`productEvents/${preparedEvent.id}`), preparedEvent);
       await batch.commit();
       response.status(200).json({ ...safeResult, interactionId, asOf: now });
     } catch (caught: unknown) {

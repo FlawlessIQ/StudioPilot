@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -16,6 +16,7 @@ import {
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { eventDaySnapshot } from "@/features/crew/cascade";
 import { askCopilot, type CopilotResult } from "@/lib/ai/copilot-client";
 
 const text = (value: unknown) => (typeof value === "string" ? value : "");
@@ -40,6 +41,7 @@ const quickQuestions = [
   "Which facts or approvals are still uncertain?",
   "Summarize crew arrival, roles, and acknowledgements.",
   "What venue or insurance detail should I double-check?",
+  "Show the family formal groups and any missing names.",
 ];
 
 export function EventDayCopilot({
@@ -58,6 +60,13 @@ export function EventDayCopilot({
   const [result, setResult] = useState<CopilotResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const preparedBriefs = useRef(new Set<string>());
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const upcoming = useMemo(
     () =>
@@ -96,6 +105,52 @@ export function EventDayCopilot({
     (item) => item.projectId === projectId,
   );
   const items = list(schedule?.items).map(record);
+  const orderedItems = [...items].sort(
+    (left, right) => Date.parse(text(left.startAt)) - Date.parse(text(right.startAt)),
+  );
+  const snapshot = eventDaySnapshot({
+    now: new Date(now).toISOString(),
+    scheduleVersion: Number(schedule?.version ?? 0),
+    items: orderedItems.map((item) => ({
+      id: text(item.id),
+      startAt: text(item.startAt),
+      endAt: text(item.endAt),
+    })),
+    assignments: projectAssignments.map((assignment) => ({
+      id: assignment.id,
+      acknowledgedScheduleVersion: Number(
+        assignment.acknowledgedScheduleVersion ?? 0,
+      ),
+    })),
+  });
+  const currentItem = orderedItems.find((item) => text(item.id) === snapshot.currentItemId);
+  const nextItem = orderedItems.find((item) => text(item.id) === snapshot.nextItemId);
+  const unacknowledgedCrew = projectAssignments.filter((assignment) =>
+    snapshot.unacknowledgedAssignmentIds.includes(assignment.id),
+  );
+
+  useEffect(() => {
+    if (
+      !workspace.tenantId ||
+      !projectId ||
+      !schedule ||
+      preparedBriefs.current.has(projectId)
+    ) return;
+    preparedBriefs.current.add(projectId);
+    setBusy(true);
+    setError(null);
+    void askCopilot({
+      tenantId: workspace.tenantId,
+      projectId,
+      question: quickQuestions[0]!,
+    })
+      .then(setResult)
+      .catch((caught: unknown) => {
+        preparedBriefs.current.delete(projectId);
+        setError(caught instanceof Error ? caught.message : "Copilot could not prepare the brief.");
+      })
+      .finally(() => setBusy(false));
+  }, [projectId, schedule, workspace.tenantId]);
 
   async function ask(nextQuestion = question) {
     if (!workspace.tenantId || !projectId) return;
@@ -183,6 +238,29 @@ export function EventDayCopilot({
             </div>
           ) : null}
 
+          {unacknowledgedCrew.length ? (
+            <div className="event-day-warning">
+              <AlertTriangle />
+              <span>
+                <strong>{unacknowledgedCrew.length} crew acknowledgement{unacknowledgedCrew.length === 1 ? "" : "s"} missing</strong>
+                <small>The latest published schedule has not been acknowledged by every accepted crew member.</small>
+              </span>
+              <Link href={`/studio/crew?project=${projectId}`}>Review</Link>
+            </div>
+          ) : null}
+
+          <section className="panel event-day-now">
+            <p className="eyebrow">Right now</p>
+            <h2>{currentItem ? text(currentItem.title) : nextItem ? `Next: ${text(nextItem.title)}` : "Coverage plan complete"}</h2>
+            <p>
+              {currentItem
+                ? `${time(currentItem.startAt)}–${time(currentItem.endAt)} · ${text(currentItem.location) || "Location pending"}`
+                : nextItem
+                  ? `${time(nextItem.startAt)} · ${text(nextItem.location) || "Location pending"}`
+                  : "No later item is listed in the current published schedule."}
+            </p>
+          </section>
+
           <section className="panel event-day-timeline">
             <header>
               <span>
@@ -241,6 +319,16 @@ export function EventDayCopilot({
               <div className="event-day-answer" aria-live="polite">
                 <strong>{result.answer}</strong>
                 {result.facts.map((fact) => <p key={fact}>{fact}</p>)}
+                {result.suggestions.length ? (
+                  <ul>
+                    {result.suggestions.map((suggestion) => <li key={suggestion}>{suggestion}</li>)}
+                  </ul>
+                ) : null}
+                {result.citations.map((citation) => (
+                  <Link href={citation.href} key={`${citation.href}-${citation.label}`}>
+                    {citation.label}
+                  </Link>
+                ))}
                 <StatusBadge tone="info">Read-only answer</StatusBadge>
               </div>
             ) : null}

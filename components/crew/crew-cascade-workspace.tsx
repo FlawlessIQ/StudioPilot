@@ -231,6 +231,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
     packageSnapshots,
     profiles,
     project,
+    projectId,
     schedules,
     specialty,
   ]);

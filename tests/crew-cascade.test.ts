@@ -1,9 +1,30 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  eventDaySnapshot,
   nextCrewCascadeState,
   rankCrewCandidates,
 } from "../features/crew/cascade";
+
+test("event day snapshot identifies now, next, and stale acknowledgements", () => {
+  const snapshot = eventDaySnapshot({
+    now: "2027-06-12T16:30:00.000Z",
+    scheduleVersion: 3,
+    items: [
+      { id: "prep", startAt: "2027-06-12T15:00:00.000Z", endAt: "2027-06-12T16:00:00.000Z" },
+      { id: "ceremony", startAt: "2027-06-12T16:00:00.000Z", endAt: "2027-06-12T17:00:00.000Z" },
+      { id: "portraits", startAt: "2027-06-12T17:15:00.000Z", endAt: "2027-06-12T18:00:00.000Z" },
+    ],
+    assignments: [
+      { id: "primary", acknowledgedScheduleVersion: 3 },
+      { id: "second", acknowledgedScheduleVersion: 2 },
+    ],
+  });
+
+  assert.equal(snapshot.currentItemId, "ceremony");
+  assert.equal(snapshot.nextItemId, "portraits");
+  assert.deepEqual(snapshot.unacknowledgedAssignmentIds, ["second"]);
+});
 
 const base = {
   active: true,

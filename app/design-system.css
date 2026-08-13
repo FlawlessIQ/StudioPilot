@@ -2800,6 +2800,21 @@
   display: grid;
 }
 
+.event-day-now {
+  padding: 22px 24px;
+  border-color: color-mix(in srgb, var(--ds-forest) 30%, var(--ds-line));
+  background: color-mix(in srgb, var(--ds-forest) 6%, var(--ds-paper));
+}
+
+.event-day-now h2 {
+  margin: 4px 0 6px;
+}
+
+.event-day-now p:last-child {
+  margin: 0;
+  color: var(--ds-muted);
+}
+
 .event-day-timeline header,
 .event-day-ask header {
   display: flex;

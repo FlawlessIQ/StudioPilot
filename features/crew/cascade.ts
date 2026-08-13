@@ -164,3 +164,33 @@ export function nextCrewCascadeState(input: {
         nextCandidateId: null,
       };
 }
+
+export function eventDaySnapshot(input: {
+  now: string;
+  scheduleVersion: number;
+  items: ReadonlyArray<{ id: string; startAt: string; endAt: string }>;
+  assignments: ReadonlyArray<{
+    id: string;
+    acknowledgedScheduleVersion: number | null;
+  }>;
+}) {
+  const now = Date.parse(input.now);
+  const ordered = [...input.items].sort(
+    (left, right) => Date.parse(left.startAt) - Date.parse(right.startAt),
+  );
+  return {
+    currentItemId:
+      ordered.find(
+        (item) => Date.parse(item.startAt) <= now && Date.parse(item.endAt) > now,
+      )?.id ?? null,
+    nextItemId:
+      ordered.find((item) => Date.parse(item.startAt) > now)?.id ?? null,
+    unacknowledgedAssignmentIds: input.assignments
+      .filter(
+        (assignment) =>
+          Number(assignment.acknowledgedScheduleVersion ?? 0) <
+          input.scheduleVersion,
+      )
+      .map((assignment) => assignment.id),
+  };
+}
