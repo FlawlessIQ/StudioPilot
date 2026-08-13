@@ -4,7 +4,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
-import { consumeAiQuota } from "../saas/usage.js";
+import { consumeAiQuota, refundAiQuota } from "../saas/usage.js";
 import { productEvent } from "../operations/product-events.js";
 
 type Json = Record<string, unknown>;
@@ -85,13 +85,79 @@ async function accessToken() {
   return body.access_token;
 }
 
+const retryableVertexStatuses = new Set([429, 500, 502, 503, 504]);
+const vertexAttempts = 3;
+
+const wait = (milliseconds: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+
+const exponentialDelay = (attempt: number) =>
+  Math.min(750 * 2 ** attempt, 8_000) + Math.floor(Math.random() * 350);
+
+const vertexErrorSummary = (body: string) => {
+  try {
+    const error = record(record(JSON.parse(body)).error);
+    return {
+      code: typeof error.status === "string" ? error.status : "UNKNOWN",
+      message:
+        typeof error.message === "string"
+          ? error.message.slice(0, 240)
+          : "Vertex AI request failed",
+    };
+  } catch {
+    return { code: "UNKNOWN", message: "Vertex AI request failed" };
+  }
+};
+
+const retryDelay = (response: Response, attempt: number) => {
+  const retryAfter = Number(response.headers.get("retry-after"));
+  if (Number.isFinite(retryAfter) && retryAfter > 0)
+    return Math.min(retryAfter * 1000, 10_000);
+  return exponentialDelay(attempt);
+};
+
+async function fetchVertexWithRetry(url: string, init: RequestInit) {
+  for (let attempt = 0; attempt < vertexAttempts; attempt += 1) {
+    let response: Response;
+    try {
+      response = await fetch(url, init);
+    } catch (caught: unknown) {
+      console.warn("vertex_ai_schedule_network_failed", {
+        attempt: attempt + 1,
+        message:
+          caught instanceof Error ? caught.message : "UNKNOWN_NETWORK_ERROR",
+      });
+      if (attempt === vertexAttempts - 1)
+        throw new Error("AI_SCHEDULE_TEMPORARILY_UNAVAILABLE");
+      await wait(exponentialDelay(attempt));
+      continue;
+    }
+    if (response.ok) return response;
+    const summary = vertexErrorSummary(await response.clone().text());
+    const retryable = retryableVertexStatuses.has(response.status);
+    console.warn("vertex_ai_schedule_request_failed", {
+      attempt: attempt + 1,
+      retryable,
+      status: response.status,
+      vertexCode: summary.code,
+      vertexMessage: summary.message,
+    });
+    if (!retryable)
+      throw new Error(`VERTEX_AI_SCHEDULE_FAILED:${response.status}`);
+    if (attempt === vertexAttempts - 1)
+      throw new Error("AI_SCHEDULE_TEMPORARILY_UNAVAILABLE");
+    await wait(retryDelay(response, attempt));
+  }
+  throw new Error("AI_SCHEDULE_TEMPORARILY_UNAVAILABLE");
+}
+
 async function generate(input: z.infer<typeof inputSchema>, context: Json) {
   const project = process.env.VERTEX_AI_PROJECT_ID;
   const location = process.env.VERTEX_AI_LOCATION ?? "us-east4";
   const model = process.env.VERTEX_AI_SCHEDULE_MODEL;
   if (!project || !model) throw new Error("VERTEX_AI_SCHEDULE_NOT_CONFIGURED");
   const token = await accessToken();
-  const response = await fetch(
+  const response = await fetchVertexWithRetry(
     `https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`,
     {
       method: "POST",
@@ -200,7 +266,6 @@ async function generate(input: z.infer<typeof inputSchema>, context: Json) {
       }),
     },
   );
-  if (!response.ok) throw new Error(`VERTEX_AI_SCHEDULE_FAILED:${response.status}`);
   const body = record(await response.json());
   const candidates = Array.isArray(body.candidates) ? body.candidates : [];
   const parts = Array.isArray(record(record(candidates[0]).content).parts)
@@ -212,12 +277,13 @@ async function generate(input: z.infer<typeof inputSchema>, context: Json) {
 }
 
 export const aiScheduleCommand = onRequest(
-  { cors: studioHubCors, invoker: "private", timeoutSeconds: 60 },
+  { cors: studioHubCors, invoker: "private", timeoutSeconds: 120 },
   async (request, response) => {
     if (request.method !== "POST") {
       response.status(405).json({ error: "METHOD_NOT_ALLOWED" });
       return;
     }
+    let quotaReservation: { tenantId: string; reservedAt: string } | null = null;
     try {
       await requireAppCheck(request);
       const identity = await requireIdentity(request);
@@ -248,6 +314,7 @@ export const aiScheduleCommand = onRequest(
       await db.runTransaction((transaction) =>
         consumeAiQuota(transaction, db, input.tenantId, now),
       );
+      quotaReservation = { tenantId: input.tenantId, reservedAt: now };
       const [questionnaires, timingRules, crewAssignments, packageSnapshot] =
         await Promise.all([
           db
@@ -476,6 +543,45 @@ export const aiScheduleCommand = onRequest(
     } catch (caught: unknown) {
       const message =
         caught instanceof Error ? caught.message : "AI_SCHEDULE_FAILED";
+      const reservation = quotaReservation;
+      if (reservation) {
+        const db = getFirestore();
+        try {
+          await db.runTransaction((transaction) =>
+            refundAiQuota(
+              transaction,
+              db,
+              reservation.tenantId,
+              reservation.reservedAt,
+            ),
+          );
+        } catch (refundError: unknown) {
+          console.error("ai_schedule_quota_refund_failed", {
+            message:
+              refundError instanceof Error
+                ? refundError.message
+                : "UNKNOWN_REFUND_ERROR",
+          });
+        }
+      }
+      if (message === "AI_SCHEDULE_TEMPORARILY_UNAVAILABLE") {
+        response.status(503).json({
+          error:
+            "Schedule drafting is temporarily busy. Please try again in a moment.",
+          code: message,
+          retryable: true,
+        });
+        return;
+      }
+      if (message.startsWith("VERTEX_AI_SCHEDULE_FAILED:")) {
+        response.status(502).json({
+          error:
+            "Schedule drafting could not be completed. Please check the details and try again.",
+          code: "AI_SCHEDULE_PROVIDER_FAILED",
+          retryable: false,
+        });
+        return;
+      }
       response
         .status(message === "FORBIDDEN" ? 403 : 400)
         .json({ error: message });
