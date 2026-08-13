@@ -223,3 +223,49 @@ export function normalizeQuickBooksWebhooks(
 
   return normalizeQuickBooksLegacyPayload(input);
 }
+
+export type ZoomWebhookEvent = {
+  providerEventId: string;
+  event: "meeting.ended" | "meeting.summary_completed";
+  accountId: string;
+  meetingId: string;
+  meetingUuid: string | null;
+  occurredAt: string;
+  topic: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+};
+
+export function normalizeZoomWebhook(
+  input: unknown,
+): ZoomWebhookEvent | null {
+  const payload = asRecord(input);
+  const event = asString(payload.event);
+  if (!["meeting.ended", "meeting.summary_completed"].includes(event))
+    return null;
+  const eventPayload = asRecord(payload.payload);
+  const object = asRecord(eventPayload.object);
+  const accountId = asString(eventPayload.account_id);
+  const meetingId = String(object.id ?? object.meeting_id ?? "");
+  const eventTimestamp = Number(payload.event_ts);
+  if (!accountId || !meetingId || !Number.isFinite(eventTimestamp)) return null;
+  const meetingUuid = asString(object.uuid) || null;
+  const occurredAt = new Date(eventTimestamp).toISOString();
+  return {
+    providerEventId: digest(
+      [event, accountId, meetingId, meetingUuid ?? "", String(eventTimestamp)].join(
+        ":",
+      ),
+    ),
+    event: event as ZoomWebhookEvent["event"],
+    accountId,
+    meetingId,
+    meetingUuid,
+    occurredAt,
+    topic: asString(object.topic) || null,
+    startedAt:
+      asString(object.start_time) || asString(object.meeting_start_time) || null,
+    endedAt:
+      asString(object.end_time) || asString(object.meeting_end_time) || null,
+  };
+}

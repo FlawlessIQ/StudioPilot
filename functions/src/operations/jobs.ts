@@ -14,6 +14,7 @@ import { captureOperationalError } from "./observability.js";
 import { productEvent } from "./product-events.js";
 import {
   completeBookingResources,
+  captureZoomMeetingSummary,
   createConsultationResources,
   createDocusignEnvelope,
   createDropboxSignRequest,
@@ -174,6 +175,8 @@ async function finish(
 
 async function providerJob(document: DocumentSnapshot) {
   const type = String(document.get("type"));
+  if (type === "capture_zoom_meeting_summary")
+    return captureZoomMeetingSummary(document);
   if (type === "create_consultation_resources")
     return createConsultationResources(document);
   if (type === "create_docusign_envelope")

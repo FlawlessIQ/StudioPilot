@@ -70,6 +70,7 @@ const config = (provider: Provider): Config => {
         "meeting:update:meeting",
         "meeting:delete:meeting",
         "meeting:read:list_meetings",
+        "meeting:read:summary",
       ],
       extra: {},
     },
@@ -440,6 +441,20 @@ export const integrationOAuth = onRequest(
         accountId = body.account?.account_id ?? "";
         credential.accountId = accountId;
         displayName = body.account?.email_address ?? provider;
+      } else if (provider === "zoom") {
+        const account = await fetch("https://api.zoom.us/v2/users/me", {
+          headers: { authorization: `Bearer ${String(token.access_token)}` },
+        });
+        const body = (await account.json()) as {
+          account_id?: string;
+          display_name?: string;
+          email?: string;
+        };
+        if (!account.ok || !body.account_id)
+          throw new Error("ZOOM_ACCOUNT_LOOKUP_FAILED");
+        accountId = body.account_id;
+        credential.accountId = accountId;
+        displayName = body.display_name ?? body.email ?? provider;
       } else if (provider === "quickbooks") {
         credential.realmId = accountId;
       } else if (provider === "stripe") {
@@ -465,6 +480,7 @@ export const integrationOAuth = onRequest(
           provider,
           status: "connected",
           providerAccountId: accountId || null,
+          meetingSummaryEnabled: provider === "zoom" ? true : null,
           displayName,
           encryptedCredentialRef: credentialReference,
           selectedResourceId: null,

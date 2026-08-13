@@ -1,13 +1,14 @@
 export const maxProviderWebhookBytes = 2 * 1024 * 1024;
 
 type RelayConfig = {
-  functionName: "docusignWebhook" | "dropboxSignWebhook" | "quickbooksWebhook" | "stripeConnectWebhook";
-  signatureHeader?: "x-docusign-signature-1" | "intuit-signature" | "stripe-signature";
+  functionName: "docusignWebhook" | "dropboxSignWebhook" | "quickbooksWebhook" | "stripeConnectWebhook" | "zoomWebhook";
+  signatureHeader?: "x-docusign-signature-1" | "intuit-signature" | "stripe-signature" | "x-zm-signature";
   signatureRequiredError?:
     | "DOCUSIGN_SIGNATURE_REQUIRED"
     | "DROPBOX_SIGN_SIGNATURE_REQUIRED"
     | "QUICKBOOKS_SIGNATURE_REQUIRED"
-    | "STRIPE_CONNECT_SIGNATURE_REQUIRED";
+    | "STRIPE_CONNECT_SIGNATURE_REQUIRED"
+    | "ZOOM_SIGNATURE_REQUIRED";
   forwardedHeaders?: readonly string[];
 };
 

@@ -16,6 +16,10 @@ import {
   GET as getStripeConnect,
   POST as postStripeConnect,
 } from "../app/api/webhooks/stripe-connect/route.ts";
+import {
+  GET as getZoom,
+  POST as postZoom,
+} from "../app/api/webhooks/zoom/route.ts";
 
 test("provider webhook relays reject non-POST requests except Dropbox Sign verification", async () => {
   assert.equal(getDocusign().status, 405);
@@ -24,6 +28,7 @@ test("provider webhook relays reject non-POST requests except Dropbox Sign verif
   assert.equal(await dropboxSign.text(), "Hello API Event Received");
   assert.equal(getQuickBooks().status, 405);
   assert.equal(getStripeConnect().status, 405);
+  assert.equal(getZoom().status, 405);
 });
 
 test("Stripe Connect webhook relay requires its signature header", async () => {
@@ -83,6 +88,20 @@ test("QuickBooks webhook relay requires its verifier signature", async () => {
   assert.equal(response.status, 401);
   assert.deepEqual(await response.json(), {
     error: "QUICKBOOKS_SIGNATURE_REQUIRED",
+  });
+});
+
+test("Zoom webhook relay requires its signed-event header", async () => {
+  const response = await postZoom(
+    new Request("https://studiohub.test/api/webhooks/zoom", {
+      method: "POST",
+      body: "{}",
+      headers: { "content-type": "application/json" },
+    }),
+  );
+  assert.equal(response.status, 401);
+  assert.deepEqual(await response.json(), {
+    error: "ZOOM_SIGNATURE_REQUIRED",
   });
 });
 

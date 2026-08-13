@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { getFirestore,type DocumentSnapshot } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { buildIntegrationDiagnostics } from "../integrations/diagnostics.js";
+import { consumeAiQuota } from "../saas/usage.js";
+import { productEvent } from "./product-events.js";
 
 export type Provider="google_calendar"|"zoom"|"dropbox"|"docusign"|"dropbox_sign"|"quickbooks"|"stripe";
 type Credential={
@@ -236,9 +238,157 @@ const mockId=(scope:string,id:string)=>`mock_${scope}_${createHash("sha256").upd
 
 export async function createConsultationResources(job:DocumentSnapshot){const db=getFirestore();const consultationId=job.id.replace(/^consultation_/,"");const consultationReference=db.doc(`consultations/${consultationId}`);let consultation=await consultationReference.get();if(!consultation.exists)throw new Error("CONSULTATION_NOT_FOUND");const tenantId=String(job.get("tenantId"));let meetingId:string|null=consultation.get("meetingId")||null;let joinUrl:string|null=consultation.get("joinUrl")||null;
   if(consultation.get("providerState")==="completed")return{consultationId,meetingId:consultation.get("meetingId"),calendarEventId:consultation.get("calendarEventId")};
-  if(consultation.get("mode")==="zoom"&&!meetingId){const zoom=await connection(tenantId,"zoom");if(zoom.mock){meetingId=mockId("zoom",job.id);joinUrl=`https://zoom.example.test/j/${meetingId}`}else{const value=await providerJson(`${zoom.credential?.baseUrl??"https://api.zoom.us"}/v2/users/me/meetings`,{method:"POST",headers:{authorization:`Bearer ${zoom.credential?.accessToken}`,"content-type":"application/json"},body:JSON.stringify({topic:"Photography consultation",type:2,start_time:consultation.get("startsAt"),duration:Math.max(1,Math.round((new Date(String(consultation.get("endsAt"))).valueOf()-new Date(String(consultation.get("startsAt"))).valueOf())/60000)),timezone:consultation.get("timezone"),settings:{waiting_room:true,auto_recording:"none"}})},"ZOOM_CREATE_FAILED");meetingId=String(value.id);joinUrl=text(value.join_url)}await consultationReference.update({meetingId,joinUrl,location:joinUrl??consultation.get("location"),providerState:"meeting_created",updatedAt:new Date().toISOString(),updatedBy:"provider-worker"});consultation=await consultationReference.get()}
+  if(consultation.get("mode")==="zoom"&&!meetingId){const zoom=await connection(tenantId,"zoom");if(zoom.mock){meetingId=mockId("zoom",job.id);joinUrl=`https://zoom.example.test/j/${meetingId}`}else{const scopes=Array.isArray(zoom.document.get("scopes"))?zoom.document.get("scopes") as unknown[]:[];const summaryEnabled=zoom.document.get("meetingSummaryEnabled")!==false&&scopes.includes("meeting:read:summary");const value=await providerJson(`${zoom.credential?.baseUrl??"https://api.zoom.us"}/v2/users/me/meetings`,{method:"POST",headers:{authorization:`Bearer ${zoom.credential?.accessToken}`,"content-type":"application/json"},body:JSON.stringify({topic:"Photography consultation",type:2,start_time:consultation.get("startsAt"),duration:Math.max(1,Math.round((new Date(String(consultation.get("endsAt"))).valueOf()-new Date(String(consultation.get("startsAt"))).valueOf())/60000)),timezone:consultation.get("timezone"),settings:{waiting_room:true,auto_recording:"none",...(summaryEnabled?{auto_start_meeting_summary:true,who_will_receive_summary:1}:{})}})},"ZOOM_CREATE_FAILED");meetingId=String(value.id);joinUrl=text(value.join_url)}await consultationReference.update({meetingId,joinUrl,location:joinUrl??consultation.get("location"),providerState:"meeting_created",updatedAt:new Date().toISOString(),updatedBy:"provider-worker"});consultation=await consultationReference.get()}
   const calendar=await connection(tenantId,"google_calendar");let calendarEventId=String(consultation.get("calendarEventId")??"");let calendarHtmlLink:string|null=consultation.get("calendarHtmlLink")??null;if(!calendarEventId&&calendar.mock){calendarEventId=mockId("gcal",job.id);calendarHtmlLink=`https://calendar.example.test/${calendarEventId}`}else if(!calendarEventId){const calendarId=encodeURIComponent(String(calendar.document.get("selectedResourceId")??"primary"));const providerEventId=createHash("sha256").update(`consultation:${consultationId}`).digest("hex").slice(0,32);const url=`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`;const create=await fetch(url,{method:"POST",headers:{authorization:`Bearer ${calendar.credential?.accessToken}`,"content-type":"application/json"},body:JSON.stringify({id:providerEventId,summary:"Photography consultation",description:joinUrl??"StudioCue consultation",start:{dateTime:consultation.get("startsAt"),timeZone:consultation.get("timezone")},end:{dateTime:consultation.get("endsAt"),timeZone:consultation.get("timezone")},extendedProperties:{private:{studioHubConsultationId:consultationId}}})});const value=create.status===409?await providerJson(`${url}/${providerEventId}`,{headers:{authorization:`Bearer ${calendar.credential?.accessToken}`}},"CALENDAR_READ_FAILED"):asRecord(await create.json().catch(()=>({})));if(!create.ok&&create.status!==409)throw new Error(`CALENDAR_CREATE_FAILED:${create.status}`);calendarEventId=text(value.id);calendarHtmlLink=text(value.htmlLink)||null;await consultationReference.update({calendarEventId,calendarHtmlLink,providerState:"calendar_created",updatedAt:new Date().toISOString(),updatedBy:"provider-worker"})}
   await consultationReference.update({meetingId,joinUrl,location:joinUrl??consultation.get("location"),calendarEventId,calendarHtmlLink,providerState:"completed",updatedAt:new Date().toISOString(),updatedBy:"provider-worker"});return{consultationId,meetingId,calendarEventId}}
+
+export function zoomSummaryText(value: Json): string {
+  const details = Array.isArray(value.summary_details)
+    ? value.summary_details
+        .map(asRecord)
+        .map((detail) => {
+          const label = text(detail.summary_label) || text(detail.label);
+          const summary = text(detail.summary) || text(detail.content);
+          return [label, summary].filter(Boolean).join(": ");
+        })
+        .filter(Boolean)
+    : [];
+  const nextSteps = Array.isArray(value.next_steps)
+    ? value.next_steps.map((step) =>
+        typeof step === "string"
+          ? step
+          : text(asRecord(step).next_step) || text(asRecord(step).content),
+      ).filter(Boolean)
+    : [];
+  return [
+    text(value.summary_overview),
+    ...details,
+    ...(nextSteps.length ? [`Next steps: ${nextSteps.join("; ")}`] : []),
+  ].filter(Boolean).join("\n\n").trim();
+}
+
+export async function captureZoomMeetingSummary(job: DocumentSnapshot) {
+  const db = getFirestore();
+  const tenantId = String(job.get("tenantId") ?? "");
+  const projectId = String(job.get("projectId") ?? "");
+  const consultationId = String(job.get("consultationId") ?? "");
+  const meetingId = String(job.get("meetingId") ?? "");
+  if (!tenantId || !projectId || !consultationId || !meetingId)
+    throw new Error("ZOOM_SUMMARY_CONTEXT_MISSING");
+  const zoom = await connection(tenantId, "zoom");
+  if (zoom.mock || !zoom.credential) throw new Error("ZOOM_SUMMARY_NOT_LIVE");
+  const response = await fetch(
+    `https://api.zoom.us/v2/meetings/${encodeURIComponent(meetingId)}/meeting_summary`,
+    { headers: { authorization: `Bearer ${zoom.credential.accessToken}` } },
+  );
+  if (!response.ok) throw new Error(`ZOOM_SUMMARY_FETCH_FAILED:${response.status}`);
+  const providerSummary = asRecord(await response.json());
+  const summary = zoomSummaryText(providerSummary);
+  if (!summary) throw new Error("ZOOM_SUMMARY_EMPTY");
+  const consultationReference = db.doc(`consultations/${consultationId}`);
+  const projectReference = db.doc(`projects/${projectId}`);
+  const aiJobReference = db.doc(`aiJobs/consultation_${consultationId}`);
+  const receiptReference = db.doc(`actionReceipts/zoom_capture_${consultationId}`);
+  const now = new Date().toISOString();
+  await db.runTransaction(async (transaction) => {
+    const [consultation, project, existingAiJob] = await Promise.all([
+      transaction.get(consultationReference),
+      transaction.get(projectReference),
+      transaction.get(aiJobReference),
+    ]);
+    if (!consultation.exists || consultation.get("tenantId") !== tenantId)
+      throw new Error("CONSULTATION_NOT_FOUND");
+    if (!project.exists || project.get("tenantId") !== tenantId)
+      throw new Error("PROJECT_NOT_FOUND");
+    if (!existingAiJob.exists)
+      await consumeAiQuota(transaction, db, tenantId, now);
+    transaction.update(consultationReference, {
+      status: "completed",
+      internalNotes: summary,
+      providerSummary: {
+        provider: "zoom",
+        meetingId,
+        summaryTitle: text(providerSummary.summary_title) || null,
+        capturedAt: now,
+      },
+      captureState: "captured",
+      completedAt: consultation.get("completedAt") ?? now,
+      aiReview: { status: "queued", humanReviewRequired: true },
+      updatedAt: now,
+      updatedBy: "zoom-summary-worker",
+    });
+    if (project.get("state") === "CONSULTATION") {
+      transaction.update(projectReference, {
+        nextAction: "Review consultation brief and package recommendation",
+        updatedAt: now,
+        updatedBy: "zoom-summary-worker",
+      });
+    }
+    if (!existingAiJob.exists) {
+      transaction.create(aiJobReference, {
+        id: aiJobReference.id,
+        tenantId,
+        projectId,
+        consultationId,
+        type: "consultation_analysis",
+        status: "queued",
+        attempts: 0,
+        humanReviewRequired: true,
+        source: "zoom_meeting_summary",
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+    transaction.set(receiptReference, {
+      id: receiptReference.id,
+      tenantId,
+      projectId,
+      title: "Zoom consultation captured",
+      summary:
+        "StudioCue imported the Zoom meeting summary and queued a grounded consultation brief, package recommendation, and proposal draft for review.",
+      status: "completed",
+      source: "zoom_capture",
+      affectedEntityType: "consultation",
+      affectedEntityId: consultationId,
+      providerEvidence: {
+        provider: "zoom",
+        meetingId,
+        webhookEventId: job.get("idempotencyKey") ?? null,
+      },
+      reversible: true,
+      retryable: false,
+      canCancel: false,
+      canRetry: false,
+      attempts: 1,
+      completedAt: now,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: "zoom-summary-worker",
+      updatedBy: "zoom-summary-worker",
+      archivedAt: null,
+    }, { merge: true });
+  });
+  const event = productEvent({
+    tenantId,
+    projectId,
+    actorId: "zoom-summary-worker",
+    actorType: "system",
+    name: "consultation.capture_completed",
+    occurredAt: now,
+    correlationId: String(job.get("idempotencyKey") ?? job.id),
+    sourceEntityType: "consultation",
+    sourceEntityId: consultationId,
+    properties: {
+      workflowStep: true,
+      executionMode: "automatic",
+      humanRole: "approval",
+      provider: "zoom",
+      generatedReviewActions: 3,
+    },
+  });
+  await db.doc(`productEvents/${event.id}`).set(event, { merge: false });
+  return { consultationId, projectId, meetingId, captureState: "captured" };
+}
 
 export async function createDocusignEnvelope(job:DocumentSnapshot){const db=getFirestore();const contractId=String(job.get("contractId"));const reference=db.doc(`contracts/${contractId}`);const contract=await reference.get();if(!contract.exists)throw new Error("CONTRACT_NOT_FOUND");
   if(contract.get("providerState")==="completed")return{contractId,envelopeId:contract.get("providerEnvelopeId")};

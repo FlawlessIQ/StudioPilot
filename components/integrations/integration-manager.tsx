@@ -155,9 +155,9 @@ const definitions: ReadonlyArray<Definition> = [
     provider: "zoom",
     label: "Zoom",
     description:
-      "Create secure consultation meetings with waiting rooms enabled.",
+      "Create secure consultations and prepare post-call notes for approval.",
     scope: "Authorized studio account",
-    capabilities: ["Consultations", "Waiting room", "No recording"],
+    capabilities: ["Consultations", "Waiting room", "AI Companion summary"],
     icon: Video,
     accent: "zoom",
   },

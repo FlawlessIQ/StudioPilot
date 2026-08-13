@@ -23,6 +23,7 @@ export type ProductEventName =
   | "communication.delivered"
   | "communication.failed"
   | "lifecycle.consultation_completed"
+  | "consultation.capture_completed"
   | "lifecycle.schedule_published"
   | "lifecycle.crew_staffed"
   | "lifecycle.gallery_delivered"

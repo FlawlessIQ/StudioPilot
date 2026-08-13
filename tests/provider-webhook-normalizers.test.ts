@@ -4,7 +4,10 @@ import {
   normalizeDocusignWebhook,
   normalizeDropboxSignWebhook,
   normalizeQuickBooksWebhooks,
+  normalizeZoomWebhook,
 } from "../functions/src/booking/webhook-normalizers.ts";
+import { zoomWebhookSignature } from "../functions/src/booking/zoom-webhook.ts";
+import { zoomSummaryText } from "../functions/src/operations/provider-runtime.ts";
 
 test("Docusign JSON SIM completion events normalize deterministically", () => {
   const payload = {
@@ -135,4 +138,63 @@ test("legacy QuickBooks data-change payloads remain supported", () => {
   assert.equal(first[0]?.entityName, "invoice");
   assert.equal(first[0]?.operation, "update");
   assert.equal(first[0]?.providerEventId, second[0]?.providerEventId);
+});
+
+test("Zoom meeting summary events normalize deterministically", () => {
+  const payload = {
+    event: "meeting.summary_completed",
+    event_ts: 1786629600000,
+    payload: {
+      account_id: "zoom-account-a",
+      object: {
+        meeting_id: 987654321,
+        uuid: "meeting-uuid-a",
+        meeting_end_time: "2026-08-13T14:00:00Z",
+        topic: "Smith consultation",
+      },
+    },
+  };
+  const first = normalizeZoomWebhook(payload);
+  const second = normalizeZoomWebhook(payload);
+  assert.ok(first);
+  assert.equal(first.event, "meeting.summary_completed");
+  assert.equal(first.meetingId, "987654321");
+  assert.equal(first.accountId, "zoom-account-a");
+  assert.equal(first.providerEventId, second?.providerEventId);
+});
+
+test("Zoom normalizer ignores unsupported or incomplete events", () => {
+  assert.equal(normalizeZoomWebhook({ event: "meeting.started" }), null);
+  assert.equal(
+    normalizeZoomWebhook({
+      event: "meeting.ended",
+      event_ts: 1786629600000,
+      payload: { object: { id: 1 } },
+    }),
+    null,
+  );
+});
+
+test("Zoom signatures use the provider's v0 timestamp and raw-body contract", () => {
+  assert.equal(
+    zoomWebhookSignature({
+      timestamp: "1654503849",
+      rawBody: '{"event":"meeting.ended"}',
+      secret: "secret-token",
+    }),
+    "v0=5747349c3398a37fb4eadee5286c982d6874631a8ba32a178096a17eec02a5dc",
+  );
+});
+
+test("Zoom summary sections become consultation notes without inventing content", () => {
+  assert.equal(
+    zoomSummaryText({
+      summary_overview: "The couple prioritized candid coverage.",
+      summary_details: [
+        { summary_label: "Timeline", summary: "Ceremony begins at 4 PM." },
+      ],
+      next_steps: [{ next_step: "Confirm family photo list." }],
+    }),
+    "The couple prioritized candid coverage.\n\nTimeline: Ceremony begins at 4 PM.\n\nNext steps: Confirm family photo list.",
+  );
 });
