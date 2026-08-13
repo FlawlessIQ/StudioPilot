@@ -258,6 +258,24 @@ export function studioImportPageText(html: string): string {
     .slice(0, 120_000);
 }
 
+export function hasUnreadableEmbeddedStudioImportForm(html: string): boolean {
+  const withoutExecutableMarkup = html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ");
+  const hasNativeFormFields =
+    /<(?:form|label|input|textarea|select|button)\b/i.test(
+      withoutExecutableMarkup,
+    );
+  if (hasNativeFormFields) return false;
+
+  return Array.from(withoutExecutableMarkup.matchAll(/<iframe\b[^>]*>/gi)).some(
+    ([iframe]) =>
+      /(?:title|aria-label|src)=["'][^"']*(?:\bform\b|formbuilder|form-builder|123formbuilder|jotform|typeform|wufoo|formstack|cognitoforms|docs\.google\.com\/forms)[^"']*["']/i.test(
+        iframe,
+      ),
+  );
+}
+
 async function fetchPublicPageText(rawUrl: string): Promise<{
   finalUrl: string;
   text: string;
@@ -289,14 +307,7 @@ async function fetchPublicPageText(rawUrl: string): Promise<{
     if (declaredLength > 750_000) throw new Error("IMPORT_WEBSITE_TOO_LARGE");
     const html = (await response.text()).slice(0, 750_000);
     const text = studioImportPageText(html);
-    if (
-      /<iframe\b[^>]*(?:title|aria-label)=["'][^"']*(?:form|questionnaire)[^"']*["']/i.test(
-        html,
-      ) &&
-      !/(?:\?|<label\b|<input\b|<textarea\b|<select\b)/i.test(
-        html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " "),
-      )
-    ) {
+    if (hasUnreadableEmbeddedStudioImportForm(html)) {
       throw new Error("IMPORT_EMBEDDED_FORM_UNREADABLE");
     }
     if (text.length < 20) throw new Error("IMPORT_WEBSITE_NO_READABLE_CONTENT");

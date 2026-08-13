@@ -12,6 +12,7 @@ import {
   importedReviewLink,
 } from "../functions/src/studio-import/native-assets.ts";
 import {
+  hasUnreadableEmbeddedStudioImportForm,
   isPrivateStudioImportAddress,
   studioImportPageText,
 } from "../functions/src/studio-import/commands.ts";
@@ -40,6 +41,32 @@ test("website import rejects private network targets", () => {
   assert.equal(isPrivateStudioImportAddress("169.254.169.254"), true);
   assert.equal(isPrivateStudioImportAddress("8.8.8.8"), false);
   assert.equal(isPrivateStudioImportAddress("2606:4700:4700::1111"), false);
+});
+
+test("website import detects third-party form builders without waiting for AI", () => {
+  const embeddedFormPage = `
+    <html>
+      <head><script>const help = "Need answers?";</script></head>
+      <body>
+        <h1>Wedding schedule form</h1>
+        <iframe
+          title="123 Form Builder &amp; Payments"
+          aria-label="123 Form Builder &amp; Payments"
+          src="https://form.123formbuilder.com/example"
+        ></iframe>
+      </body>
+    </html>
+  `;
+  assert.equal(hasUnreadableEmbeddedStudioImportForm(embeddedFormPage), true);
+  assert.equal(
+    hasUnreadableEmbeddedStudioImportForm(`
+      <h1>Wedding schedule form</h1>
+      <label>What time does the ceremony begin?</label>
+      <input name="ceremonyTime" />
+      <iframe title="Support chat"></iframe>
+    `),
+    false,
+  );
 });
 
 test("studio import deterministically classifies and structures familiar source text", () => {

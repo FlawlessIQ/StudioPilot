@@ -540,7 +540,7 @@ export async function waitForStudioImportReview(input: {
   onReview?: (review: StudioImportReview) => void;
 }) {
   const startedAt = Date.now();
-  while (Date.now() - startedAt < 180_000) {
+  while (Date.now() - startedAt < 60_000) {
     if (input.signal?.aborted)
       throw new DOMException("Cancelled", "AbortError");
     const review = await getStudioImportReview(input.sessionId);
@@ -551,7 +551,9 @@ export async function waitForStudioImportReview(input: {
     if (!active) return review;
     await new Promise((resolve) => window.setTimeout(resolve, 1500));
   }
-  throw new Error("AI analysis is taking longer than expected.");
+  throw new Error(
+    "AI analysis did not finish within one minute. Nothing was activated—try again, or upload the source as a PDF for faster extraction.",
+  );
 }
 
 export async function reviewStudioImportDraft(input: {
