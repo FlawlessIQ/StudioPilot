@@ -85,27 +85,68 @@ function endpoint() {
 
 async function command<T>(
   envelope: CommandEnvelope,
+  options: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<T> {
   const baseUrl = endpoint();
   if (!baseUrl) throw new Error("STUDIO_IMPORT_PREVIEW_ONLY");
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    throw new Error(
+      "Your internet connection is offline. Reconnect, then try the import again. Nothing was activated.",
+    );
+  }
   const { auth } = getFirebaseClient();
   const user = auth.currentUser;
   if (!user) throw new Error("Sign in before importing studio materials.");
   const appCheckToken = await getAppCheckToken();
-  const response = await fetch(
-    `${baseUrl.replace(/\/$/, "")}/studioImportCommand`,
-    {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${await user.getIdToken()}`,
-        ...(appCheckToken
-          ? { "x-firebase-appcheck": appCheckToken }
-          : {}),
-      },
-      body: JSON.stringify(envelope),
-    },
+  const controller = new AbortController();
+  const abortFromCaller = () => controller.abort(options.signal?.reason);
+  options.signal?.addEventListener("abort", abortFromCaller, { once: true });
+  const timeout = window.setTimeout(
+    () => controller.abort(new DOMException("Timed out", "TimeoutError")),
+    options.timeoutMs ?? 30_000,
   );
+  let response: Response;
+  try {
+    response = await fetch(
+      `${baseUrl.replace(/\/$/, "")}/studioImportCommand`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${await user.getIdToken()}`,
+          ...(appCheckToken
+            ? { "x-firebase-appcheck": appCheckToken }
+            : {}),
+        },
+        body: JSON.stringify(envelope),
+        signal: controller.signal,
+      },
+    );
+  } catch (caught: unknown) {
+    if (options.signal?.aborted) {
+      throw new DOMException("Cancelled", "AbortError");
+    }
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      throw new Error(
+        "Your internet connection was lost. Reconnect, then try the import again. Nothing was activated.",
+      );
+    }
+    if (controller.signal.aborted) {
+      throw new Error(
+        "StudioCue could not reach the import service within 30 seconds. Check your connection and try again. Nothing was activated.",
+      );
+    }
+    throw new Error(
+      caught instanceof TypeError
+        ? "StudioCue could not reach the import service. Check your connection and try again. Nothing was activated."
+        : caught instanceof Error
+          ? caught.message
+          : "StudioCue could not reach the import service.",
+    );
+  } finally {
+    window.clearTimeout(timeout);
+    options.signal?.removeEventListener("abort", abortFromCaller);
+  }
   const result = (await response.json()) as T & { error?: string };
   if (!response.ok) {
     const friendlyErrors: Record<string, string> = {
@@ -378,7 +419,7 @@ export async function importStudioTextSource(input: {
       ...(input.content ? { content: input.content } : {}),
       ...(input.url ? { url: input.url } : {}),
     },
-  });
+  }, { signal: input.signal });
   const review = await waitForStudioImportReview({
     sessionId: result.session.id,
     signal: input.signal,

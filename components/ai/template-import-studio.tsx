@@ -21,7 +21,7 @@ import {
   Workflow,
   X,
 } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   STUDIO_IMPORT_MAX_FILES,
   STUDIO_IMPORT_MAX_FILE_BYTES,
@@ -202,6 +202,27 @@ export function TemplateImportStudio() {
   const [review, setReview] = useState<StudioImportReview | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
+  useEffect(() => {
+    const handleOffline = () => {
+      abortRef.current?.abort();
+      setBusy(false);
+      setPipelineError(
+        "Your internet connection was lost. Reconnect, then try the import again. Nothing was activated.",
+      );
+      setUploadProgress((current) =>
+        current
+          ? {
+              ...current,
+              phase: "failed",
+              message: "Connection lost. Reconnect and try again.",
+            }
+          : current,
+      );
+    };
+    window.addEventListener("offline", handleOffline);
+    return () => window.removeEventListener("offline", handleOffline);
+  }, []);
+
   const suggestions = useMemo(() => {
     const kinds = new Set<ImportKind>(files.map((file) => file.kind));
     if (emailText.trim()) kinds.add("Email journey");
@@ -267,6 +288,12 @@ export function TemplateImportStudio() {
   }
 
   async function buildPlan() {
+    if (navigator.onLine === false) {
+      setPipelineError(
+        "Your internet connection is offline. Reconnect, then try the import again. Nothing was activated.",
+      );
+      return;
+    }
     setBusy(true);
     setComplete(false);
     setPipelineError(null);
@@ -755,10 +782,17 @@ export function TemplateImportStudio() {
             </div>
           ) : null}
           {pipelineError ? (
-            <p className="template-pipeline-error" role="alert">
+            <div className="template-pipeline-error" role="alert">
               <CircleAlert size={15} />
-              {pipelineError}
-            </p>
+              <span>{pipelineError}</span>
+              <button
+                disabled={busy}
+                onClick={() => void buildPlan()}
+                type="button"
+              >
+                <RefreshCw size={13} /> Retry
+              </button>
+            </div>
           ) : null}
         </section>
 

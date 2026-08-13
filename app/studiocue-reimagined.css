@@ -1314,6 +1314,30 @@
   flex: 0 0 auto;
 }
 
+.template-pipeline-error span {
+  flex: 1 1 auto;
+}
+
+.template-pipeline-error button {
+  align-items: center;
+  background: #fff;
+  border: 1px solid rgba(190, 24, 93, 0.22);
+  border-radius: 8px;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font: inherit;
+  font-weight: 750;
+  gap: 4px;
+  padding: 5px 8px;
+}
+
+.template-pipeline-error button:disabled {
+  cursor: wait;
+  opacity: .55;
+}
+
 .template-analyze-button svg:last-child {
   margin-left: 6px;
 }
