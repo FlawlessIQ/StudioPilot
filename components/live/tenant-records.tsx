@@ -109,6 +109,9 @@ async function tenantDocuments(
     "communicationDrafts",
     "aiActions",
     "actionReceipts",
+    "productEvents",
+    "providerJobs",
+    "emailJobs",
   ]);
   if (
     restrictedToAssignments &&
@@ -126,7 +129,7 @@ async function tenantDocuments(
           ),
         ),
       ),
-      ...(["aiActions", "actionReceipts", "communicationDrafts"].includes(collectionName)
+      ...(["aiActions", "actionReceipts", "communicationDrafts", "productEvents"].includes(collectionName)
         ? [
             getDocs(
               query(

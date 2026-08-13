@@ -11,6 +11,7 @@ import {
 } from "../communications/email-templates.js";
 import { runAiJob, runPdfJob } from "./ai-pdf.js";
 import { captureOperationalError } from "./observability.js";
+import { productEvent } from "./product-events.js";
 import {
   completeBookingResources,
   createConsultationResources,
@@ -113,6 +114,30 @@ async function finish(
           updatedAt: now,
           updatedBy: "email-worker",
         });
+    }
+    if (document.ref.parent.id === "emailJobs") {
+      const failedEvent = productEvent({
+        tenantId: String(document.get("tenantId") ?? ""),
+        projectId: String(document.get("projectId") ?? "") || null,
+        actorId: "email-worker",
+        actorType: "system",
+        name: "communication.failed",
+        occurredAt: now,
+        correlationId: `${document.id}:${attempts}`,
+        sourceEntityType: "emailJob",
+        sourceEntityId: document.id,
+        properties: {
+          workflowStep: true,
+          executionMode: "automatic",
+          humanRole: "exception",
+          code,
+          retryScheduled: attempts < maxAttempts,
+          attempts,
+        },
+      });
+      await getFirestore()
+        .doc(`productEvents/${failedEvent.id}`)
+        .set(failedEvent, { merge: false });
     }
     await captureOperationalError(code, {
       collection: document.ref.parent.id,
@@ -478,6 +503,28 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
     messageId,
     "live",
   );
+  const acceptedAt = new Date().toISOString();
+  const acceptedEvent = productEvent({
+    tenantId: String(document.get("tenantId") ?? ""),
+    projectId: projectId || null,
+    actorId: "email-worker",
+    actorType: "system",
+    name: "communication.provider_accepted",
+    occurredAt: acceptedAt,
+    correlationId: messageId,
+    sourceEntityType: "emailJob",
+    sourceEntityId: document.id,
+    properties: {
+      workflowStep: true,
+      executionMode: "automatic",
+      humanRole: "none",
+      provider: "sendgrid",
+      templateKey: type,
+    },
+  });
+  await getFirestore()
+    .doc(`productEvents/${acceptedEvent.id}`)
+    .set(acceptedEvent, { merge: false });
   if (document.get("proposalId")) {
     await getFirestore()
       .doc(`proposals/${String(document.get("proposalId"))}`)

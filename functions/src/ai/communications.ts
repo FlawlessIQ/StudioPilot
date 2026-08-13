@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { consumeAiQuota } from "../saas/usage.js";
+import { productEvent } from "../operations/product-events.js";
 
 type Json = Record<string, unknown>;
 
@@ -256,6 +257,26 @@ export const aiCommunicationsCommand = onRequest(
         automationRunId: null,
         providerEventId: null,
       });
+      const preparedEvent = productEvent({
+        tenantId: input.tenantId,
+        projectId: input.projectId,
+        actorId: identity.uid,
+        name: "communication.prepared",
+        occurredAt: now,
+        correlationId: interactionId,
+        sourceEntityType: "aiInteraction",
+        sourceEntityId: interactionId,
+        properties: {
+          workflowStep: true,
+          executionMode: "ai_prepared",
+          humanRole: "approval",
+          category: input.category,
+          factsUsed: result.factsUsed.length,
+          needsConfirmation: result.needsConfirmation.length,
+          revisedExistingDraft: Boolean(input.currentSubject || input.currentBody),
+        },
+      });
+      batch.create(db.doc(`productEvents/${preparedEvent.id}`), preparedEvent);
       await batch.commit();
       response.status(200).json({ ...result, interactionId, asOf: now });
     } catch (caught: unknown) {

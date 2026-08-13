@@ -2,6 +2,7 @@ import { createHash, verify } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
+import { productEvent } from "../operations/product-events.js";
 
 const eventSchema = z.array(
   z.object({
@@ -136,6 +137,35 @@ export const sendgridEventWebhook = onRequest(
         },
         { merge: true },
       );
+      if (
+        event.event === "delivered" ||
+        ["bounce", "dropped", "spamreport"].includes(event.event)
+      ) {
+        const outcomeEvent = productEvent({
+          tenantId,
+          projectId: event.projectId ?? job.get("projectId") ?? null,
+          actorId: "sendgrid-event-webhook",
+          actorType: "provider",
+          name:
+            event.event === "delivered"
+              ? "communication.delivered"
+              : "communication.failed",
+          occurredAt,
+          correlationId: event.sg_event_id,
+          sourceEntityType: "emailJob",
+          sourceEntityId: job.id,
+          properties: {
+            workflowStep: true,
+            executionMode: "automatic",
+            humanRole:
+              event.event === "delivered" ? "none" : "exception",
+            provider: "sendgrid",
+            providerEvent: event.event,
+            reason: event.reason ?? null,
+          },
+        });
+        batch.create(db.doc(`productEvents/${outcomeEvent.id}`), outcomeEvent);
+      }
       if (
         job.get("type") === "proposal_sent" &&
         typeof job.get("proposalId") === "string" &&

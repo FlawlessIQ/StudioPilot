@@ -6,6 +6,7 @@ import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { emailTemplateKeys } from "./email-templates.js";
+import { productEvent } from "../operations/product-events.js";
 
 const messageInput = z.object({
   projectId: z.string().min(1),
@@ -235,6 +236,25 @@ export const communicationsCommand = onRequest(
           result: { draftId, requiresApproval },
           createdAt: now,
         });
+        const queuedEvent = productEvent({
+          tenantId: command.tenantId,
+          projectId: project.id,
+          actorId: identity.uid,
+          name: "communication.queued",
+          occurredAt: now,
+          correlationId: command.idempotencyKey,
+          sourceEntityType: "communicationDraft",
+          sourceEntityId: draftId,
+          properties: {
+            workflowStep: true,
+            executionMode: "manual",
+            humanRole: "routine_execution",
+            requiresApproval,
+            scheduled: Boolean(command.input.scheduledFor),
+            category: command.input.category,
+          },
+        });
+        batch.create(db.doc(`productEvents/${queuedEvent.id}`), queuedEvent);
         await batch.commit();
         result = { draftId, requiresApproval };
       } else if (command.type === "approveMessage") {
@@ -297,6 +317,27 @@ export const communicationsCommand = onRequest(
             result: { draftId: draft.id, approved: true },
             createdAt: now,
           });
+          const approvalEvent = productEvent({
+            tenantId: command.tenantId,
+            projectId: String(draft.get("projectId") ?? "") || null,
+            actorId: identity.uid,
+            name: "communication.queued",
+            occurredAt: now,
+            correlationId: command.idempotencyKey,
+            sourceEntityType: "communicationDraft",
+            sourceEntityId: draft.id,
+            properties: {
+              workflowStep: true,
+              executionMode: "ai_prepared",
+              humanRole: "approval",
+              approved: true,
+              scheduled: Boolean(draft.get("scheduledFor")),
+            },
+          });
+          transaction.create(
+            db.doc(`productEvents/${approvalEvent.id}`),
+            approvalEvent,
+          );
           return { draftId: draft.id, approved: true };
         });
       } else if (command.type === "sendApprovedDraft") {
@@ -359,6 +400,24 @@ export const communicationsCommand = onRequest(
             result: { draftId: draft.id, queued: true },
             createdAt: now,
           });
+          const sendEvent = productEvent({
+            tenantId: command.tenantId,
+            projectId: String(draft.get("projectId") ?? "") || null,
+            actorId: identity.uid,
+            name: "communication.queued",
+            occurredAt: now,
+            correlationId: command.idempotencyKey,
+            sourceEntityType: "communicationDraft",
+            sourceEntityId: draft.id,
+            properties: {
+              workflowStep: true,
+              executionMode: "ai_prepared",
+              humanRole: "approval",
+              approved: true,
+              scheduled: Boolean(draft.get("scheduledFor")),
+            },
+          });
+          transaction.create(db.doc(`productEvents/${sendEvent.id}`), sendEvent);
           return { draftId: draft.id, queued: true };
         });
       } else if (command.type === "saveTemplateVersion") {

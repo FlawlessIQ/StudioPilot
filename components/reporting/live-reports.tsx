@@ -16,6 +16,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
+import { workflowScorecard } from "@/features/operations/workflow-scorecard";
 
 function csvCell(value: unknown) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
@@ -34,6 +35,11 @@ export function LiveReports() {
   const automationsState = useTenantDocuments("automationRuns");
   const messagesState = useTenantDocuments("messages");
   const questionnairesState = useTenantDocuments("questionnaireResponses");
+  const productEventsState = useTenantDocuments("productEvents");
+  const aiActionsState = useTenantDocuments("aiActions");
+  const receiptsState = useTenantDocuments("actionReceipts");
+  const providerJobsState = useTenantDocuments("providerJobs");
+  const emailJobsState = useTenantDocuments("emailJobs");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [projectType, setProjectType] = useState("all");
@@ -100,6 +106,19 @@ export function LiveReports() {
   const automations = scoped(automationsState.records);
   const messages = scoped(messagesState.records);
   const questionnaires = scoped(questionnairesState.records);
+  const productEvents = scoped(productEventsState.records);
+  const aiActions = scoped(aiActionsState.records);
+  const receipts = scoped(receiptsState.records);
+  const providerJobs = scoped(providerJobsState.records);
+  const emailJobs = scoped(emailJobsState.records);
+  const workflow = workflowScorecard({
+    productEvents,
+    aiActions,
+    actionReceipts: receipts,
+    automationRuns: automations,
+    providerJobs,
+    emailJobs,
+  });
   const terminalAutomationStatuses = new Set([
     "completed",
     "failed",
@@ -147,13 +166,6 @@ export function LiveReports() {
           coiTurnaroundDays.length,
       )
     : null;
-  const estimatedMinutesSaved =
-    terminalAutomations.filter((run) => run.status === "completed").length * 6 +
-    messages.length * 4 +
-    questionnaires.filter((item) => item.aiReview).length * 10 +
-    schedules.filter((item) => Number(item.version ?? 0) > 1).length * 12 +
-    contracts.filter((item) => item.status === "completed").length * 8;
-
   function exportCsv() {
     const header = [
       "Project ID",
@@ -198,7 +210,12 @@ export function LiveReports() {
     insuranceState.loading ||
     automationsState.loading ||
     messagesState.loading ||
-    questionnairesState.loading;
+    questionnairesState.loading ||
+    productEventsState.loading ||
+    aiActionsState.loading ||
+    receiptsState.loading ||
+    providerJobsState.loading ||
+    emailJobsState.loading;
   const error =
     projectsState.error || leadsState.error || invoicesState.error;
   return (
@@ -310,8 +327,26 @@ export function LiveReports() {
           <div>
             <p className="eyebrow">Workflow performance</p>
             <h2>Where StudioCue is reducing coordination work</h2>
-            <p>Operational outcomes and a conservative time-reclaimed estimate, calculated from recorded activity.</p>
+            <p>Observed workflow events, provider outcomes, and verified handling-time evidence.</p>
           </div>
+        </div>
+        <div className="report-performance-grid workflow-score-grid">
+          <article className="panel">
+            <Gauge />
+            <span><small>Capability coverage</small><strong>{loading ? "—" : `${workflow.coverage.score}%`}</strong><p>{workflow.coverage.operational} operational · {workflow.coverage.partial} partial · {workflow.coverage.total} total</p></span>
+          </article>
+          <article className="panel">
+            <Bot />
+            <span><small>Photographer automation</small><strong>{loading ? "—" : workflow.automation.score === null ? "Needs data" : `${workflow.automation.score}%`}</strong><p>{workflow.automation.observedSteps} observed repeatable steps</p></span>
+          </article>
+          <article className="panel">
+            <CheckCircle2 />
+            <span><small>Approval-led experience</small><strong>{loading ? "—" : workflow.approvalLed.score === null ? "Needs data" : `${workflow.approvalLed.score}%`}</strong><p>{workflow.approvalLed.approvals} approvals · {workflow.approvalLed.exceptions} exceptions · {workflow.approvalLed.dataEntry + workflow.approvalLed.routineManual} routine touches</p></span>
+          </article>
+          <article className="panel">
+            <ClockArrowUp />
+            <span><small>Verified time reclaimed</small><strong>{loading ? "—" : `${workflow.quality.verifiedMinutesSaved}m`}</strong><p>Only timers, workflow timestamps, and observed pilot evidence count</p></span>
+          </article>
         </div>
         <div className="report-performance-grid">
           <article className="panel">
@@ -328,7 +363,7 @@ export function LiveReports() {
           </article>
           <article className="panel">
             <ClockArrowUp />
-            <span><small>Estimated time reclaimed</small><strong>{loading ? "—" : `${Math.round(estimatedMinutesSaved / 60)}h`}</strong><p>Estimated from completed automation and generated coordination work</p></span>
+            <span><small>AI edit rate</small><strong>{loading ? "—" : workflow.quality.aiEditRate === null ? "Needs data" : `${workflow.quality.aiEditRate}%`}</strong><p>{workflow.quality.aiDecisions} reviewed AI decisions</p></span>
           </article>
         </div>
         <div className="report-funnel panel">
@@ -347,7 +382,7 @@ export function LiveReports() {
           ))}
         </div>
         <p className="report-estimate-note">
-          Time reclaimed is an estimate, not a financial guarantee: 6 minutes per completed automation, 4 per tracked outbound message, 10 per AI-reviewed questionnaire, 12 per revised schedule, and 8 per completed digital contract. COI turnaround: {averageCoiTurnaround === null ? "not enough completed requests yet" : `${averageCoiTurnaround} days on average`}.
+          StudioCue no longer awards estimated minutes for creating records. Automation and approval-led percentages appear only after observed workflow events exist. COI turnaround: {averageCoiTurnaround === null ? "not enough completed requests yet" : `${averageCoiTurnaround} days on average`}.
         </p>
       </section>
       <aside className="panel report-source-note">
