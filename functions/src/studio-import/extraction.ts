@@ -602,6 +602,10 @@ async function vertexExtraction(input: {
 }
 
 async function sourceText(item: DocumentSnapshot): Promise<string | null> {
+  if (item.get("sourceType") !== "file") {
+    const inlineText = string(item.get("sourceText"));
+    return inlineText ? inlineText.slice(0, 120_000) : null;
+  }
   if (!["txt", "csv", "rtf"].includes(string(item.get("extension"))))
     return null;
   const bucket = string(item.get("bucket"));
@@ -640,6 +644,7 @@ export async function runStudioImportAnalysis(job: DocumentSnapshot) {
   const text = await sourceText(item);
   const bucket = string(item.get("bucket"));
   const objectName = string(item.get("storageObjectKey"));
+  if (!text && (!bucket || !objectName)) throw new Error("IMPORT_SOURCE_MISSING");
   const mock = process.env.PROVIDER_MOCK_MODE === "true";
   const assets = mock
     ? deterministicExtraction({

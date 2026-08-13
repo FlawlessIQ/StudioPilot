@@ -31,6 +31,7 @@ import {
 import { StudioImportReviewWorkspace } from "@/components/ai/studio-import-review-workspace";
 import {
   cancelStudioImport,
+  importStudioTextSource,
   retryStudioImportItem,
   uploadStudioImportFiles,
   waitForStudioImportReview,
@@ -136,6 +137,30 @@ function inferKind(name: string): ImportKind {
   return "Workflow";
 }
 
+function kindsFromReview(review: StudioImportReview): ImportKind[] {
+  const kindByAssetType: Record<string, ImportKind> = {
+    message_template: "Email journey",
+    contract: "Contract",
+    questionnaire: "Questionnaire",
+    schedule: "Schedule",
+    timing_rule: "Schedule",
+    package: "Package",
+    proposal: "Package",
+    workflow: "Workflow",
+    crew_preference: "Workflow",
+    coi_instruction: "Workflow",
+    delivery_instruction: "Workflow",
+    review_request: "Workflow",
+  };
+  return Array.from(
+    new Set(
+      review.drafts.map(
+        (draft) => kindByAssetType[draft.assetType] ?? "Workflow",
+      ),
+    ),
+  );
+}
+
 function readableSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
@@ -160,6 +185,7 @@ function importStatusLabel(status: string | undefined) {
 
 export function TemplateImportStudio() {
   const inputRef = useRef<HTMLInputElement>(null);
+  const reviewRef = useRef<HTMLDivElement>(null);
   const [sourceMode, setSourceMode] = useState<SourceMode>("files");
   const [files, setFiles] = useState<SourceFile[]>([]);
   const [rejectedFiles, setRejectedFiles] = useState<RejectedSourceFile[]>([]);
@@ -185,6 +211,7 @@ export function TemplateImportStudio() {
     }
     return Array.from(kinds);
   }, [emailText, files, websiteUrl]);
+  const planKinds = review ? kindsFromReview(review) : suggestions;
 
   function addFiles(incoming: FileList | File[]) {
     const checked = Array.from(incoming).map((file) => {
@@ -290,7 +317,7 @@ export function TemplateImportStudio() {
               })),
           });
           setReview(importedReview);
-          setSelected(suggestions);
+          setSelected(kindsFromReview(importedReview));
           setComplete(true);
           setBusy(false);
           abortRef.current = null;
@@ -309,6 +336,77 @@ export function TemplateImportStudio() {
         setBusy(false);
         abortRef.current = null;
         return;
+      }
+    }
+    if (sourceMode !== "files") {
+      const controller = new AbortController();
+      abortRef.current = controller;
+      setUploadProgress({
+        phase: "creating",
+        percent: 8,
+        message:
+          sourceMode === "website"
+            ? "Reading the public page and mapping reusable content…"
+            : "Mapping your message into a reusable StudioCue draft…",
+        sessionId: null,
+        items: [],
+      });
+      try {
+        const result = await importStudioTextSource({
+          sourceType: sourceMode === "website" ? "website" : "email_text",
+          name:
+            sourceMode === "website"
+              ? `Imported page · ${new URL(websiteUrl).hostname}`
+              : "Imported studio email",
+          ...(sourceMode === "website"
+            ? { url: websiteUrl.trim() }
+            : { content: emailText.trim() }),
+          signal: controller.signal,
+          onReview: (next) =>
+            setUploadProgress({
+              phase: next.drafts.length ? "ready" : "scanning",
+              percent: next.drafts.length ? 100 : 72,
+              message: next.drafts.length
+                ? `${next.drafts.length} cited draft${next.drafts.length === 1 ? " is" : "s are"} ready for your approval.`
+                : "StudioCue is extracting reusable content…",
+              sessionId: next.session.id,
+              items: [],
+            }),
+        });
+        if (result.persisted) {
+          setReview(result.review);
+          setSelected(kindsFromReview(result.review));
+          setSecureSourcesReady(true);
+          setComplete(true);
+          setUploadProgress({
+            phase: "ready",
+            percent: 100,
+            message: `${result.review.drafts.length} cited draft${result.review.drafts.length === 1 ? " is" : "s are"} ready for your approval.`,
+            sessionId: result.result.session.id,
+            items: result.result.items,
+          });
+          window.requestAnimationFrame(() =>
+            reviewRef.current?.scrollIntoView({
+              behavior: "smooth",
+              block: "start",
+            }),
+          );
+          return;
+        }
+      } catch (caught: unknown) {
+        const cancelled =
+          caught instanceof DOMException && caught.name === "AbortError";
+        setPipelineError(
+          cancelled
+            ? "Import cancelled. No source was activated."
+            : caught instanceof Error
+              ? caught.message
+              : "The source could not be imported.",
+        );
+        return;
+      } finally {
+        setBusy(false);
+        abortRef.current = null;
       }
     }
     window.setTimeout(() => {
@@ -368,12 +466,12 @@ export function TemplateImportStudio() {
         items: retried.result.items,
       });
       if (retried.ready) {
-        setSelected(suggestions);
         setSecureSourcesReady(true);
         const importedReview = await waitForStudioImportReview({
           sessionId,
           signal: controller.signal,
         });
+        setSelected(kindsFromReview(importedReview));
         setReview(importedReview);
         setComplete(true);
       } else {
@@ -679,13 +777,14 @@ export function TemplateImportStudio() {
           {selected.length ? (
             <>
               <div className="template-plan-list">
-                {suggestions.map((kind) => {
+                {planKinds.map((kind) => {
                   const detail = kindDetails[kind];
                   const Icon = detail.icon;
                   const checked = selected.includes(kind);
                   return (
                     <button
                       className={checked ? "is-selected" : ""}
+                      disabled={Boolean(review)}
                       key={kind}
                       onClick={() =>
                         setSelected((current) =>
@@ -724,9 +823,7 @@ export function TemplateImportStudio() {
 
               <button
                 className="template-create-button"
-                disabled={
-                  !selected.length || busy || complete || secureSourcesReady
-                }
+                disabled={!selected.length || busy || complete || secureSourcesReady}
                 onClick={createDrafts}
                 type="button"
               >
@@ -751,7 +848,7 @@ export function TemplateImportStudio() {
                     ? `${selected.length} drafts ready to review`
                     : `Create ${selected.length} draft ${selected.length === 1 ? "template" : "templates"}`}
               </button>
-              {secureSourcesReady ? (
+              {secureSourcesReady && sourceMode === "files" ? (
                 <p className="template-complete-note" role="status">
                   <ShieldCheck size={15} />
                   Files are private, signature-verified, and malware-scanned.
@@ -761,8 +858,24 @@ export function TemplateImportStudio() {
               {complete ? (
                 <p className="template-complete-note" role="status">
                   <CheckCircle2 size={15} />
-                  Your review queue is ready. Nothing has been activated yet.
+                  Your review queue is ready. Review every draft, then activate
+                  the approved items in step 3.
                 </p>
+              ) : null}
+              {review ? (
+                <button
+                  className="template-review-next-button"
+                  onClick={() =>
+                    reviewRef.current?.scrollIntoView({
+                      behavior: "smooth",
+                      block: "start",
+                    })
+                  }
+                  type="button"
+                >
+                  Review {review.drafts.length} draft{review.drafts.length === 1 ? "" : "s"} and finish import
+                  <ArrowRight size={16} />
+                </button>
               ) : null}
             </>
           ) : (
@@ -784,11 +897,24 @@ export function TemplateImportStudio() {
         </section>
       </div>
       {review ? (
-        <StudioImportReviewWorkspace
-          onError={setPipelineError}
-          onReview={setReview}
-          review={review}
-        />
+        <div className="template-review-step" ref={reviewRef}>
+          <div className="template-review-step-heading">
+            <span>3</span>
+            <div>
+              <p className="eyebrow">Finish the import</p>
+              <h2>Review, approve, and activate</h2>
+              <p>
+                Check each draft below. Approve or reject every item, then use
+                the activation button to add approved content to StudioCue.
+              </p>
+            </div>
+          </div>
+          <StudioImportReviewWorkspace
+            onError={setPipelineError}
+            onReview={setReview}
+            review={review}
+          />
+        </div>
       ) : null}
     </div>
   );

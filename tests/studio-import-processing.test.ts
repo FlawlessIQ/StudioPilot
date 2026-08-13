@@ -11,6 +11,36 @@ import {
   importedMessageTemplate,
   importedReviewLink,
 } from "../functions/src/studio-import/native-assets.ts";
+import {
+  isPrivateStudioImportAddress,
+  studioImportPageText,
+} from "../functions/src/studio-import/commands.ts";
+
+test("website import strips executable markup and preserves form field lines", () => {
+  const text = studioImportPageText(`
+    <html>
+      <head><title>Wedding schedule form</title><style>.hidden{}</style></head>
+      <body>
+        <h1>Wedding schedule form</h1>
+        <label>What time does the ceremony begin?</label>
+        <label>Reception address?</label>
+        <script>sendSecretToThirdParty()</script>
+      </body>
+    </html>
+  `);
+  assert.match(text, /What time does the ceremony begin\?/);
+  assert.match(text, /Reception address\?/);
+  assert.doesNotMatch(text, /sendSecretToThirdParty|hidden/);
+});
+
+test("website import rejects private network targets", () => {
+  assert.equal(isPrivateStudioImportAddress("127.0.0.1"), true);
+  assert.equal(isPrivateStudioImportAddress("10.0.0.8"), true);
+  assert.equal(isPrivateStudioImportAddress("192.168.1.2"), true);
+  assert.equal(isPrivateStudioImportAddress("169.254.169.254"), true);
+  assert.equal(isPrivateStudioImportAddress("8.8.8.8"), false);
+  assert.equal(isPrivateStudioImportAddress("2606:4700:4700::1111"), false);
+});
 
 test("studio import deterministically classifies and structures familiar source text", () => {
   const [asset] = deterministicExtraction({

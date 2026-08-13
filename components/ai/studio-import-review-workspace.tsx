@@ -450,8 +450,13 @@ export function StudioImportReviewWorkspace({
         <div>
           <strong>Human-gated activation</strong>
           <small>
-            Approved drafts become immutable versions. Provider actions are
-            never executed by this import.
+            {review.session.status === "activated"
+              ? "The approved drafts are active in your StudioCue library."
+              : pending > 0
+                ? `Review ${pending} remaining draft${pending === 1 ? "" : "s"}. Approve, reject, or ignore each one to unlock activation.`
+                : approved === 0
+                  ? "Approve at least one draft to finish this import."
+                  : `${approved} approved draft${approved === 1 ? " is" : "s are"} ready to activate. Provider actions will not run.`}
           </small>
         </div>
         <button

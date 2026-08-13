@@ -58,6 +58,7 @@ export type StudioImportUploadProgress = {
 type CommandEnvelope = {
   type:
     | "createSession"
+    | "createSourceSession"
     | "getSession"
     | "getReview"
     | "simulateSession"
@@ -107,10 +108,27 @@ async function command<T>(
   );
   const result = (await response.json()) as T & { error?: string };
   if (!response.ok) {
+    const friendlyErrors: Record<string, string> = {
+      IMPORT_WEBSITE_URL_NOT_PUBLIC:
+        "Use a public HTTPS page that does not require a login.",
+      IMPORT_WEBSITE_FETCH_FAILED:
+        "StudioCue could not open that page. Check the URL and try again.",
+      IMPORT_WEBSITE_CONTENT_UNSUPPORTED:
+        "That URL is not an HTML or text page that StudioCue can import.",
+      IMPORT_WEBSITE_TOO_LARGE:
+        "That page is too large to import safely. Upload a PDF or paste the relevant content instead.",
+      IMPORT_WEBSITE_NO_READABLE_CONTENT:
+        "StudioCue could not find readable content on that page. Upload a PDF or paste the content instead.",
+      IMPORT_WEBSITE_TOO_MANY_REDIRECTS:
+        "That page redirects too many times. Use its final public URL instead.",
+      IMPORT_EMBEDDED_FORM_UNREADABLE:
+        "That page contains a form embedded by another service, so StudioCue cannot safely read its fields. Export or print the form as a PDF and use Upload files instead.",
+    };
+    const error = typeof result.error === "string" ? result.error : "";
     throw new Error(
-      typeof result.error === "string"
-        ? result.error
-        : "Studio import could not be completed.",
+      friendlyErrors[error] ??
+        (error ? error.replaceAll("_", " ").toLowerCase() : null) ??
+        "Studio import could not be completed.",
     );
   }
   return result;
@@ -331,6 +349,42 @@ export async function cancelStudioImport(sessionId: string): Promise<void> {
     idempotencyKey: crypto.randomUUID(),
     input: { sessionId },
   });
+}
+
+export async function importStudioTextSource(input: {
+  sourceType: "email_text" | "website";
+  content?: string;
+  url?: string;
+  name: string;
+  signal?: AbortSignal;
+  onReview?: (review: StudioImportReview) => void;
+}): Promise<
+  | { persisted: false }
+  | { persisted: true; result: StudioImportSessionResult; review: StudioImportReview }
+> {
+  if (!endpoint()) return { persisted: false };
+  const client = getFirebaseClient();
+  const user = client.auth.currentUser;
+  if (!user) throw new Error("Sign in before importing studio materials.");
+  const membership = await activeMembership(client.firestore, user.uid);
+  const tenantId = String(membership.data().tenantId);
+  const result = await command<StudioImportSessionResult>({
+    type: "createSourceSession",
+    tenantId,
+    idempotencyKey: crypto.randomUUID(),
+    input: {
+      sourceType: input.sourceType,
+      name: input.name,
+      ...(input.content ? { content: input.content } : {}),
+      ...(input.url ? { url: input.url } : {}),
+    },
+  });
+  const review = await waitForStudioImportReview({
+    sessionId: result.session.id,
+    signal: input.signal,
+    onReview: input.onReview,
+  });
+  return { persisted: true, result, review };
 }
 
 export async function retryStudioImportItem(input: {
