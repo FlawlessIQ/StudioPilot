@@ -20,6 +20,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { runAiQueueCommand } from "@/lib/ai-actions/command-client";
+import {
+  StructuredContentFields,
+  StructuredContentPreview,
+} from "@/components/ai/structured-content-fields";
 
 type RecordValue = Record<string, unknown> & { id: string };
 
@@ -47,7 +51,7 @@ function relativeTime(value: unknown) {
   return `${Math.round(hours / 24)}d ago`;
 }
 
-function AiQueueCard({
+export function AiQueueCard({
   action,
   onDecision,
 }: {
@@ -55,9 +59,7 @@ function AiQueueCard({
   onDecision: (id: string, status: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [editor, setEditor] = useState(
-    JSON.stringify(object(action.structuredOutput), null, 2),
-  );
+  const [editor, setEditor] = useState(object(action.structuredOutput));
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const confidence = object(action.confidence);
@@ -76,14 +78,7 @@ function AiQueueCard({
     try {
       let editDelta: Record<string, unknown> | undefined;
       if (editing) {
-        const parsed: unknown = JSON.parse(editor);
-        if (
-          typeof parsed !== "object" ||
-          parsed === null ||
-          Array.isArray(parsed)
-        )
-          throw new Error("Edited AI output must be a JSON object.");
-        editDelta = parsed as Record<string, unknown>;
+        editDelta = editor;
       }
       const result = await runAiQueueCommand({
         type: "decideAiAction",
@@ -214,16 +209,13 @@ function AiQueueCard({
       </details>
 
       {editing ? (
-        <label className="ai-queue-editor">
-          <span>Review and edit structured output</span>
-          <textarea
-            aria-label="Edited AI output"
-            onChange={(event) => setEditor(event.target.value)}
-            spellCheck={false}
-            value={editor}
-          />
-        </label>
-      ) : null}
+        <div className="ai-queue-editor">
+          <span>Review and edit the prepared details</span>
+          <StructuredContentFields onChange={setEditor} value={editor} />
+        </div>
+      ) : (
+        <StructuredContentPreview value={object(action.structuredOutput)} />
+      )}
 
       <footer>
         <button
@@ -269,7 +261,7 @@ function AiQueueCard({
   );
 }
 
-function AutomationApprovalCard({
+export function AutomationApprovalCard({
   approval,
   onDecision,
 }: {
@@ -313,7 +305,7 @@ function AutomationApprovalCard({
         <span><small>Automation run</small><strong>{text(approval.automationRunId)}</strong></span>
         <span><small>Downstream</small><strong>{readable(text(approval.actionType))}</strong></span>
       </div>
-      <pre>{JSON.stringify(object(approval.configuration), null, 2)}</pre>
+      <StructuredContentPreview value={object(approval.configuration)} />
       <footer>
         <button className="is-primary" disabled={Boolean(busy)} onClick={() => void decide("approved")} type="button">
           {busy === "approved" ? <LoaderCircle className="spin" /> : <Check />} Approve

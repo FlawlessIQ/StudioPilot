@@ -44,6 +44,12 @@ const commandSchema = z.discriminatedUnion("type", [
     input: z.object({ draftId: z.string().min(1) }),
   }),
   z.object({
+    type: z.literal("sendApprovedDraft"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ draftId: z.string().min(1) }),
+  }),
+  z.object({
     type: z.literal("saveTemplateVersion"),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
@@ -292,6 +298,68 @@ export const communicationsCommand = onRequest(
             createdAt: now,
           });
           return { draftId: draft.id, approved: true };
+        });
+      } else if (command.type === "sendApprovedDraft") {
+        const draftReference = db.doc(
+          `communicationDrafts/${command.input.draftId}`,
+        );
+        result = await db.runTransaction(async (transaction) => {
+          const draft = await transaction.get(draftReference);
+          if (!draft.exists || draft.get("tenantId") !== command.tenantId) {
+            throw new Error("DRAFT_NOT_FOUND");
+          }
+          if (draft.get("status") === "queued") {
+            return { draftId: draft.id, queued: true };
+          }
+          if (draft.get("status") !== "approved_unsent") {
+            throw new Error("DRAFT_NOT_READY_TO_SEND");
+          }
+          const recipient = String(draft.get("recipient") ?? "").trim();
+          if (!z.string().email().safeParse(recipient).success) {
+            throw new Error("DRAFT_RECIPIENT_REQUIRED");
+          }
+          const emailJobId = `manual_${draft.id}`;
+          transaction.update(draftReference, {
+            status: "queued",
+            sentBy: identity.uid,
+            queuedAt: now,
+            updatedAt: now,
+            updatedBy: identity.uid,
+          });
+          transaction.create(db.doc(`emailJobs/${emailJobId}`), {
+            id: emailJobId,
+            tenantId: command.tenantId,
+            projectId: draft.get("projectId") ?? null,
+            leadId: draft.get("leadId") ?? null,
+            contactId: draft.get("contactId") ?? null,
+            recipient,
+            recipientName: draft.get("recipientName") ?? null,
+            projectName: draft.get("projectName") ?? null,
+            type: "manual_message",
+            customSubject: draft.get("subject"),
+            customBody: draft.get("body"),
+            actionLabel: draft.get("actionLabel") ?? null,
+            actionUrl: draft.get("actionUrl") ?? null,
+            category: draft.get("category") ?? "general",
+            communicationDraftId: draft.id,
+            status:
+              draft.get("scheduledFor") && draft.get("scheduledFor") > now
+                ? "scheduled"
+                : "queued",
+            scheduledFor: draft.get("scheduledFor") ?? null,
+            attempts: 0,
+            createdAt: now,
+            updatedAt: now,
+          });
+          transaction.create(executionReference, {
+            tenantId: command.tenantId,
+            userId: identity.uid,
+            commandType: command.type,
+            idempotencyKey: command.idempotencyKey,
+            result: { draftId: draft.id, queued: true },
+            createdAt: now,
+          });
+          return { draftId: draft.id, queued: true };
         });
       } else if (command.type === "saveTemplateVersion") {
         if (!canApprove(role)) throw new Error("APPROVAL_PERMISSION_REQUIRED");

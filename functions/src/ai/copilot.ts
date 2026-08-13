@@ -67,6 +67,7 @@ function compact(document: DocumentSnapshot): Json & { id: string } {
     "readinessScore",
     "nextAction",
     "venueName",
+    "venueAddress",
     "status",
     "kind",
     "amountCents",
@@ -86,6 +87,15 @@ function compact(document: DocumentSnapshot): Json & { id: string } {
     "title",
     "priority",
     "blocking",
+    "version",
+    "timezone",
+    "items",
+    "locations",
+    "responsibilities",
+    "discrepancies",
+    "company",
+    "contactName",
+    "type",
   ];
   return {
     id: document.id,
@@ -227,7 +237,17 @@ export const aiCopilotCommand = onRequest(
       await db.runTransaction((transaction) =>
         consumeAiQuota(transaction, db, input.tenantId, now),
       );
-      const [projects, contracts, invoices, assignments, readiness, tasks] =
+      const [
+        projects,
+        contracts,
+        invoices,
+        assignments,
+        readiness,
+        tasks,
+        schedules,
+        insurance,
+        vendors,
+      ] =
         await Promise.all([
           scopedDocuments("projects", input.tenantId, permittedProjectIds),
           scopedDocuments("contracts", input.tenantId, permittedProjectIds),
@@ -235,6 +255,9 @@ export const aiCopilotCommand = onRequest(
           scopedDocuments("crewAssignments", input.tenantId, permittedProjectIds),
           scopedDocuments("readinessAssessments", input.tenantId, permittedProjectIds),
           scopedDocuments("tasks", input.tenantId, permittedProjectIds),
+          scopedDocuments("schedules", input.tenantId, permittedProjectIds),
+          scopedDocuments("insuranceRequests", input.tenantId, permittedProjectIds),
+          scopedDocuments("vendors", input.tenantId, permittedProjectIds),
         ]);
       const citationCandidates = projects.map((project) => ({
         label: String(project.name ?? project.id),
@@ -248,6 +271,9 @@ export const aiCopilotCommand = onRequest(
         crewAssignments: assignments,
         readiness,
         tasks,
+        schedules,
+        insurance,
+        vendors,
         citationCandidates,
       });
       const allowedLinks = new Set(citationCandidates.map((item) => item.href));

@@ -46,9 +46,9 @@ export function SetupChecklist() {
       icon: ExternalLink,
     },
     {
-      label: "Create your first package",
-      detail: "Add the offer you sell most often.",
-      href: "/studio/packages/new",
+      label: "Import or create your offerings",
+      detail: "Upload what you already use and let StudioCue rebuild it.",
+      href: "/studio/import",
       done: Boolean(packages?.length),
       icon: Package,
     },

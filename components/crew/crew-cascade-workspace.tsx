@@ -44,11 +44,12 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
   const { records: assignments } = useTenantDocuments("crewAssignments");
   const { records: schedules } = useTenantDocuments("schedules");
   const { records: cascades } = useTenantDocuments("crewCascades");
+  const { records: packageSnapshots } = useTenantDocuments("packageSnapshots");
   const project = projects?.find((item) => item.id === projectId);
   const eventDate = text(project?.eventDate) || new Date().toISOString().slice(0, 10);
   const initialStart = new Date(`${eventDate}T12:00:00`);
   const initialEnd = new Date(`${eventDate}T20:00:00`);
-  const [role, setRole] = useState("Second photographer");
+  const [rolesText, setRolesText] = useState("Second photographer");
   const [specialty, setSpecialty] = useState("weddings");
   const [startsAt, setStartsAt] = useState(localDateTime(initialStart));
   const [endsAt, setEndsAt] = useState(localDateTime(initialEnd));
@@ -145,13 +146,24 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
     .sort((left, right) => Number(right.version) - Number(left.version))[0];
   const projectCascades =
     cascades?.filter((cascade) => cascade.projectId === projectId) ?? [];
+  const roles = rolesText
+    .split("\n")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const rolePlans = roles.map((plannedRole, roleIndex) => ({
+    role: plannedRole,
+    candidates: included.filter(
+      (_candidate, candidateIndex) => candidateIndex % roles.length === roleIndex,
+    ),
+  }));
 
   useEffect(() => {
     if (
       defaultsHydrated ||
       !project ||
       !profiles ||
-      !schedules
+      !schedules ||
+      !packageSnapshots
     ) {
       return;
     }
@@ -184,6 +196,20 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
     const scheduleResponsibilities = items
       .map((item) => text(item.title))
       .filter(Boolean);
+    const packageSnapshot = packageSnapshots.find(
+      (snapshot) =>
+        snapshot.id === project.packageSnapshotId ||
+        snapshot.projectId === projectId,
+    );
+    const photographerCount = Math.max(
+      1,
+      Number(packageSnapshot?.includedPhotographers ?? 1),
+    );
+    const suggestedRoles = Array.from(
+      { length: Math.max(1, photographerCount - 1) },
+      (_value, index) =>
+        index === 0 ? "Second photographer" : `Photographer ${index + 2}`,
+    );
 
     const frame = requestAnimationFrame(() => {
       setStartsAt(nextStart);
@@ -194,6 +220,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
       if (scheduleResponsibilities.length) {
         setResponsibilities(scheduleResponsibilities.join("\n"));
       }
+      setRolesText(suggestedRoles.join("\n"));
       setDefaultsHydrated(true);
     });
     return () => cancelAnimationFrame(frame);
@@ -201,6 +228,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
     defaultsHydrated,
     eventDate,
     latestSchedule,
+    packageSnapshots,
     profiles,
     project,
     schedules,
@@ -218,15 +246,13 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!included.length) return;
+    if (!included.length || !roles.length || rolePlans.some((plan) => !plan.candidates.length)) return;
     const form = new FormData(event.currentTarget);
     setBusy(true);
     setNotice(null);
     try {
-      const result = await sendCrewCommand("createCrewCascade", {
+      const shared = {
         projectId,
-        role,
-        candidateIds: included.map((candidate) => candidate.crewProfileId),
         responseWindowHours: Number(form.get("responseWindowHours")),
         compensationCents: Math.round(
           Number(form.get("compensationDollars")) * 100,
@@ -272,10 +298,31 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
             dueAt: null,
           },
         ],
-      });
+      };
+      const result =
+        rolePlans.length === 1
+          ? await sendCrewCommand("createCrewCascade", {
+              ...shared,
+              role: rolePlans[0]!.role,
+              candidateIds: rolePlans[0]!.candidates.map(
+                (candidate) => candidate.crewProfileId,
+              ),
+            })
+          : await sendCrewCommand("createCrewPlan", {
+              projectId,
+              cascades: rolePlans.map((plan) => ({
+                ...shared,
+                role: plan.role,
+                candidateIds: plan.candidates.map(
+                  (candidate) => candidate.crewProfileId,
+                ),
+              })),
+            });
       setNotice(
         result.persisted
-          ? "Cascade started. Only the first approved candidate received an offer."
+          ? rolePlans.length > 1
+            ? `${rolePlans.length} role cascades started from one approval. Each candidate appears in only one role plan.`
+            : "Cascade started. Only the first approved candidate received an offer."
           : "Development preview validated the candidate order without sending an offer.",
       );
     } catch (caught: unknown) {
@@ -292,7 +339,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
       <header className="crew-cascade-hero">
         <div>
           <p className="eyebrow">AI-assisted staffing</p>
-          <h2>Fill a role in one reviewed cascade</h2>
+          <h2>Fill every open role in one reviewed plan</h2>
           <p>
             StudioCue ranks eligible collaborators from role, availability,
             conflicts, travel, studio preference, and document readiness. You
@@ -304,10 +351,10 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
       <form className="panel crew-cascade-form" onSubmit={(event) => void create(event)}>
         <div className="crew-cascade-config">
           <label>
-            Role
-            <input
-              onChange={(event) => setRole(event.target.value)}
-              value={role}
+            Roles to fill, one per line
+            <textarea
+              onChange={(event) => setRolesText(event.target.value)}
+              value={rolesText}
             />
           </label>
           <label>
@@ -385,6 +432,20 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
             {loading ? "Ranking…" : included.length ? "Ready to review" : "Needs candidates"}
           </StatusBadge>
         </div>
+        {rolePlans.length > 1 ? (
+          <div className="crew-role-plan-summary">
+            {rolePlans.map((plan) => (
+              <article key={plan.role}>
+                <strong>{plan.role}</strong>
+                <small>
+                  {plan.candidates.length
+                    ? plan.candidates.map((candidate) => candidate.name).join(" → ")
+                    : "Add more eligible candidates before approval"}
+                </small>
+              </article>
+            ))}
+          </div>
+        ) : null}
         <div className="crew-recommendation-list">
           {recommendations.map((candidate) => {
             const isExcluded =
@@ -467,16 +528,22 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
           <span>
             <strong>Sequential release</strong>
             <small>
-              One person sees the offer at a time. Acceptance stops the
-              cascade; a decline or expiry advances it.
+              One person sees each role offer at a time. Acceptance stops that
+              role&apos;s cascade; a decline or expiry advances it. Candidates are
+              never placed into two active role plans.
             </small>
           </span>
           <button
             className="button button-dark"
-            disabled={busy || !included.length}
+            disabled={
+              busy ||
+              !included.length ||
+              !roles.length ||
+              rolePlans.some((plan) => !plan.candidates.length)
+            }
             type="submit"
           >
-            <Send /> {busy ? "Starting…" : "Approve order and start"}
+            <Send /> {busy ? "Starting…" : "Approve crew plan and start"}
           </button>
         </div>
         {notice ? <p className="form-notice" role="status">{notice}</p> : null}

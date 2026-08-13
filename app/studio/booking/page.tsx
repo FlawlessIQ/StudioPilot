@@ -25,7 +25,7 @@ export default async function BookingPage({
             <p className="eyebrow">Provider-authoritative completion</p>
             <h2>Contract, retainer, and booking gate</h2>
             <p>
-              Docusign and QuickBooks evidence—not AI—control booking
+              Signing-provider and QuickBooks evidence—not AI—control booking
               completion.
             </p>
           </section>

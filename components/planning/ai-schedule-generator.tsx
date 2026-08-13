@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  CalendarClock,
   CheckCircle2,
   LoaderCircle,
   Sparkles,
@@ -106,6 +107,7 @@ export function AiScheduleGenerator({
   );
   const { records: packageSnapshots } =
     useTenantDocuments("packageSnapshots");
+  const { records: schedules } = useTenantDocuments("schedules");
   const [draft, setDraft] = useState<Draft | null>(null);
   const [coverageMinutes, setCoverageMinutes] = useState(480);
   const [projectId, setProjectId] = useState(initialProjectId);
@@ -147,6 +149,26 @@ export function AiScheduleGenerator({
           snapshot.projectId === projectId,
       ),
     [packageSnapshots, projectId, selectedProject?.packageSnapshotId],
+  );
+  const selectedSchedule = useMemo(
+    () =>
+      schedules
+        ?.filter((schedule) => schedule.projectId === projectId)
+        .sort((left, right) =>
+          String(right.updatedAt ?? right.createdAt ?? "").localeCompare(
+            String(left.updatedAt ?? left.createdAt ?? ""),
+          ),
+        )[0],
+    [projectId, schedules],
+  );
+  const planningInputsChanged = Boolean(
+    selectedSchedule &&
+      selectedQuestionnaire &&
+      String(
+        selectedQuestionnaire.updatedAt ??
+          selectedQuestionnaire.submittedAt ??
+          "",
+      ) > String(selectedSchedule.updatedAt ?? selectedSchedule.createdAt ?? ""),
   );
 
   useEffect(() => {
@@ -413,9 +435,30 @@ export function AiScheduleGenerator({
           {prefillSummary ? (
             <p className="form-notice form-span">{prefillSummary}</p>
           ) : null}
+          {selectedSchedule ? (
+            <div className="schedule-replanning-notice form-span">
+              <CalendarClock aria-hidden="true" />
+              <span>
+                <strong>
+                  {planningInputsChanged
+                    ? "New planning details are ready to reconcile"
+                    : `A schedule version already exists for this project`}
+                </strong>
+                <small>
+                  {planningInputsChanged
+                    ? "The submitted questionnaire changed after the current version. The new draft will be compared when you publish it."
+                    : "Generate only when facts changed. Publishing creates an immutable version and shows the exact impact."}
+                </small>
+              </span>
+            </div>
+          ) : null}
           <button className="button button-dark" disabled={busy} type="submit">
             {busy ? <LoaderCircle className="spin" /> : <Sparkles />}
-            {busy ? "Generating…" : "Generate draft"}
+            {busy
+              ? "Generating…"
+              : selectedSchedule
+                ? "Prepare updated draft"
+                : "Generate draft"}
           </button>
         </form>
       </section>

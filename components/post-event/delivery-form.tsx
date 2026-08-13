@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { Images, Send } from "lucide-react";
+import { Images, ScanText, Send, Sparkles } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendPostEventCommand } from "@/lib/post-event/command-client";
+import { parseGalleryAnnouncement } from "@/features/post-event/gallery-announcement";
 
 const record = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -29,6 +30,9 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
   const [interactive, setInteractive] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState(projectId ?? "");
   const [provider, setProvider] = useState("manual");
+  const [galleryUrl, setGalleryUrl] = useState("");
+  const [accessCode, setAccessCode] = useState("");
+  const [announcement, setAnnouncement] = useState("");
   const [expirationDate, setExpirationDate] = useState("");
   const [reviewDestinationLabel, setReviewDestinationLabel] =
     useState("google");
@@ -153,8 +157,48 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
     }
   }
 
+  function extractAnnouncement() {
+    const parsed = parseGalleryAnnouncement(announcement);
+    if (!parsed.galleryUrl) {
+      setNotice("No secure gallery link was found. Paste the complete provider email or notification.");
+      return;
+    }
+    setProvider(parsed.provider);
+    setGalleryUrl(parsed.galleryUrl);
+    setAccessCode(parsed.accessCode);
+    if (parsed.expirationDate) setExpirationDate(parsed.expirationDate);
+    setNotice(
+      "Gallery details extracted. Review the link, code, expiration, and client follow-ups before release.",
+    );
+  }
+
   return (
     <form className="delivery-form delivery-release-form" onSubmit={(event) => void submit(event)}>
+      <section className="delivery-announcement-import form-span">
+        <div>
+          <Sparkles aria-hidden="true" />
+          <span>
+            <strong>Paste the gallery-ready message</strong>
+            <small>
+              StudioCue extracts the provider, secure link, access code, and expiration so you do not retype them.
+            </small>
+          </span>
+        </div>
+        <textarea
+          aria-label="Gallery announcement"
+          onChange={(event) => setAnnouncement(event.target.value)}
+          placeholder="Paste the email or notification from Pixieset, Pic-Time, ShootProof, or another gallery provider…"
+          value={announcement}
+        />
+        <button
+          className="button button-secondary"
+          disabled={!announcement.trim()}
+          onClick={extractAnnouncement}
+          type="button"
+        >
+          <ScanText size={16} /> Extract delivery details
+        </button>
+      </section>
       <label>
         Project
         <select
@@ -188,11 +232,21 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
       </label>
       <label className="form-span">
         Secure gallery URL
-        <input name="galleryUrl" type="url" required />
+        <input
+          name="galleryUrl"
+          onChange={(event) => setGalleryUrl(event.target.value)}
+          type="url"
+          required
+          value={galleryUrl}
+        />
       </label>
       <label>
         Access code
-        <input name="accessCode" />
+        <input
+          name="accessCode"
+          onChange={(event) => setAccessCode(event.target.value)}
+          value={accessCode}
+        />
       </label>
       <label>
         Delivery date
@@ -274,6 +328,11 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
       <button className="button button-dark" disabled={!interactive} type="submit">
         <Send size={16} /> Record and release delivery
       </button>
+      <p className="form-notice form-span">
+        Releasing creates the client portal delivery, schedules two review asks,
+        starts album-selection reminders when included, and records the project evidence.
+        Nothing claims a review was posted without confirmation.
+      </p>
       {notice ? <p className="form-notice" role="status">{notice}</p> : null}
     </form>
   );

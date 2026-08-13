@@ -23,6 +23,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendBookingCommand } from "@/lib/booking/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { resolveActiveProvider } from "@/features/integrations/routing";
 
 type RecordValue = Record<string, unknown> & { id: string };
 
@@ -68,6 +69,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   const [packageSnapshot, setPackageSnapshot] = useState<RecordValue | null>(null);
   const [contact, setContact] = useState<RecordValue | null>(null);
   const [templateId, setTemplateId] = useState("");
+  const [signingProvider, setSigningProvider] = useState<"docusign" | "dropbox_sign">("docusign");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -89,7 +91,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
         id: projectSnapshot.id,
         ...projectSnapshot.data(),
       };
-      const [proposals, contracts, invoices, tenant, connections] =
+      const [proposals, contracts, invoices, tenant, connections, routing] =
         await Promise.all([
           getDocs(
             query(
@@ -119,6 +121,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               where("tenantId", "==", workspace.tenantId),
             ),
           ),
+          getDoc(doc(firestore, "integrationRouting", workspace.tenantId)),
         ]);
       const proposalValue =
         proposals.docs
@@ -166,12 +169,31 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           ? getDoc(doc(firestore, "contacts", contactIds[0]))
           : null,
       ]);
-      const docusign = connections.docs.find(
-        (item) => item.get("provider") === "docusign",
+      const signingResolution = resolveActiveProvider({
+        capability: "signing",
+        routing: routing.exists()
+          ? {
+              selections:
+                (routing.get("selections") as Record<string, "docusign" | "dropbox_sign" | null>) ?? {},
+            }
+          : null,
+        connections: connections.docs.map((item) => ({
+          provider: item.get("provider"),
+          status: item.get("status"),
+          archivedAt: item.get("archivedAt") ?? null,
+        })),
+      });
+      const resolvedSigningProvider =
+        signingResolution.outcome === "resolved" &&
+        ["docusign", "dropbox_sign"].includes(signingResolution.provider)
+          ? (signingResolution.provider as "docusign" | "dropbox_sign")
+          : "docusign";
+      const signingConnection = connections.docs.find(
+        (item) => item.get("provider") === resolvedSigningProvider,
       );
       const configuredTemplate =
         nestedString(tenant.data()?.defaultContractSettings, "templateId") ||
-        String(docusign?.get("selectedResourceId") ?? "");
+        String(signingConnection?.get("selectedResourceId") ?? "");
       setProject(projectValue);
       setProposal(proposalValue);
       setContract(contractValue);
@@ -187,6 +209,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           : null,
       );
       setTemplateId((current) => current || configuredTemplate);
+      setSigningProvider(resolvedSigningProvider);
     } catch (error: unknown) {
       setNotice(friendlyError(error));
     } finally {
@@ -219,10 +242,12 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
     date.setDate(date.getDate() + 7);
     return date.toISOString().slice(0, 10);
   }, []);
+  const signingProviderLabel =
+    signingProvider === "dropbox_sign" ? "Dropbox Sign" : "Docusign";
 
   async function createContract() {
     if (!project || !proposal || !contact || !templateId.trim()) {
-      setNotice("Choose a Docusign template and confirm the client contact first.");
+      setNotice(`Choose a ${signingProviderLabel} template and confirm the client contact first.`);
       return;
     }
     setBusy("contract");
@@ -245,7 +270,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           ],
         },
       });
-      setNotice("Contract queued for Docusign delivery.");
+      setNotice(`Contract queued for ${signingProviderLabel} delivery.`);
       await load();
     } catch (error: unknown) {
       setNotice(friendlyError(error));
@@ -323,7 +348,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
         <LoaderCircle className="spin" />
         <span>
           <strong>Loading booking evidence…</strong>
-          <small>Checking proposal, Docusign, and QuickBooks records.</small>
+          <small>Checking proposal, signing, and QuickBooks records.</small>
         </span>
       </section>
     );
@@ -350,15 +375,15 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
             </StatusBadge>
           </div>
           <p>
-            The accepted proposal supplies the exact package and price. Docusign
+            The accepted proposal supplies the exact package and price. {signingProviderLabel}
             remains the authority for signature completion.
           </p>
           <aside className="booking-provider-migration">
-            <strong>Coming from Dropbox Sign?</strong>
+            <strong>Your approved agreement stays reusable</strong>
             <small>
-              Import the current agreement once. StudioCue preserves its
-              wording and signer fields, then maps the approved version to a
-              Docusign template so you never place fields again.
+              Import the current agreement once. StudioCue preserves its wording
+              and signer fields, then reuses the approved {signingProviderLabel} template
+              so you do not place fields for every client.
             </small>
           </aside>
           {contract ? (
@@ -369,7 +394,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           ) : (
             <div className="booking-action-form">
               <label>
-                Docusign template ID
+                {signingProviderLabel} template ID
                 <input
                   onChange={(event) => setTemplateId(event.target.value)}
                   placeholder="Approved agreement template"
@@ -433,7 +458,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 {busy === "retainer" ? "Creating…" : "Create retainer invoice"}
                 <ArrowRight size={15} />
               </button>
-              {!contractComplete ? <small>Docusign completion unlocks this step.</small> : null}
+              {!contractComplete ? <small>{signingProviderLabel} completion unlocks this step.</small> : null}
             </div>
           )}
         </article>

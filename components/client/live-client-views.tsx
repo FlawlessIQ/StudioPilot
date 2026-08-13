@@ -1015,7 +1015,7 @@ export function LiveClientProposal() {
             <p className="eyebrow">Accepted</p>
             <h2>Your studio can prepare the agreement.</h2>
             <p>
-              You’ll receive a separate secure Docusign request when the
+              You’ll receive a separate secure signature request when the
               contract is ready.
             </p>
           </div>
@@ -1387,7 +1387,9 @@ export function LiveClientContract() {
     [contracts.value],
   );
   if (contracts.loading || contracts.error || !contract)
-    return <PortalPageState eyebrow="Agreement" title="Your contract" description="Review signature progress and open your secure Docusign request." loading={contracts.loading} error={contracts.error} empty={!contracts.loading && !contracts.error ? "Your agreement will appear after the studio sends it through Docusign." : undefined} />;
+    return <PortalPageState eyebrow="Agreement" title="Your contract" description="Review signature progress and open your secure signing request." loading={contracts.loading} error={contracts.error} empty={!contracts.loading && !contracts.error ? "Your agreement will appear after the studio sends it for signature." : undefined} />;
+  const signingProvider =
+    contract.provider === "dropbox_sign" ? "Dropbox Sign" : "Docusign";
   const signers = Array.isArray(contract.signers)
     ? (contract.signers as Array<Record<string, unknown>>)
     : [];
@@ -1397,7 +1399,7 @@ export function LiveClientContract() {
     <div className="client-booking-page">
       <p className="eyebrow">Agreement</p>
       <h1>Photography services agreement</h1>
-      <p>Your secure signature status from Docusign.</p>
+      <p>Your secure signature status from {signingProvider}.</p>
       <section className="panel client-contract-card">
         <ShieldCheck />
         <div>
@@ -1407,7 +1409,7 @@ export function LiveClientContract() {
           <h2>
             {contract.status === "completed"
               ? "Every required signature is complete."
-              : "Docusign is collecting required signatures."}
+              : `${signingProvider} is collecting required signatures.`}
           </h2>
           {signers.map((signer) => (
             <div
@@ -1423,15 +1425,15 @@ export function LiveClientContract() {
           ))}
           {signingUrl ? (
             <a className="button button-dark" href={signingUrl} rel="noreferrer" target="_blank">
-              Open secure Docusign <ExternalLink />
+              Open secure {signingProvider} <ExternalLink />
             </a>
           ) : (
-            <p>Docusign sends each signer their secure signing link directly.</p>
+            <p>{signingProvider} sends each signer their secure signing link directly.</p>
           )}
         </div>
       </section>
       <p className="source-note">
-        Only Docusign completion evidence can mark this contract complete.
+        Only {signingProvider} completion evidence can mark this contract complete.
       </p>
     </div>
   );

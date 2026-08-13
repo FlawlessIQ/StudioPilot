@@ -29,6 +29,7 @@ import {
   type StudioImportReview,
   type StudioImportReviewDraft,
 } from "@/lib/studio-import/command-client";
+import { StructuredContentFields } from "@/components/ai/structured-content-fields";
 
 const labels: Record<string, string> = {
   message_template: "Message",
@@ -88,8 +89,8 @@ export function StudioImportReviewWorkspace({
     visibleDrafts[0] ??
     null;
   const [name, setName] = useState(selected?.name ?? "");
-  const [content, setContent] = useState(
-    JSON.stringify(selected?.structuredContent ?? {}, null, 2),
+  const [content, setContent] = useState<Record<string, unknown>>(
+    selected?.structuredContent ?? {},
   );
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [simulation, setSimulation] = useState<Simulation | null>(null);
@@ -102,7 +103,7 @@ export function StudioImportReviewWorkspace({
       if (!active) return;
       setSelectedId(selected.id);
       setName(selected.name);
-      setContent(JSON.stringify(selected.structuredContent, null, 2));
+      setContent(selected.structuredContent);
       setMergeSourceId("");
     });
     return () => {
@@ -131,17 +132,6 @@ export function StudioImportReviewWorkspace({
     } finally {
       setBusyAction(null);
     }
-  }
-
-  function parsedContent() {
-    const parsed: unknown = JSON.parse(content);
-    if (
-      typeof parsed !== "object" ||
-      parsed === null ||
-      Array.isArray(parsed)
-    )
-      throw new Error("Extracted content must be a JSON object.");
-    return parsed as Record<string, unknown>;
   }
 
   const pending = visibleDrafts.filter(
@@ -273,16 +263,14 @@ export function StudioImportReviewWorkspace({
               value={name}
             />
           </label>
-          <label>
-            <span>Structured content</span>
-            <textarea
-              aria-label="Structured extracted content"
+          <div className="studio-import-friendly-fields">
+            <span>Extracted details</span>
+            <StructuredContentFields
               disabled={selected.reviewDecision === "approved"}
-              onChange={(event) => setContent(event.target.value)}
-              spellCheck={false}
+              onChange={setContent}
               value={content}
             />
-          </label>
+          </div>
           {issues(selected).length ? (
             <div className="studio-import-validation">
               {issues(selected).map((issue) => (
@@ -313,7 +301,7 @@ export function StudioImportReviewWorkspace({
                     action: "update",
                     name,
                     assetType: selected.assetType,
-                    structuredContent: parsedContent(),
+                    structuredContent: content,
                     confirmClassification: true,
                   }),
                 )
@@ -378,7 +366,7 @@ export function StudioImportReviewWorkspace({
                   Object.keys(selected.structuredContent).length < 2
                 }
                 onClick={() => {
-                  const entries = Object.entries(selected.structuredContent);
+                  const entries = Object.entries(content);
                   const pivot = Math.ceil(entries.length / 2);
                   void run("split", () =>
                     splitStudioImportDraft({
@@ -514,7 +502,7 @@ export function StudioImportReviewWorkspace({
               instructions are saved as studio defaults.
             </small>
           </div>
-          <Link href="/studio/messages/templates">Review messages</Link>
+          <Link href="/studio/messages">Review messages</Link>
           <Link href="/studio/library">Open studio library</Link>
         </div>
       ) : null}

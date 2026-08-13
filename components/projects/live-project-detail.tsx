@@ -16,7 +16,6 @@ import {
   MapPin,
   PartyPopper,
   Send,
-  Sparkles,
   Store,
   UserRound,
   UsersRound,
@@ -50,6 +49,9 @@ import { runCrmCommand } from "@/lib/crm/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
+import { ProjectWorkspaceNav } from "@/components/projects/project-workspace-nav";
+import { ProjectPreparedTray } from "@/components/projects/project-prepared-tray";
+import { ProjectPlanningCopilot } from "@/components/projects/project-planning-copilot";
 
 type ProjectRecord = Record<string, unknown> & { id: string };
 type CheckpointRecord = Record<string, unknown> & { id: string };
@@ -218,7 +220,7 @@ function projectAction(
     CONTRACT_PENDING: {
       href: `/studio/contracts?project=${projectId}`,
       label: "Open contract",
-      detail: "Track the authoritative Docusign envelope and signer status.",
+      detail: "Track the authoritative signing request and signer status.",
     },
     RETAINER_PENDING: {
       href: `/studio/contracts?project=${projectId}`,
@@ -648,16 +650,6 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
   );
   const readiness = Number(project.readinessScore ?? 0);
   const action = projectAction(state, projectId);
-  const workspaceLinks = [
-    { label: "Overview", href: `/studio/projects/${projectId}`, icon: Sparkles },
-    { label: "Tasks", href: `/studio/tasks?project=${projectId}`, icon: ClipboardCheck },
-    { label: "Client details", href: `/studio/questionnaires?project=${projectId}`, icon: UserRound },
-    { label: "Booking", href: `/studio/contracts?project=${projectId}`, icon: FileCheck2 },
-    { label: "Planning", href: `/studio/vendors?project=${projectId}`, icon: FolderKanban },
-    { label: "Crew", href: `/studio/crew?project=${projectId}`, icon: UsersRound },
-    { label: "Schedule", href: `/studio/schedules?project=${projectId}`, icon: CalendarDays },
-    { label: "Files", href: `/studio/documents?project=${projectId}`, icon: Send },
-  ];
   return (
     <div className="project-detail-page">
       <Link className="back-link" href="/studio/projects">
@@ -685,17 +677,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           <ReadinessMeter value={readiness} size="lg" />
         </div>
       </header>
-      <nav aria-label="Project workspace" className="project-workspace-nav">
-        {workspaceLinks.map((item, index) => {
-          const Icon = item.icon;
-          return (
-          <Link className={index === 0 ? "active" : ""} href={item.href} key={item.label}>
-            <Icon aria-hidden="true" size={14} />
-            {item.label}
-          </Link>
-          );
-        })}
-      </nav>
+      <ProjectWorkspaceNav projectId={projectId} />
       <div className="project-facts">
         <span>
           <CalendarDays size={17} />
@@ -798,6 +780,14 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
         project={project}
         related={related}
       />
+      <ProjectPlanningCopilot
+        insurance={related.insurance}
+        invoices={related.invoices}
+        projectId={projectId}
+        questionnaires={related.questionnaires}
+        schedules={related.schedules}
+      />
+      <ProjectPreparedTray projectId={projectId} />
       <section className="panel project-checkpoints-panel">
         <div className="panel-heading">
           <div>

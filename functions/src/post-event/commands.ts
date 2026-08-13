@@ -280,6 +280,20 @@ export const postEventCommand = onRequest(
           updatedBy: identity.uid,
           archivedAt: null,
         });
+        batch.create(db.doc(`emailJobs/delivery_${deliveryId}`), {
+          id: `delivery_${deliveryId}`,
+          tenantId: parsed.tenantId,
+          projectId: parsed.input.projectId,
+          type: "delivery",
+          deliveryRecordId: deliveryId,
+          galleryUrl: parsed.input.galleryUrl,
+          accessCode: parsed.input.accessCode,
+          expirationDate: parsed.input.expirationDate,
+          status: "queued",
+          attempts: 0,
+          createdAt: now,
+          updatedAt: now,
+        });
         for (const [sequence, scheduledAt, channel] of [
           [1, firstAt, "portal"],
           [2, reminderAt, "email"],

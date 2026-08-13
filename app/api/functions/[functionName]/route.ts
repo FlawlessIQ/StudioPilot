@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 const functionNames = [
   "aiActionCommand",
   "aiCopilotCommand",
+  "aiCommunicationsCommand",
   "aiScheduleCommand",
   "authEmailCommand",
   "bookingCommand",

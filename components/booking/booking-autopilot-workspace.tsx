@@ -6,6 +6,7 @@ import {
   Check,
   CircleAlert,
   FileText,
+  FileUp,
   LoaderCircle,
   MessageSquareText,
   PackageCheck,
@@ -70,6 +71,7 @@ export function BookingAutopilotWorkspace({
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [proposalId, setProposalId] = useState<string | null>(null);
+  const [noteSource, setNoteSource] = useState<"notes" | "transcript">("notes");
 
   const load = useCallback(async () => {
     if (!workspace.tenantId) return;
@@ -261,6 +263,29 @@ export function BookingAutopilotWorkspace({
     }
   }
 
+  async function importTranscript(file: File) {
+    const allowed = ["text/plain", "text/markdown", "text/vtt", "application/json"];
+    if (!allowed.includes(file.type) && !/\.(txt|md|vtt|json)$/i.test(file.name)) {
+      setNotice("Upload a TXT, Markdown, VTT, or JSON transcript export.");
+      return;
+    }
+    if (file.size > 500_000) {
+      setNotice("Transcript exports must be smaller than 500 KB.");
+      return;
+    }
+    try {
+      const value = await file.text();
+      const transcript = file.name.endsWith(".json")
+        ? JSON.stringify(JSON.parse(value), null, 2)
+        : value;
+      setNotes(transcript.slice(0, 20_000));
+      setNoteSource("transcript");
+      setNotice("Transcript loaded. Review it, then let StudioCue prepare the booking brief.");
+    } catch {
+      setNotice("This transcript export could not be read.");
+    }
+  }
+
   async function createProposal() {
     if (
       !project ||
@@ -416,15 +441,38 @@ export function BookingAutopilotWorkspace({
             <p className="eyebrow">One source of truth</p>
             <h2>Capture consultation notes</h2>
             <p>
-              Record only what was actually discussed: priorities, locations,
-              coverage expectations, decision makers, and unanswered questions.
+              Paste notes or import the transcript you already have. StudioCue
+              extracts only stated priorities, locations, coverage expectations,
+              decision makers, and unanswered questions.
             </p>
           </div>
+          <div className="booking-note-source-tabs" role="tablist" aria-label="Consultation source">
+            <button className={noteSource === "notes" ? "is-active" : ""} onClick={() => setNoteSource("notes")} role="tab" type="button">Paste notes</button>
+            <button className={noteSource === "transcript" ? "is-active" : ""} onClick={() => setNoteSource("transcript")} role="tab" type="button">Import transcript</button>
+          </div>
+          {noteSource === "transcript" ? (
+            <label className="booking-transcript-upload">
+              <FileUp size={18} />
+              <span>
+                <strong>Upload the consultation transcript</strong>
+                <small>TXT, Markdown, VTT, or JSON · up to 500 KB</small>
+              </span>
+              <input
+                accept=".txt,.md,.vtt,.json,text/plain,text/markdown,text/vtt,application/json"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void importTranscript(file);
+                  event.target.value = "";
+                }}
+                type="file"
+              />
+            </label>
+          ) : null}
           <label>
-            <span>Consultation notes</span>
+            <span>{noteSource === "transcript" ? "Transcript text" : "Consultation notes"}</span>
             <textarea
               onChange={(event) => setNotes(event.target.value)}
-              placeholder="They care most about candid moments, want preparation at two locations, expect about 120 guests…"
+              placeholder={noteSource === "transcript" ? "Upload a transcript above or paste it here…" : "They care most about candid moments, want preparation at two locations, expect about 120 guests…"}
               value={notes}
             />
             <small>{notes.trim().length}/20 minimum characters</small>

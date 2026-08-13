@@ -13,6 +13,7 @@ import {
   ContactRound,
   FolderKanban,
   Images,
+  Radio,
   LibraryBig,
   Menu,
   Settings,
@@ -43,6 +44,7 @@ const navSections = [
       { label: "Projects", href: "/studio/projects", icon: FolderKanban },
       { label: "AI review", href: "/studio/ai-queue", icon: BrainCircuit },
       { label: "Calendar", href: "/studio/calendar", icon: CalendarDays },
+      { label: "Event day", href: "/studio/event-day", icon: Radio },
     ],
   },
   {
@@ -69,7 +71,7 @@ const navSections = [
 ] as const;
 
 const activeGroups: Record<string, string[]> = {
-  Home: ["Dashboard", "Notifications", "Copilot", "AI setup"],
+  Home: ["Dashboard", "Notifications", "Copilot", "AI setup", "Event day"],
   "AI review": ["AI queue"],
   Inbox: ["Leads", "Inquiries", "Proposals", "Contracts", "Invoices", "Booking"],
   Projects: [
@@ -104,6 +106,7 @@ const studioRouteLabels: Record<string, string> = {
   copilot: "Copilot",
   crew: "Crew",
   delivery: "Delivery",
+  "event-day": "Event day",
   documents: "Documents",
   insurance: "Insurance",
   integrations: "Integrations",
@@ -166,7 +169,7 @@ function StudioShell({
     active ?? studioRouteLabels[routeSegment] ?? "Dashboard";
   const tenantName = workspace.error ? "Workspace unavailable" : workspace.tenantName;
   const userName = workspace.error ? "Signed-in user" : workspace.userName;
-  const staffAllowed = new Set(["Home", "Projects", "Calendar", "People"]);
+  const staffAllowed = new Set(["Home", "Projects", "Calendar", "Event day", "People"]);
   const coordinatorExcluded = new Set(["Insights", "Library"]);
   const canSee = (label: string) => {
     if (label === "Studio setup") return workspace.role === "studio_owner";

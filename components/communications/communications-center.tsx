@@ -2,12 +2,14 @@
 
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   Check,
   Clock3,
   LoaderCircle,
   Mail,
   Send,
   ShieldCheck,
+  Sparkles,
 } from "lucide-react";
 import {
   collection,
@@ -19,6 +21,10 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendCommunicationsCommand } from "@/lib/communications/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import {
+  draftCommunication,
+  type CommunicationAssistantResult,
+} from "@/lib/ai/communications-client";
 
 type Value = Record<string, unknown> & { id: string };
 
@@ -55,6 +61,8 @@ export function CommunicationsCenter({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [aiInstruction, setAiInstruction] = useState("");
+  const [aiResult, setAiResult] = useState<CommunicationAssistantResult | null>(null);
 
   const load = useCallback(async () => {
     if (!workspace.tenantId) return;
@@ -113,7 +121,9 @@ export function CommunicationsCenter({
       setDrafts(
         draftSnapshot.docs
           .map((item): Value => ({ id: item.id, ...item.data() }))
-          .filter((item) => item.status === "needs_approval")
+          .filter((item) =>
+            ["needs_approval", "approved_unsent"].includes(String(item.status)),
+          )
           .sort((left, right) =>
             String(right.createdAt ?? "").localeCompare(
               String(left.createdAt ?? ""),
@@ -218,9 +228,61 @@ export function CommunicationsCenter({
     }
   }
 
+  async function sendApproved(draftId: string) {
+    setBusy(draftId);
+    setNotice(null);
+    try {
+      await sendCommunicationsCommand({
+        type: "sendApprovedDraft",
+        idempotencyKey: crypto.randomUUID(),
+        input: { draftId },
+      });
+      setNotice("Approved message queued for delivery.");
+      await load();
+    } catch (error: unknown) {
+      setNotice(
+        error instanceof Error
+          ? error.message.replaceAll("_", " ")
+          : "The approved message could not be queued.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const canApprove = ["studio_owner", "studio_admin"].includes(
     workspace.role ?? "",
   );
+
+  async function askAssistant(instruction: string) {
+    if (!workspace.tenantId || !projectId || !selectedContactId) return;
+    setBusy("ai");
+    setNotice(null);
+    try {
+      const result = await draftCommunication({
+        tenantId: workspace.tenantId,
+        projectId,
+        contactId: selectedContactId,
+        instruction,
+        category: category as "general" | "financial" | "contract" | "insurance",
+        currentSubject: subject || null,
+        currentBody: body || null,
+      });
+      setSubject(result.subject);
+      setBody(result.body);
+      setAiResult(result);
+      setAiInstruction("");
+      setNotice("StudioCue prepared a draft. Review and edit it before sending.");
+    } catch (error: unknown) {
+      setNotice(
+        error instanceof Error
+          ? error.message.replaceAll("_", " ")
+          : "StudioCue could not prepare this email.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
 
   return (
     <div className="communications-layout">
@@ -234,6 +296,54 @@ export function CommunicationsCenter({
           <Mail aria-hidden="true" />
         </div>
         <form onSubmit={(event) => void submit(event)}>
+          <section className="communications-ai-assistant">
+            <div>
+              <span><Sparkles size={15} /></span>
+              <div>
+                <strong>Draft with StudioCue</strong>
+                <small>Describe the message in your own words. Nothing sends without you.</small>
+              </div>
+            </div>
+            <textarea
+              disabled={busy !== null}
+              onChange={(event) => setAiInstruction(event.target.value)}
+              placeholder="For example: Thank them for the consultation, recap the event date, and ask them to review the proposal by Friday. Keep it warm and concise."
+              rows={3}
+              value={aiInstruction}
+            />
+            <div className="communications-ai-controls">
+              <button
+                disabled={busy !== null || !projectId || !selectedContactId || aiInstruction.trim().length < 3}
+                onClick={() => void askAssistant(aiInstruction)}
+                type="button"
+              >
+                {busy === "ai" ? <LoaderCircle className="spin" size={14} /> : <Sparkles size={14} />}
+                {subject || body ? "Revise draft" : "Create draft"}
+              </button>
+              {body ? (
+                <>
+                  <button disabled={busy !== null} onClick={() => void askAssistant("Make this email shorter and easier to scan while preserving every factual detail.")} type="button">Shorter</button>
+                  <button disabled={busy !== null} onClick={() => void askAssistant("Make this email warmer and more personal without becoming overly casual.")} type="button">Warmer</button>
+                  <button disabled={busy !== null} onClick={() => void askAssistant("Make this email polished, clear, and professional while preserving the meaning.")} type="button">More professional</button>
+                </>
+              ) : null}
+            </div>
+            {aiResult?.factsUsed.length ? (
+              <details className="communications-ai-grounding">
+                <summary><ShieldCheck size={14} /> Facts checked from this project</summary>
+                <ul>{aiResult.factsUsed.map((fact) => <li key={fact}>{fact}</li>)}</ul>
+              </details>
+            ) : null}
+            {aiResult?.needsConfirmation.length ? (
+              <div className="communications-ai-warning">
+                <AlertTriangle size={15} />
+                <span>
+                  <strong>Confirm before sending</strong>
+                  {aiResult.needsConfirmation.map((item) => <small key={item}>{item}</small>)}
+                </span>
+              </div>
+            ) : null}
+          </section>
           <div className="communications-form-grid">
             <label>
               Project
@@ -357,13 +467,23 @@ export function CommunicationsCenter({
         {drafts.length ? (
           <section className="panel communications-approval-queue">
             <div className="panel-heading">
-              <div><p className="eyebrow">Control point</p><h2>Awaiting approval</h2></div>
+              <div><p className="eyebrow">Prepared messages</p><h2>Ready for your decision</h2></div>
               <StatusBadge tone="warning">{drafts.length}</StatusBadge>
             </div>
             {drafts.map((draft) => (
               <article key={draft.id}>
                 <span><strong>{String(draft.subject)}</strong><small>{String(draft.projectName)} · {String(draft.category)}</small></span>
-                {canApprove ? (
+                {draft.status === "approved_unsent" ? (
+                  <button
+                    className="button button-small"
+                    disabled={busy !== null}
+                    onClick={() => void sendApproved(draft.id)}
+                    type="button"
+                  >
+                    {busy === draft.id ? <LoaderCircle className="spin" size={14} /> : <Send size={14} />}
+                    Send approved
+                  </button>
+                ) : canApprove ? (
                   <button
                     className="button button-small"
                     disabled={busy !== null}

@@ -57,6 +57,7 @@ export {
 export { supportTenantSummary } from "./saas/support.js";
 export { finalInvoiceScheduler } from "./operations/invoice-scheduler.js";
 export { aiCopilotCommand } from "./ai/copilot.js";
+export { aiCommunicationsCommand } from "./ai/communications.js";
 export { aiScheduleCommand } from "./ai/schedule.js";
 export { aiActionCommand } from "./ai/actions.js";
 export { authEmailCommand } from "./auth/emails.js";

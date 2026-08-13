@@ -25,6 +25,7 @@ import { stateTone } from "@/lib/status-tone";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { ProjectWorkspaceNav } from "@/components/projects/project-workspace-nav";
 
 type Value = Record<string, unknown> & { id: string };
 type Domain =
@@ -676,14 +677,17 @@ export function ProjectContextBar({ projectId }: { projectId: string }) {
     };
   }, [projectId, workspace.loading, workspace.tenantId]);
   return (
-    <aside className="project-context-bar">
-      <span>
-        <small>Project view</small>
-        <strong>{name}</strong>
-      </span>
-      <Link href={`/studio/projects/${projectId}`}>
-        <ArrowLeft /> Back to project
-      </Link>
+    <aside className="project-context-stack">
+      <div className="project-context-bar">
+        <span>
+          <small>Project view</small>
+          <strong>{name}</strong>
+        </span>
+        <Link href={`/studio/projects/${projectId}`}>
+          <ArrowLeft /> Back to project
+        </Link>
+      </div>
+      <ProjectWorkspaceNav compact projectId={projectId} />
     </aside>
   );
 }

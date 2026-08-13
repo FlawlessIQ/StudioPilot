@@ -517,7 +517,9 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           `${brand.studioName} appreciates the trust you placed in the team${project}. The studio will keep your portal updated as post-production progresses.`,
         ],
       };
-    case "delivery":
+    case "delivery": {
+      const accessCode = stringValue(values, "accessCode");
+      const expirationDate = stringValue(values, "expirationDate");
       return {
         subject: `Your photographs are ready from ${brand.studioName}`,
         preheader: "Open your secure delivery.",
@@ -526,11 +528,16 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         paragraphs: [
           greeting,
           `${brand.studioName} completed your delivery${project}. Use the secure link below and keep any access code private.`,
+          ...(accessCode ? [`Gallery access code: ${accessCode}`] : []),
+          ...(expirationDate
+            ? [`Please download and back up your photographs before ${humanDate(expirationDate)}.`]
+            : []),
         ],
         action: galleryUrl
           ? { label: "Open delivery", url: galleryUrl }
           : undefined,
       };
+    }
     case "review_request":
       return {
         subject: `Would you share your experience with ${brand.studioName}?`,

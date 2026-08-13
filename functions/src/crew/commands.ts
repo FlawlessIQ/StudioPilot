@@ -25,6 +25,31 @@ const requirement = z.object({
   required: z.boolean(),
   dueAt: z.string().datetime().nullable(),
 });
+const cascadeInput = z.object({
+  projectId: z.string(),
+  role: z.string().min(1).max(120),
+  candidateIds: z.array(z.string().min(1)).min(1).max(20),
+  responseWindowHours: z.number().int().min(1).max(168),
+  compensationCents: z.number().int().nonnegative().nullable(),
+  compensationType: z.enum(["hourly", "event"]).nullable(),
+  currency: z.string().length(3),
+  compensationVisibleToCrew: z.boolean(),
+  arrivalAt: z.string().datetime(),
+  departureAt: z.string().datetime(),
+  locations: z
+    .array(
+      z.object({
+        name: z.string().min(1),
+        address: z.string().nullable(),
+      }),
+    )
+    .min(1),
+  responsibilities: z.array(z.string().min(1)),
+  scheduleItemIds: z.array(z.string()),
+  currentScheduleId: z.string().nullable(),
+  currentScheduleVersion: z.number().int().nonnegative(),
+  requirements: z.array(requirement),
+});
 const command = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("createCrewProfile"),
@@ -76,30 +101,15 @@ const command = z.discriminatedUnion("type", [
     type: z.literal("createCrewCascade"),
     tenantId: z.string(),
     idempotencyKey: z.string().min(8),
+    input: cascadeInput,
+  }),
+  z.object({
+    type: z.literal("createCrewPlan"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
     input: z.object({
       projectId: z.string(),
-      role: z.string().min(1).max(120),
-      candidateIds: z.array(z.string().min(1)).min(1).max(20),
-      responseWindowHours: z.number().int().min(1).max(168),
-      compensationCents: z.number().int().nonnegative().nullable(),
-      compensationType: z.enum(["hourly", "event"]).nullable(),
-      currency: z.string().length(3),
-      compensationVisibleToCrew: z.boolean(),
-      arrivalAt: z.string().datetime(),
-      departureAt: z.string().datetime(),
-      locations: z
-        .array(
-          z.object({
-            name: z.string().min(1),
-            address: z.string().nullable(),
-          }),
-        )
-        .min(1),
-      responsibilities: z.array(z.string().min(1)),
-      scheduleItemIds: z.array(z.string()),
-      currentScheduleId: z.string().nullable(),
-      currentScheduleVersion: z.number().int().nonnegative(),
-      requirements: z.array(requirement),
+      cascades: z.array(cascadeInput).min(1).max(10),
     }),
   }),
   z.object({
@@ -342,6 +352,183 @@ export const crewCommand = onRequest(
           archivedAt: null,
         });
         result = { crewProfileId: id };
+      } else if (parsed.type === "createCrewPlan") {
+        if (!internalRoles.has(role) || !hasProject(parsed.input.projectId))
+          throw new Error("FORBIDDEN");
+        if (
+          parsed.input.cascades.some(
+            (cascade) => cascade.projectId !== parsed.input.projectId,
+          )
+        )
+          throw new Error("CREW_PLAN_PROJECT_MISMATCH");
+        const candidateIds = parsed.input.cascades.flatMap(
+          (cascade) => cascade.candidateIds,
+        );
+        if (new Set(candidateIds).size !== candidateIds.length)
+          throw new Error("CREW_PLAN_CANDIDATES_MUST_BE_UNIQUE");
+        if (
+          parsed.input.cascades.some(
+            (cascade) =>
+              Date.parse(cascade.departureAt) <= Date.parse(cascade.arrivalAt),
+          )
+        )
+          throw new Error("INVALID_ASSIGNMENT_RANGE");
+        const profiles = await Promise.all(
+          candidateIds.map((profileId) =>
+            db.doc(`crewProfiles/${profileId}`).get(),
+          ),
+        );
+        if (
+          profiles.some(
+            (profile) =>
+              !profile.exists ||
+              profile.get("tenantId") !== parsed.tenantId ||
+              profile.get("active") !== true,
+          )
+        )
+          throw new Error("CASCADE_CANDIDATE_INVALID");
+        const conflicts = await db
+          .collection("crewAssignments")
+          .where("tenantId", "==", parsed.tenantId)
+          .where("status", "==", "accepted")
+          .get();
+        for (const cascade of parsed.input.cascades) {
+          const hasConflict = (profileId: string) =>
+            conflicts.docs.some(
+              (assignment) =>
+                assignment.get("crewProfileId") === profileId &&
+                Date.parse(String(assignment.get("arrivalAt"))) <
+                  Date.parse(cascade.departureAt) &&
+                Date.parse(String(assignment.get("departureAt"))) >
+                  Date.parse(cascade.arrivalAt),
+            );
+          if (cascade.candidateIds.some(hasConflict))
+            throw new Error("CASCADE_CANDIDATE_HAS_ACCEPTED_CONFLICT");
+        }
+
+        const batch = db.batch();
+        const cascadeResults: Array<Record<string, unknown>> = [];
+        const planId = stable(
+          "crew_plan",
+          parsed.tenantId,
+          parsed.idempotencyKey,
+        );
+        for (const [index, cascade] of parsed.input.cascades.entries()) {
+          const cascadeId = `${planId}_role_${index + 1}`;
+          const assignmentId = `${cascadeId}_offer_1`;
+          const token = randomBytes(32).toString("base64url");
+          const cascadeRecord = {
+            id: cascadeId,
+            tenantId: parsed.tenantId,
+            ...cascade,
+            crewPlanId: planId,
+            status: "active",
+            currentCandidateIndex: 0,
+            currentAssignmentId: assignmentId,
+            acceptedAssignmentId: null,
+            handlingStartedAt: now,
+            handlingCompletedAt: null,
+            escalatedAt: null,
+            createdAt: now,
+            updatedAt: now,
+            createdBy: identity.uid,
+            updatedBy: identity.uid,
+            archivedAt: null,
+          };
+          const profile = profiles.find(
+            (candidate) => candidate.id === cascade.candidateIds[0],
+          )!;
+          const prepared = cascadeAssignment({
+            id: assignmentId,
+            tenantId: parsed.tenantId,
+            cascadeId,
+            candidateIndex: 0,
+            profile,
+            cascade: cascadeRecord,
+            token,
+            now,
+            actorId: identity.uid,
+          });
+          batch.create(db.doc(`crewCascades/${cascadeId}`), {
+            ...cascadeRecord,
+            currentOfferExpiresAt: prepared.expiresAt,
+          });
+          batch.create(
+            db.doc(`crewAssignments/${assignmentId}`),
+            prepared.assignment,
+          );
+          batch.create(
+            db.doc(`emailJobs/${prepared.emailJob.id}`),
+            prepared.emailJob,
+          );
+          cascadeResults.push({
+            cascadeId,
+            assignmentId,
+            role: cascade.role,
+            currentOfferExpiresAt: prepared.expiresAt,
+          });
+        }
+        batch.create(db.doc(`aiActions/ai_crew_plan_${planId}`), {
+          id: `ai_crew_plan_${planId}`,
+          tenantId: parsed.tenantId,
+          projectId: parsed.input.projectId,
+          actorId: identity.uid,
+          title: "Multi-role crew plan approved",
+          capability: "crew_recommendation",
+          authorityBoundary: "human_approval_required",
+          status: "approved",
+          modelProvider: "studiocue_eligibility_engine",
+          modelVersion: "crew-ranking-v2",
+          instructionVersion: "crew-ranking-v2",
+          outputSchemaVersion: "crew-plan-v1",
+          sourceReferences: profiles.map((profile) => ({
+            entityType: "crew_profile",
+            entityId: profile.id,
+            versionId: null,
+            label: String(profile.get("name") ?? profile.id),
+            locator: "owner-approved unique candidate allocation",
+          })),
+          structuredOutput: {
+            roles: parsed.input.cascades.map((cascade) => ({
+              role: cascade.role,
+              orderedCandidateIds: cascade.candidateIds,
+              responseWindowHours: cascade.responseWindowHours,
+            })),
+          },
+          confidence: { overall: 1, label: "high", uncertainFields: [] },
+          validation: { status: "passed", issues: [] },
+          decision: {
+            actorId: identity.uid,
+            action: "approved",
+            decidedAt: now,
+            note: "Owner approved all role orders in one decision.",
+            editDelta: null,
+          },
+          downstreamCommand: {
+            commandType: "create_crew_plan",
+            commandId: planId,
+            executedAt: now,
+          },
+          usage: {
+            inputTokens: 0,
+            outputTokens: 0,
+            estimatedCostMicros: 0,
+            latencyMs: 0,
+            estimatedMinutesSaved: 60,
+          },
+          failure: null,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: identity.uid,
+          updatedBy: identity.uid,
+          archivedAt: null,
+        });
+        await batch.commit();
+        result = {
+          crewPlanId: planId,
+          status: "active",
+          cascades: cascadeResults,
+        };
       } else if (parsed.type === "createCrewCascade") {
         if (!internalRoles.has(role) || !hasProject(parsed.input.projectId))
           throw new Error("FORBIDDEN");
