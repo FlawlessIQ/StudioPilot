@@ -7,7 +7,6 @@ test("AI import panels stay contained at desktop and mobile widths", async ({
 
   const source = page.locator(".template-source-panel");
   const plan = page.locator(".template-plan-panel");
-  const tabs = page.locator(".template-source-tabs");
   await expect(source).toBeVisible();
   await expect(plan).toBeVisible();
 

@@ -2904,6 +2904,15 @@
   margin-bottom: 16px;
 }
 
+/* Event-day cards use the deliberately padding-free shared `.panel`
+   primitive. Give these two content cards their own inset so headings,
+   timeline rows, prompts, and controls never sit on the card border. */
+.event-day-timeline,
+.event-day-ask {
+  overflow: hidden;
+  padding: 22px 24px 24px;
+}
+
 .event-day-timeline article {
   display: grid;
   grid-template-columns: 80px 10px minmax(0, 1fr);
@@ -2946,7 +2955,9 @@
   display: flex;
   gap: 8px;
   overflow-x: auto;
-  padding-bottom: 6px;
+  max-width: 100%;
+  padding: 2px 2px 8px;
+  scrollbar-gutter: stable;
 }
 
 .event-day-quick-questions button {
@@ -2962,6 +2973,10 @@
   display: grid;
   gap: 10px;
   margin-top: 12px;
+}
+
+.event-day-ask .form-notice {
+  margin: 4px 0 0;
 }
 
 .event-day-answer {
@@ -3002,6 +3017,11 @@
 
   .event-day-timeline article {
     grid-template-columns: 64px 8px minmax(0, 1fr);
+  }
+
+  .event-day-timeline,
+  .event-day-ask {
+    padding: 20px;
   }
 }
 

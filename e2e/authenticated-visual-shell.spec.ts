@@ -177,7 +177,9 @@ test.describe("authenticated visual shell", () => {
         name: "Turn a selected package into a clear decision.",
       }),
     ).toBeVisible();
-    await page.getByLabel("Project").selectOption("demo-project");
+    await page
+      .getByRole("combobox", { name: /Project/i })
+      .selectOption("demo-project");
     await expect(page.getByText("$7,063.00", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Create draft" }).click();
     await expect(

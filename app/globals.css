@@ -7540,6 +7540,25 @@ textarea:focus-visible {
   overflow-wrap: anywhere;
 }
 
+/* Content-bearing panels which do not use a dedicated panel heading/form
+   shell need an explicit inset. Table/list panels intentionally remain
+   edge-to-edge. */
+.final-invoice-empty,
+.final-invoice-card {
+  padding: 22px 24px;
+}
+
+.final-invoice-empty {
+  min-height: 92px;
+}
+
+@media (max-width: 620px) {
+  .final-invoice-empty,
+  .final-invoice-card {
+    padding: 18px;
+  }
+}
+
 .copilot-result footer {
   margin-top: 2px;
 }
