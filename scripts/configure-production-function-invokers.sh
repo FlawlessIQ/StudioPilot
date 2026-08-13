@@ -9,6 +9,7 @@ functions_service_account="${project_number}-compute@developer.gserviceaccount.c
 
 app_services=(
   aiactioncommand
+  aicommunicationscommand
   aicopilotcommand
   aischedulecommand
   authemailcommand
