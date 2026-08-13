@@ -59,6 +59,10 @@ scheduler_services=(
   tenantexportscheduler
 )
 
+event_services=(
+  emailjobtaskdispatch
+)
+
 for service_name in "${app_services[@]}"; do
   gcloud run services add-iam-policy-binding "${service_name}" \
     --region="${region}" \
@@ -69,6 +73,18 @@ for service_name in "${app_services[@]}"; do
 done
 
 for service_name in "${scheduler_services[@]}"; do
+  gcloud run services add-iam-policy-binding "${service_name}" \
+    --region="${region}" \
+    --project="${project_id}" \
+    --member="serviceAccount:${functions_service_account}" \
+    --role=roles/run.invoker \
+    --quiet >/dev/null
+done
+
+# Eventarc delivers queued email jobs using the Functions runtime service
+# account. The private Gen 2 dispatcher must allow that identity to invoke its
+# backing Cloud Run service or emails remain queued indefinitely.
+for service_name in "${event_services[@]}"; do
   gcloud run services add-iam-policy-binding "${service_name}" \
     --region="${region}" \
     --project="${project_id}" \
