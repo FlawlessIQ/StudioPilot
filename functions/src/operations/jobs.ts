@@ -118,6 +118,56 @@ async function finish(
       updatedAt: now,
     });
     if (
+      document.ref.parent.id === "aiJobs" &&
+      document.get("type") === "studio_import_extraction" &&
+      !retryable
+    ) {
+      const db = getFirestore();
+      const itemId = String(document.get("itemId") ?? "");
+      const sessionId = String(document.get("sessionId") ?? "");
+      const [item, session] = await Promise.all([
+        db.doc(`studioImportItems/${itemId}`).get(),
+        db.doc(`studioImportSessions/${sessionId}`).get(),
+      ]);
+      if (item.exists && session.exists) {
+        const itemIds = Array.isArray(session.get("itemIds"))
+          ? (session.get("itemIds") as unknown[]).map(String)
+          : [];
+        const items = await Promise.all(
+          itemIds.map((candidateId) =>
+            db.doc(`studioImportItems/${candidateId}`).get(),
+          ),
+        );
+        const terminalStatuses = new Set([
+          "review_ready",
+          "failed",
+          "rejected",
+          "ignored",
+          "cancelled",
+        ]);
+        const projectedStatuses = items.map((candidate) =>
+          candidate.id === itemId ? "failed" : String(candidate.get("status")),
+        );
+        const analysisFinished = projectedStatuses.every((status) =>
+          terminalStatuses.has(status),
+        );
+        const batch = db.batch();
+        batch.update(item.ref, {
+          status: "failed",
+          failure: { code, message, retryable: false },
+          updatedAt: now,
+          updatedBy: "studio-import-ai",
+        });
+        batch.update(session.ref, {
+          status: analysisFinished ? "partially_failed" : "processing",
+          reviewReadyAt: analysisFinished ? now : null,
+          updatedAt: now,
+          updatedBy: "studio-import-ai",
+        });
+        await batch.commit();
+      }
+    }
+    if (
       document.ref.parent.id === "pdfJobs" &&
       document.get("proposalId")
     ) {
