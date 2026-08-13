@@ -7522,6 +7522,62 @@ textarea:focus-visible {
   padding-inline: 19px;
 }
 
+/* AI workspaces need an explicit interior rhythm because `.panel` itself is
+   intentionally padding-free. Keep prompts, answers, and citations away from
+   card edges without changing the shared panel primitive. */
+.copilot-result,
+.copilot-error {
+  padding: 26px 28px;
+}
+
+.copilot-result > div {
+  display: grid;
+  gap: 9px;
+}
+
+.copilot-result h2,
+.copilot-result li {
+  overflow-wrap: anywhere;
+}
+
+.copilot-result footer {
+  margin-top: 2px;
+}
+
+/* Timing rules sit above the AI schedule composer and previously inherited no
+   horizontal padding for their list and empty state. */
+.timing-rule-editor > .timing-rule-list {
+  padding: 0 28px;
+}
+
+.timing-rule-editor > .button {
+  justify-self: start;
+  margin: 0 28px 28px;
+}
+
+.timing-rule-editor > .timing-rule-form {
+  margin: 0 28px 28px;
+}
+
+.timing-rule-editor > .form-notice {
+  margin: 0 28px 28px;
+}
+
+.calendar-availability-cta {
+  flex: 0 0 auto;
+  min-height: 46px;
+  padding-inline: 19px;
+}
+
+.calendar-availability-cta svg {
+  height: 17px;
+  width: 17px;
+}
+
+#consultation-availability {
+  scroll-margin-top: 92px;
+}
+
 @media (max-width: 980px) {
   .app-content {
     padding-inline: 30px;
@@ -7581,6 +7637,25 @@ textarea:focus-visible {
 
   .copilot-compose form {
     padding: 21px;
+  }
+
+  .copilot-result,
+  .copilot-error {
+    padding: 22px 20px;
+  }
+
+  .timing-rule-editor > .timing-rule-list {
+    padding-inline: 20px;
+  }
+
+  .timing-rule-editor > .button,
+  .timing-rule-editor > .timing-rule-form,
+  .timing-rule-editor > .form-notice {
+    margin-inline: 20px;
+  }
+
+  .calendar-availability-cta {
+    justify-self: start;
   }
 }
 

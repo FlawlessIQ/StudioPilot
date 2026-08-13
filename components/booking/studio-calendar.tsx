@@ -355,7 +355,7 @@ export function StudioCalendar() {
             </span>
           </div>
           <a className="ds-cal-legend-link" href="/studio/settings">
-            <Settings2 size={13} aria-hidden="true" /> Manage availability hours
+            <Settings2 size={13} aria-hidden="true" /> Availability settings
           </a>
         </div>
 

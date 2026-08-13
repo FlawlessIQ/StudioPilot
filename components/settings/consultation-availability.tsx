@@ -278,6 +278,7 @@ export function ConsultationAvailability() {
     <section
       className="panel consultation-availability"
       aria-labelledby="consultation-availability-title"
+      id="consultation-availability"
     >
       <form onSubmit={save}>
         <div className="email-branding-heading">

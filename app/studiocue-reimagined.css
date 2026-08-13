@@ -913,7 +913,7 @@
 .template-import-layout {
   display: grid;
   gap: 17px;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr);
 }
 
 .template-source-panel,
@@ -927,6 +927,12 @@
   gap: 18px;
   min-height: 560px;
   padding: 23px;
+  min-width: 0;
+}
+
+.template-source-panel > *,
+.template-plan-panel > * {
+  min-width: 0;
 }
 
 .template-step-heading {
@@ -976,8 +982,9 @@
   border-radius: 12px;
   display: grid;
   gap: 4px;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   padding: 4px;
+  width: 100%;
 }
 
 .template-source-tabs button {
@@ -990,6 +997,7 @@
   display: flex;
   gap: 8px;
   min-height: 50px;
+  min-width: 0;
   padding: 8px 9px;
   text-align: left;
 }
@@ -1003,6 +1011,7 @@
 .template-source-tabs button > span {
   display: grid;
   gap: 2px;
+  min-width: 0;
 }
 
 .template-source-tabs strong {
@@ -1012,7 +1021,9 @@
 .template-source-tabs small {
   color: #99909c;
   font-size: 7px;
-  white-space: nowrap;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .template-dropzone {
