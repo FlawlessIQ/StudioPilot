@@ -262,12 +262,6 @@ export function hasUnreadableEmbeddedStudioImportForm(html: string): boolean {
   const withoutExecutableMarkup = html
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ");
-  const hasNativeFormFields =
-    /<(?:form|label|input|textarea|select|button)\b/i.test(
-      withoutExecutableMarkup,
-    );
-  if (hasNativeFormFields) return false;
-
   return Array.from(withoutExecutableMarkup.matchAll(/<iframe\b[^>]*>/gi)).some(
     ([iframe]) =>
       /(?:title|aria-label|src)=["'][^"']*(?:\bform\b|formbuilder|form-builder|123formbuilder|jotform|typeform|wufoo|formstack|cognitoforms|docs\.google\.com\/forms)[^"']*["']/i.test(

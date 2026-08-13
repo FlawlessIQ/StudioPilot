@@ -49,6 +49,7 @@ test("website import detects third-party form builders without waiting for AI", 
       <head><script>const help = "Need answers?";</script></head>
       <body>
         <h1>Wedding schedule form</h1>
+        <button data-testid="handle-button">Log in</button>
         <iframe
           title="123 Form Builder &amp; Payments"
           aria-label="123 Form Builder &amp; Payments"

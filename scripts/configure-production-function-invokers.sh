@@ -60,7 +60,10 @@ scheduler_services=(
 )
 
 event_services=(
+  aijobtaskdispatch
   emailjobtaskdispatch
+  pdfjobtaskdispatch
+  providerjobtaskdispatch
 )
 
 for service_name in "${app_services[@]}"; do
@@ -81,9 +84,9 @@ for service_name in "${scheduler_services[@]}"; do
     --quiet >/dev/null
 done
 
-# Eventarc delivers queued email jobs using the Functions runtime service
+# Eventarc delivers queued provider, email, AI, and PDF jobs using the Functions runtime service
 # account. The private Gen 2 dispatcher must allow that identity to invoke its
-# backing Cloud Run service or emails remain queued indefinitely.
+# backing Cloud Run service or jobs remain queued indefinitely.
 for service_name in "${event_services[@]}"; do
   gcloud run services add-iam-policy-binding "${service_name}" \
     --region="${region}" \
@@ -97,6 +100,15 @@ gcloud projects add-iam-policy-binding "${project_id}" \
   --member="serviceAccount:${functions_service_account}" \
   --role=roles/cloudtasks.enqueuer \
   --condition=None \
+  --quiet >/dev/null
+
+# The scheduler creates authenticated Cloud Tasks using the Functions runtime
+# identity. Let that identity attach itself to the task without granting it
+# impersonation rights over any other service account.
+gcloud iam service-accounts add-iam-policy-binding "${functions_service_account}" \
+  --project="${project_id}" \
+  --member="serviceAccount:${functions_service_account}" \
+  --role=roles/iam.serviceAccountUser \
   --quiet >/dev/null
 
 gcloud projects add-iam-policy-binding "${project_id}" \
