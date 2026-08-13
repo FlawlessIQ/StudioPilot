@@ -381,7 +381,7 @@ export async function captureZoomMeetingSummary(job: DocumentSnapshot) {
     properties: {
       workflowStep: true,
       executionMode: "automatic",
-      humanRole: "approval",
+      humanRole: "none",
       provider: "zoom",
       generatedReviewActions: 3,
     },

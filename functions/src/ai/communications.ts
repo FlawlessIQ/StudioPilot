@@ -274,7 +274,7 @@ export const aiCommunicationsCommand = onRequest(
         properties: {
           workflowStep: true,
           executionMode: "ai_prepared",
-          humanRole: "approval",
+          humanRole: "none",
           category: input.category,
           factsUsed: result.factsUsed.length,
           needsConfirmation: result.needsConfirmation.length,

@@ -61,6 +61,120 @@ type ProductEventInput = {
   } | null;
 };
 
+type WorkflowPolicy = {
+  workflowStep: true;
+  executionMode: "automatic" | "ai_prepared" | "policy_automatic" | "manual";
+  humanRole: "none" | "approval" | "exception" | "data_entry" | "routine_execution";
+};
+
+const workflowPolicies: Partial<Record<ProductEventName, WorkflowPolicy>> = {
+  "ai_action.completed": {
+    workflowStep: true,
+    executionMode: "ai_prepared",
+    humanRole: "none",
+  },
+  "ai_action.approved": {
+    workflowStep: true,
+    executionMode: "ai_prepared",
+    humanRole: "approval",
+  },
+  "ai_action.edited": {
+    workflowStep: true,
+    executionMode: "ai_prepared",
+    humanRole: "approval",
+  },
+  "ai_action.rejected": {
+    workflowStep: true,
+    executionMode: "ai_prepared",
+    humanRole: "approval",
+  },
+  "ai_action.dismissed": {
+    workflowStep: true,
+    executionMode: "ai_prepared",
+    humanRole: "approval",
+  },
+  "ai_action.executed": {
+    workflowStep: true,
+    executionMode: "automatic",
+    humanRole: "none",
+  },
+  "automation.completed": {
+    workflowStep: true,
+    executionMode: "automatic",
+    humanRole: "none",
+  },
+  "consultation.capture_completed": {
+    workflowStep: true,
+    executionMode: "automatic",
+    humanRole: "none",
+  },
+  "booking.sequence_approved": {
+    workflowStep: true,
+    executionMode: "ai_prepared",
+    humanRole: "approval",
+  },
+  "booking.retainer_queued": {
+    workflowStep: true,
+    executionMode: "automatic",
+    humanRole: "none",
+  },
+  "booking.completed_automatically": {
+    workflowStep: true,
+    executionMode: "policy_automatic",
+    humanRole: "none",
+  },
+  "booking.exception_raised": {
+    workflowStep: true,
+    executionMode: "automatic",
+    humanRole: "exception",
+  },
+  "planning.package_prepared": {
+    workflowStep: true,
+    executionMode: "ai_prepared",
+    humanRole: "none",
+  },
+  "event_day.brief_prepared": {
+    workflowStep: true,
+    executionMode: "ai_prepared",
+    humanRole: "none",
+  },
+  "delivery.draft_prepared": {
+    workflowStep: true,
+    executionMode: "automatic",
+    humanRole: "none",
+  },
+  "lifecycle.schedule_published": {
+    workflowStep: true,
+    executionMode: "ai_prepared",
+    humanRole: "approval",
+  },
+  "lifecycle.crew_staffed": {
+    workflowStep: true,
+    executionMode: "automatic",
+    humanRole: "none",
+  },
+  "lifecycle.gallery_delivered": {
+    workflowStep: true,
+    executionMode: "ai_prepared",
+    humanRole: "approval",
+  },
+  "lifecycle.album_approved": {
+    workflowStep: true,
+    executionMode: "ai_prepared",
+    humanRole: "approval",
+  },
+  "lifecycle.review_requested": {
+    workflowStep: true,
+    executionMode: "policy_automatic",
+    humanRole: "none",
+  },
+  "lifecycle.project_closed": {
+    workflowStep: true,
+    executionMode: "ai_prepared",
+    humanRole: "approval",
+  },
+};
+
 export function productEvent(input: ProductEventInput) {
   const id = `product_${createHash("sha256")
     .update(
@@ -85,7 +199,10 @@ export function productEvent(input: ProductEventInput) {
     correlationId: input.correlationId,
     sourceEntityType: input.sourceEntityType.slice(0, 120),
     sourceEntityId: input.sourceEntityId.slice(0, 240),
-    properties: input.properties ?? {},
+    properties: {
+      ...(workflowPolicies[input.name] ?? {}),
+      ...(input.properties ?? {}),
+    },
     handling: input.handling ?? null,
   };
 }

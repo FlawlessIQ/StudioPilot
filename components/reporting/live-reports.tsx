@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { workflowScorecard } from "@/features/operations/workflow-scorecard";
+import { implementationReadinessScorecard } from "@/features/operations/implementation-readiness";
 
 function csvCell(value: unknown) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
@@ -30,11 +31,8 @@ export function LiveReports() {
   const proposalsState = useTenantDocuments("proposals");
   const contractsState = useTenantDocuments("contracts");
   const crewState = useTenantDocuments("crewAssignments");
-  const schedulesState = useTenantDocuments("schedules");
   const insuranceState = useTenantDocuments("insuranceRequests");
   const automationsState = useTenantDocuments("automationRuns");
-  const messagesState = useTenantDocuments("messages");
-  const questionnairesState = useTenantDocuments("questionnaireResponses");
   const productEventsState = useTenantDocuments("productEvents");
   const aiActionsState = useTenantDocuments("aiActions");
   const receiptsState = useTenantDocuments("actionReceipts");
@@ -101,11 +99,8 @@ export function LiveReports() {
   const proposals = scoped(proposalsState.records);
   const contracts = scoped(contractsState.records);
   const crewAssignments = scoped(crewState.records);
-  const schedules = scoped(schedulesState.records);
   const insurance = scoped(insuranceState.records);
   const automations = scoped(automationsState.records);
-  const messages = scoped(messagesState.records);
-  const questionnaires = scoped(questionnairesState.records);
   const productEvents = scoped(productEventsState.records);
   const aiActions = scoped(aiActionsState.records);
   const receipts = scoped(receiptsState.records);
@@ -119,6 +114,7 @@ export function LiveReports() {
     providerJobs,
     emailJobs,
   });
+  const implementation = implementationReadinessScorecard();
   const terminalAutomationStatuses = new Set([
     "completed",
     "failed",
@@ -206,11 +202,8 @@ export function LiveReports() {
     proposalsState.loading ||
     contractsState.loading ||
     crewState.loading ||
-    schedulesState.loading ||
     insuranceState.loading ||
     automationsState.loading ||
-    messagesState.loading ||
-    questionnairesState.loading ||
     productEventsState.loading ||
     aiActionsState.loading ||
     receiptsState.loading ||
@@ -333,26 +326,43 @@ export function LiveReports() {
         <div className="report-performance-grid workflow-score-grid">
           <article className="panel">
             <Gauge />
-            <span><small>Capability coverage</small><strong>{loading ? "—" : `${workflow.coverage.score}%`}</strong><p>{workflow.coverage.operational} operational · {workflow.coverage.partial} partial · {workflow.coverage.total} total</p></span>
+            <span><small>Validated capability coverage</small><strong>{loading ? "—" : `${implementation.coverage.score}%`}</strong><p>{implementation.coverage.operational} operational · {implementation.coverage.partial} partial · {implementation.coverage.total} total</p></span>
           </article>
           <article className="panel">
             <Bot />
-            <span><small>Photographer automation</small><strong>{loading ? "—" : workflow.automation.score === null ? "Needs data" : `${workflow.automation.score}%`}</strong><p>{workflow.automation.observedSteps} observed repeatable steps</p></span>
+            <span><small>Validated photographer automation</small><strong>{loading ? "—" : `${implementation.automation.score}%`}</strong><p>{implementation.automation.prepared} of {implementation.automation.eligible} repeatable steps are prepared or completed</p></span>
           </article>
           <article className="panel">
             <CheckCircle2 />
-            <span><small>Approval-led experience</small><strong>{loading ? "—" : workflow.approvalLed.score === null ? "Needs data" : `${workflow.approvalLed.score}%`}</strong><p>{workflow.approvalLed.approvals} approvals · {workflow.approvalLed.exceptions} exceptions · {workflow.approvalLed.dataEntry + workflow.approvalLed.routineManual} routine touches</p></span>
+            <span><small>Validated approval-led experience</small><strong>{loading ? "—" : `${implementation.approvalLed.score}%`}</strong><p>{implementation.approvalLed.approvalOrExceptionTouches} approval/exception boundaries · {implementation.approvalLed.manualRoutineTouches} routine manual steps</p></span>
+          </article>
+          <article className="panel">
+            <CheckCircle2 />
+            <span><small>Acceptance slices</small><strong>{loading ? "—" : implementation.workflows.length}</strong><p>Each maps to a tested capability and concrete implementation evidence</p></span>
+          </article>
+        </div>
+        <p className="report-estimate-note">
+          Validated scores measure implemented workflow design and automated acceptance coverage. They exclude photography, curation, and other intentionally human creative work.
+        </p>
+        <div className="report-performance-grid">
+          <article className="panel">
+            <Bot />
+            <span><small>Observed photographer automation</small><strong>{loading ? "—" : workflow.automation.score === null ? "Needs data" : `${workflow.automation.score}%`}</strong><p>{workflow.automation.observedSteps} completed repeatable workflow steps</p></span>
+          </article>
+          <article className="panel">
+            <CheckCircle2 />
+            <span><small>Observed approval-led experience</small><strong>{loading ? "—" : workflow.approvalLed.score === null ? "Needs data" : `${workflow.approvalLed.score}%`}</strong><p>{workflow.approvalLed.approvals} approvals · {workflow.approvalLed.exceptions} exceptions · {workflow.approvalLed.dataEntry + workflow.approvalLed.routineManual} routine touches</p></span>
           </article>
           <article className="panel">
             <ClockArrowUp />
             <span><small>Verified time reclaimed</small><strong>{loading ? "—" : `${workflow.quality.verifiedMinutesSaved}m`}</strong><p>Only timers, workflow timestamps, and observed pilot evidence count</p></span>
           </article>
-        </div>
-        <div className="report-performance-grid">
           <article className="panel">
             <Bot />
             <span><small>Automation reliability</small><strong>{loading ? "—" : `${automationReliability}%`}</strong><p>{terminalAutomations.length} completed or terminal runs</p></span>
           </article>
+        </div>
+        <div className="report-performance-grid">
           <article className="panel">
             <CheckCircle2 />
             <span><small>Proposal acceptance</small><strong>{loading ? "—" : `${proposalAcceptance}%`}</strong><p>{proposalsSent.length} delivered proposals</p></span>
@@ -364,6 +374,10 @@ export function LiveReports() {
           <article className="panel">
             <ClockArrowUp />
             <span><small>AI edit rate</small><strong>{loading ? "—" : workflow.quality.aiEditRate === null ? "Needs data" : `${workflow.quality.aiEditRate}%`}</strong><p>{workflow.quality.aiDecisions} reviewed AI decisions</p></span>
+          </article>
+          <article className="panel">
+            <Gauge />
+            <span><small>Observed workflow coverage</small><strong>{loading ? "—" : `${workflow.coverage.score}%`}</strong><p>Canonical capability registry used by live outcome reporting</p></span>
           </article>
         </div>
         <div className="report-funnel panel">

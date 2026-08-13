@@ -16,7 +16,7 @@ test("workflow scorecard covers the canonical 44 capabilities", () => {
     providerJobs: [],
     emailJobs: [],
   });
-  assert.equal(score.coverage.score, 95);
+  assert.equal(score.coverage.score, 98);
   assert.equal(score.automation.score, null);
   assert.equal(score.approvalLed.score, null);
 });

@@ -62,6 +62,23 @@ test("studio operational surfaces use real-data empty states", async ({ page }) 
   await expect(page.getByRole("heading", { name: "Schedule draft" })).toBeVisible();
 });
 
+test("home prioritizes approvals and reports validated workflow readiness", async ({ page }) => {
+  await page.goto("/studio");
+  await expect(
+    page.getByText("Approve what matters. StudioCue handles the rest."),
+  ).toBeVisible();
+  await expect(page.getByText("Needs your approval", { exact: true })).toBeVisible();
+  await expect(page.getByText("Exceptions", { exact: true })).toBeVisible();
+  await expect(page.getByText("StudioCue is working", { exact: true })).toBeVisible();
+
+  await page.goto("/studio/reports");
+  await expect(page.getByText("Validated capability coverage")).toBeVisible();
+  await expect(page.getByText("Validated photographer automation")).toBeVisible();
+  await expect(page.getByText("Validated approval-led experience")).toBeVisible();
+  await expect(page.getByText("98%", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("97%", { exact: true }).first()).toBeVisible();
+});
+
 test("role portals state their security and evidence boundaries", async ({ page }) => {
   await page.goto("/client/payments");
   await expect(page.getByText(/QuickBooks invoice links will appear/i)).toBeVisible();

@@ -4,6 +4,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { productEvent } from "../operations/product-events.js";
+import { approvedCommunicationDispatch } from "./approved-communication.js";
 import { studioHubCors } from "../security/cors.js";
 
 const commandSchema = z.object({
@@ -191,19 +192,6 @@ export const aiActionCommand = onRequest(
           ...editDelta,
         };
         const downstream = record(action.get("downstreamCommand"));
-        const consequence = text(parsed.input.consequence) ||
-          (decision === "approved"
-            ? ["inquiry_reply_draft", "planning_followup_draft"].includes(
-                text(action.get("capability")),
-              )
-              ? "Created an approved, unsent communication draft. No email was sent."
-              : text(downstream.commandType)
-              ? `Approved for deterministic command ${text(downstream.commandType)}.`
-              : "Approved as a reusable draft. No provider action was executed."
-            : decision === "rejected"
-              ? "Rejected. No downstream record or provider action changed."
-              : "Dismissed from the active queue. No downstream action ran.");
-        const receiptId = `receipt_${executionId}`;
         const communicationApproval =
           decision === "approved" &&
           ["inquiry_reply_draft", "planning_followup_draft"].includes(
@@ -212,6 +200,36 @@ export const aiActionCommand = onRequest(
         const communicationDraftId = communicationApproval
           ? `ai_reply_${actionId}`
           : null;
+        const communicationCategory =
+          action.get("capability") === "planning_followup_draft"
+            ? "planning"
+            : "general";
+        const communicationDispatch = communicationApproval
+          ? approvedCommunicationDispatch({
+              actionId,
+              tenantId: parsed.tenantId,
+              projectId,
+              contactId: text(structuredOutput.contactId) || null,
+              recipient: text(structuredOutput.recipientEmail) || null,
+              recipientName: text(structuredOutput.recipientName) || null,
+              projectName: text(structuredOutput.projectName) || null,
+              subject: text(structuredOutput.subject),
+              body: text(structuredOutput.body),
+              category: communicationCategory,
+              now,
+            })
+          : null;
+        const consequence = text(parsed.input.consequence) ||
+          (communicationDispatch
+            ? communicationDispatch.consequence
+            : decision === "approved"
+              ? text(downstream.commandType)
+                ? `Approved for deterministic command ${text(downstream.commandType)}.`
+                : "Approved as a reusable draft. No provider action was executed."
+              : decision === "rejected"
+                ? "Rejected. No downstream record or provider action changed."
+                : "Dismissed from the active queue. No downstream action ran.");
+        const receiptId = `receipt_${executionId}`;
         const result = {
           actionId,
           status: decision,
@@ -269,14 +287,11 @@ export const aiActionCommand = onRequest(
               projectName: structuredOutput.projectName ?? null,
               subject: structuredOutput.subject,
               body: structuredOutput.body,
-              category:
-                action.get("capability") === "planning_followup_draft"
-                  ? "planning"
-                  : "general",
+              category: communicationCategory,
               actionLabel: null,
               actionUrl: null,
               scheduledFor: null,
-              status: "approved_unsent",
+              status: communicationDispatch?.draftStatus ?? "approved_unsent",
               requestedBy: identity.uid,
               approvedBy: identity.uid,
               approvedAt: now,
@@ -288,6 +303,13 @@ export const aiActionCommand = onRequest(
             },
             { merge: true },
           );
+          if (communicationDispatch?.emailJob) {
+            batch.set(
+              db.doc(`emailJobs/${communicationDispatch.emailJob.id}`),
+              communicationDispatch.emailJob,
+              { merge: false },
+            );
+          }
         }
         batch.create(db.doc(`actionReceipts/${receiptId}`), receipt({
           id: receiptId,
