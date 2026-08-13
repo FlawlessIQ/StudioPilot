@@ -28,6 +28,7 @@ export type ProductEventName =
   | "booking.retainer_queued"
   | "booking.completed_automatically"
   | "booking.exception_raised"
+  | "planning.package_prepared"
   | "lifecycle.schedule_published"
   | "lifecycle.crew_staffed"
   | "lifecycle.gallery_delivered"

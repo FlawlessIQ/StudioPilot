@@ -1,11 +1,40 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  categorizePlanningFacts,
   evaluateQuestionnaireChange,
   reconcileFinalInvoice,
   traceScheduleDraft,
   verifiedQuestionnairePrefill,
 } from "../features/planning/intelligence";
+
+test("submitted answers become sourced planning facts without re-entry", () => {
+  const facts = categorizePlanningFacts({
+    responseId: "response-1",
+    fields: [
+      { id: "ceremonyTime", label: "Ceremony time" },
+      { id: "familyList", label: "Family formal groups" },
+      { id: "planner", label: "Planner contact" },
+      { id: "parking", label: "Venue parking instructions" },
+      { id: "empty", label: "Other notes" },
+    ],
+    answers: {
+      ceremonyTime: "4:00 PM",
+      familyList: ["Couple with parents", "Couple with siblings"],
+      planner: "Alex Morgan",
+      parking: "Use the east entrance",
+      empty: "",
+    },
+  });
+
+  assert.deepEqual(facts.map((fact) => fact.category), [
+    "schedule",
+    "family_formals",
+    "vendors",
+    "logistics",
+  ]);
+  assert.equal(facts[0]?.source.locator, "answers.ceremonyTime");
+});
 
 test("questionnaire prefill carries verified project provenance", () => {
   const result = verifiedQuestionnairePrefill({

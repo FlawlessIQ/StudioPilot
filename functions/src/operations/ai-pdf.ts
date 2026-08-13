@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { getFirestore,type DocumentSnapshot } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { runStudioImportAnalysis } from "../studio-import/extraction.js";
+import { productEvent } from "./product-events.js";
 
 type Json=Record<string,unknown>;
 const record=(value:unknown):Json=>typeof value==="object"&&value!==null&&!Array.isArray(value)?value as Json:{};
@@ -327,14 +328,27 @@ async function runQuestionnaireAnalysis(job:DocumentSnapshot){
       return answer===null||answer===undefined||answer===""||(Array.isArray(answer)&&answer.length===0);
     })
     .map(field=>string(field.label)||string(field.id));
+  const categorizedFacts=fields.flatMap(field=>{
+    const fieldId=string(field.id);
+    const label=string(field.label);
+    const answer=answers[fieldId];
+    if(answer===null||answer===undefined||answer===""||(Array.isArray(answer)&&answer.length===0))return[];
+    const normalized=`${fieldId} ${label}`.toLowerCase();
+    const category=/family|formal|portrait|group|shot list/.test(normalized)?"family_formals":
+      /vendor|planner|coordinator|dj|florist|venue contact|cater/.test(normalized)?"vendors":
+      /time|timeline|schedule|coverage|ceremony|reception|first look/.test(normalized)?"schedule":
+      /location|address|travel|parking|access|transport/.test(normalized)?"logistics":"preferences";
+    return[{fieldId,label,category,value:answer,source:{entityType:"questionnaire_response",entityId:responseId,locator:`answers.${fieldId}`}}];
+  });
   const facts={
     project:{name:project.get("name"),eventType:project.get("eventType"),eventDate:project.get("eventDate"),venueName:project.get("venueName"),city:project.get("city")},
     questionnaire:fields.map(field=>({id:string(field.id),label:string(field.label),required:Boolean(field.required),answer:answers[string(field.id)]??null})),
+    categorizedPlanningFacts:categorizedFacts,
     deterministicallyMissingRequired:deterministicMissing,
   };
   let analysis:Json;
   if(process.env.PROVIDER_MOCK_MODE==="true"){
-    analysis={summary:"Questionnaire submitted and ready for studio review.",missingInformation:deterministicMissing,contradictions:[],planningRisks:[],suggestedQuestions:deterministicMissing.map(value=>`Can you confirm ${value}?`)};
+    analysis={summary:"Questionnaire submitted and ready for studio review.",missingInformation:deterministicMissing,contradictions:[],planningRisks:[],suggestedQuestions:deterministicMissing.map(value=>`Can you confirm ${value}?`),followupSubject:`A few planning details for ${string(project.get("name"))||"your event"}`,followupBody:deterministicMissing.length?`Thanks for completing the planning questionnaire. Could you help us confirm the remaining details below?\n\n${deterministicMissing.map(value=>`• ${value}`).join("\n")}`:"Thanks for completing the planning questionnaire. We have the details we need to begin preparing your photography timeline."};
   }else{
     const projectId=process.env.VERTEX_AI_PROJECT_ID;
     const location=process.env.VERTEX_AI_LOCATION??"us-east4";
@@ -342,9 +356,9 @@ async function runQuestionnaireAnalysis(job:DocumentSnapshot){
     if(!projectId||!model)throw new Error("VERTEX_AI_NOT_CONFIGURED");
     const token=await cloudAccessToken();
     const vertex=await fetch(`https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`,{method:"POST",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({
-      systemInstruction:{parts:[{text:"Review a photography planning questionnaire using only supplied facts. Identify missing information, possible contradictions, operational planning risks, and suggested follow-up questions. Do not invent dates, contacts, prices, legal conclusions, approvals, or completion states. Every result is advisory and requires studio review."}]},
+      systemInstruction:{parts:[{text:"Review a photography planning questionnaire using only supplied facts. Identify missing information, possible contradictions, operational planning risks, and suggested follow-up questions. Also draft a concise, warm follow-up email that asks only the necessary supplied follow-up questions; its body must not include a greeting or sign-off. Do not invent dates, contacts, prices, legal conclusions, approvals, or completion states. Every result is advisory and requires studio review."}]},
       contents:[{role:"user",parts:[{text:JSON.stringify(facts)}]}],
-      generationConfig:{temperature:0,responseMimeType:"application/json",responseSchema:{type:"OBJECT",properties:{summary:{type:"STRING"},missingInformation:{type:"ARRAY",items:{type:"STRING"}},contradictions:{type:"ARRAY",items:{type:"STRING"}},planningRisks:{type:"ARRAY",items:{type:"STRING"}},suggestedQuestions:{type:"ARRAY",items:{type:"STRING"}}},required:["summary","missingInformation","contradictions","planningRisks","suggestedQuestions"]}},
+      generationConfig:{temperature:0,responseMimeType:"application/json",responseSchema:{type:"OBJECT",properties:{summary:{type:"STRING"},missingInformation:{type:"ARRAY",items:{type:"STRING"}},contradictions:{type:"ARRAY",items:{type:"STRING"}},planningRisks:{type:"ARRAY",items:{type:"STRING"}},suggestedQuestions:{type:"ARRAY",items:{type:"STRING"}},followupSubject:{type:"STRING"},followupBody:{type:"STRING"}},required:["summary","missingInformation","contradictions","planningRisks","suggestedQuestions","followupSubject","followupBody"]}},
     })});
     if(!vertex.ok)throw new Error(`VERTEX_AI_FAILED:${vertex.status}`);
     const payload=record(await vertex.json());
@@ -370,12 +384,34 @@ async function runQuestionnaireAnalysis(job:DocumentSnapshot){
   };
   const actionId=`ai_questionnaire_${responseId}`;
   const projectId=String(response.get("projectId"));
+  const clientContactIds=Array.isArray(project.get("clientContactIds"))?project.get("clientContactIds") as unknown[]:[];
+  const clientContactId=string(clientContactIds[0]);
+  const clientContact=clientContactId?await db.doc(`contacts/${clientContactId}`).get():null;
+  const followupSubject=string(analysis.followupSubject)||`A few planning details for ${string(project.get("name"))||"your event"}`;
+  const followupBody=string(analysis.followupBody)||missingInformation.map(value=>`Could you confirm ${value}?`).join("\n");
+  const planningPackage={
+    status:"ready_for_review",
+    sourceResponseId:responseId,
+    facts:categorizedFacts,
+    groupedFacts:{
+      schedule:categorizedFacts.filter(item=>item.category==="schedule"),
+      familyFormals:categorizedFacts.filter(item=>item.category==="family_formals"),
+      vendors:categorizedFacts.filter(item=>item.category==="vendors"),
+      logistics:categorizedFacts.filter(item=>item.category==="logistics"),
+      preferences:categorizedFacts.filter(item=>item.category==="preferences"),
+    },
+    conflicts:[...aiReview.contradictions,...aiReview.planningRisks],
+    missingInformation,
+    suggestedQuestions:aiReview.suggestedQuestions,
+    generatedAt:now,
+    humanReviewRequired:true,
+  };
   const warnings=[
     ...missingInformation.map((message)=>({code:"MISSING_INFORMATION",severity:"warning",message,field:null})),
     ...aiReview.contradictions.map((message)=>({code:"POSSIBLE_CONTRADICTION",severity:"warning",message,field:null})),
   ];
   const batch=db.batch();
-  batch.update(response.ref,{aiReview,aiReviewedAt:now,updatedAt:now,updatedBy:"vertex-ai-worker"});
+  batch.update(response.ref,{aiReview,planningPackage,aiReviewedAt:now,updatedAt:now,updatedBy:"vertex-ai-worker"});
   batch.set(db.doc(`aiActions/${actionId}`),{
     id:actionId,
     tenantId:job.get("tenantId"),
@@ -406,6 +442,38 @@ async function runQuestionnaireAnalysis(job:DocumentSnapshot){
     updatedBy:"vertex-ai-worker",
     archivedAt:null,
   },{merge:true});
+  if(followupBody&&clientContact?.exists&&string(clientContact.get("email"))){
+    const followupActionId=`ai_planning_followup_${responseId}`;
+    batch.set(db.doc(`aiActions/${followupActionId}`),{
+      id:followupActionId,
+      tenantId:job.get("tenantId"),
+      projectId,
+      actorId:"vertex-ai-worker",
+      title:"Approve questionnaire follow-up",
+      capability:"planning_followup_draft",
+      authorityBoundary:"human_approval_required",
+      status:"review_required",
+      modelProvider:process.env.PROVIDER_MOCK_MODE==="true"?"mock":"vertex_ai",
+      modelVersion:process.env.VERTEX_AI_EXTRACTION_MODEL??"mock-questionnaire-v1",
+      instructionVersion:"planning-followup-v1",
+      outputSchemaVersion:"communication-draft-v1",
+      sourceReferences:[{entityType:"questionnaire_response",entityId:responseId,versionId:String(response.get("templateVersion")??1),label:String(response.get("templateName")??"Questionnaire"),locator:"planning gaps"}],
+      structuredOutput:{subject:followupSubject,body:followupBody,recipientEmail:clientContact.get("email"),recipientName:clientContact.get("displayName")??null,contactId:clientContact.id,projectName:project.get("name")??null},
+      confidence:{overall:missingInformation.length?0.86:0.94,label:missingInformation.length?"medium":"high",uncertainFields:missingInformation.slice(0,20)},
+      validation:{status:"passed",issues:warnings},
+      decision:null,
+      downstreamCommand:null,
+      usage:{inputTokens:0,outputTokens:0,estimatedCostMicros:0,latencyMs:0,estimatedMinutesSaved:8},
+      failure:null,
+      createdAt:now,
+      updatedAt:now,
+      createdBy:"vertex-ai-worker",
+      updatedBy:"vertex-ai-worker",
+      archivedAt:null,
+    },{merge:true});
+  }
+  const preparedEvent=productEvent({tenantId:String(job.get("tenantId")),projectId,actorId:"vertex-ai-worker",actorType:"system",name:"planning.package_prepared",occurredAt:now,correlationId:responseId,sourceEntityType:"questionnaireResponse",sourceEntityId:responseId,properties:{factCount:categorizedFacts.length,missingCount:missingInformation.length,conflictCount:planningPackage.conflicts.length,followupPrepared:Boolean(followupBody&&clientContact?.exists)}});
+  batch.set(db.doc(`productEvents/${preparedEvent.id}`),preparedEvent,{merge:true});
   await batch.commit();
   return{responseId,actionId,missingCount:missingInformation.length,riskCount:aiReview.planningRisks.length,humanReviewRequired:true};
 }

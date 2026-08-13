@@ -25,6 +25,51 @@ export type TimingRule = {
   source: "studio" | "import";
 };
 
+export type PlanningFactCategory =
+  | "schedule"
+  | "family_formals"
+  | "vendors"
+  | "logistics"
+  | "preferences";
+
+export function categorizePlanningFacts(input: {
+  responseId: string;
+  fields: ReadonlyArray<{ id: string; label: string }>;
+  answers: Record<string, unknown>;
+}) {
+  return input.fields.flatMap((field) => {
+    const value = input.answers[field.id];
+    if (
+      value === null ||
+      value === undefined ||
+      value === "" ||
+      (Array.isArray(value) && value.length === 0)
+    ) return [];
+    const normalized = `${field.id} ${field.label}`.toLowerCase();
+    const category: PlanningFactCategory =
+      /family|formal|portrait|group|shot list/.test(normalized)
+        ? "family_formals"
+        : /vendor|planner|coordinator|dj|florist|venue contact|cater/.test(normalized)
+          ? "vendors"
+          : /time|timeline|schedule|coverage|ceremony|reception|first look/.test(normalized)
+            ? "schedule"
+            : /location|address|travel|parking|access|transport/.test(normalized)
+              ? "logistics"
+              : "preferences";
+    return [{
+      fieldId: field.id,
+      label: field.label,
+      category,
+      value,
+      source: {
+        entityType: "questionnaire_response" as const,
+        entityId: input.responseId,
+        locator: `answers.${field.id}`,
+      },
+    }];
+  });
+}
+
 const normalized = (value: unknown) =>
   String(value ?? "")
     .trim()

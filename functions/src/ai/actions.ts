@@ -193,7 +193,9 @@ export const aiActionCommand = onRequest(
         const downstream = record(action.get("downstreamCommand"));
         const consequence = text(parsed.input.consequence) ||
           (decision === "approved"
-            ? action.get("capability") === "inquiry_reply_draft"
+            ? ["inquiry_reply_draft", "planning_followup_draft"].includes(
+                text(action.get("capability")),
+              )
               ? "Created an approved, unsent communication draft. No email was sent."
               : text(downstream.commandType)
               ? `Approved for deterministic command ${text(downstream.commandType)}.`
@@ -202,10 +204,12 @@ export const aiActionCommand = onRequest(
               ? "Rejected. No downstream record or provider action changed."
               : "Dismissed from the active queue. No downstream action ran.");
         const receiptId = `receipt_${executionId}`;
-        const inquiryReply =
+        const communicationApproval =
           decision === "approved" &&
-          action.get("capability") === "inquiry_reply_draft";
-        const communicationDraftId = inquiryReply
+          ["inquiry_reply_draft", "planning_followup_draft"].includes(
+            text(action.get("capability")),
+          );
+        const communicationDraftId = communicationApproval
           ? `ai_reply_${actionId}`
           : null;
         const result = {
@@ -257,15 +261,18 @@ export const aiActionCommand = onRequest(
             {
               id: communicationDraftId,
               tenantId: parsed.tenantId,
-              projectId: null,
+              projectId,
               leadId: leadSource ? text(leadSource.entityId) : null,
-              contactId: null,
+              contactId: text(structuredOutput.contactId) || null,
               recipient: structuredOutput.recipientEmail ?? null,
-              recipientName: null,
-              projectName: null,
+              recipientName: structuredOutput.recipientName ?? null,
+              projectName: structuredOutput.projectName ?? null,
               subject: structuredOutput.subject,
               body: structuredOutput.body,
-              category: "general",
+              category:
+                action.get("capability") === "planning_followup_draft"
+                  ? "planning"
+                  : "general",
               actionLabel: null,
               actionUrl: null,
               scheduledFor: null,

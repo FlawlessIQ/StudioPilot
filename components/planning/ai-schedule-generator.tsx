@@ -74,9 +74,15 @@ const answer = (
   answers: Record<string, unknown>,
   keys: readonly string[],
 ): string => {
+  const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
   for (const key of keys) {
     const value = answers[key];
     if (typeof value === "string" && value.trim()) return value.trim();
+    const normalizedKey = normalize(key);
+    const flexible = Object.entries(answers).find(
+      ([candidate]) => normalize(candidate) === normalizedKey,
+    )?.[1];
+    if (typeof flexible === "string" && flexible.trim()) return flexible.trim();
   }
   return "";
 };
@@ -175,7 +181,28 @@ export function AiScheduleGenerator({
     if (!selectedProject || !questionnaires || !packageSnapshots) return;
     const eventDate = String(selectedProject.eventDate ?? "");
     if (!eventDate) return;
-    const answers = record(selectedQuestionnaire?.answers);
+    const rawAnswers = record(selectedQuestionnaire?.answers);
+    const planningPackage = record(selectedQuestionnaire?.planningPackage);
+    const planningFacts: Array<Record<string, unknown> & {
+      label: string;
+      fieldId: string;
+    }> = Array.isArray(planningPackage.facts)
+      ? planningPackage.facts.flatMap((item) => {
+          const fact = record(item);
+          const label = String(fact.label ?? "").trim();
+          const fieldId = String(fact.fieldId ?? "").trim();
+          return label || fieldId ? [{ ...fact, label, fieldId }] : [];
+        })
+      : [];
+    const answers = {
+      ...Object.fromEntries(
+        planningFacts.flatMap((fact) => [
+          [fact.fieldId, fact.value],
+          [fact.label, fact.value],
+        ]),
+      ),
+      ...rawAnswers,
+    };
     const ceremony = answer(answers, [
       "ceremonyTime",
       "ceremony-time",
@@ -232,6 +259,13 @@ export function AiScheduleGenerator({
       answer(answers, ["familyPhotoList", "family-photo-list"]),
       answer(answers, ["accessibility", "accessibilityNeeds"]),
       answer(answers, ["timelineNotes", "planningNotes"]),
+      ...planningFacts
+        .filter((fact) =>
+          ["family_formals", "vendors", "preferences"].includes(
+            String(fact.category),
+          ),
+        )
+        .map((fact) => `${fact.label}: ${Array.isArray(fact.value) ? fact.value.map(String).join(", ") : String(fact.value ?? "")}`),
     ].filter(Boolean);
 
     const frame = requestAnimationFrame(() => {
@@ -244,7 +278,7 @@ export function AiScheduleGenerator({
       setPreferences(nextPreferences.join("\n"));
       setPrefillSummary(
         selectedQuestionnaire
-          ? "Project, package, and submitted questionnaire details were filled automatically."
+          ? `Project, package, and ${planningFacts.length} sourced planning details were filled automatically.`
           : "Project and package details were filled automatically. Missing times are clearly treated as assumptions.",
       );
     });
