@@ -513,7 +513,13 @@ service cloud.firestore {
       allow write: if false;
     }
     match /emailJobs/{jobId} {
-      allow read: if isPlatformAdmin();
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+        || (
+          hasRole(resource.data.tenantId, ["studio_coordinator"])
+          && resource.data.projectId != null
+          && isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+        );
       allow write: if false;
     }
     match /messages/{messageId} {

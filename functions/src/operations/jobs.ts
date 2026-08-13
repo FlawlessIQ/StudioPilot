@@ -37,6 +37,29 @@ export type JobCollection = (typeof jobCollections)[number];
 const retryDelay = (attempt: number) =>
   Math.min(6 * 60 * 60 * 1000, 30_000 * 2 ** Math.max(0, attempt - 1));
 
+function retryableJobFailure(
+  collectionName: string,
+  code: string,
+  message: string,
+): boolean {
+  if (collectionName !== "emailJobs") return true;
+  const permanentEmailFailures = new Set([
+    "EMAIL_RECIPIENT_MISSING",
+    "SENDGRID_NOT_CONFIGURED",
+    "COI_ATTACHMENT_REFERENCE_INVALID",
+    "COI_ATTACHMENT_TOO_LARGE",
+    "PROPOSAL_ATTACHMENT_INVALID",
+    "PROPOSAL_ATTACHMENT_REFERENCE_INVALID",
+    "PROPOSAL_ATTACHMENT_TOO_LARGE",
+  ]);
+  if (permanentEmailFailures.has(code)) return false;
+  if (code === "SENDGRID_SEND_FAILED") {
+    const status = Number(message.split(":")[1] ?? 0);
+    return status === 408 || status === 429 || status >= 500;
+  }
+  return true;
+}
+
 async function claim(document: DocumentSnapshot) {
   return getFirestore().runTransaction(async (transaction) => {
     const current = await transaction.get(document.ref);
@@ -81,14 +104,16 @@ async function finish(
     const message = caught instanceof Error ? caught.message : "JOB_FAILED";
     const code = message.split(":")[0] ?? "JOB_FAILED";
     const now = new Date().toISOString();
+    const retryable =
+      attempts < maxAttempts &&
+      retryableJobFailure(document.ref.parent.id, code, message);
     await document.ref.update({
-      status: attempts >= maxAttempts ? "dead_letter" : "retry_scheduled",
-      error: { code, message, retryable: attempts < maxAttempts },
-      nextAttemptAt:
-        attempts >= maxAttempts
-          ? null
-          : new Date(Date.now() + retryDelay(attempts)).toISOString(),
-      completedAt: attempts >= maxAttempts ? now : null,
+      status: retryable ? "retry_scheduled" : "dead_letter",
+      error: { code, message, retryable },
+      nextAttemptAt: retryable
+        ? new Date(Date.now() + retryDelay(attempts)).toISOString()
+        : null,
+      completedAt: retryable ? null : now,
       updatedAt: now,
     });
     if (
@@ -131,7 +156,7 @@ async function finish(
           executionMode: "automatic",
           humanRole: "exception",
           code,
-          retryScheduled: attempts < maxAttempts,
+          retryScheduled: retryable,
           attempts,
         },
       });
@@ -142,8 +167,7 @@ async function finish(
     await captureOperationalError(code, {
       collection: document.ref.parent.id,
       jobId: document.id,
-      status:
-        attempts >= maxAttempts ? "dead_letter" : "retry_scheduled",
+      status: retryable ? "retry_scheduled" : "dead_letter",
     });
   }
 }

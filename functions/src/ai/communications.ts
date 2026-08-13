@@ -6,6 +6,7 @@ import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { consumeAiQuota } from "../saas/usage.js";
 import { productEvent } from "../operations/product-events.js";
+import { normalizeClientEmailBody } from "../communications/email-content.js";
 
 type Json = Record<string, unknown>;
 
@@ -76,7 +77,7 @@ async function generateCommunication(input: {
           parts: [
             {
               text:
-                "You are StudioCue's client email assistant for a professional photography studio. Draft or revise the email requested by the user using only supplied tenant-scoped facts. Preserve accurate dates, amounts, people, links, and statuses. Never claim a contract is signed, payment received, insurance approved, staff confirmed, or delivery completed unless the supplied facts explicitly say so. Put any uncertain claim in needsConfirmation instead of the email. The body is plain text with short paragraphs, warm and direct, without a sign-off placeholder unless requested. Do not send anything.",
+                "You are StudioCue's client email assistant for a professional photography studio. Draft or revise the email requested by the user using only supplied tenant-scoped facts. Preserve accurate dates, amounts, people, links, and statuses. Never claim a contract is signed, payment received, insurance approved, staff confirmed, or delivery completed unless the supplied facts explicitly say so. Put any uncertain claim in needsConfirmation instead of the email. Return only the message body: do not include a greeting, recipient name, closing, signature, or sign-off because StudioCue adds those in the branded renderer. Use short plain-text paragraphs that are warm and direct. Do not send anything.",
             },
           ],
         },
@@ -178,7 +179,7 @@ export const aiCommunicationsCommand = onRequest(
         "state",
         "nextAction",
       ];
-      const result = await generateCommunication({
+      const generated = await generateCommunication({
         instruction: input.instruction,
         category: input.category,
         currentSubject: input.currentSubject,
@@ -219,6 +220,10 @@ export const aiCommunicationsCommand = onRequest(
           })),
         },
       });
+      const result = {
+        ...generated,
+        body: normalizeClientEmailBody(generated.body),
+      };
       const interactionId = `ai_communication_${randomUUID()}`;
       const batch = db.batch();
       batch.create(db.doc(`aiInteractions/${interactionId}`), {

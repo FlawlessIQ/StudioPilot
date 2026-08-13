@@ -130,3 +130,22 @@ test("the event preparation reminder includes the photographer's detail checklis
     assert.match(rendered.text.toLowerCase(), new RegExp(item));
   }
 });
+
+test("manual emails render one greeting, no duplicate sign-off, and a compact project heading", () => {
+  const rendered = renderEmailTemplate({
+    key: "manual_message",
+    brand,
+    recipientName: "John Smith",
+    projectName: "Smith wedding",
+    values: {
+      customSubject: "Following Up: Your Smith Wedding Photography Proposal",
+      customBody:
+        "Hi John Smith, It was a pleasure speaking with you. Please review the proposal. Best, Alder & Muse Photography",
+    },
+  });
+  assert.equal(rendered.text.match(/Hi John Smith,/g)?.length, 1);
+  assert.doesNotMatch(rendered.text, /Best, Alder & Muse Photography/);
+  assert.match(rendered.text, /A note about Smith wedding/);
+  assert.doesNotMatch(rendered.html, />Following Up: Your Smith Wedding Photography Proposal<\/h1>/);
+  assert.match(rendered.html, /@media screen and \(max-width:600px\)/);
+});

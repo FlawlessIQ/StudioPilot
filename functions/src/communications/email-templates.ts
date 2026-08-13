@@ -1,3 +1,5 @@
+import { clientEmailParagraphs } from "./email-content.js";
+
 export const emailTemplateKeys = [
   "staff_invitation",
   "client_invitation",
@@ -565,8 +567,10 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         subject,
         preheader: body.slice(0, 120),
         eyebrow: "A note from your studio",
-        heading: subject,
-        paragraphs: [greeting, body],
+        heading: input.projectName
+          ? `A note about ${input.projectName}`
+          : `An update from ${brand.studioName}`,
+        paragraphs: [greeting, ...clientEmailParagraphs(body)],
         action: actionUrl ? { label, url: actionUrl } : undefined,
       };
     }
@@ -599,7 +603,7 @@ const normalizeColor = (value: string): string =>
   /^#[0-9a-f]{6}$/i.test(value) ? value : "#35664a";
 
 const paragraphHtml = (paragraph: string): string =>
-  `<p style="margin:0 0 18px;color:#4f5752;font-size:16px;line-height:1.7;">${escapeHtml(paragraph)}</p>`;
+  `<p class="email-paragraph" style="margin:0 0 18px;color:#4f5752;font-size:16px;line-height:1.7;">${escapeHtml(paragraph)}</p>`;
 
 export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
   const copy = customizedCopy(copyFor(input), input);
@@ -628,13 +632,23 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(copy.subject)}</title>
+  <style>
+    @media screen and (max-width:600px) {
+      .email-shell { padding:20px 10px !important; }
+      .email-brand { padding-bottom:16px !important; }
+      .email-content { padding:28px 22px 24px !important; }
+      .email-heading { font-size:25px !important; line-height:1.22 !important; margin-bottom:20px !important; }
+      .email-paragraph { font-size:16px !important; line-height:1.58 !important; }
+      .email-footer { padding-left:8px !important; padding-right:8px !important; }
+    }
+  </style>
 </head>
 <body style="margin:0;padding:0;background:#eef1ee;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#171a18;">
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(copy.preheader)}</div>
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;background:#eef1ee;">
-    <tr><td align="center" style="padding:32px 16px;">
+    <tr><td class="email-shell" align="center" style="padding:32px 16px;">
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;max-width:640px;">
-        <tr><td style="padding:0 4px 20px;">
+        <tr><td class="email-brand" style="padding:0 4px 20px;">
           <table role="presentation" cellspacing="0" cellpadding="0"><tr>
             <td style="vertical-align:middle;">${brandMark}</td>
             <td style="padding-left:12px;vertical-align:middle;">
@@ -645,15 +659,15 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
         </td></tr>
         <tr><td style="overflow:hidden;border:1px solid #dde2de;border-radius:18px;background:#ffffff;box-shadow:0 14px 38px rgba(23,26,24,0.08);">
           <div style="height:6px;background:${accent};"></div>
-          <div style="padding:42px 44px 38px;">
+          <div class="email-content" style="padding:42px 44px 38px;">
             <p style="margin:0 0 13px;color:${accent};font-size:12px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;">${escapeHtml(copy.eyebrow)}</p>
-            <h1 style="margin:0 0 24px;color:#171a18;font-size:31px;line-height:1.18;letter-spacing:-0.025em;">${escapeHtml(copy.heading)}</h1>
+            <h1 class="email-heading" style="margin:0 0 24px;color:#171a18;font-size:31px;line-height:1.18;letter-spacing:-0.025em;">${escapeHtml(copy.heading)}</h1>
             ${copy.paragraphs.map(paragraphHtml).join("")}
             ${action}
             ${note}
           </div>
         </td></tr>
-        <tr><td style="padding:20px 18px 0;color:#7b837d;font-size:12px;line-height:1.65;text-align:center;">
+        <tr><td class="email-footer" style="padding:20px 18px 0;color:#7b837d;font-size:12px;line-height:1.65;text-align:center;">
           Sent by ${studioName} using ${productName}.${contact}<br>
           This message relates to a private studio workspace or photography project.
         </td></tr>

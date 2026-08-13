@@ -28,6 +28,29 @@ import {
 
 type Value = Record<string, unknown> & { id: string };
 
+function deliveryPresentation(statusValue: unknown): {
+  label: string;
+  tone: "neutral" | "success" | "warning" | "danger" | "info";
+} {
+  const status = String(statusValue ?? "sent").toLowerCase();
+  if (status === "delivered") return { label: "Delivered", tone: "success" };
+  if (status === "open" || status === "opened")
+    return { label: "Opened", tone: "success" };
+  if (status === "click" || status === "clicked")
+    return { label: "Link opened", tone: "success" };
+  if (status === "sent" || status === "processed" || status === "succeeded")
+    return { label: "Provider accepted", tone: "info" };
+  if (status === "scheduled") return { label: "Scheduled", tone: "neutral" };
+  if (status === "queued") return { label: "Queued", tone: "neutral" };
+  if (status === "running") return { label: "Sending", tone: "info" };
+  if (status === "retry_scheduled")
+    return { label: "Retrying automatically", tone: "warning" };
+  if (["dead_letter", "failed", "bounce", "bounced", "dropped", "spamreport"].includes(status))
+    return { label: "Needs attention", tone: "danger" };
+  if (status === "mock") return { label: "Test only", tone: "neutral" };
+  return { label: status.replaceAll("_", " "), tone: "info" };
+}
+
 function stamp(value: unknown) {
   const date = new Date(String(value ?? ""));
   return Number.isNaN(date.valueOf())
@@ -50,6 +73,7 @@ export function CommunicationsCenter({
   const [contacts, setContacts] = useState<Value[]>([]);
   const [messages, setMessages] = useState<Value[]>([]);
   const [drafts, setDrafts] = useState<Value[]>([]);
+  const [emailJobs, setEmailJobs] = useState<Value[]>([]);
   const [projectId, setProjectId] = useState(initialProjectId ?? "");
   const [contactId, setContactId] = useState("");
   const [subject, setSubject] = useState("");
@@ -69,8 +93,13 @@ export function CommunicationsCenter({
     setLoading(true);
     try {
       const { firestore } = getFirebaseClient();
-      const [projectSnapshot, contactSnapshot, messageSnapshot, draftSnapshot] =
-        await Promise.all([
+      const [
+        projectSnapshot,
+        contactSnapshot,
+        messageSnapshot,
+        draftSnapshot,
+        emailJobSnapshot,
+      ] = await Promise.all([
           getDocs(
             query(
               collection(firestore, "projects"),
@@ -92,6 +121,12 @@ export function CommunicationsCenter({
           getDocs(
             query(
               collection(firestore, "communicationDrafts"),
+              where("tenantId", "==", workspace.tenantId),
+            ),
+          ),
+          getDocs(
+            query(
+              collection(firestore, "emailJobs"),
               where("tenantId", "==", workspace.tenantId),
             ),
           ),
@@ -129,6 +164,16 @@ export function CommunicationsCenter({
               String(left.createdAt ?? ""),
             ),
           ),
+      );
+      setEmailJobs(
+        emailJobSnapshot.docs
+          .map((item): Value => ({ id: item.id, ...item.data() }))
+          .sort((left, right) =>
+            String(right.updatedAt ?? right.createdAt ?? "").localeCompare(
+              String(left.updatedAt ?? left.createdAt ?? ""),
+            ),
+          )
+          .slice(0, 50),
       );
     } catch (error: unknown) {
       setNotice(error instanceof Error ? error.message : "Messages could not be loaded.");
@@ -186,8 +231,8 @@ export function CommunicationsCenter({
         payload.requiresApproval
           ? "Saved for owner or administrator approval."
           : scheduledFor
-            ? "Branded email scheduled."
-            : "Branded email queued for delivery.",
+            ? "Branded email scheduled. Delivery status will appear in history."
+            : "Branded email queued. Delivery confirmation will appear in history.",
       );
       setSubject("");
       setBody("");
@@ -215,7 +260,9 @@ export function CommunicationsCenter({
         idempotencyKey: crypto.randomUUID(),
         input: { draftId },
       });
-      setNotice("Message approved and queued.");
+      setNotice(
+        "Message approved and queued. Delivery confirmation will appear in history.",
+      );
       await load();
     } catch (error: unknown) {
       setNotice(
@@ -237,7 +284,9 @@ export function CommunicationsCenter({
         idempotencyKey: crypto.randomUUID(),
         input: { draftId },
       });
-      setNotice("Approved message queued for delivery.");
+      setNotice(
+        "Approved message queued. Delivery confirmation will appear in history.",
+      );
       await load();
     } catch (error: unknown) {
       setNotice(
@@ -252,6 +301,26 @@ export function CommunicationsCenter({
 
   const canApprove = ["studio_owner", "studio_admin"].includes(
     workspace.role ?? "",
+  );
+  const messageIds = useMemo(
+    () => new Set(messages.map((message) => message.id)),
+    [messages],
+  );
+  const pendingOrFailedJobs = useMemo(
+    () =>
+      emailJobs.filter(
+        (job) =>
+          !messageIds.has(job.id) &&
+          [
+            "scheduled",
+            "queued",
+            "running",
+            "retry_scheduled",
+            "dead_letter",
+            "failed",
+          ].includes(String(job.status)),
+      ),
+    [emailJobs, messageIds],
   );
 
   async function askAssistant(instruction: string) {
@@ -500,6 +569,69 @@ export function CommunicationsCenter({
             ))}
           </section>
         ) : null}
+        {pendingOrFailedJobs.length ? (
+          <section className="panel communications-approval-queue">
+            <div className="panel-heading">
+              <div>
+                <p className="eyebrow">In progress & exceptions</p>
+                <h2>Email delivery</h2>
+              </div>
+              <StatusBadge
+                tone={
+                  pendingOrFailedJobs.some((job) =>
+                    ["dead_letter", "failed"].includes(String(job.status)),
+                  )
+                    ? "danger"
+                    : "info"
+                }
+              >
+                {pendingOrFailedJobs.length}
+              </StatusBadge>
+            </div>
+            {pendingOrFailedJobs.map((job) => {
+              const presentation = deliveryPresentation(job.status);
+              const error =
+                job.error && typeof job.error === "object"
+                  ? (job.error as Record<string, unknown>)
+                  : null;
+              return (
+                <article key={job.id}>
+                  <span className="communications-message-icon">
+                    {presentation.tone === "danger" ? (
+                      <AlertTriangle size={15} />
+                    ) : (
+                      <Clock3 size={15} />
+                    )}
+                  </span>
+                  <span>
+                    <strong>
+                      {String(
+                        job.customSubject ??
+                          job.projectName ??
+                          "Client email",
+                      )}
+                    </strong>
+                    <small>
+                      {job.recipient ? `To ${String(job.recipient)} · ` : ""}
+                      {stamp(job.updatedAt ?? job.createdAt)}
+                    </small>
+                    {error?.code ? (
+                      <p>
+                        {String(error.code).replaceAll("_", " ")}
+                        {job.status === "retry_scheduled"
+                          ? " · StudioCue will retry automatically."
+                          : " · Review the address or provider setup before retrying."}
+                      </p>
+                    ) : null}
+                  </span>
+                  <StatusBadge tone={presentation.tone}>
+                    {presentation.label}
+                  </StatusBadge>
+                </article>
+              );
+            })}
+          </section>
+        ) : null}
         <section className="panel communications-timeline">
           <div className="panel-heading">
             <div><p className="eyebrow">Delivery history</p><h2>Recent messages</h2></div>
@@ -508,27 +640,24 @@ export function CommunicationsCenter({
           {loading ? (
             <div className="communications-empty"><LoaderCircle className="spin" /><span>Loading messages…</span></div>
           ) : messages.length ? (
-            messages.map((message) => (
-              <article key={message.id}>
-                <span className="communications-message-icon"><Mail size={15} /></span>
-                <span>
-                  <strong>{String(message.subject)}</strong>
-                  <small>To {String(message.recipient)} · {stamp(message.sentAt)}</small>
-                  {message.bodyPreview ? <p>{String(message.bodyPreview)}</p> : null}
-                </span>
-                <StatusBadge
-                  tone={
-                    ["delivered", "opened", "clicked"].includes(
-                      String(message.deliveryStatus),
-                    )
-                      ? "success"
-                      : "info"
-                  }
-                >
-                  {String(message.deliveryStatus ?? "sent")}
-                </StatusBadge>
-              </article>
-            ))
+            messages.map((message) => {
+              const presentation = deliveryPresentation(
+                message.deliveryStatus,
+              );
+              return (
+                <article key={message.id}>
+                  <span className="communications-message-icon"><Mail size={15} /></span>
+                  <span>
+                    <strong>{String(message.subject)}</strong>
+                    <small>To {String(message.recipient)} · {stamp(message.sentAt)}</small>
+                    {message.bodyPreview ? <p>{String(message.bodyPreview)}</p> : null}
+                  </span>
+                  <StatusBadge tone={presentation.tone}>
+                    {presentation.label}
+                  </StatusBadge>
+                </article>
+              );
+            })
           ) : (
             <div className="communications-empty">
               <Mail />
