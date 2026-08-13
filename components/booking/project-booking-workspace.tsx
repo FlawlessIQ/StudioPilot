@@ -66,6 +66,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   const [proposal, setProposal] = useState<RecordValue | null>(null);
   const [contract, setContract] = useState<RecordValue | null>(null);
   const [invoice, setInvoice] = useState<RecordValue | null>(null);
+  const [orchestration, setOrchestration] = useState<RecordValue | null>(null);
   const [packageSnapshot, setPackageSnapshot] = useState<RecordValue | null>(null);
   const [contact, setContact] = useState<RecordValue | null>(null);
   const [templateId, setTemplateId] = useState("");
@@ -91,7 +92,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
         id: projectSnapshot.id,
         ...projectSnapshot.data(),
       };
-      const [proposals, contracts, invoices, tenant, connections, routing] =
+      const [proposals, contracts, invoices, tenant, connections, routing, bookingPlan] =
         await Promise.all([
           getDocs(
             query(
@@ -122,6 +123,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
             ),
           ),
           getDoc(doc(firestore, "integrationRouting", workspace.tenantId)),
+          getDoc(doc(firestore, "bookingOrchestrations", projectId)),
         ]);
       const proposalValue =
         proposals.docs
@@ -198,6 +200,11 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
       setProposal(proposalValue);
       setContract(contractValue);
       setInvoice(invoiceValue);
+      setOrchestration(
+        bookingPlan.exists()
+          ? { id: bookingPlan.id, ...bookingPlan.data() }
+          : null,
+      );
       setPackageSnapshot(
         snapshotValue?.exists()
           ? { id: snapshotValue.id, ...snapshotValue.data() }
@@ -244,6 +251,9 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   }, []);
   const signingProviderLabel =
     signingProvider === "dropbox_sign" ? "Dropbox Sign" : "Docusign";
+  const automationActive =
+    orchestration?.status === "active" || orchestration?.status === "completed";
+  const automationNeedsAttention = orchestration?.status === "needs_attention";
 
   async function createContract() {
     if (!project || !proposal || !contact || !templateId.trim()) {
@@ -260,6 +270,8 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           projectId,
           proposalId: proposal.id,
           templateId: templateId.trim(),
+          activateBookingAutomation: true,
+          retainerDueDays: 7,
           signers: [
             {
               name: String(contact.displayName ?? contact.email ?? "Client"),
@@ -270,7 +282,9 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           ],
         },
       });
-      setNotice(`Contract queued for ${signingProviderLabel} delivery.`);
+      setNotice(
+        `Booking sequence approved. The contract is queued through ${signingProviderLabel}; StudioCue will prepare the retainer after signature and confirm the booking after payment.`,
+      );
       await load();
     } catch (error: unknown) {
       setNotice(friendlyError(error));
@@ -378,6 +392,17 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
             The accepted proposal supplies the exact package and price. {signingProviderLabel}
             remains the authority for signature completion.
           </p>
+          {!contract ? (
+            <aside className="booking-provider-migration">
+              <strong>One approval completes the routine booking work</strong>
+              <small>
+                Approve this sequence once. StudioCue will wait for verified
+                signature evidence, create the retainer, wait for provider
+                payment evidence, and finish project setup. It stops if an
+                exception needs you.
+              </small>
+            </aside>
+          ) : null}
           <aside className="booking-provider-migration">
             <strong>Your approved agreement stays reusable</strong>
             <small>
@@ -409,7 +434,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 onClick={() => void createContract()}
                 type="button"
               >
-                {busy === "contract" ? "Preparing…" : "Send contract"}
+                {busy === "contract" ? "Preparing…" : "Approve sequence & send"}
                 <ArrowRight size={15} />
               </button>
               {!proposal ? <small>The client’s accepted proposal is required first.</small> : null}
@@ -441,6 +466,14 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   Open QuickBooks invoice <ArrowRight size={13} />
                 </Link>
               ) : null}
+            </div>
+          ) : automationActive ? (
+            <div className="booking-complete-message">
+              <LoaderCircle className="spin" size={18} />
+              <span>
+                <strong>Waiting for verified signature</strong>
+                <small>StudioCue will create this retainer automatically after {signingProviderLabel} confirms completion.</small>
+              </span>
             </div>
           ) : (
             <div className="booking-action-form">
@@ -487,6 +520,22 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               <span>
                 <strong>Booking is confirmed</strong>
                 <small>Portal, workflow, calendar, and project folders are being prepared.</small>
+              </span>
+            </div>
+          ) : automationActive ? (
+            <div className="booking-complete-message">
+              <LoaderCircle className="spin" size={18} />
+              <span>
+                <strong>Automatic confirmation is active</strong>
+                <small>StudioCue will run the evidence check as soon as the connected provider reports the retainer paid.</small>
+              </span>
+            </div>
+          ) : automationNeedsAttention ? (
+            <div className="booking-complete-message">
+              <CircleAlert size={18} />
+              <span>
+                <strong>StudioCue stopped safely</strong>
+                <small>Resolve the exception shown in your next actions, then run the booking review again.</small>
               </span>
             </div>
           ) : (

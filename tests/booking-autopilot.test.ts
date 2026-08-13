@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { groundedBookingDraft } from "../features/booking/autopilot";
+import { nextBookingAutomationStep } from "../features/booking/orchestration";
 
 const packages = [
   {
@@ -91,4 +92,60 @@ test("booking draft requires approved consultation context and terms", () => {
     "CONSULTATION_SUMMARY_REQUIRED",
   ]);
   assert.deepEqual(withoutTerms.blockers, ["APPROVED_TERMS_REQUIRED"]);
+});
+
+test("booking automation waits for provider evidence in sequence", () => {
+  assert.equal(
+    nextBookingAutomationStep({
+      contractStatus: "sent",
+      invoiceStatus: null,
+      invoiceBalanceCents: null,
+    }),
+    "wait_for_signature",
+  );
+  assert.equal(
+    nextBookingAutomationStep({
+      contractStatus: "completed",
+      invoiceStatus: null,
+      invoiceBalanceCents: null,
+    }),
+    "create_retainer",
+  );
+  assert.equal(
+    nextBookingAutomationStep({
+      contractStatus: "completed",
+      invoiceStatus: "sent",
+      invoiceBalanceCents: 120000,
+    }),
+    "wait_for_payment",
+  );
+  assert.equal(
+    nextBookingAutomationStep({
+      contractStatus: "completed",
+      invoiceStatus: "paid",
+      invoiceBalanceCents: 0,
+    }),
+    "complete_booking",
+  );
+});
+
+test("booking automation routes deterministic blockers to human attention", () => {
+  assert.equal(
+    nextBookingAutomationStep({
+      contractStatus: "completed",
+      invoiceStatus: "paid",
+      invoiceBalanceCents: 0,
+      gateBlockers: ["eventDateAvailable"],
+    }),
+    "needs_attention",
+  );
+  assert.equal(
+    nextBookingAutomationStep({
+      contractStatus: "completed",
+      invoiceStatus: "paid",
+      invoiceBalanceCents: 0,
+      bookingComplete: true,
+    }),
+    "completed",
+  );
 });

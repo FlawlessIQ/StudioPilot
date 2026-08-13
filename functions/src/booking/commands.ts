@@ -6,6 +6,7 @@ import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { consumeAiQuota } from "../saas/usage.js";
 import { resolveProviderForTenant } from "../integrations/capability-resolution.js";
+import { productEvent } from "../operations/product-events.js";
 import { availabilityWindowSchema } from "./availability.js";
 
 const commandSchema = z.discriminatedUnion("type", [
@@ -41,6 +42,8 @@ const commandSchema = z.discriminatedUnion("type", [
       projectId: z.string().min(1),
       proposalId: z.string().min(1),
       templateId: z.string().min(1),
+      activateBookingAutomation: z.boolean().default(false),
+      retainerDueDays: z.number().int().min(1).max(30).default(7),
       signers: z
         .array(
           z.object({
@@ -422,6 +425,52 @@ export const bookingCommand = onRequest(
             createdAt: timestamp,
             updatedAt: timestamp,
           });
+        if (command.input.activateBookingAutomation) {
+          batch.set(
+            firestore.doc(`bookingOrchestrations/${command.input.projectId}`),
+            {
+              id: command.input.projectId,
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              proposalId: command.input.proposalId,
+              contractId,
+              invoiceId: null,
+              status: "active",
+              currentStep: "wait_for_signature",
+              policy: {
+                createRetainerAfterSignature: true,
+                completeBookingAfterPayment: true,
+                retainerDueDays: command.input.retainerDueDays,
+              },
+              approvedBy: identity.uid,
+              approvedAt: timestamp,
+              lastError: null,
+              completedAt: null,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            },
+            { merge: false },
+          );
+          const approvedEvent = productEvent({
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorId: identity.uid,
+            name: "booking.sequence_approved",
+            occurredAt: timestamp,
+            correlationId: command.idempotencyKey,
+            sourceEntityType: "bookingOrchestration",
+            sourceEntityId: command.input.projectId,
+            properties: {
+              proposalId: command.input.proposalId,
+              contractId,
+              retainerDueDays: command.input.retainerDueDays,
+            },
+          });
+          batch.create(
+            firestore.doc(`productEvents/${approvedEvent.id}`),
+            approvedEvent,
+          );
+        }
         await batch.commit();
         result = {
           contractId,
