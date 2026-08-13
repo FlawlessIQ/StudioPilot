@@ -10,8 +10,6 @@ import {
   Clock3,
   FileText,
   FolderKanban,
-  MailCheck,
-  ReceiptText,
   Send,
   ShieldCheck,
   Sparkles,
@@ -25,6 +23,7 @@ import { SetupChecklist } from "@/components/dashboard/setup-checklist";
 import { LiveUpcomingRows, useTenantDocuments } from "@/components/live/tenant-records";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { dailyCommandProjection } from "@/features/dashboard/daily-command-center";
 
 const activeStates = new Set([
   "CONSULTATION",
@@ -169,14 +168,10 @@ function DashboardSummary() {
       <SetupChecklist />
 
       {workspace.role !== "staff_photographer" ? (
-        <DashboardPriorityStrip />
+        <DailyCommandCenter />
       ) : null}
 
       <MobileTodayAgenda />
-
-      {["studio_owner", "studio_admin"].includes(workspace.role ?? "") ? (
-        <OwnerAutomationSignal />
-      ) : null}
 
       <section className="lifecycle-overview" aria-label="Project lifecycle">
         <div className="lifecycle-heading">
@@ -450,109 +445,137 @@ function MobileTodayAgenda() {
   );
 }
 
-function DashboardPriorityStrip() {
+function DailyCommandCenter() {
   const workspace = useWorkspace();
-  const tasksState = useTenantDocuments("tasks");
-  const consultationsState = useTenantDocuments("consultations");
-  const questionnaireState = useTenantDocuments("questionnaireResponses");
-  const projectsState = useTenantDocuments("projects");
-  const today = new Date().toISOString().slice(0, 10);
-  const dueTasks = (tasksState.records ?? []).filter(
-    (task) =>
-      !["complete", "completed", "cancelled"].includes(String(task.status)) &&
-      String(task.dueDate ?? "").slice(0, 10) <= today,
+  const ownerOperations = ["studio_owner", "studio_admin"].includes(
+    workspace.role ?? "",
   );
-  const projectsNeedingAction = (projectsState.records ?? []).filter(
-    (project) =>
-      activeStates.has(String(project.state)) &&
-      Number(project.readinessScore ?? 0) < 100,
-  );
-  const todayConsultations = (consultationsState.records ?? []).filter(
-    (consultation) => String(consultation.startsAt ?? "").slice(0, 10) === today,
-  );
-  const submittedQuestionnaires = (questionnaireState.records ?? []).filter(
-    (response) => response.status === "submitted" && !response.reviewedAt,
-  );
+  const projects = useTenantDocuments("projects");
+  const tasks = useTenantDocuments("tasks");
+  const aiActions = useTenantDocuments("aiActions");
+  const automationApprovals = useTenantDocuments("automationApprovals", {
+    enabled: ownerOperations,
+  });
+  const communicationDrafts = useTenantDocuments("communicationDrafts");
+  const deliveryDrafts = useTenantDocuments("deliveryDrafts");
+  const proposals = useTenantDocuments("proposals");
+  const automationRuns = useTenantDocuments("automationRuns", {
+    enabled: ownerOperations,
+  });
+  const providerJobs = useTenantDocuments("providerJobs", {
+    enabled: ownerOperations,
+  });
+  const emailJobs = useTenantDocuments("emailJobs");
+  const integrationConnections = useTenantDocuments("integrationConnections", {
+    enabled: ownerOperations,
+  });
+  const bookingOrchestrations = useTenantDocuments("bookingOrchestrations");
+  const crewCascades = useTenantDocuments("crewCascades");
+  const invoiceReferences = useTenantDocuments("invoiceReferences");
+  const projection = dailyCommandProjection({
+    now: new Date().toISOString(),
+    projects: projects.records,
+    tasks: tasks.records,
+    aiActions: aiActions.records,
+    automationApprovals: automationApprovals.records,
+    communicationDrafts: communicationDrafts.records,
+    deliveryDrafts: deliveryDrafts.records,
+    proposals: proposals.records,
+    automationRuns: automationRuns.records,
+    providerJobs: providerJobs.records,
+    emailJobs: emailJobs.records,
+    integrationConnections: integrationConnections.records,
+    bookingOrchestrations: bookingOrchestrations.records,
+    crewCascades: crewCascades.records,
+    invoiceReferences: invoiceReferences.records,
+  });
+  const lanes = [
+    {
+      key: "approvals",
+      label: "Needs your approval",
+      detail: "StudioCue prepared these decisions",
+      icon: BrainCircuit,
+      values: projection.approvals,
+      empty: "Nothing is waiting for you.",
+      href: "/studio/ai-queue",
+    },
+    {
+      key: "exceptions",
+      label: "Exceptions",
+      detail: "Only work automation could not finish safely",
+      icon: CircleAlert,
+      values: projection.exceptions,
+      empty: "No exceptions need attention.",
+      href: "/studio/tasks",
+    },
+    {
+      key: "working",
+      label: "StudioCue is working",
+      detail: "Active work you do not need to chase",
+      icon: Workflow,
+      values: projection.working,
+      empty: "No background work is active.",
+      href: "/studio/automations",
+    },
+  ] as const;
+  const loading = [
+    projects,
+    tasks,
+    aiActions,
+    automationApprovals,
+    communicationDrafts,
+    deliveryDrafts,
+    proposals,
+    automationRuns,
+    providerJobs,
+    emailJobs,
+    integrationConnections,
+    bookingOrchestrations,
+    crewCascades,
+    invoiceReferences,
+  ].some((state) => state.loading);
+
   return (
-    <section
-      className="dashboard-priority-strip"
-      aria-label="Today’s operational signals"
-    >
-      <Link href="/studio/tasks">
-        <Clock3 />
-        <span><small>Tasks due or overdue</small><strong>{dueTasks.length}</strong></span>
-        <ArrowRight />
-      </Link>
-      {["studio_owner", "studio_admin"].includes(workspace.role ?? "") ? (
-        <FinancialPrioritySignal />
-      ) : (
-        <Link href="/studio/projects">
-          <CircleAlert />
-          <span><small>Projects needing action</small><strong>{projectsNeedingAction.length}</strong></span>
-          <ArrowRight />
+    <section className="daily-command-center" aria-label="Daily command center">
+      <header>
+        <span>
+          <small>Your daily command center</small>
+          <strong>Approve what matters. StudioCue handles the rest.</strong>
+        </span>
+        <Link href="/studio/ai-queue">
+          Open all approvals <ArrowRight size={14} />
         </Link>
-      )}
-      <Link href="/studio/calendar">
-        <CalendarDays />
-        <span><small>Consultations today</small><strong>{todayConsultations.length}</strong></span>
-        <ArrowRight />
-      </Link>
-      <Link href="/studio/questionnaires">
-        <MailCheck />
-        <span><small>Client details to review</small><strong>{submittedQuestionnaires.length}</strong></span>
-        <ArrowRight />
-      </Link>
-    </section>
-  );
-}
-
-function FinancialPrioritySignal() {
-  const invoicesState = useTenantDocuments("invoiceReferences");
-  const today = new Date().toISOString().slice(0, 10);
-  const overdueInvoices = (invoicesState.records ?? []).filter(
-    (invoice) =>
-      Number(invoice.balanceCents ?? 0) > 0 &&
-      String(invoice.dueDate ?? "") < today &&
-      !["voided", "refunded"].includes(String(invoice.status)),
-  );
-  return (
-    <Link href="/studio/invoices">
-      <ReceiptText />
-      <span><small>Overdue balances</small><strong>{overdueInvoices.length}</strong></span>
-      <ArrowRight />
-    </Link>
-  );
-}
-
-function OwnerAutomationSignal() {
-  const runs = useTenantDocuments("automationRuns");
-  const approvals = useTenantDocuments("automationApprovals");
-  const integrations = useTenantDocuments("integrationConnections");
-  const failures = (runs.records ?? []).filter((run) =>
-    ["failed", "dead_letter"].includes(String(run.status)),
-  );
-  const pendingApprovals = (approvals.records ?? []).filter(
-    (approval) => approval.status === "pending",
-  );
-  const integrationIssues = (integrations.records ?? []).filter(
-    (connection) =>
-      connection.status === "error" || Boolean(connection.lastError),
-  );
-  if (!failures.length && !pendingApprovals.length && !integrationIssues.length)
-    return null;
-  return (
-    <section className="dashboard-automation-alert">
-      <Workflow />
-      <span>
-        <strong>Automation operations need review</strong>
-        <small>
-          {failures.length} failed runs · {pendingApprovals.length} approvals ·{" "}
-          {integrationIssues.length} integration issues
-        </small>
-      </span>
-      <Link href="/studio/automations">
-        Review operations <ArrowRight size={14} />
-      </Link>
+      </header>
+      <div className="daily-command-lanes">
+        {lanes.map((lane) => {
+          const Icon = lane.icon;
+          return (
+            <article className={`daily-command-lane is-${lane.key}`} key={lane.key}>
+              <header>
+                <span><Icon size={17} /></span>
+                <div><strong>{lane.label}</strong><small>{lane.detail}</small></div>
+                <em>{loading ? "—" : lane.values.length}</em>
+              </header>
+              <div>
+                {lane.values.slice(0, 4).map((item) => (
+                  <Link href={item.href} key={item.id}>
+                    <span><strong>{item.title}</strong><small>{item.detail}</small></span>
+                    <ArrowRight size={14} />
+                  </Link>
+                ))}
+                {!loading && !lane.values.length ? (
+                  <p><ShieldCheck size={15} /> {lane.empty}</p>
+                ) : null}
+              </div>
+              {lane.values.length > 4 ? (
+                <Link className="daily-command-more" href={lane.href}>
+                  View {lane.values.length - 4} more <ArrowRight size={13} />
+                </Link>
+              ) : null}
+            </article>
+          );
+        })}
+      </div>
     </section>
   );
 }

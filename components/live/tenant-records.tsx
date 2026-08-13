@@ -112,6 +112,7 @@ async function tenantDocuments(
     "productEvents",
     "providerJobs",
     "emailJobs",
+    "bookingOrchestrations",
     "galleryInboxes",
     "deliveryDrafts",
   ]);
