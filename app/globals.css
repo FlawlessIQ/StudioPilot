@@ -11508,6 +11508,7 @@ textarea:focus-visible {
   }
 
   .next-action-card {
+    order: -1;
     padding: 23px;
   }
 

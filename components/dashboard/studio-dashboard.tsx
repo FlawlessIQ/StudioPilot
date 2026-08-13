@@ -165,13 +165,13 @@ function DashboardSummary() {
         </div>
       </section>
 
-      <SetupChecklist />
-
       {workspace.role !== "staff_photographer" ? (
         <DailyCommandCenter />
       ) : null}
 
       <MobileTodayAgenda />
+
+      <SetupChecklist />
 
       <section className="lifecycle-overview" aria-label="Project lifecycle">
         <div className="lifecycle-heading">

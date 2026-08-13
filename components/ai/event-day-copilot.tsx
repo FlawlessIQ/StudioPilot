@@ -179,8 +179,8 @@ export function EventDayCopilot({
           <p className="eyebrow">Mobile event command</p>
           <h1>Event day, without the scavenger hunt</h1>
           <p>
-            One read-only brief grounded in the published schedule, crew,
-            readiness, insurance, and venue facts.
+            One current brief for the schedule, crew, readiness, insurance,
+            and venue details you need on the day.
           </p>
         </div>
         <Sparkles aria-hidden="true" />
@@ -204,6 +204,27 @@ export function EventDayCopilot({
           ))}
         </select>
       </label>
+
+      {loading ? (
+        <section className="panel event-day-empty" aria-live="polite">
+          <LoaderCircle className="spin" />
+          <span>
+            <strong>Finding your next event…</strong>
+            <small>Checking active projects and published schedules.</small>
+          </span>
+        </section>
+      ) : !upcoming.length ? (
+        <section className="panel event-day-empty">
+          <CalendarClock />
+          <span>
+            <strong>No upcoming event is ready for this view</strong>
+            <small>Add an event date to an active project. StudioCue will automatically show the nearest event here.</small>
+          </span>
+          <Link className="button button-dark" href="/studio/projects">
+            Review projects
+          </Link>
+        </section>
+      ) : null}
 
       {project ? (
         <>

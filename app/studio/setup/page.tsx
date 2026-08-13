@@ -36,8 +36,8 @@ const settings = [
     roles: ["studio_owner"],
   },
   {
-    title: "Data & account",
-    description: "Export studio data or manage account deletion requests.",
+    title: "Brand, email & account",
+    description: "Manage email branding and templates, export data, or review account controls.",
     href: "/studio/settings",
     icon: Settings,
     roles: ["studio_owner"],

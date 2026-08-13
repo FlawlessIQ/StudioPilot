@@ -409,9 +409,9 @@ export function AiApprovalQueue() {
           <p className="eyebrow"><Sparkles size={14} /> AI control center</p>
           <h1>Prepared for you.<br />Never decided for you.</h1>
           <p>
-            Review grounded drafts and deterministic workflow actions with
-            their sources, confidence, affected record, and exact downstream
-            consequence.
+            Review drafts and workflow actions with their source facts,
+            confidence, affected record, and exactly what happens after
+            approval.
           </p>
         </div>
         <aside>

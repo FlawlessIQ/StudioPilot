@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -26,6 +26,10 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { ProjectWorkspaceNav } from "@/components/projects/project-workspace-nav";
+import {
+  demoTenantDocuments,
+  useTenantDocuments,
+} from "@/components/live/tenant-records";
 
 type Value = Record<string, unknown> & { id: string };
 type Domain =
@@ -423,10 +427,31 @@ export function LiveDomainView({
 }) {
   const workspace = useWorkspace();
   const config = configurations[domain];
-  const [records, setRecords] = useState<Value[] | null>(null);
+  const demoRecords = useMemo(
+    () => demoTenantDocuments(config.collection).filter((record) => {
+      if (projectId && config.projectScoped) {
+        return record.projectId === projectId;
+      }
+      if (projectId && config.vendorScoped) {
+        return Array.isArray(record.projectIds) && record.projectIds.includes(projectId);
+      }
+      return true;
+    }),
+    [config.collection, config.projectScoped, config.vendorScoped, projectId],
+  );
+  const [records, setRecords] = useState<Value[] | null>(() =>
+    dataIsLive ? null : demoRecords,
+  );
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    if (!dataIsLive || workspace.loading) return;
+    if (!dataIsLive) {
+      queueMicrotask(() => {
+        setRecords(demoRecords);
+        setError(null);
+      });
+      return;
+    }
+    if (workspace.loading) return;
     if (!workspace.tenantId) {
       queueMicrotask(() => {
         setRecords([]);
@@ -527,6 +552,7 @@ export function LiveDomainView({
     };
   }, [
     config,
+    demoRecords,
     projectId,
     workspace.loading,
     workspace.projectIds,
@@ -661,21 +687,10 @@ export function StudioDomainPage({
 }
 
 export function ProjectContextBar({ projectId }: { projectId: string }) {
-  const workspace = useWorkspace();
-  const [name, setName] = useState("Selected project");
-  useEffect(() => {
-    if (!projectId || workspace.loading) return;
-    let active = true;
-    void getDoc(doc(getFirebaseClient().firestore, "projects", projectId))
-      .then((snapshot) => {
-        if (!active || !snapshot.exists() || snapshot.get("tenantId") !== workspace.tenantId) return;
-        setName(String(snapshot.get("name") ?? "Selected project"));
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, [projectId, workspace.loading, workspace.tenantId]);
+  const { records, loading } = useTenantDocuments("projects");
+  const name = loading
+    ? "Loading project…"
+    : String(records?.find((project) => project.id === projectId)?.name ?? "Selected project");
   return (
     <aside className="project-context-stack">
       <div className="project-context-bar">

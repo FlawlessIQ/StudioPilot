@@ -2,6 +2,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { ConsultationAvailability } from "@/components/settings/consultation-availability";
 import { DataControls } from "@/components/settings/data-controls";
 import { EmailBranding } from "@/components/settings/email-branding";
+import { EmailTemplateDesigner } from "@/components/communications/email-template-designer";
 
 export default function SettingsPage() {
   return (
@@ -17,6 +18,7 @@ export default function SettingsPage() {
           </div>
         </header>
         <EmailBranding />
+        <EmailTemplateDesigner />
         <ConsultationAvailability />
         <DataControls />
       </div>

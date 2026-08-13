@@ -52,6 +52,7 @@ import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
 import { ProjectWorkspaceNav } from "@/components/projects/project-workspace-nav";
 import { ProjectPreparedTray } from "@/components/projects/project-prepared-tray";
 import { ProjectPlanningCopilot } from "@/components/projects/project-planning-copilot";
+import { crmProjects } from "@/config/crm-demo-data";
 
 type ProjectRecord = Record<string, unknown> & { id: string };
 type CheckpointRecord = Record<string, unknown> & { id: string };
@@ -137,46 +138,62 @@ const forwardStage: Partial<Record<ProjectState, ProjectState>> = {
   CLOSED: "ARCHIVED",
 };
 
-const mockProject = (projectId: string): ProjectRecord => ({
-  id: projectId,
-  name: "Rivera wedding",
-  eventType: "Wedding",
-  eventDate: "2027-06-12",
-  venueName: "The Garden Conservatory",
-  city: "Brooklyn",
-  leadPhotographerName: "Jordan Lee",
-  state: "PLANNING",
-  stateVersion: 4,
-  readinessScore: 67,
-  nextAction: "Confirm the final run of show",
-});
+function mockProject(projectId: string): ProjectRecord {
+  const source =
+    crmProjects.find((item) => item.id === projectId) ?? crmProjects[0]!;
+  const eventDate = new Date(`${source.date} 12:00:00`);
+  return {
+    id: source.id,
+    name: source.name,
+    eventType: source.event,
+    eventDate: Number.isNaN(eventDate.valueOf())
+      ? source.date
+      : eventDate.toISOString().slice(0, 10),
+    venueName: source.venue,
+    city: "New York",
+    leadPhotographerName: source.owner,
+    state: source.state,
+    stateVersion: 4,
+    readinessScore: source.readiness,
+    nextAction: source.nextAction,
+  };
+}
 
-const mockCheckpoints: CheckpointRecord[] = [
-  {
-    id: "checkpoint-questionnaire",
-    name: "Client questionnaire complete",
-    ownerType: "client",
-    resolvedDueDate: "2027-04-13",
-    blocking: true,
-    status: "complete",
-  },
-  {
-    id: "checkpoint-schedule",
-    name: "Final schedule approved",
-    ownerType: "studio",
-    resolvedDueDate: "2027-05-29",
-    blocking: true,
-    status: "in_progress",
-  },
-  {
-    id: "checkpoint-crew",
-    name: "Crew acknowledges current schedule",
-    ownerType: "subcontractor",
-    resolvedDueDate: "2027-06-05",
-    blocking: true,
-    status: "not_started",
-  },
-];
+function mockCheckpoints(projectId: string): CheckpointRecord[] {
+  const project = mockProject(projectId);
+  const eventDate = new Date(`${String(project.eventDate)}T12:00:00`);
+  const dueDate = (daysBefore: number) => {
+    const value = new Date(eventDate);
+    value.setDate(value.getDate() - daysBefore);
+    return value.toISOString().slice(0, 10);
+  };
+  return [
+    {
+      id: "checkpoint-questionnaire",
+      name: "Client questionnaire complete",
+      ownerType: "client",
+      resolvedDueDate: dueDate(60),
+      blocking: true,
+      status: "complete",
+    },
+    {
+      id: "checkpoint-schedule",
+      name: "Final schedule approved",
+      ownerType: "studio",
+      resolvedDueDate: dueDate(14),
+      blocking: true,
+      status: project.state === "READY" ? "complete" : "in_progress",
+    },
+    {
+      id: "checkpoint-crew",
+      name: "Crew acknowledges current schedule",
+      ownerType: "subcontractor",
+      resolvedDueDate: dueDate(7),
+      blocking: true,
+      status: project.state === "READY" ? "complete" : "not_started",
+    },
+  ];
+}
 
 function stateLabel(state: ProjectState): string {
   return state
@@ -469,17 +486,6 @@ function ProjectLifecycleLanes({
               : `No hard blocker. Next action belongs to ${projection.nextAction.owner.toLowerCase()}.`}
           </p>
         </div>
-        <Link href={projection.nextAction.href}>
-          <small>Recommended next</small>
-          <strong>{projection.nextAction.label}</strong>
-          <span>
-            {projection.nextAction.owner}
-            {projection.nextAction.dueAt
-              ? ` · ${displayDate(projection.nextAction.dueAt.slice(0, 10))}`
-              : ""}
-          </span>
-          <ArrowRight size={16} />
-        </Link>
       </header>
       <div className="project-work-lanes">
         {(Object.keys(laneDetails) as LifecycleLaneKey[]).map((laneKey) => {
@@ -529,7 +535,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
     dataIsLive ? null : mockProject(projectId),
   );
   const [checkpoints, setCheckpoints] = useState<CheckpointRecord[]>(
-    dataIsLive ? [] : mockCheckpoints,
+    dataIsLive ? [] : mockCheckpoints(projectId),
   );
   const [related, setRelated] = useState<RelatedRecords>(emptyRelatedRecords);
   const [error, setError] = useState<string | null>(null);

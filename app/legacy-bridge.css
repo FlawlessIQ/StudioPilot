@@ -331,6 +331,10 @@
   color: #ddefe3;
 }
 
+.ds-root .event-day-hero .eyebrow {
+  color: #eaf5ed;
+}
+
 /* Flush panels — .panel has no base padding, so any modifier class that
    defines no rule of its own renders its content hard against the edges.
    .focused-tool-link + .client-message-composer were the visible ones; the

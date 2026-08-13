@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { workflowScorecard } from "@/features/operations/workflow-scorecard";
-import { implementationReadinessScorecard } from "@/features/operations/implementation-readiness";
 
 function csvCell(value: unknown) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
@@ -114,7 +113,6 @@ export function LiveReports() {
     providerJobs,
     emailJobs,
   });
-  const implementation = implementationReadinessScorecard();
   const terminalAutomationStatuses = new Set([
     "completed",
     "failed",
@@ -262,7 +260,7 @@ export function LiveReports() {
         </article>
         <article className="panel report-metric-card report-metric-readiness">
           <span className="report-metric-icon"><Gauge /></span>
-          <span className="report-metric-copy"><small>Average readiness</small><strong>{loading ? "—" : `${readinessAverage}%`}</strong><span>Deterministic project scores</span></span>
+          <span className="report-metric-copy"><small>Average readiness</small><strong>{loading ? "—" : `${readinessAverage}%`}</strong><span>Across filtered projects</span></span>
         </article>
         <article className="panel report-metric-card report-metric-booked">
           <span className="report-metric-icon"><CircleDollarSign /></span>
@@ -279,7 +277,7 @@ export function LiveReports() {
           <div className="report-bars">
             {leadSources.map(([source, count]) => (
               <article key={source}>
-                <span><strong>{source}</strong><small>{count} leads</small></span>
+                <span><strong>{source}</strong><small>{count} {count === 1 ? "lead" : "leads"}</small></span>
                 <i><b style={{ width: `${(count / maxSource) * 100}%` }} /></i>
               </article>
             ))}
@@ -299,7 +297,7 @@ export function LiveReports() {
           <div className="report-bars">
             {projectTypes.map(([type, count]) => (
               <article key={type}>
-                <span><strong>{type}</strong><small>{count} projects</small></span>
+                <span><strong>{type}</strong><small>{count} {count === 1 ? "project" : "projects"}</small></span>
                 <i><b style={{ width: `${projects.length ? (count / projects.length) * 100 : 0}%` }} /></i>
               </article>
             ))}
@@ -318,66 +316,45 @@ export function LiveReports() {
       <section className="report-performance-section">
         <div className="section-heading-row">
           <div>
-            <p className="eyebrow">Workflow performance</p>
-            <h2>Where StudioCue is reducing coordination work</h2>
-            <p>Observed workflow events, provider outcomes, and verified handling-time evidence.</p>
+            <p className="eyebrow">Studio outcomes</p>
+            <h2>What StudioCue handled for you</h2>
+            <p>Completed work, approvals, exceptions, and measured results from the selected period.</p>
           </div>
         </div>
-        <div className="report-performance-grid workflow-score-grid">
-          <article className="panel">
-            <Gauge />
-            <span><small>Validated capability coverage</small><strong>{loading ? "—" : `${implementation.coverage.score}%`}</strong><p>{implementation.coverage.operational} operational · {implementation.coverage.partial} partial · {implementation.coverage.total} total</p></span>
-          </article>
-          <article className="panel">
-            <Bot />
-            <span><small>Validated photographer automation</small><strong>{loading ? "—" : `${implementation.automation.score}%`}</strong><p>{implementation.automation.prepared} of {implementation.automation.eligible} repeatable steps are prepared or completed</p></span>
-          </article>
-          <article className="panel">
-            <CheckCircle2 />
-            <span><small>Validated approval-led experience</small><strong>{loading ? "—" : `${implementation.approvalLed.score}%`}</strong><p>{implementation.approvalLed.approvalOrExceptionTouches} approval/exception boundaries · {implementation.approvalLed.manualRoutineTouches} routine manual steps</p></span>
-          </article>
-          <article className="panel">
-            <CheckCircle2 />
-            <span><small>Acceptance slices</small><strong>{loading ? "—" : implementation.workflows.length}</strong><p>Each maps to a tested capability and concrete implementation evidence</p></span>
-          </article>
-        </div>
-        <p className="report-estimate-note">
-          Validated scores measure implemented workflow design and automated acceptance coverage. They exclude photography, curation, and other intentionally human creative work.
-        </p>
         <div className="report-performance-grid">
           <article className="panel">
             <Bot />
-            <span><small>Observed photographer automation</small><strong>{loading ? "—" : workflow.automation.score === null ? "Needs data" : `${workflow.automation.score}%`}</strong><p>{workflow.automation.observedSteps} completed repeatable workflow steps</p></span>
+            <span><small>Automations completed</small><strong>{loading ? "—" : terminalAutomations.filter((run) => run.status === "completed").length}</strong><p>Background jobs finished without needing a manual handoff</p></span>
           </article>
           <article className="panel">
             <CheckCircle2 />
-            <span><small>Observed approval-led experience</small><strong>{loading ? "—" : workflow.approvalLed.score === null ? "Needs data" : `${workflow.approvalLed.score}%`}</strong><p>{workflow.approvalLed.approvals} approvals · {workflow.approvalLed.exceptions} exceptions · {workflow.approvalLed.dataEntry + workflow.approvalLed.routineManual} routine touches</p></span>
+            <span><small>Approvals completed</small><strong>{loading ? "—" : workflow.approvalLed.approvals}</strong><p>Prepared work reviewed and approved by your studio</p></span>
           </article>
           <article className="panel">
-            <ClockArrowUp />
-            <span><small>Verified time reclaimed</small><strong>{loading ? "—" : `${workflow.quality.verifiedMinutesSaved}m`}</strong><p>Only timers, workflow timestamps, and observed pilot evidence count</p></span>
+            <Info />
+            <span><small>Exceptions needing review</small><strong>{loading ? "—" : workflow.approvalLed.exceptions}</strong><p>Cases StudioCue surfaced instead of guessing or sending automatically</p></span>
           </article>
           <article className="panel">
             <Bot />
-            <span><small>Automation reliability</small><strong>{loading ? "—" : `${automationReliability}%`}</strong><p>{terminalAutomations.length} completed or terminal runs</p></span>
+            <span><small>Automation reliability</small><strong>{loading ? "—" : terminalAutomations.length ? `${automationReliability}%` : "Needs data"}</strong><p>{terminalAutomations.length} completed or final-status runs measured</p></span>
           </article>
         </div>
         <div className="report-performance-grid">
           <article className="panel">
-            <CheckCircle2 />
-            <span><small>Proposal acceptance</small><strong>{loading ? "—" : `${proposalAcceptance}%`}</strong><p>{proposalsSent.length} delivered proposals</p></span>
+            <ClockArrowUp />
+            <span><small>Verified time reclaimed</small><strong>{loading ? "—" : workflow.quality.verifiedMinutesSaved ? `${workflow.quality.verifiedMinutesSaved}m` : "Needs data"}</strong><p>Measured from workflow timestamps and observed handling time</p></span>
           </article>
           <article className="panel">
             <CheckCircle2 />
-            <span><small>Crew acceptance</small><strong>{loading ? "—" : `${crewAcceptance}%`}</strong><p>{crewAssignments.length} assignments tracked</p></span>
+            <span><small>Proposal acceptance</small><strong>{loading ? "—" : proposalsSent.length ? `${proposalAcceptance}%` : "Needs data"}</strong><p>{proposalsSent.length} delivered proposals measured</p></span>
+          </article>
+          <article className="panel">
+            <CheckCircle2 />
+            <span><small>Crew acceptance</small><strong>{loading ? "—" : crewAssignments.length ? `${crewAcceptance}%` : "Needs data"}</strong><p>{crewAssignments.length} assignments tracked</p></span>
           </article>
           <article className="panel">
             <ClockArrowUp />
-            <span><small>AI edit rate</small><strong>{loading ? "—" : workflow.quality.aiEditRate === null ? "Needs data" : `${workflow.quality.aiEditRate}%`}</strong><p>{workflow.quality.aiDecisions} reviewed AI decisions</p></span>
-          </article>
-          <article className="panel">
-            <Gauge />
-            <span><small>Observed workflow coverage</small><strong>{loading ? "—" : `${workflow.coverage.score}%`}</strong><p>Canonical capability registry used by live outcome reporting</p></span>
+            <span><small>AI drafts edited</small><strong>{loading ? "—" : workflow.quality.aiEditRate === null ? "Needs data" : `${workflow.quality.aiEditRate}%`}</strong><p>{workflow.quality.aiDecisions} AI drafts reviewed before approval</p></span>
           </article>
         </div>
         <div className="report-funnel panel">
@@ -396,7 +373,7 @@ export function LiveReports() {
           ))}
         </div>
         <p className="report-estimate-note">
-          StudioCue no longer awards estimated minutes for creating records. Automation and approval-led percentages appear only after observed workflow events exist. COI turnaround: {averageCoiTurnaround === null ? "not enough completed requests yet" : `${averageCoiTurnaround} days on average`}.
+          Results appear only after real workflow activity is recorded; StudioCue does not invent time savings from record creation. Insurance certificate turnaround: {averageCoiTurnaround === null ? "not enough completed requests yet" : `${averageCoiTurnaround} days on average`}.
         </p>
       </section>
       <aside className="panel report-source-note">

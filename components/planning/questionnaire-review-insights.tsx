@@ -6,6 +6,7 @@ import { CircleAlert, LoaderCircle, MessageCircleQuestion, Sparkles } from "luci
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { dataIsLive } from "@/lib/runtime-mode";
 
 type Review = {
   summary: string;
@@ -28,10 +29,29 @@ const strings = (value: unknown) =>
 
 export function QuestionnaireReviewInsights({ projectId }: { projectId: string }) {
   const workspace = useWorkspace();
-  const [reviews, setReviews] = useState<Array<{ id: string; name: string; review: Review }>>([]);
-  const [loading, setLoading] = useState(true);
+  const [reviews, setReviews] = useState<Array<{ id: string; name: string; review: Review }>>(() =>
+    dataIsLive
+      ? []
+      : [{
+          id: "demo-planning-review",
+          name: "Wedding Planning v4",
+          review: {
+            summary: "Planning details are organized; the family photo list still needs confirmation.",
+            missingInformation: ["Family photo list"],
+            contradictions: [],
+            planningRisks: ["Final schedule approval is still pending."],
+            suggestedQuestions: ["Which family groupings must be photographed?"],
+            planningFacts: [
+              { fieldId: "venue", label: "Venue", category: "logistics", value: "The Foundry" },
+              { fieldId: "coverage", label: "Coverage", category: "schedule", value: "1:15 PM–9:30 PM" },
+            ],
+          },
+        }],
+  );
+  const [loading, setLoading] = useState(dataIsLive);
 
   useEffect(() => {
+    if (!dataIsLive) return;
     if (workspace.loading || !workspace.tenantId) return;
     const { firestore } = getFirebaseClient();
     void getDocs(

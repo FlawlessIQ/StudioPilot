@@ -16,6 +16,7 @@ import {
   Radio,
   LibraryBig,
   Menu,
+  MessageSquareText,
   Settings,
   Sparkles,
   ChartNoAxesColumn,
@@ -42,9 +43,12 @@ const navSections = [
       { label: "Home", href: "/studio", icon: CircleGauge },
       { label: "Inbox", href: "/studio/leads", icon: ContactRound },
       { label: "Projects", href: "/studio/projects", icon: FolderKanban },
+      { label: "Messages", href: "/studio/messages", icon: MessageSquareText },
+      { label: "Ask StudioCue", href: "/studio/copilot", icon: WandSparkles },
       { label: "AI review", href: "/studio/ai-queue", icon: BrainCircuit },
       { label: "Calendar", href: "/studio/calendar", icon: CalendarDays },
       { label: "Event day", href: "/studio/event-day", icon: Radio },
+      { label: "Deliveries", href: "/studio/delivery", icon: Images },
     ],
   },
   {
@@ -71,7 +75,9 @@ const navSections = [
 ] as const;
 
 const activeGroups: Record<string, string[]> = {
-  Home: ["Dashboard", "Notifications", "Copilot", "AI setup", "Event day"],
+  Home: ["Dashboard", "Notifications", "AI setup"],
+  Messages: ["Communications"],
+  "Ask StudioCue": ["Copilot"],
   "AI review": ["AI queue"],
   Inbox: ["Leads", "Inquiries", "Proposals", "Contracts", "Invoices", "Booking"],
   Projects: [
@@ -80,17 +86,15 @@ const activeGroups: Record<string, string[]> = {
     "Insurance",
     "Schedules",
     "Readiness",
-    "Post-production",
-    "Delivery",
-    "Reviews",
     "Documents",
-    "Communications",
   ],
   Calendar: ["Calendar"],
+  "Event day": ["Event day"],
+  Deliveries: ["Post-production", "Delivery", "Reviews"],
   People: ["Clients", "Crew", "Team", "Vendors"],
   Library: ["Library", "Packages", "Workflows", "Tasks", "Documents"],
   Insights: ["Reports"],
-  "Studio setup": ["Studio setup"],
+  "Studio setup": ["Studio setup", "Settings", "Integrations", "Subscription"],
 };
 
 const StudioShellContext = createContext(false);
@@ -169,7 +173,15 @@ function StudioShell({
     active ?? studioRouteLabels[routeSegment] ?? "Dashboard";
   const tenantName = workspace.error ? "Workspace unavailable" : workspace.tenantName;
   const userName = workspace.error ? "Signed-in user" : workspace.userName;
-  const staffAllowed = new Set(["Home", "Projects", "Calendar", "Event day", "People"]);
+  const staffAllowed = new Set([
+    "Home",
+    "Projects",
+    "Ask StudioCue",
+    "Calendar",
+    "Event day",
+    "Deliveries",
+    "People",
+  ]);
   const coordinatorExcluded = new Set(["Insights", "Library"]);
   const canSee = (label: string) => {
     if (label === "Studio setup") return workspace.role === "studio_owner";

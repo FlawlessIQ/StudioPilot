@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
 import { CommunicationsCenter } from "@/components/communications/communications-center";
-import { EmailTemplateDesigner } from "@/components/communications/email-template-designer";
 
 export const metadata: Metadata = { title: "Communications" };
 export default async function MessagesPage({
@@ -19,9 +19,11 @@ export default async function MessagesPage({
             <h1>Communications</h1>
             <p>Write, approve, schedule, and trace branded project email from one place.</p>
           </div>
+          <Link className="button button-secondary" href="/studio/settings">
+            Email settings
+          </Link>
         </header>
         <CommunicationsCenter initialProjectId={project} />
-        <EmailTemplateDesigner />
       </div>
     </AppShell>
   );

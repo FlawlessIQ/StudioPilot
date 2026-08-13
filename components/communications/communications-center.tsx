@@ -25,8 +25,28 @@ import {
   draftCommunication,
   type CommunicationAssistantResult,
 } from "@/lib/ai/communications-client";
+import { dataIsLive } from "@/lib/runtime-mode";
+import { crmClients, crmProjects } from "@/config/crm-demo-data";
 
 type Value = Record<string, unknown> & { id: string };
+
+const demoContacts: Value[] = crmClients.map((client) => ({
+  id: client.id,
+  displayName: client.name,
+  email: client.email,
+}));
+
+const demoProjects: Value[] = crmProjects.map((project, index) => {
+  const date = new Date(`${project.date} 12:00:00`);
+  return {
+    id: project.id,
+    name: project.name,
+    eventDate: Number.isNaN(date.valueOf())
+      ? project.date
+      : date.toISOString().slice(0, 10),
+    clientContactIds: demoContacts[index] ? [demoContacts[index]!.id] : [],
+  };
+});
 
 function deliveryPresentation(statusValue: unknown): {
   label: string;
@@ -69,8 +89,8 @@ export function CommunicationsCenter({
   initialProjectId?: string;
 }) {
   const workspace = useWorkspace();
-  const [projects, setProjects] = useState<Value[]>([]);
-  const [contacts, setContacts] = useState<Value[]>([]);
+  const [projects, setProjects] = useState<Value[]>(dataIsLive ? [] : demoProjects);
+  const [contacts, setContacts] = useState<Value[]>(dataIsLive ? [] : demoContacts);
   const [messages, setMessages] = useState<Value[]>([]);
   const [drafts, setDrafts] = useState<Value[]>([]);
   const [emailJobs, setEmailJobs] = useState<Value[]>([]);
@@ -82,7 +102,7 @@ export function CommunicationsCenter({
   const [actionLabel, setActionLabel] = useState("");
   const [actionUrl, setActionUrl] = useState("");
   const [scheduledFor, setScheduledFor] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(dataIsLive);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [aiInstruction, setAiInstruction] = useState("");
@@ -90,6 +110,15 @@ export function CommunicationsCenter({
 
   const load = useCallback(async () => {
     if (!workspace.tenantId) return;
+    if (!dataIsLive) {
+      setProjects(demoProjects);
+      setContacts(demoContacts);
+      setMessages([]);
+      setDrafts([]);
+      setEmailJobs([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const { firestore } = getFirebaseClient();
@@ -365,6 +394,45 @@ export function CommunicationsCenter({
           <Mail aria-hidden="true" />
         </div>
         <form onSubmit={(event) => void submit(event)}>
+          <div className="communications-context">
+            <div>
+              <strong>Who is this for?</strong>
+              <small>Choose the project and client so StudioCue can use the right facts.</small>
+            </div>
+            <div className="communications-form-grid">
+              <label>
+                Project
+                <select
+                  onChange={(event) => setProjectId(event.target.value)}
+                  required
+                  value={projectId}
+                >
+                  <option value="">Select a project</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {String(project.name)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Client
+                <select
+                  disabled={!projectId}
+                  onChange={(event) => setContactId(event.target.value)}
+                  required
+                  value={selectedContactId}
+                >
+                  <option value="">Select a client</option>
+                  {availableContacts.map((contact) => (
+                    <option key={contact.id} value={contact.id}>
+                      {String(contact.displayName ?? contact.email)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
           <section className="communications-ai-assistant">
             <div>
               <span><Sparkles size={15} /></span>
@@ -397,6 +465,11 @@ export function CommunicationsCenter({
                 </>
               ) : null}
             </div>
+            {!projectId || !selectedContactId ? (
+              <small className="communications-ai-requirement">
+                Select a project and client above to create a grounded draft.
+              </small>
+            ) : null}
             {aiResult?.factsUsed.length ? (
               <details className="communications-ai-grounding">
                 <summary><ShieldCheck size={14} /> Facts checked from this project</summary>
@@ -414,37 +487,6 @@ export function CommunicationsCenter({
             ) : null}
           </section>
           <div className="communications-form-grid">
-            <label>
-              Project
-              <select
-                onChange={(event) => setProjectId(event.target.value)}
-                required
-                value={projectId}
-              >
-                <option value="">Select a project</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {String(project.name)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Client
-              <select
-                disabled={!projectId}
-                onChange={(event) => setContactId(event.target.value)}
-                required
-                value={selectedContactId}
-              >
-                <option value="">Select a client</option>
-                {availableContacts.map((contact) => (
-                  <option key={contact.id} value={contact.id}>
-                    {String(contact.displayName ?? contact.email)}
-                  </option>
-                ))}
-              </select>
-            </label>
             <label>
               Message type
               <select

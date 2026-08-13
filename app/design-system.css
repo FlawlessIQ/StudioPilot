@@ -264,6 +264,32 @@
   padding: 14px;
 }
 
+.ds-root .communications-context {
+  background: var(--ds-paper-raised);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-r);
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.ds-root .communications-context > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.ds-root .communications-context > div:first-child small,
+.ds-root .communications-ai-requirement {
+  color: var(--ds-ink-soft);
+  font-weight: 500;
+}
+
+.ds-root .communications-ai-requirement {
+  align-items: center;
+  display: flex;
+  font-size: 12.5px;
+}
+
 .ds-root .communications-ai-assistant > div:first-child {
   align-items: center;
   display: flex;
@@ -2736,6 +2762,14 @@
   gap: 18px;
   max-width: 1080px;
   margin: 0 auto;
+  min-width: 0;
+  width: 100%;
+}
+
+.event-day-copilot > * {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .event-day-hero {
@@ -2750,14 +2784,54 @@
 
 .event-day-hero h1 {
   margin: 4px 0 8px;
+  overflow-wrap: anywhere;
 }
 
 .event-day-hero p {
   max-width: 680px;
 }
 
+.event-day-hero > div {
+  min-width: 0;
+}
+
+.event-day-hero .eyebrow {
+  color: #ddefe3;
+}
+
+.event-day-hero > div > p:last-child {
+  color: rgb(255 255 255 / 82%);
+}
+
 .event-day-project-select {
   max-width: 560px;
+  width: 100%;
+}
+
+.event-day-project-select select {
+  min-width: 0;
+  width: 100%;
+}
+
+.event-day-empty {
+  align-items: center;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 22px 24px;
+}
+
+.event-day-empty > svg {
+  color: var(--ds-forest);
+}
+
+.event-day-empty > span {
+  display: grid;
+  gap: 3px;
+}
+
+.event-day-empty small {
+  color: var(--ds-muted);
 }
 
 .event-day-facts {
@@ -2798,6 +2872,12 @@
 
 .event-day-warning span {
   display: grid;
+  min-width: 0;
+}
+
+.event-day-warning strong,
+.event-day-warning small {
+  overflow-wrap: anywhere;
 }
 
 .event-day-now {
@@ -2902,8 +2982,22 @@
     padding: 20px;
   }
 
+  .event-day-hero > svg {
+    display: none;
+  }
+
   .event-day-facts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .event-day-empty {
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 18px;
+  }
+
+  .event-day-empty .button {
+    grid-column: 1 / -1;
+    justify-self: stretch;
   }
 
   .event-day-timeline article {

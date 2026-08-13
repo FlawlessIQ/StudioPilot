@@ -194,6 +194,7 @@ export function GlobalSearch() {
   return (
     <>
       <button
+        aria-label="Search projects or run a command"
         aria-expanded={open}
         aria-haspopup="dialog"
         className="command-search"

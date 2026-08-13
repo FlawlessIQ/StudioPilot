@@ -2088,8 +2088,7 @@
   }
 
   .studio-command-preview {
-    min-height: 170px;
-    padding: 20px;
+    display: none;
   }
 
   .dashboard-priority-strip {
@@ -2281,7 +2280,7 @@
 
 .ai-queue-hero aside small {
   color: rgb(255 255 255 / 52%);
-  font-size: 7px;
+  font-size: 11px;
   line-height: 1.4;
 }
 
@@ -2843,22 +2842,43 @@
   }
 
   .ai-queue-hero {
-    padding: 25px 20px;
+    gap: 16px;
+    padding: 20px;
   }
 
-  .ai-queue-hero aside,
+  .ai-queue-hero h1 {
+    font-size: 34px;
+  }
+
+  .ai-queue-hero > div > p:last-child {
+    margin-top: 8px;
+  }
+
+  .ai-queue-hero aside {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ai-queue-hero aside > span {
+    border-left: 1px solid rgb(255 255 255 / 10%);
+    border-top: 0;
+    min-height: 72px;
+    padding: 8px 5px;
+  }
+
+  .ai-queue-hero aside > span:first-child {
+    border-left: 0;
+  }
+
   .ai-queue-impact {
     grid-template-columns: 1fr;
   }
 
-  .ai-queue-hero aside > span,
   .ai-queue-impact > span {
     border-left: 0;
     border-top: 1px solid rgb(255 255 255 / 10%);
     min-height: 64px;
   }
 
-  .ai-queue-hero aside > span:first-child,
   .ai-queue-impact > span:first-child {
     border-top: 0;
   }
