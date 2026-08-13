@@ -77,6 +77,29 @@ export function SetupChecklist() {
   const completed = steps.filter((step) => step.done).length;
   if (completed === steps.length) return null;
   const next = steps.find((step) => !step.done);
+  const hasActiveWork = Boolean(projects?.length);
+
+  if (hasActiveWork && next) {
+    const Icon = next.icon;
+    return (
+      <details className="studio-setup-compact">
+        <summary>
+          <span>{next.done ? <Check size={16} /> : <Icon size={16} />}</span>
+          <span>
+            <small>Finish setting up StudioCue</small>
+            <strong>{next.label}</strong>
+          </span>
+          <em>{completed} of {steps.length}</em>
+        </summary>
+        <div>
+          <p>{next.detail}</p>
+          <Link className="ds-btn ds-btn-primary" href={next.href}>
+            Continue setup <ArrowRight size={16} />
+          </Link>
+        </div>
+      </details>
+    );
+  }
 
   return (
     <section className="ds-card ds-setup">

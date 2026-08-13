@@ -194,7 +194,7 @@ export function GlobalSearch() {
   return (
     <>
       <button
-        aria-label="Search projects or run a command"
+        aria-label="Ask StudioCue, search, or create"
         aria-expanded={open}
         aria-haspopup="dialog"
         className="command-search"
@@ -202,7 +202,7 @@ export function GlobalSearch() {
         type="button"
       >
         <Search size={17} />
-        <span>Search projects or run a command</span>
+        <span>Ask StudioCue, search, or create</span>
         <kbd>⌘ K</kbd>
       </button>
       {open ? (
@@ -224,7 +224,7 @@ export function GlobalSearch() {
               <input
                 aria-label="Search records and commands"
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search projects, dates, contracts, messages, or AI work"
+                placeholder="Ask a question, find a record, or start something"
                 ref={inputRef}
                 value={query}
               />
@@ -234,7 +234,14 @@ export function GlobalSearch() {
             </header>
             {!query.trim() ? (
               <div className="search-quick-actions">
-                <p>Quick actions</p>
+                <p>Ask or create</p>
+                <Link href="/studio/copilot" onClick={close}>
+                  <BrainCircuit size={17} />
+                  <span>
+                    <strong>Ask StudioCue</strong>
+                    <small>Get a grounded answer or prepare project work</small>
+                  </span>
+                </Link>
                 {operator ? <Link href="/studio/projects/new" onClick={close}>
                   <Plus size={17} />
                   <span>
@@ -260,8 +267,8 @@ export function GlobalSearch() {
                   <Link href="/studio/ai-queue" onClick={close}>
                     <BrainCircuit size={17} />
                     <span>
-                      <strong>Review AI work</strong>
-                      <small>Approve, edit, reject, snooze, or explain</small>
+                      <strong>Review prepared work</strong>
+                      <small>Approve the decisions StudioCue cannot make for you</small>
                     </span>
                   </Link>
                 ) : null}

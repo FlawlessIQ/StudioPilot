@@ -212,6 +212,27 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
 
   return (
     <form className="delivery-form delivery-release-form" onSubmit={(event) => void submit(event)}>
+      <label className="form-span delivery-project-first">
+        Project
+        <select
+          disabled={loading || Boolean(projectId)}
+          name={projectId ? undefined : "projectId"}
+          onChange={(event) => setSelectedProjectId(event.target.value)}
+          required
+          value={selectedProjectId}
+        >
+          <option value="">Select a project</option>
+          {projects?.map((project) => (
+            <option key={project.id} value={project.id}>
+              {String(project.name)}
+            </option>
+          ))}
+        </select>
+        {projectId ? <input name="projectId" type="hidden" value={projectId} /> : null}
+        <small>Delivery stays attached to one project and its verified completion gate.</small>
+      </label>
+      {selectedProjectId ? (
+      <>
       {galleryInbox?.inboundAddress ? (
         <section className="delivery-announcement-import form-span">
           <div>
@@ -257,24 +278,6 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
         </button>
       </section>
       <label>
-        Project
-        <select
-          disabled={loading || Boolean(projectId)}
-          name={projectId ? undefined : "projectId"}
-          onChange={(event) => setSelectedProjectId(event.target.value)}
-          required
-          value={selectedProjectId}
-        >
-          <option value="">Select a project</option>
-          {projects?.map((project) => (
-            <option key={project.id} value={project.id}>
-              {String(project.name)}
-            </option>
-          ))}
-        </select>
-        {projectId ? <input name="projectId" type="hidden" value={projectId} /> : null}
-      </label>
-      <label>
         Gallery provider
         <select
           name="provider"
@@ -297,6 +300,9 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
           value={galleryUrl}
         />
       </label>
+      <details className="delivery-advanced-options form-span">
+        <summary>Follow-ups and studio defaults</summary>
+        <div className="delivery-advanced-grid">
       <label>
         Access code
         <input
@@ -382,6 +388,8 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
         Remember the provider, review destination, expiration, and album
         instructions for future projects
       </label>
+        </div>
+      </details>
       <button className="button button-dark" disabled={!interactive} type="submit">
         <Send size={16} /> Record and release delivery
       </button>
@@ -391,6 +399,13 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
         Nothing claims a review was posted without confirmation.
       </p>
       {notice ? <p className="form-notice" role="status">{notice}</p> : null}
+      </>
+      ) : (
+        <section className="delivery-project-empty form-span">
+          <Images size={20} />
+          <span><strong>Choose the project to deliver</strong><small>StudioCue will load its gallery draft, client follow-ups, and approved studio defaults.</small></span>
+        </section>
+      )}
     </form>
   );
 }

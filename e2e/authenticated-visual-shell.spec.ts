@@ -35,6 +35,7 @@ const studioRoutes = [
   "/studio/setup",
   "/studio/notifications",
   "/studio/copilot",
+  "/studio/planning?project=demo-project",
   "/studio/clients/new",
   "/studio/projects/new",
   "/studio/packages/new",
@@ -216,8 +217,8 @@ test.describe("authenticated visual shell", () => {
       page.locator('.project-phase[aria-current="step"] strong'),
     ).toHaveText("Planning");
     await expect(
-      page.getByRole("link", { name: /Review readiness/i }),
-    ).toBeVisible();
+      page.getByRole("navigation", { name: "Project workspace" }).getByRole("link"),
+    ).toHaveText(["Overview", "Client & booking", "Plan", "Delivery"]);
     await expect(
       page.getByText("Update project stage", { exact: true }),
     ).toHaveCount(0);

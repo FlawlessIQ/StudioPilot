@@ -488,7 +488,7 @@ function ProjectLifecycleLanes({
         </div>
       </header>
       <div className="project-work-lanes">
-        {(Object.keys(laneDetails) as LifecycleLaneKey[]).map((laneKey) => {
+        {(Object.keys(laneDetails) as LifecycleLaneKey[]).filter((laneKey) => projection.lanes[laneKey].length).map((laneKey) => {
           const detail = laneDetails[laneKey];
           const Icon = detail.icon;
           const values = projection.lanes[laneKey];
@@ -517,13 +517,13 @@ function ProjectLifecycleLanes({
                     <ArrowRight size={14} />
                   </Link>
                 ))}
-                {!values.length ? (
-                  <p><CheckCircle2 size={14} /> {detail.empty}</p>
-                ) : null}
               </div>
             </section>
           );
         })}
+        {(Object.keys(laneDetails) as LifecycleLaneKey[]).every((laneKey) => !projection.lanes[laneKey].length) ? (
+          <p className="project-work-caught-up"><CheckCircle2 size={16} /> No one is waiting on work for this project.</p>
+        ) : null}
       </div>
     </section>
   );
@@ -781,71 +781,68 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           />
         </aside>
       </div>
-      <ProjectLifecycleLanes
-        checkpoints={checkpoints}
-        project={project}
-        related={related}
-      />
-      <ProjectPlanningCopilot
-        insurance={related.insurance}
-        invoices={related.invoices}
-        projectId={projectId}
-        questionnaires={related.questionnaires}
-        schedules={related.schedules}
-      />
-      <ProjectPreparedTray projectId={projectId} />
-      <section className="panel project-checkpoints-panel">
-        <div className="panel-heading">
-          <div>
-            <h2>Readiness checkpoints</h2>
-            <p>Requirements that must be completed before the event.</p>
-          </div>
-          <StatusBadge tone={readiness === 100 ? "success" : "warning"}>
-            {readiness}% ready
-          </StatusBadge>
-        </div>
-        <div className="project-checkpoint-list">
-          {checkpoints.map((checkpoint) => {
-            const status = String(checkpoint.status);
-            return (
-              <article key={checkpoint.id}>
-                <span
-                  className={
-                    status === "complete"
-                      ? "checkpoint-state complete"
-                      : "checkpoint-state"
-                  }
-                >
-                  {status === "complete" ? <CheckCircle2 size={15} /> : <i />}
-                </span>
-                <span>
-                  <strong>{String(checkpoint.name)}</strong>
-                  <small>
-                    {String(checkpoint.ownerType)} ·{" "}
-                    {String(checkpoint.resolvedDueDate ?? "No due date")}
-                  </small>
-                </span>
-                <StatusBadge tone={checkpoint.blocking ? "warning" : "neutral"}>
-                  {checkpoint.blocking ? "Affects readiness" : "Non-blocking"}
-                </StatusBadge>
-                <StatusBadge tone={checkpointTone(status)}>
-                  {status.replaceAll("_", " ")}
-                </StatusBadge>
-              </article>
-            );
-          })}
-          {!checkpoints.length ? (
-            <div className="live-record-state">
-              <span>
-                <strong>No readiness steps yet</strong>
-                <small>
-                  They will appear when a workflow starts for this project.
-                </small>
-              </span>
-            </div>
-          ) : null}
-        </div>
+      <section className="project-now-next" aria-label="Project work summary">
+        <ProjectLifecycleLanes
+          checkpoints={checkpoints}
+          project={project}
+          related={related}
+        />
+        <ProjectPreparedTray projectId={projectId} />
       </section>
+      <details className="project-detail-disclosure">
+        <summary>
+          <span>
+            <small>Coming next</small>
+            <strong>Planning automation and readiness details</strong>
+          </span>
+          <em>{readiness}% ready</em>
+        </summary>
+        <div className="project-detail-disclosure-body">
+          <ProjectPlanningCopilot
+            insurance={related.insurance}
+            invoices={related.invoices}
+            projectId={projectId}
+            questionnaires={related.questionnaires}
+            schedules={related.schedules}
+          />
+          <section className="panel project-checkpoints-panel">
+            <div className="panel-heading">
+              <div>
+                <h2>Readiness checkpoints</h2>
+                <p>Requirements that must be completed before the event.</p>
+              </div>
+              <StatusBadge tone={readiness === 100 ? "success" : "warning"}>
+                {readiness}% ready
+              </StatusBadge>
+            </div>
+            <div className="project-checkpoint-list">
+              {checkpoints.map((checkpoint) => {
+                const status = String(checkpoint.status);
+                return (
+                  <article key={checkpoint.id}>
+                    <span className={status === "complete" ? "checkpoint-state complete" : "checkpoint-state"}>
+                      {status === "complete" ? <CheckCircle2 size={15} /> : <i />}
+                    </span>
+                    <span>
+                      <strong>{String(checkpoint.name)}</strong>
+                      <small>{String(checkpoint.ownerType)} · {String(checkpoint.resolvedDueDate ?? "No due date")}</small>
+                    </span>
+                    <StatusBadge tone={checkpoint.blocking ? "warning" : "neutral"}>
+                      {checkpoint.blocking ? "Affects readiness" : "Non-blocking"}
+                    </StatusBadge>
+                    <StatusBadge tone={checkpointTone(status)}>{status.replaceAll("_", " ")}</StatusBadge>
+                  </article>
+                );
+              })}
+              {!checkpoints.length ? (
+                <div className="live-record-state">
+                  <span><strong>No readiness steps yet</strong><small>They will appear when a workflow starts for this project.</small></span>
+                </div>
+              ) : null}
+            </div>
+          </section>
+        </div>
+      </details>
     </div>
   );
 }

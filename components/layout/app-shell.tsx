@@ -5,15 +5,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Bell,
-  BrainCircuit,
   CalendarDays,
   ChevronDown,
   CircleAlert,
   CircleGauge,
-  ContactRound,
   FolderKanban,
-  Images,
-  Radio,
   LibraryBig,
   Menu,
   MessageSquareText,
@@ -21,7 +17,6 @@ import {
   Sparkles,
   ChartNoAxesColumn,
   UsersRound,
-  WandSparkles,
   X,
 } from "lucide-react";
 import { GlobalSearch } from "@/components/layout/global-search";
@@ -38,63 +33,40 @@ import {
 
 const navSections = [
   {
-    label: "Your work",
+    label: "Workspace",
     items: [
       { label: "Home", href: "/studio", icon: CircleGauge },
-      { label: "Inbox", href: "/studio/leads", icon: ContactRound },
       { label: "Projects", href: "/studio/projects", icon: FolderKanban },
-      { label: "Messages", href: "/studio/messages", icon: MessageSquareText },
-      { label: "Ask StudioCue", href: "/studio/copilot", icon: WandSparkles },
-      { label: "AI review", href: "/studio/ai-queue", icon: BrainCircuit },
       { label: "Calendar", href: "/studio/calendar", icon: CalendarDays },
-      { label: "Event day", href: "/studio/event-day", icon: Radio },
-      { label: "Deliveries", href: "/studio/delivery", icon: Images },
-    ],
-  },
-  {
-    label: "Your studio",
-    items: [
+      { label: "Messages", href: "/studio/messages", icon: MessageSquareText },
       { label: "People", href: "/studio/clients", icon: UsersRound },
-      {
-        label: "Library",
-        href: "/studio/library",
-        icon: LibraryBig,
-      },
-      {
-        label: "Insights",
-        href: "/studio/reports",
-        icon: ChartNoAxesColumn,
-      },
-      {
-        label: "Studio setup",
-        href: "/studio/setup",
-        icon: Settings,
-      },
     ],
   },
 ] as const;
 
 const activeGroups: Record<string, string[]> = {
-  Home: ["Dashboard", "Notifications", "AI setup"],
+  Home: ["Dashboard", "Notifications", "AI queue", "Leads", "Inquiries"],
   Messages: ["Communications"],
-  "Ask StudioCue": ["Copilot"],
-  "AI review": ["AI queue"],
-  Inbox: ["Leads", "Inquiries", "Proposals", "Contracts", "Invoices", "Booking"],
   Projects: [
     "Projects",
+    "Copilot",
+    "Proposals",
+    "Contracts",
+    "Invoices",
+    "Booking",
+    "Planning",
     "Questionnaires",
     "Insurance",
     "Schedules",
     "Readiness",
     "Documents",
+    "Event day",
+    "Post-production",
+    "Delivery",
+    "Reviews",
   ],
   Calendar: ["Calendar"],
-  "Event day": ["Event day"],
-  Deliveries: ["Post-production", "Delivery", "Reviews"],
   People: ["Clients", "Crew", "Team", "Vendors"],
-  Library: ["Library", "Packages", "Workflows", "Tasks", "Documents"],
-  Insights: ["Reports"],
-  "Studio setup": ["Studio setup", "Settings", "Integrations", "Subscription"],
 };
 
 const StudioShellContext = createContext(false);
@@ -121,6 +93,7 @@ const studioRouteLabels: Record<string, string> = {
   messages: "Communications",
   notifications: "Notifications",
   packages: "Packages",
+  planning: "Planning",
   "post-production": "Post-production",
   projects: "Projects",
   proposals: "Proposals",
@@ -176,18 +149,12 @@ function StudioShell({
   const staffAllowed = new Set([
     "Home",
     "Projects",
-    "Ask StudioCue",
     "Calendar",
-    "Event day",
-    "Deliveries",
+    "Messages",
     "People",
   ]);
-  const coordinatorExcluded = new Set(["Insights", "Library"]);
   const canSee = (label: string) => {
-    if (label === "Studio setup") return workspace.role === "studio_owner";
     if (workspace.role === "staff_photographer") return staffAllowed.has(label);
-    if (workspace.role === "studio_coordinator")
-      return !coordinatorExcluded.has(label);
     return true;
   };
   const visibleSections = navSections
@@ -251,23 +218,6 @@ function StudioShell({
             ))}
           </nav>
 
-          {workspace.role !== "staff_photographer" ? (
-            <Link
-              className="ds-side-ai"
-              href="/studio/import"
-              onClick={() => setNavigationOpen(false)}
-            >
-              <span className="ds-side-ai-icon">
-                <WandSparkles size={17} />
-              </span>
-              <span className="ds-side-ai-copy">
-                <small>AI studio</small>
-                <strong>Import your workflow</strong>
-                <em>Turn existing files into templates</em>
-              </span>
-            </Link>
-          ) : null}
-
           <details className="ds-user">
             <summary className="ds-sidebar-foot" aria-label="Workspace and account menu">
               <span className="ds-avatar">{initials(tenantName)}</span>
@@ -285,6 +235,16 @@ function StudioShell({
                   <small>{workspaceRoleLabel(workspace.role)}</small>
                 </span>
               </div>
+              <span className="ds-user-pop-label">Studio</span>
+              {workspace.role !== "staff_photographer" ? (
+                <>
+                  <Link href="/studio/library"><LibraryBig size={15} /> Library</Link>
+                  <Link href="/studio/reports"><ChartNoAxesColumn size={15} /> Insights</Link>
+                </>
+              ) : null}
+              {workspace.role === "studio_owner" ? (
+                <Link href="/studio/setup"><Settings size={15} /> Studio settings</Link>
+              ) : null}
               <Link href="/auth/workspaces">Switch workspace</Link>
               <PlatformReturnLink />
               <SignOutButton className="ds-user-signout" />
@@ -308,9 +268,6 @@ function StudioShell({
               <b>Workspace ·</b> {resolvedActive === "Dashboard" ? "Home" : resolvedActive}
             </span>
             <GlobalSearch />
-            <Link className="ds-btn ds-btn-ghost ds-btn-sm" href="/studio/delivery">
-              <Images size={16} /> Deliveries
-            </Link>
             <Link
               className="ds-btn ds-btn-ghost ds-btn-sm"
               href="/studio/notifications"
@@ -318,8 +275,8 @@ function StudioShell({
             >
               <Bell size={18} />
             </Link>
-            <Link href="/studio/import" className="ds-action">
-              <Sparkles size={15} /> Create with AI
+            <Link href="/studio/copilot" className="ds-action">
+              <Sparkles size={15} /> Ask or create
             </Link>
           </header>
           {workspace.error ? (

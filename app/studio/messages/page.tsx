@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
 import { CommunicationsCenter } from "@/components/communications/communications-center";
 
-export const metadata: Metadata = { title: "Communications" };
+export const metadata: Metadata = { title: "Messages" };
 export default async function MessagesPage({
   searchParams,
 }: {
@@ -16,12 +15,9 @@ export default async function MessagesPage({
         <header className="page-heading">
           <div>
             <p className="eyebrow">Client communication</p>
-            <h1>Communications</h1>
-            <p>Write, approve, schedule, and trace branded project email from one place.</p>
+            <h1>Messages</h1>
+            <p>Tell StudioCue what you want to say, review the draft, and approve it before anything sends.</p>
           </div>
-          <Link className="button button-secondary" href="/studio/settings">
-            Email settings
-          </Link>
         </header>
         <CommunicationsCenter initialProjectId={project} />
       </div>

@@ -58,7 +58,7 @@ test("AI feedback cards keep readable interior margins", async ({ page }) => {
   await page
     .getByRole("button", { name: "What needs my attention today?" })
     .click();
-  await page.getByRole("button", { name: "Ask Copilot" }).click();
+  await page.getByRole("button", { name: "Ask StudioCue", exact: true }).click();
 
   // The local visual environment intentionally has no AI provider endpoint,
   // so submission renders the error-state card. Result and error cards share

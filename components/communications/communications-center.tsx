@@ -107,6 +107,7 @@ export function CommunicationsCenter({
   const [notice, setNotice] = useState<string | null>(null);
   const [aiInstruction, setAiInstruction] = useState("");
   const [aiResult, setAiResult] = useState<CommunicationAssistantResult | null>(null);
+  const [showEditor, setShowEditor] = useState(false);
 
   const load = useCallback(async () => {
     if (!workspace.tenantId) return;
@@ -369,6 +370,7 @@ export function CommunicationsCenter({
       setSubject(result.subject);
       setBody(result.body);
       setAiResult(result);
+      setShowEditor(true);
       setAiInstruction("");
       setNotice("StudioCue prepared a draft. Review and edit it before sending.");
     } catch (error: unknown) {
@@ -387,8 +389,8 @@ export function CommunicationsCenter({
       <section className="panel communications-compose">
         <div className="panel-heading">
           <div>
-            <p className="eyebrow">Branded email</p>
-            <h2>Write to a client</h2>
+            <p className="eyebrow">New message</p>
+            <h2>What do you want to say?</h2>
             <p>Every message uses the studio’s approved email branding and is kept in project history.</p>
           </div>
           <Mail aria-hidden="true" />
@@ -464,6 +466,11 @@ export function CommunicationsCenter({
                   <button disabled={busy !== null} onClick={() => void askAssistant("Make this email polished, clear, and professional while preserving the meaning.")} type="button">More professional</button>
                 </>
               ) : null}
+              {!body ? (
+                <button disabled={busy !== null || !projectId || !selectedContactId} onClick={() => setShowEditor(true)} type="button">
+                  Write it myself
+                </button>
+              ) : null}
             </div>
             {!projectId || !selectedContactId ? (
               <small className="communications-ai-requirement">
@@ -486,6 +493,12 @@ export function CommunicationsCenter({
               </div>
             ) : null}
           </section>
+          {showEditor || subject || body ? (
+          <section className="communications-draft-review" aria-label="Review email draft">
+            <div className="communications-draft-heading">
+              <div><small>Final step</small><strong>Review and approve the email</strong></div>
+              <ShieldCheck size={17} />
+            </div>
           <div className="communications-form-grid">
             <label>
               Message type
@@ -570,6 +583,8 @@ export function CommunicationsCenter({
                 : "Send branded email"}
             <Send size={15} />
           </button>
+          </section>
+          ) : null}
         </form>
         {notice ? <p className="communications-notice" role="status">{notice}</p> : null}
       </section>

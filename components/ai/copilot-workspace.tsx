@@ -5,6 +5,9 @@ import Link from "next/link";
 import {
   BookOpenCheck,
   CircleAlert,
+  FileText,
+  FolderPlus,
+  Mail,
   LoaderCircle,
   Send,
   ShieldCheck,
@@ -57,14 +60,28 @@ export function CopilotWorkspace() {
     <div className="copilot-workspace">
       <header className="page-heading">
         <div>
-          <p className="eyebrow">Permission-aware assistant</p>
-          <h1>Event Copilot</h1>
+          <p className="eyebrow">One StudioCue assistant</p>
+          <h1>Ask or create</h1>
           <p>
-            Grounded in records the signed-in user is permitted to access, with
-            links back to source projects.
+            Ask about your studio or start client communication, a project, or
+            imported workflow from one place.
           </p>
         </div>
       </header>
+      <nav className="copilot-create-actions" aria-label="Create with StudioCue">
+        <Link href="/studio/messages">
+          <Mail size={17} />
+          <span><strong>Draft a client email</strong><small>Write, revise, and approve before sending</small></span>
+        </Link>
+        <Link href="/studio/projects/new">
+          <FolderPlus size={17} />
+          <span><strong>Create a project</strong><small>Start with the client and event essentials</small></span>
+        </Link>
+        <Link href="/studio/import">
+          <FileText size={17} />
+          <span><strong>Import studio materials</strong><small>Turn existing files into reusable workflows</small></span>
+        </Link>
+      </nav>
       <div className="copilot-boundary">
         <ShieldCheck />
         <span>
@@ -108,7 +125,7 @@ export function CopilotWorkspace() {
           ) : null}
           <button className="button button-dark" disabled={busy} type="submit">
             {busy ? <LoaderCircle className="spin" /> : <Send />}
-            {busy ? "Reviewing records…" : "Ask Copilot"}
+            {busy ? "Reviewing records…" : "Ask StudioCue"}
           </button>
         </form>
       </section>
