@@ -27,6 +27,8 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
   const { records: tenants } = useTenantDocuments("tenants");
   const { records: packageSnapshots } =
     useTenantDocuments("packageSnapshots");
+  const { records: galleryInboxes } = useTenantDocuments("galleryInboxes");
+  const { records: deliveryDrafts } = useTenantDocuments("deliveryDrafts");
   const [interactive, setInteractive] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState(projectId ?? "");
   const [provider, setProvider] = useState("manual");
@@ -42,11 +44,16 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
   const [studioDefaultsHydrated, setStudioDefaultsHydrated] = useState(false);
   const [projectDefaultsHydrated, setProjectDefaultsHydrated] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
+  const [draftHydrated, setDraftHydrated] = useState("");
   const tenant =
     tenants?.find((candidate) => candidate.id === workspace.tenantId) ??
     tenants?.[0];
   const reviewLinks = record(tenant?.reviewLinks);
   const deliveryDefaults = record(tenant?.deliveryDefaults);
+  const galleryInbox = galleryInboxes?.find(
+    (item) => item.projectId === selectedProjectId,
+  );
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setInteractive(true));
@@ -88,6 +95,36 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
     studioDefaultsHydrated,
     tenant,
   ]);
+
+  useEffect(() => {
+    if (!selectedProjectId || !deliveryDrafts || draftHydrated === selectedProjectId)
+      return;
+    const draft = [...deliveryDrafts]
+      .filter(
+        (item) =>
+          item.projectId === selectedProjectId &&
+          item.status === "review_required",
+      )
+      .sort((left, right) =>
+        String(right.receivedAt ?? right.createdAt ?? "").localeCompare(
+          String(left.receivedAt ?? left.createdAt ?? ""),
+        ),
+      )[0];
+    const frame = requestAnimationFrame(() => {
+      if (draft) {
+        setActiveDraftId(draft.id);
+        setProvider(text(draft.provider) || "manual");
+        setGalleryUrl(text(draft.galleryUrl));
+        setAccessCode(text(draft.accessCode));
+        if (text(draft.expirationDate)) setExpirationDate(text(draft.expirationDate));
+        setNotice("StudioCue received the gallery provider notice and prepared these release details for approval.");
+      } else {
+        setActiveDraftId(null);
+      }
+      setDraftHydrated(selectedProjectId);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [deliveryDrafts, draftHydrated, selectedProjectId]);
 
   useEffect(() => {
     if (
@@ -144,6 +181,7 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
             ? String(data.get("albumInstructionsUrl"))
             : null,
         saveStudioDefaults: data.get("saveStudioDefaults") === "on",
+        deliveryDraftId: activeDraftId,
       });
       setNotice(
         response.persisted
@@ -174,6 +212,25 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
 
   return (
     <form className="delivery-form delivery-release-form" onSubmit={(event) => void submit(event)}>
+      {galleryInbox?.inboundAddress ? (
+        <section className="delivery-announcement-import form-span">
+          <div>
+            <Sparkles aria-hidden="true" />
+            <span>
+              <strong>Automatic gallery capture is ready</strong>
+              <small>
+                Forward the gallery provider notification to this project address. StudioCue will extract it and return here for approval.
+              </small>
+            </span>
+          </div>
+          <code>{text(galleryInbox.inboundAddress)}</code>
+        </section>
+      ) : null}
+      {activeDraftId ? (
+        <p className="form-notice form-span">
+          Provider notice captured automatically · Review and release once below.
+        </p>
+      ) : null}
       <section className="delivery-announcement-import form-span">
         <div>
           <Sparkles aria-hidden="true" />

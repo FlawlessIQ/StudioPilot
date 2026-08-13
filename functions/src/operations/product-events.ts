@@ -30,6 +30,7 @@ export type ProductEventName =
   | "booking.exception_raised"
   | "planning.package_prepared"
   | "event_day.brief_prepared"
+  | "delivery.draft_prepared"
   | "lifecycle.schedule_published"
   | "lifecycle.crew_staffed"
   | "lifecycle.gallery_delivered"

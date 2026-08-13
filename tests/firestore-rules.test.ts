@@ -199,6 +199,8 @@ test(
         await setDoc(doc(adminDb, "messages/message-studio"), { tenantId: "tenant-a", projectId: "project-a", visibility: "studio" });
         await setDoc(doc(adminDb, "messages/message-shared"), { tenantId: "tenant-a", projectId: "project-a", visibility: "shared" });
         await setDoc(doc(adminDb, "emailJobs/email-a"), { tenantId: "tenant-a", projectId: "project-a", status: "retry_scheduled" });
+        await setDoc(doc(adminDb, "galleryInboxes/project-a"), { tenantId: "tenant-a", projectId: "project-a", status: "active" });
+        await setDoc(doc(adminDb, "deliveryDrafts/delivery-draft-a"), { tenantId: "tenant-a", projectId: "project-a", status: "review_required" });
         await setDoc(doc(adminDb, "bookingOrchestrations/project-a"), { tenantId: "tenant-a", projectId: "project-a", status: "active" });
         await setDoc(doc(adminDb, "messageTemplates/tenant-a_client_invitation_v1"), { tenantId: "tenant-a", key: "client_invitation", version: 1, status: "active" });
         await setDoc(doc(adminDb, "messageTemplatePointers/tenant-a_client_invitation"), { tenantId: "tenant-a", key: "client_invitation", activeTemplateId: "tenant-a_client_invitation_v1" });
@@ -314,6 +316,8 @@ test(
       await assertFails(getDoc(doc(clientDb, "messages/message-studio")));
       await assertFails(getDoc(doc(clientDb, "messages/message-shared")));
       await assertFails(getDoc(doc(clientDb, "emailJobs/email-a")));
+      await assertFails(getDoc(doc(clientDb, "galleryInboxes/project-a")));
+      await assertFails(getDoc(doc(clientDb, "deliveryDrafts/delivery-draft-a")));
       await assertFails(getDoc(doc(clientDb, "bookingOrchestrations/project-a")));
       await assertFails(getDoc(doc(clientDb, "messageTemplates/tenant-a_client_invitation_v1")));
 
@@ -371,6 +375,8 @@ test(
       await assertFails(getDoc(doc(ownerDb, "clientInvitations/client-invite-a")));
       await assertSucceeds(getDoc(doc(ownerDb, "messages/message-studio")));
       await assertSucceeds(getDoc(doc(ownerDb, "emailJobs/email-a")));
+      await assertSucceeds(getDoc(doc(ownerDb, "galleryInboxes/project-a")));
+      await assertSucceeds(getDoc(doc(ownerDb, "deliveryDrafts/delivery-draft-a")));
       await assertSucceeds(getDoc(doc(ownerDb, "bookingOrchestrations/project-a")));
       await assertSucceeds(getDoc(doc(ownerDb, "messageTemplates/tenant-a_client_invitation_v1")));
       await assertSucceeds(getDoc(doc(ownerDb, "messageTemplatePointers/tenant-a_client_invitation")));
@@ -401,6 +407,8 @@ test(
       const coordinatorDb = environment.authenticatedContext("coordinator-a").firestore();
       await assertSucceeds(getDoc(doc(coordinatorDb, "messages/message-studio")));
       await assertSucceeds(getDoc(doc(coordinatorDb, "emailJobs/email-a")));
+      await assertSucceeds(getDoc(doc(coordinatorDb, "galleryInboxes/project-a")));
+      await assertSucceeds(getDoc(doc(coordinatorDb, "deliveryDrafts/delivery-draft-a")));
       await assertSucceeds(getDoc(doc(coordinatorDb, "bookingOrchestrations/project-a")));
       await assertSucceeds(
         updateDoc(doc(coordinatorDb, "projects/project-a"), { updatedAt: "after" }),

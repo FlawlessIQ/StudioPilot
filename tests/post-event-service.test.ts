@@ -2,6 +2,21 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { postProductionRecordSchema, projectCloseoutSchema, reviewRequestSchema } from "../features/post-production/schema";
 import { aggregateStudioReport, albumReminderDecision, completePostProductionStep, evaluateCloseout, recordReviewEngagement, reviewReleasePlan, reviewSchedule } from "../server/services/post-event-service";
+import { parseInboundGalleryAnnouncement } from "../functions/src/post-event/inbound";
+
+test("gallery provider email becomes a reviewable delivery draft", () => {
+  assert.deepEqual(
+    parseInboundGalleryAnnouncement(
+      "Your gallery is ready: https://flawlessiq.pixieset.com/smith-wedding Access code: LOVE26 Expires on 10/14/2027",
+    ),
+    {
+      provider: "pixieset",
+      galleryUrl: "https://flawlessiq.pixieset.com/smith-wedding",
+      accessCode: "LOVE26",
+      expirationDate: "2027-10-14",
+    },
+  );
+});
 
 const audit = { createdAt:"2026-07-01T12:00:00.000Z",updatedAt:"2026-07-01T12:00:00.000Z",createdBy:"owner",updatedBy:"owner" };
 const emptyStep = { complete:false,completedAt:null,completedBy:null,evidenceId:null,notes:null };

@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
@@ -48,6 +48,7 @@ const command = z.discriminatedUnion("type", [
       albumIncluded: z.boolean().default(false),
       albumInstructionsUrl: z.string().url().nullable().default(null),
       saveStudioDefaults: z.boolean().default(false),
+      deliveryDraftId: z.string().min(1).nullable().default(null),
     }),
   }),
   z.object({
@@ -169,8 +170,15 @@ export const postEventCommand = onRequest(
         const reference = db.doc(
           `postProductionRecords/${parsed.input.projectId}`,
         );
+        const galleryToken = randomBytes(24).toString("base64url");
+        const galleryInboxReference = db.doc(
+          `galleryInboxes/${parsed.input.projectId}`,
+        );
         await db.runTransaction(async (transaction) => {
-          const current = await transaction.get(reference);
+          const [current, galleryInbox] = await Promise.all([
+            transaction.get(reference),
+            transaction.get(galleryInboxReference),
+          ]);
           if (!current.exists || current.get("tenantId") !== parsed.tenantId)
             throw new Error("POST_PRODUCTION_NOT_FOUND");
           const steps = current.get("steps") as Record<
@@ -211,6 +219,25 @@ export const postEventCommand = onRequest(
             updatedAt: now,
             updatedBy: identity.uid,
           });
+          if (parsed.input.step === "gallery_ready" && !galleryInbox.exists) {
+            const inboundDomain = process.env.SENDGRID_INBOUND_DOMAIN;
+            transaction.create(galleryInboxReference, {
+              id: parsed.input.projectId,
+              tenantId: parsed.tenantId,
+              projectId: parsed.input.projectId,
+              inboundAddress: inboundDomain
+                ? `gallery+${galleryToken}@${inboundDomain}`
+                : null,
+              tokenHash: createHash("sha256").update(galleryToken).digest("hex"),
+              status: inboundDomain ? "active" : "configuration_required",
+              lastReceivedAt: null,
+              createdAt: now,
+              updatedAt: now,
+              createdBy: identity.uid,
+              updatedBy: identity.uid,
+              archivedAt: null,
+            });
+          }
         });
         result = {
           projectId: parsed.input.projectId,
@@ -251,13 +278,25 @@ export const postEventCommand = onRequest(
           new Date(deliveredAt).getTime() + 10 * 86400000,
         ).toISOString();
         const projectReference = db.doc(`projects/${parsed.input.projectId}`);
-        const project = await projectReference.get();
+        const [project, deliveryDraft] = await Promise.all([
+          projectReference.get(),
+          parsed.input.deliveryDraftId
+            ? db.doc(`deliveryDrafts/${parsed.input.deliveryDraftId}`).get()
+            : Promise.resolve(null),
+        ]);
         if (
           !project.exists ||
           project.get("tenantId") !== parsed.tenantId ||
           project.get("state") !== "POST_PRODUCTION"
         )
           throw new Error("PROJECT_NOT_IN_POST_PRODUCTION");
+        if (
+          deliveryDraft &&
+          (!deliveryDraft.exists ||
+            deliveryDraft.get("tenantId") !== parsed.tenantId ||
+            deliveryDraft.get("projectId") !== parsed.input.projectId ||
+            deliveryDraft.get("status") !== "review_required")
+        ) throw new Error("DELIVERY_DRAFT_INVALID");
         const batch = db.batch();
         batch.create(db.doc(`deliveryRecords/${deliveryId}`), {
           id: deliveryId,
@@ -399,6 +438,15 @@ export const postEventCommand = onRequest(
           updatedAt: now,
           updatedBy: identity.uid,
         });
+        if (parsed.input.deliveryDraftId) {
+          batch.update(db.doc(`deliveryDrafts/${parsed.input.deliveryDraftId}`), {
+            status: "released",
+            deliveryRecordId: deliveryId,
+            releasedAt: now,
+            updatedAt: now,
+            updatedBy: identity.uid,
+          });
+        }
         if (
           parsed.input.saveStudioDefaults &&
           ["studio_owner", "studio_admin"].includes(role)

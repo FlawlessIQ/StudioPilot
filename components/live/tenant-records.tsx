@@ -112,6 +112,8 @@ async function tenantDocuments(
     "productEvents",
     "providerJobs",
     "emailJobs",
+    "galleryInboxes",
+    "deliveryDrafts",
   ]);
   if (
     restrictedToAssignments &&

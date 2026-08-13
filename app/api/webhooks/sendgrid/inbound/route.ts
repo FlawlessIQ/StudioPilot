@@ -20,6 +20,7 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: "PAYLOAD_TOO_LARGE" }, { status: 413 });
   }
 
+  const inspectionRequest = request.clone();
   const rawBody = await request.arrayBuffer();
   if (rawBody.byteLength > maxInboundBytes) {
     return Response.json({ error: "PAYLOAD_TOO_LARGE" }, { status: 413 });
@@ -33,7 +34,19 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const target = `${origin.replace(/\/$/, "")}/sendgridInboundCoi`;
+  let functionName = "sendgridInboundCoi";
+  try {
+    const fields = await inspectionRequest.formData();
+    const envelope = String(fields.get("envelope") ?? "");
+    const to = String(fields.get("to") ?? "");
+    if (/gallery\+[A-Za-z0-9_-]{20,300}@/i.test(`${envelope}\n${to}`)) {
+      functionName = "sendgridInboundGallery";
+    }
+  } catch {
+    // Preserve the existing COI path when SendGrid sends an unreadable payload.
+  }
+
+  const target = `${origin.replace(/\/$/, "")}/${functionName}`;
   const authorization = await serviceAuthorization(target);
   if (!authorization) {
     return Response.json(

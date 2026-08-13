@@ -576,6 +576,24 @@ service cloud.firestore {
         );
       allow write: if false;
     }
+
+    match /galleryInboxes/{projectId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+        || (
+          isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+          && hasRole(resource.data.tenantId, ["studio_coordinator"])
+        );
+      allow write: if false;
+    }
+
+    match /deliveryDrafts/{draftId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+        || (
+          isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+          && hasRole(resource.data.tenantId, ["studio_coordinator"])
+        );
+      allow write: if false;
+    }
     match /reviewRequests/{requestId} {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (
