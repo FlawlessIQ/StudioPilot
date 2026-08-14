@@ -18,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   activateStudioImport,
   getStudioImportReview,
@@ -127,7 +127,9 @@ export function StudioImportReviewWorkspace({
   );
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [simulation, setSimulation] = useState<Simulation | null>(null);
+  const [librarySyncComplete, setLibrarySyncComplete] = useState(false);
   const [mergeSourceId, setMergeSourceId] = useState("");
+  const draftListRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!selected) return;
@@ -176,6 +178,14 @@ export function StudioImportReviewWorkspace({
   const approved = visibleDrafts.filter(
     (draft) => draft.reviewDecision === "approved",
   ).length;
+  const decided = visibleDrafts.length - pending;
+  const selectedIndex = visibleDrafts.findIndex(
+    (draft) => draft.id === selected?.id,
+  );
+  const nextPendingDraft = [
+    ...visibleDrafts.slice(selectedIndex + 1),
+    ...visibleDrafts.slice(0, Math.max(selectedIndex + 1, 0)),
+  ].find((draft) => draft.reviewDecision === "pending");
   const blockedDrafts = visibleDrafts.filter(hasBlockingIssue);
   const usableDrafts = visibleDrafts.filter(
     (draft) =>
@@ -200,6 +210,24 @@ export function StudioImportReviewWorkspace({
           draft.reviewDecision === "pending",
       )
     : [];
+  const hasApprovedPackages = visibleDrafts.some(
+    (draft) => draft.assetType === "package" && draft.reviewDecision === "approved",
+  );
+  const hasApprovedQuestionnaires = visibleDrafts.some(
+    (draft) =>
+      draft.assetType === "questionnaire" && draft.reviewDecision === "approved",
+  );
+
+  function selectDraftAndReveal(draftId: string) {
+    setSelectedId(draftId);
+    requestAnimationFrame(() => {
+      const draftButton = Array.from(
+        draftListRef.current?.querySelectorAll<HTMLElement>("[data-draft-id]") ??
+          [],
+      ).find((element) => element.dataset.draftId === draftId);
+      draftButton?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  }
 
   if (!selected) {
     return (
@@ -252,32 +280,74 @@ export function StudioImportReviewWorkspace({
         className={`studio-import-review-grid${selected.assetType === "contract" ? " is-contract" : ""}`}
       >
         <aside className="studio-import-draft-nav" aria-label="Extracted drafts">
-          {visibleDrafts.map((draft) => (
-            <button
-              className={draft.id === selected.id ? "is-active" : ""}
-              key={draft.id}
-              onClick={() => setSelectedId(draft.id)}
-              type="button"
-            >
-              <span>
-                {draft.reviewDecision === "approved" ? (
-                  <CheckCircle2 size={15} />
-                ) : hasBlockingIssue(draft) ? (
-                  <AlertTriangle size={15} />
-                ) : (
-                  <Eye size={15} />
-                )}
-              </span>
-              <span>
-                <small>{labels[draft.assetType] ?? draft.assetType}</small>
-                <strong>{draft.name}</strong>
-                <span className="studio-import-draft-meta">
-                  <em>{draftState(draft)}</em>
-                  {packagePrice(draft) ? <b>{packagePrice(draft)}</b> : null}
+          <div className="studio-import-draft-nav-heading">
+            <span>
+              <strong>Review queue</strong>
+              <small>{decided} of {visibleDrafts.length} decided</small>
+            </span>
+            <b className={pending > 0 ? "has-pending" : ""}>
+              {pending > 0 ? `${pending} left` : "Complete"}
+            </b>
+            <progress
+              aria-label={`${decided} of ${visibleDrafts.length} drafts decided`}
+              max={visibleDrafts.length}
+              value={decided}
+            />
+          </div>
+          <div className="studio-import-draft-list" ref={draftListRef}>
+            {visibleDrafts.map((draft, index) => (
+              <button
+                aria-current={draft.id === selected.id ? "true" : undefined}
+                aria-label={`Draft ${index + 1} of ${visibleDrafts.length}: ${draft.name}, ${draftState(draft)}`}
+                className={draft.id === selected.id ? "is-active" : ""}
+                data-draft-id={draft.id}
+                key={draft.id}
+                onClick={() => selectDraftAndReveal(draft.id)}
+                type="button"
+              >
+                <span>
+                  {draft.reviewDecision === "approved" ? (
+                    <CheckCircle2 size={15} />
+                  ) : hasBlockingIssue(draft) ? (
+                    <AlertTriangle size={15} />
+                  ) : (
+                    <Eye size={15} />
+                  )}
                 </span>
+                <span>
+                  <small>
+                    {index + 1} · {labels[draft.assetType] ?? draft.assetType}
+                  </small>
+                  <strong>{draft.name}</strong>
+                  <span className="studio-import-draft-meta">
+                    <em>{draftState(draft)}</em>
+                    {packagePrice(draft) ? <b>{packagePrice(draft)}</b> : null}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+          <div className="studio-import-draft-nav-footer" role="status">
+            {nextPendingDraft ? (
+              <>
+                <span>
+                  <strong>{pending} draft{pending === 1 ? "" : "s"} still need a decision</strong>
+                  <small>Approve, reject, or ignore each one.</small>
+                </span>
+                <button
+                  onClick={() => selectDraftAndReveal(nextPendingDraft.id)}
+                  type="button"
+                >
+                  Review next undecided
+                </button>
+              </>
+            ) : (
+              <span className="is-complete">
+                <CheckCircle2 size={16} />
+                <strong>All {visibleDrafts.length} drafts reviewed</strong>
               </span>
-            </button>
-          ))}
+            )}
+          </div>
         </aside>
 
         <section className="studio-import-source-proof">
@@ -523,7 +593,7 @@ export function StudioImportReviewWorkspace({
           <strong>Human-gated activation</strong>
           <small>
             {review.session.status === "activated"
-              ? "The approved drafts are active in your StudioCue library."
+              ? "This import is activated. Sync once to repair or confirm its native Library records."
               : duplicateActivationBlocked
                 ? "This exact source was activated from an earlier import session. This session cannot be activated again."
               : pending > 0
@@ -548,27 +618,29 @@ export function StudioImportReviewWorkspace({
           className="is-activate"
           disabled={
             Boolean(busyAction) ||
-            approved === 0 ||
-            pending > 0 ||
-            duplicateActivationBlocked ||
-            review.session.status === "activated"
+            librarySyncComplete ||
+            (review.session.status !== "activated" &&
+              (approved === 0 || pending > 0 || duplicateActivationBlocked))
           }
           onClick={() =>
-            void run("activate", () =>
-              activateStudioImport(review.session.id),
-            )
+            void run("activate", async () => {
+              await activateStudioImport(review.session.id);
+              setLibrarySyncComplete(true);
+            })
           }
           type="button"
         >
           {busyAction === "activate" ? (
             <LoaderCircle className="spin" />
-          ) : review.session.status === "activated" ? (
+          ) : librarySyncComplete ? (
             <CheckCircle2 />
           ) : (
             <ShieldCheck />
           )}
           {review.session.status === "activated"
-            ? "Activated"
+            ? librarySyncComplete
+              ? "Library synced"
+              : "Sync to library"
             : `Activate ${approved} approved`}
         </button>
       </div>
@@ -582,6 +654,10 @@ export function StudioImportReviewWorkspace({
               instructions are saved as studio defaults.
             </small>
           </div>
+          {hasApprovedPackages ? <Link href="/studio/packages">View packages</Link> : null}
+          {hasApprovedQuestionnaires ? (
+            <Link href="/studio/questionnaires">View questionnaires</Link>
+          ) : null}
           <Link href="/studio/messages">Review messages</Link>
           <Link href="/studio/library">Open studio library</Link>
         </div>

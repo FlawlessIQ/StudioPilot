@@ -49,6 +49,15 @@ const startingFields: FieldRow[] = [
   { id: "accessibility", label: "Accessibility needs", type: "long_text", required: false, options: "", conditionalFieldId: "", conditionalEquals: "" },
 ];
 
+function templateFieldCount(sections: unknown): number {
+  if (!Array.isArray(sections)) return 0;
+  return sections.reduce((total, section) => {
+    if (typeof section !== "object" || section === null) return total;
+    const fields = "fields" in section ? section.fields : null;
+    return total + (Array.isArray(fields) ? fields.length : 0);
+  }, 0);
+}
+
 export function QuestionnaireBuilder() {
   const workspace = useWorkspace();
   const { records: projects } = useTenantDocuments("projects");
@@ -159,6 +168,40 @@ export function QuestionnaireBuilder() {
           <button className={mode === "assign" ? "active" : ""} onClick={() => setMode("assign")} type="button"><Send size={15} /> Assign to project</button>
         </div>
       </header>
+
+      <section className="questionnaire-template-library" aria-label="Saved questionnaire templates">
+        <div>
+          <span>
+            <p className="eyebrow">Saved templates</p>
+            <h3>Questionnaire library</h3>
+          </span>
+          <strong>{templates?.length ?? 0} saved</strong>
+        </div>
+        {templates?.length ? (
+          <div className="questionnaire-template-list">
+            {templates.map((template) => {
+              const imported = Boolean(template.sourceStudioAssetId);
+              const count = templateFieldCount(template.sections);
+              return (
+                <article key={template.id}>
+                  <span><ClipboardPlus size={17} /></span>
+                  <div>
+                    <strong>{String(template.name ?? "Untitled questionnaire")}</strong>
+                    <small>
+                      {count} field{count === 1 ? "" : "s"} · {String(template.status ?? "draft")}
+                    </small>
+                  </div>
+                  {imported ? <em>Imported by AI</em> : null}
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="questionnaire-template-empty">
+            No saved questionnaire templates yet. Imported templates will appear here after activation.
+          </p>
+        )}
+      </section>
 
       {mode === "create" && canBuild ? (
         <form className="questionnaire-template-form" onSubmit={(event) => void create(event)}>

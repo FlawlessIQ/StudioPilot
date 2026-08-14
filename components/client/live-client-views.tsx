@@ -20,6 +20,7 @@ import {
   LockKeyhole,
   MapPin,
   MessageCircle,
+  RotateCw,
   ShieldCheck,
   Star,
   UserRound,
@@ -240,6 +241,7 @@ function PortalState({
   error: string | null;
   empty?: string;
 }) {
+  const workspace = useWorkspace();
   if (loading)
     return (
       <section className="panel portal-live-state">
@@ -258,6 +260,9 @@ function PortalState({
           <strong>This information is unavailable</strong>
           <small>{error}</small>
         </span>
+        <button className="button button-light button-sm" onClick={workspace.retry} type="button">
+          <RotateCw size={14} /> Try again
+        </button>
       </section>
     );
   if (empty)

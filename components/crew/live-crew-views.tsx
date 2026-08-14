@@ -14,6 +14,7 @@ import {
   FileCheck2,
   LoaderCircle,
   MapPin,
+  RotateCw,
   ShieldCheck,
 } from "lucide-react";
 import {
@@ -35,6 +36,7 @@ import {
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { sendCrewCommand } from "@/lib/crew/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { withTimeout } from "@/lib/async/with-timeout";
 
 type Value = Record<string, unknown> & { id: string };
 type CrewData = {
@@ -110,7 +112,7 @@ function useCrewData(): CrewData {
     let active = true;
     const { firestore } = getFirebaseClient();
     const assignedProjectIds = workspace.projectIds.slice(0, 100);
-    void Promise.all([
+    void withTimeout(Promise.all([
       Promise.all(
         assignedProjectIds.map((projectId) =>
           getDocs(
@@ -140,7 +142,7 @@ function useCrewData(): CrewData {
           limit(100),
         ),
       ),
-    ])
+    ]), 15_000, "Crew workspace data took too long to load. Try again.")
       .then(async ([assignmentSnapshots, profileSnapshot, availabilitySnapshot]) => {
         const assignments = assignmentSnapshots.flatMap((snapshot) =>
           snapshot.docs.map(
@@ -155,10 +157,14 @@ function useCrewData(): CrewData {
               .filter((projectId): projectId is string => typeof projectId === "string"),
           ),
         );
-        const projectDocuments = await Promise.all(
-          projectIds.map((projectId) =>
-            getDoc(doc(firestore, "projects", projectId)),
+        const projectDocuments = await withTimeout(
+          Promise.all(
+            projectIds.map((projectId) =>
+              getDoc(doc(firestore, "projects", projectId)),
+            ),
           ),
+          10_000,
+          "Crew project details took too long to load. Try again.",
         );
         if (!active) return;
         setState({
@@ -215,6 +221,7 @@ function CrewState({
   data: CrewData;
   empty?: string;
 }) {
+  const workspace = useWorkspace();
   if (data.loading)
     return (
       <section className="panel team-state">
@@ -233,6 +240,9 @@ function CrewState({
           <strong>Crew workspace unavailable</strong>
           <small>{data.error}</small>
         </span>
+        <button className="button button-light button-sm" onClick={workspace.retry} type="button">
+          <RotateCw size={14} /> Try again
+        </button>
       </section>
     );
   if (empty)

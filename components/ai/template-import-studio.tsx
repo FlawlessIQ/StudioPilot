@@ -31,6 +31,7 @@ import {
 import { StudioImportReviewWorkspace } from "@/components/ai/studio-import-review-workspace";
 import {
   cancelStudioImport,
+  getStudioImportReview,
   importStudioTextSource,
   retryStudioImportItem,
   uploadStudioImportFiles,
@@ -198,7 +199,11 @@ function importStatusLabel(status: string | undefined) {
   return status.replaceAll("_", " ");
 }
 
-export function TemplateImportStudio() {
+export function TemplateImportStudio({
+  resumeSessionId,
+}: {
+  resumeSessionId?: string | null;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const reviewRef = useRef<HTMLDivElement>(null);
   const [sourceMode, setSourceMode] = useState<SourceMode>("files");
@@ -237,6 +242,49 @@ export function TemplateImportStudio() {
     window.addEventListener("offline", handleOffline);
     return () => window.removeEventListener("offline", handleOffline);
   }, []);
+
+  useEffect(() => {
+    if (!resumeSessionId) return;
+    let active = true;
+    void Promise.resolve()
+      .then(() => {
+        if (!active) throw new DOMException("Cancelled", "AbortError");
+        setBusy(true);
+        setPipelineError(null);
+        return getStudioImportReview(resumeSessionId);
+      })
+      .then((restored) => {
+        if (!active) return;
+        setReview(restored);
+        setSelected(kindsFromReview(restored));
+        setComplete(true);
+        setSecureSourcesReady(restored.sources.length > 0);
+        setUploadProgress({
+          phase: "ready",
+          percent: 100,
+          message:
+            restored.session.status === "activated"
+              ? "This import was activated. You can sync its approved content to the library below."
+              : "Your saved import review has been restored.",
+          sessionId: restored.session.id,
+          items: [],
+        });
+      })
+      .catch((caught: unknown) => {
+        if (!active) return;
+        setPipelineError(
+          caught instanceof Error
+            ? caught.message
+            : "StudioCue could not restore this import session.",
+        );
+      })
+      .finally(() => {
+        if (active) setBusy(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [resumeSessionId]);
 
   const suggestions = useMemo(() => {
     const kinds = new Set<ImportKind>(files.map((file) => file.kind));

@@ -2,6 +2,7 @@
 
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { withTimeout } from "@/lib/async/with-timeout";
 
 export type ClientPortalProject = {
   id: string;
@@ -74,7 +75,7 @@ async function portalRequest<T>(body: Record<string, unknown>): Promise<T> {
   const user = auth.currentUser;
   if (!user) throw new Error("Sign in to access your project.");
   const appCheckToken = await getAppCheckToken();
-  const response = await fetch("/api/client/portal", {
+  const response = await withTimeout(fetch("/api/client/portal", {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -82,7 +83,7 @@ async function portalRequest<T>(body: Record<string, unknown>): Promise<T> {
       ...(appCheckToken ? { "x-firebase-appcheck": appCheckToken } : {}),
     },
     body: JSON.stringify(body),
-  });
+  }), 15_000, "Your project took too long to load. Try again.");
   const result = (await response.json()) as T & { error?: string };
   if (!response.ok) {
     throw new Error(result.error ?? "Your project could not be loaded.");

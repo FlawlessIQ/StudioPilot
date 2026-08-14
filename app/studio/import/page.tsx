@@ -8,10 +8,15 @@ export const metadata: Metadata = {
     "Turn your studio’s existing documents, messages, forms, and pages into StudioCue templates.",
 };
 
-export default function TemplateImportPage() {
+export default async function TemplateImportPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ session?: string }>;
+}) {
+  const { session } = await searchParams;
   return (
     <AppShell active="AI setup">
-      <TemplateImportStudio />
+      <TemplateImportStudio resumeSessionId={session ?? null} />
     </AppShell>
   );
 }

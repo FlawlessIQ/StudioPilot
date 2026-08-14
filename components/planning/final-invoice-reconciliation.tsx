@@ -15,10 +15,14 @@ const money = (value: unknown, currency: unknown) =>
     currency: String(currency || "USD"),
   }).format(Number(value ?? 0) / 100);
 
-export function FinalInvoiceReconciliation() {
+export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }) {
   const { records, loading } = useTenantDocuments("invoiceReferences");
   const finalInvoices =
-    records?.filter((invoice) => invoice.kind === "final") ?? [];
+    records?.filter(
+      (invoice) =>
+        invoice.kind === "final" &&
+        (!projectId || String(invoice.projectId) === projectId),
+    ) ?? [];
 
   return (
     <section className="final-invoice-reconciliation">

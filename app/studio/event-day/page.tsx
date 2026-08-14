@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { EventDayCopilot } from "@/components/ai/event-day-copilot";
 import { AppShell } from "@/components/layout/app-shell";
-import { ProjectWorkspaceNav } from "@/components/projects/project-workspace-nav";
+import { ProjectContextBar } from "@/components/studio/live-domain-view";
 
 export const metadata: Metadata = { title: "Event Day" };
 
@@ -13,7 +13,7 @@ export default async function EventDayPage({
   const { project } = await searchParams;
   return (
     <AppShell active="Event day">
-      {project ? <ProjectWorkspaceNav compact projectId={project} /> : null}
+      {project ? <ProjectContextBar projectId={project} /> : null}
       <EventDayCopilot initialProjectId={project} />
     </AppShell>
   );

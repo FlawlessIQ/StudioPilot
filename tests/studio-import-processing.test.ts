@@ -10,6 +10,7 @@ import {
   importedDeliveryDefaults,
   importedMessageTemplate,
   importedReviewLink,
+  importedStudioPackage,
 } from "../functions/src/studio-import/native-assets.ts";
 import {
   hasUnreadableEmbeddedStudioImportForm,
@@ -178,4 +179,27 @@ test("approved delivery and review instructions populate native studio defaults"
       url: "https://example.com/google-review",
     },
   );
+});
+
+test("approved package imports become native package catalog records", () => {
+  const studioPackage = importedStudioPackage({
+    name: "Platinum Cinema Package",
+    displayOrder: 4,
+    structuredContent: {
+      price: 4599,
+      currency: "$",
+      lineItems: [
+        "Two GR Productions Videographers for full day with 10 hours of coverage each.",
+        "Drone and gimbal footage included.",
+        "Digital copy delivered via Dropbox.",
+      ],
+    },
+  });
+  assert.equal(studioPackage.basePriceCents, 459900);
+  assert.equal(studioPackage.currency, "USD");
+  assert.equal(studioPackage.includedCoverageMinutes, 600);
+  assert.equal(studioPackage.includedPhotographers, 2);
+  assert.equal(studioPackage.active, true);
+  assert.equal(studioPackage.publicVisible, false);
+  assert.equal(studioPackage.includedDeliverables.length, 3);
 });

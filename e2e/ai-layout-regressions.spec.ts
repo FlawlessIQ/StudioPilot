@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 test("AI import panels stay contained at desktop and mobile widths", async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/studio/import");
 
   const source = page.locator(".template-source-panel");

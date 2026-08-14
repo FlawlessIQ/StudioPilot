@@ -23,7 +23,7 @@ import { dataIsLive } from "@/lib/runtime-mode";
 
 type RequestRecord = Record<string, unknown> & { id: string };
 
-export function CoiWorkflowPanel() {
+export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
   const workspace = useWorkspace();
   const { records: projects, loading: projectsLoading } =
     useTenantDocuments("projects");
@@ -41,13 +41,16 @@ export function CoiWorkflowPanel() {
         collection(firestore, "insuranceRequests"),
         where("tenantId", "==", workspace.tenantId),
       ),
-      (snapshot) =>
-        setRequests(
-          snapshot.docs.map((item) => ({ id: item.id, ...item.data() })),
-        ),
+      (snapshot) => {
+        const next: RequestRecord[] = snapshot.docs.map((item) => ({
+          id: item.id,
+          ...item.data(),
+        }));
+        setRequests(projectId ? next.filter((item) => item.projectId === projectId) : next);
+      },
       () => setNotice("The COI review queue could not be refreshed."),
     );
-  }, [workspace.loading, workspace.tenantId]);
+  }, [projectId, workspace.loading, workspace.tenantId]);
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -149,7 +152,7 @@ export function CoiWorkflowPanel() {
         <form className="coi-request-form" onSubmit={(event) => void create(event)}>
           <label>
             Project
-            <select name="projectId" required disabled={projectsLoading}>
+            <select name="projectId" required disabled={projectsLoading} defaultValue={projectId ?? ""}>
               <option value="">Select a project</option>
               {projects?.map((project) => (
                 <option key={project.id} value={project.id}>

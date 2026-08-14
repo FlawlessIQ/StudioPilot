@@ -5,7 +5,11 @@ import {
   ReCaptchaEnterpriseProvider,
   type AppCheck,
 } from "firebase/app-check";
-import { connectFirestoreEmulator, getFirestore, type Firestore } from "firebase/firestore";
+import {
+  connectFirestoreEmulator,
+  initializeFirestore,
+  type Firestore,
+} from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -18,6 +22,7 @@ const firebaseConfig = {
 
 let emulatorConnected = false;
 let appCheck: AppCheck | null = null;
+let firestoreClient: Firestore | null = null;
 
 export function getFirebaseClient(): {
   app: FirebaseApp;
@@ -35,7 +40,15 @@ export function getFirebaseClient(): {
 
   const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
   const auth = getAuth(app);
-  const firestore = getFirestore(app);
+  firestoreClient ??= initializeFirestore(app, {
+    // StudioCue is commonly used on venue, hotel, and mobile networks where
+    // proxies can interrupt Firestore's streaming WebChannel transport. The
+    // forced long-polling transport trades a little latency for predictable
+    // signed-in reads and writes on those networks.
+    experimentalForceLongPolling: true,
+    experimentalLongPollingOptions: { timeoutSeconds: 15 },
+  });
+  const firestore = firestoreClient;
   const useEmulators =
     process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true";
 

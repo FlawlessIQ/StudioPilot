@@ -10,6 +10,7 @@ import {
 } from "@/lib/firebase/membership-cache";
 import { authIsLive } from "@/lib/runtime-mode";
 import { withTimeout } from "@/lib/async/with-timeout";
+import { getWorkspaceBootstrap } from "@/lib/firebase/workspace-bootstrap";
 type Area = "studio" | "client" | "crew" | "platform";
 const allowed: Record<Exclude<Area, "platform">, string[]> = {
   studio: [
@@ -58,18 +59,28 @@ export function AuthBoundary({
             if (active) setStatus("authorized");
             return;
           }
-          const memberships = await loadMembershipDocuments(
-            firestore,
-            user.uid,
-            { force: attempt > 0 },
-          );
-          const permitted = memberships.some((document) =>
-            allowed[area].includes(String(document.data().role)),
-          );
-          if (!permitted) {
-            const roles = memberships.map((document) =>
+          let roles: string[];
+          try {
+            const memberships = await loadMembershipDocuments(
+              firestore,
+              user.uid,
+              { force: attempt > 0 },
+            );
+            roles = memberships.map((document) =>
               String(document.data().role),
             );
+          } catch {
+            const preferredTenantId = window.localStorage.getItem(
+              "studiohub.activeTenantId",
+            );
+            const bootstrap = await getWorkspaceBootstrap(
+              area,
+              preferredTenantId,
+            );
+            roles = bootstrap.memberships.map((membership) => membership.role);
+          }
+          const permitted = roles.some((role) => allowed[area].includes(role));
+          if (!permitted) {
             const destination = roles.includes("client")
               ? "/client"
               : roles.includes("subcontractor")

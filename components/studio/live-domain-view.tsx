@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -9,6 +9,7 @@ import {
   Inbox,
   LoaderCircle,
   Plus,
+  RotateCw,
 } from "lucide-react";
 import {
   collection,
@@ -25,6 +26,8 @@ import { stateTone } from "@/lib/status-tone";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { withTimeout } from "@/lib/async/with-timeout";
+import { getStudioRecords } from "@/lib/studio/records-client";
 import { ProjectWorkspaceNav } from "@/components/projects/project-workspace-nav";
 import {
   demoTenantDocuments,
@@ -443,6 +446,7 @@ export function LiveDomainView({
     dataIsLive ? null : demoRecords,
   );
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     if (!dataIsLive) {
       queueMicrotask(() => {
@@ -460,6 +464,12 @@ export function LiveDomainView({
       return;
     }
     let active = true;
+    queueMicrotask(() => {
+      if (active) {
+        setRecords(null);
+        setError(null);
+      }
+    });
     const { firestore } = getFirebaseClient();
     const constraints: QueryConstraint[] = [
       where("tenantId", "==", workspace.tenantId),
@@ -505,7 +515,11 @@ export function LiveDomainView({
       );
     }
     constraints.push(limit(100));
-    void getDocs(query(collection(firestore, config.collection), ...constraints))
+    void withTimeout(
+      getDocs(query(collection(firestore, config.collection), ...constraints)),
+      15_000,
+      `${config.collection} took too long to load.`,
+    )
       .then(async (snapshot) => {
         const values = snapshot.docs.map(
           (document) => ({ id: document.id, ...document.data() }) as Value,
@@ -517,10 +531,14 @@ export function LiveDomainView({
               .filter((value): value is string => typeof value === "string"),
           ),
         );
-        const projects = await Promise.all(
-          projectIds.map((projectId) =>
-            getDoc(doc(firestore, "projects", projectId)),
+        const projects = await withTimeout(
+          Promise.all(
+            projectIds.map((projectId) =>
+              getDoc(doc(firestore, "projects", projectId)),
+            ),
           ),
+          10_000,
+          "Project names took too long to load.",
         );
         const names = Object.fromEntries(
           projects
@@ -538,20 +556,33 @@ export function LiveDomainView({
             })),
           );
       })
-      .catch((caught: unknown) => {
-        if (!active) return;
-        setRecords([]);
-        setError(
-          caught instanceof Error
-            ? caught.message
-            : `${config.collection} could not be loaded.`,
-        );
+      .catch(async (caught: unknown) => {
+        try {
+          const recovered = await getStudioRecords({
+            collection: config.collection,
+            tenantId: workspace.tenantId!,
+            projectId,
+            projectScoped: config.projectScoped,
+            vendorScoped: config.vendorScoped,
+          });
+          if (active) {
+            setRecords(recovered as Value[]);
+            setError(null);
+          }
+        } catch (recoveryError: unknown) {
+          if (!active) return;
+          setRecords([]);
+          const primary = caught instanceof Error ? caught.message : null;
+          const recovery = recoveryError instanceof Error ? recoveryError.message : null;
+          setError(recovery ?? primary ?? `${config.collection} could not be loaded.`);
+        }
       });
     return () => {
       active = false;
     };
   }, [
     config,
+    attempt,
     demoRecords,
     projectId,
     workspace.loading,
@@ -578,6 +609,13 @@ export function LiveDomainView({
           <strong>Records could not be loaded</strong>
           <small>{error}</small>
         </span>
+        <button
+          className="button button-light button-sm"
+          onClick={() => setAttempt((current) => current + 1)}
+          type="button"
+        >
+          <RotateCw size={14} /> Retry
+        </button>
       </section>
     );
   if (!records?.length) {
@@ -658,6 +696,7 @@ export function StudioDomainPage({
   description,
   action,
   projectId,
+  beforeContent,
 }: {
   domain: Domain;
   eyebrow: string;
@@ -665,6 +704,7 @@ export function StudioDomainPage({
   description: string;
   action?: { href: string; label: string };
   projectId?: string;
+  beforeContent?: ReactNode;
 }) {
   return (
     <div className="live-domain-page">
@@ -680,6 +720,7 @@ export function StudioDomainPage({
           </Link>
         ) : null}
       </header>
+      {beforeContent}
       {projectId ? <ProjectContextBar projectId={projectId} /> : null}
       <LiveDomainView domain={domain} emptyAction={action} projectId={projectId} />
     </div>

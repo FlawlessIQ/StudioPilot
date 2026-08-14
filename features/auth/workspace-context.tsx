@@ -27,6 +27,10 @@ import {
 } from "@/lib/firebase/membership-cache";
 import { authIsLive } from "@/lib/runtime-mode";
 import { withTimeout } from "@/lib/async/with-timeout";
+import {
+  getWorkspaceBootstrap,
+  type WorkspaceBootstrap,
+} from "@/lib/firebase/workspace-bootstrap";
 
 type WorkspaceArea = "studio" | "client" | "crew";
 
@@ -184,27 +188,39 @@ export function WorkspaceProvider({
       }
       void (async () => {
         try {
-          const membershipDocuments = await loadMembershipDocuments(
-            firestore,
-            user.uid,
-            { force: attempt > 0 },
-          );
-          const memberships = membershipDocuments
-            .map((membershipDocument) =>
-              asMembership(
-                membershipDocument.id,
-                membershipDocument.data(),
-              ),
-            )
-            .filter(
-              (membership): membership is WorkspaceMembership =>
-                membership !== null,
-            );
-          const permitted = memberships.filter((membership) =>
-            areaRoles[area].includes(membership.role),
-          );
           const storedTenantId = window.localStorage.getItem(
             "studiohub.activeTenantId",
+          );
+          let bootstrap: WorkspaceBootstrap | null = null;
+          let memberships: WorkspaceMembership[];
+          try {
+            const membershipDocuments = await loadMembershipDocuments(
+              firestore,
+              user.uid,
+              { force: attempt > 0 },
+            );
+            memberships = membershipDocuments
+              .map((membershipDocument) =>
+                asMembership(
+                  membershipDocument.id,
+                  membershipDocument.data(),
+                ),
+              )
+              .filter(
+                (membership): membership is WorkspaceMembership =>
+                  membership !== null,
+              );
+          } catch {
+            bootstrap = await getWorkspaceBootstrap(area, storedTenantId);
+            memberships = bootstrap.memberships
+              .map((membership) => asMembership(membership.id, membership))
+              .filter(
+                (membership): membership is WorkspaceMembership =>
+                  membership !== null,
+              );
+          }
+          const permitted = memberships.filter((membership) =>
+            areaRoles[area].includes(membership.role),
           );
           const membership =
             permitted.find((item) => item.tenantId === storedTenantId) ??
@@ -244,31 +260,52 @@ export function WorkspaceProvider({
               projectId,
             );
           }
-          const [tenantDocument, userDocument, projectDocument] =
-            await withTimeout(
-              Promise.all([
-                getDoc(doc(firestore, "tenants", membership.tenantId)),
-                getDoc(doc(firestore, "users", user.uid)),
-                projectId
-                  ? area === "client"
-                    ? getClientPortalProject(membership.tenantId, projectId)
-                    : getDoc(doc(firestore, "projects", projectId))
-                  : Promise.resolve(null),
-              ]),
-              15_000,
-              "Your workspace details took too long to load. Try again.",
-            );
+          let tenant: Record<string, unknown> = {};
+          let profile: Record<string, unknown> = {};
+          let project: Record<string, unknown> = {};
+          let clientProject: ClientPortalProject | null = null;
+          try {
+            const [tenantDocument, userDocument, projectDocument] =
+              await withTimeout(
+                Promise.all([
+                  getDoc(doc(firestore, "tenants", membership.tenantId)),
+                  getDoc(doc(firestore, "users", user.uid)),
+                  projectId
+                    ? area === "client"
+                      ? getClientPortalProject(membership.tenantId, projectId)
+                      : getDoc(doc(firestore, "projects", projectId))
+                    : Promise.resolve(null),
+                ]),
+                15_000,
+                "Your workspace details took too long to load. Try again.",
+              );
+            tenant = tenantDocument.data() ?? {};
+            profile = userDocument.data() ?? {};
+            project =
+              projectDocument && "data" in projectDocument
+                ? projectDocument.data() ?? {}
+                : projectDocument ?? {};
+            clientProject =
+              area === "client" &&
+              projectDocument &&
+              !("data" in projectDocument)
+                ? projectDocument
+                : null;
+          } catch {
+            bootstrap ??= await getWorkspaceBootstrap(area, membership.tenantId);
+            tenant = bootstrap.tenant ?? {};
+            profile = bootstrap.profile ?? {};
+            if (area === "client" && projectId) {
+              clientProject = await getClientPortalProject(
+                membership.tenantId,
+                projectId,
+              );
+              project = clientProject;
+            } else {
+              project = bootstrap.project ?? {};
+            }
+          }
           if (!active) return;
-          const tenant = tenantDocument.data() ?? {};
-          const profile = userDocument.data() ?? {};
-          const project =
-            projectDocument && "data" in projectDocument
-              ? projectDocument.data() ?? {}
-              : projectDocument ?? {};
-          const clientProject =
-            area === "client" && projectDocument && !("data" in projectDocument)
-              ? projectDocument
-              : null;
           setState({
             loading: false,
             error: null,

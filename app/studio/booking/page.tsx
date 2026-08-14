@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { BookingAutopilotWorkspace } from "@/components/booking/booking-autopilot-workspace";
 import { ProjectBookingWorkspace } from "@/components/booking/project-booking-workspace";
 import { AppShell } from "@/components/layout/app-shell";
-import { StudioDomainPage } from "@/components/studio/live-domain-view";
+import { ProjectContextBar, StudioDomainPage } from "@/components/studio/live-domain-view";
 
 export const metadata: Metadata = {
   title: "Booking autopilot",
@@ -20,6 +20,7 @@ export default async function BookingPage({
     <AppShell active="Booking">
       {project ? (
         <div className="booking-autopilot-page">
+          <ProjectContextBar projectId={project} />
           <BookingAutopilotWorkspace projectId={project} />
           <section className="booking-evidence-heading">
             <p className="eyebrow">Provider-authoritative completion</p>

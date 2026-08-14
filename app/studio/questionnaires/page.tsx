@@ -3,6 +3,7 @@ import Link from "next/link";
 import { QuestionnaireBuilder } from "@/components/planning/questionnaire-builder";
 import { QuestionnaireReviewInsights } from "@/components/planning/questionnaire-review-insights";
 import { LiveDomainView, ProjectContextBar } from "@/components/studio/live-domain-view";
+import { PendingImportNotice } from "@/components/ai/pending-import-notice";
 
 export default async function QuestionnairesPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
   const { project } = await searchParams;
@@ -19,6 +20,7 @@ export default async function QuestionnairesPage({ searchParams }: { searchParam
             </p>
           </div>
         </header>
+        {!project ? <PendingImportNotice destination="questionnaires" /> : null}
         {project ? <ProjectContextBar projectId={project} /> : null}
         {project ? <QuestionnaireReviewInsights projectId={project} /> : null}
         <LiveDomainView domain="questionnaires" projectId={project} />

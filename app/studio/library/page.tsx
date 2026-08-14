@@ -9,6 +9,7 @@ import {
   Workflow,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
+import { PendingImportNotice } from "@/components/ai/pending-import-notice";
 
 export const metadata: Metadata = { title: "Studio library" };
 
@@ -56,6 +57,7 @@ export default function LibraryPage() {
             <p>Set up the packages, forms, workflows, and content your team uses across projects.</p>
           </div>
         </header>
+        <PendingImportNotice />
         <section className="hub-grid">
           {resources.map((resource) => {
             const Icon = resource.icon;

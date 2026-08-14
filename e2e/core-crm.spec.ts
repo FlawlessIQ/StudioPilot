@@ -62,21 +62,18 @@ test("studio operational surfaces use real-data empty states", async ({ page }) 
   await expect(page.getByRole("heading", { name: "Schedule draft" })).toBeVisible();
 });
 
-test("home prioritizes approvals and reports validated workflow readiness", async ({ page }) => {
+test("home prioritizes approvals and reports only observed workflow evidence", async ({ page }) => {
   await page.goto("/studio");
-  await expect(
-    page.getByText("Approve what matters. StudioCue handles the rest."),
-  ).toBeVisible();
-  await expect(page.getByText("Needs your approval", { exact: true })).toBeVisible();
-  await expect(page.getByText("Exceptions", { exact: true })).toBeVisible();
-  await expect(page.getByText("StudioCue is working", { exact: true })).toBeVisible();
+  await expect(page.getByText("Your next decision", { exact: true })).toBeVisible();
+  await expect(page.locator(".studio-focus-action")).toBeVisible();
+  await expect(page.locator(".studio-focus-hero")).toContainText("Suggested next");
 
   await page.goto("/studio/reports");
-  await expect(page.getByText("Validated capability coverage")).toBeVisible();
-  await expect(page.getByText("Validated photographer automation")).toBeVisible();
-  await expect(page.getByText("Validated approval-led experience")).toBeVisible();
-  await expect(page.getByText("98%", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("97%", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What StudioCue handled for you" })).toBeVisible();
+  await expect(page.getByText("Automation reliability", { exact: true })).toBeVisible();
+  await expect(page.getByText("Verified time reclaimed", { exact: true })).toBeVisible();
+  await expect(page.getByText("Needs data", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/does not invent time savings/i)).toBeVisible();
 });
 
 test("role portals state their security and evidence boundaries", async ({ page }) => {

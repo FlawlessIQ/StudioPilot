@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
 import { ProjectBookingWorkspace } from "@/components/booking/project-booking-workspace";
 import { LiveDomainView, ProjectContextBar } from "@/components/studio/live-domain-view";
@@ -21,6 +22,9 @@ export default async function ContractsPage({ searchParams }: { searchParams: Pr
           <section className="panel booking-project-prompt">
             <h2>Choose a project to continue booking</h2>
             <p>Open a project and select Booking to prepare its contract, retainer, and booking review in order.</p>
+            <Link className="button button-dark" href="/studio/projects">
+              Open projects
+            </Link>
           </section>
         )}
         <section>

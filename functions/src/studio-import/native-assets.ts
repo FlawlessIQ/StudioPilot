@@ -8,6 +8,139 @@ const record = (value: unknown): Json =>
 const text = (value: unknown): string =>
   typeof value === "string" ? value.trim() : "";
 
+const money = (value: unknown): number | null => {
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value.replace(/[^0-9.-]/g, ""))
+        : Number.NaN;
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+};
+
+const wordsToNumber: Record<string, number> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+};
+
+function lineItemText(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.flatMap((item) => {
+        if (typeof item === "string" && item.trim()) return [item.trim()];
+        const entry = record(item);
+        const label = text(
+          entry.description ?? entry.label ?? entry.name ?? entry.title,
+        );
+        const amount = text(entry.amount ?? entry.price);
+        return label ? [`${label}${amount ? ` ${amount}` : ""}`] : [];
+      })
+    : [];
+}
+
+export function importedStudioPackage(input: {
+  name: string;
+  structuredContent: unknown;
+  displayOrder: number;
+}) {
+  const content = record(input.structuredContent);
+  const details = lineItemText(
+    content.lineItems ?? content.pricingItems ?? content.items,
+  );
+  const source = [
+    text(content.description),
+    ...details,
+    text(content.sourceText),
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const explicitPrice = money(
+    content.price ??
+      content.packagePrice ??
+      content.basePrice ??
+      content.amount,
+  );
+  const amountCents = money(content.amountCents ?? content.basePriceCents);
+  const firstItemPriceCents = Array.isArray(content.lineItems)
+    ? content.lineItems.flatMap((item) => {
+        const entry = record(item);
+        const cents = money(entry.amountCents);
+        if (cents !== null) return [Math.round(cents)];
+        const dollars = money(entry.amount ?? entry.price);
+        return dollars === null ? [] : [Math.round(dollars * 100)];
+      })[0] ?? 0
+    : 0;
+  const basePriceCents = Math.round(
+    explicitPrice !== null
+      ? explicitPrice * 100
+      : amountCents !== null
+        ? amountCents
+        : firstItemPriceCents,
+  );
+  const coverage = source.match(/(\d+(?:\.\d+)?)\s*(?:hours?|hrs?)/i);
+  const crew = source.match(
+    /\b(\d+|one|two|three|four|five|six)\s+(?:[a-z]+\s+){0,2}(?:photographers?|videographers?)\b/i,
+  );
+  const crewValue = crew?.[1]?.toLowerCase() ?? "";
+  const includedPhotographers = Math.max(
+    1,
+    Number(crewValue) || wordsToNumber[crewValue] || 1,
+  );
+  const retainerAmount = money(
+    content.retainer ?? content.retainerAmount ?? content.bookingFee,
+  );
+  const retainerPercent = money(content.retainerPercent);
+  const extractedCurrency = text(content.currency).toUpperCase();
+  const currency = /^[A-Z]{3}$/.test(extractedCurrency)
+    ? extractedCurrency
+    : "USD";
+  const description =
+    text(content.description) ||
+    details.join(". ").slice(0, 3000) ||
+    `${input.name} imported from an approved studio source.`;
+
+  return {
+    name: input.name,
+    description,
+    eventTypeId: text(content.eventTypeId) || "wedding",
+    eventTypeLabel: text(content.eventTypeLabel) || "Wedding",
+    basePriceCents,
+    currency,
+    retainerRule:
+      retainerPercent !== null
+        ? {
+            type: "percentage" as const,
+            basisPoints: Math.min(10_000, Math.round(retainerPercent * 100)),
+          }
+        : {
+            type: "fixed" as const,
+            amountCents: Math.round((retainerAmount ?? 0) * 100),
+          },
+    includedCoverageMinutes: Math.max(
+      1,
+      Math.round(Number(coverage?.[1] ?? 1) * 60),
+    ),
+    includedPhotographers,
+    includedDeliverables: details.length
+      ? details.slice(0, 40)
+      : [description],
+    includedTravelArea: text(content.travelArea),
+    addOns: [],
+    taxRateBasisPoints: 0,
+    terms:
+      text(content.terms) ||
+      "See the studio’s approved booking agreement for complete terms and conditions.",
+    active: true,
+    publicVisible: false,
+    displayOrder: input.displayOrder,
+    internalNotes:
+      "Imported from an approved StudioCue AI import. Confirm any package details that were not present in the source before publishing publicly.",
+  };
+}
+
 const firstUrl = (value: string): string | null =>
   value.match(/https?:\/\/[^\s<>"')\]]+/i)?.[0]?.replace(/[.,;:]+$/, "") ??
   null;

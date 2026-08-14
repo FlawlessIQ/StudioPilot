@@ -18,6 +18,7 @@ import {
   importedDeliveryDefaults,
   importedMessageTemplate,
   importedReviewLink,
+  importedStudioPackage,
 } from "./native-assets.js";
 
 type Json = Record<string, unknown>;
@@ -665,6 +666,55 @@ export async function activateStudioImport(input: {
     input.tenantId,
     input.sessionId,
   );
+  if (session.get("status") === "activated") {
+    const activatedIds = new Set(
+      Array.isArray(session.get("activatedAssetVersionIds"))
+        ? (session.get("activatedAssetVersionIds") as unknown[]).map(String)
+        : [],
+    );
+    const activatedPackages = versions.filter(
+      (version) =>
+        version.get("assetType") === "package" &&
+        version.get("status") === "active" &&
+        (activatedIds.size === 0 || activatedIds.has(version.id)),
+    );
+    if (activatedPackages.length) {
+      const now = new Date().toISOString();
+      const batch = db.batch();
+      activatedPackages.forEach((version, index) => {
+        const assetId = string(version.get("assetId"));
+        const packageId = `imported_package_${assetId}`;
+        batch.set(
+          db.doc(`packages/${packageId}`),
+          {
+            id: packageId,
+            tenantId: input.tenantId,
+            ...importedStudioPackage({
+              name: string(version.get("name")) || "Imported package",
+              structuredContent: version.get("structuredContent"),
+              displayOrder: index,
+            }),
+            version: Number(version.get("version") ?? 1),
+            sourceStudioAssetId: assetId,
+            sourceStudioAssetVersionId: version.id,
+            createdAt: string(version.get("createdAt")) || now,
+            updatedAt: now,
+            createdBy: string(version.get("createdBy")) || input.actorId,
+            updatedBy: input.actorId,
+            archivedAt: null,
+          },
+          { merge: true },
+        );
+      });
+      await batch.commit();
+    }
+    return {
+      sessionId: input.sessionId,
+      status: "activated",
+      activatedAssetVersionIds: [...activatedIds],
+      repairedNativePackageCount: activatedPackages.length,
+    };
+  }
   const approved = versions.filter(
     (version) =>
       version.get("reviewDecision") === "approved" &&
@@ -811,6 +861,30 @@ export async function activateStudioImport(input: {
       });
       const assetType = string(version.get("assetType"));
       const assetId = string(version.get("assetId"));
+      if (assetType === "package") {
+        const packageId = `imported_package_${assetId}`;
+        transaction.set(
+          db.doc(`packages/${packageId}`),
+          {
+            id: packageId,
+            tenantId: input.tenantId,
+            ...importedStudioPackage({
+              name: string(version.get("name")) || "Imported package",
+              structuredContent: version.get("structuredContent"),
+              displayOrder: index,
+            }),
+            version: nextVersion,
+            sourceStudioAssetId: assetId,
+            sourceStudioAssetVersionId: version.id,
+            createdAt: asset.exists ? asset.get("createdAt") : now,
+            updatedAt: now,
+            createdBy: asset.exists ? asset.get("createdBy") : input.actorId,
+            updatedBy: input.actorId,
+            archivedAt: null,
+          },
+          { merge: true },
+        );
+      }
       if (assetType === "questionnaire") {
         const templateId = `imported_questionnaire_${assetId}`;
         transaction.set(

@@ -1,7 +1,7 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { DeliveryForm } from "@/components/post-event/delivery-form";
 import { DeliveryCloseoutWorkspace } from "@/components/post-event/delivery-closeout-workspace";
-import { LiveDomainView } from "@/components/studio/live-domain-view";
+import { LiveDomainView, ProjectContextBar } from "@/components/studio/live-domain-view";
 
 export default async function DeliveryPage({
   searchParams,
@@ -22,6 +22,7 @@ export default async function DeliveryPage({
             </p>
           </div>
         </header>
+        {project ? <ProjectContextBar projectId={project} /> : null}
         <section className="panel">
           <div className="panel-heading">
             <div>

@@ -83,13 +83,7 @@ test("content-bearing studio panels no longer touch their borders", async ({
   await expectInset(page, ".final-invoice-empty", 18);
 
   await page.goto("/studio");
-  const lastShortcut = page.locator(".automation-next-list > a").last();
-  const bottomInset = await lastShortcut.evaluate((element) => {
-    const row = element.getBoundingClientRect();
-    const description = element.querySelector("small")!.getBoundingClientRect();
-    return row.bottom - description.bottom;
-  });
-  expect(bottomInset).toBeGreaterThanOrEqual(12);
+  await expectInset(page, ".studio-focus-hero", 20);
 });
 
 test("studio, customer, and crew flows retain consistent page gutters", async ({

@@ -1,8 +1,9 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { CoiWorkflowPanel } from "@/components/planning/coi-workflow-panel";
-import { LiveDomainView } from "@/components/studio/live-domain-view";
+import { LiveDomainView, ProjectContextBar } from "@/components/studio/live-domain-view";
 
-export default function InsurancePage() {
+export default async function InsurancePage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
+  const { project } = await searchParams;
   return (
     <AppShell active="Insurance">
       <div className="live-domain-page">
@@ -13,14 +14,15 @@ export default function InsurancePage() {
             <p>Request, review, correct, and deliver venue certificates in one place.</p>
           </div>
         </header>
+        {project ? <ProjectContextBar projectId={project} /> : null}
         <div className="human-boundary">
           <span>
             <strong>Legal sufficiency is never automated.</strong>
             <small>StudioCue can spot possible discrepancies, but a studio reviewer always decides.</small>
           </span>
         </div>
-        <LiveDomainView domain="insurance" />
-        <CoiWorkflowPanel />
+        <LiveDomainView domain="insurance" projectId={project} />
+        <CoiWorkflowPanel projectId={project} />
       </div>
     </AppShell>
   );

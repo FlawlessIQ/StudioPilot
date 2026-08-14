@@ -10,7 +10,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
-import { ProjectWorkspaceNav } from "@/components/projects/project-workspace-nav";
+import { ProjectContextBar } from "@/components/studio/live-domain-view";
 
 export const metadata: Metadata = { title: "Project planning" };
 
@@ -35,7 +35,7 @@ export default async function PlanningPage({ searchParams }: { searchParams: Pro
             <p>One place for the client facts, timeline, crew, requirements, and files that make the event ready.</p>
           </div>
         </header>
-        {project ? <ProjectWorkspaceNav projectId={project} /> : null}
+        {project ? <ProjectContextBar projectId={project} /> : null}
         {project ? (
           <section className="project-plan-grid" aria-label="Planning areas">
             {areas.map((area) => {

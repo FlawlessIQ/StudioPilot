@@ -30,9 +30,10 @@ test("project workspace uses four outcome-based tabs", async ({ page }) => {
 });
 
 test("messages reveal the editor only after intent is established", async ({ page }) => {
-  await page.goto("/studio/messages?project=demo-project");
+  await page.goto("/studio/messages");
   await expect(page.getByRole("heading", { name: "Messages", exact: true })).toBeVisible();
   await expect(page.locator(".communications-draft-review")).toHaveCount(0);
+  await page.getByLabel("Project").selectOption({ index: 1 });
   await page.getByRole("button", { name: "Write it myself" }).click();
   await expect(page.locator(".communications-draft-review")).toBeVisible();
   await expect(page.getByLabel("Subject")).toBeVisible();
@@ -42,7 +43,7 @@ test("delivery asks for project context before showing the release workflow", as
   await page.goto("/studio/delivery");
   await expect(page.getByText("Choose the project to deliver", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Secure gallery URL")).toHaveCount(0);
-  await page.getByLabel("Project").selectOption("demo-project");
+  await page.getByLabel("Project").selectOption({ index: 1 });
   await expect(page.getByLabel("Secure gallery URL")).toBeVisible();
   await expect(page.getByText("Follow-ups and studio defaults", { exact: true })).toBeVisible();
 });

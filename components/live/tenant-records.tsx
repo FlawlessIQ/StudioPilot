@@ -54,6 +54,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { withTimeout } from "@/lib/async/with-timeout";
+import { getStudioRecords } from "@/lib/studio/records-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { stateTone } from "@/lib/status-tone";
 import { ReadinessMeter } from "@/components/ui/readiness-meter";
@@ -68,6 +69,32 @@ const tenantRecordsCache = new Map<
   { records: TenantDocument[]; expiresAt: number }
 >();
 const tenantRecordsRequests = new Map<string, Promise<TenantDocument[]>>();
+const projectScopedCollections = new Set([
+  "tasks",
+  "checkpoints",
+  "proposals",
+  "contracts",
+  "invoiceReferences",
+  "packageSnapshots",
+  "documents",
+  "questionnaireResponses",
+  "insuranceRequests",
+  "schedules",
+  "crewAssignments",
+  "crewCascades",
+  "albumWorkflows",
+  "projectCloseouts",
+  "messages",
+  "communicationDrafts",
+  "aiActions",
+  "actionReceipts",
+  "productEvents",
+  "providerJobs",
+  "emailJobs",
+  "bookingOrchestrations",
+  "galleryInboxes",
+  "deliveryDrafts",
+]);
 
 function demoIsoDate(value: string): string {
   const parsed = new Date(`${value} 12:00:00`);
@@ -288,32 +315,6 @@ async function tenantDocuments(
       )
       .filter((document) => document.tenantId === tenantId);
   }
-  const projectScopedCollections = new Set([
-    "tasks",
-    "checkpoints",
-    "proposals",
-    "contracts",
-    "invoiceReferences",
-    "packageSnapshots",
-    "documents",
-    "questionnaireResponses",
-    "insuranceRequests",
-    "schedules",
-    "crewAssignments",
-    "crewCascades",
-    "albumWorkflows",
-    "projectCloseouts",
-    "messages",
-    "communicationDrafts",
-    "aiActions",
-    "actionReceipts",
-    "productEvents",
-    "providerJobs",
-    "emailJobs",
-    "bookingOrchestrations",
-    "galleryInboxes",
-    "deliveryDrafts",
-  ]);
   if (
     restrictedToAssignments &&
     projectScopedCollections.has(collectionName)
@@ -382,6 +383,14 @@ async function cachedTenantDocuments(
     tenantRecordsRequestTimeoutMs,
     `The ${collectionName} request took too long. Check your connection and try again.`,
   )
+    .catch(async (caught: unknown) => {
+      if (!["studio_owner", "studio_admin"].includes(String(role))) throw caught;
+      return getStudioRecords({
+        collection: collectionName,
+        tenantId,
+        projectScoped: projectScopedCollections.has(collectionName),
+      }) as Promise<TenantDocument[]>;
+    })
     .then((records) => {
       tenantRecordsCache.set(key, {
         records,
