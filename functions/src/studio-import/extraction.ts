@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { getFirestore, type DocumentSnapshot } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
+import mammoth from "mammoth";
 
 export const studioAssetTypes = [
   "message_template",
@@ -542,30 +543,34 @@ async function vertexExtraction(input: {
         generationConfig: {
           temperature: 0,
           responseMimeType: "application/json",
-          responseSchema: {
-            type: "OBJECT",
+          responseJsonSchema: {
+            type: "object",
             properties: {
               assets: {
-                type: "ARRAY",
+                type: "array",
                 items: {
-                  type: "OBJECT",
+                  type: "object",
                   properties: {
                     assetType: {
-                      type: "STRING",
+                      type: "string",
                       enum: [...studioAssetTypes],
                     },
-                    name: { type: "STRING" },
-                    confidence: { type: "NUMBER" },
-                    structuredContent: { type: "OBJECT" },
+                    name: { type: "string" },
+                    confidence: { type: "number" },
+                    structuredContent: {
+                      type: "object",
+                      additionalProperties: true,
+                    },
                     citations: {
-                      type: "ARRAY",
+                      type: "array",
                       items: {
-                        type: "OBJECT",
+                        type: "object",
                         properties: {
-                          locator: { type: "STRING" },
-                          excerpt: { type: "STRING" },
+                          locator: { type: "string" },
+                          excerpt: { type: "string" },
                         },
                         required: ["locator", "excerpt"],
+                        additionalProperties: false,
                       },
                     },
                   },
@@ -576,17 +581,25 @@ async function vertexExtraction(input: {
                     "structuredContent",
                     "citations",
                   ],
+                  additionalProperties: false,
                 },
               },
             },
             required: ["assets"],
+            additionalProperties: false,
           },
         },
       }),
     },
   );
-  if (!response.ok)
-    throw new Error(`VERTEX_STUDIO_IMPORT_FAILED:${response.status}`);
+  if (!response.ok) {
+    const errorPayload = record(await response.json().catch(() => null));
+    const detail =
+      string(record(errorPayload.error).message) || string(errorPayload.error);
+    throw new Error(
+      `VERTEX_STUDIO_IMPORT_FAILED:${response.status}${detail ? `:${detail.slice(0, 400)}` : ""}`,
+    );
+  }
   const payload = record(await response.json());
   const candidates = Array.isArray(payload.candidates)
     ? payload.candidates
@@ -606,12 +619,18 @@ async function sourceText(item: DocumentSnapshot): Promise<string | null> {
     const inlineText = string(item.get("sourceText"));
     return inlineText ? inlineText.slice(0, 120_000) : null;
   }
-  if (!["txt", "csv", "rtf"].includes(string(item.get("extension"))))
-    return null;
+  const extension = string(item.get("extension"));
+  if (!["txt", "csv", "rtf", "docx"].includes(extension)) return null;
   const bucket = string(item.get("bucket"));
   const objectName = string(item.get("storageObjectKey"));
   if (!bucket || !objectName) throw new Error("IMPORT_SOURCE_MISSING");
   const [bytes] = await getStorage().bucket(bucket).file(objectName).download();
+  if (extension === "docx") {
+    const extracted = await mammoth.extractRawText({ buffer: bytes });
+    const text = extracted.value.trim();
+    if (!text) throw new Error("STUDIO_IMPORT_DOCX_TEXT_EXTRACTION_FAILED");
+    return text.slice(0, 120_000);
+  }
   return bytes.toString("utf8").slice(0, 120_000);
 }
 

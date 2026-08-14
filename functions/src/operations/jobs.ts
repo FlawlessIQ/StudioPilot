@@ -43,6 +43,18 @@ function retryableJobFailure(
   code: string,
   message: string,
 ): boolean {
+  if (collectionName === "aiJobs") {
+    const permanentAiFailures = new Set([
+      "STUDIO_IMPORT_DOCX_TEXT_EXTRACTION_FAILED",
+      "STUDIO_IMPORT_NO_ASSETS_EXTRACTED",
+      "VERTEX_AI_NOT_CONFIGURED",
+    ]);
+    if (permanentAiFailures.has(code)) return false;
+    if (code === "VERTEX_STUDIO_IMPORT_FAILED") {
+      const status = Number(message.split(":")[1] ?? 0);
+      return status === 408 || status === 429 || status >= 500;
+    }
+  }
   if (collectionName !== "emailJobs") return true;
   const permanentEmailFailures = new Set([
     "EMAIL_RECIPIENT_MISSING",

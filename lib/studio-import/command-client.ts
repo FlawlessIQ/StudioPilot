@@ -589,11 +589,27 @@ export async function waitForStudioImportReview(input: {
     const active = review.sources.some((source) =>
       ["ready_for_analysis", "analyzing"].includes(source.status),
     );
-    if (!active) return review;
+    if (!active) {
+      const failed = review.sources.find((source) => source.status === "failed");
+      if (failed) {
+        const failure = failed.failure ?? {};
+        const rawMessage =
+          typeof failure.message === "string" ? failure.message : "";
+        const internalFailure =
+          rawMessage.startsWith("VERTEX_") ||
+          rawMessage.startsWith("STUDIO_IMPORT_");
+        const message =
+          internalFailure || !rawMessage
+            ? `StudioCue could not analyze ${failed.name}. Try again or upload a PDF version.`
+            : rawMessage;
+        throw new Error(message);
+      }
+      return review;
+    }
     await new Promise((resolve) => window.setTimeout(resolve, 1500));
   }
   throw new Error(
-    "AI analysis did not finish within one minute. Nothing was activated—try again, or upload the source as a PDF for faster extraction.",
+    "AI analysis is still running in the background. Nothing has been activated. Wait a moment, then retry to resume this import.",
   );
 }
 

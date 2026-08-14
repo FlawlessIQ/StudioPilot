@@ -55,7 +55,7 @@ async function enqueue(
 
   try {
     await getFunctions()
-      .taskQueue("operationsTaskWorker")
+      .taskQueue("locations/us-east4/functions/operationsTaskWorker")
       .enqueue(
         {
           collectionName,
@@ -70,6 +70,8 @@ async function enqueue(
     await document.ref.update({
       taskDispatchKey: key,
       taskEnqueuedAt: new Date().toISOString(),
+      taskDispatchError: null,
+      taskDispatchFailedAt: null,
       executionTransport: "cloud_tasks",
     });
   } catch (caught: unknown) {

@@ -178,7 +178,7 @@ function importStatusLabel(status: string | undefined) {
   if (status === "approved") return "Approved for activation";
   if (status === "ignored") return "Ignored";
   if (status === "rejected") return "Rejected by file safety";
-  if (status === "failed") return "Safety check needs attention";
+  if (status === "failed") return "Import needs attention";
   if (status === "cancelled") return "Cancelled";
   return status.replaceAll("_", " ");
 }
@@ -522,6 +522,60 @@ export function TemplateImportStudio() {
     }
   }
 
+  async function resumeImportAnalysis() {
+    const sessionId = uploadProgress?.sessionId;
+    if (!sessionId) {
+      await buildPlan();
+      return;
+    }
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setBusy(true);
+    setPipelineError(null);
+    setUploadProgress((current) =>
+      current
+        ? {
+            ...current,
+            phase: "ready",
+            percent: 100,
+            message: "Checking the existing AI import…",
+          }
+        : current,
+    );
+    try {
+      const importedReview = await waitForStudioImportReview({
+        sessionId,
+        signal: controller.signal,
+        onReview: (next) =>
+          setUploadProgress((current) =>
+            current
+              ? {
+                  ...current,
+                  message:
+                    next.drafts.length > 0
+                      ? `AI found ${next.drafts.length} reusable draft${
+                          next.drafts.length === 1 ? "" : "s"
+                        }.`
+                      : "AI is still classifying the verified sources…",
+                }
+              : current,
+          ),
+      });
+      setSelected(kindsFromReview(importedReview));
+      setReview(importedReview);
+      setComplete(true);
+    } catch (caught: unknown) {
+      setPipelineError(
+        caught instanceof Error
+          ? caught.message
+          : "StudioCue could not resume this import.",
+      );
+    } finally {
+      abortRef.current = null;
+      setBusy(false);
+    }
+  }
+
   const hasSource =
     files.length > 0 || emailText.trim().length > 20 || websiteUrl.trim().length > 8;
 
@@ -787,10 +841,17 @@ export function TemplateImportStudio() {
               <span>{pipelineError}</span>
               <button
                 disabled={busy}
-                onClick={() => void buildPlan()}
+                onClick={() =>
+                  void (secureSourcesReady && uploadProgress?.sessionId
+                    ? resumeImportAnalysis()
+                    : buildPlan())
+                }
                 type="button"
               >
-                <RefreshCw size={13} /> Retry
+                <RefreshCw size={13} />
+                {secureSourcesReady && uploadProgress?.sessionId
+                  ? "Check again"
+                  : "Retry"}
               </button>
             </div>
           ) : null}
