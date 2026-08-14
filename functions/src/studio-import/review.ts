@@ -168,6 +168,24 @@ function reviewVersion(document: DocumentSnapshot) {
   };
 }
 
+function hasBlockingValidationIssue(document: DocumentSnapshot) {
+  const validation = record(document.get("validation"));
+  const issues = Array.isArray(validation.issues) ? validation.issues : [];
+  return issues.some(
+    (issue) => string(record(issue).severity) === "blocking",
+  );
+}
+
+function isUsableDraft(document: DocumentSnapshot) {
+  return (
+    document.get("status") !== "archived" &&
+    !["split", "merged", "rejected", "ignored"].includes(
+      string(document.get("reviewDecision")),
+    ) &&
+    !hasBlockingValidationIssue(document)
+  );
+}
+
 export async function readStudioImportReview(
   tenantId: string,
   sessionId: string,
@@ -178,12 +196,72 @@ export async function readStudioImportReview(
     tenantId,
     sessionId,
   );
-  const assetTypes = versions.flatMap((version) => {
+  const assetTypes = versions.filter(isUsableDraft).flatMap((version) => {
     const type = string(version.get("assetType"));
     return studioAssetTypes.includes(type as StudioAssetType)
       ? [type as StudioAssetType]
       : [];
   });
+  const sources = await Promise.all(
+    items.map(async (item) => {
+      const duplicate = record(item.get("duplicate"));
+      const duplicateItemId = string(duplicate.itemId);
+      const base = {
+        id: item.id,
+        name: string(item.get("name")),
+        status: string(item.get("status")),
+        classification: item.get("classification") ?? null,
+        failure: item.get("failure") ?? null,
+      };
+      const sha256 = string(item.get("sha256"));
+      const activationLock = sha256
+        ? await db.doc(
+            `studioImportSourceActivations/${hash(`${tenantId}:${sha256}`)}`,
+          ).get()
+        : null;
+      const activatedBySessionId = activationLock?.exists
+        ? string(activationLock.get("sessionId"))
+        : "";
+      if (!duplicateItemId) {
+        return {
+          ...base,
+          duplicate:
+            activatedBySessionId && activatedBySessionId !== sessionId
+              ? {
+                  status: "activation_conflict",
+                  sessionId: activatedBySessionId,
+                  sessionStatus: "activated",
+                  activationBlocked: true,
+                }
+              : null,
+        };
+      }
+      const priorItem = await db.doc(`studioImportItems/${duplicateItemId}`).get();
+      const priorSessionId = priorItem.exists
+        ? string(priorItem.get("sessionId"))
+        : "";
+      const priorSession = await (
+        priorSessionId
+          ? db.doc(`studioImportSessions/${priorSessionId}`).get()
+          : Promise.resolve(null)
+      );
+      const priorSessionStatus = priorSession?.exists
+        ? string(priorSession.get("status"))
+        : "unknown";
+      return {
+        ...base,
+        duplicate: {
+          ...duplicate,
+          sessionId: priorSessionId || null,
+          sessionStatus: priorSessionStatus,
+          activationBlocked:
+            (Boolean(activatedBySessionId) &&
+              activatedBySessionId !== sessionId) ||
+            priorSessionStatus === "activated",
+        },
+      };
+    }),
+  );
   return {
     session: {
       id: session.id,
@@ -194,14 +272,7 @@ export async function readStudioImportReview(
       activatedAssetVersionIds:
         session.get("activatedAssetVersionIds") ?? [],
     },
-    sources: items.map((item) => ({
-      id: item.id,
-      name: string(item.get("name")),
-      status: string(item.get("status")),
-      duplicate: item.get("duplicate") ?? null,
-      classification: item.get("classification") ?? null,
-      failure: item.get("failure") ?? null,
-    })),
+    sources,
     drafts: versions.map(reviewVersion),
     coverage: coverageForAssetTypes(assetTypes),
   };
@@ -589,7 +660,7 @@ export async function activateStudioImport(input: {
   executionId: string;
 }) {
   const db = getFirestore();
-  const { session, versions } = await sessionDocuments(
+  const { session, items, versions } = await sessionDocuments(
     db,
     input.tenantId,
     input.sessionId,
@@ -617,6 +688,46 @@ export async function activateStudioImport(input: {
       db.doc(`studioAssetVersions/${versionId}`).get(),
     ),
   );
+  const approvedSourceItemIds = new Set(
+    approved.flatMap((version) =>
+      Array.isArray(version.get("sourceItemIds"))
+        ? (version.get("sourceItemIds") as unknown[]).map(String)
+        : [],
+    ),
+  );
+  const sourceLocks = items.flatMap((item) => {
+    const sha256 = string(item.get("sha256"));
+    if (!approvedSourceItemIds.has(item.id) || !sha256) return [];
+    return [{
+      item,
+      reference: db.doc(
+        `studioImportSourceActivations/${hash(`${input.tenantId}:${sha256}`)}`,
+      ),
+    }];
+  });
+  const duplicateItemIds = [
+    ...new Set(
+      items.flatMap((item) => {
+        const duplicateItemId = string(record(item.get("duplicate")).itemId);
+        return duplicateItemId ? [duplicateItemId] : [];
+      }),
+    ),
+  ];
+  const duplicateItems = await Promise.all(
+    duplicateItemIds.map((itemId) =>
+      db.doc(`studioImportItems/${itemId}`).get(),
+    ),
+  );
+  const duplicateSessionIds = [
+    ...new Set(
+      duplicateItems.flatMap((item) => {
+        const duplicateSessionId = string(item.get("sessionId"));
+        return duplicateSessionId && duplicateSessionId !== input.sessionId
+          ? [duplicateSessionId]
+          : [];
+      }),
+    ),
+  ];
   const now = new Date().toISOString();
   const result = await db.runTransaction(async (transaction) => {
     const prior = await transaction.get(
@@ -631,6 +742,29 @@ export async function activateStudioImport(input: {
         activatedAssetVersionIds:
           currentSession.get("activatedAssetVersionIds") ?? [],
       };
+    const [existingLocks, duplicateSessions] = await Promise.all([
+      Promise.all(
+        sourceLocks.map(({ reference }) => transaction.get(reference)),
+      ),
+      Promise.all(
+        duplicateSessionIds.map((duplicateSessionId) =>
+          transaction.get(db.doc(`studioImportSessions/${duplicateSessionId}`)),
+        ),
+      ),
+    ]);
+    if (
+      existingLocks.some(
+        (lock) =>
+          lock.exists && string(lock.get("sessionId")) !== input.sessionId,
+      ) ||
+      duplicateSessions.some(
+        (duplicateSession) =>
+          duplicateSession.exists &&
+          duplicateSession.get("status") === "activated",
+      )
+    ) {
+      throw new Error("DUPLICATE_IMPORT_SOURCE_ALREADY_ACTIVATED");
+    }
     approved.forEach((version, index) => {
       const asset = assets[index];
       if (!asset) return;
@@ -779,6 +913,16 @@ export async function activateStudioImport(input: {
           });
         }
       }
+    });
+    sourceLocks.forEach(({ item, reference }) => {
+      transaction.set(reference, {
+        tenantId: input.tenantId,
+        sha256: string(item.get("sha256")),
+        sourceItemId: item.id,
+        sessionId: input.sessionId,
+        activatedAt: now,
+        activatedBy: input.actorId,
+      });
     });
     const value = {
       sessionId: input.sessionId,

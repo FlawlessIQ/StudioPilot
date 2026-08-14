@@ -161,6 +161,21 @@ function kindsFromReview(review: StudioImportReview): ImportKind[] {
   );
 }
 
+function readyDraftLabel(review: StudioImportReview) {
+  const usable = review.drafts.filter(
+    (draft) =>
+      !["rejected", "ignored"].includes(draft.reviewDecision) &&
+      !draft.validation.issues?.some(
+        (issue) => issue.severity === "blocking",
+      ),
+  );
+  const packages = usable.filter((draft) => draft.assetType === "package");
+  if (packages.length) {
+    return `${packages.length} package draft${packages.length === 1 ? "" : "s"} ready below`;
+  }
+  return `${usable.length} usable draft${usable.length === 1 ? "" : "s"} ready below`;
+}
+
 function readableSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
@@ -933,9 +948,7 @@ export function TemplateImportStudio() {
                 )}
                 {secureSourcesReady
                   ? review
-                    ? `${review.drafts.length} AI draft${
-                        review.drafts.length === 1 ? "" : "s"
-                      } ready below`
+                    ? readyDraftLabel(review)
                     : "AI is building cited drafts…"
                   : busy
                   ? "Creating drafts…"

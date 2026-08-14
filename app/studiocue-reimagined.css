@@ -1656,7 +1656,7 @@
 
 .studio-import-review-grid {
   display: grid;
-  grid-template-columns: 220px minmax(240px, .7fr) minmax(380px, 1.3fr);
+  grid-template-columns: 270px minmax(280px, .72fr) minmax(420px, 1.28fr);
   min-height: 550px;
 }
 
@@ -1720,15 +1720,26 @@
 
 .studio-import-draft-nav strong {
   font-size: 9px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
-.studio-import-draft-nav em {
+.studio-import-draft-meta {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 7px;
+}
+
+.studio-import-draft-meta em {
   color: #83618f;
   font-size: 7px;
   font-style: normal;
+}
+
+.studio-import-draft-meta b {
+  color: #2b7f65;
+  font-size: 8px;
 }
 
 .studio-import-source-proof {
@@ -1788,6 +1799,12 @@
 .studio-import-source-file small {
   color: #8e8491;
   font-size: 8px;
+}
+
+.studio-import-source-file span.is-duplicate {
+  align-items: flex-start;
+  color: #9a6417;
+  line-height: 1.4;
 }
 
 .studio-import-missing-proof {
@@ -1936,6 +1953,55 @@
 .studio-import-release-bar button:disabled {
   cursor: not-allowed;
   opacity: .4;
+}
+
+.studio-import-draft-editor.is-contract > .studio-import-editor-actions {
+  background: rgb(255 255 255 / 95%);
+  border-block: 1px solid var(--cue-line);
+  grid-row: 2;
+  margin: -3px -18px 2px;
+  padding: 9px 18px;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+@media (min-width: 1081px) {
+  .studio-import-review-grid {
+    align-items: start;
+  }
+
+  .studio-import-draft-nav,
+  .studio-import-source-proof,
+  .studio-import-draft-editor.is-contract {
+    max-height: calc(100vh - 190px);
+    overflow-y: auto;
+  }
+
+  .studio-import-draft-nav,
+  .studio-import-source-proof {
+    align-self: stretch;
+  }
+
+  .studio-import-review-grid.is-contract {
+    grid-template-columns: 270px minmax(0, 1fr);
+  }
+
+  .studio-import-review-grid.is-contract .studio-import-draft-nav {
+    grid-row: 1 / span 2;
+    max-height: calc(100vh - 190px);
+  }
+
+  .studio-import-review-grid.is-contract .studio-import-source-proof {
+    border-bottom: 1px solid var(--cue-line);
+    border-right: 0;
+    grid-column: 2;
+    max-height: 280px;
+  }
+
+  .studio-import-review-grid.is-contract .studio-import-draft-editor {
+    grid-column: 2;
+  }
 }
 
 .studio-import-advanced-review {

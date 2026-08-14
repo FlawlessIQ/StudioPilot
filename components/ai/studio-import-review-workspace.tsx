@@ -63,6 +63,39 @@ function draftState(draft: StudioImportReviewDraft) {
   return "Ready to approve";
 }
 
+function hasBlockingIssue(draft: StudioImportReviewDraft) {
+  return issues(draft).some((issue) => issue.severity === "blocking");
+}
+
+function packagePrice(draft: StudioImportReviewDraft) {
+  if (draft.assetType !== "package") return null;
+  const raw =
+    draft.structuredContent.price ??
+    draft.structuredContent.packagePrice ??
+    draft.structuredContent.amount;
+  const cents = draft.structuredContent.amountCents;
+  const amount =
+    typeof raw === "number"
+      ? raw
+      : typeof raw === "string"
+        ? Number(raw.replace(/[^0-9.-]/g, ""))
+        : typeof cents === "number"
+          ? cents / 100
+          : Number.NaN;
+  if (!Number.isFinite(amount)) return null;
+  const extractedCurrency = draft.structuredContent.currency;
+  const currency =
+    typeof extractedCurrency === "string" &&
+    /^[A-Za-z]{3}$/.test(extractedCurrency)
+      ? extractedCurrency.toUpperCase()
+      : "USD";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
 export function StudioImportReviewWorkspace({
   review,
   onReview,
@@ -124,9 +157,12 @@ export function StudioImportReviewWorkspace({
       await operation();
       await refresh();
     } catch (caught: unknown) {
+      const message = caught instanceof Error ? caught.message : "";
       onError(
-        caught instanceof Error
-          ? caught.message
+        message.includes("DUPLICATE_IMPORT_SOURCE_ALREADY_ACTIVATED")
+          ? "This exact file was already activated from another import session. No duplicate content was created."
+          : message
+            ? message
           : "The review action could not be completed.",
       );
     } finally {
@@ -140,6 +176,22 @@ export function StudioImportReviewWorkspace({
   const approved = visibleDrafts.filter(
     (draft) => draft.reviewDecision === "approved",
   ).length;
+  const blockedDrafts = visibleDrafts.filter(hasBlockingIssue);
+  const usableDrafts = visibleDrafts.filter(
+    (draft) =>
+      !hasBlockingIssue(draft) &&
+      !["rejected", "ignored"].includes(draft.reviewDecision),
+  );
+  const usablePackages = usableDrafts.filter(
+    (draft) => draft.assetType === "package",
+  );
+  const contractDrafts = usableDrafts.filter(
+    (draft) => draft.assetType === "contract",
+  );
+  const duplicateSources = review.sources.filter((source) => source.duplicate);
+  const duplicateActivationBlocked = duplicateSources.some(
+    (source) => source.duplicate?.activationBlocked === true,
+  );
   const mergeCandidates = selected
     ? visibleDrafts.filter(
         (draft) =>
@@ -164,15 +216,25 @@ export function StudioImportReviewWorkspace({
       <div className="studio-import-review-summary">
         <div>
           <span><Sparkles size={15} /> AI review workspace</span>
-          <strong>{visibleDrafts.length} reusable drafts found</strong>
+          <strong>
+            {usablePackages.length
+              ? `${usablePackages.length} package${usablePackages.length === 1 ? "" : "s"} ready to review`
+              : `${usableDrafts.length} usable draft${usableDrafts.length === 1 ? "" : "s"} ready`}
+          </strong>
           <small>
-            {approved} approved · {pending} awaiting a decision · nothing is live
+            {contractDrafts.length
+              ? `${contractDrafts.length} contract${contractDrafts.length === 1 ? "" : "s"} requires review · `
+              : ""}
+            {blockedDrafts.length
+              ? `${blockedDrafts.length} blocked item${blockedDrafts.length === 1 ? "" : "s"} excluded · `
+              : ""}
+            {approved} approved · nothing is live
           </small>
         </div>
         <div className="studio-import-coverage">
           <span>
             <strong>{review.coverage.percent}%</strong>
-            <small>workflow coverage</small>
+            <small>potential draft coverage</small>
           </span>
           {review.coverage.sections.map((section) => (
             <i
@@ -186,7 +248,9 @@ export function StudioImportReviewWorkspace({
         </div>
       </div>
 
-      <div className="studio-import-review-grid">
+      <div
+        className={`studio-import-review-grid${selected.assetType === "contract" ? " is-contract" : ""}`}
+      >
         <aside className="studio-import-draft-nav" aria-label="Extracted drafts">
           {visibleDrafts.map((draft) => (
             <button
@@ -198,9 +262,7 @@ export function StudioImportReviewWorkspace({
               <span>
                 {draft.reviewDecision === "approved" ? (
                   <CheckCircle2 size={15} />
-                ) : issues(draft).some(
-                    (issue) => issue.severity === "blocking",
-                  ) ? (
+                ) : hasBlockingIssue(draft) ? (
                   <AlertTriangle size={15} />
                 ) : (
                   <Eye size={15} />
@@ -209,7 +271,10 @@ export function StudioImportReviewWorkspace({
               <span>
                 <small>{labels[draft.assetType] ?? draft.assetType}</small>
                 <strong>{draft.name}</strong>
-                <em>{draftState(draft)}</em>
+                <span className="studio-import-draft-meta">
+                  <em>{draftState(draft)}</em>
+                  {packagePrice(draft) ? <b>{packagePrice(draft)}</b> : null}
+                </span>
               </span>
             </button>
           ))}
@@ -241,13 +306,20 @@ export function StudioImportReviewWorkspace({
                 <strong>{source.name}</strong>
                 <small>{source.status.replaceAll("_", " ")}</small>
                 {source.duplicate ? (
-                  <span><ArrowLeftRight size={13} /> Possible duplicate</span>
+                  <span className="is-duplicate">
+                    <ArrowLeftRight size={13} /> Exact file already imported
+                    {source.duplicate.activationBlocked === true
+                      ? " and activated"
+                      : " — only one session can be activated"}
+                  </span>
                 ) : null}
               </div>
             ))}
         </section>
 
-        <section className="studio-import-draft-editor">
+        <section
+          className={`studio-import-draft-editor${selected.assetType === "contract" ? " is-contract" : ""}`}
+        >
           <div className="studio-import-editor-heading">
             <div>
               <p className="eyebrow">StudioCue draft</p>
@@ -452,6 +524,8 @@ export function StudioImportReviewWorkspace({
           <small>
             {review.session.status === "activated"
               ? "The approved drafts are active in your StudioCue library."
+              : duplicateActivationBlocked
+                ? "This exact source was activated from an earlier import session. This session cannot be activated again."
               : pending > 0
                 ? `Review ${pending} remaining draft${pending === 1 ? "" : "s"}. Approve, reject, or ignore each one to unlock activation.`
                 : approved === 0
@@ -476,6 +550,7 @@ export function StudioImportReviewWorkspace({
             Boolean(busyAction) ||
             approved === 0 ||
             pending > 0 ||
+            duplicateActivationBlocked ||
             review.session.status === "activated"
           }
           onClick={() =>
