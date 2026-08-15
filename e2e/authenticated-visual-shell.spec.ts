@@ -63,6 +63,11 @@ const clientRoutes = [
 
 const crewRoutes = [
   "/crew",
+  "/crew/jobs",
+  "/crew/prep",
+  "/crew/account",
+  "/crew/event-day",
+  "/crew/closeout",
   "/crew/pending",
   "/crew/accepted",
   "/crew/schedule",

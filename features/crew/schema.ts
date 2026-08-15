@@ -69,6 +69,7 @@ export const crewRequirementSchema = z.object({
   required: z.boolean(),
   status: z.enum(["missing", "submitted", "under_review", "complete", "waived", "expired"]),
   dueAt: z.string().datetime().nullable(),
+  instructions: z.string().max(1000).nullable().optional(),
   documentId: z.string().nullable(),
   completedAt: z.string().datetime().nullable(),
   completedBy: z.string().nullable(),

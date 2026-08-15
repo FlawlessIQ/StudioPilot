@@ -73,10 +73,8 @@ test("crew navigation preserves the authorized assignment shell", async ({
   });
 
   await openMobileNavigation(page, "Open crew navigation");
-  await page
-    .getByRole("link", { name: "Accepted jobs", exact: true })
-    .click();
-  await expect(page).toHaveURL(/\/crew\/accepted$/);
+  await page.getByRole("link", { name: "Jobs", exact: true }).click();
+  await expect(page).toHaveURL(/\/crew\/jobs$/);
   await expect(page.getByText("Verifying access…")).toHaveCount(0);
   expect(
     await page.evaluate(

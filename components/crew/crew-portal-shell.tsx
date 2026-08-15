@@ -5,8 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   CalendarDays,
-  ClipboardCheck,
-  FileText,
+  BriefcaseBusiness,
   Home,
   Menu,
   ShieldCheck,
@@ -22,21 +21,12 @@ import {
 
 const navSections = [
   {
-    label: "Assignments",
+    label: "Workspace",
     items: [
-      { label: "Home", href: "/crew", icon: Home },
-      { label: "Pending jobs", href: "/crew/pending", icon: ClipboardCheck },
-      { label: "Accepted jobs", href: "/crew/accepted", icon: CalendarDays },
-      { label: "Schedule", href: "/crew/schedule", icon: CalendarDays },
-      { label: "Requirements", href: "/crew/requirements", icon: ClipboardCheck },
-      { label: "Documents", href: "/crew/documents", icon: FileText },
-    ],
-  },
-  {
-    label: "Account",
-    items: [
-      { label: "Profile", href: "/crew/profile", icon: UserRound },
-      { label: "Availability", href: "/crew/availability", icon: CalendarDays },
+      { label: "Today", href: "/crew", icon: Home },
+      { label: "Jobs", href: "/crew/jobs", icon: BriefcaseBusiness },
+      { label: "Schedule & prep", href: "/crew/prep", icon: CalendarDays },
+      { label: "Account", href: "/crew/account", icon: UserRound },
     ],
   },
 ] as const;
@@ -44,13 +34,18 @@ const navSections = [
 const CrewShellContext = createContext(false);
 
 const crewRouteLabels: Record<string, string> = {
-  accepted: "Accepted jobs",
-  availability: "Availability",
-  documents: "Documents",
-  pending: "Pending jobs",
-  profile: "Profile",
-  requirements: "Requirements",
-  schedule: "Schedule",
+  accepted: "Jobs",
+  account: "Account",
+  availability: "Account",
+  closeout: "Schedule & prep",
+  documents: "Schedule & prep",
+  "event-day": "Schedule & prep",
+  jobs: "Jobs",
+  pending: "Jobs",
+  prep: "Schedule & prep",
+  profile: "Account",
+  requirements: "Schedule & prep",
+  schedule: "Schedule & prep",
 };
 
 export function CrewPortalShell({
@@ -84,7 +79,7 @@ function CrewShell({
   const [navigationOpen, setNavigationOpen] = useState(false);
   const workspace = useWorkspace();
   const routeSegment = pathname.split("/").filter(Boolean)[1] ?? "";
-  const resolvedActive = active ?? crewRouteLabels[routeSegment] ?? "Home";
+  const resolvedActive = active ?? crewRouteLabels[routeSegment] ?? "Today";
   return (
     <div className="ds-root" data-ds-theme="emerald">
       <div className={navigationOpen ? "ds-shell ds-nav-open" : "ds-shell"}>

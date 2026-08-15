@@ -96,8 +96,9 @@ test("studio, customer, and crew flows retain consistent page gutters", async ({
     "/client/messages",
     "/client/proposal",
     "/crew",
-    "/crew/accepted",
-    "/crew/availability",
+    "/crew/jobs",
+    "/crew/prep",
+    "/crew/account",
   ]) {
     await test.step(route, async () => expectShellGutter(page, route));
   }
@@ -109,7 +110,7 @@ test("customer and crew content cards retain their component insets", async ({
   await page.goto("/client/messages");
   await expectInset(page, ".client-message-composer", 20);
 
-  await page.goto("/crew/accepted");
+  await page.goto("/crew/jobs");
   const crewState = page.locator(".team-state, .crew-job-brief").first();
   await expect(crewState).toBeVisible();
   const crewPadding = await crewState.evaluate((element) => {

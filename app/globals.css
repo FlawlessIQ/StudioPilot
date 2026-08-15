@@ -13143,6 +13143,103 @@ textarea:focus-visible {
 .delivery-advanced-options[open] > summary::after { content: "−"; }
 .delivery-advanced-grid { border-top: 1px solid var(--line); display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 15px; }
 
+/* Crew journey: offers, preparation, event day, account, and closeout */
+.crew-assignment-picker {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 12px 14px;
+}
+.crew-assignment-picker > span:first-child { align-items: center; color: var(--muted); display: flex; font-size: 11px; font-weight: 700; gap: 7px; text-transform: uppercase; }
+.crew-assignment-picker > span:last-child { align-items: center; display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+.crew-assignment-picker select { appearance: none; background: transparent; border: 0; color: var(--ink); font: 650 13px/1.4 var(--font-sans); min-width: 0; outline: 0; padding: 7px 30px 7px 8px; width: 100%; }
+.crew-assignment-picker > span:last-child > svg { color: var(--muted); margin-left: -25px; pointer-events: none; }
+
+.crew-job-card-premium { display: grid; gap: 20px; overflow: hidden; }
+.crew-job-card-premium[data-status="invited"], .crew-job-card-premium[data-status="viewed"] { border-color: #d9c79e; box-shadow: 0 16px 40px rgb(78 55 18 / 8%); }
+.crew-job-decision-grid { display: grid; gap: 12px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.crew-job-decision-grid > span { background: var(--soft); border-radius: 12px; display: grid; gap: 5px; padding: 14px; }
+.crew-job-decision-grid small, .crew-responsibilities small, .crew-payment-summary small { color: var(--muted); }
+.crew-responsibilities { display: grid; gap: 8px; }
+.crew-responsibilities ul { display: grid; gap: 7px; margin: 0; padding-left: 20px; }
+.crew-missing-detail { color: #9b651e; font-style: italic; }
+.crew-job-card-actions { align-items: flex-start; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 12px; padding-top: 17px; }
+
+.crew-prep-grid, .crew-account-grid { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.crew-prep-grid > a, .crew-account-grid > a { align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; color: inherit; display: grid; gap: 13px; grid-template-columns: auto minmax(0, 1fr) auto; min-height: 112px; padding: 20px; text-decoration: none; }
+.crew-prep-grid > a:hover, .crew-account-grid > a:hover { border-color: #a9c6b2; box-shadow: 0 14px 32px rgb(26 58 38 / 7%); }
+.crew-prep-grid > a > svg:first-child, .crew-account-grid > a > svg:first-child { color: var(--success); }
+.crew-prep-grid > a > span, .crew-account-grid > a > span { display: grid; gap: 4px; }
+.crew-prep-grid small, .crew-account-grid small { color: var(--muted); line-height: 1.45; }
+
+.crew-requirement-action { align-items: flex-end; display: grid; gap: 5px; justify-items: end; }
+.crew-requirement-action small { color: #a4473f; max-width: 220px; text-align: right; }
+.crew-provider-requirement { color: var(--muted); max-width: 220px; text-align: right; }
+.crew-event-brief-grid { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.crew-event-brief-grid > article { display: grid; gap: 15px; }
+.crew-event-brief-grid h2, .crew-contact-studio h3 { margin: 0; }
+.crew-event-location, .crew-event-contact { align-items: flex-start; border-top: 1px solid var(--border); display: grid; gap: 11px; grid-template-columns: auto minmax(0, 1fr) auto; padding-top: 13px; }
+.crew-event-location > span, .crew-event-contact > span { display: grid; gap: 3px; }
+.crew-event-location small, .crew-event-contact small { color: var(--muted); }
+.crew-empty-timeline { color: var(--muted); margin: 0; padding: 28px 8px; text-align: center; }
+
+.crew-profile-edit-control { display: grid; gap: 10px; }
+.crew-profile-form, .crew-contact-form, .crew-closeout-form { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.crew-profile-form label, .crew-contact-form label, .crew-closeout-form label { display: grid; font-size: 12px; font-weight: 650; gap: 7px; }
+.crew-profile-form :is(input, textarea), .crew-contact-form :is(input, textarea), .crew-closeout-form :is(input, textarea) { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; color: var(--ink); font: inherit; padding: 11px 12px; width: 100%; }
+.crew-profile-form textarea, .crew-contact-form textarea, .crew-closeout-form textarea { min-height: 90px; resize: vertical; }
+.crew-profile-form .form-span, .crew-contact-form .form-span, .crew-closeout-form .form-span { grid-column: 1 / -1; }
+.crew-contact-studio { display: grid; gap: 12px; }
+.crew-contact-studio > button { width: max-content; }
+.crew-contact-form { background: var(--soft); border-radius: 13px; padding: 14px; }
+.crew-contact-form button, .crew-closeout-form button { justify-self: start; }
+.crew-message-thread { display: grid; gap: 9px; }
+.crew-message-thread article { background: #f2f5f2; border-radius: 12px; display: grid; gap: 4px; max-width: min(88%, 680px); padding: 11px 13px; }
+.crew-message-thread article[data-direction="studio_to_crew"] { background: #e8f4ed; justify-self: end; }
+.crew-message-thread small, .crew-message-thread p { color: var(--muted); margin: 0; }
+.crew-message-thread p { line-height: 1.45; white-space: pre-wrap; }
+
+.crew-availability-actions { display: flex !important; flex-direction: row; flex-wrap: wrap; gap: 7px !important; justify-content: flex-end; }
+.crew-payment-summary { display: grid; gap: 14px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.crew-payment-summary article { display: grid; gap: 6px; }
+.crew-payment-summary strong { font: 550 24px/1.15 var(--font-display); text-transform: capitalize; }
+.crew-closeout-form header { grid-column: 1 / -1; }
+.crew-closeout-receipt { align-items: center; background: #edf7ef; border-color: #b9dbc0; color: #245b33; display: flex; gap: 13px; }
+.crew-closeout-receipt > span { display: grid; gap: 4px; }
+.crew-closeout-receipt small { color: #52735a; }
+.crew-studio-operations { background: #f7faf7; border: 1px solid #d8e4da; border-radius: 18px; display: grid; gap: 17px; padding: 20px; }
+.crew-studio-operations > header { align-items: flex-start; display: flex; gap: 16px; justify-content: space-between; }
+.crew-studio-operations > header h2 { font: 550 25px/1.15 var(--font-display); margin: 4px 0 0; }
+.crew-studio-requirements { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; display: grid; padding: 0 15px; }
+.crew-studio-requirements article { align-items: center; border-top: 1px solid var(--border); display: grid; gap: 12px; grid-template-columns: auto minmax(0, 1fr) auto; padding: 13px 0; }
+.crew-studio-requirements article:first-child { border-top: 0; }
+.crew-studio-requirements article > span:nth-child(2) { display: grid; gap: 3px; }
+.crew-studio-requirements small { color: var(--muted); }
+.crew-studio-inline-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.crew-studio-complete { color: var(--success); }
+.crew-studio-closeout-review, .crew-studio-payment { align-items: start; display: grid; gap: 14px; grid-template-columns: auto minmax(0, 1fr); }
+.crew-studio-closeout-review > div, .crew-studio-payment > div { display: grid; gap: 4px; }
+.crew-studio-closeout-review small, .crew-studio-payment small { color: var(--muted); line-height: 1.5; }
+.crew-studio-closeout-review label, .crew-studio-payment label { display: grid; font-size: 12px; font-weight: 650; gap: 7px; grid-column: 1 / -1; }
+.crew-studio-closeout-review :is(textarea, input, select), .crew-studio-payment :is(textarea, input, select) { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; color: var(--ink); font: inherit; padding: 11px; width: 100%; }
+.crew-studio-closeout-review textarea { min-height: 80px; resize: vertical; }
+.crew-studio-closeout-review > span { display: flex; flex-wrap: wrap; gap: 9px; grid-column: 1 / -1; }
+.crew-studio-payment { grid-template-columns: auto repeat(3, minmax(0, 1fr)); }
+.crew-studio-payment > label { grid-column: auto; }
+.crew-studio-payment > button { align-self: end; grid-column: 2 / -1; justify-self: start; }
+.crew-studio-messages { display: grid; gap: 15px; }
+.crew-studio-messages > header > div { display: grid; gap: 3px; }
+.crew-studio-messages > header small, .crew-message-empty { color: var(--muted); }
+.crew-studio-messages > form { display: grid; gap: 12px; grid-template-columns: minmax(180px, .45fr) minmax(0, 1fr); }
+.crew-studio-messages > form label { display: grid; font-size: 12px; font-weight: 650; gap: 7px; }
+.crew-studio-messages > form :is(input, textarea) { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; color: var(--ink); font: inherit; padding: 11px; width: 100%; }
+.crew-studio-messages > form textarea { min-height: 88px; resize: vertical; }
+.crew-studio-messages > form button { grid-column: 1 / -1; justify-self: start; }
+
 :is(.studio-setup-compact summary, .project-detail-disclosure summary, .delivery-advanced-options summary):focus-visible,
 .copilot-create-actions a:focus-visible,
 .project-plan-grid > a:focus-visible,
@@ -13157,6 +13254,8 @@ textarea:focus-visible {
   .studio-focus-action { max-width: 560px; }
   .copilot-create-actions { grid-template-columns: 1fr; }
   .delivery-advanced-grid { grid-template-columns: 1fr 1fr; }
+  .crew-job-decision-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .crew-payment-summary { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 650px) {
@@ -13167,4 +13266,15 @@ textarea:focus-visible {
   .project-plan-grid { grid-template-columns: 1fr; }
   .delivery-advanced-grid { grid-template-columns: 1fr; }
   .communications-draft-review { padding: 14px; }
+  .crew-assignment-picker { grid-template-columns: 1fr; }
+  .crew-job-decision-grid, .crew-prep-grid, .crew-account-grid, .crew-event-brief-grid, .crew-profile-form, .crew-contact-form, .crew-closeout-form { grid-template-columns: 1fr; }
+  .crew-profile-form .form-span, .crew-contact-form .form-span, .crew-closeout-form .form-span, .crew-closeout-form header { grid-column: 1; }
+  .crew-event-location, .crew-event-contact { grid-template-columns: auto minmax(0, 1fr); }
+  .crew-event-location > a, .crew-event-contact > a { grid-column: 2; }
+  .crew-studio-payment { grid-template-columns: 1fr; }
+  .crew-studio-payment > :is(svg, div, label, button) { grid-column: 1; }
+  .crew-studio-requirements article { grid-template-columns: auto minmax(0, 1fr); }
+  .crew-studio-requirements article > :is(.crew-studio-inline-actions, .crew-studio-complete) { grid-column: 2; }
+  .crew-studio-messages > form { grid-template-columns: 1fr; }
+  .crew-studio-messages > form button { grid-column: 1; }
 }

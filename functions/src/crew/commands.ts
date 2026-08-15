@@ -24,6 +24,7 @@ const requirement = z.object({
   ]),
   required: z.boolean(),
   dueAt: z.string().datetime().nullable(),
+  instructions: z.string().max(1000).nullable().optional(),
 });
 const cascadeInput = z.object({
   projectId: z.string(),
@@ -135,6 +136,42 @@ const command = z.discriminatedUnion("type", [
     }),
   }),
   z.object({
+    type: z.literal("updateAvailability"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      availabilityId: z.string().min(1),
+      startsAt: z.string().datetime(),
+      endsAt: z.string().datetime(),
+      status: z.enum(["available", "unavailable", "tentative"]),
+      notes: z.string().max(1000).nullable(),
+    }),
+  }),
+  z.object({
+    type: z.literal("deleteAvailability"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({ availabilityId: z.string().min(1) }),
+  }),
+  z.object({
+    type: z.literal("updateCrewProfile"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      crewProfileId: z.string().min(1),
+      phone: z.string().min(7).max(30).nullable(),
+      specialties: z.array(z.string().min(1).max(80)).max(20),
+      serviceAreas: z.array(z.string().min(1).max(120)).max(20),
+      travelRadiusMiles: z.number().int().nonnegative().max(500),
+      equipment: z.array(z.string().min(1).max(120)).max(50),
+      emergencyContact: z.object({
+        name: z.string().min(1).max(160),
+        phone: z.string().min(7).max(30),
+        relationship: z.string().min(1).max(80),
+      }).nullable(),
+    }),
+  }),
+  z.object({
     type: z.literal("acknowledgeCalendar"),
     tenantId: z.string(),
     idempotencyKey: z.string().min(8),
@@ -166,12 +203,76 @@ const command = z.discriminatedUnion("type", [
     }),
   }),
   z.object({
+    type: z.literal("waiveRequirement"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      assignmentId: z.string(),
+      requirementId: z.string(),
+      reason: z.string().min(1).max(1000),
+    }),
+  }),
+  z.object({
     type: z.literal("completeAssignment"),
     tenantId: z.string(),
     idempotencyKey: z.string().min(8),
     input: z.object({
       projectId: z.string(),
       assignmentId: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal("reviewAssignmentCloseout"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      assignmentId: z.string(),
+      decision: z.enum(["approved", "needs_changes"]),
+      reviewerNote: z.string().max(2000).nullable(),
+    }),
+  }),
+  z.object({
+    type: z.literal("updateAssignmentPayment"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      assignmentId: z.string(),
+      status: z.enum(["scheduled", "processing", "paid"]),
+      expectedAt: z.string().datetime().nullable(),
+      reference: z.string().max(240).nullable(),
+    }),
+  }),
+  z.object({
+    type: z.literal("submitAssignmentCloseout"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      assignmentId: z.string(),
+      actualStartsAt: z.string().datetime(),
+      actualEndsAt: z.string().datetime(),
+      extraMinutes: z.number().int().nonnegative().max(1440),
+      expenses: z.array(z.object({
+        description: z.string().min(1).max(240),
+        amountCents: z.number().int().nonnegative().max(10_000_000),
+      })).max(25),
+      deliverables: z.array(z.string().url().max(2000)).max(25),
+      notes: z.string().max(4000).nullable(),
+    }),
+  }),
+  z.object({
+    type: z.literal("contactStudio"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      assignmentId: z.string(),
+      subject: z.string().min(1).max(160),
+      message: z.string().min(1).max(4000),
+      urgency: z.enum(["normal", "event_day"]),
     }),
   }),
   z.object({
@@ -198,6 +299,40 @@ const stable = (scope: string, tenantId: string, key: string) =>
   `${scope}_${hash(`${tenantId}:${key}`).slice(0, 32)}`;
 const appUrl = () =>
   process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app";
+
+function crewInvitationEmailFields(input: {
+  role: unknown;
+  arrivalAt: unknown;
+  departureAt: unknown;
+  respondBy: string;
+  locations: unknown;
+  responsibilities: unknown;
+  compensationCents: unknown;
+  compensationType: unknown;
+  compensationVisibleToCrew: unknown;
+  currency: unknown;
+}) {
+  const locations = Array.isArray(input.locations) ? input.locations : [];
+  const firstLocation =
+    typeof locations[0] === "object" && locations[0] !== null
+      ? (locations[0] as Record<string, unknown>)
+      : {};
+  return {
+    role: input.role,
+    arrivalAt: input.arrivalAt,
+    departureAt: input.departureAt,
+    respondBy: input.respondBy,
+    locationName: firstLocation.name ?? null,
+    locationAddress: firstLocation.address ?? null,
+    responsibilities: Array.isArray(input.responsibilities)
+      ? input.responsibilities
+      : [],
+    compensationCents: input.compensationCents,
+    compensationType: input.compensationType,
+    compensationVisibleToCrew: input.compensationVisibleToCrew,
+    currency: input.currency,
+  };
+}
 
 function cascadeAssignment(input: {
   id: string;
@@ -281,6 +416,18 @@ function cascadeAssignment(input: {
       recipientName: input.profile.get("name"),
       inviteToken: input.token,
       inviteUrl: `${appUrl()}/auth/crew-invite?token=${encodeURIComponent(input.token)}`,
+      ...crewInvitationEmailFields({
+        role: input.cascade.role,
+        arrivalAt: input.cascade.arrivalAt,
+        departureAt: input.cascade.departureAt,
+        respondBy: expiresAt,
+        locations: input.cascade.locations,
+        responsibilities: input.cascade.responsibilities,
+        compensationCents: input.cascade.compensationCents,
+        compensationType: input.cascade.compensationType,
+        compensationVisibleToCrew: input.cascade.compensationVisibleToCrew,
+        currency: input.cascade.currency,
+      }),
       status: "queued",
       attempts: 0,
       createdAt: input.now,
@@ -758,6 +905,18 @@ export const crewCommand = onRequest(
           recipientName: profile.get("name"),
           inviteToken,
           inviteUrl,
+          ...crewInvitationEmailFields({
+            role: parsed.input.role,
+            arrivalAt: parsed.input.arrivalAt,
+            departureAt: parsed.input.departureAt,
+            respondBy: inviteExpiresAt,
+            locations: parsed.input.locations,
+            responsibilities: parsed.input.responsibilities,
+            compensationCents: parsed.input.compensationCents,
+            compensationType: parsed.input.compensationType,
+            compensationVisibleToCrew: parsed.input.compensationVisibleToCrew,
+            currency: parsed.input.currency,
+          }),
           status: "queued",
           attempts: 0,
           createdAt: now,
@@ -808,6 +967,64 @@ export const crewCommand = onRequest(
           archivedAt: null,
         });
         result = { availabilityId: id, status: parsed.input.status };
+      } else if (
+        parsed.type === "updateAvailability" ||
+        parsed.type === "deleteAvailability"
+      ) {
+        const reference = db.doc(
+          `crewAvailability/${parsed.input.availabilityId}`,
+        );
+        const current = await reference.get();
+        if (
+          !current.exists ||
+          current.get("tenantId") !== parsed.tenantId ||
+          current.get("userId") !== identity.uid ||
+          role !== "subcontractor"
+        ) {
+          throw new Error("FORBIDDEN");
+        }
+        if (parsed.type === "deleteAvailability") {
+          await reference.update({
+            archivedAt: now,
+            updatedAt: now,
+            updatedBy: identity.uid,
+          });
+          result = { availabilityId: reference.id, status: "deleted" };
+        } else {
+          if (Date.parse(parsed.input.endsAt) <= Date.parse(parsed.input.startsAt))
+            throw new Error("INVALID_AVAILABILITY_RANGE");
+          await reference.update({
+            startsAt: parsed.input.startsAt,
+            endsAt: parsed.input.endsAt,
+            status: parsed.input.status,
+            notes: parsed.input.notes,
+            updatedAt: now,
+            updatedBy: identity.uid,
+          });
+          result = { availabilityId: reference.id, status: parsed.input.status };
+        }
+      } else if (parsed.type === "updateCrewProfile") {
+        const reference = db.doc(`crewProfiles/${parsed.input.crewProfileId}`);
+        const current = await reference.get();
+        if (
+          !current.exists ||
+          current.get("tenantId") !== parsed.tenantId ||
+          current.get("userId") !== identity.uid ||
+          role !== "subcontractor"
+        ) {
+          throw new Error("FORBIDDEN");
+        }
+        await reference.update({
+          phone: parsed.input.phone,
+          specialties: parsed.input.specialties,
+          serviceAreas: parsed.input.serviceAreas,
+          travelRadiusMiles: parsed.input.travelRadiusMiles,
+          equipment: parsed.input.equipment,
+          emergencyContact: parsed.input.emergencyContact,
+          updatedAt: now,
+          updatedBy: identity.uid,
+        });
+        result = { crewProfileId: reference.id, status: "updated" };
       } else {
         if (!hasProject(parsed.input.projectId)) throw new Error("FORBIDDEN");
         const reference = db.doc(
@@ -1128,6 +1345,46 @@ export const crewCommand = onRequest(
               updatedAt: now,
               updatedBy: identity.uid,
             });
+          } else if (parsed.type === "reviewAssignmentCloseout") {
+            if (!internal) throw new Error("FORBIDDEN");
+            const closeout = current.get("closeout") as
+              | Record<string, unknown>
+              | undefined;
+            if (!closeout || closeout.status !== "submitted")
+              throw new Error("CLOSEOUT_NOT_READY_FOR_REVIEW");
+            transaction.update(reference, {
+              closeout: {
+                ...closeout,
+                status: parsed.input.decision,
+                reviewerNote: parsed.input.reviewerNote,
+                reviewedAt: now,
+                reviewedBy: identity.uid,
+              },
+              updatedAt: now,
+              updatedBy: identity.uid,
+            });
+          } else if (parsed.type === "updateAssignmentPayment") {
+            if (!internal) throw new Error("FORBIDDEN");
+            const closeout = current.get("closeout") as
+              | Record<string, unknown>
+              | undefined;
+            if (!closeout || closeout.status !== "approved")
+              throw new Error("APPROVE_CLOSEOUT_BEFORE_PAYMENT");
+            transaction.update(reference, {
+              payment: {
+                status: parsed.input.status,
+                expectedAt: parsed.input.expectedAt,
+                reference: parsed.input.reference,
+                paidAt: parsed.input.status === "paid" ? now : null,
+                updatedAt: now,
+                updatedBy: identity.uid,
+              },
+              closeout: parsed.input.status === "paid"
+                ? { ...closeout, status: "paid" }
+                : closeout,
+              updatedAt: now,
+              updatedBy: identity.uid,
+            });
           } else if (parsed.type === "submitRequirement") {
             if (!ownsAssignment) throw new Error("FORBIDDEN");
             const requirements = current.get("requirements") as Array<
@@ -1155,6 +1412,91 @@ export const crewCommand = onRequest(
               updatedAt: now,
               updatedBy: identity.uid,
             });
+          } else if (parsed.type === "submitAssignmentCloseout") {
+            if (
+              !ownsAssignment ||
+              !["accepted", "completed"].includes(String(current.get("status")))
+            )
+              throw new Error("ASSIGNMENT_NOT_READY_FOR_CLOSEOUT");
+            if (Date.parse(parsed.input.actualEndsAt) <= Date.parse(parsed.input.actualStartsAt))
+              throw new Error("INVALID_CLOSEOUT_RANGE");
+            transaction.update(reference, {
+              closeout: {
+                status: "submitted",
+                actualStartsAt: parsed.input.actualStartsAt,
+                actualEndsAt: parsed.input.actualEndsAt,
+                extraMinutes: parsed.input.extraMinutes,
+                expenses: parsed.input.expenses,
+                deliverables: parsed.input.deliverables,
+                notes: parsed.input.notes,
+                submittedAt: now,
+                submittedBy: identity.uid,
+                reviewedAt: null,
+                reviewedBy: null,
+              },
+              updatedAt: now,
+              updatedBy: identity.uid,
+            });
+            transaction.set(
+              db.doc(`notifications/crew_closeout_${reference.id}`),
+              {
+                id: `crew_closeout_${reference.id}`,
+                tenantId: parsed.tenantId,
+                projectId: parsed.input.projectId,
+                audience: ["studio_owner", "studio_admin", "studio_coordinator"],
+                title: "Crew closeout submitted",
+                body: `${String(current.get("role") ?? "Crew")} submitted hours, expenses, and deliverables for review.`,
+                severity: "info",
+                href: `/studio/crew/${reference.id}`,
+                readBy: [],
+                createdAt: now,
+                updatedAt: now,
+              },
+              { merge: true },
+            );
+          } else if (parsed.type === "contactStudio") {
+            if (!ownsAssignment && !internal) throw new Error("FORBIDDEN");
+            const messageId = stable("crew_message", parsed.tenantId, parsed.idempotencyKey);
+            const crewToStudio = ownsAssignment;
+            transaction.create(db.doc(`crewMessages/${messageId}`), {
+              id: messageId,
+              tenantId: parsed.tenantId,
+              projectId: parsed.input.projectId,
+              assignmentId: reference.id,
+              userId: current.get("userId"),
+              actorId: identity.uid,
+              direction: crewToStudio ? "crew_to_studio" : "studio_to_crew",
+              subject: parsed.input.subject,
+              message: parsed.input.message,
+              urgency: parsed.input.urgency,
+              status: "sent",
+              createdAt: now,
+              updatedAt: now,
+            });
+            transaction.set(
+              db.doc(`notifications/crew_message_${messageId}`),
+              {
+                id: `crew_message_${messageId}`,
+                tenantId: parsed.tenantId,
+                projectId: parsed.input.projectId,
+                audience: crewToStudio
+                  ? ["studio_owner", "studio_admin", "studio_coordinator"]
+                  : ["subcontractor"],
+                userIds: crewToStudio ? [] : [current.get("userId")],
+                title: crewToStudio
+                  ? parsed.input.urgency === "event_day" ? "Urgent crew message" : "Crew message"
+                  : "Studio replied to your crew message",
+                body: parsed.input.subject,
+                severity: parsed.input.urgency === "event_day" ? "warning" : "info",
+                href: crewToStudio
+                  ? `/studio/crew/${reference.id}`
+                  : `/crew/jobs?assignment=${encodeURIComponent(reference.id)}`,
+                readBy: [],
+                createdAt: now,
+                updatedAt: now,
+              },
+              { merge: true },
+            );
           } else {
             const requirements = current.get("requirements") as Array<
               Record<string, unknown>
@@ -1163,6 +1505,25 @@ export const crewCommand = onRequest(
               (item) => item.id === parsed.input.requirementId,
             );
             if (!target) throw new Error("REQUIREMENT_NOT_FOUND");
+            if (parsed.type === "waiveRequirement") {
+              if (!internal) throw new Error("FORBIDDEN");
+              transaction.update(reference, {
+                requirements: requirements.map((item) =>
+                  item.id === parsed.input.requirementId
+                    ? {
+                        ...item,
+                        status: "waived",
+                        notes: parsed.input.reason,
+                        completedAt: now,
+                        completedBy: identity.uid,
+                      }
+                    : item,
+                ),
+                updatedAt: now,
+                updatedBy: identity.uid,
+              });
+              return;
+            }
             if (
               !internal &&
               !["equipment", "acknowledgement"].includes(String(target.kind))

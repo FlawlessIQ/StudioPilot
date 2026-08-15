@@ -283,6 +283,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
             kind: "w9",
             required: true,
             dueAt: null,
+            instructions: "Upload a current signed W-9 for studio review.",
           },
           {
             id: "insurance",
@@ -290,6 +291,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
             kind: "insurance",
             required: true,
             dueAt: null,
+            instructions: "Upload a current certificate of liability insurance.",
           },
           {
             id: "schedule",
@@ -297,6 +299,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
             kind: "acknowledgement",
             required: true,
             dueAt: null,
+            instructions: "Review and acknowledge the current schedule before event day.",
           },
         ],
       };

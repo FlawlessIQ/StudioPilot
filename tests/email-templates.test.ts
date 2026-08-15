@@ -131,6 +131,36 @@ test("the event preparation reminder includes the photographer's detail checklis
   }
 });
 
+test("crew invitations include the decision-critical assignment details", () => {
+  const rendered = renderEmailTemplate({
+    key: "crew_invitation",
+    brand,
+    recipientName: "Jordan Rivera",
+    projectName: "Rivera wedding",
+    values: {
+      inviteUrl: "https://example.com/crew/accept",
+      role: "Second photographer",
+      arrivalAt: "2027-06-12T14:00:00.000Z",
+      departureAt: "2027-06-13T00:00:00.000Z",
+      respondBy: "2027-05-12T21:00:00.000Z",
+      locationName: "The Garden Conservatory",
+      locationAddress: "21 Orchard Lane",
+      compensationCents: 85000,
+      compensationType: "flat",
+      compensationVisibleToCrew: true,
+      currency: "USD",
+    },
+  });
+
+  assert.match(rendered.subject, /Second photographer/);
+  assert.match(rendered.text, /Role: Second photographer/);
+  assert.match(rendered.text, /The Garden Conservatory/);
+  assert.match(rendered.text, /21 Orchard Lane/);
+  assert.match(rendered.text, /\$850\.00 total/);
+  assert.match(rendered.text, /Please respond by/);
+  assert.match(rendered.text, /https:\/\/example.com\/crew\/accept/);
+});
+
 test("manual emails render one greeting, no duplicate sign-off, and a compact project heading", () => {
   const rendered = renderEmailTemplate({
     key: "manual_message",

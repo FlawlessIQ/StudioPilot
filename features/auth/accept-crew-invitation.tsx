@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, sendEmailVerification } from "firebase/auth";
 import { Camera, CheckCircle2, LoaderCircle, ShieldCheck } from "lucide-react";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
@@ -15,6 +15,8 @@ export function AcceptCrewInvitation({ token }: { token: string }) {
     "idle" | "submitting" | "accepted" | "error"
   >("idle");
   const [message, setMessage] = useState("");
+  const [assignmentId, setAssignmentId] = useState("");
+  const [verificationSent, setVerificationSent] = useState(false);
 
   useEffect(() => {
     if (!authIsLive) return;
@@ -52,9 +54,13 @@ export function AcceptCrewInvitation({ token }: { token: string }) {
           }),
         },
       );
-      const result = (await response.json()) as { error?: string };
+      const result = (await response.json()) as {
+        error?: string;
+        assignmentId?: string;
+      };
       if (!response.ok)
-        throw new Error(result.error ?? "Crew invitation acceptance failed.");
+        throw new Error(invitationErrorMessage(result.error));
+      setAssignmentId(result.assignmentId ?? "");
       setState("accepted");
       setMessage("The assignment is now available in your crew workspace.");
     } catch (caught: unknown) {
@@ -90,7 +96,19 @@ export function AcceptCrewInvitation({ token }: { token: string }) {
     return (
       <div className="invite-actions">
         <ShieldCheck />
-        <p>Verify your email before opening assignment details.</p>
+        <p>Verify your email before opening assignment details. Then return to this tab and refresh.</p>
+        <button
+          className="button button-dark"
+          disabled={verificationSent}
+          onClick={() => {
+            const user = getFirebaseClient().auth.currentUser;
+            if (!user) return;
+            void sendEmailVerification(user).then(() => setVerificationSent(true));
+          }}
+          type="button"
+        >
+          {verificationSent ? "Verification email sent" : "Send verification email"}
+        </button>
       </div>
     );
   }
@@ -99,7 +117,7 @@ export function AcceptCrewInvitation({ token }: { token: string }) {
       <div className="invite-actions">
         <CheckCircle2 />
         <p>{message}</p>
-        <Link className="button button-dark" href="/crew/pending">
+        <Link className="button button-dark" href={`/crew/jobs${assignmentId ? `?assignment=${encodeURIComponent(assignmentId)}` : ""}`}>
           Review assignment
         </Link>
       </div>
@@ -132,4 +150,23 @@ export function AcceptCrewInvitation({ token }: { token: string }) {
       ) : null}
     </div>
   );
+}
+
+function invitationErrorMessage(code?: string) {
+  switch (code) {
+    case "INVITATION_EXPIRED":
+      return "This invitation has expired. Ask the studio to resend the assignment so you receive a new secure link.";
+    case "INVITED_EMAIL_MISMATCH":
+      return "This link belongs to a different email address. Sign out and use the exact address that received the assignment.";
+    case "INVITATION_ALREADY_USED":
+      return "This invitation is already linked to another account. Ask the studio to verify the crew email or resend the offer.";
+    case "INVITATION_NOT_FOUND":
+      return "This assignment link is no longer valid. Ask the studio to resend it.";
+    case "SUBCONTRACTOR_LIMIT_REACHED":
+      return "The studio needs to update its crew access before this assignment can be opened. Contact the studio.";
+    default:
+      return code && !code.includes("_")
+        ? code
+        : "The assignment could not be opened. Retry once, then ask the studio to resend the invitation.";
+  }
 }

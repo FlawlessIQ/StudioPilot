@@ -189,6 +189,8 @@ test(
         await setDoc(doc(adminDb, "crewAssignments/assignment-a"), { tenantId: "tenant-a", projectId: "project-a", userId: "crew-a", status: "accepted" });
         await setDoc(doc(adminDb, "crewAssignments/assignment-private"), { tenantId: "tenant-a", projectId: "project-a", userId: "crew-private", status: "accepted" });
         await setDoc(doc(adminDb, "crewAvailability/availability-a"), { tenantId: "tenant-a", crewProfileId: "profile-a", userId: "crew-a" });
+        await setDoc(doc(adminDb, "crewMessages/crew-message-a"), { tenantId: "tenant-a", projectId: "project-a", assignmentId: "assignment-a", userId: "crew-a", direction: "crew_to_studio" });
+        await setDoc(doc(adminDb, "crewMessages/crew-message-private"), { tenantId: "tenant-a", projectId: "project-a", assignmentId: "assignment-private", userId: "crew-private", direction: "crew_to_studio" });
         await setDoc(doc(adminDb, "postProductionRecords/post-a"), { tenantId: "tenant-a", projectId: "project-a", currentStep: "editing_started" });
         await setDoc(doc(adminDb, "deliveryRecords/delivery-a"), { tenantId: "tenant-a", projectId: "project-a", status: "sent" });
         await setDoc(doc(adminDb, "reviewRequests/review-a"), { tenantId: "tenant-a", projectId: "project-a", status: "clicked" });
@@ -338,10 +340,13 @@ test(
         ),
       );
       await assertSucceeds(getDoc(doc(crewDb, "crewAvailability/availability-a")));
+      await assertSucceeds(getDoc(doc(crewDb, "crewMessages/crew-message-a")));
+      await assertFails(getDoc(doc(crewDb, "crewMessages/crew-message-private")));
       await assertFails(updateDoc(doc(crewDb, "crewAssignments/assignment-a"), { status: "completed" }));
       await assertFails(getDoc(doc(crewDb, "invoiceReferences/invoice-a")));
 
       const ownerDb = environment.authenticatedContext("owner-a").firestore();
+      await assertSucceeds(getDoc(doc(ownerDb, "crewMessages/crew-message-a")));
       await assertSucceeds(getDoc(doc(ownerDb, "workflowTemplates/workflow-a")));
       await assertSucceeds(getDoc(doc(ownerDb, "automationRuns/run-a")));
       await assertSucceeds(getDoc(doc(ownerDb, "integrationConnections/connection-a")));

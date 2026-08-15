@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft, DatabaseZap, LoaderCircle, ShieldCheck } from "lucide-react";
-import { doc, getDoc } from "firebase/firestore";
+import { ArrowLeft, CheckCircle2, CircleDollarSign, DatabaseZap, FileCheck2, LoaderCircle, ReceiptText, ShieldCheck, XCircle } from "lucide-react";
+import { collection, doc, getDoc, getDocs, limit, query, where } from "firebase/firestore";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { sendCrewCommand } from "@/lib/crew/command-client";
 
 type RecordValue = Record<string, unknown> & { id: string };
 type DetailKind = "proposal" | "schedule" | "crew" | "post-production" | "workflow";
@@ -253,6 +254,115 @@ function show(value: unknown, label: string) {
   return String(value).replaceAll("_", " ");
 }
 
+function objectValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function CrewStudioOperations({
+  assignment,
+  onChanged,
+}: {
+  assignment: RecordValue;
+  onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState("");
+  const [notice, setNotice] = useState("");
+  const [messages, setMessages] = useState<RecordValue[]>([]);
+  const [messageVersion, setMessageVersion] = useState(0);
+  const closeout = objectValue(assignment.closeout);
+  const payment = objectValue(assignment.payment);
+  const requirements = Array.isArray(assignment.requirements)
+    ? (assignment.requirements as Array<Record<string, unknown>>)
+    : [];
+  useEffect(() => {
+    if (!dataIsLive) return;
+    let active = true;
+    void getDocs(query(
+      collection(getFirebaseClient().firestore, "crewMessages"),
+      where("tenantId", "==", String(assignment.tenantId)),
+      where("assignmentId", "==", assignment.id),
+      limit(50),
+    )).then((snapshot) => {
+      if (!active) return;
+      setMessages(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as RecordValue).sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt))));
+    }).catch(() => {
+      if (active) setMessages([]);
+    });
+    return () => { active = false; };
+  }, [assignment.id, assignment.tenantId, messageVersion]);
+  const command = async (type: string, input: Record<string, unknown>) => {
+    if (busy) return false;
+    setBusy(type);
+    setNotice("");
+    try {
+      const response = await sendCrewCommand(type, {
+        projectId: String(assignment.projectId),
+        assignmentId: assignment.id,
+        ...input,
+      });
+      if (!response.persisted) {
+        setNotice("Development preview only. Nothing was changed.");
+        return false;
+      }
+      setNotice("Crew record updated.");
+      if (type === "contactStudio") setMessageVersion((value) => value + 1);
+      onChanged();
+      return true;
+    } catch (caught: unknown) {
+      setNotice(caught instanceof Error ? caught.message : "Crew record could not be updated.");
+      return false;
+    } finally {
+      setBusy("");
+    }
+  };
+  const review = (decision: "approved" | "needs_changes", form: HTMLFormElement) => {
+    const data = new FormData(form);
+    void command("reviewAssignmentCloseout", {
+      decision,
+      reviewerNote: String(data.get("reviewerNote") ?? "").trim() || null,
+    });
+  };
+  const paymentSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const expected = String(data.get("expectedAt") ?? "");
+    void command("updateAssignmentPayment", {
+      status: String(data.get("status")),
+      expectedAt: expected ? new Date(expected).toISOString() : null,
+      reference: String(data.get("reference") ?? "").trim() || null,
+    });
+  };
+  const messageSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    void command("contactStudio", {
+      subject: String(data.get("subject") ?? "").trim(),
+      message: String(data.get("message") ?? "").trim(),
+      urgency: "normal",
+    }).then((persisted) => { if (persisted) form.reset(); });
+  };
+  return (
+    <section className="crew-studio-operations">
+      <header><div><p className="eyebrow">Studio controls</p><h2>Requirements, closeout & payment</h2></div><StatusBadge tone={closeout.status === "paid" ? "success" : "info"}>{show(closeout.status ?? "not submitted", "Status")}</StatusBadge></header>
+      <div className="crew-studio-requirements">
+        {requirements.map((item, index) => {
+          const status = String(item.status ?? "missing");
+          const complete = ["complete", "waived"].includes(status);
+          return <article key={String(item.id ?? index)}><FileCheck2/><span><strong>{show(item.name, "Name")}</strong><small>{show(item.kind, "Kind")} · {show(status, "Status")}</small></span>{!complete ? <span className="crew-studio-inline-actions"><button className="button button-light button-sm" disabled={Boolean(busy)} type="button" onClick={() => void command("completeRequirement", { requirementId: item.id, documentId: item.documentId ?? null })}>Approve</button><button className="button button-light button-sm" disabled={Boolean(busy)} type="button" onClick={() => { const reason = window.prompt("Reason for waiving this requirement?"); if (reason?.trim()) void command("waiveRequirement", { requirementId: item.id, reason: reason.trim() }); }}>Waive</button></span> : <CheckCircle2 className="crew-studio-complete"/>}</article>;
+        })}
+      </div>
+      {assignment.status === "accepted" ? <button className="button button-light" disabled={Boolean(busy)} type="button" onClick={() => void command("completeAssignment", {})}><CheckCircle2/> Mark event work complete</button> : null}
+      {closeout.status === "submitted" ? <form className="panel crew-studio-closeout-review" onSubmit={(event) => { event.preventDefault(); review("approved", event.currentTarget); }}><ReceiptText/><div><strong>Review submitted work record</strong><small>Actual time: {show(closeout.actualStartsAt, "Arrival")} – {show(closeout.actualEndsAt, "Departure")} · {Number(closeout.extraMinutes ?? 0)} extra minutes · {Array.isArray(closeout.expenses) ? closeout.expenses.length : 0} expenses · {Array.isArray(closeout.deliverables) ? closeout.deliverables.length : 0} deliverables</small></div><label>Review note<textarea name="reviewerNote" maxLength={2000}/></label><span><button className="button button-dark" disabled={Boolean(busy)} type="submit"><CheckCircle2/> Approve closeout</button><button className="button button-light" disabled={Boolean(busy)} type="button" onClick={(event) => { const form = event.currentTarget.form; if (form) review("needs_changes", form); }}><XCircle/> Request changes</button></span></form> : null}
+      {["approved", "paid"].includes(String(closeout.status)) ? <form className="panel crew-studio-payment" onSubmit={paymentSubmit}><CircleDollarSign/><div><strong>Payment status</strong><small>Keep the crew member informed without exposing client finances.</small></div><label>Status<select name="status" defaultValue={String(payment.status ?? "scheduled")}><option value="scheduled">Scheduled</option><option value="processing">Processing</option><option value="paid">Paid</option></select></label><label>Expected date<input name="expectedAt" type="datetime-local" /></label><label>Reference<input name="reference" maxLength={240} defaultValue={String(payment.reference ?? "")}/></label><button className="button button-dark" disabled={Boolean(busy)} type="submit">Save payment status</button></form> : null}
+      <section className="panel crew-studio-messages"><header><div><strong>Assignment messages</strong><small>A private thread between the studio and this crew member.</small></div></header>{messages.length ? <div className="crew-message-thread">{messages.map((message) => <article key={message.id} data-direction={String(message.direction)}><small>{message.direction === "studio_to_crew" ? "Studio" : "Crew"} · {show(message.createdAt, "Created")}</small><strong>{show(message.subject, "Subject")}</strong><p>{show(message.message, "Message")}</p></article>)}</div> : <p className="crew-message-empty">No messages on this assignment yet.</p>}<form onSubmit={messageSubmit}><label>Subject<input name="subject" maxLength={160} required defaultValue="Assignment update"/></label><label>Message<textarea name="message" maxLength={4000} required/></label><button className="button button-dark" disabled={Boolean(busy)} type="submit">Send to crew member</button></form></section>
+      {notice ? <p className="form-notice" role="status">{notice}</p> : null}
+    </section>
+  );
+}
+
 export function LiveRecordDetail({
   id,
   kind,
@@ -266,6 +376,7 @@ export function LiveRecordDetail({
     dataIsLive ? undefined : mockRecord(kind, id),
   );
   const [error, setError] = useState("");
+  const [refreshVersion, setRefreshVersion] = useState(0);
   useEffect(() => {
     if (!dataIsLive || workspace.loading) return;
     let active = true;
@@ -296,7 +407,7 @@ export function LiveRecordDetail({
     return () => {
       active = false;
     };
-  }, [id, selected, workspace.loading, workspace.tenantId]);
+  }, [id, refreshVersion, selected, workspace.loading, workspace.tenantId]);
   if (record === undefined)
     return <div className="live-domain-state"><LoaderCircle className="spin" /><span><strong>Loading record…</strong><small>Checking tenant and project access.</small></span></div>;
   if (!record)
@@ -323,6 +434,7 @@ export function LiveRecordDetail({
       </section>
       {items.length ? <section className="panel live-detail-list"><div className="panel-heading"><div><h2>Schedule items</h2><p>Current immutable version</p></div></div>{items.map((item, index) => <article key={String(item.id ?? index)}><time>{show(item.startAt, "Arrival")}</time><span><strong>{show(item.title, "Title")}</strong><small>{show(item.location, "Location")}</small></span><small>{show(item.endAt, "Departure")}</small></article>)}</section> : null}
       {requirements.length ? <section className="panel live-detail-list"><div className="panel-heading"><div><h2>Requirements</h2><p>Verified completion evidence</p></div></div>{requirements.map((item, index) => <article key={String(item.id ?? index)}><span><strong>{show(item.name, "Name")}</strong><small>{show(item.kind, "Kind")}</small></span><StatusBadge>{show(item.status, "Status")}</StatusBadge></article>)}</section> : null}
+      {kind === "crew" && typeof record.projectId === "string" ? <CrewStudioOperations assignment={record} onChanged={() => setRefreshVersion((value) => value + 1)} /> : null}
       <section className="panel live-detail-boundary"><ShieldCheck /><span><strong>How this record works</strong><small>{selected.boundary}</small></span></section>
     </div>
   );

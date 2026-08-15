@@ -98,6 +98,14 @@ const recordValue = (
     : {};
 };
 
+const numberValue = (
+  values: Record<string, unknown>,
+  key: string,
+): number | null => {
+  const value = values[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+};
+
 const safeUrl = (value: string): string => {
   try {
     const url = new URL(value);
@@ -216,21 +224,56 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           "For your security, this link expires after seven days and can be revoked by the studio.",
       };
     case "crew_invitation":
+      {
+        const role = stringValue(values, "role");
+        const arrivalAt = stringValue(values, "arrivalAt");
+        const departureAt = stringValue(values, "departureAt");
+        const respondBy = stringValue(values, "respondBy");
+        const locationName = stringValue(values, "locationName");
+        const locationAddress = stringValue(values, "locationAddress");
+        const compensationCents = numberValue(values, "compensationCents");
+        const currency = stringValue(values, "currency") || "USD";
+        const compensation =
+          values.compensationVisibleToCrew === true && compensationCents !== null
+            ? `${new Intl.NumberFormat("en-US", {
+                style: "currency",
+                currency,
+              }).format(compensationCents / 100)}${
+                stringValue(values, "compensationType") === "hourly"
+                  ? " per hour"
+                  : " total"
+              }`
+            : "Available in the secure assignment brief";
+        const details = [
+          role ? `Role: ${role}` : "",
+          arrivalAt && departureAt
+            ? `Time: ${humanDate(arrivalAt)} through ${humanDate(departureAt)}`
+            : "",
+          locationName
+            ? `Location: ${locationName}${locationAddress ? ` — ${locationAddress}` : ""}`
+            : "",
+          `Compensation: ${compensation}`,
+          respondBy ? `Please respond by ${humanDate(respondBy)}.` : "",
+        ].filter(Boolean);
       return {
-        subject: `Photography assignment from ${brand.studioName}`,
-        preheader: "Review and respond to your assignment.",
+        subject: `${role ? `${role} — ` : ""}Photography assignment from ${brand.studioName}`,
+        preheader: respondBy
+          ? `Review the job details and respond by ${humanDate(respondBy)}.`
+          : "Review and respond to your assignment.",
         eyebrow: "Crew assignment",
         heading: `A new assignment is ready`,
         paragraphs: [
           greeting,
           `${brand.studioName} invited you to review a photography assignment${project}.`,
-          "Open the secure job brief to review timing, locations, responsibilities, and required acknowledgements.",
+          ...details,
+          "Open the secure job brief to review responsibilities and requirements before accepting or declining.",
         ],
         action: inviteUrl
           ? { label: "Review assignment", url: inviteUrl }
           : undefined,
-        note: "Compensation is shown only when the studio has chosen to share it.",
+        note: "The secure brief is the source of truth if the studio updates this offer.",
       };
+      }
     case "email_verification":
       return {
         subject: "Verify your StudioCue email",

@@ -1,21 +1,33 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
   ArrowRight,
+  BriefcaseBusiness,
   CalendarCheck,
   CalendarDays,
   CalendarX2,
   Camera,
   CheckCircle2,
+  ChevronDown,
+  CircleDollarSign,
   Clock3,
+  ExternalLink,
   FileCheck2,
   LoaderCircle,
+  ListChecks,
   MapPin,
+  MessageCircle,
+  Pencil,
+  Phone,
+  ReceiptText,
   RotateCw,
+  Send,
   ShieldCheck,
+  Trash2,
+  UploadCloud,
 } from "lucide-react";
 import {
   collection,
@@ -46,7 +58,9 @@ type CrewData = {
   availability: Value[];
   loading: boolean;
   error: string | null;
+  refresh: () => void;
 };
+type CrewDataState = Omit<CrewData, "refresh">;
 type CachedCrewBrief = {
   projectName: string;
   role: string;
@@ -81,6 +95,12 @@ const dateTime = (value: unknown) => {
         minute: "2-digit",
       });
 };
+const dateTimeInput = (value: unknown) => {
+  const parsed = new Date(String(value));
+  if (Number.isNaN(parsed.valueOf())) return "";
+  const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+};
 const money = (cents: unknown, currency: unknown) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -89,7 +109,9 @@ const money = (cents: unknown, currency: unknown) =>
 
 function useCrewData(): CrewData {
   const workspace = useWorkspace();
-  const [state, setState] = useState<CrewData>({
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const refresh = useCallback(() => setRefreshVersion((value) => value + 1), []);
+  const [state, setState] = useState<CrewDataState>({
     assignments: [],
     projects: {},
     profile: null,
@@ -210,8 +232,9 @@ function useCrewData(): CrewData {
     workspace.projectIds,
     workspace.tenantId,
     workspace.userId,
+    refreshVersion,
   ]);
-  return state;
+  return { ...state, refresh };
 }
 
 function CrewState({
@@ -296,6 +319,254 @@ function projectFor(data: CrewData, assignment: Value) {
   return data.projects[text(assignment.projectId, "")];
 }
 
+function useSelectedAssignment(
+  data: CrewData,
+  statuses: string[] = ["accepted", "viewed", "invited", "completed"],
+) {
+  const statusKey = statuses.join("|");
+  const candidates = useMemo(
+    () => {
+      const allowed = statusKey.split("|");
+      return data.assignments
+        .filter((item) => allowed.includes(String(item.status)))
+        .sort((a, b) => String(a.arrivalAt).localeCompare(String(b.arrivalAt)));
+    },
+    [data.assignments, statusKey],
+  );
+  const [selectedId, setSelectedId] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return (
+      new URLSearchParams(window.location.search).get("assignment") ??
+      window.localStorage.getItem("studiocue:crew:selected-assignment") ??
+      ""
+    );
+  });
+  const select = (id: string) => {
+    setSelectedId(id);
+    window.localStorage.setItem("studiocue:crew:selected-assignment", id);
+    const url = new URL(window.location.href);
+    url.searchParams.set("assignment", id);
+    window.history.replaceState({}, "", url);
+  };
+  return {
+    candidates,
+    selected:
+      candidates.find((item) => item.id === selectedId) ?? candidates[0] ?? null,
+    select,
+  };
+}
+
+function AssignmentPicker({
+  data,
+  assignments,
+  selected,
+  onSelect,
+}: {
+  data: CrewData;
+  assignments: Value[];
+  selected: Value | null;
+  onSelect: (id: string) => void;
+}) {
+  if (assignments.length < 2 || !selected) return null;
+  return (
+    <label className="crew-assignment-picker">
+      <span><BriefcaseBusiness size={16} /> Active job</span>
+      <span>
+        <select value={selected.id} onChange={(event) => onSelect(event.target.value)}>
+          {assignments.map((assignment) => (
+            <option key={assignment.id} value={assignment.id}>
+              {text(projectFor(data, assignment)?.name)} · {text(assignment.role)} · {dateTime(assignment.arrivalAt)}
+            </option>
+          ))}
+        </select>
+        <ChevronDown size={16} aria-hidden />
+      </span>
+    </label>
+  );
+}
+
+function RequirementAction({
+  data,
+  assignment,
+  requirement,
+}: {
+  data: CrewData;
+  assignment: Value;
+  requirement: Record<string, unknown>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const kind = text(requirement.kind, "file");
+  if (["w9", "insurance", "file"].includes(kind)) {
+    return <Link className="button button-light button-sm" href={`/crew/documents?assignment=${encodeURIComponent(assignment.id)}`}><UploadCloud size={14}/> Upload document</Link>;
+  }
+  if (kind === "contract") {
+    return <small className="crew-provider-requirement">The studio will send the signing request.</small>;
+  }
+  if (!["equipment", "acknowledgement"].includes(kind)) return null;
+  const complete = async () => {
+    if (busy) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      const response = await sendCrewCommand("completeRequirement", {
+        projectId: text(assignment.projectId),
+        assignmentId: assignment.id,
+        requirementId: text(requirement.id),
+        documentId: null,
+      });
+      if (!response.persisted) {
+        setNotice("Development preview only. Nothing was changed.");
+        return;
+      }
+      data.refresh();
+    } catch (caught: unknown) {
+      setNotice(caught instanceof Error ? caught.message : "Requirement could not be completed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <span className="crew-requirement-action">
+      <button className="button button-light button-sm" type="button" disabled={busy} onClick={() => void complete()}>
+        <CheckCircle2 size={14} /> {busy ? "Saving…" : kind === "equipment" ? "Confirm equipment" : "Acknowledge"}
+      </button>
+      {notice ? <small role="status">{notice}</small> : null}
+    </span>
+  );
+}
+
+function CrewProfileEditor({ data, profile }: { data: CrewData; profile: Value }) {
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const csv = (value: unknown) => list(value).map(String).join(", ");
+  const emergency = record(profile.emergencyContact);
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (busy) return;
+    const values = new FormData(event.currentTarget);
+    const split = (name: string) => String(values.get(name) ?? "").split(",").map((item) => item.trim()).filter(Boolean);
+    setBusy(true);
+    setNotice(null);
+    try {
+      const emergencyName = String(values.get("emergencyName") ?? "").trim();
+      const emergencyPhone = String(values.get("emergencyPhone") ?? "").trim();
+      const emergencyRelationship = String(values.get("emergencyRelationship") ?? "").trim();
+      const response = await sendCrewCommand("updateCrewProfile", {
+        crewProfileId: profile.id,
+        phone: String(values.get("phone") ?? "").trim() || null,
+        specialties: split("specialties"),
+        serviceAreas: split("serviceAreas"),
+        travelRadiusMiles: Number(values.get("travelRadiusMiles") ?? 0),
+        equipment: split("equipment"),
+        emergencyContact: emergencyName && emergencyPhone && emergencyRelationship
+          ? { name: emergencyName, phone: emergencyPhone, relationship: emergencyRelationship }
+          : null,
+      });
+      if (!response.persisted) {
+        setNotice("Development preview only. Nothing was changed.");
+        return;
+      }
+      setNotice("Profile updated.");
+      setEditing(false);
+      data.refresh();
+    } catch (caught: unknown) {
+      setNotice(caught instanceof Error ? caught.message : "Profile could not be updated.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (!editing)
+    return (
+      <div className="crew-profile-edit-control">
+        <button className="button button-light" type="button" onClick={() => setEditing(true)}>Edit professional details</button>
+        {notice ? <p className="form-notice" role="status">{notice}</p> : null}
+      </div>
+    );
+  return (
+    <form className="panel crew-profile-form" onSubmit={(event) => void submit(event)}>
+      <header><span><p className="eyebrow">Self-service profile</p><h2>Update your working details</h2></span><button className="button button-light button-sm" type="button" onClick={() => setEditing(false)}>Cancel</button></header>
+      <label>Phone<input name="phone" defaultValue={text(profile.phone, "")} /></label>
+      <label>Travel radius (miles)<input name="travelRadiusMiles" type="number" min="0" max="500" defaultValue={number(profile.travelRadiusMiles)} /></label>
+      <label className="form-span">Specialties, separated by commas<input name="specialties" defaultValue={csv(profile.specialties)} /></label>
+      <label className="form-span">Service areas, separated by commas<input name="serviceAreas" defaultValue={csv(profile.serviceAreas)} /></label>
+      <label className="form-span">Equipment, separated by commas<textarea name="equipment" defaultValue={csv(profile.equipment)} /></label>
+      <label>Emergency contact name<input name="emergencyName" defaultValue={text(emergency.name, "")} /></label>
+      <label>Emergency contact phone<input name="emergencyPhone" defaultValue={text(emergency.phone, "")} /></label>
+      <label>Relationship<input name="emergencyRelationship" defaultValue={text(emergency.relationship, "")} /></label>
+      <button className="button button-dark" disabled={busy} type="submit">{busy ? "Saving…" : "Save profile"}</button>
+      {notice ? <p className="form-notice" role="status">{notice}</p> : null}
+    </form>
+  );
+}
+
+function StudioContactForm({ assignment, eventDay = false }: { assignment: Value; eventDay?: boolean }) {
+  const workspace = useWorkspace();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Value[]>([]);
+  const [messageVersion, setMessageVersion] = useState(0);
+  useEffect(() => {
+    if (!dataIsLive || !workspace.tenantId || !workspace.userId) return;
+    let active = true;
+    void getDocs(query(
+      collection(getFirebaseClient().firestore, "crewMessages"),
+      where("tenantId", "==", workspace.tenantId),
+      where("userId", "==", workspace.userId),
+      where("assignmentId", "==", assignment.id),
+      limit(50),
+    )).then((snapshot) => {
+      if (!active) return;
+      setMessages(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as Value).sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt))));
+    }).catch(() => {
+      if (active) setMessages([]);
+    });
+    return () => { active = false; };
+  }, [assignment.id, messageVersion, workspace.tenantId, workspace.userId]);
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (busy) return;
+    const form = event.currentTarget;
+    const values = new FormData(form);
+    setBusy(true);
+    setNotice(null);
+    try {
+      const response = await sendCrewCommand("contactStudio", {
+        projectId: text(assignment.projectId),
+        assignmentId: assignment.id,
+        subject: String(values.get("subject") ?? ""),
+        message: String(values.get("message") ?? ""),
+        urgency: eventDay ? "event_day" : "normal",
+      });
+      if (!response.persisted) { setNotice("Development preview only. Message not sent."); return; }
+      setNotice("Message sent to the studio team.");
+      form.reset();
+      setOpen(false);
+      setMessageVersion((value) => value + 1);
+    } catch (caught: unknown) {
+      setNotice(caught instanceof Error ? caught.message : "Message could not be sent.");
+    } finally { setBusy(false); }
+  };
+  return (
+    <div className="crew-contact-studio">
+      <button className={eventDay ? "button button-dark" : "button button-light"} type="button" onClick={() => setOpen((value) => !value)}>
+        <MessageCircle size={16} /> {eventDay ? "Contact studio now" : "Contact studio"}
+      </button>
+      {open ? (
+        <form className="crew-contact-form" onSubmit={(event) => void submit(event)}>
+          <label>Subject<input name="subject" required maxLength={160} defaultValue={eventDay ? "Event-day question" : "Assignment question"} /></label>
+          <label>Message<textarea name="message" required maxLength={4000} /></label>
+          <button className="button button-dark" type="submit" disabled={busy}><Send size={15} /> {busy ? "Sending…" : "Send securely"}</button>
+        </form>
+      ) : null}
+      {messages.length ? <div className="crew-message-thread" aria-label="Assignment messages">{messages.slice(-5).map((message) => <article key={message.id} data-direction={text(message.direction)}><small>{message.direction === "studio_to_crew" ? "Studio" : "You"} · {dateTime(message.createdAt)}</small><strong>{text(message.subject)}</strong><p>{text(message.message)}</p></article>)}</div> : null}
+      {notice ? <p className="form-notice" role="status">{notice}</p> : null}
+    </div>
+  );
+}
+
 function assignmentLocation(assignment: Value) {
   const locations = Array.isArray(assignment.locations)
     ? (assignment.locations as Array<Record<string, unknown>>)
@@ -349,7 +620,7 @@ export function LiveCrewHome() {
               current schedule
             </strong>
           </span>
-          <Link className="button button-dark" href="/crew/schedule">
+          <Link className="button button-dark" href={`/crew/schedule?assignment=${encodeURIComponent(acknowledgementDue.id)}`}>
             Review schedule <ArrowRight />
           </Link>
         </section>
@@ -376,7 +647,7 @@ export function LiveCrewHome() {
               <dd>{text(next.role)}</dd>
             </div>
           </dl>
-          <Link href="/crew/accepted">
+          <Link href={`/crew/prep?assignment=${encodeURIComponent(next.id)}`}>
             Open job brief <ArrowRight />
           </Link>
         </section>
@@ -384,6 +655,78 @@ export function LiveCrewHome() {
         <CrewState data={data} empty="Accepted assignments will appear here." />
       )}
     </div>
+  );
+}
+
+export function LiveCrewJobs() {
+  const data = useCrewData();
+  if (data.loading || data.error)
+    return <CrewPageState eyebrow="Your work" title="Jobs" description="Review offers, prepare accepted work, and keep completed assignments for your records." data={data} />;
+  const assignments = [...data.assignments].sort((a, b) => String(b.arrivalAt).localeCompare(String(a.arrivalAt)));
+  return (
+    <div className="crew-mobile-page">
+      <header className="crew-portal-hero"><div><p className="eyebrow">Your work</p><h1>Jobs</h1><p>Every offer and assignment, with one clear status and next step.</p></div><StatusBadge tone="neutral">{assignments.length} total</StatusBadge></header>
+      {assignments.length ? assignments.map((assignment) => {
+        const project = projectFor(data, assignment);
+        const status = text(assignment.status).replaceAll("_", " ");
+        const pending = ["invited", "viewed"].includes(String(assignment.status));
+        const accepted = assignment.status === "accepted";
+        const locations = list(assignment.locations).map(record);
+        const responsibilities = list(assignment.responsibilities).map(String);
+        return (
+          <article className="panel crew-job-card-premium" key={assignment.id} data-status={status}>
+            <header><span><p className="eyebrow">{text(assignment.role)}</p><h2>{text(project?.name)}</h2></span><StatusBadge tone={accepted || assignment.status === "completed" ? "success" : pending ? "warning" : "neutral"}>{status}</StatusBadge></header>
+            <div className="crew-job-decision-grid">
+              <span><Clock3/><small>Call and wrap</small><strong>{dateTime(assignment.arrivalAt)} – {dateTime(assignment.departureAt)}</strong></span>
+              <span><MapPin/><small>{locations.length > 1 ? `${locations.length} locations` : "Location"}</small><strong>{locations.map((item) => text(item.name)).join(" · ") || "Pending"}</strong></span>
+              <span><CircleDollarSign/><small>{text(assignment.compensationType, "Compensation")} compensation</small><strong>{assignment.compensationVisibleToCrew ? money(assignment.compensationCents, assignment.currency) : "Contact studio"}</strong></span>
+              {pending ? <span><CalendarDays/><small>Respond by</small><strong>{dateTime(assignment.inviteExpiresAt)}</strong></span> : null}
+            </div>
+            {responsibilities.length ? <section className="crew-responsibilities"><strong>Responsibilities</strong><ul>{responsibilities.map((item) => <li key={item}><CheckCircle2 size={15}/>{item}</li>)}</ul></section> : <p className="crew-missing-detail"><AlertTriangle size={15}/> Responsibilities have not been supplied. Contact the studio before accepting.</p>}
+            {pending ? <AssignmentActions assignmentId={assignment.id} projectId={text(assignment.projectId)} initialStatus={assignment.status === "viewed" ? "viewed" : "invited"} startsAt={text(assignment.arrivalAt)} endsAt={text(assignment.departureAt)} projectName={text(project?.name)} role={text(assignment.role)} location={text(locations[0]?.name)} onAssignmentChanged={data.refresh} /> : null}
+            {accepted ? <div className="crew-job-card-actions"><Link className="button button-dark" href={`/crew/prep?assignment=${encodeURIComponent(assignment.id)}`}>Open schedule & prep <ArrowRight size={15}/></Link><StudioContactForm assignment={assignment}/></div> : null}
+            {assignment.status === "completed" ? <Link className="button button-light" href={`/crew/closeout?assignment=${encodeURIComponent(assignment.id)}`}>View closeout and payment <ArrowRight size={15}/></Link> : null}
+          </article>
+        );
+      }) : <CrewState data={data} empty="New offers from your studio will appear here with the details you need to decide." />}
+    </div>
+  );
+}
+
+export function LiveCrewPrep() {
+  const data = useCrewData();
+  const selection = useSelectedAssignment(data, ["accepted"]);
+  if (data.loading || data.error)
+    return <CrewPageState eyebrow="Schedule & prep" title="Get ready" description="Everything required for your selected assignment." data={data} />;
+  const assignment = selection.selected;
+  if (!assignment)
+    return <CrewPageState eyebrow="Schedule & prep" title="Get ready" description="Everything required for your selected assignment." data={data} empty="Accept a job to unlock its schedule and preparation checklist." />;
+  const project = projectFor(data, assignment);
+  const requirements = list(assignment.requirements).map(record);
+  const incomplete = requirements.filter((item) => item.required === true && !["complete", "waived"].includes(String(item.status)));
+  const query = `?assignment=${encodeURIComponent(assignment.id)}`;
+  return (
+    <div className="crew-mobile-page">
+      <AssignmentPicker data={data} assignments={selection.candidates} selected={assignment} onSelect={selection.select}/>
+      <header className="crew-portal-hero"><div><p className="eyebrow">Schedule & prep</p><h1>{text(project?.name)}</h1><p>{text(assignment.role)} · {dateTime(assignment.arrivalAt)}</p></div><StatusBadge tone={incomplete.length ? "warning" : "success"}>{incomplete.length ? `${incomplete.length} actions due` : "Ready"}</StatusBadge></header>
+      <section className="crew-prep-grid">
+        <Link className="panel" href={`/crew/schedule${query}`}><CalendarDays/><span><small>Event schedule</small><strong>{number(assignment.currentScheduleVersion) ? `Version ${number(assignment.currentScheduleVersion)}` : "Not published"}</strong><em>{number(assignment.acknowledgedScheduleVersion) === number(assignment.currentScheduleVersion) && number(assignment.currentScheduleVersion) > 0 ? "Acknowledged" : "Review latest version"}</em></span><ArrowRight/></Link>
+        <Link className="panel" href={`/crew/requirements${query}`}><ListChecks/><span><small>Requirements</small><strong>{requirements.length - incomplete.length} of {requirements.length} complete</strong><em>{incomplete.length ? "Finish preparation" : "All clear"}</em></span><ArrowRight/></Link>
+        <Link className="panel" href={`/crew/documents${query}`}><FileCheck2/><span><small>Secure documents</small><strong>{requirements.filter((item) => ["w9", "insurance", "file"].includes(String(item.kind))).length} requested</strong><em>Upload and track review</em></span><ArrowRight/></Link>
+        <Link className="panel" href={`/crew/event-day${query}`}><Camera/><span><small>Event-day brief</small><strong>Timeline, locations & contacts</strong><em>Available offline</em></span><ArrowRight/></Link>
+        <Link className="panel" href={`/crew/closeout${query}`}><ReceiptText/><span><small>After the event</small><strong>Hours, expenses & deliverables</strong><em>{text(record(assignment.closeout).status, "Not submitted")}</em></span><ArrowRight/></Link>
+      </section>
+      <StudioContactForm assignment={assignment}/>
+    </div>
+  );
+}
+
+export function LiveCrewAccount() {
+  const data = useCrewData();
+  if (data.loading || data.error)
+    return <CrewPageState eyebrow="Your account" title="Profile & availability" description="Keep your working details current for this studio." data={data} />;
+  return (
+    <div className="crew-mobile-page"><header className="crew-portal-hero"><div><p className="eyebrow">Your account</p><h1>Profile & availability</h1><p>Maintain the details studios use to offer and schedule work.</p></div></header><section className="crew-account-grid"><Link className="panel" href="/crew/profile"><Camera/><span><strong>Professional profile</strong><small>Phone, specialties, service area, equipment and emergency contact</small></span><ArrowRight/></Link><Link className="panel" href="/crew/availability"><CalendarCheck/><span><strong>Availability</strong><small>Add, edit or remove the dates this studio can consider</small></span><ArrowRight/></Link></section></div>
   );
 }
 
@@ -445,6 +788,7 @@ export function LiveCrewPending() {
                 projectName={text(project?.name)}
                 role={text(assignment.role)}
                 location={text(location?.name)}
+                onAssignmentChanged={data.refresh}
               />
             </article>
           );
@@ -526,6 +870,9 @@ export function LiveCrewAccepted() {
                 projectName={text(project?.name)}
                 role={text(assignment.role)}
                 location={text(locations[0]?.name)}
+                initialCalendarStatus={text(assignment.calendarStatus, "not_added")}
+                initialAcknowledgedScheduleVersion={number(assignment.acknowledgedScheduleVersion) || null}
+                onAssignmentChanged={data.refresh}
               />
             </section>
           );
@@ -585,17 +932,25 @@ function OfflineCrewBrief({ brief }: { brief: CachedCrewBrief }) {
   );
 }
 
-export function LiveCrewSchedule() {
+export function LiveCrewSchedule({ context = "schedule" }: { context?: "schedule" | "event-day" } = {}) {
   const workspace = useWorkspace();
   const data = useCrewData();
-  const assignment = data.assignments.find(
-    (item) => item.status === "accepted" && item.currentScheduleId,
-  );
-  const [schedule, setSchedule] = useState<Value | null>(null);
-  const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const selection = useSelectedAssignment(data, ["accepted"]);
+  const assignment = selection.selected;
+  const [scheduleState, setScheduleState] = useState<{
+    key: string | null;
+    value: Value | null;
+    error: string | null;
+  }>({ key: null, value: null, error: null });
   const [cachedBrief, setCachedBrief] = useState<CachedCrewBrief | null>(null);
-  const cacheKey = workspace.userId
-    ? `studiocue:crew-event-brief:${workspace.userId}`
+  const [renderedAt] = useState(() => Date.now());
+  const scheduleViewKey = assignment?.currentScheduleId
+    ? `${String(assignment.currentScheduleId)}_${assignment.id}`
+    : null;
+  const schedule = scheduleState.key === scheduleViewKey ? scheduleState.value : null;
+  const scheduleError = scheduleState.key === scheduleViewKey ? scheduleState.error : null;
+  const cacheKey = workspace.userId && assignment
+    ? `studiocue:crew-event-brief:${workspace.userId}:${assignment.id}:${number(assignment.currentScheduleVersion)}`
     : null;
   useEffect(() => {
     if (!cacheKey) return;
@@ -610,13 +965,18 @@ export function LiveCrewSchedule() {
     return () => window.clearTimeout(timer);
   }, [cacheKey]);
   useEffect(() => {
-    if (!assignment?.currentScheduleId) return;
+    if (!scheduleViewKey) {
+      queueMicrotask(() => {
+        setScheduleState({ key: null, value: null, error: null });
+      });
+      return;
+    }
     let active = true;
     void getDoc(
       doc(
         getFirebaseClient().firestore,
         "crewScheduleViews",
-        `${String(assignment.currentScheduleId)}_${assignment.id}`,
+        scheduleViewKey,
       ),
     )
       .then((value) => {
@@ -625,7 +985,7 @@ export function LiveCrewSchedule() {
             id: value.id,
             ...value.data(),
           } as Value;
-          setSchedule(scheduleValue);
+          setScheduleState({ key: scheduleViewKey, value: scheduleValue, error: null });
           if (cacheKey && assignment) {
             const allowedIds = new Set(
               list(assignment.scheduleItemIds).map(String),
@@ -639,7 +999,7 @@ export function LiveCrewSchedule() {
                   ) &&
                   (allowedIds.size === 0 || allowedIds.has(text(item.id))),
               );
-            const project = projectFor(data, assignment);
+            const project = data.projects[text(assignment.projectId, "")];
             const brief: CachedCrewBrief = {
               projectName: text(project?.name),
               role: text(assignment.role),
@@ -659,28 +1019,33 @@ export function LiveCrewSchedule() {
             window.localStorage.setItem(cacheKey, JSON.stringify(brief));
             setCachedBrief(brief);
           }
+        } else if (active) {
+          setScheduleState({ key: scheduleViewKey, value: null, error: null });
         }
       })
       .catch((caught: unknown) => {
         if (active)
-          setScheduleError(
-            caught instanceof Error ? caught.message : "Schedule could not load.",
-          );
+          setScheduleState({
+            key: scheduleViewKey,
+            value: null,
+            error: caught instanceof Error ? caught.message : "Schedule could not load.",
+          });
       });
     return () => {
       active = false;
     };
-  }, [assignment, cacheKey, data]);
+  }, [assignment, cacheKey, data.projects, scheduleViewKey]);
+  const emptyTitle = context === "event-day" ? "Event-day brief" : "Schedule";
   if (data.loading)
-    return <CrewPageState eyebrow="Event day" title="Schedule" description="Your assigned timeline and the version you need to acknowledge." data={data} />;
+    return <CrewPageState eyebrow="Event day" title={emptyTitle} description="Your assigned timeline and the version you need to acknowledge." data={data} />;
   if (data.error && cachedBrief) return <OfflineCrewBrief brief={cachedBrief} />;
   if (data.error)
-    return <CrewPageState eyebrow="Event day" title="Schedule" description="Your assigned timeline and the version you need to acknowledge." data={data} />;
+    return <CrewPageState eyebrow="Event day" title={emptyTitle} description="Your assigned timeline and the version you need to acknowledge." data={data} />;
   if (!assignment || !schedule)
     return (
       <CrewPageState
         eyebrow="Event day"
-        title="Schedule"
+        title={emptyTitle}
         description="Your assigned timeline and the version you need to acknowledge."
         data={{ ...data, error: scheduleError }}
         empty="No published schedule is assigned to an accepted job."
@@ -699,8 +1064,18 @@ export function LiveCrewSchedule() {
   const project = projectFor(data, assignment);
   const acknowledged =
     number(assignment.acknowledgedScheduleVersion) === number(schedule.version);
+  const locations = list(assignment.locations).map(record);
+  const responsibilities = list(assignment.responsibilities).map(String);
+  const contacts = list(assignment.contacts).map(record);
+  const nextItemId = items.find((item) => Date.parse(text(item.endAt, "")) >= renderedAt)?.id;
   return (
     <div className="crew-mobile-page crew-event-day">
+      <AssignmentPicker
+        data={data}
+        assignments={selection.candidates}
+        selected={assignment}
+        onSelect={selection.select}
+      />
       <header className="crew-portal-hero">
         <div>
           <p className="eyebrow">
@@ -713,9 +1088,14 @@ export function LiveCrewSchedule() {
           {acknowledged ? "Acknowledged" : "Acknowledgement due"}
         </StatusBadge>
       </header>
+      <section className="crew-event-brief-grid">
+        <article className="panel"><p className="eyebrow">Your role</p><h2>{text(assignment.role)}</h2><ul>{responsibilities.length ? responsibilities.map((item) => <li key={item}><CheckCircle2 size={14}/>{item}</li>) : <li><AlertTriangle size={14}/>Confirm responsibilities with the studio.</li>}</ul></article>
+        <article className="panel"><p className="eyebrow">Locations & access</p>{locations.map((location) => <div className="crew-event-location" key={text(location.name)}><MapPin/><span><strong>{text(location.name)}</strong><small>{text(location.address, "Address pending")}</small>{location.address ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(text(location.address))}`} target="_blank" rel="noreferrer">Directions <ExternalLink size={12}/></a> : null}</span></div>)}</article>
+        <article className="panel"><p className="eyebrow">Event contacts</p>{contacts.length ? contacts.map((contact) => <div className="crew-event-contact" key={`${text(contact.name)}-${text(contact.phone)}`}><Phone/><span><strong>{text(contact.name)}</strong><small>{text(contact.role, "Studio contact")}</small>{contact.phone ? <a href={`tel:${text(contact.phone)}`}>{text(contact.phone)}</a> : null}</span></div>) : <p>No event contact has been shared. Use the secure studio message below.</p>}<StudioContactForm assignment={assignment} eventDay/></article>
+      </section>
       <section className="crew-event-timeline">
-        {items.map((item) => (
-          <article key={text(item.id)}>
+        {items.length ? items.map((item) => (
+          <article key={text(item.id)} className={item.id === nextItemId ? "is-next" : undefined}>
             <time>
               <strong>{dateTime(item.startAt)}</strong>
               <small>{dateTime(item.endAt)}</small>
@@ -729,7 +1109,7 @@ export function LiveCrewSchedule() {
               <small>{text(item.description, "See assignment brief")}</small>
             </div>
           </article>
-        ))}
+        )) : <p className="crew-empty-timeline">The current schedule has no segments assigned to your role. Contact the studio before event day.</p>}
       </section>
       <div className="crew-mobile-action-bar">
         <AssignmentActions
@@ -743,6 +1123,9 @@ export function LiveCrewSchedule() {
           projectName={text(project?.name)}
           role={text(assignment.role)}
           location={text(assignmentLocation(assignment)?.name)}
+          initialCalendarStatus={text(assignment.calendarStatus, "not_added")}
+          initialAcknowledgedScheduleVersion={number(assignment.acknowledgedScheduleVersion) || null}
+          onAssignmentChanged={data.refresh}
         />
       </div>
     </div>
@@ -751,10 +1134,9 @@ export function LiveCrewSchedule() {
 
 export function LiveCrewRequirements() {
   const data = useCrewData();
+  const selection = useSelectedAssignment(data, ["accepted", "viewed"]);
   if (data.loading || data.error) return <CrewPageState eyebrow="Assignment checklist" title="Requirements" description="Complete the items your studio needs before event day." data={data} />;
-  const assignment =
-    data.assignments.find((item) => item.status === "accepted") ??
-    data.assignments.find((item) => item.status === "viewed");
+  const assignment = selection.selected;
   if (!assignment)
     return <CrewPageState eyebrow="Assignment checklist" title="Requirements" description="Complete the items your studio needs before event day." data={data} empty="Requirements appear after you open an assignment." />;
   const requirements = Array.isArray(assignment.requirements)
@@ -765,6 +1147,7 @@ export function LiveCrewRequirements() {
   ).length;
   return (
     <div className="crew-mobile-page">
+      <AssignmentPicker data={data} assignments={selection.candidates} selected={assignment} onSelect={selection.select} />
       <header className="crew-portal-hero">
         <div>
           <p className="eyebrow">Assignment evidence</p>
@@ -792,11 +1175,18 @@ export function LiveCrewRequirements() {
               {done ? <CheckCircle2 /> : <AlertTriangle className="crew-warning-icon" />}
               <span>
                 <strong>{text(item.name)}</strong>
-                <small>{text(item.kind)}</small>
+                <small>
+                  {text(item.kind).replaceAll("_", " ")}
+                  {item.dueAt ? ` · Due ${dateTime(item.dueAt)}` : ""}
+                </small>
+                {item.notes || item.instructions ? (
+                  <small>{text(item.instructions ?? item.notes, "")}</small>
+                ) : null}
               </span>
               <StatusBadge tone={done ? "success" : "warning"}>
                 {text(item.status).replaceAll("_", " ")}
               </StatusBadge>
+              {!done ? <RequirementAction data={data} assignment={assignment} requirement={item} /> : null}
             </article>
           );
         })}
@@ -807,23 +1197,23 @@ export function LiveCrewRequirements() {
 
 export function LiveCrewDocuments() {
   const data = useCrewData();
+  const selection = useSelectedAssignment(data, ["accepted", "viewed"]);
   if (data.loading || data.error) return <CrewPageState eyebrow="Secure files" title="Documents" description="Upload only the files requested for your assignments." data={data} />;
-  const assignment = data.assignments.find((item) =>
-    ["accepted", "viewed"].includes(String(item.status)),
-  );
+  const assignment = selection.selected;
   if (!assignment)
     return <CrewPageState eyebrow="Secure files" title="Documents" description="Upload only the files requested for your assignments." data={data} empty="Document requirements appear with an assignment." />;
   const requirements = Array.isArray(assignment.requirements)
     ? (assignment.requirements as Array<Record<string, unknown>>)
     : [];
-  const upload = requirements.find(
+  const uploads = requirements.filter(
     (item) =>
       item.required === true &&
-      !["complete", "waived"].includes(String(item.status)) &&
+      ["missing", "expired"].includes(String(item.status)) &&
       ["w9", "insurance", "file"].includes(String(item.kind)),
   );
   return (
     <div className="crew-mobile-page">
+      <AssignmentPicker data={data} assignments={selection.candidates} selected={assignment} onSelect={selection.select} />
       <header className="crew-portal-hero">
         <div>
           <p className="eyebrow">Secure files</p>
@@ -839,12 +1229,13 @@ export function LiveCrewDocuments() {
         </span>
       </div>
       <section className="panel crew-document-list">
-        {requirements.map((item) => (
+        {requirements.length ? requirements.map((item) => (
           <article key={text(item.id)}>
             <FileCheck2 />
             <span>
               <strong>{text(item.name)}</strong>
-              <small>{text(item.kind)}</small>
+              <small>{text(item.kind)}{item.dueAt ? ` · Due ${dateTime(item.dueAt)}` : ""}</small>
+              {item.instructions ? <small>{text(item.instructions, "")}</small> : null}
             </span>
             <StatusBadge
               tone={["complete", "waived"].includes(String(item.status)) ? "success" : "warning"}
@@ -852,16 +1243,93 @@ export function LiveCrewDocuments() {
               {text(item.status).replaceAll("_", " ")}
             </StatusBadge>
           </article>
-        ))}
+        )) : <p className="crew-empty-timeline">This job has no document requirements.</p>}
       </section>
-      {upload ? (
+      {uploads.map((upload) => (
         <CrewDocumentUpload
+          key={text(upload.id)}
           projectId={text(assignment.projectId)}
           assignmentId={assignment.id}
           requirementId={text(upload.id)}
           requirementName={text(upload.name)}
+          onSubmitted={data.refresh}
         />
-      ) : null}
+      ))}
+    </div>
+  );
+}
+
+export function LiveCrewCloseout() {
+  const data = useCrewData();
+  const selection = useSelectedAssignment(data, ["accepted", "completed"]);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  if (data.loading || data.error)
+    return <CrewPageState eyebrow="After the event" title="Closeout & payment" description="Submit your work record and follow it through studio review and payment." data={data} />;
+  const assignment = selection.selected;
+  if (!assignment)
+    return <CrewPageState eyebrow="After the event" title="Closeout & payment" description="Submit your work record and follow it through studio review and payment." data={data} empty="Accepted and completed jobs will appear here." />;
+  const project = projectFor(data, assignment);
+  const closeout = record(assignment.closeout);
+  const payment = record(assignment.payment);
+  const closeoutStatus = text(closeout.status, "");
+  const submitted = ["submitted", "approved", "paid"].includes(closeoutStatus);
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (busy) return;
+    const values = new FormData(event.currentTarget);
+    const actualStartsAt = new Date(String(values.get("actualStartsAt")));
+    const actualEndsAt = new Date(String(values.get("actualEndsAt")));
+    if (Number.isNaN(actualStartsAt.valueOf()) || Number.isNaN(actualEndsAt.valueOf()) || actualEndsAt <= actualStartsAt) {
+      setNotice("Choose an actual end time after the start time.");
+      return;
+    }
+    const expenseDescription = String(values.get("expenseDescription") ?? "").trim();
+    const expenseAmount = Number(values.get("expenseAmount") ?? 0);
+    const deliverables = String(values.get("deliverables") ?? "").split("\n").map((item) => item.trim()).filter(Boolean);
+    setBusy(true);
+    setNotice(null);
+    try {
+      const response = await sendCrewCommand("submitAssignmentCloseout", {
+        projectId: text(assignment.projectId),
+        assignmentId: assignment.id,
+        actualStartsAt: actualStartsAt.toISOString(),
+        actualEndsAt: actualEndsAt.toISOString(),
+        extraMinutes: Number(values.get("extraMinutes") ?? 0),
+        expenses: expenseDescription ? [{ description: expenseDescription, amountCents: Math.round(expenseAmount * 100) }] : [],
+        deliverables,
+        notes: String(values.get("notes") ?? "").trim() || null,
+      });
+      if (!response.persisted) { setNotice("Development preview only. Closeout not submitted."); return; }
+      setNotice("Closeout submitted to the studio for review.");
+      data.refresh();
+    } catch (caught: unknown) {
+      setNotice(caught instanceof Error ? caught.message : "Closeout could not be submitted.");
+    } finally { setBusy(false); }
+  };
+  return (
+    <div className="crew-mobile-page">
+      <AssignmentPicker data={data} assignments={selection.candidates} selected={assignment} onSelect={selection.select}/>
+      <header className="crew-portal-hero"><div><p className="eyebrow">After the event</p><h1>Closeout & payment</h1><p>{text(project?.name)} · Preserve your hours, expenses and deliverables in one record.</p></div><StatusBadge tone={payment.status === "paid" ? "success" : submitted ? "info" : "warning"}>{payment.status === "paid" ? "Paid" : submitted ? "Studio review" : "Not submitted"}</StatusBadge></header>
+      <section className="crew-payment-summary">
+        <article className="panel"><small>Agreed compensation</small><strong>{assignment.compensationVisibleToCrew ? money(assignment.compensationCents, assignment.currency) : "Contact studio"}</strong><span>{text(assignment.compensationType, "event")}</span></article>
+        <article className="panel"><small>Closeout</small><strong>{text(closeout.status, "Not submitted").replaceAll("_", " ")}</strong><span>{closeout.reviewerNote ? text(closeout.reviewerNote) : closeout.submittedAt ? `Submitted ${dateTime(closeout.submittedAt)}` : "Hours and expenses due after the event"}</span></article>
+        <article className="panel"><small>Payment</small><strong>{text(payment.status, "Not scheduled").replaceAll("_", " ")}</strong><span>{payment.paidAt ? `Paid ${dateTime(payment.paidAt)}` : payment.expectedAt ? `Expected ${dateTime(payment.expectedAt)}` : "The studio will update this after review"}</span></article>
+      </section>
+      {closeoutStatus === "needs_changes" ? <div className="crew-next-action"><AlertTriangle/><span><strong>The studio requested changes</strong><small>{text(closeout.reviewerNote, "Review your work record and submit it again.")}</small></span></div> : null}
+      {!submitted ? <form className="panel crew-closeout-form" onSubmit={(event) => void submit(event)}>
+        <header><p className="eyebrow">Work record</p><h2>Submit your closeout</h2></header>
+        <label>Actual start · local time<input name="actualStartsAt" type="datetime-local" required defaultValue={dateTimeInput(closeout.actualStartsAt ?? assignment.arrivalAt)}/></label>
+        <label>Actual end · local time<input name="actualEndsAt" type="datetime-local" required defaultValue={dateTimeInput(closeout.actualEndsAt ?? assignment.departureAt)}/></label>
+        <label>Extra minutes<input name="extraMinutes" type="number" min="0" max="1440" defaultValue={number(closeout.extraMinutes)}/></label>
+        <label>Expense description<input name="expenseDescription" maxLength={240} placeholder="Parking, tolls, approved supplies…"/></label>
+        <label>Expense amount<input name="expenseAmount" type="number" min="0" step="0.01" placeholder="0.00"/></label>
+        <label className="form-span">Deliverable links, one per line<textarea name="deliverables" defaultValue={list(closeout.deliverables).map(String).join("\n")} placeholder="https://…"/></label>
+        <label className="form-span">Notes for the studio<textarea name="notes" defaultValue={text(closeout.notes, "")} maxLength={4000}/></label>
+        <button className="button button-dark" type="submit" disabled={busy}><ReceiptText size={16}/>{busy ? "Submitting…" : "Submit closeout"}</button>
+      </form> : <section className="panel crew-closeout-receipt"><CheckCircle2/><span><strong>Closeout received</strong><small>The studio can review adjustments and payment without asking you to resubmit this information.</small></span></section>}
+      <StudioContactForm assignment={assignment}/>
+      {notice ? <p className="form-notice" role="status">{notice}</p> : null}
     </div>
   );
 }
@@ -948,6 +1416,7 @@ export function LiveCrewProfile() {
           </Link>
         </article>
       </section>
+      <CrewProfileEditor data={data} profile={profile} />
     </div>
   );
 }
@@ -955,6 +1424,8 @@ export function LiveCrewProfile() {
 export function LiveCrewAvailability() {
   const data = useCrewData();
   const [notice, setNotice] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Value | null>(null);
+  const [busy, setBusy] = useState(false);
   if (data.loading || data.error || !data.profile)
     return <CrewPageState eyebrow="Your calendar" title="Availability" description="Tell the studio when you are available for future assignments." data={data} empty={!data.loading && !data.error ? "Link a crew profile before recording availability." : undefined} />;
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -962,22 +1433,49 @@ export function LiveCrewAvailability() {
     const form = event.currentTarget;
     const value = new FormData(form);
     setNotice(null);
+    const startsAt = new Date(String(value.get("startsAt")));
+    const endsAt = new Date(String(value.get("endsAt")));
+    if (Number.isNaN(startsAt.valueOf()) || Number.isNaN(endsAt.valueOf()) || endsAt <= startsAt) {
+      setNotice("Choose an end time after the start time.");
+      return;
+    }
+    setBusy(true);
     try {
-      await sendCrewCommand("setAvailability", {
-        crewProfileId: data.profile?.id,
-        startsAt: new Date(String(value.get("startsAt"))).toISOString(),
-        endsAt: new Date(String(value.get("endsAt"))).toISOString(),
+      const response = await sendCrewCommand(editing ? "updateAvailability" : "setAvailability", {
+        ...(editing ? { availabilityId: editing.id } : { crewProfileId: data.profile?.id }),
+        startsAt: startsAt.toISOString(),
+        endsAt: endsAt.toISOString(),
         status: String(value.get("status")),
         notes: String(value.get("notes")) || null,
       });
-      setNotice("Availability saved. Refresh to see the new entry.");
+      if (!response.persisted) {
+        setNotice("Development preview only. Nothing was changed.");
+        return;
+      }
+      setNotice(editing ? "Availability updated." : "Availability saved.");
       form.reset();
+      setEditing(null);
+      data.refresh();
     } catch (caught: unknown) {
       setNotice(
         caught instanceof Error ? caught.message : "Availability could not be saved.",
       );
-    }
+    } finally { setBusy(false); }
   }
+  const remove = async (item: Value) => {
+    if (busy) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      const response = await sendCrewCommand("deleteAvailability", { availabilityId: item.id });
+      if (!response.persisted) { setNotice("Development preview only. Nothing was changed."); return; }
+      if (editing?.id === item.id) setEditing(null);
+      setNotice("Availability removed.");
+      data.refresh();
+    } catch (caught: unknown) {
+      setNotice(caught instanceof Error ? caught.message : "Availability could not be removed.");
+    } finally { setBusy(false); }
+  };
   return (
     <div className="crew-mobile-page">
       <header className="crew-portal-hero">
@@ -987,18 +1485,18 @@ export function LiveCrewAvailability() {
           <p>Availability helps studios plan; accepted assignments remain authoritative.</p>
         </div>
       </header>
-      <form className="panel crew-availability-form" onSubmit={(event) => void submit(event)}>
+      <form key={editing?.id ?? "new"} className="panel crew-availability-form" onSubmit={(event) => void submit(event)}>
         <label>
-          Starts
-          <input name="startsAt" type="datetime-local" required />
+          Starts · local time
+          <input name="startsAt" type="datetime-local" defaultValue={dateTimeInput(editing?.startsAt)} required />
         </label>
         <label>
-          Ends
-          <input name="endsAt" type="datetime-local" required />
+          Ends · local time
+          <input name="endsAt" type="datetime-local" defaultValue={dateTimeInput(editing?.endsAt)} required />
         </label>
         <label>
           Status
-          <select name="status" defaultValue="available">
+          <select name="status" defaultValue={text(editing?.status, "available")}>
             <option value="available">Available</option>
             <option value="tentative">Tentative</option>
             <option value="unavailable">Unavailable</option>
@@ -1006,14 +1504,16 @@ export function LiveCrewAvailability() {
         </label>
         <label>
           Notes
-          <input name="notes" maxLength={1000} />
+          <input name="notes" maxLength={1000} defaultValue={text(editing?.notes, "")} />
         </label>
-        <button className="button button-dark" type="submit">
-          Save availability
+        <button className="button button-dark" type="submit" disabled={busy}>
+          {busy ? "Saving…" : editing ? "Update availability" : "Save availability"}
         </button>
+        {editing ? <button className="button button-light" type="button" onClick={() => setEditing(null)}>Cancel edit</button> : null}
       </form>
       <section className="panel crew-availability-list">
-        {data.availability
+        {[...data.availability]
+          .filter((item) => !item.archivedAt)
           .sort((a, b) => String(a.startsAt).localeCompare(String(b.startsAt)))
           .map((item) => {
             const status = text(item.status);
@@ -1041,6 +1541,10 @@ export function LiveCrewAvailability() {
                 >
                   {status}
                 </StatusBadge>
+                <span className="crew-availability-actions">
+                  <button aria-label="Edit availability" type="button" onClick={() => setEditing(item)} disabled={busy}><Pencil size={15} /></button>
+                  <button aria-label="Remove availability" type="button" onClick={() => void remove(item)} disabled={busy}><Trash2 size={15} /></button>
+                </span>
               </article>
             );
           })}

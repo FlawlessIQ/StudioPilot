@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import assert from "node:assert/strict";
 import test from "node:test";
 import {
   assertFails,
@@ -6,7 +7,7 @@ import {
   initializeTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import { doc, setDoc } from "firebase/firestore";
-import { getBytes, ref, uploadBytes } from "firebase/storage";
+import { getBytes, getMetadata, ref, uploadBytes } from "firebase/storage";
 
 const firestoreHost = process.env.FIRESTORE_EMULATOR_HOST;
 const storageHost = process.env.FIREBASE_STORAGE_EMULATOR_HOST;
@@ -75,7 +76,18 @@ test(
             },
           );
         }
+        const metadata = await getMetadata(ref(
+          storage,
+          "tenants/tenant-a/projects/project-a/files/shared.pdf",
+        ));
+        assert.equal(metadata.customMetadata?.scanStatus, "clean");
+        assert.equal(metadata.customMetadata?.visibility, "shared");
       });
+      const ownerReadStorage = environment.authenticatedContext("owner-a").storage();
+      await assertSucceeds(getBytes(ref(
+        ownerReadStorage,
+        "tenants/tenant-a/projects/project-a/files/shared.pdf",
+      )));
       const clientStorage = environment.authenticatedContext("client-a").storage();
       await assertSucceeds(getBytes(ref(
         clientStorage,
