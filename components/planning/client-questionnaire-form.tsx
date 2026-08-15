@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { CheckCircle2, Save, Send, ShieldCheck } from "lucide-react";
 import {
   collection,
@@ -14,6 +21,7 @@ import {
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { uploadClientQuestionnaireFile } from "@/lib/client/questionnaire-upload";
 
 type Field = {
   id: string;
@@ -117,13 +125,17 @@ function parseSections(value: unknown): Section[] {
 }
 
 export function ClientQuestionnaireForm({
+  tenantId,
   projectId: assignedProjectId,
   responseId: assignedResponseId,
   initialAnswers = {},
+  status = "in_progress",
 }: {
+  tenantId?: string;
   projectId?: string;
   responseId?: string;
   initialAnswers?: Record<string, unknown>;
+  status?: string;
 }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -142,6 +154,12 @@ export function ClientQuestionnaireForm({
     useState<Record<string, unknown>>(initialAnswers);
   const [provenance, setProvenance] = useState<Record<string, unknown>>({});
   const [loaded, setLoaded] = useState(!dataIsLive);
+  const [dirty, setDirty] = useState(false);
+  const [autoSaving, setAutoSaving] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [uploadingField, setUploadingField] = useState<string | null>(null);
+  const changeVersion = useRef(0);
+  const submitted = status === "submitted";
 
   useEffect(() => {
     if (!dataIsLive || context) return;
@@ -236,35 +254,47 @@ export function ClientQuestionnaireForm({
     : 100;
 
   function update(fieldId: string, value: unknown) {
+    if (submitted) return;
+    changeVersion.current += 1;
     setAnswers((current) => ({ ...current, [fieldId]: value }));
+    setDirty(true);
   }
 
-  async function save(submitResponse: boolean) {
-    setBusy(true);
-    setNotice(null);
+  const visibleAnswers = useMemo(() => {
+    const visibleIds = new Set(
+      visibleSections.flatMap((section) =>
+        section.fields.map((field) => field.id),
+      ),
+    );
+    return Object.fromEntries(
+      Object.entries(answers).filter(([fieldId]) => visibleIds.has(fieldId)),
+    );
+  }, [answers, visibleSections]);
+
+  const persist = useCallback(async (submitResponse: boolean, quiet = false) => {
+    const savedVersion = changeVersion.current;
+    if (quiet) setAutoSaving(true);
+    else setBusy(true);
+    if (!quiet) setNotice(null);
     try {
       if (!context) throw new Error("No questionnaire is assigned.");
       if (submitResponse && completionPercent < 100)
         throw new Error("Complete each visible required question first.");
-      const visibleIds = new Set(
-        visibleSections.flatMap((section) =>
-          section.fields.map((field) => field.id),
-        ),
-      );
-      const visibleAnswers = Object.fromEntries(
-        Object.entries(answers).filter(([fieldId]) => visibleIds.has(fieldId)),
-      );
       const response = await sendPlanningCommand("saveQuestionnaire", {
         responseId: context.responseId,
         projectId: context.projectId,
         answers: visibleAnswers,
         submit: submitResponse,
       });
+      if (savedVersion === changeVersion.current) setDirty(false);
+      setLastSavedAt(new Date());
       setNotice(
         response.persisted
           ? submitResponse
             ? "Questionnaire submitted for studio review."
-            : "Draft saved securely."
+            : quiet
+              ? null
+              : "Draft saved securely."
           : `Development preview: ${submitResponse ? "submission" : "draft"} validated, but no answers were persisted.`,
       );
     } catch (caught: unknown) {
@@ -274,13 +304,48 @@ export function ClientQuestionnaireForm({
           : "Questionnaire could not be saved.",
       );
     } finally {
-      setBusy(false);
+      if (quiet) setAutoSaving(false);
+      else setBusy(false);
+    }
+  }, [completionPercent, context, visibleAnswers]);
+
+  useEffect(() => {
+    if (!dirty || !loaded || !context || submitted || busy || autoSaving) return;
+    const timer = window.setTimeout(() => void persist(false, true), 1_200);
+    return () => window.clearTimeout(timer);
+  }, [autoSaving, busy, context, dirty, loaded, persist, submitted]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
+  async function uploadFile(fieldId: string, file: File | null) {
+    if (!file || !tenantId || !context) return;
+    setUploadingField(fieldId);
+    setNotice(null);
+    try {
+      const uploaded = await uploadClientQuestionnaireFile({
+        tenantId,
+        projectId: context.projectId,
+        responseId: context.responseId,
+        fieldId,
+        file,
+      });
+      update(fieldId, uploaded);
+      setNotice(`${file.name} uploaded securely and is being scanned.`);
+    } catch (caught: unknown) {
+      setNotice(caught instanceof Error ? caught.message : "Attachment upload failed.");
+    } finally {
+      setUploadingField(null);
     }
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void save(false);
+    void persist(false);
   }
 
   return (
@@ -288,7 +353,17 @@ export function ClientQuestionnaireForm({
       <header className="questionnaire-progress">
         <span>
           <strong>{completionPercent}% complete</strong>
-          <small>Your answers save into this project—no duplicate form.</small>
+          <small>
+            {submitted
+              ? "Submitted to your studio"
+              : autoSaving
+                ? "Saving changes…"
+                : dirty
+                  ? "Changes waiting to save"
+                  : lastSavedAt
+                    ? `Saved at ${lastSavedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+                    : "Your answers save automatically into this project"}
+          </small>
         </span>
         <i aria-hidden="true">
           <b style={{ width: `${completionPercent}%` }} />
@@ -302,7 +377,7 @@ export function ClientQuestionnaireForm({
             const source = record(provenance[field.id]);
             const sourceLabel = String(source.label ?? "");
             const common = {
-              disabled: busy || field.locked,
+              disabled: busy || autoSaving || field.locked || submitted,
               name: field.id,
               required: field.required,
             };
@@ -314,6 +389,23 @@ export function ClientQuestionnaireForm({
                 </span>
                 {field.type === "information" ? (
                   <p>{String(answers[field.id] ?? "")}</p>
+                ) : field.type === "file" ? (
+                  <span className="client-questionnaire-upload">
+                    <input
+                      {...common}
+                      accept=".pdf,.docx,.jpg,.jpeg,.png"
+                      onChange={(event) =>
+                        void uploadFile(field.id, event.target.files?.[0] ?? null)
+                      }
+                      type="file"
+                    />
+                    {record(answers[field.id]).name ? (
+                      <small>
+                        <CheckCircle2 size={13} /> {String(record(answers[field.id]).name)} uploaded
+                      </small>
+                    ) : null}
+                    {uploadingField === field.id ? <small>Uploading securely…</small> : null}
+                  </span>
                 ) : field.type === "long_text" ||
                   field.type === "address" ||
                   field.type === "repeating_group" ? (
@@ -347,7 +439,7 @@ export function ClientQuestionnaireForm({
                     {...common}
                     onChange={(event) => update(field.id, event.target.value)}
                     type={
-                      ["email", "phone", "date", "time", "file"].includes(
+                      ["email", "phone", "date", "time"].includes(
                         field.type,
                       )
                         ? field.type === "phone"
@@ -355,11 +447,7 @@ export function ClientQuestionnaireForm({
                           : field.type
                         : "text"
                     }
-                    value={
-                      field.type === "file"
-                        ? undefined
-                        : String(answers[field.id] ?? "")
-                    }
+                    value={String(answers[field.id] ?? "")}
                   />
                 )}
                 {sourceLabel ? (
@@ -374,13 +462,22 @@ export function ClientQuestionnaireForm({
         </fieldset>
       ))}
       <div className="questionnaire-actions">
-        <button className="button button-light" disabled={busy} type="submit">
+        {submitted ? (
+          <p className="form-notice">
+            <CheckCircle2 size={16} /> Submitted. Message your studio if an answer needs to be reopened.
+          </p>
+        ) : null}
+        <button
+          className="button button-light"
+          disabled={busy || autoSaving || submitted || !dirty}
+          type="submit"
+        >
           <Save size={16} /> Save draft
         </button>
         <button
           className="button button-dark"
-          disabled={busy || completionPercent < 100}
-          onClick={() => void save(true)}
+          disabled={busy || autoSaving || submitted || completionPercent < 100}
+          onClick={() => void persist(true)}
           type="button"
         >
           {completionPercent === 100 ? (

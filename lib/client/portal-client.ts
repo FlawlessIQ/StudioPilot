@@ -49,6 +49,8 @@ export type ClientPortalProject = {
     status: string;
     dueDate: string | null;
     ownerType: string | null;
+    actionHref?: string | null;
+    actionLabel?: string | null;
   }>;
 };
 
@@ -122,14 +124,26 @@ export function getClientPortalRecords(
 export function sendClientPortalMessage(
   tenantId: string,
   projectId: string,
-  body: string,
+  input: {
+    subject: string;
+    body: string;
+    context: string | null;
+    replyToMessageId: string | null;
+    attachments: Array<{
+      storagePath: string;
+      name: string;
+      contentType: string;
+      sizeBytes: number;
+      scanStatus: "pending";
+    }>;
+    idempotencyKey: string;
+  },
 ) {
   return portalRequest<{ id: string; status: string }>({
     type: "send_message",
     tenantId,
     projectId,
-    body,
-    idempotencyKey: crypto.randomUUID(),
+    ...input,
   });
 }
 

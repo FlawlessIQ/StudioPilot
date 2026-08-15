@@ -98,6 +98,47 @@ test("a visible client checkpoint becomes the next action with a safe destinatio
   assert.equal(experience.navigation.schedule, true);
 });
 
+test("an explicit client checkpoint destination takes precedence over its wording", () => {
+  const experience = buildClientPortalExperience({
+    state: "PLANNING",
+    availability: { files: true },
+    checkpoints: [
+      {
+        name: "Review the details we prepared",
+        description: "Open the approved reference document.",
+        status: "ready",
+        dueDate: null,
+        ownerType: "client",
+        actionHref: "/client/documents",
+        actionLabel: "Open project records",
+      },
+    ],
+  });
+
+  assert.equal(experience.nextClientAction.href, "/client/documents");
+  assert.equal(experience.nextClientAction.actionLabel, "Open project records");
+});
+
+test("an unsafe explicit checkpoint destination cannot leave the client portal", () => {
+  const experience = buildClientPortalExperience({
+    state: "PLANNING",
+    availability: {},
+    checkpoints: [
+      {
+        name: "Complete family questionnaire",
+        description: null,
+        status: "ready",
+        dueDate: null,
+        ownerType: "client",
+        actionHref: "https://example.com/unsafe",
+        actionLabel: "Leave portal",
+      },
+    ],
+  });
+
+  assert.equal(experience.nextClientAction.href, "/client/questionnaire");
+});
+
 test("studio-owned checkpoints never masquerade as client work", () => {
   const experience = buildClientPortalExperience({
     state: "POST_PRODUCTION",

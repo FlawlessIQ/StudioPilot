@@ -44,7 +44,19 @@ const requestSchema = z.discriminatedUnion("type", [
     type: z.literal("send_message"),
     tenantId: z.string().min(1).max(160),
     projectId: z.string().min(1).max(160),
+    subject: z.string().trim().min(1).max(120),
     body: z.string().trim().min(1).max(5000),
+    context: z.string().trim().max(120).nullable(),
+    replyToMessageId: z.string().min(1).max(160).nullable(),
+    attachments: z.array(
+      z.object({
+        storagePath: z.string().min(1).max(800),
+        name: z.string().min(1).max(240),
+        contentType: z.string().min(1).max(160),
+        sizeBytes: z.number().int().positive().max(12 * 1024 * 1024),
+        scanStatus: z.literal("pending"),
+      }),
+    ).max(5),
     idempotencyKey: z.string().min(8).max(160),
   }),
   z.object({
@@ -177,6 +189,7 @@ const clientRecordFields = {
     "retainerCents",
   ],
   contracts: [
+    "provider",
     "status",
     "updatedAt",
     "completedAt",
@@ -194,6 +207,8 @@ const clientRecordFields = {
     "lastSyncedAt",
   ],
   questionnaireResponses: [
+    "name",
+    "templateName",
     "status",
     "answers",
     "dueDate",
@@ -223,10 +238,14 @@ const clientRecordFields = {
     "subject",
     "body",
     "bodyPreview",
+    "context",
+    "replyToMessageId",
+    "attachmentReferences",
     "status",
     "direction",
     "sentAt",
     "createdAt",
+    "clientReadAt",
   ],
   deliveryRecords: [
     "provider",
@@ -308,6 +327,23 @@ async function clientRecords(
               providerEventId: null,
             });
           }),
+        ),
+    );
+  }
+  if (collectionName === "messages") {
+    const readAt = new Date().toISOString();
+    await Promise.all(
+      snapshot.docs
+        .filter(
+          (document) =>
+            document.get("direction") === "outbound" &&
+            !document.get("clientReadAt"),
+        )
+        .map((document) =>
+          document.ref.set(
+            { clientReadAt: readAt, updatedAt: readAt, updatedBy: actorId },
+            { merge: true },
+          ),
         ),
     );
   }
@@ -425,6 +461,14 @@ async function clientProject(tenantId: string, projectId: string) {
       document.get("resolvedDueDate") ?? document.get("dueDate"),
     ),
     ownerType: safeString(document.get("ownerType")),
+    actionHref: safeString(
+      document.get("clientActionHref") ??
+        document.get("actionHref") ??
+        document.get("destinationHref"),
+    ),
+    actionLabel: safeString(
+      document.get("clientActionLabel") ?? document.get("actionLabel"),
+    ),
   }));
   const state = String(projectSnapshot.get("state") ?? "LEAD");
   const availability = Object.fromEntries(
@@ -1050,6 +1094,14 @@ export async function POST(request: Request) {
       .get();
     const projectName =
       safeString(projectSnapshot.get("name")) ?? "Client project";
+    const attachmentPrefix = `tenants/${parsed.tenantId}/projects/${parsed.projectId}/clients/${identity.uid}/messages/${parsed.idempotencyKey}/`;
+    if (
+      parsed.attachments.some(
+        (attachment) => !attachment.storagePath.startsWith(attachmentPrefix),
+      )
+    ) {
+      return Response.json({ error: "INVALID_ATTACHMENT_REFERENCE" }, { status: 400 });
+    }
     const batch = adminFirestore.batch();
     batch.set(adminFirestore.doc(`messages/${messageId}`), {
       id: messageId,
@@ -1058,9 +1110,12 @@ export async function POST(request: Request) {
       direction: "inbound",
       channel: "portal",
       visibility: "shared",
-      subject: "Client portal message",
+      subject: parsed.subject,
       body: parsed.body,
       bodyPreview: parsed.body.slice(0, 240),
+      context: parsed.context,
+      replyToMessageId: parsed.replyToMessageId,
+      attachmentReferences: parsed.attachments,
       status: "received",
       senderUserId: identity.uid,
       createdAt: now,
@@ -1076,8 +1131,10 @@ export async function POST(request: Request) {
       projectName,
       workflowRunId: null,
       checkpointId: null,
-      title: "Client message received",
-      description: `${projectName}: ${parsed.body.slice(0, 240)}`,
+      title: parsed.context
+        ? `Client message received · ${parsed.context}`
+        : "Client message received",
+      description: `${projectName}: ${parsed.subject} — ${parsed.body.slice(0, 200)}`,
       assignedUserId: null,
       assignedRole: "studio_coordinator",
       dueDate: null,
@@ -1108,6 +1165,8 @@ export async function POST(request: Request) {
         channel: "portal",
         status: "received",
         studioTaskId: taskId,
+        context: parsed.context,
+        attachmentCount: parsed.attachments.length,
       },
       correlationId: messageId,
       automationRunId: null,

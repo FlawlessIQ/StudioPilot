@@ -78,9 +78,14 @@ test("home prioritizes approvals and reports only observed workflow evidence", a
 
 test("role portals state their security and evidence boundaries", async ({ page }) => {
   await page.goto("/client/payments");
-  await expect(page.getByText(/QuickBooks invoice links will appear/i)).toBeVisible();
+  await expect(
+    page.getByText(/QuickBooks Online is the accounting and payment system of record/i),
+  ).toBeVisible();
+  await expect(page.getByText(/StudioCue never receives your card or bank details/i)).toBeVisible();
   await page.goto("/client/reviews");
-  await expect(page.getByText(/review request may appear/i)).toBeVisible();
+  await expect(
+    page.getByText(/StudioCue never claims that a review was posted from a click/i),
+  ).toBeVisible();
   await page.goto("/crew");
   await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
   await page.goto("/crew/schedule");

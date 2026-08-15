@@ -62,6 +62,8 @@ type VisibleCheckpoint = {
   status: string;
   dueDate: string | null;
   ownerType: string | null;
+  actionHref?: string | null;
+  actionLabel?: string | null;
 };
 
 const stageLabels: Record<string, string> = {
@@ -90,7 +92,31 @@ function stateIndex(state: string) {
   return index < 0 ? 0 : index;
 }
 
-function checkpointDestination(name: string) {
+const clientDestinations = new Set([
+  "/client/project",
+  "/client/proposal",
+  "/client/package",
+  "/client/contract",
+  "/client/payments",
+  "/client/questionnaire",
+  "/client/schedule",
+  "/client/documents",
+  "/client/messages",
+  "/client/delivery",
+  "/client/reviews",
+]);
+
+function checkpointDestination(checkpoint: VisibleCheckpoint) {
+  if (
+    checkpoint.actionHref &&
+    clientDestinations.has(checkpoint.actionHref)
+  ) {
+    return {
+      href: checkpoint.actionHref,
+      actionLabel: checkpoint.actionLabel?.trim() || "Open this step",
+    };
+  }
+  const name = checkpoint.name;
   if (/questionnaire|form|family|vendor/i.test(name)) {
     return { href: "/client/questionnaire", actionLabel: "Open questionnaire" };
   }
@@ -325,7 +351,7 @@ export function buildClientPortalExperience({
         ["client", "contact"].includes(checkpoint.ownerType)),
   );
   const destination = clientCheckpoint
-    ? checkpointDestination(clientCheckpoint.name)
+    ? checkpointDestination(clientCheckpoint)
     : null;
   const proposalNextAction: ClientNextAction | null =
     state === "PROPOSAL" && proposalStatus === "declined"

@@ -80,6 +80,12 @@ const command = z.discriminatedUnion("type", [
     input: z.object({ projectId: z.string(), deliveryRecordId: z.string() }),
   }),
   z.object({
+    type: z.literal("markReviewOpened"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({ projectId: z.string(), reviewRequestId: z.string() }),
+  }),
+  z.object({
     type: z.literal("confirmReview"),
     tenantId: z.string(),
     idempotencyKey: z.string().min(8),
@@ -651,6 +657,31 @@ export const postEventCommand = onRequest(
         result = {
           deliveryRecordId: parsed.input.deliveryRecordId,
           status: "downloaded",
+        };
+      } else if (parsed.type === "markReviewOpened") {
+        const reference = db.doc(
+          `reviewRequests/${parsed.input.reviewRequestId}`,
+        );
+        const current = await reference.get();
+        if (
+          !current.exists ||
+          current.get("tenantId") !== parsed.tenantId ||
+          current.get("projectId") !== parsed.input.projectId
+        )
+          throw new Error("REVIEW_REQUEST_NOT_FOUND");
+        const status = String(current.get("status"));
+        const confirmed = ["client_confirmed", "manually_confirmed"].includes(status);
+        await reference.update({
+          ...(!confirmed ? { status: "opened" } : {}),
+          openedAt: current.get("openedAt") ?? now,
+          clickedAt: now,
+          updatedAt: now,
+          updatedBy: identity.uid,
+        });
+        result = {
+          reviewRequestId: parsed.input.reviewRequestId,
+          status: confirmed ? status : "opened",
+          reviewCompletionClaimed: false,
         };
       } else if (parsed.type === "confirmReview") {
         const reference = db.doc(

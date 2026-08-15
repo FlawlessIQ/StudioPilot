@@ -92,6 +92,75 @@ service firebase.storage {
         && safeUpload();
     }
 
+    match /tenants/{tenantId}/projects/{projectId}/clients/{userId}/questionnaires/{responseId}/{fileName} {
+      allow read: if resource.metadata.scanStatus == "clean"
+        && activeMember(tenantId)
+        && (
+          membership(tenantId).role in ["studio_owner", "studio_admin", "studio_coordinator"]
+          || (
+            projectId in membership(tenantId).projectIds
+            && membership(tenantId).role == "client"
+            && request.auth.uid == userId
+          )
+        );
+      allow create: if activeMember(tenantId)
+        && membership(tenantId).role == "client"
+        && request.auth.uid == userId
+        && projectId in membership(tenantId).projectIds
+        && resource == null
+        && request.resource.size > 0
+        && request.resource.size <= 12 * 1024 * 1024
+        && request.resource.contentType.matches(
+          "application/pdf|image/jpeg|image/png|application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+        && request.resource.metadata.scanStatus == "pending"
+        && request.resource.metadata.visibility == "client"
+        && request.resource.metadata.tenantId == tenantId
+        && request.resource.metadata.projectId == projectId
+        && request.resource.metadata.responseId == responseId
+        && request.resource.metadata.uploaderId == request.auth.uid
+        && firestore.exists(
+          /databases/(default)/documents/questionnaireResponses/$(responseId)
+        )
+        && firestore.get(
+          /databases/(default)/documents/questionnaireResponses/$(responseId)
+        ).data.tenantId == tenantId
+        && firestore.get(
+          /databases/(default)/documents/questionnaireResponses/$(responseId)
+        ).data.projectId == projectId;
+      allow update, delete: if false;
+    }
+
+    match /tenants/{tenantId}/projects/{projectId}/clients/{userId}/messages/{draftId}/{fileName} {
+      allow read: if resource.metadata.scanStatus == "clean"
+        && activeMember(tenantId)
+        && (
+          membership(tenantId).role in ["studio_owner", "studio_admin", "studio_coordinator"]
+          || (
+            projectId in membership(tenantId).projectIds
+            && membership(tenantId).role == "client"
+            && request.auth.uid == userId
+          )
+        );
+      allow create: if activeMember(tenantId)
+        && membership(tenantId).role == "client"
+        && request.auth.uid == userId
+        && projectId in membership(tenantId).projectIds
+        && resource == null
+        && request.resource.size > 0
+        && request.resource.size <= 12 * 1024 * 1024
+        && request.resource.contentType.matches(
+          "application/pdf|image/jpeg|image/png|application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+        && request.resource.metadata.scanStatus == "pending"
+        && request.resource.metadata.visibility == "shared"
+        && request.resource.metadata.tenantId == tenantId
+        && request.resource.metadata.projectId == projectId
+        && request.resource.metadata.messageDraftId == draftId
+        && request.resource.metadata.uploaderId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
     match /tenants/{tenantId}/projects/{projectId}/{allPaths=**} {
       allow read: if resource.metadata.scanStatus == "clean"
         && activeMember(tenantId)

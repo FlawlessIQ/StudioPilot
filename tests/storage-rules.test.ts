@@ -60,6 +60,11 @@ test(
           sizeBytes: 5,
           contentType: "application/pdf",
         });
+        await setDoc(doc(context.firestore(), "questionnaireResponses/response-a"), {
+          tenantId: "tenant-a",
+          projectId: "project-a",
+          status: "in_progress",
+        });
         const storage = context.storage();
         for (const [name, visibility] of [
           ["shared.pdf", "shared"],
@@ -145,7 +150,95 @@ test(
         new TextEncoder().encode("<script>alert(1)</script>"),
         { contentType: "text/html", customMetadata: { scanStatus: "pending" } },
       ));
+      const clientQuestionnairePath = ref(
+        clientStorage,
+        "tenants/tenant-a/projects/project-a/clients/client-a/questionnaires/response-a/details.pdf",
+      );
+      await assertSucceeds(uploadBytes(
+        clientQuestionnairePath,
+        new Uint8Array([37, 80, 68, 70]),
+        {
+          contentType: "application/pdf",
+          customMetadata: {
+            scanStatus: "pending",
+            visibility: "client",
+            tenantId: "tenant-a",
+            projectId: "project-a",
+            responseId: "response-a",
+            fieldId: "venue-contract",
+            uploaderId: "client-a",
+          },
+        },
+      ));
+      const clientMessagePath = ref(
+        clientStorage,
+        "tenants/tenant-a/projects/project-a/clients/client-a/messages/draft-a/reference.pdf",
+      );
+      await assertSucceeds(uploadBytes(
+        clientMessagePath,
+        new Uint8Array([37, 80, 68, 70]),
+        {
+          contentType: "application/pdf",
+          customMetadata: {
+            scanStatus: "pending",
+            visibility: "shared",
+            tenantId: "tenant-a",
+            projectId: "project-a",
+            messageDraftId: "draft-a",
+            uploaderId: "client-a",
+          },
+        },
+      ));
+      await assertFails(uploadBytes(
+        ref(clientStorage, "tenants/tenant-a/projects/project-a/clients/other/messages/draft-a/forged.pdf"),
+        new Uint8Array([37, 80, 68, 70]),
+        {
+          contentType: "application/pdf",
+          customMetadata: {
+            scanStatus: "pending",
+            visibility: "shared",
+            tenantId: "tenant-a",
+            projectId: "project-a",
+            messageDraftId: "draft-a",
+            uploaderId: "client-a",
+          },
+        },
+      ));
+      await assertFails(uploadBytes(
+        ref(clientStorage, "tenants/tenant-a/projects/project-a/clients/client-a/messages/draft-b/unsafe.html"),
+        new TextEncoder().encode("<script>alert(1)</script>"),
+        {
+          contentType: "text/html",
+          customMetadata: {
+            scanStatus: "pending",
+            visibility: "shared",
+            tenantId: "tenant-a",
+            projectId: "project-a",
+            messageDraftId: "draft-b",
+            uploaderId: "client-a",
+          },
+        },
+      ));
       const ownerStorage = environment.authenticatedContext("owner-a").storage();
+      await assertFails(getBytes(ref(ownerStorage, clientMessagePath.fullPath)));
+      await environment.withSecurityRulesDisabled(async (context) => {
+        await uploadBytes(
+          ref(context.storage(), clientMessagePath.fullPath),
+          new Uint8Array([37, 80, 68, 70]),
+          {
+            contentType: "application/pdf",
+            customMetadata: {
+              scanStatus: "clean",
+              visibility: "shared",
+              tenantId: "tenant-a",
+              projectId: "project-a",
+              messageDraftId: "draft-a",
+              uploaderId: "client-a",
+            },
+          },
+        );
+      });
+      await assertSucceeds(getBytes(ref(ownerStorage, clientMessagePath.fullPath)));
       await assertSucceeds(uploadBytes(
         ref(ownerStorage, importPath),
         new Uint8Array([37, 80, 68, 70, 45]),
