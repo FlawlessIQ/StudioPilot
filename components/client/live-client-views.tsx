@@ -458,7 +458,7 @@ export function LiveClientHome() {
     return (
       <PortalPageState
         eyebrow="Your client portal"
-        title={`Hello, ${workspace.userName.split(" ")[0]}.`}
+        title={workspace.error ? "Your project portal" : `Hello, ${workspace.userName.split(" ")[0]}.`}
         description="Your project plan, next steps, and shared files will live here."
         loading={project.loading}
         error={project.error}

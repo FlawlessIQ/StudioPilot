@@ -169,6 +169,8 @@ function ClientPortalShell({
     "/client/reviews",
   ]);
 
+  if (workspace.loading) return <ClientPortalLoadingShell />;
+
   return (
     <div className="ds-root" data-ds-theme="emerald">
       <div className={navigationOpen ? "ds-shell ds-nav-open" : "ds-shell"}>
@@ -262,7 +264,7 @@ function ClientPortalShell({
               <UserRound size={16} />
             </span>
             <span className="ds-switcher-copy">
-              <strong>{workspace.userName}</strong>
+              <strong>{workspace.error ? "Client portal" : workspace.userName}</strong>
               <small>Client</small>
             </span>
             <LockKeyhole aria-label="Secure client access" size={15} />
@@ -309,6 +311,40 @@ function ClientPortalShell({
             </div>
           ) : null}
           <main className="ds-content">{children}</main>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ClientPortalLoadingShell() {
+  return (
+    <div className="ds-root client-portal-loading" data-ds-theme="emerald" aria-live="polite">
+      <div className="ds-shell">
+        <aside className="ds-sidebar" aria-label="Opening client portal">
+          <div className="ds-brand-row">
+            <span className="ds-brand">
+              <span className="ds-brand-mark">S</span>
+              <span className="ds-brand-word">Studio<b>Cue</b></span>
+            </span>
+          </div>
+          <div className="client-portal-skeleton-project">
+            <span className="client-portal-skeleton-avatar" />
+            <span><i /><i /></span>
+          </div>
+          <div className="client-portal-skeleton-nav">
+            <i /><i /><i />
+          </div>
+        </aside>
+        <div className="ds-main">
+          <header className="ds-topbar">
+            <span className="ds-crumb"><b>Portal</b></span>
+          </header>
+          <main className="ds-content client-portal-skeleton-content">
+            <span className="auth-loading-spinner" aria-hidden="true" />
+            <strong>Opening your secure project</strong>
+            <small>Loading your approved project details…</small>
+          </main>
         </div>
       </div>
     </div>

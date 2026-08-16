@@ -6,7 +6,7 @@ function eventId() {
   return crypto.randomUUID().replaceAll("-", "");
 }
 
-async function report(code: string) {
+export async function reportHandledError(code: string) {
   const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
   if (!dsn) return;
   try {
@@ -38,9 +38,9 @@ async function report(code: string) {
 
 export function ErrorReporter() {
   useEffect(() => {
-    const error = (event: ErrorEvent) => { void report(event.error?.name ?? "UNHANDLED_WEB_ERROR"); };
+    const error = (event: ErrorEvent) => { void reportHandledError(event.error?.name ?? "UNHANDLED_WEB_ERROR"); };
     const rejection = (event: PromiseRejectionEvent) => {
-      void report(event.reason instanceof Error ? event.reason.name : "UNHANDLED_PROMISE_REJECTION");
+      void reportHandledError(event.reason instanceof Error ? event.reason.name : "UNHANDLED_PROMISE_REJECTION");
     };
     window.addEventListener("error", error);
     window.addEventListener("unhandledrejection", rejection);

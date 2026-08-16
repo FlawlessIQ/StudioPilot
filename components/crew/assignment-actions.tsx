@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { CalendarPlus, CheckCircle2, XCircle } from "lucide-react";
 import { sendCrewCommand } from "@/lib/crew/command-client";
+import { crewPublicError } from "@/lib/crew/public-error";
 
 type Props = {
   assignmentId: string;
@@ -70,7 +71,7 @@ export function AssignmentActions({
       setNotice(response.persisted ? success : `Development preview: ${success.toLowerCase()} No server record was changed.`);
       return response.persisted;
     } catch (caught: unknown) {
-      setNotice(caught instanceof Error ? caught.message : "The assignment could not be updated.");
+      setNotice(crewPublicError(caught, "The assignment could not be updated.", "CREW_ASSIGNMENT_UPDATE_FAILED"));
       return false;
     } finally {
       setBusyAction(null);
@@ -135,7 +136,7 @@ export function AssignmentActions({
   if (status === "declined") return <div className="crew-action-result" role="status"><XCircle size={18}/><span><strong>Assignment declined</strong><small>The studio has been notified to reassign this role.</small></span></div>;
   return <div className="crew-action-stack">
     {status === "invited" ? <div className="crew-action-row"><button className="button button-dark" type="button" disabled={!interactive||busyAction!==null} aria-busy={busyAction==="respond-accepted"} onClick={()=>void respond("accepted")}><CheckCircle2 size={16}/> {busyAction==="respond-accepted"?"Accepting…":"Accept job"}</button><button className="button button-light" type="button" disabled={!interactive||busyAction!==null} aria-busy={busyAction==="respond-declined"} onClick={()=>void respond("declined")}><XCircle size={16}/> {busyAction==="respond-declined"?"Declining…":"Decline"}</button></div> : <>
-      <div className="crew-action-row"><button className="button button-light" type="button" onClick={()=>void addCalendar().catch(caught=>setNotice(caught instanceof Error?caught.message:"Calendar download failed."))} disabled={!interactive||busyAction!==null||!startsAt||!endsAt} aria-busy={busyAction==="calendar"}><CalendarPlus size={16}/>{busyAction==="calendar"?"Recording download…":calendarDownloaded?"Download calendar file again":"Download calendar event"}</button>{currentScheduleId&&currentScheduleVersion>0?<button className="button button-dark" type="button" onClick={()=>void acknowledge().catch(caught=>setNotice(caught instanceof Error?caught.message:"Schedule acknowledgement failed."))} disabled={!interactive||busyAction!==null||scheduleAcknowledged} aria-busy={busyAction==="schedule"}><CheckCircle2 size={16}/>{busyAction==="schedule"?"Acknowledging…":scheduleAcknowledged?`Version ${currentScheduleVersion} acknowledged`:"Acknowledge current schedule"}</button>:null}</div>
+      <div className="crew-action-row"><button className="button button-light" type="button" onClick={()=>void addCalendar().catch(caught=>setNotice(crewPublicError(caught,"The calendar file could not be prepared.","CREW_CALENDAR_DOWNLOAD_FAILED")))} disabled={!interactive||busyAction!==null||!startsAt||!endsAt} aria-busy={busyAction==="calendar"}><CalendarPlus size={16}/>{busyAction==="calendar"?"Recording download…":calendarDownloaded?"Download calendar file again":"Download calendar event"}</button>{currentScheduleId&&currentScheduleVersion>0?<button className="button button-dark" type="button" onClick={()=>void acknowledge().catch(caught=>setNotice(crewPublicError(caught,"The schedule could not be acknowledged.","CREW_SCHEDULE_ACKNOWLEDGE_FAILED")))} disabled={!interactive||busyAction!==null||scheduleAcknowledged} aria-busy={busyAction==="schedule"}><CheckCircle2 size={16}/>{busyAction==="schedule"?"Acknowledging…":scheduleAcknowledged?`Version ${currentScheduleVersion} acknowledged`:"Acknowledge current schedule"}</button>:null}</div>
     </>}
     {notice?<p className="form-notice" role="status">{notice}</p>:null}
   </div>;

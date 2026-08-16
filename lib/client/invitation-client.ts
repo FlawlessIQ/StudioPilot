@@ -39,6 +39,12 @@ export async function runClientInvitation(
         input: { contactId: string };
       }
     | {
+        type: "status_batch";
+        tenantId: string;
+        idempotencyKey: string;
+        input: { contactIds: string[] };
+      }
+    | {
         type: "revoke";
         tenantId: string;
         idempotencyKey: string;

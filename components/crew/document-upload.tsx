@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { UploadCloud } from "lucide-react";
 import { uploadCrewRequirement } from "@/lib/crew/command-client";
+import { crewPublicError } from "@/lib/crew/public-error";
 
 const acceptedTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
 
@@ -45,7 +46,7 @@ export function CrewDocumentUpload({
         ? "Document submitted for studio review."
         : `Development preview: ${file.name} passed file checks, but no file was uploaded or record changed.`);
     } catch (caught: unknown) {
-      setNotice(caught instanceof Error ? caught.message : "The document could not be submitted.");
+      setNotice(crewPublicError(caught, "The document could not be submitted.", "CREW_DOCUMENT_SUBMIT_FAILED"));
     } finally {
       setBusy(false);
     }
