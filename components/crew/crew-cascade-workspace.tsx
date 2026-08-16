@@ -18,6 +18,7 @@ import {
   type CrewCandidateInput,
 } from "@/features/crew/cascade";
 import { sendCrewCommand } from "@/lib/crew/command-client";
+import { crewPublicError } from "@/lib/crew/public-error";
 
 const text = (value: unknown) =>
   typeof value === "string" ? value : "";
@@ -331,7 +332,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
       );
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error ? caught.message : "Crew cascade could not start.",
+        crewPublicError(caught, "The crew offer sequence could not be started.", "CREW_CASCADE_START_FAILED"),
       );
     } finally {
       setBusy(false);

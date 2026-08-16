@@ -118,8 +118,8 @@ function DashboardSummary() {
         <div className="panel-heading">
           <div>
             <p className="eyebrow">Your work</p>
-            <h2>Upcoming projects</h2>
-            <p>Date, stage, readiness, and the one thing holding each project back.</p>
+            <h2>Projects needing attention</h2>
+            <p>The three least-ready active projects, with the next decision for each.</p>
           </div>
           <Link href="/studio/projects">
             View all projects <ArrowRight size={14} />
@@ -133,7 +133,7 @@ function DashboardSummary() {
             <span role="columnheader">Readiness</span>
             <span role="columnheader">Next decision</span>
           </div>
-          <LiveUpcomingRows />
+          <LiveUpcomingRows limit={3} />
         </div>
       </section>
     </>

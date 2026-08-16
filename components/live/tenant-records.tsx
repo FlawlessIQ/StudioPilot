@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -59,7 +59,12 @@ import { runCrmCommand } from "@/lib/crm/command-client";
 import { stateTone } from "@/lib/status-tone";
 import { ReadinessMeter } from "@/components/ui/readiness-meter";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { ClientPortalInvite } from "@/components/clients/client-portal-invite";
+import {
+  ClientPortalInvite,
+  type ClientInvitationStatus,
+  type ClientInviteProjectOption,
+} from "@/components/clients/client-portal-invite";
+import { runClientInvitation } from "@/lib/client/invitation-client";
 export type TenantDocument = Record<string, unknown> & { id: string };
 
 const tenantRecordsCacheTtlMs = 15_000;
@@ -498,7 +503,19 @@ export function LiveClientCards({
   q: string;
   view: string;
 }) {
+  const workspace = useWorkspace();
   const { records, error, loading } = useTenantDocuments("contacts");
+  const {
+    records: projectRecords,
+    error: projectError,
+    loading: loadingProjects,
+  } = useTenantDocuments("projects");
+  const [invitationsByContact, setInvitationsByContact] = useState<
+    Record<string, ClientInvitationStatus[]>
+  >({});
+  const [invitationStatusErrorKey, setInvitationStatusErrorKey] = useState<
+    string | null
+  >(null);
   const values = (records ?? []).filter((contact) => {
     const contactTypes = Array.isArray(contact.contactTypes)
       ? contact.contactTypes.map(String)
@@ -517,6 +534,95 @@ export function LiveClientCards({
         .includes(q.toLowerCase())
     );
   });
+  const projects = useMemo<ClientInviteProjectOption[]>(
+    () =>
+      (projectRecords ?? [])
+        .map((project) => ({
+          id: project.id,
+          name: String(project.name ?? "Untitled project"),
+          eventDate:
+            typeof project.eventDate === "string" ? project.eventDate : null,
+          state: String(project.state ?? ""),
+        }))
+        .filter((project) => project.state !== "ARCHIVED")
+        .sort((left, right) =>
+          String(left.eventDate ?? "").localeCompare(
+            String(right.eventDate ?? ""),
+          ),
+        ),
+    [projectRecords],
+  );
+  const inviteContactIds = values
+    .filter(
+      (contact) =>
+        !contact.portalUserId && typeof contact.email === "string",
+    )
+    .map((contact) => contact.id)
+    .slice(0, 100);
+  const inviteContactIdsKey = inviteContactIds.join("|");
+
+  useEffect(() => {
+    if (
+      !dataIsLive ||
+      workspace.loading ||
+      !workspace.tenantId ||
+      !inviteContactIdsKey
+    ) {
+      return;
+    }
+    let active = true;
+    void runClientInvitation({
+      type: "status_batch",
+      tenantId: workspace.tenantId,
+      idempotencyKey: crypto.randomUUID(),
+      input: { contactIds: inviteContactIdsKey.split("|") },
+    })
+      .then((result) => {
+        if (!active) return;
+        const raw =
+          typeof result.invitationsByContact === "object" &&
+          result.invitationsByContact !== null
+            ? (result.invitationsByContact as Record<string, unknown>)
+            : {};
+        const parsed = Object.fromEntries(
+          inviteContactIdsKey.split("|").map((contactId) => [
+            contactId,
+            (Array.isArray(raw[contactId]) ? raw[contactId] : [])
+              .filter(
+                (value): value is Record<string, unknown> =>
+                  typeof value === "object" && value !== null,
+              )
+              .map((value) => ({
+                invitationId: String(value.invitationId ?? ""),
+                projectId: String(value.projectId ?? ""),
+                status: String(value.status ?? ""),
+                expiresAt: String(value.expiresAt ?? ""),
+                lastSentAt:
+                  typeof value.lastSentAt === "string"
+                    ? value.lastSentAt
+                    : null,
+                sendCount: Number(value.sendCount ?? 0),
+                deliveryStatus:
+                  typeof value.deliveryStatus === "string"
+                    ? value.deliveryStatus
+                    : null,
+                emailJobStatus:
+                  typeof value.emailJobStatus === "string"
+                    ? value.emailJobStatus
+                    : null,
+              })),
+          ]),
+        );
+        setInvitationsByContact(parsed);
+        setInvitationStatusErrorKey(null);
+      })
+      .catch(() => {
+        if (active) setInvitationStatusErrorKey(inviteContactIdsKey);
+      });
+    return () => {
+      active = false;
+    };
+  }, [inviteContactIdsKey, workspace.loading, workspace.tenantId]);
   if (loading)
     return (
       <LiveRecordsState
@@ -598,7 +704,12 @@ export function LiveClientCards({
                 <div>
                   <ClientPortalInvite
                     contactId={client.id}
+                    initialInvitations={invitationsByContact[client.id] ?? []}
+                    invitationStatusError={invitationStatusErrorKey === inviteContactIdsKey}
+                    loadingProjects={loadingProjects}
+                    projectLoadError={Boolean(projectError)}
                     projectIds={projectIds}
+                    projects={projects}
                   />
                 </div>
               </details>
@@ -1067,7 +1178,7 @@ function ConvertInquiryButton({ lead }: { lead: TenantDocument }) {
     </>
   );
 }
-export function LiveUpcomingRows() {
+export function LiveUpcomingRows({ limit = 5 }: { limit?: number } = {}) {
   const { records: allRecords, error, loading } =
     useTenantDocuments("projects");
   const records = allRecords
@@ -1076,10 +1187,14 @@ export function LiveUpcomingRows() {
           (item) =>
             !["ARCHIVED", "CANCELLED", "CLOSED"].includes(String(item.state)),
         )
-        .sort((a, b) =>
-          String(a.eventDate).localeCompare(String(b.eventDate)),
-        )
-        .slice(0, 5)
+        .sort((a, b) => {
+          const readinessDifference =
+            Number(a.readinessScore ?? 0) - Number(b.readinessScore ?? 0);
+          return readinessDifference !== 0
+            ? readinessDifference
+            : String(a.eventDate).localeCompare(String(b.eventDate));
+        })
+        .slice(0, limit)
     : null;
   const values = records
     ? records.map((item, index) => ({

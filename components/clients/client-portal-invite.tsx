@@ -10,29 +10,18 @@ import {
   Send,
   ShieldX,
 } from "lucide-react";
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  query,
-  where,
-} from "firebase/firestore";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { runClientInvitation } from "@/lib/client/invitation-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
-import { getFirebaseClient } from "@/lib/firebase/client";
-import { dataIsLive } from "@/lib/runtime-mode";
 
-type ProjectOption = {
+export type ClientInviteProjectOption = {
   id: string;
   name: string;
   eventDate: string | null;
   state: string;
 };
 
-type InvitationStatus = {
+export type ClientInvitationStatus = {
   invitationId: string;
   projectId: string;
   status: string;
@@ -44,7 +33,7 @@ type InvitationStatus = {
 };
 
 function invitationLabel(
-  invitation: InvitationStatus | null,
+  invitation: ClientInvitationStatus | null,
   currentTime: string | null,
 ) {
   if (!invitation) return "Portal access has not been sent";
@@ -66,18 +55,30 @@ function invitationLabel(
 export function ClientPortalInvite({
   contactId,
   projectIds,
+  projects,
+  initialInvitations,
+  loadingProjects = false,
+  invitationStatusError = false,
+  projectLoadError = false,
 }: {
   contactId: string;
   projectIds: string[];
+  projects: ClientInviteProjectOption[];
+  initialInvitations: ClientInvitationStatus[];
+  loadingProjects?: boolean;
+  invitationStatusError?: boolean;
+  projectLoadError?: boolean;
 }) {
   const workspace = useWorkspace();
-  const [associatedProjectIds, setAssociatedProjectIds] = useState(projectIds);
-  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [newlyAssociatedProjectIds, setNewlyAssociatedProjectIds] = useState<
+    string[]
+  >([]);
   const [selectedProjectId, setSelectedProjectId] = useState(
     projectIds[0] ?? "",
   );
-  const [invitations, setInvitations] = useState<InvitationStatus[]>([]);
-  const [loadingProjects, setLoadingProjects] = useState(dataIsLive);
+  const [invitationUpdates, setInvitationUpdates] = useState<
+    Record<string, ClientInvitationStatus>
+  >({});
   const [currentTime, setCurrentTime] = useState<string | null>(null);
   const [busy, setBusy] = useState<
     "associate" | "invite" | "revoke" | null
@@ -93,151 +94,25 @@ export function ClientPortalInvite({
     queueMicrotask(() => setCurrentTime(new Date().toISOString()));
   }, []);
 
-  useEffect(() => {
-    if (!dataIsLive || workspace.loading || !workspace.tenantId || !permitted) {
-      if (!dataIsLive) {
-        queueMicrotask(() => {
-          setProjects([
-            {
-              id: "demo-project",
-              name: "Rivera wedding",
-              eventDate: "2027-06-12",
-              state: "PLANNING",
-            },
-          ]);
-          setLoadingProjects(false);
-        });
-      }
-      return;
-    }
-    let active = true;
-    const { firestore } = getFirebaseClient();
-    const load =
-      workspace.role === "studio_coordinator"
-        ? Promise.all(
-            workspace.projectIds.slice(0, 100).map((projectId) =>
-              getDoc(doc(firestore, "projects", projectId)),
-            ),
-          ).then((documents) =>
-            documents.filter((document) => document.exists()),
-          )
-        : getDocs(
-            query(
-              collection(firestore, "projects"),
-              where("tenantId", "==", workspace.tenantId),
-              limit(100),
-            ),
-          ).then((snapshot) => snapshot.docs);
-    void load
-      .then((documents) => {
-        if (!active) return;
-        const options = documents
-          .map((document) => ({
-            id: document.id,
-            name: String(document.get("name") ?? "Untitled project"),
-            eventDate:
-              typeof document.get("eventDate") === "string"
-                ? String(document.get("eventDate"))
-                : null,
-            state: String(document.get("state") ?? ""),
-          }))
-          .filter((project) => project.state !== "ARCHIVED")
-          .sort((left, right) =>
-            String(left.eventDate ?? "").localeCompare(
-              String(right.eventDate ?? ""),
-            ),
-          );
-        setProjects(options);
-        setSelectedProjectId((current) =>
-          options.some((project) => project.id === current)
-            ? current
-            : options[0]?.id ?? "",
-        );
-      })
-      .catch(() => {
-        if (active) setNotice("Projects could not be loaded.");
-      })
-      .finally(() => {
-        if (active) setLoadingProjects(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [
-    permitted,
-    workspace.loading,
-    workspace.projectIds,
-    workspace.role,
-    workspace.tenantId,
-  ]);
-
-  useEffect(() => {
-    if (
-      !dataIsLive ||
-      workspace.loading ||
-      !workspace.tenantId ||
-      !permitted
-    ) {
-      return;
-    }
-    let active = true;
-    void runClientInvitation({
-      type: "status",
-      tenantId: workspace.tenantId,
-      idempotencyKey: crypto.randomUUID(),
-      input: { contactId },
-    })
-      .then((result) => {
-        if (!active) return;
-        const values = Array.isArray(result.invitations)
-          ? result.invitations
-              .filter(
-                (value): value is Record<string, unknown> =>
-                  typeof value === "object" && value !== null,
-              )
-              .map((value) => ({
-                invitationId: String(value.invitationId ?? ""),
-                projectId: String(value.projectId ?? ""),
-                status: String(value.status ?? ""),
-                expiresAt: String(value.expiresAt ?? ""),
-                lastSentAt:
-                  typeof value.lastSentAt === "string"
-                    ? value.lastSentAt
-                    : null,
-                sendCount: Number(value.sendCount ?? 0),
-                deliveryStatus:
-                  typeof value.deliveryStatus === "string"
-                    ? value.deliveryStatus
-                    : null,
-                emailJobStatus:
-                  typeof value.emailJobStatus === "string"
-                    ? value.emailJobStatus
-                    : null,
-              }))
-          : [];
-        setInvitations(values);
-      })
-      .catch(() => {
-        // Invitation status is supplemental; the invite action remains usable.
-      });
-    return () => {
-      active = false;
-    };
-  }, [
-    contactId,
-    permitted,
-    workspace.loading,
-    workspace.tenantId,
-  ]);
-
-  const selectedProject = projects.find(
+  const effectiveProjectId = projects.some(
     (project) => project.id === selectedProjectId,
+  )
+    ? selectedProjectId
+    : projectIds.find((projectId) =>
+        projects.some((project) => project.id === projectId),
+      ) ?? projects[0]?.id ?? "";
+  const selectedProject = projects.find(
+    (project) => project.id === effectiveProjectId,
   );
-  const associated = associatedProjectIds.includes(selectedProjectId);
+  const associated = [...projectIds, ...newlyAssociatedProjectIds].includes(
+    effectiveProjectId,
+  );
   const selectedInvitation =
-    invitations.find(
-      (invitation) => invitation.projectId === selectedProjectId,
-    ) ?? null;
+    invitationUpdates[effectiveProjectId] ??
+    initialInvitations.find(
+      (invitation) => invitation.projectId === effectiveProjectId,
+    ) ??
+    null;
   const pendingInvitation =
     selectedInvitation?.status === "pending" &&
     (!currentTime || selectedInvitation.expiresAt > currentTime);
@@ -253,17 +128,17 @@ export function ClientPortalInvite({
   if (!permitted) return null;
 
   async function associate() {
-    if (!selectedProjectId) return;
+    if (!effectiveProjectId) return;
     setBusy("associate");
     setNotice("");
     try {
       const result = await runCrmCommand("associateClientProject", {
         contactId,
-        projectId: selectedProjectId,
+        projectId: effectiveProjectId,
       });
       if (result.persisted) {
-        setAssociatedProjectIds((current) =>
-          Array.from(new Set([...current, selectedProjectId])),
+        setNewlyAssociatedProjectIds((current) =>
+          Array.from(new Set([...current, effectiveProjectId])),
         );
         setNotice(
           `${selectedProject?.name ?? "Project"} is now linked. You can send portal access.`,
@@ -283,7 +158,7 @@ export function ClientPortalInvite({
   }
 
   async function invite() {
-    if (!workspace.tenantId || !selectedProjectId) return;
+    if (!workspace.tenantId || !effectiveProjectId) return;
     setBusy("invite");
     setNotice("");
     try {
@@ -291,11 +166,11 @@ export function ClientPortalInvite({
         type: "invite",
         tenantId: workspace.tenantId,
         idempotencyKey: crypto.randomUUID(),
-        input: { contactId, projectId: selectedProjectId },
+        input: { contactId, projectId: effectiveProjectId },
       });
-      const next: InvitationStatus = {
+      const next: ClientInvitationStatus = {
         invitationId: String(result.invitationId ?? ""),
-        projectId: selectedProjectId,
+        projectId: effectiveProjectId,
         status: String(result.status ?? "pending"),
         expiresAt: String(result.expiresAt ?? ""),
         lastSentAt: new Date().toISOString(),
@@ -303,12 +178,10 @@ export function ClientPortalInvite({
         deliveryStatus: null,
         emailJobStatus: "queued",
       };
-      setInvitations((current) => [
-        ...current.filter(
-          (invitation) => invitation.projectId !== selectedProjectId,
-        ),
-        next,
-      ]);
+      setInvitationUpdates((current) => ({
+        ...current,
+        [effectiveProjectId]: next,
+      }));
       setNotice(
         result.resent === true
           ? "A fresh branded invitation was queued. The earlier link is no longer valid."
@@ -339,13 +212,10 @@ export function ClientPortalInvite({
         idempotencyKey: crypto.randomUUID(),
         input: { invitationId: selectedInvitation.invitationId },
       });
-      setInvitations((current) =>
-        current.map((invitation) =>
-          invitation.invitationId === selectedInvitation.invitationId
-            ? { ...invitation, status: "revoked" }
-            : invitation,
-        ),
-      );
+      setInvitationUpdates((current) => ({
+        ...current,
+        [effectiveProjectId]: { ...selectedInvitation, status: "revoked" },
+      }));
       setNotice("Portal invitation revoked. Its secure link no longer works.");
     } catch (caught: unknown) {
       setNotice(
@@ -378,7 +248,7 @@ export function ClientPortalInvite({
           aria-label="Project to share"
           disabled={loadingProjects || busy !== null}
           onChange={(event) => setSelectedProjectId(event.target.value)}
-          value={selectedProjectId}
+          value={effectiveProjectId}
         >
           <option value="">
             {loadingProjects ? "Loading projects…" : "Select a project"}
@@ -397,7 +267,21 @@ export function ClientPortalInvite({
         </p>
       ) : null}
 
-      {selectedProjectId ? (
+      {projectLoadError ? (
+        <p className="client-access-empty">
+          Projects could not be loaded. Retry the page before sharing portal
+          access.
+        </p>
+      ) : null}
+
+      {invitationStatusError ? (
+        <p className="client-access-empty">
+          Invitation history is temporarily unavailable. You can still link a
+          project or send a new invitation.
+        </p>
+      ) : null}
+
+      {effectiveProjectId ? (
         <div
           className={`client-access-status ${
             associated ? "is-associated" : ""
@@ -426,7 +310,7 @@ export function ClientPortalInvite({
       ) : null}
 
       <div className="client-access-actions">
-        {!associated && selectedProjectId ? (
+        {!associated && effectiveProjectId ? (
           <button
             className="button button-secondary"
             disabled={busy !== null}

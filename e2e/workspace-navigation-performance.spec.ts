@@ -49,9 +49,9 @@ test("client navigation preserves the authorized portal shell", async ({
 
   await openMobileNavigation(page, "Open client navigation");
   await page
-    .getByRole("link", { name: "Project details", exact: true })
+    .getByRole("link", { name: "Project records", exact: true })
     .click();
-  await expect(page).toHaveURL(/\/client\/project$/);
+  await expect(page).toHaveURL(/\/client\/documents$/);
   await expect(page.getByText("Verifying access…")).toHaveCount(0);
   expect(
     await page.evaluate(

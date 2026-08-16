@@ -1099,6 +1099,24 @@ batch.set(firestore.doc("schedules/wedding-booked-v4"), {
   pdfDocumentId: null, dropboxDocumentId: null, supersedesId: "wedding-booked-v3",
   immutable: true, archivedAt: null,
 });
+batch.set(firestore.doc("crewScheduleViews/wedding-booked-v4_wedding-booked-second"), {
+  ...audit,
+  id: "wedding-booked-v4_wedding-booked-second",
+  tenantId,
+  projectId: "wedding-booked",
+  assignmentId: "wedding-booked-second",
+  userId: userByKey.get("subcontractor")?.uid ?? null,
+  crewProfileId: "crew-jordan",
+  sourceScheduleId: "wedding-booked-v4",
+  version: 4,
+  status: "published",
+  timezone: "America/New_York",
+  items: [
+    { id: "details", startAt: "2026-08-15T15:30:00.000Z", endAt: "2026-08-15T16:15:00.000Z", title: "Details & establishing photographs", description: "", location: "The Boro Hotel", address: null, travelMinutes: 0, photographerIds: [ownerId], participants: [], vendorContactIds: [], equipment: [], notes: null, visibility: "crew", blockingIssues: [] },
+    { id: "ceremony", startAt: "2026-08-15T20:30:00.000Z", endAt: "2026-08-15T21:10:00.000Z", title: "Ceremony", description: "", location: "The Foundry", address: null, travelMinutes: 0, photographerIds: [ownerId], participants: [], vendorContactIds: ["vendor-foundry"], equipment: [], notes: null, visibility: "shared", blockingIssues: [] },
+  ],
+  publishedAt: now,
+});
 
 const postProductionSteps = {
   backup_complete: { complete: true, completedAt: "2026-06-21T12:00:00.000Z", completedBy: ownerId, evidenceId: "backup-log-ellis", notes: null },

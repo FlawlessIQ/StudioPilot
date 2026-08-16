@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -20,6 +20,7 @@ import {
   LockKeyhole,
   MapPin,
   MessageCircle,
+  Paperclip,
   RotateCw,
   ShieldCheck,
   Star,
@@ -41,6 +42,11 @@ import {
   type ClientPortalProject,
 } from "@/lib/client/portal-client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
+import { sendPostEventCommand } from "@/lib/post-event/command-client";
+import {
+  uploadClientMessageAttachment,
+  type ClientMessageAttachment,
+} from "@/lib/client/message-upload";
 import { dataIsLive } from "@/lib/runtime-mode";
 
 type RecordValue = Record<string, unknown> & { id: string };
@@ -48,14 +54,14 @@ type Loadable<T> = {
   value: T;
   loading: boolean;
   error: string | null;
+  refresh?: () => void;
 };
 
 function mockClientRecords(
   collectionName: ClientPortalCollection,
 ): RecordValue[] {
-  if (collectionName !== "proposals") return [];
-  return [
-    {
+  const records: Partial<Record<ClientPortalCollection, RecordValue[]>> = {
+    proposals: [{
       id: "demo-proposal-v2",
       version: 2,
       status: "viewed",
@@ -108,8 +114,89 @@ function mockClientRecords(
       viewedAt: "2026-07-28T18:00:00.000Z",
       acceptedAt: null,
       declinedAt: null,
-    },
-  ];
+    }],
+    contracts: [{
+      id: "demo-contract",
+      provider: "dropbox_sign",
+      status: "sent",
+      updatedAt: "2026-08-12T14:00:00.000Z",
+      signingUrl: "https://example.com/secure-signing",
+      signers: [
+        { name: "Alex Rivera", email: "alex@example.com", order: 1, status: "pending" },
+        { name: "Jordan Rivera", email: "jordan@example.com", order: 2, status: "pending" },
+      ],
+    }],
+    invoiceReferences: [{
+      id: "demo-invoice",
+      kind: "Retainer",
+      status: "open",
+      currency: "USD",
+      amountCents: 182650,
+      balanceCents: 182650,
+      dueDate: "2026-08-22",
+      hostedUrl: "https://example.com/secure-payment",
+      lastSyncedAt: "2026-08-15T12:00:00.000Z",
+    }],
+    schedules: [{
+      id: "demo-client-schedule",
+      projectId: "demo-project",
+      version: 3,
+      status: "client_review",
+      timezone: "America/New_York",
+      updatedAt: "2026-08-15T12:00:00.000Z",
+      items: [
+        { id: "arrival", startAt: "2027-06-12T14:00:00-04:00", endAt: "2027-06-12T14:30:00-04:00", title: "Photographer arrival", location: "The Garden Conservatory", visibility: "shared" },
+        { id: "ceremony", startAt: "2027-06-12T17:00:00-04:00", endAt: "2027-06-12T17:30:00-04:00", title: "Ceremony", location: "Garden ceremony space", visibility: "client" },
+      ],
+    }],
+    messages: [{
+      id: "demo-studio-message",
+      subject: "Your planning timeline",
+      body: "We prepared the first schedule for your review.",
+      bodyPreview: "We prepared the first schedule for your review.",
+      context: "Event schedule",
+      direction: "outbound",
+      visibility: "shared",
+      status: "delivered",
+      createdAt: "2026-08-14T15:00:00.000Z",
+      clientReadAt: null,
+    }],
+    documents: [{
+      id: "demo-shared-file",
+      name: "Venue certificate of insurance",
+      category: "coi",
+      status: "available",
+      downloadUrl: "https://example.com/shared-document.pdf",
+      updatedAt: "2027-06-01T12:00:00.000Z",
+    }],
+    deliveryRecords: [{
+      id: "demo-delivery",
+      projectId: "demo-project",
+      provider: "pixieset",
+      galleryUrl: "https://example.com/gallery",
+      accessCode: "RIVERA27",
+      expirationDate: "2027-08-01",
+      deliveryDate: "2027-07-01",
+      status: "delivered",
+    }],
+    albumWorkflows: [{
+      id: "demo-album",
+      projectId: "demo-project",
+      status: "design_sent",
+      designProofUrl: "https://example.com/album-proof",
+      creativeAuthority: "studio_human",
+      updatedAt: "2027-07-10T12:00:00.000Z",
+    }],
+    reviewRequests: [{
+      id: "demo-review",
+      projectId: "demo-project",
+      status: "delivered",
+      destinationLabel: "Google",
+      destinationUrl: "https://example.com/review",
+      deliveredAt: "2027-07-02T12:00:00.000Z",
+    }],
+  };
+  return records[collectionName] ?? [];
 }
 
 function useProject(): Loadable<ClientPortalProject | null> {
@@ -178,11 +265,17 @@ function useProjectRecords(
   collectionName: ClientPortalCollection,
 ): Loadable<RecordValue[]> {
   const workspace = useWorkspace();
+  const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<Loadable<RecordValue[]>>({
     value: mockClientRecords(collectionName),
     loading: dataIsLive,
     error: null,
   });
+  const refresh = useCallback(() => {
+    if (!dataIsLive) return;
+    setState((current) => ({ ...current, loading: true, error: null }));
+    setAttempt((current) => current + 1);
+  }, []);
   useEffect(() => {
     if (!dataIsLive || workspace.loading) return;
     if (!workspace.tenantId || !workspace.projectId) {
@@ -224,12 +317,13 @@ function useProjectRecords(
       active = false;
     };
   }, [
+    attempt,
     collectionName,
     workspace.loading,
     workspace.projectId,
     workspace.tenantId,
   ]);
-  return state;
+  return { ...state, refresh };
 }
 
 function PortalState({
@@ -364,7 +458,7 @@ export function LiveClientHome() {
     return (
       <PortalPageState
         eyebrow="Your client portal"
-        title={`Hello, ${workspace.userName.split(" ")[0]}.`}
+        title={workspace.error ? "Your project portal" : `Hello, ${workspace.userName.split(" ")[0]}.`}
         description="Your project plan, next steps, and shared files will live here."
         loading={project.loading}
         error={project.error}
@@ -455,6 +549,10 @@ export function LiveClientHome() {
       icon: BookOpenCheck,
     },
   ];
+  const availableRecords = artifacts.filter((artifact) => artifact.ready);
+  const upcomingMilestones = value.milestones
+    .filter((milestone) => milestone.status !== "complete")
+    .slice(0, 3);
   return (
     <>
       <div className="portal-hero">
@@ -504,17 +602,16 @@ export function LiveClientHome() {
       <section className="panel client-artifact-hub">
         <div className="panel-heading">
           <div>
-            <p className="eyebrow">Project memory</p>
-            <h2>Everything promised, in one place</h2>
+            <p className="eyebrow">Project records</p>
+            <h2>Your approved records</h2>
             <p>
-              Current approved artifacts stay here so you never need to search
-              an email thread.
+              Current signed, paid, approved, or delivered records stay here.
             </p>
           </div>
           <FolderOpen aria-hidden="true" />
         </div>
         <div>
-          {artifacts.map((artifact) => {
+          {availableRecords.map((artifact) => {
             const Icon = artifact.icon;
             return (
               <Link
@@ -535,14 +632,23 @@ export function LiveClientHome() {
               </Link>
             );
           })}
+          {!availableRecords.length ? (
+            <div className="client-records-empty">
+              <Clock3 />
+              <span>
+                <strong>No approved records yet</strong>
+                <small>They will appear here as your project progresses.</small>
+              </span>
+            </div>
+          ) : null}
         </div>
       </section>
       <div className="client-grid">
         <section className="panel client-journey-card">
           <div className="panel-heading">
             <div>
-              <h2>Your project journey</h2>
-              <p>From inquiry through final delivery</p>
+              <h2>What happens next</h2>
+              <p>Your current stage and the next milestones</p>
             </div>
             <strong>{progress}%</strong>
           </div>
@@ -550,7 +656,7 @@ export function LiveClientHome() {
             <i style={{ width: `${progress}%` }} />
           </div>
           <div className="client-milestone-list">
-            {value.milestones.map((milestone) => (
+            {upcomingMilestones.map((milestone) => (
               <div
                 className={`client-milestone client-milestone-${milestone.status}`}
                 key={milestone.id}
@@ -571,6 +677,15 @@ export function LiveClientHome() {
                 {milestone.status === "current" ? <em>Now</em> : null}
               </div>
             ))}
+            {!upcomingMilestones.length ? (
+              <div className="client-milestone client-milestone-complete">
+                <span><CircleCheck /></span>
+                <span>
+                  <strong>Your project is complete</strong>
+                  <small>Your approved records remain available here.</small>
+                </span>
+              </div>
+            ) : null}
           </div>
         </section>
         <section className="panel event-detail-card">
@@ -646,53 +761,133 @@ export function LiveClientProjectDetails() {
         </div>
         <Link className="button button-light" href="/client/messages">Message your studio</Link>
       </section>
+      {value.clientStage === "Complete" ? (
+        <section className="client-project-closed">
+          <BadgeCheck />
+          <div>
+            <p className="eyebrow">Project complete</p>
+            <h2>Your project is safely archived.</h2>
+            <p>Signed agreements, payment references, approved schedules, delivery details, and shared files remain available in your records.</p>
+          </div>
+          <Link className="button button-light" href="/client/documents">
+            Open project records <ArrowRight />
+          </Link>
+        </section>
+      ) : null}
     </div>
   );
 }
 
 export function LiveClientDocuments() {
   const documents = useProjectRecords("documents");
-  if (documents.loading || documents.error || documents.value.length === 0)
+  const contracts = useProjectRecords("contracts");
+  const invoices = useProjectRecords("invoiceReferences");
+  const schedules = useProjectRecords("schedules");
+  const deliveries = useProjectRecords("deliveryRecords");
+  const albums = useProjectRecords("albumWorkflows");
+  const loading = [documents, contracts, invoices, schedules, deliveries, albums].some(
+    (collection) => collection.loading,
+  );
+  const error = [documents, contracts, invoices, schedules, deliveries, albums]
+    .map((collection) => collection.error)
+    .find(Boolean) ?? null;
+  const visibleDocuments = documents.value.filter(
+    (item) => item.clientVisible !== false,
+  );
+  const projectRecords = [
+    ...contracts.value
+      .filter((record) => ["completed", "signed"].includes(text(record.status)))
+      .map((record) => ({
+        id: `contract-${record.id}`,
+        label: "Signed photography agreement",
+        detail: `Contract · ${date(record.completedAt ?? record.updatedAt)}`,
+        status: text(record.status),
+        href: "/client/contract",
+        external: false,
+      })),
+    ...invoices.value.map((record) => ({
+      id: `invoice-${record.id}`,
+      label: `${text(record.kind, "Project")} invoice`,
+      detail: `${money(record.amountCents, record.currency)} · due ${date(record.dueDate)}`,
+      status: text(record.status),
+      href: "/client/payments",
+      external: false,
+    })),
+    ...schedules.value
+      .filter((record) => ["approved", "published"].includes(text(record.status)))
+      .map((record) => ({
+        id: `schedule-${record.id}`,
+        label: `Event schedule · version ${number(record.version)}`,
+        detail: `Schedule · ${date(record.publishedAt ?? record.approvedAt ?? record.updatedAt)}`,
+        status: text(record.status),
+        href: "/client/schedule",
+        external: false,
+      })),
+    ...deliveries.value.map((record) => ({
+      id: `delivery-${record.id}`,
+      label: "Photography gallery",
+      detail: `Delivery · ${date(record.deliveryDate ?? record.updatedAt)}`,
+      status: text(record.status),
+      href: "/client/delivery",
+      external: false,
+    })),
+    ...albums.value.map((record) => ({
+      id: `album-${record.id}`,
+      label: "Album record",
+      detail: `Album · ${text(record.status).replaceAll("_", " ")}`,
+      status: text(record.status),
+      href: "/client/delivery",
+      external: false,
+    })),
+    ...visibleDocuments.map((record) => ({
+      id: `document-${record.id}`,
+      label: text(record.name ?? record.fileName, "Project document"),
+      detail: text(record.category, "Shared file").replaceAll("_", " "),
+      status: text(record.status, "available"),
+      href:
+        typeof record.temporaryUrl === "string"
+          ? record.temporaryUrl
+          : typeof record.downloadUrl === "string"
+            ? record.downloadUrl
+            : null,
+      external: true,
+    })),
+  ];
+  if (loading || error || projectRecords.length === 0)
     return (
       <PortalPageState
-        eyebrow="Shared files"
-        title="Your documents"
-        description="Contracts, schedules, and files shared by your studio."
-        loading={documents.loading}
-        error={documents.error}
-        empty={!documents.loading && !documents.error ? "Documents shared by your studio will appear here." : undefined}
+        eyebrow="Project records"
+        title="Your records"
+        description="Signed agreements, payments, schedules, deliveries, and files in one place."
+        loading={loading}
+        error={error}
+        empty={!loading && !error ? "Approved project records will appear here as your project progresses." : undefined}
       />
     );
-  const visible = documents.value.filter((item) => item.clientVisible !== false);
-  if (!visible.length)
-    return <PortalPageState eyebrow="Shared files" title="Your documents" description="Contracts, schedules, and files shared by your studio." loading={false} error={null} empty="Documents shared by your studio will appear here." />;
   return (
     <div className="client-booking-page">
-      <p className="eyebrow">Shared files</p>
-      <h1>Your documents</h1>
-      <p>Contracts, schedules, and other files your studio has made available to you.</p>
+      <p className="eyebrow">Project records</p>
+      <h1>Your records</h1>
+      <p>One permanent home for every approved record your studio has shared.</p>
       <section className="panel client-document-list">
-        {visible.map((document) => {
-          const href = typeof document.temporaryUrl === "string"
-            ? document.temporaryUrl
-            : typeof document.downloadUrl === "string"
-              ? document.downloadUrl
-              : null;
-          return (
-            <article key={document.id}>
+        {projectRecords.map((record) => (
+            <article key={record.id}>
               <span className="client-document-icon"><FileText /></span>
               <span>
-                <strong>{text(document.name ?? document.fileName, "Project document")}</strong>
-                <small>{text(document.category, "Shared file").replaceAll("_", " ")}</small>
+                <strong>{record.label}</strong>
+                <small>{record.detail}</small>
               </span>
-              {href ? (
-                <a href={href} rel="noreferrer" target="_blank">Open <ExternalLink /></a>
+              {record.href ? (
+                record.external ? (
+                  <a href={record.href} rel="noreferrer" target="_blank">Open <ExternalLink /></a>
+                ) : (
+                  <Link href={record.href}>Review <ArrowRight /></Link>
+                )
               ) : (
-                <StatusBadge tone="neutral">Available soon</StatusBadge>
+                <StatusBadge tone={statusTone(record.status)}>{record.status.replaceAll("_", " ")}</StatusBadge>
               )}
             </article>
-          );
-        })}
+          ))}
       </section>
     </div>
   );
@@ -701,21 +896,75 @@ export function LiveClientDocuments() {
 export function LiveClientMessages() {
   const workspace = useWorkspace();
   const messages = useProjectRecords("messages");
+  const draftId = useRef<string | null>(null);
+  const [subject, setSubject] = useState("Project question");
+  const [context, setContext] = useState<string | null>(null);
+  const [replyToMessageId, setReplyToMessageId] = useState<string | null>(null);
   const [body, setBody] = useState("");
+  const [attachments, setAttachments] = useState<ClientMessageAttachment[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    const requestedContext = new URLSearchParams(window.location.search).get("context");
+    if (!requestedContext) return;
+    queueMicrotask(() => {
+      setContext(requestedContext.slice(0, 120));
+      setSubject(`${requestedContext} question`.slice(0, 120));
+    });
+  }, []);
+  async function addAttachments(files: FileList | null) {
+    if (!files || !workspace.tenantId || !workspace.projectId) return;
+    const selected = Array.from(files).slice(0, 5 - attachments.length);
+    if (!selected.length) return;
+    draftId.current ??= crypto.randomUUID();
+    setUploading(true);
+    setNotice(null);
+    try {
+      const uploaded: ClientMessageAttachment[] = [];
+      for (const file of selected) {
+        uploaded.push(
+          await uploadClientMessageAttachment({
+            tenantId: workspace.tenantId,
+            projectId: workspace.projectId,
+            draftId: draftId.current,
+            file,
+          }),
+        );
+      }
+      setAttachments((current) => [...current, ...uploaded]);
+    } catch (caught: unknown) {
+      setNotice(caught instanceof Error ? caught.message : "The attachment could not be uploaded.");
+    } finally {
+      setUploading(false);
+    }
+  }
   async function sendMessage() {
-    if (!workspace.tenantId || !workspace.projectId || !body.trim()) return;
+    if (!workspace.tenantId || !workspace.projectId || !body.trim() || !subject.trim()) return;
+    draftId.current ??= crypto.randomUUID();
     setSending(true);
     setNotice(null);
     try {
       await sendClientPortalMessage(
         workspace.tenantId,
         workspace.projectId,
-        body.trim(),
+        {
+          subject: subject.trim(),
+          body: body.trim(),
+          context,
+          replyToMessageId,
+          attachments,
+          idempotencyKey: draftId.current,
+        },
       );
       setBody("");
+      setSubject("Project question");
+      setContext(null);
+      setReplyToMessageId(null);
+      setAttachments([]);
+      draftId.current = null;
       setNotice("Message sent securely to your studio.");
+      messages.refresh?.();
     } catch (caught: unknown) {
       setNotice(
         caught instanceof Error ? caught.message : "Your message could not be sent.",
@@ -734,17 +983,42 @@ export function LiveClientMessages() {
       ) : messages.value.length ? (
         <section className="panel client-message-list">
           {[...messages.value]
-            .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
-            .map((message) => (
-              <article key={message.id}>
+            .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
+            .map((message) => {
+              const fromStudio = message.direction === "outbound";
+              const messageAttachments = Array.isArray(message.attachmentReferences)
+                ? (message.attachmentReferences as Array<Record<string, unknown>>)
+                : [];
+              return (
+              <article className={fromStudio ? "is-studio" : "is-client"} key={message.id}>
                 <span className="client-message-icon"><MessageCircle /></span>
                 <span>
-                  <strong>{text(message.subject, "Project update")}</strong>
+                  <span className="client-message-title">
+                    <strong>{text(message.subject, "Project update")}</strong>
+                    {fromStudio && !message.clientReadAt ? <em>New</em> : null}
+                  </span>
                   <p>{text(message.bodyPreview ?? message.body, "Open the email from your studio for full details.")}</p>
-                  <small>{date(message.sentAt ?? message.createdAt)} · {text(message.status, "sent").replaceAll("_", " ")}</small>
+                  {messageAttachments.length ? (
+                    <small><Paperclip /> {messageAttachments.map((attachment) => text(attachment.name, "Attachment")).join(", ")}</small>
+                  ) : null}
+                  <small>{fromStudio ? workspace.tenantName : "You"} · {date(message.sentAt ?? message.createdAt)} · {text(message.status, "sent").replaceAll("_", " ")}</small>
                 </span>
+                {fromStudio ? (
+                  <button
+                    className="client-message-reply"
+                    onClick={() => {
+                      setReplyToMessageId(message.id);
+                      setContext(text(message.context, "Project message"));
+                      setSubject(`Re: ${text(message.subject, "Project update")}`.slice(0, 120));
+                      document.getElementById("client-message-body")?.focus();
+                    }}
+                    type="button"
+                  >
+                    Reply
+                  </button>
+                ) : null}
               </article>
-            ))}
+            );})}
         </section>
       ) : (
         <section className="panel client-empty-moment">
@@ -764,6 +1038,19 @@ export function LiveClientMessages() {
             this secure project workspace.
           </p>
         </div>
+        {context ? (
+          <div className="client-message-context">
+            <span>About: <strong>{context}</strong></span>
+            <button onClick={() => setContext(null)} type="button">Clear</button>
+          </div>
+        ) : null}
+        <label htmlFor="client-message-subject">Subject</label>
+        <input
+          id="client-message-subject"
+          maxLength={120}
+          onChange={(event) => setSubject(event.target.value)}
+          value={subject}
+        />
         <label htmlFor="client-message-body">Message</label>
         <textarea
           id="client-message-body"
@@ -773,10 +1060,42 @@ export function LiveClientMessages() {
           rows={5}
           value={body}
         />
+        <div className="client-message-attachments">
+          {attachments.map((attachment) => (
+            <span key={attachment.storagePath}>
+              <Paperclip /> {attachment.name}
+              <button
+                aria-label={`Remove ${attachment.name}`}
+                onClick={() => setAttachments((current) => current.filter((item) => item.storagePath !== attachment.storagePath))}
+                type="button"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+          {attachments.length < 5 ? (
+            <label className="button button-light" htmlFor="client-message-files">
+              <Paperclip /> {uploading ? "Uploading…" : "Attach files"}
+            </label>
+          ) : null}
+          <input
+            accept=".pdf,.docx,.jpg,.jpeg,.png"
+            disabled={uploading}
+            hidden
+            id="client-message-files"
+            multiple
+            onChange={(event) => {
+              void addAttachments(event.target.files);
+              event.target.value = "";
+            }}
+            type="file"
+          />
+          <small>PDF, Word, JPG, or PNG · 12 MB each · securely scanned before studio access</small>
+        </div>
         <div className="client-message-composer-actions">
           <button
             className="button button-dark"
-            disabled={sending || !body.trim()}
+            disabled={sending || uploading || !body.trim() || !subject.trim()}
             onClick={() => void sendMessage()}
             type="button"
           >
@@ -1384,6 +1703,9 @@ export function LiveClientPackage() {
 
 export function LiveClientContract() {
   const contracts = useProjectRecords("contracts");
+  const [providerOpened, setProviderOpened] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const refreshContracts = contracts.refresh;
   const contract = useMemo(
     () =>
       [...contracts.value].sort((a, b) =>
@@ -1391,7 +1713,22 @@ export function LiveClientContract() {
       )[0],
     [contracts.value],
   );
-  if (contracts.loading || contracts.error || !contract)
+  const contractStatus = text(contract?.status);
+  useEffect(() => {
+    if (!providerOpened) return;
+    const checkOnReturn = () => {
+      if (document.visibilityState !== "visible") return;
+      setNotice("Checking the signing provider for your latest status…");
+      refreshContracts?.();
+    };
+    window.addEventListener("focus", checkOnReturn);
+    document.addEventListener("visibilitychange", checkOnReturn);
+    return () => {
+      window.removeEventListener("focus", checkOnReturn);
+      document.removeEventListener("visibilitychange", checkOnReturn);
+    };
+  }, [providerOpened, refreshContracts]);
+  if (contracts.error || !contract)
     return <PortalPageState eyebrow="Agreement" title="Your contract" description="Review signature progress and open your secure signing request." loading={contracts.loading} error={contracts.error} empty={!contracts.loading && !contracts.error ? "Your agreement will appear after the studio sends it for signature." : undefined} />;
   const signingProvider =
     contract.provider === "dropbox_sign" ? "Dropbox Sign" : "Docusign";
@@ -1400,6 +1737,7 @@ export function LiveClientContract() {
     : [];
   const signingUrl =
     typeof contract.signingUrl === "string" ? contract.signingUrl : null;
+  const complete = ["completed", "signed"].includes(contractStatus);
   return (
     <div className="client-booking-page">
       <p className="eyebrow">Agreement</p>
@@ -1412,7 +1750,7 @@ export function LiveClientContract() {
             {text(contract.status).replaceAll("_", " ")}
           </StatusBadge>
           <h2>
-            {contract.status === "completed"
+            {complete
               ? "Every required signature is complete."
               : `${signingProvider} is collecting required signatures.`}
           </h2>
@@ -1428,31 +1766,93 @@ export function LiveClientContract() {
               <strong>{text(signer.status)}</strong>
             </div>
           ))}
-          {signingUrl ? (
-            <a className="button button-dark" href={signingUrl} rel="noreferrer" target="_blank">
-              Open secure {signingProvider} <ExternalLink />
-            </a>
+          {signingUrl && !complete ? (
+            <div className="client-provider-handoff">
+              <div>
+                <LockKeyhole />
+                <span>
+                  <strong>You’re opening {signingProvider}</strong>
+                  <small>Sign there, then return to this page. StudioCue will check for the provider’s completion evidence.</small>
+                </span>
+              </div>
+              <a
+                className="button button-dark"
+                href={signingUrl}
+                onClick={() => {
+                  setProviderOpened(true);
+                  setNotice(null);
+                }}
+                rel="noreferrer"
+                target="_blank"
+              >
+                Continue to secure signing <ExternalLink />
+              </a>
+            </div>
           ) : (
-            <p>{signingProvider} sends each signer their secure signing link directly.</p>
+            !complete ? <p>{signingProvider} sends each signer their secure signing link directly.</p> : null
           )}
+          {providerOpened && !complete ? (
+            <div className="client-provider-return">
+              <span>
+                <strong>Back from {signingProvider}?</strong>
+                <small>Check whether the completed signature has synchronized.</small>
+              </span>
+              <button
+                className="button button-light"
+                disabled={contracts.loading}
+                onClick={() => {
+                  setNotice("Checking the signing provider for your latest status…");
+                  refreshContracts?.();
+                }}
+                type="button"
+              >
+                <RotateCw className={contracts.loading ? "spin" : ""} />
+                {contracts.loading ? "Checking…" : "Check signature status"}
+              </button>
+            </div>
+          ) : null}
+          {notice ? <p className="client-provider-notice" role="status">{notice}</p> : null}
         </div>
       </section>
       <p className="source-note">
         Only {signingProvider} completion evidence can mark this contract complete.
       </p>
+      <Link className="client-context-message-link" href="/client/messages?context=Contract%20signing">
+        <MessageCircle /> Ask your studio about this agreement
+      </Link>
     </div>
   );
 }
 
 export function LiveClientPayments() {
   const invoices = useProjectRecords("invoiceReferences");
-  if (invoices.loading || invoices.error || invoices.value.length === 0)
+  const [openedInvoiceId, setOpenedInvoiceId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const refreshInvoices = invoices.refresh;
+  useEffect(() => {
+    if (!openedInvoiceId) return;
+    const checkOnReturn = () => {
+      if (document.visibilityState !== "visible") return;
+      setNotice("Checking QuickBooks for your latest payment status…");
+      refreshInvoices?.();
+    };
+    window.addEventListener("focus", checkOnReturn);
+    document.addEventListener("visibilitychange", checkOnReturn);
+    return () => {
+      window.removeEventListener("focus", checkOnReturn);
+      document.removeEventListener("visibilitychange", checkOnReturn);
+    };
+  }, [openedInvoiceId, refreshInvoices]);
+  if (invoices.error || invoices.value.length === 0)
     return <PortalPageState eyebrow="Payments" title="Your payment schedule" description="Review amounts, due dates, and secure QuickBooks payment links." loading={invoices.loading} error={invoices.error} empty={!invoices.loading && !invoices.error ? "QuickBooks invoice links will appear when created by the studio." : undefined} />;
   return (
     <div className="client-booking-page">
       <p className="eyebrow">Payments</p>
       <h1>Your payment schedule</h1>
       <p>QuickBooks Online is the accounting and payment system of record.</p>
+      <Link className="client-context-message-link" href="/client/messages?context=Payments">
+        <MessageCircle /> Ask your studio a payment question
+      </Link>
       {invoices.value
         .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)))
         .map((invoice) => (
@@ -1471,12 +1871,56 @@ export function LiveClientPayments() {
               {money(invoice.balanceCents, invoice.currency)}
             </p>
             {typeof invoice.hostedUrl === "string" && invoice.hostedUrl ? (
-              <a className="button button-dark" href={invoice.hostedUrl} rel="noreferrer" target="_blank">
-                Open QuickBooks invoice <ExternalLink />
-              </a>
+              <div className="client-provider-handoff">
+                <div>
+                  <LockKeyhole />
+                  <span>
+                    <strong>Secure payment opens in QuickBooks</strong>
+                    <small>StudioCue never sees your card or bank details. Return here after paying to confirm the updated status.</small>
+                  </span>
+                </div>
+                <a
+                  className="button button-dark"
+                  href={invoice.hostedUrl}
+                  onClick={() => {
+                    setOpenedInvoiceId(invoice.id);
+                    setNotice(null);
+                  }}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  Continue to secure payment <ExternalLink />
+                </a>
+                {openedInvoiceId === invoice.id ? (
+                  <button
+                    className="button button-light"
+                    disabled={invoices.loading}
+                    onClick={() => {
+                      setNotice("Checking QuickBooks for your latest payment status…");
+                      refreshInvoices?.();
+                    }}
+                    type="button"
+                  >
+                    <RotateCw className={invoices.loading ? "spin" : ""} />
+                    {invoices.loading ? "Checking…" : "Check payment status"}
+                  </button>
+                ) : null}
+              </div>
             ) : (
-              <p>Payment link pending QuickBooks synchronization.</p>
+              <div className="client-provider-unavailable">
+                <Clock3 />
+                <span>
+                  <strong>Secure payment link is still syncing</strong>
+                  <small>Refresh the status, or message your studio if you need to pay now.</small>
+                </span>
+                <button className="button button-light" onClick={() => refreshInvoices?.()} type="button">
+                  <RotateCw /> Refresh status
+                </button>
+              </div>
             )}
+            {openedInvoiceId === invoice.id && notice ? (
+              <p className="client-provider-notice" role="status">{notice}</p>
+            ) : null}
             <footer>
               <LockKeyhole /> StudioCue never receives your card or bank details.
             </footer>
@@ -1487,8 +1931,26 @@ export function LiveClientPayments() {
 }
 
 export function LiveClientQuestionnaire() {
+  const workspace = useWorkspace();
   const responses = useProjectRecords("questionnaireResponses");
-  const current = responses.value[0];
+  const ordered = useMemo(
+    () =>
+      [...responses.value].sort((left, right) => {
+        const leftComplete = left.status === "submitted" ? 1 : 0;
+        const rightComplete = right.status === "submitted" ? 1 : 0;
+        if (leftComplete !== rightComplete) return leftComplete - rightComplete;
+        const due = String(left.dueDate ?? "9999").localeCompare(
+          String(right.dueDate ?? "9999"),
+        );
+        if (due !== 0) return due;
+        return String(right.updatedAt ?? "").localeCompare(
+          String(left.updatedAt ?? ""),
+        );
+      }),
+    [responses.value],
+  );
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const current = ordered.find((response) => response.id === selectedId) ?? ordered[0];
   if (responses.loading || responses.error || !current)
     return <PortalPageState eyebrow="Project planning" title="Your questionnaire" description="Share the details your studio needs to plan your project." loading={responses.loading} error={responses.error} empty={!responses.loading && !responses.error ? "Your studio has not assigned a questionnaire yet." : undefined} />;
   return (
@@ -1499,10 +1961,39 @@ export function LiveClientQuestionnaire() {
         Save your progress and return at any time. Your studio will be notified
         when you submit the completed form.
       </p>
+      {ordered.length > 1 ? (
+        <section className="client-questionnaire-picker" aria-label="Assigned questionnaires">
+          {ordered.map((response, index) => (
+            <button
+              className={response.id === current.id ? "is-active" : ""}
+              key={response.id}
+              onClick={() => setSelectedId(response.id)}
+              type="button"
+            >
+              <span>
+                <strong>{text(response.name ?? response.templateName, `Questionnaire ${index + 1}`)}</strong>
+                <small>
+                  {response.status === "submitted"
+                    ? "Submitted"
+                    : response.dueDate
+                      ? `Due ${date(response.dueDate)}`
+                      : "Ready to complete"}
+                </small>
+              </span>
+              <StatusBadge tone={response.status === "submitted" ? "success" : "warning"}>
+                {text(response.status, "in progress").replaceAll("_", " ")}
+              </StatusBadge>
+            </button>
+          ))}
+        </section>
+      ) : null}
       <section className="panel">
         <ClientQuestionnaireForm
+          key={current.id}
+          tenantId={workspace.tenantId ?? undefined}
           projectId={text(current.projectId)}
           responseId={current.id}
+          status={text(current.status, "in_progress")}
           initialAnswers={
             current.answers && typeof current.answers === "object"
               ? (current.answers as Record<string, unknown>)
@@ -1517,21 +2008,32 @@ export function LiveClientQuestionnaire() {
 export function LiveClientSchedule() {
   const schedules = useProjectRecords("schedules");
   const [notice, setNotice] = useState<string | null>(null);
-  const schedule = useMemo(
-    () =>
-      [...schedules.value].sort(
-        (a, b) => number(b.version) - number(a.version),
-      )[0],
+  const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<"idle" | "changes">("idle");
+  const [changeNote, setChangeNote] = useState("");
+  const [selectedItemId, setSelectedItemId] = useState("");
+  const [localStatus, setLocalStatus] = useState<string | null>(null);
+  const orderedSchedules = useMemo(
+    () => [...schedules.value].sort((a, b) => number(b.version) - number(a.version)),
     [schedules.value],
   );
+  const schedule = orderedSchedules[0];
   if (schedules.loading || schedules.error || !schedule)
     return <PortalPageState eyebrow="Event day" title="Your schedule" description="Review the current run of show and respond when your studio requests approval." loading={schedules.loading} error={schedules.error} empty={!schedules.loading && !schedules.error ? "The published run of show will appear here when it is ready for you." : undefined} />;
   const items = Array.isArray(schedule.items)
     ? (schedule.items as Array<Record<string, unknown>>)
     : [];
+  const status = localStatus ?? text(schedule.status);
+  const actionable = status === "client_review";
   async function decide(decision: "approved" | "changes_requested") {
+    if (busy || (decision === "changes_requested" && changeNote.trim().length < 10)) return;
+    setBusy(true);
     setNotice(null);
     try {
+      const selectedItem = items.find((item) => text(item.id) === selectedItemId);
+      const itemContext = selectedItem
+        ? `Schedule item: ${text(selectedItem.title)} (${new Date(String(selectedItem.startAt)).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}). `
+        : "";
       await sendPlanningCommand("approveSchedule", {
         projectId: schedule.projectId,
         scheduleId: schedule.id,
@@ -1539,8 +2041,10 @@ export function LiveClientSchedule() {
         notes:
           decision === "approved"
             ? "Approved by client in the StudioCue portal."
-            : "Client requested schedule changes in the StudioCue portal.",
+            : `${itemContext}${changeNote.trim()}`,
       });
+      setLocalStatus(decision);
+      setMode("idle");
       setNotice(
         decision === "approved"
           ? "Schedule approved."
@@ -1550,15 +2054,25 @@ export function LiveClientSchedule() {
       setNotice(
         caught instanceof Error ? caught.message : "Schedule response failed.",
       );
+    } finally {
+      setBusy(false);
     }
   }
   return (
     <div className="client-booking-page">
       <p className="eyebrow">
-        Version {number(schedule.version)} · {text(schedule.status).replaceAll("_", " ")}
+        Version {number(schedule.version)} · {status.replaceAll("_", " ")}
       </p>
       <h1>Your event-day schedule</h1>
-      <p>Times are shown in {text(schedule.timezone)}.</p>
+      <p>
+        Times are shown in {text(schedule.timezone)}. Keep this page available
+        on your phone for the current event brief.
+      </p>
+      {orderedSchedules.length > 1 ? (
+        <p className="client-schedule-history">
+          <Clock3 /> Version {number(schedule.version)} is current · {orderedSchedules.length - 1} earlier {orderedSchedules.length === 2 ? "version" : "versions"} preserved
+        </p>
+      ) : null}
       <section className="mobile-schedule">
         {items
           .filter((item) =>
@@ -1589,15 +2103,92 @@ export function LiveClientSchedule() {
             </article>
           ))}
       </section>
-      <div className="schedule-client-actions">
-        <button className="button button-dark" onClick={() => void decide("approved")} type="button">
-          Approve this version
-        </button>
-        <button className="button button-light" onClick={() => void decide("changes_requested")} type="button">
-          Request changes
-        </button>
-      </div>
+      {actionable ? (
+        <section className="panel client-schedule-decision">
+          <div>
+            <p className="eyebrow">Your decision</p>
+            <h2>Is this schedule ready?</h2>
+            <p>Approve this exact version or explain what your studio should revise.</p>
+          </div>
+          {mode === "changes" ? (
+            <div className="client-schedule-change">
+              <label htmlFor="schedule-item-reference">Schedule item (optional)</label>
+              <select
+                id="schedule-item-reference"
+                onChange={(event) => setSelectedItemId(event.target.value)}
+                value={selectedItemId}
+              >
+                <option value="">The schedule overall</option>
+                {items.map((item) => (
+                  <option key={text(item.id)} value={text(item.id)}>
+                    {new Date(String(item.startAt)).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} — {text(item.title)}
+                  </option>
+                ))}
+              </select>
+              <label htmlFor="schedule-change-note">What should change?</label>
+              <textarea
+                id="schedule-change-note"
+                maxLength={2000}
+                onChange={(event) => setChangeNote(event.target.value)}
+                placeholder="Describe the correct time, location, order, or detail."
+                rows={4}
+                value={changeNote}
+              />
+              <div className="schedule-client-actions">
+                <button
+                  className="button button-dark"
+                  disabled={busy || changeNote.trim().length < 10}
+                  onClick={() => void decide("changes_requested")}
+                  type="button"
+                >
+                  {busy ? "Sending…" : "Send change request"}
+                </button>
+                <button
+                  className="button button-light"
+                  disabled={busy}
+                  onClick={() => setMode("idle")}
+                  type="button"
+                >
+                  Go back
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="schedule-client-actions">
+              <button
+                className="button button-dark"
+                disabled={busy}
+                onClick={() => void decide("approved")}
+                type="button"
+              >
+                {busy ? "Saving…" : "Approve this version"}
+              </button>
+              <button
+                className="button button-light"
+                disabled={busy}
+                onClick={() => setMode("changes")}
+                type="button"
+              >
+                Request changes
+              </button>
+            </div>
+          )}
+        </section>
+      ) : (
+        <section className="client-schedule-result">
+          <CheckCircle2 />
+          <span>
+            <strong>
+              {status === "approved" ? "You approved this schedule." : "This is the current shared schedule."}
+            </strong>
+            <small>Your studio will notify you if a newer version needs review.</small>
+          </span>
+        </section>
+      )}
       {notice ? <p className="form-notice" role="status">{notice}</p> : null}
+      <Link className="client-context-message-link" href="/client/messages?context=Event%20schedule">
+        <MessageCircle /> Ask your studio about the schedule
+      </Link>
     </div>
   );
 }
@@ -1606,16 +2197,58 @@ export function LiveClientDelivery() {
   const workspace = useWorkspace();
   const deliveries = useProjectRecords("deliveryRecords");
   const albums = useProjectRecords("albumWorkflows");
+  const [copied, setCopied] = useState(false);
+  const [revisionMode, setRevisionMode] = useState(false);
+  const [revisionNote, setRevisionNote] = useState("");
+  const [albumBusy, setAlbumBusy] = useState(false);
+  const [albumNotice, setAlbumNotice] = useState<string | null>(null);
+  const [localAlbumStatus, setLocalAlbumStatus] = useState<string | null>(null);
+  const [renderedAt] = useState(() => Date.now());
   const delivery = deliveries.value[0];
   const album = albums.value[0];
   if (deliveries.loading || deliveries.error || !delivery)
     return <PortalPageState eyebrow="Your photographs" title="Delivery" description="Open your gallery and confirm when your download is complete." loading={deliveries.loading} error={deliveries.error} empty={!deliveries.loading && !deliveries.error ? "Your secure gallery details will appear after delivery." : undefined} />;
+  const expirationAt = new Date(String(delivery.expirationDate)).valueOf();
+  const daysUntilExpiration = Number.isNaN(expirationAt)
+    ? null
+    : Math.ceil((expirationAt - renderedAt) / 86400000);
+  const galleryExpired = daysUntilExpiration !== null && daysUntilExpiration < 0;
+  const albumStatus = localAlbumStatus ?? text(album?.status);
+  async function requestAlbumRevision() {
+    if (!album || revisionNote.trim().length < 10 || albumBusy) return;
+    setAlbumBusy(true);
+    setAlbumNotice(null);
+    try {
+      const response = await sendPostEventCommand("updateAlbumStatus", {
+        projectId: album.projectId,
+        albumWorkflowId: album.id,
+        status: "revision_requested",
+        evidenceUrl: null,
+        evidenceId: null,
+        notes: revisionNote.trim(),
+      });
+      if (response.persisted) setLocalAlbumStatus("revision_requested");
+      setRevisionMode(false);
+      setAlbumNotice(
+        response.persisted
+          ? "Your revision notes were sent to the studio."
+          : "Development preview: your revision request was validated but not saved.",
+      );
+    } catch (caught: unknown) {
+      setAlbumNotice(caught instanceof Error ? caught.message : "Your revision request could not be sent.");
+    } finally {
+      setAlbumBusy(false);
+    }
+  }
   return (
     <div className="client-post-event">
       <header>
         <p className="eyebrow">Your photographs</p>
         <h1>Your gallery is ready.</h1>
         <p>Keep your access details private and download before expiration.</p>
+        <Link className="client-context-message-link" href="/client/messages?context=Gallery%20and%20delivery">
+          <MessageCircle /> Ask your studio about delivery
+        </Link>
       </header>
       <section className="client-gallery-card">
         <div className="gallery-art">
@@ -1632,7 +2265,21 @@ export function LiveClientDelivery() {
               <dt>
                 <LockKeyhole /> Access code
               </dt>
-              <dd>{text(delivery.accessCode, "Not required")}</dd>
+              <dd>
+                {text(delivery.accessCode, "Not required")}
+                {delivery.accessCode ? (
+                  <button
+                    className="client-copy-access"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(text(delivery.accessCode));
+                      setCopied(true);
+                    }}
+                    type="button"
+                  >
+                    {copied ? "Copied" : "Copy"}
+                  </button>
+                ) : null}
+              </dd>
             </div>
             <div>
               <dt>
@@ -1641,9 +2288,24 @@ export function LiveClientDelivery() {
               <dd>{date(delivery.expirationDate)}</dd>
             </div>
           </dl>
-          <a className="button button-dark" href={text(delivery.galleryUrl)} target="_blank" rel="noreferrer">
-            <ExternalLink /> Open secure gallery
-          </a>
+          {daysUntilExpiration !== null && daysUntilExpiration <= 14 ? (
+            <div className={galleryExpired ? "client-gallery-expiry is-expired" : "client-gallery-expiry"}>
+              <Clock3 />
+              <span>
+                <strong>{galleryExpired ? "Gallery access has expired" : `${daysUntilExpiration} days left to download`}</strong>
+                <small>{galleryExpired ? "Ask your studio to restore access." : "Download and back up your photographs before access closes."}</small>
+              </span>
+            </div>
+          ) : null}
+          {typeof delivery.galleryUrl === "string" && delivery.galleryUrl && !galleryExpired ? (
+            <a className="button button-dark" href={delivery.galleryUrl} target="_blank" rel="noreferrer">
+              <ExternalLink /> Open secure gallery
+            </a>
+          ) : (
+            <Link className="button button-light" href="/client/messages?context=Gallery%20access">
+              <MessageCircle /> Request gallery access
+            </Link>
+          )}
           <PostEventAction
             type="markDeliveryDownloaded"
             input={{
@@ -1676,8 +2338,8 @@ export function LiveClientDelivery() {
               "approved",
               "fulfilled",
             ].map((status, index, statuses) => {
-              const currentIndex = statuses.indexOf(String(album.status));
-              const revision = album.status === "revision_requested";
+              const currentIndex = statuses.indexOf(albumStatus);
+              const revision = albumStatus === "revision_requested";
               return (
                 <span
                   className={
@@ -1702,7 +2364,7 @@ export function LiveClientDelivery() {
               <ExternalLink /> Watch selection instructions
             </a>
           ) : null}
-          {album.status === "instructions_available" ? (
+          {albumStatus === "instructions_available" ? (
             <PostEventAction
               completedLabel="Instructions viewed"
               input={{
@@ -1718,7 +2380,7 @@ export function LiveClientDelivery() {
             />
           ) : null}
           {["instructions_viewed", "selections_pending"].includes(
-            String(album.status),
+            albumStatus,
           ) ? (
             <PostEventAction
               completedLabel="Selections recorded"
@@ -1734,7 +2396,7 @@ export function LiveClientDelivery() {
               type="updateAlbumStatus"
             />
           ) : null}
-          {album.status === "design_sent" ? (
+          {albumStatus === "design_sent" ? (
             <div className="album-decision-actions">
               {typeof album.designProofUrl === "string" &&
               album.designProofUrl ? (
@@ -1760,23 +2422,32 @@ export function LiveClientDelivery() {
                 label="Approve this design"
                 type="updateAlbumStatus"
               />
-              <PostEventAction
-                completedLabel="Revision requested"
-                input={{
-                  projectId: album.projectId,
-                  albumWorkflowId: album.id,
-                  status: "revision_requested",
-                  evidenceUrl: null,
-                  evidenceId: null,
-                  notes: "Client requested a revision in the portal.",
-                }}
-                label="Request a revision"
-                type="updateAlbumStatus"
+              <button className="button button-light" onClick={() => setRevisionMode(true)} type="button">
+                Request a revision
+              </button>
+            </div>
+          ) : null}
+          {revisionMode ? (
+            <div className="client-album-revision">
+              <label htmlFor="album-revision-notes">What should your photographer change?</label>
+              <textarea
+                id="album-revision-notes"
+                maxLength={2000}
+                onChange={(event) => setRevisionNote(event.target.value)}
+                placeholder="Reference the spread, photograph, crop, layout, or wording and describe the change clearly."
+                rows={4}
+                value={revisionNote}
               />
+              <div>
+                <button className="button button-dark" disabled={albumBusy || revisionNote.trim().length < 10} onClick={() => void requestAlbumRevision()} type="button">
+                  {albumBusy ? "Sending…" : "Send revision notes"}
+                </button>
+                <button className="button button-light" disabled={albumBusy} onClick={() => setRevisionMode(false)} type="button">Cancel</button>
+              </div>
             </div>
           ) : null}
           {["selections_received", "revision_requested", "approved"].includes(
-            String(album.status),
+            albumStatus,
           ) ? (
             <div className="album-studio-working">
               <ShieldCheck />
@@ -1789,9 +2460,10 @@ export function LiveClientDelivery() {
               </span>
             </div>
           ) : null}
-          {album.status === "fulfilled" ? (
+          {albumStatus === "fulfilled" ? (
             <StatusBadge tone="success">Album fulfilled</StatusBadge>
           ) : null}
+          {albumNotice ? <p className="form-notice" role="status">{albumNotice}</p> : null}
         </section>
       ) : null}
     </div>
@@ -1820,7 +2492,18 @@ export function LiveClientReviews() {
           Opening the review site records engagement only. StudioCue never
           claims that a review was posted from a click.
         </p>
-        <a className="button button-dark" href={text(review.destinationUrl)} target="_blank" rel="noreferrer">
+        <a
+          className="button button-dark"
+          href={text(review.destinationUrl)}
+          onClick={() => {
+            void sendPostEventCommand("markReviewOpened", {
+              projectId: review.projectId,
+              reviewRequestId: review.id,
+            });
+          }}
+          target="_blank"
+          rel="noreferrer"
+        >
           <Star /> Open review site
         </a>
         <div className="review-confirm-boundary">

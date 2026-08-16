@@ -10,18 +10,13 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  CalendarDays,
   CircleAlert,
   ClipboardList,
-  CreditCard,
-  FileText,
   FolderOpen,
   Home,
-  Images,
   LockKeyhole,
   Menu,
   MessageCircle,
-  Star,
   UserRound,
   X,
 } from "lucide-react";
@@ -30,81 +25,6 @@ import {
   useWorkspace,
   WorkspaceProvider,
 } from "@/features/auth/workspace-context";
-
-const portalNavSections = [
-  {
-    label: "Your workspace",
-    items: [
-      { label: "Home", icon: Home, href: "/client" },
-      { label: "Project details", icon: CalendarDays, href: "/client/project" },
-      {
-        label: "Schedule",
-        icon: CalendarDays,
-        href: "/client/schedule",
-        capability: "schedule",
-      },
-      {
-        label: "Files",
-        icon: FolderOpen,
-        href: "/client/documents",
-        capability: "files",
-      },
-      { label: "Messages", icon: MessageCircle, href: "/client/messages" },
-    ],
-  },
-  {
-    label: "Booking & planning",
-    items: [
-      {
-        label: "Proposal",
-        icon: FileText,
-        href: "/client/proposal",
-        capability: "proposal",
-      },
-      {
-        label: "Package",
-        icon: FileText,
-        href: "/client/package",
-        capability: "package",
-      },
-      {
-        label: "Contract",
-        icon: FileText,
-        href: "/client/contract",
-        capability: "contract",
-      },
-      {
-        label: "Payments",
-        icon: CreditCard,
-        href: "/client/payments",
-        capability: "payments",
-      },
-      {
-        label: "Questionnaires",
-        icon: ClipboardList,
-        href: "/client/questionnaire",
-        capability: "questionnaire",
-      },
-    ],
-  },
-  {
-    label: "After delivery",
-    items: [
-      {
-        label: "Delivery",
-        icon: Images,
-        href: "/client/delivery",
-        capability: "delivery",
-      },
-      {
-        label: "Reviews",
-        icon: Star,
-        href: "/client/reviews",
-        capability: "reviews",
-      },
-    ],
-  },
-] as const;
 
 const PortalShellContext = createContext(false);
 
@@ -219,6 +139,37 @@ function ClientPortalShell({
   }
 
   const multipleProjects = workspace.clientProjects.length > 1;
+  const nextAction = workspace.clientProject?.nextClientAction;
+  const navItems = [
+    { label: "Overview", icon: Home, href: "/client" },
+    ...(nextAction && !["/client", "/client/messages"].includes(nextAction.href)
+      ? [
+          {
+            label:
+              nextAction.responsibility === "client"
+                ? "Your next step"
+                : "Project status",
+            icon: ClipboardList,
+            href: nextAction.href,
+          },
+        ]
+      : []),
+    { label: "Project records", icon: FolderOpen, href: "/client/documents" },
+    { label: "Messages", icon: MessageCircle, href: "/client/messages" },
+  ];
+  const contextualRoutes = new Set([
+    "/client/project",
+    "/client/proposal",
+    "/client/package",
+    "/client/contract",
+    "/client/payments",
+    "/client/questionnaire",
+    "/client/schedule",
+    "/client/delivery",
+    "/client/reviews",
+  ]);
+
+  if (workspace.loading) return <ClientPortalLoadingShell />;
 
   return (
     <div className="ds-root" data-ds-theme="emerald">
@@ -283,34 +234,29 @@ function ClientPortalShell({
           )}
 
           <nav className="ds-nav" aria-label="Client portal navigation">
-            {portalNavSections.map((section) => {
-              const visibleItems = section.items.filter(
-                (item) =>
-                  !("capability" in item) ||
-                  workspace.clientProject?.navigation[item.capability] === true,
-              );
-              if (!visibleItems.length) return null;
-              return (
-                <div className="ds-nav-section" key={section.label}>
-                  <span className="ds-nav-label">{section.label}</span>
-                  {visibleItems.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <Link
-                        href={item.href}
-                        className="ds-nav-item"
-                        data-active={item.label === resolvedActive ? "true" : "false"}
-                        key={item.label}
-                        onClick={closeNavigation}
-                      >
-                        <Icon size={17} strokeWidth={1.8} />
-                        <span>{item.label}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              );
-            })}
+            <div className="ds-nav-section">
+              <span className="ds-nav-label">Your project</span>
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const activeItem =
+                  pathname === item.href ||
+                  (item.label === "Project records" &&
+                    contextualRoutes.has(pathname) &&
+                    nextAction?.href !== pathname);
+                return (
+                  <Link
+                    href={item.href}
+                    className="ds-nav-item"
+                    data-active={activeItem ? "true" : "false"}
+                    key={`${item.label}-${item.href}`}
+                    onClick={closeNavigation}
+                  >
+                    <Icon size={17} strokeWidth={1.8} />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
           </nav>
 
           <div className="ds-sidebar-foot">
@@ -318,7 +264,7 @@ function ClientPortalShell({
               <UserRound size={16} />
             </span>
             <span className="ds-switcher-copy">
-              <strong>{workspace.userName}</strong>
+              <strong>{workspace.error ? "Client portal" : workspace.userName}</strong>
               <small>Client</small>
             </span>
             <LockKeyhole aria-label="Secure client access" size={15} />
@@ -365,6 +311,40 @@ function ClientPortalShell({
             </div>
           ) : null}
           <main className="ds-content">{children}</main>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ClientPortalLoadingShell() {
+  return (
+    <div className="ds-root client-portal-loading" data-ds-theme="emerald" aria-live="polite">
+      <div className="ds-shell">
+        <aside className="ds-sidebar" aria-label="Opening client portal">
+          <div className="ds-brand-row">
+            <span className="ds-brand">
+              <span className="ds-brand-mark">S</span>
+              <span className="ds-brand-word">Studio<b>Cue</b></span>
+            </span>
+          </div>
+          <div className="client-portal-skeleton-project">
+            <span className="client-portal-skeleton-avatar" />
+            <span><i /><i /></span>
+          </div>
+          <div className="client-portal-skeleton-nav">
+            <i /><i /><i />
+          </div>
+        </aside>
+        <div className="ds-main">
+          <header className="ds-topbar">
+            <span className="ds-crumb"><b>Portal</b></span>
+          </header>
+          <main className="ds-content client-portal-skeleton-content">
+            <span className="auth-loading-spinner" aria-hidden="true" />
+            <strong>Opening your secure project</strong>
+            <small>Loading your approved project details…</small>
+          </main>
         </div>
       </div>
     </div>

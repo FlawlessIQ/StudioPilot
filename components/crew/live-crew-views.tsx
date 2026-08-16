@@ -49,6 +49,7 @@ import { getFirebaseClient } from "@/lib/firebase/client";
 import { sendCrewCommand } from "@/lib/crew/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { withTimeout } from "@/lib/async/with-timeout";
+import { crewPublicError } from "@/lib/crew/public-error";
 
 type Value = Record<string, unknown> & { id: string };
 type CrewData = {
@@ -218,10 +219,11 @@ function useCrewData(): CrewData {
           setState((current) => ({
             ...current,
             loading: false,
-            error:
-              caught instanceof Error
-                ? caught.message
-                : "Crew workspace data could not be loaded.",
+            error: crewPublicError(
+              caught,
+              "Your crew workspace could not be loaded. Try again, or ask the studio to confirm your assignment.",
+              "CREW_WORKSPACE_LOAD_FAILED",
+            ),
           }));
       });
     return () => {
@@ -263,9 +265,14 @@ function CrewState({
           <strong>Crew workspace unavailable</strong>
           <small>{data.error}</small>
         </span>
-        <button className="button button-light button-sm" onClick={workspace.retry} type="button">
-          <RotateCw size={14} /> Try again
-        </button>
+        <span className="crew-state-actions">
+          <button className="button button-light button-sm" onClick={workspace.retry} type="button">
+            <RotateCw size={14} /> Try again
+          </button>
+          <Link className="button button-light button-sm" href="/crew/jobs">
+            Return to jobs
+          </Link>
+        </span>
       </section>
     );
   if (empty)
@@ -421,7 +428,7 @@ function RequirementAction({
       }
       data.refresh();
     } catch (caught: unknown) {
-      setNotice(caught instanceof Error ? caught.message : "Requirement could not be completed.");
+      setNotice(crewPublicError(caught, "The requirement could not be completed.", "CREW_REQUIREMENT_UPDATE_FAILED"));
     } finally {
       setBusy(false);
     }
@@ -472,7 +479,7 @@ function CrewProfileEditor({ data, profile }: { data: CrewData; profile: Value }
       setEditing(false);
       data.refresh();
     } catch (caught: unknown) {
-      setNotice(caught instanceof Error ? caught.message : "Profile could not be updated.");
+      setNotice(crewPublicError(caught, "Your profile could not be updated.", "CREW_PROFILE_UPDATE_FAILED"));
     } finally {
       setBusy(false);
     }
@@ -546,7 +553,7 @@ function StudioContactForm({ assignment, eventDay = false }: { assignment: Value
       setOpen(false);
       setMessageVersion((value) => value + 1);
     } catch (caught: unknown) {
-      setNotice(caught instanceof Error ? caught.message : "Message could not be sent.");
+      setNotice(crewPublicError(caught, "Your message could not be sent.", "CREW_MESSAGE_SEND_FAILED"));
     } finally { setBusy(false); }
   };
   return (
@@ -1028,7 +1035,11 @@ export function LiveCrewSchedule({ context = "schedule" }: { context?: "schedule
           setScheduleState({
             key: scheduleViewKey,
             value: null,
-            error: caught instanceof Error ? caught.message : "Schedule could not load.",
+            error: crewPublicError(
+              caught,
+              "The latest schedule could not be loaded. Try again or return to Jobs.",
+              "CREW_SCHEDULE_LOAD_FAILED",
+            ),
           });
       });
     return () => {
@@ -1304,7 +1315,7 @@ export function LiveCrewCloseout() {
       setNotice("Closeout submitted to the studio for review.");
       data.refresh();
     } catch (caught: unknown) {
-      setNotice(caught instanceof Error ? caught.message : "Closeout could not be submitted.");
+      setNotice(crewPublicError(caught, "Your closeout could not be submitted.", "CREW_CLOSEOUT_SUBMIT_FAILED"));
     } finally { setBusy(false); }
   };
   return (
@@ -1458,7 +1469,7 @@ export function LiveCrewAvailability() {
       data.refresh();
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error ? caught.message : "Availability could not be saved.",
+        crewPublicError(caught, "Your availability could not be saved.", "CREW_AVAILABILITY_SAVE_FAILED"),
       );
     } finally { setBusy(false); }
   }
@@ -1473,7 +1484,7 @@ export function LiveCrewAvailability() {
       setNotice("Availability removed.");
       data.refresh();
     } catch (caught: unknown) {
-      setNotice(caught instanceof Error ? caught.message : "Availability could not be removed.");
+      setNotice(crewPublicError(caught, "Your availability could not be removed.", "CREW_AVAILABILITY_REMOVE_FAILED"));
     } finally { setBusy(false); }
   };
   return (
