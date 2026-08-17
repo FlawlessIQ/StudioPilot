@@ -251,7 +251,7 @@ export default function MarketingHome() {
         <section className="integration-band" id="integrations">
           <p>Works with the tools your studio already trusts</p>
           <div>
-            {["QuickBooks", "Docusign", "Google Calendar", "Dropbox", "Zoom", "Stripe"].map(
+            {["QuickBooks", "Dropbox Sign", "Google Calendar", "Dropbox", "Zoom", "Stripe"].map(
               (name) => (
                 <span key={name}>{name}</span>
               ),

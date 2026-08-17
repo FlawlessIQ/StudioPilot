@@ -213,6 +213,14 @@ const definitions: ReadonlyArray<Definition> = [
   },
 ];
 
+// DocuSign remains implemented server-side so an approved production
+// integration can be restored later, but it must not be offered in the UI
+// until StudioCue has production access.
+const hiddenUiProviders = new Set<Provider>(["docusign"]);
+const visibleDefinitions = definitions.filter(
+  (definition) => !hiddenUiProviders.has(definition.provider),
+);
+
 const enabledOAuthProviders = new Set(
   (process.env.NEXT_PUBLIC_ENABLED_OAUTH_PROVIDERS ?? "")
     .split(",")
@@ -331,8 +339,17 @@ export function IntegrationManager() {
     () =>
       connections.filter(
         (connection) =>
+          !hiddenUiProviders.has(connection.provider) &&
           connection.status === "connected" && connection.mockMode !== true,
       ).length,
+    [connections],
+  );
+
+  const visibleConnections = useMemo(
+    () =>
+      connections.filter(
+        (connection) => !hiddenUiProviders.has(connection.provider),
+      ),
     [connections],
   );
 
@@ -340,16 +357,16 @@ export function IntegrationManager() {
     () =>
       (Object.keys(capabilityCopy) as IntegrationCapability[]).map(
         (capability) => {
-          const eligible = eligibleProvidersFor(capability, connections);
+          const eligible = eligibleProvidersFor(capability, visibleConnections);
           const resolution = resolveActiveProvider({
             capability,
             routing: { selections },
-            connections,
+            connections: visibleConnections,
           });
           return { capability, eligible, resolution };
         },
       ),
-    [connections, selections],
+    [selections, visibleConnections],
   );
 
   async function changeCapabilityProvider(
@@ -551,7 +568,7 @@ export function IntegrationManager() {
       ) : null}
 
       <section className="ds-card ds-int-list" aria-label="Connected providers">
-        {definitions.map((definition) => {
+        {visibleDefinitions.map((definition) => {
           const connection = connections.find(
             (value) => value.provider === definition.provider,
           );
