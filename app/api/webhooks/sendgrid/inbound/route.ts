@@ -1,3 +1,5 @@
+import { functionTarget } from "../../function-target";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -26,14 +28,6 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: "PAYLOAD_TOO_LARGE" }, { status: 413 });
   }
 
-  const origin = process.env.FUNCTIONS_HTTPS_ORIGIN;
-  if (!origin) {
-    return Response.json(
-      { error: "FUNCTION_PROXY_NOT_CONFIGURED" },
-      { status: 503 },
-    );
-  }
-
   let functionName = "sendgridInboundCoi";
   try {
     const fields = await inspectionRequest.formData();
@@ -46,7 +40,13 @@ export async function POST(request: Request): Promise<Response> {
     // Preserve the existing COI path when SendGrid sends an unreadable payload.
   }
 
-  const target = `${origin.replace(/\/$/, "")}/${functionName}`;
+  const target = functionTarget(functionName);
+  if (!target) {
+    return Response.json(
+      { error: "FUNCTION_PROXY_NOT_CONFIGURED" },
+      { status: 503 },
+    );
+  }
   const authorization = await serviceAuthorization(target);
   if (!authorization) {
     return Response.json(

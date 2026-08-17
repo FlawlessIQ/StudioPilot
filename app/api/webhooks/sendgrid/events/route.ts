@@ -1,3 +1,5 @@
+import { functionTarget } from "../../function-target";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const maxBytes = 2 * 1024 * 1024;
@@ -10,10 +12,9 @@ export async function POST(request: Request): Promise<Response> {
   const body = await request.arrayBuffer();
   if (body.byteLength > maxBytes)
     return Response.json({ error: "PAYLOAD_TOO_LARGE" }, { status: 413 });
-  const origin = process.env.FUNCTIONS_HTTPS_ORIGIN;
-  if (!origin)
+  const target = functionTarget("sendgridEventWebhook");
+  if (!target)
     return Response.json({ error: "FUNCTION_PROXY_NOT_CONFIGURED" }, { status: 503 });
-  const target = `${origin.replace(/\/$/, "")}/sendgridEventWebhook`;
   const { GoogleAuth } = await import("google-auth-library");
   const client = await new GoogleAuth().getIdTokenClient(target);
   const authorization = (await client.getRequestHeaders(target)).get("authorization");
