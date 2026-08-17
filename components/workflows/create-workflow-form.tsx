@@ -61,7 +61,7 @@ const automationChoices = [
   {
     key: "complete-contract-checkpoint",
     name: "Complete the contract checkpoint",
-    detail: "Use the Docusign completion event as deterministic evidence.",
+    detail: "Use the connected signing provider's completion event as deterministic evidence.",
     trigger: "contract_completed",
     actions: [
       {
