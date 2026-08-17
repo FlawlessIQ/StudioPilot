@@ -26,7 +26,7 @@ required before a provider may be added to
 | Google Calendar | Enabled | Connect, refresh, read availability, create and delete a test consultation. |
 | Zoom | Temporarily unavailable | Add an enabled `ZOOM_WEBHOOK_SECRET_TOKEN` version, deploy the webhook, validate the production endpoint in Zoom Marketplace, then connect, refresh, create a test meeting, and receive a signed webhook. |
 | Dropbox | Enabled | Connect, refresh, create the StudioCue project root, and write a test folder. |
-| Dropbox Sign | Enabled | Connect, refresh with app credentials, create a test signature request, and receive the signed callback. |
+| Dropbox Sign | Enabled | Connect, refresh through the provider refresh endpoint, create a test signature request, and receive the signed callback. |
 | SendGrid | Email delivery enabled; inbound DNS pending | Domain authentication, signed Event Webhook, inbound parse token, and `inbound.studio-cue.com` MX priority 10 to `mx.sendgrid.net`. |
 | Stripe Billing | Enabled | Live products/prices, 14-day Checkout trial, subscription webhook, and portal test. |
 | Stripe Connect | Pending webhook completion | Give the production restricted key Webhook Endpoints write access (or create the endpoint manually), create the live Connect webhook for `/api/webhooks/stripe-connect`, store its signing secret, deploy the bound function, and test an invoice event. |
