@@ -153,7 +153,7 @@ export async function checkProviderConnection(tenantId:string,provider:Provider)
   const probes:Record<Provider,()=>Promise<Response>>={
     google_calendar:()=>fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=1",{headers:{authorization:`Bearer ${credential.accessToken}`}}),
     zoom:()=>fetch("https://api.zoom.us/v2/users/me/meetings?page_size=1",{headers:{authorization:`Bearer ${credential.accessToken}`}}),
-    dropbox:()=>fetch("https://api.dropboxapi.com/2/users/get_current_account",{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`}}),
+    dropbox:()=>fetch("https://api.dropboxapi.com/2/files/list_folder",{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/json"},body:JSON.stringify({path:"",recursive:false,include_deleted:false,limit:1})}),
     docusign:()=>fetch(docusignUserInfoUrl(),{headers:{authorization:`Bearer ${credential.accessToken}`}}),
     dropbox_sign:()=>fetch("https://api.hellosign.com/v3/account",{headers:{authorization:`Bearer ${credential.accessToken}`}}),
     stripe:()=>fetch("https://api.stripe.com/v1/account",{headers:{authorization:`Bearer ${credential.accessToken}`}}),
