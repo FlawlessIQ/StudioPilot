@@ -23,15 +23,15 @@ required before a provider may be added to
 
 | Provider | Current launch status | Required final evidence |
 | --- | --- | --- |
-| Google Calendar | Enabled | Connect, refresh, read availability, create and delete a test consultation. |
-| Zoom | Temporarily unavailable | Add an enabled `ZOOM_WEBHOOK_SECRET_TOKEN` version, deploy the webhook, validate the production endpoint in Zoom Marketplace, then connect, refresh, create a test meeting, and receive a signed webhook. |
-| Dropbox | Enabled | Connect, refresh, create the StudioCue project root, and write a test folder. |
-| Dropbox Sign | Enabled | Connect, refresh through the provider refresh endpoint, create a test signature request, and receive the signed callback. |
-| SendGrid | Email delivery enabled; inbound DNS pending | Domain authentication, signed Event Webhook, inbound parse token, and `inbound.studio-cue.com` MX priority 10 to `mx.sendgrid.net`. |
-| Stripe Billing | Enabled | Live products/prices, 14-day Checkout trial, subscription webhook, and portal test. |
-| Stripe Connect | Pending webhook completion | Give the production restricted key Webhook Endpoints write access (or create the endpoint manually), create the live Connect webhook for `/api/webhooks/stripe-connect`, store its signing secret, deploy the bound function, and test an invoice event. |
-| QuickBooks Online | Deliberately disabled | Intuit production approval, live client credentials, canonical callback, signed webhook, connect/refresh test, and customer/invoice sync test. |
-| Docusign | Deliberately disabled | Production integration key approval, live credentials, canonical callback, Connect HMAC webhook, connect/refresh test, and envelope completion test. |
+| Google Calendar | Enabled and production-verified | Production OAuth refresh and Calendar API probe passed on August 17, 2026. Complete a create/delete consultation acceptance test after the next user connection. |
+| Zoom | Enabled for reconnection | The production client secret and webhook token are configured, but the saved tenant refresh token was revoked. Reconnect Zoom, then create/delete a test meeting and validate a signed webhook. |
+| Dropbox | Enabled and production-verified | Production OAuth refresh and file metadata probe passed on August 17, 2026. Complete a folder create/delete acceptance test after the next project run. |
+| Dropbox Sign | Deliberately hidden; backend verified | Owner-account OAuth refresh, account probe, callback configuration, and webhook handshake passed. The API app reports `is_approved=false`; submit the OAuth app review with a complete demo before public enablement. |
+| SendGrid | Outbound and inbound enabled | Domain authentication and inbound MX are live. Signed StudioCue delivery-event analytics require an isolated SendGrid account or subuser because the shared account's single Event Webhook belongs to another product. |
+| Stripe Billing | Enabled and production-verified | Live products/prices, 14-day Checkout trial, subscription webhook, and billing portal are configured. |
+| Stripe Connect | Enabled and production-verified | The live Connect invoice webhook and signing secret are configured and deployed. |
+| QuickBooks Online | Deliberately disabled | The app assessment was submitted, but the saved OAuth company is a sandbox realm: sandbox API probe passes and production returns 403. Obtain Intuit production access, then reconnect a live company and run customer/invoice sync. |
+| Docusign | Deliberately hidden | The production request was declined. The implementation remains dormant; Dropbox Sign is the preferred e-signature path once its OAuth app is approved. |
 
 ## Canonical provider endpoints
 
@@ -59,10 +59,12 @@ For every provider test, record the date, tenant, test object ID, result, and an
 cleanup performed. Do not paste access tokens, refresh tokens, API keys, webhook
 signing secrets, client secrets, or raw authorization codes into this file.
 
-## Deferred providers
+## Deferred or approval-gated providers
 
-Zoom, QuickBooks Online, and Docusign remain intentionally disabled. Enabling
-any of them before its production requirements are complete would present
-users with a connection that cannot reliably complete. Add the provider to
+QuickBooks Online, Dropbox Sign, and Docusign remain intentionally hidden.
+Enabling any of them before its external production requirements are complete
+would present users with a connection that cannot reliably finish. Zoom stays
+visible specifically so the studio owner can replace the revoked token through
+the normal reconnect flow. Add a hidden provider to
 `NEXT_PUBLIC_ENABLED_OAUTH_PROVIDERS` only after every item in its
 final-evidence column has passed.

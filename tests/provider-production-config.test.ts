@@ -48,9 +48,9 @@ test("refresh transport matches provider requirements", () => {
     oauthRefreshTokenUrl("dropbox_sign"),
     "https://app.hellosign.com/oauth/token?refresh",
   );
-  assert.equal(refreshNeedsClientCredentials("dropbox_sign"), false);
+  assert.equal(refreshNeedsClientCredentials("dropbox_sign"), true);
   assert.equal(refreshCredentialsInRequestBody("google_calendar"), true);
-  assert.equal(refreshCredentialsInRequestBody("dropbox_sign"), false);
+  assert.equal(refreshCredentialsInRequestBody("dropbox_sign"), true);
   assert.equal(refreshCredentialsInRequestBody("zoom"), false);
   assert.equal(refreshNeedsClientCredentials("quickbooks"), true);
 });

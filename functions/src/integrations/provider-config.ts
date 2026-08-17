@@ -43,14 +43,15 @@ export function oauthRefreshTokenUrl(provider: OAuthProvider): string {
 export function refreshCredentialsInRequestBody(
   provider: OAuthProvider,
 ): boolean {
-  return provider === "google_calendar";
+  return provider === "google_calendar" || provider === "dropbox_sign";
 }
 
 export function refreshNeedsClientCredentials(
   provider: OAuthProvider,
 ): boolean {
   // Stripe Connect credentials are platform-managed and do not use this OAuth
-  // refresh path. Dropbox Sign's refresh endpoint accepts the refresh token
-  // without resending the app credentials.
-  return provider !== "stripe" && provider !== "dropbox_sign";
+  // refresh path. Dropbox Sign's live refresh endpoint requires client_id and
+  // client_secret in the form body even though its public walkthrough only
+  // documents grant_type and refresh_token.
+  return provider !== "stripe";
 }
