@@ -1,3 +1,5 @@
+import { functionTarget } from "./function-target";
+
 export const maxProviderWebhookBytes = 2 * 1024 * 1024;
 
 type RelayConfig = {
@@ -47,15 +49,14 @@ export async function relayProviderWebhook(
     return Response.json({ error: "PAYLOAD_TOO_LARGE" }, { status: 413 });
   }
 
-  const origin = process.env.FUNCTIONS_HTTPS_ORIGIN;
-  if (!origin) {
+  const target = functionTarget(config.functionName);
+  if (!target) {
     return Response.json(
       { error: "FUNCTION_PROXY_NOT_CONFIGURED" },
       { status: 503 },
     );
   }
 
-  const target = `${origin.replace(/\/$/, "")}/${config.functionName}`;
   const authorization = await serviceAuthorization(target);
   if (!authorization) {
     return Response.json(

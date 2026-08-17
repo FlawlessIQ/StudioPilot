@@ -1,3 +1,5 @@
+import { functionTarget } from "../../function-target";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -17,10 +19,9 @@ export async function POST(request: Request): Promise<Response> {
   const body = await request.arrayBuffer();
   if (body.byteLength > maxInboundBytes)
     return Response.json({ error: "PAYLOAD_TOO_LARGE" }, { status: 413 });
-  const origin = process.env.FUNCTIONS_HTTPS_ORIGIN;
-  if (!origin)
+  const target = functionTarget("sendgridInboundGallery");
+  if (!target)
     return Response.json({ error: "FUNCTION_PROXY_NOT_CONFIGURED" }, { status: 503 });
-  const target = `${origin.replace(/\/$/, "")}/sendgridInboundGallery`;
   const authorization = await serviceAuthorization(target);
   if (!authorization)
     return Response.json({ error: "SERVICE_IDENTITY_UNAVAILABLE" }, { status: 503 });

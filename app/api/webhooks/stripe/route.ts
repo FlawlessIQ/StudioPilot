@@ -1,3 +1,5 @@
+import { functionTarget } from "../function-target";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -33,15 +35,14 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: "PAYLOAD_TOO_LARGE" }, { status: 413 });
   }
 
-  const origin = process.env.FUNCTIONS_HTTPS_ORIGIN;
-  if (!origin) {
+  const target = functionTarget("stripeWebhook");
+  if (!target) {
     return Response.json(
       { error: "FUNCTION_PROXY_NOT_CONFIGURED" },
       { status: 503 },
     );
   }
 
-  const target = `${origin.replace(/\/$/, "")}/stripeWebhook`;
   const authorization = await serviceAuthorization(target);
   if (!authorization) {
     return Response.json(
