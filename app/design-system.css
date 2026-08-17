@@ -2373,6 +2373,10 @@
   width: 18px;
   height: 18px;
 }
+.provider-stripe {
+  background: #f1edff;
+  color: #635bff;
+}
 
 .ds-int-copy {
   min-width: 0;

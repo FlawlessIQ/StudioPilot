@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   CalendarDays,
   CheckCircle2,
+  CircleDollarSign,
   FileSignature,
   HardDrive,
   Landmark,
@@ -20,7 +21,7 @@ import {
 import { StatusBadge } from "@/components/ui/status-badge";
 import { getOptionalAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
-import { dataIsLive, providersAreLive } from "@/lib/runtime-mode";
+import { dataIsLive } from "@/lib/runtime-mode";
 import { setCapabilityProvider } from "@/lib/integrations/command-client";
 import {
   eligibleProvidersFor,
@@ -200,6 +201,16 @@ const definitions: ReadonlyArray<Definition> = [
     icon: FileSignature,
     accent: "dropbox",
   },
+  {
+    provider: "stripe",
+    label: "Stripe",
+    description:
+      "Create client invoices in the studio’s connected account and reconcile payment status.",
+    scope: "Studio-owned payments account",
+    capabilities: ["Customers", "Invoices", "Payment status"],
+    icon: CircleDollarSign,
+    accent: "stripe",
+  },
 ];
 
 const enabledOAuthProviders = new Set(
@@ -210,7 +221,7 @@ const enabledOAuthProviders = new Set(
 );
 
 const oauthEnabled = (provider: Provider) =>
-  providersAreLive || enabledOAuthProviders.has(provider);
+  enabledOAuthProviders.has(provider);
 
 const callbackErrors: Record<string, string> = {
   GOOGLE_CLOUD_PROJECT_REQUIRED:
@@ -584,7 +595,7 @@ export function IntegrationManager() {
                   ? "Connected"
                   : available
                     ? "Ready to connect"
-                    : "Development mode"}
+                    : "Setup required"}
               </StatusBadge>
               <span className="ds-int-health">
                 <small>Health</small>
@@ -620,7 +631,7 @@ export function IntegrationManager() {
                   <button
                     className="ds-btn ds-btn-primary ds-btn-sm"
                     type="button"
-                    disabled={!ready || busy}
+                    disabled={!available || !ready || busy}
                     onClick={() => void connect(definition.provider)}
                   >
                     {busy ? (
@@ -628,7 +639,7 @@ export function IntegrationManager() {
                     ) : (
                       <ArrowUpRight size={14} />
                     )}
-                    {available ? "Connect" : "View setup"}
+                    {available ? "Connect" : "Unavailable"}
                   </button>
                 )}
               </div>

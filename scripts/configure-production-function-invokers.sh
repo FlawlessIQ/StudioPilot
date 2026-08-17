@@ -25,6 +25,7 @@ app_services=(
   dropboxsignwebhook
   docusignwebhook
   integrationoauth
+  integrationoautheast4
   membershipcommand
   planningcommand
   posteventcommand
@@ -35,6 +36,8 @@ app_services=(
   saasadmincommand
   sendgrideventwebhook
   sendgridinboundcoi
+  sendgridinboundgallery
+  stripeconnectwebhook
   stripewebhook
   studioimportcommand
   supporttenantsummary
@@ -43,6 +46,7 @@ app_services=(
   tenantexportdownload
   tenantonboardingcommand
   workflowcommand
+  zoomwebhook
 )
 
 scheduler_services=(

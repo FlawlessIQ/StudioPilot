@@ -10,6 +10,11 @@ import {
 import { studioHubCors } from "../security/cors.js";
 import { checkProviderConnection } from "../operations/provider-runtime.js";
 import { providerUsesPkce } from "./oauth-strategy.js";
+import {
+  docusignOAuthBaseUrl,
+  docusignUserInfoUrl,
+  quickBooksApiBaseUrl,
+} from "./provider-config.js";
 
 const providerSchema = z.enum([
   "google_calendar",
@@ -86,8 +91,8 @@ const config = (provider: Provider): Config => {
       extra: { token_access_type: "offline" },
     },
     docusign: {
-      authorizeUrl: "https://account-d.docusign.com/oauth/auth",
-      tokenUrl: "https://account-d.docusign.com/oauth/token",
+      authorizeUrl: `${docusignOAuthBaseUrl()}/oauth/auth`,
+      tokenUrl: `${docusignOAuthBaseUrl()}/oauth/token`,
       scopes: ["signature", "extended"],
       extra: {},
     },
@@ -411,7 +416,7 @@ export const integrationOAuth = onRequest(
       let displayName: string = provider;
       if (provider === "docusign") {
         const userInfo = await fetch(
-          "https://account-d.docusign.com/oauth/userinfo",
+          docusignUserInfoUrl(),
           {
             headers: { authorization: `Bearer ${String(token.access_token)}` },
           },
@@ -457,6 +462,7 @@ export const integrationOAuth = onRequest(
         displayName = body.display_name ?? body.email ?? provider;
       } else if (provider === "quickbooks") {
         credential.realmId = accountId;
+        credential.baseUrl = quickBooksApiBaseUrl();
       } else if (provider === "stripe") {
         // Connect returns the connected account id directly in the token
         // response — no separate userinfo call needed.

@@ -54,7 +54,7 @@ env:
     availability:
       - RUNTIME
   - variable: INTEGRATION_OAUTH_FUNCTION_URL
-    value: https://us-east4-studiohub-prod.cloudfunctions.net/integrationOAuth
+    value: https://us-east4-studiohub-prod.cloudfunctions.net/integrationOAuthEast4
     availability:
       - RUNTIME
   - variable: NEXT_PUBLIC_CRM_FUNCTIONS_URL
@@ -133,7 +133,7 @@ env:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_ENABLED_OAUTH_PROVIDERS
-    value: dropbox,dropbox_sign,google_calendar,zoom
+    value: dropbox,dropbox_sign,google_calendar
     availability:
       - BUILD
       - RUNTIME

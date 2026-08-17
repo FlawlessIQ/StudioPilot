@@ -20,10 +20,12 @@ trackers, or support messages.
 - authenticate the sending domain and verify the production From address
 - choose an inbound subdomain, create the required MX record, and configure
   SendGrid Inbound Parse to:
-  `https://studiohub--studiohub-prod.us-east4.hosted.app/api/webhooks/sendgrid/inbound?token=...`
+  `https://studio-cue.com/api/webhooks/sendgrid/inbound?token=...`
+- confirm `inbound.studio-cue.com` has an MX record with priority `10` pointing
+  to `mx.sendgrid.net`
 - set the matching `SENDGRID_INBOUND_DOMAIN`
 - enable the SendGrid Event Webhook at:
-  `https://studiohub--studiohub-prod.us-east4.hosted.app/api/webhooks/sendgrid/events`
+  `https://studio-cue.com/api/webhooks/sendgrid/events`
 - enable signed event webhooks and store the public verification key as
   `SENDGRID_WEBHOOK_VERIFICATION_KEY`
 - test delivery, bounce, open, click, unsubscribe, a valid COI PDF reply, a
@@ -55,6 +57,12 @@ pilot account:
   connect the correct company; map products/tax codes; test customer matching,
   retainer/final invoice, partial payment, refund, void, hosted link, and
   reconciliation
+- Dropbox Sign: provide the production client/secret and API key; verify the
+  callback and event endpoint; test template roles, decline, cancellation,
+  completion evidence, and completed-document retrieval
+- Stripe Connect: configure the production Connect client ID and separate
+  connected-account webhook; test customer matching, retainer/final invoice,
+  partial payment, failure, void, and reconciliation in the studio-owned account
 
 After successful provider acceptance testing, explicitly change
 `PROVIDER_MOCK_MODE` to `false`. Do not change this flag merely because OAuth
@@ -71,6 +79,8 @@ completed.
 - perform one real low-value end-to-end subscription with a controlled account,
   confirm webhook entitlement updates, then refund it
 - decide whether sales tax will be handled by Stripe Tax or external advice
+- confirm new Checkout sessions receive the application-enforced 14-day trial;
+  the immutable Stripe Price objects intentionally do not carry a default trial
 
 ## 5. Twilio and SMS
 

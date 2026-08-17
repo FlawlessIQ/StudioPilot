@@ -9,8 +9,10 @@ Docusign completion stores provider evidence without changing the signed PDF. Qu
 The public provider destinations are:
 
 ```text
-https://studiohub--studiohub-prod.us-east4.hosted.app/api/webhooks/docusign
-https://studiohub--studiohub-prod.us-east4.hosted.app/api/webhooks/quickbooks
+https://studio-cue.com/api/webhooks/docusign
+https://studio-cue.com/api/webhooks/quickbooks
+https://studio-cue.com/api/webhooks/dropbox-sign
+https://studio-cue.com/api/webhooks/stripe-connect
 ```
 
 The public routes preserve the exact request bytes and provider signature
@@ -28,6 +30,20 @@ development verifier token as `QUICKBOOKS_WEBHOOK_VERIFIER_TOKEN`. QuickBooks
 notifications enqueue invoice reconciliation jobs so the listener can
 acknowledge promptly and the worker can fetch the authoritative balance.
 
+Dropbox Sign sends signature-request callbacks to its dedicated endpoint. The
+handler verifies the provider event hash with `DROPBOX_SIGN_API_KEY`, stores the
+provider event once, and records completion evidence without trusting browser
+state.
+
+Stripe Connect client-invoice events are deliberately separate from StudioCue
+subscription billing. Create a Connect endpoint with `connect=true`, store its
+one-time signing secret as `STRIPE_CONNECT_WEBHOOK_SECRET`, and subscribe only
+to:
+
+- `invoice.paid`
+- `invoice.payment_failed`
+- `invoice.voided`
+
 Milestone 8 adds `stripeWebhook`. It verifies Stripe's timestamped HMAC against
 the raw body, rejects stale signatures, maps configured price IDs to normalized
 plan/cadence values, and snapshots entitlements. A deterministic
@@ -37,7 +53,7 @@ or tenantless events are retained as ignored evidence rather than guessed.
 The production Stripe destination is:
 
 ```text
-https://studiohub--studiohub-prod.us-east4.hosted.app/api/webhooks/stripe
+https://studio-cue.com/api/webhooks/stripe
 ```
 
 This dedicated App Hosting route is the only public Stripe surface. It requires
@@ -59,11 +75,13 @@ runtime can invoke `stripewebhook`.
 Provider OAuth callbacks use:
 
 ```text
-https://studiohub--studiohub-prod.us-east4.hosted.app/api/integrations/oauth/callback
+https://studio-cue.com/api/integrations/oauth/callback
 ```
 
 The public callback validates bounded state/code parameters, forwards to the
 private `integrationOAuth` Function with Google service identity, and permits
-redirects only back to the configured StudioCue application origin. Dropbox is
-the first independently enabled OAuth provider; activating another provider
-requires adding its Function secret binding and public activation flag.
+redirects only back to the configured StudioCue application origin. Production
+providers are enabled individually through
+`NEXT_PUBLIC_ENABLED_OAUTH_PROVIDERS`; a provider stays visibly unavailable
+until its exact callback, credentials, webhook signing, and acceptance test are
+complete.

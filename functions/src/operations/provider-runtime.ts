@@ -2,6 +2,13 @@ import { createHash } from "node:crypto";
 import { getFirestore,type DocumentSnapshot } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { buildIntegrationDiagnostics } from "../integrations/diagnostics.js";
+import {
+  docusignUserInfoUrl,
+  oauthRefreshTokenUrl,
+  quickBooksApiBaseUrl,
+  refreshCredentialsInRequestBody,
+  refreshNeedsClientCredentials,
+} from "../integrations/provider-config.js";
 import { consumeAiQuota } from "../saas/usage.js";
 import { productEvent } from "./product-events.js";
 
@@ -41,35 +48,24 @@ async function readSecret(reference:string):Promise<Credential>{
   };
 }
 const clientPrefix=(provider:Provider)=>provider==="google_calendar"?"GOOGLE_CALENDAR":provider.toUpperCase();
-const tokenUrl=(provider:Provider)=>({
-  google_calendar:"https://oauth2.googleapis.com/token",
-  zoom:"https://zoom.us/oauth/token",
-  dropbox:"https://api.dropboxapi.com/oauth2/token",
-  docusign:"https://account-d.docusign.com/oauth/token",
-  dropbox_sign:"https://app.hellosign.com/oauth/token",
-  quickbooks:"https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer",
-  // Unreachable in practice: Stripe Connect credentials are stored with no
-  // expiresAt (see oauth.ts), so refreshCredential's early-return means
-  // this is never actually called for stripe. Present only so the map
-  // stays exhaustive over Provider.
-  stripe:"https://connect.stripe.com/oauth/token",
-})[provider];
 async function refreshCredential(reference:string,provider:Provider,current:Credential):Promise<Credential>{
   if(!current.expiresAt||new Date(current.expiresAt).valueOf()>Date.now()+5*60_000)return current;
   if(!current.refreshToken)throw new Error(`${provider.toUpperCase()}_REAUTHORIZATION_REQUIRED`);
-  const prefix=clientPrefix(provider);
-  const clientId=process.env[`${prefix}_CLIENT_ID`];
-  const clientSecret=process.env[`${prefix}_CLIENT_SECRET`];
-  if(!clientId||!clientSecret)throw new Error(`${provider.toUpperCase()}_REFRESH_NOT_CONFIGURED`);
   const params=new URLSearchParams({grant_type:"refresh_token",refresh_token:current.refreshToken});
   const headers:Record<string,string>={"content-type":"application/x-www-form-urlencoded"};
-  if(provider==="google_calendar"){
-    params.set("client_id",clientId);
-    params.set("client_secret",clientSecret);
-  }else{
-    headers.authorization=`Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`;
+  if(refreshNeedsClientCredentials(provider)){
+    const prefix=clientPrefix(provider);
+    const clientId=process.env[`${prefix}_CLIENT_ID`];
+    const clientSecret=process.env[`${prefix}_CLIENT_SECRET`];
+    if(!clientId||!clientSecret)throw new Error(`${provider.toUpperCase()}_REFRESH_NOT_CONFIGURED`);
+    if(refreshCredentialsInRequestBody(provider)){
+      params.set("client_id",clientId);
+      params.set("client_secret",clientSecret);
+    }else{
+      headers.authorization=`Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`;
+    }
   }
-  const response=await fetch(tokenUrl(provider),{method:"POST",headers,body:params});
+  const response=await fetch(oauthRefreshTokenUrl(provider),{method:"POST",headers,body:params});
   const body=asRecord(await response.json().catch(()=>({})));
   const accessToken=text(body.access_token);
   if(!response.ok||!accessToken)throw new Error(`${provider.toUpperCase()}_TOKEN_REFRESH_FAILED`);
@@ -158,10 +154,10 @@ export async function checkProviderConnection(tenantId:string,provider:Provider)
     google_calendar:()=>fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=1",{headers:{authorization:`Bearer ${credential.accessToken}`}}),
     zoom:()=>fetch("https://api.zoom.us/v2/users/me/meetings?page_size=1",{headers:{authorization:`Bearer ${credential.accessToken}`}}),
     dropbox:()=>fetch("https://api.dropboxapi.com/2/users/get_current_account",{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`}}),
-    docusign:()=>fetch("https://account-d.docusign.com/oauth/userinfo",{headers:{authorization:`Bearer ${credential.accessToken}`}}),
+    docusign:()=>fetch(docusignUserInfoUrl(),{headers:{authorization:`Bearer ${credential.accessToken}`}}),
     dropbox_sign:()=>fetch("https://api.hellosign.com/v3/account",{headers:{authorization:`Bearer ${credential.accessToken}`}}),
     stripe:()=>fetch("https://api.stripe.com/v1/account",{headers:{authorization:`Bearer ${credential.accessToken}`}}),
-    quickbooks:()=>fetch(`https://quickbooks.api.intuit.com/v3/company/${encodeURIComponent(credential.realmId??String(current.document.get("providerAccountId")??""))}/companyinfo/${encodeURIComponent(credential.realmId??String(current.document.get("providerAccountId")??""))}?minorversion=75`,{headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json"}}),
+    quickbooks:()=>fetch(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(credential.realmId??String(current.document.get("providerAccountId")??""))}/companyinfo/${encodeURIComponent(credential.realmId??String(current.document.get("providerAccountId")??""))}?minorversion=75`,{headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json"}}),
   };
   const response=await probes[provider]();
   const latencyMs=Date.now()-startedAt;
@@ -427,7 +423,7 @@ async function quickBooksCustomerId(
   const email=text(contact.get("email"));
   const displayName=text(contact.get("displayName"))||email;
   if(!email||!displayName)throw new Error("QUICKBOOKS_CUSTOMER_DETAILS_MISSING");
-  const base=credential.baseUrl??"https://sandbox-quickbooks.api.intuit.com";
+  const base=quickBooksApiBaseUrl(credential.baseUrl);
   const escapedEmail=email.replaceAll("'","\\'");
   const query=encodeURIComponent(`select * from Customer where PrimaryEmailAddr = '${escapedEmail}' maxresults 1`);
   const found=await providerJson(`${base}/v3/company/${encodeURIComponent(realmId)}/query?query=${query}&minorversion=75`,{headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json"}},"QUICKBOOKS_CUSTOMER_SEARCH_FAILED");
@@ -499,11 +495,11 @@ export async function createStripeInvoice(job:DocumentSnapshot){const db=getFire
 
 export async function createQuickBooksInvoice(job:DocumentSnapshot){const db=getFirestore();const invoiceId=String(job.get("invoiceId"));const reference=db.doc(`invoiceReferences/${invoiceId}`);const invoice=await reference.get();if(!invoice.exists)throw new Error("INVOICE_NOT_FOUND");
   if(invoice.get("providerState")==="completed")return{invoiceId,providerInvoiceId:invoice.get("providerInvoiceId")};
-  const tenantId=String(job.get("tenantId"));const provider=await connection(tenantId,"quickbooks");let providerInvoiceId:string;let providerCustomerId=text(invoice.get("providerCustomerId"));let balanceCents=Number(invoice.get("balanceCents"));if(provider.mock){providerInvoiceId=mockId("qbo_invoice",job.id);providerCustomerId=providerCustomerId.startsWith("pending_")?mockId("qbo_customer",String(invoice.get("projectId"))):providerCustomerId}else{const credential=provider.credential;const realmId=credential?.realmId??String(provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");providerCustomerId=await quickBooksCustomerId(tenantId,String(invoice.get("projectId")),invoice,credential,realmId,String(job.get("idempotencyKey")??job.id));const value=await providerJson(`${credential.baseUrl??"https://sandbox-quickbooks.api.intuit.com"}/v3/company/${encodeURIComponent(realmId)}/invoice?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/json","request-id":String(job.get("idempotencyKey")??job.id)},body:JSON.stringify({CustomerRef:{value:providerCustomerId},DueDate:invoice.get("dueDate"),PrivateNote:`StudioCue ${invoiceId}`,Line:[{Amount:Number(invoice.get("amountCents"))/100,DetailType:"SalesItemLineDetail",Description:String(invoice.get("kind"))}]})},"QUICKBOOKS_CREATE_FAILED");const created=asRecord(value.Invoice);providerInvoiceId=text(created.Id);balanceCents=Math.round(number(created.Balance)*100)}
+  const tenantId=String(job.get("tenantId"));const provider=await connection(tenantId,"quickbooks");let providerInvoiceId:string;let providerCustomerId=text(invoice.get("providerCustomerId"));let balanceCents=Number(invoice.get("balanceCents"));if(provider.mock){providerInvoiceId=mockId("qbo_invoice",job.id);providerCustomerId=providerCustomerId.startsWith("pending_")?mockId("qbo_customer",String(invoice.get("projectId"))):providerCustomerId}else{const credential=provider.credential;const realmId=credential?.realmId??String(provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");providerCustomerId=await quickBooksCustomerId(tenantId,String(invoice.get("projectId")),invoice,credential,realmId,String(job.get("idempotencyKey")??job.id));const value=await providerJson(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}/invoice?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/json","request-id":String(job.get("idempotencyKey")??job.id)},body:JSON.stringify({CustomerRef:{value:providerCustomerId},DueDate:invoice.get("dueDate"),PrivateNote:`StudioCue ${invoiceId}`,Line:[{Amount:Number(invoice.get("amountCents"))/100,DetailType:"SalesItemLineDetail",Description:String(invoice.get("kind"))}]})},"QUICKBOOKS_CREATE_FAILED");const created=asRecord(value.Invoice);providerInvoiceId=text(created.Id);balanceCents=Math.round(number(created.Balance)*100)}
   if(!providerInvoiceId)throw new Error("QUICKBOOKS_INVOICE_ID_MISSING");const now=new Date().toISOString();await reference.update({providerInvoiceId,providerCustomerId,balanceCents,status:"sent",providerState:"completed",lastSyncedAt:now,updatedAt:now,updatedBy:"provider-worker"});return{invoiceId,providerInvoiceId}}
 
 export async function reconcileQuickBooksInvoice(job:DocumentSnapshot){const db=getFirestore();const invoiceId=String(job.get("invoiceId"));const reference=db.doc(`invoiceReferences/${invoiceId}`);const invoice=await reference.get();if(!invoice.exists)throw new Error("INVOICE_NOT_FOUND");const providerInvoiceId=String(job.get("providerInvoiceId")??invoice.get("providerInvoiceId")??"");if(!providerInvoiceId)throw new Error("QUICKBOOKS_INVOICE_ID_MISSING");const operation=String(job.get("operation")??"").toLowerCase();let status:string;let balanceCents:number;
-  if(["delete","deleted","void","voided"].includes(operation)){status="voided";balanceCents=0}else{const provider=await connection(String(job.get("tenantId")),"quickbooks");if(provider.mock){status=String(invoice.get("status")??"sent");balanceCents=Number(invoice.get("balanceCents")??0)}else{const credential=provider.credential;const realmId=credential?.realmId??String(job.get("realmId")??provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");const value=await providerJson(`${credential.baseUrl??"https://sandbox-quickbooks.api.intuit.com"}/v3/company/${encodeURIComponent(realmId)}/invoice/${encodeURIComponent(providerInvoiceId)}?minorversion=75`,{headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/json"}},"QUICKBOOKS_INVOICE_READ_FAILED");const current=asRecord(value.Invoice);balanceCents=Math.max(0,Math.round(number(current.Balance)*100));const totalCents=Math.max(0,Math.round(number(current.TotalAmt)*100));status=balanceCents===0?"paid":balanceCents<totalCents?"partially_paid":"sent"}}
+  if(["delete","deleted","void","voided"].includes(operation)){status="voided";balanceCents=0}else{const provider=await connection(String(job.get("tenantId")),"quickbooks");if(provider.mock){status=String(invoice.get("status")??"sent");balanceCents=Number(invoice.get("balanceCents")??0)}else{const credential=provider.credential;const realmId=credential?.realmId??String(job.get("realmId")??provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");const value=await providerJson(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}/invoice/${encodeURIComponent(providerInvoiceId)}?minorversion=75`,{headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/json"}},"QUICKBOOKS_INVOICE_READ_FAILED");const current=asRecord(value.Invoice);balanceCents=Math.max(0,Math.round(number(current.Balance)*100));const totalCents=Math.max(0,Math.round(number(current.TotalAmt)*100));status=balanceCents===0?"paid":balanceCents<totalCents?"partially_paid":"sent"}}
   const now=new Date().toISOString();const batch=db.batch();batch.update(reference,{status,balanceCents,lastProviderEventId:String(job.get("idempotencyKey")??job.id),lastSyncedAt:String(job.get("occurredAt")??now),providerState:"completed",updatedAt:now,updatedBy:"quickbooks-reconciliation"});const webhookEventId=String(job.get("webhookEventId")??"");if(webhookEventId)batch.update(db.doc(`webhookEvents/${webhookEventId}`),{status:"processed",processedAt:now});await batch.commit();return{invoiceId,providerInvoiceId,status,balanceCents}}
 
 async function dropboxFolder(accessToken:string,path:string){

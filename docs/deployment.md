@@ -11,15 +11,19 @@ The production Firebase project is `studiohub-prod` (project number
 - Firebase App Hosting in `us-east4`
 - Production URL:
   `https://studiohub--studiohub-prod.us-east4.hosted.app`
+- Canonical public URL:
+  `https://studio-cue.com`
 - Firestore Native, Standard edition in `nam7`
 - Cloud Storage in `us-east1`
 - Firebase Authentication with email/password enabled
 
 Firestore and Storage rules and Firestore indexes are deployed from this
 repository. Firestore delete protection is enabled. Firebase Authentication and
-Firestore-backed product data are live. External providers remain isolated in
-mock mode with `NEXT_PUBLIC_PROVIDER_MODE=mock` and
-`PROVIDER_MOCK_MODE=true`.
+Firestore-backed product data are live. External provider execution is live
+with `PROVIDER_MOCK_MODE=false`, but OAuth providers are exposed individually.
+The App Hosting allowlist is the source of truth; a provider whose production
+application, callback, signing, or acceptance work is incomplete remains
+visible as **Setup required** and cannot start OAuth.
 
 The following production Google APIs are enabled:
 
@@ -107,9 +111,10 @@ credential-entry workflow, and rotation procedure.
 ## Required public endpoints
 
 - Stripe webhook
+- Stripe Connect webhook
 - Docusign webhook
 - QuickBooks webhook
-- Dropbox webhook
+- Dropbox Sign webhook
 - SendGrid inbound parse and event webhook
 - Zoom webhook
 - Google OAuth callback
@@ -119,7 +124,7 @@ Each endpoint must use its exact production URL, provider-specific signature
 secret, narrow CORS policy where relevant, and idempotency storage.
 
 Configure SendGrid Inbound Parse at the App Hosting boundary:
-`https://studiohub--studiohub-prod.us-east4.hosted.app/api/webhooks/sendgrid/inbound?token=SECRET`.
+`https://studio-cue.com/api/webhooks/sendgrid/inbound?token=SECRET`.
 The route preserves the raw multipart body and authenticates privately to the
 Cloud Function, so the Function itself does not need public IAM access.
 COI reply addresses use `coi+REPLY_TOKEN@INBOUND_DOMAIN`; the shared URL secret
@@ -155,7 +160,7 @@ concurrency, instance, and timeout bounds. Apply it with:
 Run read-only health load tests with:
 
 ```bash
-LOAD_BASE_URL=https://studiohub--studiohub-prod.us-east4.hosted.app \
+LOAD_BASE_URL=https://studio-cue.com \
 npm run test:load -- --scenario health
 ```
 
@@ -165,3 +170,5 @@ thresholds and returns nonzero when a service objective is missed.
 
 See [production-readiness.md](production-readiness.md) for the complete
 activation checklist and known pilot limitations.
+See [integration-production-readiness.md](integration-production-readiness.md)
+for the provider-by-provider production source of truth.

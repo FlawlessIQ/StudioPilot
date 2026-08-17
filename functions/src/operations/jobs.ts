@@ -730,6 +730,7 @@ export const operationsJobScheduler = onSchedule(
       "ZOOM_CLIENT_SECRET",
       "DROPBOX_CLIENT_SECRET",
       "DOCUSIGN_CLIENT_SECRET",
+      "DROPBOX_SIGN_CLIENT_SECRET",
       "QUICKBOOKS_CLIENT_ID",
       "QUICKBOOKS_CLIENT_SECRET",
     ],

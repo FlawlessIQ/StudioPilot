@@ -50,7 +50,10 @@ export {
 } from "./operations/task-queue.js";
 export { fileSafetyOnFinalize } from "./operations/file-safety.js";
 export { studioImportCommand } from "./studio-import/commands.js";
-export { integrationOAuth } from "./integrations/oauth.js";
+// The original deployment predates the us-east4 regional standard. A new
+// export name lets the production relay move without deleting that endpoint
+// in-place during rollout.
+export { integrationOAuth as integrationOAuthEast4 } from "./integrations/oauth.js";
 export { integrationsCommand } from "./integrations/commands.js";
 export {
   tenantDataCommand,
