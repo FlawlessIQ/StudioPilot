@@ -31,6 +31,8 @@ const instrumentSans = Instrument_Sans({
   display: "swap",
 });
 
+const faviconVersion = "cue-mark-20260818";
+
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
@@ -64,11 +66,15 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/favicon.svg", type: "image/svg+xml" },
-      { url: "/brand/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: `/favicon.svg?v=${faviconVersion}`, type: "image/svg+xml" },
+      {
+        url: `/brand/favicon-32.png?v=${faviconVersion}`,
+        sizes: "32x32",
+        type: "image/png",
+      },
     ],
-    shortcut: "/favicon.ico",
-    apple: "/apple-touch-icon.png",
+    shortcut: `/favicon.ico?v=${faviconVersion}`,
+    apple: `/apple-touch-icon.png?v=${faviconVersion}`,
   },
 };
 
