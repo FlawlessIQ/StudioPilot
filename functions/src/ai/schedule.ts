@@ -181,9 +181,11 @@ async function generate(input: z.infer<typeof inputSchema>, context: Json) {
   const model = process.env.VERTEX_AI_SCHEDULE_MODEL;
   if (!project || !model) throw new Error("VERTEX_AI_SCHEDULE_NOT_CONFIGURED");
   const token = await accessToken();
-  const response = await fetchVertexWithRetry(
-    `https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`,
-    {
+  const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`;
+  // Every turn goes through the retrying fetch, so the repair pass inherits
+  // the same throttling recovery as the first attempt.
+  const callModel = async (contents: Array<Record<string, unknown>>) => {
+    const response = await fetchVertexWithRetry(endpoint, {
       method: "POST",
       headers: {
         authorization: `Bearer ${token}`,
@@ -284,8 +286,6 @@ async function generate(input: z.infer<typeof inputSchema>, context: Json) {
         },
       }),
     });
-    if (!response.ok)
-      throw new Error(`VERTEX_AI_SCHEDULE_FAILED:${response.status}`);
     const body = record(await response.json());
     const candidates = Array.isArray(body.candidates) ? body.candidates : [];
     const parts = Array.isArray(record(record(candidates[0]).content).parts)
@@ -333,15 +333,10 @@ async function generate(input: z.infer<typeof inputSchema>, context: Json) {
         },
       ],
     },
-  );
-  const body = record(await response.json());
-  const candidates = Array.isArray(body.candidates) ? body.candidates : [];
-  const parts = Array.isArray(record(record(candidates[0]).content).parts)
-    ? (record(record(candidates[0]).content).parts as unknown[])
-    : [];
-  const text = record(parts[0]).text;
-  if (typeof text !== "string") throw new Error("VERTEX_AI_EMPTY_OUTPUT");
-  return outputSchema.parse(JSON.parse(text));
+  ]);
+  const repaired = parseDraft(repairText);
+  if (repaired.success) return repaired.data;
+  throw new Error("AI_OUTPUT_INVALID");
 }
 
 export const aiScheduleCommand = onRequest(
@@ -613,7 +608,11 @@ export const aiScheduleCommand = onRequest(
       // Only short SCREAMING_SNAKE codes pass through; everything else is generic.
       const raw = caught instanceof Error ? caught.message : "";
       const message =
-        caught instanceof Error ? caught.message : "AI_SCHEDULE_FAILED";
+        /^[A-Z0-9_:.]{1,64}$/.test(raw) && !(caught instanceof z.ZodError)
+          ? raw
+          : caught instanceof z.ZodError
+            ? "INVALID_REQUEST"
+            : "AI_SCHEDULE_FAILED";
       const reservation = quotaReservation;
       if (reservation) {
         const db = getFirestore();
