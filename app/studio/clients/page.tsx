@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Plus, Search } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { LiveClientCards } from "@/components/live/tenant-records";
+import { PeopleSectionNav } from "@/components/layout/people-section-nav";
 
 export const metadata: Metadata = { title: "Clients" };
 
@@ -21,6 +22,7 @@ export default async function ClientsPage({
             <h1>Clients</h1>
             <p>Keep client details, project relationships, and portal access in one place.</p>
           </div>
+          <PeopleSectionNav />
           <Link className="button button-dark" href="/studio/clients/new"><Plus size={16} /> Add client</Link>
         </div>
         <section className="panel crm-table-panel">

@@ -1637,3 +1637,240 @@
 .ds-root #project-checkpoints {
   scroll-margin-top: 88px;
 }
+
+/* ---------------------------------------------------------------------------
+   Insights funnel (Phase 2)
+
+   Was a flat numbered row that contained a real finding — two of three
+   proposals never became contracts — and never said so. Now proportional, with
+   step-to-step conversion and the largest leak named.
+   --------------------------------------------------------------------------- */
+
+.ds-root .report-funnel {
+  display: grid;
+  /* The previous flat layout set five equal columns, one per stage. Without
+     resetting the template here the new rows inherited it and the bars
+     collapsed to zero width. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+.ds-root .report-funnel-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.ds-root .report-funnel-leak {
+  display: inline-flex;
+  gap: 9px;
+  align-items: flex-start;
+  max-width: 46ch;
+  margin: 0;
+  padding: 10px 13px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--ds-danger, #a3201a) 26%, transparent);
+  background: color-mix(in srgb, var(--ds-danger, #a3201a) 7%, transparent);
+}
+
+.ds-root .report-funnel-leak > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--ds-danger, #a3201a);
+}
+
+.ds-root .report-funnel-leak span {
+  display: grid;
+  gap: 2px;
+}
+
+.ds-root .report-funnel-leak strong {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ds-danger, #a3201a);
+}
+
+.ds-root .report-funnel-leak small {
+  font-size: 12px;
+  color: var(--ds-ink-soft, #5b6b63);
+}
+
+.ds-root .report-funnel-steps {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ds-root .report-funnel-steps li {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.1fr) minmax(0, 2.4fr) 78px;
+  gap: 14px;
+  align-items: center;
+}
+
+.ds-root .report-funnel-label {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.ds-root .report-funnel-label small {
+  font-size: 12px;
+  color: var(--ds-ink-soft, #5b6b63);
+}
+
+.ds-root .report-funnel-label strong {
+  font-family: var(--ds-serif, serif);
+  font-size: 21px;
+  line-height: 1.05;
+  color: var(--ds-ink, #1d2521);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The bar is the point: length is share of the first stage, so the shape of
+   the funnel is visible instead of inferred from five numbers. */
+.ds-root .report-funnel-track {
+  height: 9px;
+  border-radius: 999px;
+  background: var(--ds-surface-sunk, #f1f0ea);
+  overflow: hidden;
+}
+
+.ds-root .report-funnel-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--ds-accent, #0e9f6e);
+  transition: width 0.4s ease;
+}
+
+.ds-root .report-funnel-fill.is-leaking {
+  background: var(--ds-danger, #a3201a);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-root .report-funnel-fill {
+    transition: none;
+  }
+}
+
+.ds-root .report-funnel-rate {
+  display: inline-flex;
+  gap: 6px;
+  align-items: baseline;
+  justify-content: flex-end;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ds-ink, #1d2521);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-root .report-funnel-rate em {
+  font-style: normal;
+  font-weight: 600;
+  font-size: 11.5px;
+  color: var(--ds-danger, #a3201a);
+}
+
+.ds-root .report-funnel-rate em:only-child {
+  color: var(--ds-ink-faint, #8a9791);
+}
+
+@media (max-width: 720px) {
+  .ds-root .report-funnel-steps li {
+    grid-template-columns: minmax(0, 1fr) 70px;
+  }
+  .ds-root .report-funnel-track {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+}
+
+/* Section navigation (People). Same shape as the project workspace tabs, so
+   moving between Clients, Crew, Team and Vendors feels like one section
+   instead of four unrelated pages reachable only by URL. */
+.ds-root .section-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 0 18px;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--ds-surface-sunk, #f1f0ea);
+  border: 1px solid var(--ds-line, #e3e1d8);
+  width: fit-content;
+  max-width: 100%;
+}
+
+.ds-root .section-nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ds-ink-soft, #5b6b63);
+}
+
+.ds-root .section-nav a:hover {
+  color: var(--ds-ink, #1d2521);
+}
+
+.ds-root .section-nav a.active {
+  background: var(--ds-surface, #fff);
+  color: var(--ds-ink, #1d2521);
+  box-shadow: 0 1px 2px rgba(29, 37, 33, 0.08);
+}
+
+.ds-root .report-audit-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* The Copilot's boundary statement is a guarantee, not a preamble. As the first
+   thing on the page — before the assistant has demonstrated anything — it read
+   as an apology, so it now sits under the compose form as a footnote. */
+.ds-root .copilot-boundary.is-footnote {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  margin: 14px 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.ds-root .copilot-boundary.is-footnote > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--ds-ink-faint, #8a9791);
+}
+
+.ds-root .copilot-boundary.is-footnote span {
+  display: grid;
+  gap: 1px;
+}
+
+.ds-root .copilot-boundary.is-footnote strong {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ds-ink-soft, #5b6b63);
+}
+
+.ds-root .copilot-boundary.is-footnote small {
+  font-size: 12px;
+  color: var(--ds-ink-faint, #8a9791);
+  max-width: 72ch;
+}

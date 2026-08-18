@@ -15,7 +15,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 
 const settings = [
   {
-    title: "Integrations",
+    title: "Studio setup",
     description: "Connect the calendar, meeting, file, accounting, and signature services your team uses.",
     href: "/studio/integrations",
     icon: PlugZap,

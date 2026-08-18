@@ -453,11 +453,27 @@ export function LiveClientCards({
     );
   if (!values.length)
     return (
+      // "No matching" implies a filter was applied. Distinguish an empty search
+      // from an empty list, and from an empty tab.
       <LiveRecordsState
         kind="empty"
-        state="No matching clients"
-        detail="Add a client directly or convert an inquiry when you are ready to book."
-        action={{ href: "/studio/clients/new", label: "Add client" }}
+        state={
+          q
+            ? `No clients match “${q}”`
+            : view === "archived"
+              ? "No archived clients"
+              : view === "prospects"
+                ? "No prospects yet"
+                : "No clients yet"
+        }
+        detail={
+          q
+            ? "Try a different name or email, or clear the search."
+            : "Add a client directly or convert an inquiry when you are ready to book."
+        }
+        action={
+          q ? undefined : { href: "/studio/clients/new", label: "Add client" }
+        }
       />
     );
   return (

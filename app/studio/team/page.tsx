@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { UsersRound } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { TeamManagement } from "@/components/team/team-management";
+import { PeopleSectionNav } from "@/components/layout/people-section-nav";
 
 export const metadata: Metadata = {
   title: "Team",
@@ -23,6 +24,7 @@ export default function TeamPage() {
           </div>
           <UsersRound />
         </header>
+        <PeopleSectionNav />
         <TeamManagement />
       </div>
     </AppShell>

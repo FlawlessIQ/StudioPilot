@@ -57,7 +57,10 @@ test("studio operational surfaces use real-data empty states", async ({ page }) 
     await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
   }
   await page.goto("/studio/copilot");
-  await expect(page.getByText(/cannot change authoritative status/i)).toBeVisible();
+  // Asserts the boundary is disclosed, not its exact wording. The copy moved
+  // below the compose form and was reworded — leading with what the assistant
+  // cannot do, before it had done anything, read as an apology.
+  await expect(page.getByText(/authoritative status/i).first()).toBeVisible();
   await page.goto("/studio/schedules/new");
   await expect(page.getByRole("heading", { name: "Schedule draft" })).toBeVisible();
 });

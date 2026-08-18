@@ -86,17 +86,6 @@ export function CopilotWorkspace() {
           <span><strong>Import studio materials</strong><small>Turn existing files into reusable workflows</small></span>
         </Link>
       </nav>
-      <div className="copilot-boundary">
-        <ShieldCheck />
-        <span>
-          <strong>Copilot cannot change authoritative status.</strong>
-          <small>
-            Payments, signatures, insurance approval, permissions, and readiness
-            follow StudioCue’s project rules. Any future action will require
-            confirmation.
-          </small>
-        </span>
-      </div>
       <section className="panel copilot-compose">
         <div className="copilot-prompts" aria-label="Suggested questions">
           {prompts.map((prompt) => (
@@ -133,6 +122,17 @@ export function CopilotWorkspace() {
           </button>
         </form>
       </section>
+      <p className="copilot-boundary is-footnote">
+        <ShieldCheck aria-hidden="true" size={14} />
+        <span>
+          <strong>Answers only — Copilot never changes authoritative status.</strong>
+          <small>
+            Payments, signatures, insurance approval, permissions and readiness
+            follow the project&rsquo;s own rules, and any action needs your
+            confirmation.
+          </small>
+        </span>
+      </p>
       {error ? (
         <section className="panel copilot-error" role="alert">
           <CircleAlert />

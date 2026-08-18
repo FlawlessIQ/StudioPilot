@@ -5,7 +5,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { LiveLeadRows } from "@/components/live/tenant-records";
 import { TenantInquiryLink } from "@/components/crm/tenant-inquiry-link";
 
-export const metadata: Metadata = { title: "Leads" };
+export const metadata: Metadata = { title: "Inquiries" };
 
 export default async function LeadsPage({
   searchParams,

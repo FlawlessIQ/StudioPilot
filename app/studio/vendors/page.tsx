@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { LiveDomainView, ProjectContextBar } from "@/components/studio/live-domain-view";
 import { VendorCreateForm } from "@/components/planning/vendor-create-form";
+import { PeopleSectionNav } from "@/components/layout/people-section-nav";
 
 export default async function VendorsPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
   const { project } = await searchParams;
@@ -17,6 +18,7 @@ export default async function VendorsPage({ searchParams }: { searchParams: Prom
             </p>
           </div>
         </header>
+        <PeopleSectionNav />
         {project ? <ProjectContextBar projectId={project} /> : null}
         <LiveDomainView domain="vendors" projectId={project} />
         <details className="creation-disclosure panel">

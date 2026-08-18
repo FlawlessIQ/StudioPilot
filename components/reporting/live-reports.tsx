@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import {
+  ArrowRight,
   BarChart3,
   Bot,
   BriefcaseBusiness,
@@ -13,11 +15,13 @@ import {
   Info,
   Printer,
   SlidersHorizontal,
+  TrendingDown,
   WalletCards,
 } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { workflowScorecard } from "@/features/operations/workflow-scorecard";
 import { formatCents } from "@/lib/format/money";
+import { analyseFunnel } from "@/features/operations/funnel";
 
 function csvCell(value: unknown) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
@@ -134,6 +138,30 @@ export function LiveReports() {
       String(item.status),
     ),
   );
+  const funnel = analyseFunnel([
+    { label: "Inquiries", value: leadsState.records?.length ?? 0 },
+    { label: "Consultations", value: consultations.length },
+    { label: "Proposals sent", value: proposalsSent.length },
+    {
+      label: "Contracts complete",
+      value: contracts.filter((item) => item.status === "completed").length,
+    },
+    {
+      label: "Booked projects",
+      value: projects.filter((item) =>
+        [
+          "BOOKED",
+          "PLANNING",
+          "READY",
+          "EVENT_COMPLETE",
+          "POST_PRODUCTION",
+          "DELIVERED",
+          "REVIEW_REQUESTED",
+          "CLOSED",
+        ].includes(String(item.state)),
+      ).length,
+    },
+  ]);
   const proposalAcceptance = proposalsSent.length
     ? Math.round(
         (proposalsSent.filter((item) => item.status === "accepted").length /
@@ -359,19 +387,58 @@ export function LiveReports() {
           </article>
         </div>
         <div className="report-funnel panel">
-          {[
-            ["Inquiries", leadsState.records?.length ?? 0],
-            ["Consultations", consultations.length],
-            ["Proposals sent", proposalsSent.length],
-            ["Contracts complete", contracts.filter((item) => item.status === "completed").length],
-            ["Booked projects", projects.filter((item) => ["BOOKED", "PLANNING", "READY", "EVENT_COMPLETE", "POST_PRODUCTION", "DELIVERED", "REVIEW_REQUESTED", "CLOSED"].includes(String(item.state))).length],
-          ].map(([label, value], index) => (
-            <article key={String(label)}>
-              <span>{index + 1}</span>
-              <small>{String(label)}</small>
-              <strong>{value}</strong>
-            </article>
-          ))}
+          <div className="report-funnel-head">
+            <div>
+              <p className="eyebrow">Conversion</p>
+              <h2>Where inquiries stop becoming bookings</h2>
+            </div>
+            {funnel.biggestLeak ? (
+              <p className="report-funnel-leak">
+                <TrendingDown aria-hidden="true" size={15} />
+                <span>
+                  <strong>
+                    {funnel.biggestLeak.lost} lost between{" "}
+                    {funnel.biggestLeak.fromLabel.toLowerCase()} and{" "}
+                    {funnel.biggestLeak.toLabel.toLowerCase()}
+                  </strong>
+                  <small>
+                    Only {funnel.biggestLeak.conversion}% carried through — your
+                    largest leak.
+                  </small>
+                </span>
+              </p>
+            ) : null}
+          </div>
+          <ol className="report-funnel-steps">
+            {funnel.steps.map((step) => (
+              <li key={step.label}>
+                <span className="report-funnel-label">
+                  <small>{step.label}</small>
+                  <strong>{loading ? "—" : step.value}</strong>
+                </span>
+                <span className="report-funnel-track">
+                  <span
+                    className={`report-funnel-fill${
+                      step.lostFromPrevious > 0 ? " is-leaking" : ""
+                    }`}
+                    style={{ width: `${step.shareOfStart ?? 100}%` }}
+                  />
+                </span>
+                <span className="report-funnel-rate">
+                  {step.conversionFromPrevious === null ? (
+                    <em>{step.exceedsPrevious ? "—" : "start"}</em>
+                  ) : (
+                    <>
+                      {step.conversionFromPrevious}%
+                      {step.lostFromPrevious > 0 ? (
+                        <em>&minus;{step.lostFromPrevious}</em>
+                      ) : null}
+                    </>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ol>
         </div>
         <p className="report-estimate-note">
           Results appear only after real workflow activity is recorded; StudioCue does not invent time savings from record creation. Insurance certificate turnaround: {averageCoiTurnaround === null ? "not enough completed requests yet" : `${averageCoiTurnaround} days on average`}.
@@ -382,6 +449,11 @@ export function LiveReports() {
         <span>
           <h2>QuickBooks remains your financial source of truth</h2>
           <p>StudioCue uses the latest synchronized invoice references for this operational view. Figures can briefly lag your accounting system.</p>
+          {/* The audit log had no inbound link anywhere in the app. This page is
+              about where each number came from, so it belongs here. */}
+          <Link className="report-audit-link" href="/studio/audit">
+            See the full audit log <ArrowRight aria-hidden="true" size={14} />
+          </Link>
         </span>
       </aside>
     </div>
