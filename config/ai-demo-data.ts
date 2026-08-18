@@ -305,3 +305,61 @@ export const demoTasks = [
     dueInDays: 6,
   },
 ];
+
+/**
+ * Project messages, both directions.
+ *
+ * Clients can message the studio from the portal: the handler in
+ * app/api/client/portal/route.ts writes to `messages` with
+ * direction: "inbound" and raises a task. Those records were rendering in the
+ * studio's "Delivery history" as outbound rows — "To undefined", with a
+ * delivery badge that means nothing for something received.
+ */
+export const demoMessages = [
+  {
+    id: "MSG-7001",
+    project: "Maya & Theo Johnson",
+    direction: "inbound" as const,
+    channel: "portal",
+    senderName: "Maya Johnson",
+    subject: "Question about the getting-ready room",
+    body:
+      "Hi Reese — the hotel moved us to a smaller suite for getting ready. " +
+      "Will that change your timing at all? Happy to send photos of the room.",
+    status: "received",
+    ageHours: 5,
+  },
+  {
+    id: "MSG-7002",
+    project: "Sofia & Miles Carter",
+    direction: "inbound" as const,
+    channel: "portal",
+    senderName: "Sofia Carter",
+    subject: "Approved the schedule",
+    body: "Just approved the run of show. It looks perfect, thank you!",
+    status: "received",
+    ageHours: 28,
+  },
+  {
+    id: "MSG-7003",
+    project: "Sofia & Miles Carter",
+    direction: "outbound" as const,
+    channel: "email",
+    recipient: "sofia.carter@example.test",
+    subject: "Your event-day schedule is ready to approve",
+    body: "Hi Sofia and Miles, here is the final run of show for the 22nd.",
+    deliveryStatus: "delivered",
+    ageHours: 30,
+  },
+  {
+    id: "MSG-7004",
+    project: "Priya & Jordan",
+    direction: "outbound" as const,
+    channel: "email",
+    recipient: "priya.raman@example.test",
+    subject: "Your gallery is live",
+    body: "Hi Priya and Jordan, your gallery is ready to view and share.",
+    deliveryStatus: "opened",
+    ageHours: 50,
+  },
+];

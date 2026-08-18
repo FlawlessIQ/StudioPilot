@@ -5,8 +5,10 @@ import {
   AlertTriangle,
   Check,
   Clock3,
+  Inbox,
   LoaderCircle,
   Mail,
+  Reply,
   Send,
   ShieldCheck,
   Sparkles,
@@ -28,6 +30,7 @@ import {
 } from "@/lib/ai/communications-client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { crmClients, crmProjects } from "@/config/crm-demo-data";
+import { demoTenantDocuments } from "@/features/live/demo-records";
 
 type Value = Record<string, unknown> & { id: string };
 
@@ -93,12 +96,50 @@ export function CommunicationsCenter({
   const [projects, setProjects] = useState<Value[]>(dataIsLive ? [] : demoProjects);
   const [contacts, setContacts] = useState<Value[]>(dataIsLive ? [] : demoContacts);
   const [messages, setMessages] = useState<Value[]>([]);
+
+  // Split once, by direction. Inbound records carry senderName/createdAt;
+  // outbound carry recipient/sentAt and a delivery status.
+  const receivedMessages = useMemo(
+    () =>
+      messages
+        .filter((message) => String(message.direction ?? "outbound") === "inbound")
+        .sort((left, right) =>
+          String(right.createdAt ?? "").localeCompare(String(left.createdAt ?? "")),
+        ),
+    [messages],
+  );
+  const sentMessages = useMemo(
+    () =>
+      messages
+        .filter((message) => String(message.direction ?? "outbound") !== "inbound")
+        .sort((left, right) =>
+          String(right.sentAt ?? right.createdAt ?? "").localeCompare(
+            String(left.sentAt ?? left.createdAt ?? ""),
+          ),
+        ),
+    [messages],
+  );
   const [drafts, setDrafts] = useState<Value[]>([]);
   const [emailJobs, setEmailJobs] = useState<Value[]>([]);
   const [projectId, setProjectId] = useState(initialProjectId ?? "");
   const [contactId, setContactId] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+
+  /**
+   * Answer a client's portal message: prefill the composer with its project and
+   * subject rather than making the studio retype context it already has.
+   */
+  function replyTo(message: Value) {
+    const targetProject = String(message.projectId ?? "");
+    if (targetProject) setProjectId(targetProject);
+    const original = String(message.subject ?? "").trim();
+    setSubject(original.toLowerCase().startsWith("re:") ? original : `Re: ${original}`);
+    setBody("");
+    document
+      .querySelector(".communications-composer, .communications-draft-review")
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
   const [category, setCategory] = useState("general");
   const [actionLabel, setActionLabel] = useState("");
   const [actionUrl, setActionUrl] = useState("");
@@ -115,7 +156,9 @@ export function CommunicationsCenter({
     if (!dataIsLive) {
       setProjects(demoProjects);
       setContacts(demoContacts);
-      setMessages([]);
+      // Demo mode now carries both directions, so the received/sent split is
+      // reviewable without a live Firestore.
+      setMessages(demoTenantDocuments("messages") as Value[]);
       setDrafts([]);
       setEmailJobs([]);
       setLoading(false);
@@ -691,18 +734,51 @@ export function CommunicationsCenter({
             })}
           </section>
         ) : null}
+        {/* Clients message the studio from their portal and those records land in
+            the same collection. Rendering them as delivery history produced
+            "To undefined" rows carrying a status badge that means nothing for
+            something received, so the directions are now separated. */}
         <section className="panel communications-timeline">
           <div className="panel-heading">
-            <div><p className="eyebrow">Delivery history</p><h2>Recent messages</h2></div>
+            <div><p className="eyebrow">From your clients</p><h2>Received</h2></div>
+            <Inbox aria-hidden="true" />
+          </div>
+          {loading ? (
+            <div className="communications-empty"><LoaderCircle className="spin" /><span>Loading messages…</span></div>
+          ) : receivedMessages.length ? (
+            receivedMessages.map((message) => (
+              <article className="is-inbound" key={message.id}>
+                <span className="communications-message-icon is-inbound"><Inbox size={15} /></span>
+                <span>
+                  <strong>{String(message.subject)}</strong>
+                  <small>
+                    From {String(message.senderName ?? "your client")}
+                    {message.projectName ? ` · ${String(message.projectName)}` : ""} · {stamp(message.createdAt)}
+                  </small>
+                  {message.bodyPreview ? <p>{String(message.bodyPreview)}</p> : null}
+                </span>
+                <button className="ds-btn ds-btn-ghost ds-btn-sm" onClick={() => replyTo(message)} type="button">
+                  <Reply aria-hidden="true" size={14} /> Reply
+                </button>
+              </article>
+            ))
+          ) : (
+            <div className="communications-empty">
+              <Inbox />
+              <span><strong>Nothing new from your clients</strong><small>Messages sent from a client portal arrive here.</small></span>
+            </div>
+          )}
+        </section>
+        <section className="panel communications-timeline">
+          <div className="panel-heading">
+            <div><p className="eyebrow">Delivery history</p><h2>Sent</h2></div>
             <Clock3 aria-hidden="true" />
           </div>
           {loading ? (
             <div className="communications-empty"><LoaderCircle className="spin" /><span>Loading messages…</span></div>
-          ) : messages.length ? (
-            messages.map((message) => {
-              const presentation = deliveryPresentation(
-                message.deliveryStatus,
-              );
+          ) : sentMessages.length ? (
+            sentMessages.map((message) => {
+              const presentation = deliveryPresentation(message.deliveryStatus);
               return (
                 <article key={message.id}>
                   <span className="communications-message-icon"><Mail size={15} /></span>
@@ -711,16 +787,14 @@ export function CommunicationsCenter({
                     <small>To {String(message.recipient)} · {stamp(message.sentAt)}</small>
                     {message.bodyPreview ? <p>{String(message.bodyPreview)}</p> : null}
                   </span>
-                  <StatusBadge tone={presentation.tone}>
-                    {presentation.label}
-                  </StatusBadge>
+                  <StatusBadge tone={presentation.tone}>{presentation.label}</StatusBadge>
                 </article>
               );
             })
           ) : (
             <div className="communications-empty">
               <Mail />
-              <span><strong>No messages yet</strong><small>Your branded delivery history will appear here.</small></span>
+              <span><strong>Nothing sent yet</strong><small>Your branded delivery history will appear here.</small></span>
             </div>
           )}
         </section>

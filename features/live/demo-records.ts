@@ -34,6 +34,7 @@ import {
   demoCommunicationDrafts,
   demoCrewCascades,
   demoDeliveryDrafts,
+  demoMessages,
   demoTasks,
 } from "@/config/ai-demo-data";
 
@@ -319,6 +320,26 @@ export function demoTenantDocuments(collectionName: string): TenantDocument[] {
         dueDate: demoDueDate(task.dueInDays),
         dueAt: demoDueDate(task.dueInDays),
         updatedAt: demoHoursAgo(2),
+      }));
+    case "messages":
+      return demoMessages.map((message) => ({
+        id: message.id,
+        projectId: demoProjectId(message.project),
+        projectName: message.project,
+        direction: message.direction,
+        channel: message.channel,
+        subject: message.subject,
+        body: message.body,
+        bodyPreview: message.body.slice(0, 240),
+        senderName: "senderName" in message ? message.senderName : null,
+        recipient: "recipient" in message ? message.recipient : null,
+        deliveryStatus:
+          "deliveryStatus" in message ? message.deliveryStatus : null,
+        status: "status" in message ? message.status : "sent",
+        sentAt:
+          message.direction === "outbound" ? demoHoursAgo(message.ageHours) : null,
+        createdAt: demoHoursAgo(message.ageHours),
+        updatedAt: demoHoursAgo(message.ageHours),
       }));
     default:
       return [];

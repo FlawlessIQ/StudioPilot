@@ -1874,3 +1874,14 @@
   color: var(--ds-ink-faint, #8a9791);
   max-width: 72ch;
 }
+
+/* Received client messages read as incoming, not as delivery history. */
+.ds-root .communications-timeline article.is-inbound {
+  border-left: 2px solid var(--ds-accent, #0e9f6e);
+  padding-left: 12px;
+}
+
+.ds-root .communications-message-icon.is-inbound {
+  background: color-mix(in srgb, var(--ds-accent, #0e9f6e) 14%, transparent);
+  color: var(--ds-accent-deep, #0b6e4f);
+}
