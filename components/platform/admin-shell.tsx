@@ -1,5 +1,6 @@
 "use client";
 
+import { CueMark } from "@/components/brand/logo";
 import { useState } from "react";
 import Link from "next/link";
 import {
@@ -52,7 +53,7 @@ export function AdminShell({
           <aside className="ds-sidebar" id="admin-navigation">
             <div className="ds-brand-row">
               <Link className="ds-brand" href="/platform-admin" onClick={() => setNavigationOpen(false)}>
-                <span className="ds-brand-mark">S</span>
+                <span className="ds-brand-mark ds-brand-mark-logo"><CueMark size={38} /></span>
                 <span className="ds-brand-word">
                   Studio<b>Cue</b>
                 </span>

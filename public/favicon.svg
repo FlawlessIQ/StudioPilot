@@ -1,10 +1,6 @@
-<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="studiocue-mark" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#12c084"/>
-      <stop offset="1" stop-color="#0a7a55"/>
-    </linearGradient>
-  </defs>
-  <rect width="64" height="64" rx="16" fill="url(#studiocue-mark)"/>
-  <text x="32" y="43" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="34" font-weight="500" fill="#fdf4ef">S</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
+  <rect width="96" height="96" rx="24" fill="#1E2521"/>
+  <circle cx="45" cy="51" r="22" fill="none" stroke="#FFFFFF" stroke-width="9"/>
+  <circle cx="45" cy="51" r="8.5" fill="#FFFFFF"/>
+  <circle cx="76" cy="20" r="9.5" fill="#C9973D"/>
 </svg>

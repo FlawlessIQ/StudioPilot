@@ -1,5 +1,6 @@
 "use client";
 
+import { CueMark } from "@/components/brand/logo";
 import {
   createContext,
   useContext,
@@ -237,7 +238,7 @@ function ClientPortalShell({
         >
           <div className="ds-brand-row">
             <Link className="ds-brand" href="/client" onClick={closeNavigation}>
-              <span className="ds-brand-mark">S</span>
+              <span className="ds-brand-mark ds-brand-mark-logo"><CueMark size={38} /></span>
               <span className="ds-brand-word">
                 Studio<b>Cue</b>
               </span>

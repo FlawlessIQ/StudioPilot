@@ -1,3 +1,4 @@
+import { CueMark } from "@/components/brand/logo";
 import {
   Bell,
   CalendarDays,
@@ -46,7 +47,7 @@ export function PreviewShell({ children }: { children: React.ReactNode }) {
       <div className="ds-shell">
         <aside className="ds-sidebar">
           <div className="ds-brand">
-            <span className="ds-brand-mark">S</span>
+            <span className="ds-brand-mark ds-brand-mark-logo"><CueMark size={38} /></span>
             <span className="ds-brand-word">
               Studio<b>Cue</b>
             </span>

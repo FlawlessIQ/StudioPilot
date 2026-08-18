@@ -22,6 +22,7 @@ import {
   WandSparkles,
   X,
 } from "lucide-react";
+import { CueMark } from "@/components/brand/logo";
 import { GlobalSearch } from "@/components/layout/global-search";
 import { PlatformReturnLink } from "@/components/layout/platform-return-link";
 import { cn } from "@/lib/utils";
@@ -198,7 +199,9 @@ function StudioShell({
         <aside aria-label="Studio workspace" className="ds-sidebar" id="studio-navigation">
           <div className="ds-brand-row">
             <div className="ds-brand">
-              <span className="ds-brand-mark">S</span>
+              <span className="ds-brand-mark ds-brand-mark-logo">
+                <CueMark size={38} />
+              </span>
               <span className="ds-brand-word">
                 Studio<b>Cue</b>
               </span>
