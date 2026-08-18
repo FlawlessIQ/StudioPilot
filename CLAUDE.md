@@ -90,6 +90,52 @@ When adding a domain capability, expect to touch the deterministic core in `feat
 
 Deployment targets Firebase App Hosting (`apphosting.yaml`). The Next.js app is also packaged through a Cloudflare-compatible runtime (`vinext` / wrangler) via the `*:sites` scripts for preview. Heavier work (PDF rendering, document extraction, safe file processing, larger AI) is designed to run in `cloud-run/`, out of the functions path.
 
+## Working across clones (read before committing to `main`)
+
+This project is checked out in **more than one place** on this machine, and both
+checkouts push to the same remote. `main` has drifted three times
+(2026-07-30, 2026-08-06, 2026-08-18); each reconcile was manual and each one
+risked reverting the other clone's work.
+
+**Rules:**
+
+1. **Never commit directly to `main`.** Branch from `origin/main`, then open a PR:
+   ```bash
+   git fetch origin && git switch -c feat/<name> origin/main
+   ```
+2. **`git fetch` before starting anything.** Confirm you are not behind:
+   ```bash
+   git rev-list --left-right --count origin/main...HEAD
+   ```
+3. **When reconciling divergence, `origin/main` is always the base.** Replay local
+   work on top of it; never fast-forward `main` over upstream. If upstream deleted
+   a component you still want, keep it as its own importable module rather than
+   re-mounting it during the merge — that keeps lint green without losing the work.
+4. **The `functions/` build is a separate gate.** Root `npm run typecheck` excludes
+   `functions/`, so a merge can typecheck cleanly and still not compile. Always run
+   `cd functions && npm run build` after touching anything under `functions/`.
+5. **Deploy order is functions first, then the app.** Pushing `main` triggers the
+   App Hosting rollout on its own, but Cloud Functions do not deploy with it. If a
+   push ships UI that calls a new function, deploy functions *first*:
+   ```bash
+   cd functions && npm run build
+   firebase deploy --only functions --project production
+   ./scripts/configure-production-function-invokers.sh studiohub-prod us-east4
+   ```
+   That last script is **not optional** — this org resets Cloud Run invoker IAM on
+   every function revision, and any new function must also be added to the script's
+   allowlist in the same change or it 403s with an HTML body (which surfaces
+   client-side as `Unexpected token '<'`). See `docs/deployment.md`.
+
+A `pre-push` hook enforces rule 1 by refusing any push that would not
+fast-forward `main`. Enable it once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Bypass only for a deliberate history rewrite: `git push --no-verify`.
+
 ## Where to read more
 
 `docs/architecture.md` is the authoritative overview. Domain-specific docs: `data-model.md`, `workflow-engine.md`, `readiness-engine.md`, `booking-gate.md`, `booking-integrations.md`, `proposals.md`, `communications.md`, `webhooks.md`, `crew-operations.md`, `post-event-operations.md`, `saas-operations.md`, `security.md`, `deployment.md`, and ADRs in `docs/adr/`.

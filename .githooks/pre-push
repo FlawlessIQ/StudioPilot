@@ -1,0 +1,60 @@
+#!/bin/sh
+# Stop the two-clone drift on main.
+#
+# StudioCue is checked out in more than one place (this repo has drifted from
+# origin/main three times: 2026-07-30, 2026-08-06, 2026-08-18). Each time the
+# cause was the same: main was committed to locally while origin/main had moved
+# on, and the two lines had to be reconciled by hand afterwards.
+#
+# This hook refuses exactly that push. It does not block branches, and it does
+# not block a legitimate fast-forward of main.
+#
+# Enable in every clone with:  git config core.hooksPath .githooks
+# Bypass for a deliberate rewrite:  git push --no-verify
+
+remote_ref_prefix="refs/heads/"
+protected="main"
+status=0
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  branch=${remote_ref#"$remote_ref_prefix"}
+  [ "$branch" = "$protected" ] || continue
+
+  # Deleting main is never right.
+  case "$local_sha" in
+    *[!0]*) ;;
+    *)
+      echo "pre-push: refusing to delete $protected." >&2
+      status=1
+      continue
+      ;;
+  esac
+
+  # New branch on the remote — nothing to be behind.
+  case "$remote_sha" in
+    *[!0]*) ;;
+    *) continue ;;
+  esac
+
+  if ! git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
+    behind=$(git rev-list --count "$local_sha".."$remote_sha" 2>/dev/null || echo "?")
+    echo "" >&2
+    echo "pre-push: BLOCKED — this would not fast-forward $protected." >&2
+    echo "" >&2
+    echo "  origin/$protected has $behind commit(s) you do not have." >&2
+    echo "  Pushing now would either be rejected or clobber that work." >&2
+    echo "" >&2
+    echo "  This is the drift that has already cost three manual reconciles." >&2
+    echo "  Do this instead:" >&2
+    echo "" >&2
+    echo "    git fetch origin" >&2
+    echo "    git switch -c feat/<name> origin/$protected" >&2
+    echo "    # replay your commits onto the branch, open a PR" >&2
+    echo "" >&2
+    echo "  Deliberate rewrite? git push --no-verify" >&2
+    echo "" >&2
+    status=1
+  fi
+done
+
+exit $status
