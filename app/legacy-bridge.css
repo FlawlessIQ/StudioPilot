@@ -1175,3 +1175,232 @@
 .ds-root .studio-focus-hero > .studio-focus-copy:only-child {
   max-width: 62ch;
 }
+
+/* ---------------------------------------------------------------------------
+   Calendar density (Phase 2)
+
+   A wedding used to render as a 6px dot with the name hidden in a title
+   attribute, while twelve identical "8 open" availability chips dominated the
+   grid. Events now carry their name; availability is a quiet hint.
+   --------------------------------------------------------------------------- */
+
+.ds-root .ds-cal {
+  /* Give the grid the room it needs for named events. */
+  grid-template-columns: minmax(0, 2.1fr) minmax(300px, 0.9fr);
+}
+
+.ds-root .ds-cal-day {
+  min-height: 112px;
+}
+
+.ds-root .ds-cal-day-events {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+/* The event itself: readable, colour-coded, and clipped rather than wrapping
+   so a long client name cannot blow out the cell. */
+.ds-root .ds-cal-event {
+  display: block;
+  min-width: 0;
+  padding: 3px 6px;
+  border-radius: 4px;
+  border-left: 2px solid var(--ds-brass, #b08a52);
+  background: color-mix(in srgb, var(--ds-brass, #b08a52) 14%, transparent);
+  color: var(--ds-ink, #1d2521);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Availability: present, but never competing with a commitment. */
+.ds-root .ds-cal-openhint {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--ds-ink-faint, #8a9791);
+  letter-spacing: 0.01em;
+}
+
+.ds-root .ds-cal-day-dot-more {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ds-ink-soft, #5b6b63);
+}
+
+/* Month / Agenda switch. */
+.ds-root .ds-cal-viewtoggle {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--ds-surface-sunk, #f1f0ea);
+  border: 1px solid var(--ds-line, #e3e1d8);
+  margin-right: 6px;
+}
+
+.ds-root .ds-cal-viewbtn {
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ds-ink-soft, #5b6b63);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ds-root .ds-cal-viewbtn.is-active {
+  background: var(--ds-surface, #fff);
+  color: var(--ds-ink, #1d2521);
+  box-shadow: 0 1px 2px rgba(29, 37, 33, 0.08);
+}
+
+/* Agenda view: the scan-friendly alternative to a month grid. */
+.ds-root .ds-cal-agenda {
+  display: grid;
+  gap: 2px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ds-root .ds-cal-agenda-row {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 11px 8px;
+  border: 0;
+  border-bottom: 1px solid var(--ds-hairline, #ecebe4);
+  border-radius: 6px;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ds-root .ds-cal-agenda-row:hover {
+  background: var(--ds-surface-sunk, #f7f6f2);
+}
+
+.ds-root .ds-cal-agenda-row.is-today {
+  background: color-mix(in srgb, var(--ds-accent, #0e9f6e) 8%, transparent);
+}
+
+.ds-root .ds-cal-agenda-date {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+}
+
+.ds-root .ds-cal-agenda-date strong {
+  font-family: var(--ds-serif, serif);
+  font-size: 19px;
+  line-height: 1;
+  color: var(--ds-ink, #1d2521);
+}
+
+.ds-root .ds-cal-agenda-date small {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ds-ink-faint, #8a9791);
+}
+
+.ds-root .ds-cal-agenda-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ds-root .ds-cal-agenda-body strong {
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--ds-ink, #1d2521);
+}
+
+.ds-root .ds-cal-agenda-body em {
+  font-style: normal;
+  font-weight: 500;
+  color: var(--ds-ink-soft, #5b6b63);
+}
+
+.ds-root .ds-cal-agenda-body small {
+  font-size: 12px;
+  color: var(--ds-ink-soft, #5b6b63);
+}
+
+.ds-root .ds-cal-agenda-empty {
+  padding: 22px 8px;
+  font-size: 13px;
+  color: var(--ds-ink-soft, #5b6b63);
+}
+
+/* Richer day rows: venue, lead, type and readiness. */
+.ds-root .ds-cal-row-rich {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.ds-root .ds-cal-row-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ds-root .ds-cal-row-facts {
+  font-size: 11.5px;
+  color: var(--ds-ink-soft, #5b6b63);
+}
+
+.ds-root .ds-cal-row-readiness {
+  font-size: 11px;
+  font-weight: 650;
+  padding: 3px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--ds-amber, #b0791f) 14%, transparent);
+  color: var(--ds-amber-deep, #8a5d14);
+}
+
+.ds-root .ds-cal-row-readiness.is-ready {
+  background: color-mix(in srgb, var(--ds-accent, #0e9f6e) 14%, transparent);
+  color: var(--ds-accent-deep, #0b6e4f);
+}
+
+.ds-root .ds-cal-row-readiness.is-low {
+  background: color-mix(in srgb, var(--ds-danger, #a3201a) 12%, transparent);
+  color: var(--ds-danger, #a3201a);
+}
+
+@media (max-width: 900px) {
+  .ds-root .ds-cal-row-rich {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .ds-root .ds-cal-row-rich .ds-cal-row-link {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Idle consultation slots: one line each, not a card. */
+.ds-root .ds-cal-row-slot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding-block: 7px;
+}
+
+.ds-root .ds-cal-row-slot .ds-cal-slot-btn {
+  width: auto;
+  padding: 4px 12px;
+  font-size: 11.5px;
+}

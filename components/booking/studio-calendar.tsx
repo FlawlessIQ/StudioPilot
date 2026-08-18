@@ -92,7 +92,12 @@ export function StudioCalendar() {
   const [timezone, setTimezone] = useState("America/New_York");
   const [settings, setSettings] = useState<SettingsShape>(defaultSettings);
   const [loadingSettings, setLoadingSettings] = useState(dataIsLive);
-  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
+  // Default to today rather than an empty prompt: the panel's job is to answer
+  // "what is happening now", and "Select a day" made the reader do the work.
+  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(() =>
+    format(new Date(), "yyyy-MM-dd"),
+  );
+  const [view, setView] = useState<"month" | "agenda">("month");
   const [blockNotice, setBlockNotice] = useState<string | null>(null);
   const [blocking, setBlocking] = useState(false);
   const [consultations, setConsultations] = useState<TenantDocument[]>([]);
@@ -313,6 +318,24 @@ export function StudioCalendar() {
             <h2>{format(month, "MMMM yyyy")}</h2>
           </div>
           <div className="ds-cal-nav">
+            <div className="ds-cal-viewtoggle" role="group" aria-label="Calendar view">
+              <button
+                aria-pressed={view === "month"}
+                className={`ds-cal-viewbtn${view === "month" ? " is-active" : ""}`}
+                onClick={() => setView("month")}
+                type="button"
+              >
+                Month
+              </button>
+              <button
+                aria-pressed={view === "agenda"}
+                className={`ds-cal-viewbtn${view === "agenda" ? " is-active" : ""}`}
+                onClick={() => setView("agenda")}
+                type="button"
+              >
+                Agenda
+              </button>
+            </div>
             <button
               className="ds-btn ds-btn-ghost ds-cal-nav-btn"
               aria-label="Previous month"
@@ -359,12 +382,66 @@ export function StudioCalendar() {
           </a>
         </div>
 
-        <div className="ds-cal-weekdays" aria-hidden="true">
+        {view === "agenda" ? (
+          <ol className="ds-cal-agenda" aria-label="Agenda for this month">
+            {days
+              .filter((day) => isSameMonth(day, month))
+              .map((day) => {
+                const dateKey = format(day, "yyyy-MM-dd");
+                const dayProjects = projectsByDate.get(dateKey) ?? [];
+                const bookedCount = consultationsByDate.get(dateKey)?.length ?? 0;
+                if (!dayProjects.length && !bookedCount) return null;
+                return (
+                  <li key={dateKey}>
+                    <button
+                      className={`ds-cal-agenda-row${isToday(day) ? " is-today" : ""}`}
+                      onClick={() => setSelectedDateKey(dateKey)}
+                      type="button"
+                    >
+                      <span className="ds-cal-agenda-date">
+                        <strong>{format(day, "d")}</strong>
+                        <small>{format(day, "EEE")}</small>
+                      </span>
+                      <span className="ds-cal-agenda-body">
+                        {dayProjects.map((project) => (
+                          <strong key={project.id}>
+                            {String(project.name ?? "Project")}
+                            {project.venueName ? (
+                              <em> · {String(project.venueName)}</em>
+                            ) : null}
+                          </strong>
+                        ))}
+                        {bookedCount > 0 ? (
+                          <small>
+                            {bookedCount} consultation{bookedCount === 1 ? "" : "s"} booked
+                          </small>
+                        ) : null}
+                      </span>
+                      <ChevronRight size={15} aria-hidden="true" />
+                    </button>
+                  </li>
+                );
+              })}
+            {days
+              .filter((day) => isSameMonth(day, month))
+              .every(
+                (day) =>
+                  !(projectsByDate.get(format(day, "yyyy-MM-dd")) ?? []).length &&
+                  !(consultationsByDate.get(format(day, "yyyy-MM-dd"))?.length ?? 0),
+              ) ? (
+              <li className="ds-cal-agenda-empty">
+                Nothing scheduled in {format(month, "MMMM")}.
+              </li>
+            ) : null}
+          </ol>
+        ) : null}
+
+        <div className="ds-cal-weekdays" aria-hidden="true" hidden={view === "agenda"}>
           {weekdayLabels.map((day) => (
             <span key={day}>{day}</span>
           ))}
         </div>
-        <div className="ds-cal-grid">
+        <div className="ds-cal-grid" hidden={view === "agenda"}>
           {days.map((day) => {
             const dateKey = format(day, "yyyy-MM-dd");
             const dayProjects = projectsByDate.get(dateKey) ?? [];
@@ -389,16 +466,22 @@ export function StudioCalendar() {
                 <time dateTime={dateKey}>{format(day, "d")}</time>
                 {blocked ? <Lock size={11} aria-hidden="true" className="ds-cal-day-lock" /> : null}
                 {dayProjects.length > 0 ? (
-                  <div className="ds-cal-day-projects">
-                    {dayProjects.slice(0, 3).map((project) => (
+                  <div className="ds-cal-day-events">
+                    {dayProjects.slice(0, 2).map((project) => (
                       <span
-                        className="ds-cal-day-dot"
+                        className="ds-cal-event"
                         key={project.id}
-                        title={String(project.name ?? "Project")}
-                      />
+                        title={`${String(project.name ?? "Project")}${
+                          project.venueName ? ` · ${String(project.venueName)}` : ""
+                        }`}
+                      >
+                        {String(project.name ?? "Project")}
+                      </span>
                     ))}
-                    {dayProjects.length > 3 ? (
-                      <span className="ds-cal-day-dot-more">+{dayProjects.length - 3}</span>
+                    {dayProjects.length > 2 ? (
+                      <span className="ds-cal-day-dot-more">
+                        +{dayProjects.length - 2} more
+                      </span>
                     ) : null}
                   </div>
                 ) : null}
@@ -408,7 +491,10 @@ export function StudioCalendar() {
                       <span className="ds-cal-pill ds-cal-pill-booked">{bookedCount} booked</span>
                     ) : null}
                     {!blocked && !closed && openCount > 0 ? (
-                      <span className="ds-cal-pill ds-cal-pill-open">{openCount} open</span>
+                      // Availability is context, not a commitment: keep it quiet
+                      // so twelve identical "8 open" chips stop outweighing the
+                      // four real events on the grid.
+                      <span className="ds-cal-openhint">{openCount} open</span>
                     ) : null}
                   </div>
                 ) : null}
@@ -459,14 +545,40 @@ export function StudioCalendar() {
                 Project events
               </p>
               <ul className="ds-cal-list">
-                {selectedProjects.map((project) => (
-                  <li className="ds-cal-row" key={project.id}>
-                    <span className="ds-cal-row-name">{String(project.name ?? "Project")}</span>
-                    <a className="ds-cal-row-link" href={`/studio/projects/${project.id}`}>
-                      <ArrowUpRight size={13} aria-hidden="true" /> Open project
-                    </a>
-                  </li>
-                ))}
+                {selectedProjects.map((project) => {
+                  // An event day needs more than a name: where it is, who is
+                  // leading it, and whether it is actually ready.
+                  const readiness = Number(project.readinessScore ?? 0);
+                  const facts = [
+                    project.venueName ? String(project.venueName) : "",
+                    project.leadPhotographerName
+                      ? `Lead: ${String(project.leadPhotographerName)}`
+                      : "",
+                    project.eventType ? String(project.eventType) : "",
+                  ].filter(Boolean);
+                  return (
+                    <li className="ds-cal-row ds-cal-row-rich" key={project.id}>
+                      <span className="ds-cal-row-main">
+                        <span className="ds-cal-row-name">
+                          {String(project.name ?? "Project")}
+                        </span>
+                        {facts.length ? (
+                          <small className="ds-cal-row-facts">{facts.join(" · ")}</small>
+                        ) : null}
+                      </span>
+                      <span
+                        className={`ds-cal-row-readiness${
+                          readiness >= 100 ? " is-ready" : readiness < 50 ? " is-low" : ""
+                        }`}
+                      >
+                        {readiness}% ready
+                      </span>
+                      <a className="ds-cal-row-link" href={`/studio/projects/${project.id}`}>
+                        <ArrowUpRight size={13} aria-hidden="true" /> Open
+                      </a>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ) : null}
@@ -539,7 +651,9 @@ export function StudioCalendar() {
 function SlotRow({ slot, tenantId }: { slot: ConsultationSlot; tenantId: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <li className="ds-cal-row">
+    // Compact while idle: eight identical open windows should read as a list of
+    // times, not eight cards. It expands only when one is being booked.
+    <li className={`ds-cal-row${open ? "" : " ds-cal-row-slot"}`}>
       <span className="ds-cal-row-time">
         {format(new Date(slot.startsAt), "h:mm a")} – {format(new Date(slot.endsAt), "h:mm a")}
       </span>
@@ -547,7 +661,7 @@ function SlotRow({ slot, tenantId }: { slot: ConsultationSlot; tenantId: string 
         <BookSlotForm slot={slot} tenantId={tenantId} onCancel={() => setOpen(false)} />
       ) : (
         <button type="button" className="ds-cal-slot-btn" onClick={() => setOpen(true)}>
-          Open — book this slot
+          Book
         </button>
       )}
     </li>
