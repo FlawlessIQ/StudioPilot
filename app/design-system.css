@@ -2445,6 +2445,29 @@
   flex-shrink: 0;
 }
 
+/* Explanation shown in place of a Connect button for a provider that is
+   gated behind an external approval. Spans the full row so a full sentence
+   never widens the six-column grid. */
+.ds-int-pending {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--ds-line-soft);
+  border-radius: 8px;
+  background: var(--ds-canvas);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ds-ink-soft);
+}
+.ds-int-pending > svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--ds-muted);
+}
+
 .ds-int-detail {
   grid-column: 1 / -1;
   padding-top: 2px;

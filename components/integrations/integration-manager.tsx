@@ -139,6 +139,12 @@ type Definition = {
   capabilities: string[];
   icon: LucideIcon;
   accent: string;
+  // Why this provider is absent from NEXT_PUBLIC_ENABLED_OAUTH_PROVIDERS.
+  // A gated provider must say what is outstanding and who is waiting on it,
+  // because "Unavailable" alone reads as a bug in StudioCue rather than an
+  // external approval the studio cannot act on. Kept in step with the
+  // final-evidence column of docs/integration-production-readiness.md.
+  pendingReason?: string;
 };
 
 const definitions: ReadonlyArray<Definition> = [
@@ -180,6 +186,8 @@ const definitions: ReadonlyArray<Definition> = [
     capabilities: ["Customers", "Invoices", "Payments"],
     icon: Landmark,
     accent: "quickbooks",
+    pendingReason:
+      "Waiting on Intuit production access. The app assessment is submitted; the saved company is still a sandbox realm, so production sync returns 403.",
   },
   {
     provider: "docusign",
@@ -200,6 +208,8 @@ const definitions: ReadonlyArray<Definition> = [
     capabilities: ["Templates", "Signatures", "Evidence"],
     icon: FileSignature,
     accent: "dropbox",
+    pendingReason:
+      "Waiting on Dropbox Sign OAuth app review. The backend is verified end to end, but the API app still reports is_approved=false.",
   },
   {
     provider: "stripe",
@@ -210,6 +220,8 @@ const definitions: ReadonlyArray<Definition> = [
     capabilities: ["Customers", "Invoices", "Payment status"],
     icon: CircleDollarSign,
     accent: "stripe",
+    pendingReason:
+      "Stripe Connect is verified for platform billing, but the per-studio Connect OAuth app is not configured yet (STRIPE_CLIENT_ID is unset).",
   },
 ];
 
@@ -644,11 +656,11 @@ export function IntegrationManager() {
                       Disconnect
                     </button>
                   </>
-                ) : (
+                ) : available ? (
                   <button
                     className="ds-btn ds-btn-primary ds-btn-sm"
                     type="button"
-                    disabled={!available || !ready || busy}
+                    disabled={!ready || busy}
                     onClick={() => void connect(definition.provider)}
                   >
                     {busy ? (
@@ -656,10 +668,26 @@ export function IntegrationManager() {
                     ) : (
                       <ArrowUpRight size={14} />
                     )}
-                    {available ? "Connect" : "Unavailable"}
+                    Connect
                   </button>
-                )}
+                ) : null}
               </div>
+
+              {/* A gated provider gets an explanation instead of a primary
+                  button, because a disabled green control reading
+                  "Unavailable" offers an action, denies it, and gives no
+                  reason — it reads as a broken button rather than an external
+                  approval nobody in the studio can unblock. It spans its own
+                  row: .ds-int-actions is a flex-shrink:0 cell in a six-column
+                  grid, so a sentence placed there widens the whole list. */}
+              {!connected && !available ? (
+                <p className="ds-int-pending">
+                  <LockKeyhole size={14} aria-hidden />
+                  <span>
+                    {definition.pendingReason ?? "Not open for connection yet."}
+                  </span>
+                </p>
+              ) : null}
 
               {connection?.diagnostics ? (
                 <details className="ds-int-detail">
