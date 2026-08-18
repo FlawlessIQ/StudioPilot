@@ -24,6 +24,12 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendBookingCommand } from "@/lib/booking/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { resolveActiveProvider } from "@/features/integrations/routing";
+import { friendlyError as friendlySharedError } from "@/lib/ai/friendly-error";
+import {
+  PanelError,
+  PanelLoading,
+  useWorkspaceGate,
+} from "@/components/ui/panel-state";
 
 type RecordValue = Record<string, unknown> & { id: string };
 
@@ -50,7 +56,10 @@ function friendlyError(error: unknown): string {
     PROJECT_VERSION_CONFLICT:
       "The project changed. Refresh and run the booking review again.",
   };
-  return known[message] ?? message.replaceAll("_", " ");
+  // Domain codes win; anything else goes through the shared helper so raw
+  // infrastructure text ("Firebase client configuration is incomplete: …")
+  // never reaches the notice.
+  return known[message] ?? friendlySharedError(error, "This action could not be completed.");
 }
 
 function currency(cents: unknown, code: unknown): string {
@@ -62,6 +71,7 @@ function currency(cents: unknown, code: unknown): string {
 
 export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   const workspace = useWorkspace();
+  const gate = useWorkspaceGate();
   const [project, setProject] = useState<RecordValue | null>(null);
   const [proposal, setProposal] = useState<RecordValue | null>(null);
   const [contract, setContract] = useState<RecordValue | null>(null);
@@ -79,8 +89,10 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   const load = useCallback(async () => {
     if (!workspace.tenantId) return;
     setLoading(true);
-    const { firestore } = getFirebaseClient();
     try {
+      // See booking-autopilot-workspace: constructing the client outside the
+      // try turned a config error into a permanent spinner.
+      const { firestore } = getFirebaseClient();
       const projectSnapshot = await getDoc(doc(firestore, "projects", projectId));
       if (
         !projectSnapshot.exists() ||
@@ -356,15 +368,21 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
     }
   }
 
-  if (loading) {
+  if (gate.status === "error") {
     return (
-      <section className="panel booking-workspace-loading">
-        <LoaderCircle className="spin" />
-        <span>
-          <strong>Loading booking evidence…</strong>
-          <small>Checking proposal, signing, and QuickBooks records.</small>
-        </span>
-      </section>
+      <PanelError
+        detail={gate.message}
+        onRetry={gate.retry}
+        title="Booking evidence could not be loaded"
+      />
+    );
+  }
+  if (gate.status === "loading" || loading) {
+    return (
+      <PanelLoading
+        detail="Checking proposal, signing, and QuickBooks records."
+        label="Loading booking evidence…"
+      />
     );
   }
 

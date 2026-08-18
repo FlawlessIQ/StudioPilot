@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft,
   ArrowRight,
+  CalendarDays,
   DatabaseZap,
   Inbox,
   LoaderCircle,
@@ -29,6 +30,12 @@ import { dataIsLive } from "@/lib/runtime-mode";
 import { withTimeout } from "@/lib/async/with-timeout";
 import { getStudioRecords } from "@/lib/studio/records-client";
 import { ProjectWorkspaceNav } from "@/components/projects/project-workspace-nav";
+import { ReadinessRing } from "@/components/ds/readiness-ring";
+import {
+  describeEventProximity,
+  eventDateHasPassed,
+  formatEventDate,
+} from "@/lib/format/event-date";
 import {
   demoTenantDocuments,
   useTenantDocuments,
@@ -727,21 +734,71 @@ export function StudioDomainPage({
   );
 }
 
+/**
+ * The project header, kept on screen across every project view.
+ *
+ * Overview / Client & booking / Plan / Delivery are separate top-level routes
+ * wearing tab clothing, so switching one used to replace the project header
+ * with a thin "Back to project" strip — the event date, stage and readiness
+ * all vanished exactly when the reader needed them to make a decision here.
+ */
 export function ProjectContextBar({ projectId }: { projectId: string }) {
   const { records, loading } = useTenantDocuments("projects");
+  const project = records?.find((entry) => entry.id === projectId);
   const name = loading
     ? "Loading project…"
-    : String(records?.find((project) => project.id === projectId)?.name ?? "Selected project");
+    : String(project?.name ?? "Selected project");
+  const state = String(project?.state ?? "");
+  const readiness = Number(project?.readinessScore ?? 0);
+  const eventDate = project?.eventDate;
+  const proximity = describeEventProximity(eventDate);
+  const passed = eventDateHasPassed(eventDate);
+  const facts = [
+    project?.eventType ? String(project.eventType) : "",
+    project?.venueName ? String(project.venueName) : "",
+    project?.leadPhotographerName ? `Lead: ${String(project.leadPhotographerName)}` : "",
+  ].filter(Boolean);
+
   return (
     <aside className="project-context-stack">
-      <div className="project-context-bar">
-        <span>
-          <small>Project view</small>
-          <strong>{name}</strong>
-        </span>
-        <Link href={`/studio/projects/${projectId}`}>
-          <ArrowLeft /> Back to project
+      <div className="project-context-bar is-detailed">
+        <Link className="project-context-identity" href={`/studio/projects/${projectId}`}>
+          <ArrowLeft aria-hidden="true" />
+          <span>
+            <small>Project</small>
+            <strong>{name}</strong>
+          </span>
         </Link>
+        {project ? (
+          <>
+            <span className="project-context-facts">
+              {eventDate ? (
+                <span className={passed ? "project-context-when is-passed" : "project-context-when"}>
+                  <CalendarDays aria-hidden="true" size={13} />
+                  {formatEventDate(eventDate)}
+                  {proximity ? <em> · {proximity}</em> : null}
+                </span>
+              ) : null}
+              {facts.length ? <small>{facts.join(" · ")}</small> : null}
+            </span>
+            <span className="project-context-status">
+              {state ? (
+                <StatusBadge dot tone={stateTone(state)}>
+                  {state.replaceAll("_", " ").toLowerCase()}
+                </StatusBadge>
+              ) : null}
+              {/* The ring carries the number, so no separate label: printing
+                  readiness twice was a habit worth breaking. */}
+              <span
+                className="project-context-readiness"
+                title={`${readiness}% ready`}
+              >
+                <ReadinessRing size={42} stroke={3} value={readiness} />
+                <span className="ds-sr-only">{readiness}% ready</span>
+              </span>
+            </span>
+          </>
+        ) : null}
       </div>
       <ProjectWorkspaceNav compact projectId={projectId} />
     </aside>

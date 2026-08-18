@@ -31,6 +31,12 @@ import { sendBookingCommand } from "@/lib/booking/command-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { runProposalCommand } from "@/lib/proposals/command-client";
+import { friendlyError } from "@/lib/ai/friendly-error";
+import {
+  PanelError,
+  PanelLoading,
+  useWorkspaceGate,
+} from "@/components/ui/panel-state";
 
 type Value = Record<string, unknown> & { id: string };
 
@@ -61,6 +67,7 @@ export function BookingAutopilotWorkspace({
   projectId: string;
 }) {
   const workspace = useWorkspace();
+  const gate = useWorkspaceGate();
   const [project, setProject] = useState<Value | null>(null);
   const [consultation, setConsultation] = useState<Value | null>(null);
   const [packages, setPackages] = useState<Value[]>([]);
@@ -75,9 +82,12 @@ export function BookingAutopilotWorkspace({
 
   const load = useCallback(async () => {
     if (!workspace.tenantId) return;
-    const { firestore } = getFirebaseClient();
     setLoading(true);
     try {
+      // Inside the try: getFirebaseClient() throws on an incomplete client
+      // config, and outside it that escaped as an unhandled rejection, so the
+      // finally never ran and this panel spun forever.
+      const { firestore } = getFirebaseClient();
       const [projectSnapshot, consultationSnapshot, packageSnapshot, actionSnapshot] =
         await Promise.all([
           getDoc(doc(firestore, "projects", projectId)),
@@ -139,11 +149,7 @@ export function BookingAutopilotWorkspace({
           text(object(recommendation?.structuredOutput).packageId),
       );
     } catch (caught: unknown) {
-      setNotice(
-        caught instanceof Error
-          ? caught.message
-          : "Booking autopilot could not be loaded.",
-      );
+      setNotice(friendlyError(caught, "Booking autopilot could not be loaded."));
     } finally {
       setLoading(false);
     }
@@ -397,13 +403,19 @@ export function BookingAutopilotWorkspace({
     }
   }
 
-  if (loading) {
+  // The workspace must resolve before this panel can fetch anything. If it
+  // errors or stalls, say so instead of spinning forever.
+  if (gate.status === "error") {
     return (
-      <section className="panel booking-autopilot-loading">
-        <LoaderCircle className="spin" />
-        <strong>Loading inquiry-to-booked context…</strong>
-      </section>
+      <PanelError
+        detail={gate.message}
+        onRetry={gate.retry}
+        title="Booking context could not be loaded"
+      />
     );
+  }
+  if (gate.status === "loading" || loading) {
+    return <PanelLoading label="Loading inquiry-to-booked context…" />;
   }
 
   return (

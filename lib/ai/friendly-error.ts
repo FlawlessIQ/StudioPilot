@@ -27,6 +27,27 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   GOOGLE_RUNTIME_IDENTITY_UNAVAILABLE: "We couldn't draft this. Try again.",
 };
 
+/**
+ * Infrastructure failures whose raw text reads as prose and therefore slips
+ * past looksHumanWritten. "Firebase client configuration is incomplete:
+ * apiKey, authDomain, projectId…" is a deployment problem, not something a
+ * photographer can act on.
+ */
+const FRIENDLY_BY_PHRASE: Array<[RegExp, string]> = [
+  [
+    /firebase client configuration is incomplete/i,
+    "This workspace isn't fully configured yet, so live records can't load. Your studio administrator can finish the setup.",
+  ],
+  [
+    /missing or insufficient permissions/i,
+    "You don't have access to these records. Ask your studio owner to check your role.",
+  ],
+  [
+    /failed to fetch|network ?error|load failed/i,
+    "We couldn't reach the server. Check your connection and try again.",
+  ],
+];
+
 const PREFIX_FALLBACKS: Array<[RegExp, string]> = [
   [/^VERTEX_AI_/, "We couldn't draft this. Try again."],
   [/^AI_/, "We couldn't draft this. Try again."],
@@ -48,8 +69,21 @@ export function friendlyAiError(
   const message = caught instanceof Error ? caught.message : String(caught ?? "");
   const code = message.split(":")[0]?.trim() ?? "";
   if (FRIENDLY_BY_CODE[code]) return FRIENDLY_BY_CODE[code];
+  for (const [pattern, copy] of FRIENDLY_BY_PHRASE)
+    if (pattern.test(message)) return copy;
   for (const [pattern, copy] of PREFIX_FALLBACKS)
     if (pattern.test(code)) return copy;
   if (looksHumanWritten(message)) return message;
   return fallback;
+}
+
+/**
+ * Same rules, general name. Non-AI surfaces (booking evidence, records
+ * panels) show these notices too and must not leak plumbing either.
+ */
+export function friendlyError(
+  caught: unknown,
+  fallback = "Something went wrong. Try again.",
+): string {
+  return friendlyAiError(caught, fallback);
 }

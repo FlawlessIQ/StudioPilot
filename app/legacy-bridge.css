@@ -1184,9 +1184,14 @@
    grid. Events now carry their name; availability is a quiet hint.
    --------------------------------------------------------------------------- */
 
-.ds-root .ds-cal {
-  /* Give the grid the room it needs for named events. */
-  grid-template-columns: minmax(0, 2.1fr) minmax(300px, 0.9fr);
+/* Give the grid the room it needs for named events — but only where there is
+   room. design-system.css collapses .ds-cal to one column under 900px with
+   specificity (0,1,0); this override is (0,2,0), so without a matching media
+   query it won that collapse too and the calendar overflowed on mobile. */
+@media (min-width: 901px) {
+  .ds-root .ds-cal {
+    grid-template-columns: minmax(0, 2.1fr) minmax(300px, 0.9fr);
+  }
 }
 
 .ds-root .ds-cal-day {
@@ -1195,6 +1200,10 @@
 
 .ds-root .ds-cal-day-events {
   display: grid;
+  /* minmax(0, 1fr), not 1fr: the chip below is white-space: nowrap, so without
+     a zero floor its min-content width is the full client name. Seven of those
+     across a month grid forced the whole page wider than a phone viewport. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 3px;
   min-width: 0;
 }
@@ -1204,6 +1213,7 @@
 .ds-root .ds-cal-event {
   display: block;
   min-width: 0;
+  width: 100%;
   padding: 3px 6px;
   border-radius: 4px;
   border-left: 2px solid var(--ds-brass, #b08a52);
@@ -1403,4 +1413,199 @@
   width: auto;
   padding: 4px 12px;
   font-size: 11.5px;
+}
+
+/* ---------------------------------------------------------------------------
+   Persistent project header (Phase 2 / existing-plan 0.6)
+
+   The project's four views are separate routes, so switching one used to drop
+   the header entirely. It now carries the same facts everywhere.
+   --------------------------------------------------------------------------- */
+
+.ds-root .project-context-bar.is-detailed {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+}
+
+.ds-root .project-context-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  color: inherit;
+}
+
+.ds-root .project-context-identity svg {
+  flex: none;
+  color: var(--ds-ink-soft, #5b6b63);
+}
+
+.ds-root .project-context-identity span {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.ds-root .project-context-identity small {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  color: var(--ds-ink-faint, #8a9791);
+}
+
+.ds-root .project-context-identity strong {
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--ds-ink, #1d2521);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-root .project-context-facts {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ds-root .project-context-when {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ds-ink, #1d2521);
+}
+
+.ds-root .project-context-when em {
+  font-style: normal;
+  font-weight: 500;
+  color: var(--ds-ink-soft, #5b6b63);
+}
+
+/* An event that has already happened reads as a problem, here as everywhere. */
+.ds-root .project-context-when.is-passed,
+.ds-root .project-context-when.is-passed em {
+  color: var(--ds-danger, #a3201a);
+}
+
+.ds-root .project-context-facts small {
+  font-size: 11.5px;
+  color: var(--ds-ink-soft, #5b6b63);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-root .project-context-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.ds-root .project-context-readiness {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Screen-reader-only text, so the ring's number has an accessible equivalent. */
+.ds-root .ds-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 860px) {
+  .ds-root .project-context-bar.is-detailed {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .ds-root .project-context-facts {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Panel loading and failure states (Phase 2)
+
+   Panels gated on a tenantId that never arrives used to sit on a spinner
+   indefinitely. They now resolve to a real error with a retry.
+   --------------------------------------------------------------------------- */
+
+.ds-root .panel-state {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 18px 20px;
+}
+
+.ds-root .panel-state span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ds-root .panel-state strong {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ds-ink, #1d2521);
+}
+
+.ds-root .panel-state small {
+  font-size: 12.5px;
+  color: var(--ds-ink-soft, #5b6b63);
+}
+
+.ds-root .panel-state.is-loading > svg {
+  color: var(--ds-ink-faint, #8a9791);
+}
+
+.ds-root .panel-state.is-error {
+  border-color: color-mix(in srgb, var(--ds-danger, #a3201a) 30%, transparent);
+  background: color-mix(in srgb, var(--ds-danger, #a3201a) 6%, var(--ds-surface, #fff));
+}
+
+.ds-root .panel-state.is-error > svg {
+  color: var(--ds-danger, #a3201a);
+}
+
+.ds-root .panel-state-spin {
+  animation: panel-state-spin 0.9s linear infinite;
+}
+
+@keyframes panel-state-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-root .panel-state-spin {
+    animation: none;
+  }
+}
+
+/* The view toggle widened the calendar header past a phone viewport, and the
+   header did not wrap. Let it wrap and let its parts shrink. */
+.ds-root .ds-cal-head {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ds-root .ds-cal-nav {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+@media (max-width: 560px) {
+  .ds-root .ds-cal-viewtoggle {
+    margin-right: 0;
+  }
 }
