@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { workflowScorecard } from "@/features/operations/workflow-scorecard";
+import { formatCents } from "@/lib/format/money";
 
 function csvCell(value: unknown) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
@@ -264,11 +265,11 @@ export function LiveReports() {
         </article>
         <article className="panel report-metric-card report-metric-booked">
           <span className="report-metric-icon"><CircleDollarSign /></span>
-          <span className="report-metric-copy"><small>Booked value</small><strong>{loading ? "—" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(bookedValue / 100)}</strong><span>Synced invoice references</span></span>
+          <span className="report-metric-copy"><small>Booked value</small><strong>{loading ? "—" : formatCents(bookedValue)}</strong><span>Synced invoice references</span></span>
         </article>
         <article className="panel report-metric-card report-metric-outstanding">
           <span className="report-metric-icon"><WalletCards /></span>
-          <span className="report-metric-copy"><small>Outstanding</small><strong>{loading ? "—" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(outstanding / 100)}</strong><span>Collected {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(collected / 100)}</span></span>
+          <span className="report-metric-copy"><small>Outstanding</small><strong>{loading ? "—" : formatCents(outstanding)}</strong><span>Collected {formatCents(collected)}</span></span>
         </article>
       </section>
       <div className="report-layout">
