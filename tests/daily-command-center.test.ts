@@ -65,3 +65,23 @@ test("future-snoozed AI work and healthy completed work stay off the daily surfa
 
   assert.deepEqual(projection, { approvals: [], exceptions: [], working: [] });
 });
+
+test("an invoice with no due date is not treated as overdue", () => {
+  // "" < today is true in JS, so without an emptiness guard every unpaid
+  // invoice lacking a due date was reported as an overdue balance — and the
+  // dashboard's money tile disagreed with its own attention queue.
+  const projection = dailyCommandProjection({
+    now: "2026-08-18T09:00:00.000Z",
+    invoiceReferences: [
+      { id: "no-due", balanceCents: 191_000, status: "sent" },
+      { id: "future", balanceCents: 191_000, status: "sent", dueDate: "2026-09-30" },
+      { id: "really-overdue", balanceCents: 191_000, status: "sent", dueDate: "2026-08-01" },
+      { id: "paid-and-past", balanceCents: 0, status: "paid", dueDate: "2026-07-01" },
+    ],
+  });
+  const overdue = projection.exceptions.filter((item) =>
+    item.id.startsWith("overdue-balance-"),
+  );
+  assert.equal(overdue.length, 1);
+  assert.ok(overdue[0].id.includes("really-overdue"));
+});

@@ -198,6 +198,10 @@ export function demoTenantDocuments(collectionName: string): TenantDocument[] {
         amountCents: Math.round(Number(invoice.amount.replace(/[$,]/g, "")) * 100),
         balanceCents: Math.round(Number(invoice.balance.replace(/[$,]/g, "")) * 100),
         status: invoice.status.toLowerCase(),
+        // Unpaid demo invoices carry a real past-due date so the overdue-balance
+        // path is exercised. Paid ones get a past date too — status, not the
+        // date, is what excludes them.
+        dueDate: demoDueDate(invoice.status.toLowerCase() === "paid" ? -30 : -6),
       }));
     case "consultations":
       return demoConsultations.map((item) => ({

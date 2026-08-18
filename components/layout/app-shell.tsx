@@ -43,14 +43,26 @@ const navSections = [
       { label: "People", href: "/studio/clients", icon: UsersRound },
     ],
   },
+  {
+    // Cross-project workspaces. Both existed in the product's own nav plan and
+    // were lost in the simplification pass: the AI review queue was reachable
+    // only via a "Review all" link that read like "more inquiries", and
+    // Insights sat inside the account popover next to Sign out.
+    label: "Studio",
+    items: [
+      { label: "AI review", href: "/studio/ai-queue", icon: Sparkles },
+      { label: "Insights", href: "/studio/reports", icon: ChartNoAxesColumn },
+    ],
+  },
 ] as const;
 
 const activeGroups: Record<string, string[]> = {
-  Home: ["Dashboard", "Notifications", "AI queue", "Leads", "Inquiries"],
+  Home: ["Dashboard", "Notifications", "Leads", "Inquiries"],
+  "AI review": ["AI queue", "Copilot"],
+  Insights: ["Insights", "Reports"],
   Messages: ["Communications"],
   Projects: [
     "Projects",
-    "Copilot",
     "Proposals",
     "Contracts",
     "Invoices",
@@ -239,11 +251,11 @@ function StudioShell({
                 </span>
               </div>
               <span className="ds-user-pop-label">Studio</span>
+              {/* Insights moved to the sidebar — analytics do not belong in a
+                  menu next to Sign out. Library stays here until it earns a
+                  nav item of its own. */}
               {workspace.role !== "staff_photographer" ? (
-                <>
-                  <Link href="/studio/library"><LibraryBig size={15} /> Library</Link>
-                  <Link href="/studio/reports"><ChartNoAxesColumn size={15} /> Insights</Link>
-                </>
+                <Link href="/studio/library"><LibraryBig size={15} /> Library</Link>
               ) : null}
               {workspace.role === "studio_owner" ? (
                 <Link href="/studio/setup"><Settings size={15} /> Studio settings</Link>

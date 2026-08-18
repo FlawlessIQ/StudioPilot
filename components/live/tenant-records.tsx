@@ -50,6 +50,10 @@ import { runClientInvitation } from "@/lib/client/invitation-client";
 export type TenantDocument = Record<string, unknown> & { id: string };
 
 import { demoTenantDocuments } from "@/features/live/demo-records";
+import {
+  describeEventProximity,
+  formatEventDate,
+} from "@/lib/format/event-date";
 
 // Re-exported so existing importers of this module keep working.
 export { demoTenantDocuments };
@@ -581,7 +585,9 @@ export function LiveProjectRows({
           id: item.id,
           name: String(item.name),
           event: String(item.eventType),
-          date: String(item.eventDate),
+          date: String(item.eventDate ?? "")
+          ? `${formatEventDate(item.eventDate)} · ${describeEventProximity(item.eventDate)}`
+          : "Date to confirm",
           venue: String(item.venueName ?? item.city ?? "Location pending"),
           state: String(item.state),
           readiness: Number(item.readinessScore ?? 0),
@@ -1063,7 +1069,9 @@ export function LiveUpcomingRows({ limit = 5 }: { limit?: number } = {}) {
         id: item.id,
         client: String(item.name),
         event: String(item.eventType),
-        date: String(item.eventDate),
+        date: String(item.eventDate ?? "")
+          ? `${formatEventDate(item.eventDate)} · ${describeEventProximity(item.eventDate)}`
+          : "Date to confirm",
         state: String(item.state),
         readiness: Number(item.readinessScore ?? 0),
         blocker: String(item.nextAction ?? "Review readiness"),

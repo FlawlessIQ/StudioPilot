@@ -178,12 +178,18 @@ export function dailyCommandProjection(
       .filter((record) => record.status === "exhausted")
       .map((record) => exceptionJob(record, "Crew search", "/studio/crew")),
     ...values(input.invoiceReferences)
-      .filter(
-        (record) =>
+      .filter((record) => {
+        // A missing due date is not an overdue date. Without the emptiness
+        // guard, "" < today is true, so every unpaid invoice with no due date
+        // was reported as an overdue balance.
+        const due = text(record.dueDate).slice(0, 10);
+        return (
           Number(record.balanceCents ?? 0) > 0 &&
-          text(record.dueDate) < today &&
-          !["voided", "refunded", "paid"].includes(text(record.status)),
-      )
+          due !== "" &&
+          due < today &&
+          !["voided", "refunded", "paid"].includes(text(record.status))
+        );
+      })
       .map((record) => exceptionJob(record, "Overdue balance", "/studio/invoices")),
   ];
 
