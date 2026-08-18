@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -153,6 +153,36 @@ function StudioShell({
 }) {
   const pathname = usePathname();
   const [navigationOpen, setNavigationOpen] = useState(false);
+  // The drawer is only a drawer below 860px; above that the sidebar is
+  // permanently visible and must never be inert.
+  const [compactViewport, setCompactViewport] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 860px)");
+    const sync = () => setCompactViewport(query.matches);
+    sync();
+    // Both listeners on purpose. If the breakpoint state ever went stale while
+    // wide, `inert` would strand the entire desktop sidebar outside the
+    // accessibility tree — a worse fault than the one this fixes — so a resize
+    // fallback backs up the matchMedia event. React bails out of same-value
+    // updates, so the extra listener costs nothing.
+    query.addEventListener("change", sync);
+    window.addEventListener("resize", sync);
+    return () => {
+      query.removeEventListener("change", sync);
+      window.removeEventListener("resize", sync);
+    };
+  }, []);
+
+  // A drawer that traps nothing should at least close on Escape.
+  useEffect(() => {
+    if (!navigationOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setNavigationOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [navigationOpen]);
   const workspace = useWorkspace();
   const routeSegment = pathname.split("/").filter(Boolean)[1] ?? "";
   const resolvedActive =
@@ -190,7 +220,17 @@ function StudioShell({
           onClick={() => setNavigationOpen(false)}
           type="button"
         />
-        <aside aria-label="Studio workspace" className="ds-sidebar" id="studio-navigation">
+        {/* Closed, the drawer is only moved off-screen by a transform, so it stayed
+            in the accessibility tree: keyboard users could tab into a menu they
+            could not see, and with the tab bar present every destination was
+            announced twice. `inert` removes it from the tree and from the tab
+            order without disturbing the slide animation. */}
+          <aside
+            aria-label="Studio workspace"
+            className="ds-sidebar"
+            id="studio-navigation"
+            inert={compactViewport && !navigationOpen}
+          >
           <div className="ds-brand-row">
             <div className="ds-brand">
               <span className="ds-brand-mark ds-brand-mark-logo">
