@@ -1964,3 +1964,58 @@
    exposed twice. Hiding it with `visibility` fixes both but changes what is
    reachable at mobile, which several e2e specs assert against; it needs its own
    pass with those specs updated together. */
+
+/* ---------------------------------------------------------------------------
+   Panel insets
+
+   `.panel` and `.ds-card` provide background, border and radius but no
+   padding, so every usage has to remember its own inset and the ones that
+   forget put text on the border. These are the panels that forgot, found by
+   measuring the rendered gap between each panel's border and its nearest text
+   (see the "every panel insets its own content" spec, which now walks whatever
+   is on the page instead of naming two selectors).
+
+   Table panels are deliberately absent: they delegate the inset to their rows
+   so hover backgrounds can span the full width, and their text already sits
+   ~19px in.
+   --------------------------------------------------------------------------- */
+
+.ds-root .panel.studio-attention-queue,
+.ds-root .panel.studio-handling {
+  padding: 20px 22px;
+}
+
+/* globals.css sets .report-funnel { padding: 0 } — this needs to outrank it. */
+.ds-root .report-funnel.panel {
+  padding: 20px 22px;
+}
+
+/* The lifecycle pack's heading pads itself, so padding the panel would double
+   up on it. Align every child on one 20px inset instead — the heading's own
+   26px costs too much width in this narrow column, where the labels wrap. */
+.ds-root .panel.communications-lifecycle-pack {
+  padding-bottom: 18px;
+}
+
+.ds-root .panel.communications-lifecycle-pack > .panel-heading {
+  padding-inline: 20px;
+}
+
+.ds-root .panel.communications-lifecycle-pack > .communications-lifecycle-note,
+.ds-root .panel.communications-lifecycle-pack > .communications-lifecycle-list,
+.ds-root .panel.communications-lifecycle-pack > .button {
+  margin-inline: 20px;
+}
+
+/* Two that only surface at narrow widths, where the grid columns stop
+   supplying the inset the desktop layout happened to give. */
+
+/* Panel with padding-block only — its rows had no horizontal inset at all. */
+.ds-root .panel.client-message-list {
+  padding-inline: 20px;
+}
+
+/* The spam/duplicate note sat 3px off the panel's bottom border. */
+.ds-root .panel.crm-table-panel > .crm-empty-hint {
+  padding-bottom: 16px;
+}
