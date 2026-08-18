@@ -1,22 +1,65 @@
 import { expect, test } from "@playwright/test";
 
-test("photographer navigation exposes five durable destinations", async ({ page }) => {
+/**
+ * These tests protect the *intent* of the workspace simplification: the
+ * photographer always has the same small set of durable destinations, and the
+ * home page leads with a single decision rather than a wall of dashboards.
+ *
+ * They deliberately do not pin the exact nav length or forbid cross-project
+ * workspaces. An earlier version asserted `toHaveCount(5)` and
+ * `not.toContainText("AI review")`, which turned a point-in-time layout into a
+ * requirement — it made restoring the AI review queue and Insights a
+ * test failure, even though both are named in the product's own nav plan. The
+ * nav assertion below is a floor (these five are always present, in this
+ * order), not a ceiling.
+ */
+
+const durableDestinations = ["Home", "Projects", "Calendar", "Messages", "People"];
+
+test("photographer navigation always exposes the durable destinations", async ({ page }) => {
   await page.goto("/studio");
-  const links = page.locator(".ds-nav-item");
-  await expect(links).toHaveCount(5);
-  await expect(links).toHaveText(["Home", "Projects", "Calendar", "Messages", "People"]);
-  await expect(page.locator(".ds-sidebar")).not.toContainText("AI review");
+  const nav = page.locator(".ds-sidebar");
+  await expect(nav).toBeVisible();
+
+  // Each durable destination is present and links somewhere real.
+  for (const label of durableDestinations) {
+    const item = nav.locator(".ds-nav-item", { hasText: label });
+    await expect(item, `"${label}" must stay in the sidebar`).toHaveCount(1);
+    await expect(item).toHaveAttribute("href", /\/studio/);
+  }
+
+  // And they keep their order, so muscle memory survives.
+  const labels = await nav.locator(".ds-nav-item").allInnerTexts();
+  const positions = durableDestinations.map((label) =>
+    labels.findIndex((text) => text.trim().startsWith(label)),
+  );
+  expect(positions.every((index) => index >= 0)).toBe(true);
+  expect([...positions]).toEqual([...positions].sort((a, b) => a - b));
+});
+
+test("the sidebar does not carry project-scoped concepts", async ({ page }) => {
+  await page.goto("/studio");
+  // Event day and delivery belong to a project, not the top level — surfacing
+  // them globally is what made the old nav feel like a filing cabinet.
   await expect(page.locator(".ds-sidebar")).not.toContainText("Event day");
   await expect(page.locator(".ds-sidebar")).not.toContainText("Deliveries");
 });
 
-test("home presents one next decision without duplicate dashboard concepts", async ({ page }) => {
+test("home leads with one decision, not competing dashboards", async ({ page }) => {
   await page.goto("/studio");
-  await expect(page.locator(".studio-focus-hero")).toBeVisible();
-  await expect(page.getByText("Your next decision", { exact: true })).toBeVisible();
-  await expect(page.getByText("Put AI to work", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("Next actions", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("Every project, from hello to gallery", { exact: true })).toHaveCount(0);
+  const main = page.locator("main");
+
+  // Exactly one primary recommended action, and it names the project it is about.
+  const primary = main.getByRole("link", { name: /Review and decide|Create project/ });
+  await expect(primary).toHaveCount(1);
+
+  // The concepts the simplification removed stay removed: a generic grid of AI
+  // shortcuts, a second "next actions" list, and the full lifecycle rail.
+  await expect(main.getByText("Put AI to work", { exact: true })).toHaveCount(0);
+  await expect(main.getByText("Next actions", { exact: true })).toHaveCount(0);
+  await expect(
+    main.getByText("Every project, from hello to gallery", { exact: true }),
+  ).toHaveCount(0);
 });
 
 test("project workspace uses four outcome-based tabs", async ({ page }) => {

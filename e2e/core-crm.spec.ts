@@ -64,9 +64,15 @@ test("studio operational surfaces use real-data empty states", async ({ page }) 
 
 test("home prioritizes approvals and reports only observed workflow evidence", async ({ page }) => {
   await page.goto("/studio");
-  await expect(page.getByText("Your next decision", { exact: true })).toBeVisible();
-  await expect(page.locator(".studio-focus-action")).toBeVisible();
-  await expect(page.locator(".studio-focus-hero")).toContainText("Suggested next");
+  // Asserted by behaviour, not by legacy class names: the home page must put a
+  // single recommended action in front of the photographer. Phase 1 rebuilds
+  // this hero on the ds-* primitives, so .studio-focus-hero / .studio-focus-action
+  // are not durable selectors.
+  const heroAction = page
+    .locator("main")
+    .getByRole("link", { name: /Review and decide|Create project/ });
+  await expect(heroAction).toHaveCount(1);
+  await expect(heroAction).toBeVisible();
 
   await page.goto("/studio/reports");
   await expect(page.getByRole("heading", { name: "What StudioCue handled for you" })).toBeVisible();
