@@ -1885,3 +1885,82 @@
   background: color-mix(in srgb, var(--ds-accent, #0e9f6e) 14%, transparent);
   color: var(--ds-accent-deep, #0b6e4f);
 }
+
+/* ---------------------------------------------------------------------------
+   Mobile shell (Phase 3)
+   --------------------------------------------------------------------------- */
+
+/* The search trigger collapsed to a 38px icon in globals.css, but
+   `.ds-root .command-search` (0,2,0) beat that rule (0,1,0), so it stayed a
+   340px-wide pill with its label and shortcut hidden — an empty capsule. */
+@media (max-width: 860px) {
+  .ds-root .command-search {
+    width: 40px;
+    min-width: 40px;
+    padding: 9px;
+    margin-left: auto;
+  }
+
+  .ds-root .command-search > span,
+  .ds-root .command-search kbd {
+    display: none;
+  }
+}
+
+/* Bottom tab bar: hidden on desktop, where the sidebar is always visible. */
+.ds-root .ds-tabbar {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .ds-root .ds-tabbar {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 40;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: 2px;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    background: color-mix(in srgb, var(--ds-surface, #fff) 92%, transparent);
+    backdrop-filter: blur(14px);
+    border-top: 1px solid var(--ds-line, #e3e1d8);
+  }
+
+  .ds-root .ds-tabbar a {
+    display: grid;
+    justify-items: center;
+    gap: 3px;
+    padding: 6px 2px;
+    border-radius: 9px;
+    color: var(--ds-ink-soft, #5b6b63);
+    font-size: 10.5px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: center;
+  }
+
+  .ds-root .ds-tabbar a[data-active="true"] {
+    background: color-mix(in srgb, var(--ds-accent, #0e9f6e) 12%, transparent);
+    color: var(--ds-accent-deep, #0b6e4f);
+  }
+
+  .ds-root .ds-tabbar a span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+
+  /* Keep the tab bar off the page's last row of content. */
+  .ds-root .ds-content {
+    padding-bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* KNOWN ISSUE, pre-existing: the mobile drawer hides with transform alone, so
+   it stays in the accessibility tree — keyboard and screen-reader users can tab
+   into an off-screen menu, and with the tab bar present each destination is
+   exposed twice. Hiding it with `visibility` fixes both but changes what is
+   reachable at mobile, which several e2e specs assert against; it needs its own
+   pass with those specs updated together. */

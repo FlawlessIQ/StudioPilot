@@ -74,7 +74,9 @@ test("project workspace uses four outcome-based tabs", async ({ page }) => {
 
 test("messages reveal the editor only after intent is established", async ({ page }) => {
   await page.goto("/studio/messages");
-  await expect(page.getByRole("heading", { name: "Messages", exact: true })).toBeVisible();
+  // The page is named "Client messages" — it is project messaging with clients,
+  // not an email inbox. The nav keeps the shorter "Messages".
+  await expect(page.getByRole("heading", { name: /messages/i }).first()).toBeVisible();
   await expect(page.locator(".communications-draft-review")).toHaveCount(0);
   await page.getByLabel("Project").selectOption({ index: 1 });
   await page.getByRole("button", { name: "Write it myself" }).click();

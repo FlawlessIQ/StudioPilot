@@ -267,6 +267,24 @@ function StudioShell({
           </details>
         </aside>
 
+        {/* Primary destinations within thumb reach. On a tool used on a phone
+            during an event, burying navigation behind a hamburger costs a tap
+            every time. */}
+        <nav aria-label="Primary" className="ds-tabbar">
+          {visibleSections[0]?.items.slice(0, 5).map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                data-active={item.label === currentGroup ? "true" : "false"}
+                href={item.href}
+                key={item.href}
+              >
+                <Icon aria-hidden="true" size={19} />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
         <div className="ds-main">
           <header className="ds-topbar">
             <button

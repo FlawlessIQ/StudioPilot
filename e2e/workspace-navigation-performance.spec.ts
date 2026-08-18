@@ -24,7 +24,9 @@ test("studio navigation preserves the authorized workspace shell", async ({
   });
 
   await openMobileNavigation(page, "Open navigation");
-  await page.getByRole("link", { name: "Calendar", exact: true }).click();
+  // Scoped to the sidebar: the mobile tab bar exposes the same destinations, so
+  // an unscoped role query now matches twice.
+  await page.locator(".ds-sidebar").getByRole("link", { name: "Calendar", exact: true }).click();
   await expect(page).toHaveURL(/\/studio\/calendar$/);
   await expect(page.getByRole("heading", { name: "Calendar" })).toBeVisible();
   await expect(page.getByText("Verifying access…")).toHaveCount(0);
