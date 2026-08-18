@@ -73,6 +73,11 @@ event_services=(
   emailjobtaskdispatch
   pdfjobtaskdispatch
   providerjobtaskdispatch
+  # Cloud Tasks invokes the worker itself with the same runtime identity that
+  # enqueued the task. Its binding existed but was never listed here, so
+  # nothing would restore it after this org's next invoker-IAM reset — every
+  # queued job would then fall back to the hourly scheduler.
+  operationstaskworker
 )
 
 for service_name in "${app_services[@]}"; do
