@@ -62,6 +62,17 @@
   text-rendering: optimizeLegibility;
 }
 
+/* Brand tile now carries the Cue Mark logo instead of the letter tile. */
+.ds-brand-mark.ds-brand-mark-logo {
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.ds-brand-mark.ds-brand-mark-logo svg {
+  display: block;
+}
+
 /* Friendly structured-data controls used by AI review and template import. */
 .ds-root .structured-object {
   display: grid;
