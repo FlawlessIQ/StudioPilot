@@ -1609,3 +1609,31 @@
     margin-right: 0;
   }
 }
+
+/* Readiness explains its own gap: the percentage now names the blockers that
+   make up the remainder and links to the list that holds them. */
+.ds-root .project-readiness-gap {
+  display: inline-block;
+  max-width: 34ch;
+  margin-top: 3px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ds-danger, #a3201a);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ds-root .project-readiness-clear {
+  display: inline-block;
+  max-width: 34ch;
+  margin-top: 3px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--ds-accent-deep, #0b6e4f);
+}
+
+/* Anchored jump should not land under the sticky topbar. */
+.ds-root #project-checkpoints {
+  scroll-margin-top: 88px;
+}

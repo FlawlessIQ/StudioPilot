@@ -437,7 +437,7 @@ function ProjectLifecycleLanes({
     ...related,
   });
   return (
-    <section className="project-lifecycle-cockpit">
+    <section className="project-lifecycle-cockpit" id="project-checkpoints">
       <header>
         <div>
           <p className="eyebrow">One operational truth</p>
@@ -613,6 +613,17 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
   const parsedState = projectStateSchema.safeParse(project.state);
   const state: ProjectState = parsedState.success ? parsedState.data : "LEAD";
   const readiness = Number(project.readinessScore ?? 0);
+  // The checkpoints that are both required and unfinished — i.e. the missing
+  // percentage, in words.
+  const outstanding = checkpoints
+    .filter(
+      (checkpoint) =>
+        checkpoint.blocking === true &&
+        !["complete", "completed", "waived"].includes(
+          String(checkpoint.status ?? ""),
+        ),
+    )
+    .map((checkpoint) => String(checkpoint.name ?? "Unnamed checkpoint"));
   const action = projectAction(state, projectId);
   return (
     <div className="project-detail-page">
@@ -637,6 +648,19 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           <span>
             <small>Event readiness</small>
             <strong>{readiness}%</strong>
+            {/* A bare percentage says nothing about the gap. Name what the
+                remainder actually is, and point at the list that holds it. */}
+            {outstanding.length ? (
+              <a className="project-readiness-gap" href="#project-checkpoints">
+                {outstanding.length} blocker{outstanding.length === 1 ? "" : "s"}:{" "}
+                {outstanding[0]}
+                {outstanding.length > 1 ? ` +${outstanding.length - 1} more` : ""}
+              </a>
+            ) : (
+              <small className="project-readiness-clear">
+                Nothing blocking — every required checkpoint is complete.
+              </small>
+            )}
           </span>
           <ReadinessMeter value={readiness} size="lg" />
         </div>
