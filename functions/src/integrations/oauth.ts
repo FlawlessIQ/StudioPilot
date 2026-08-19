@@ -519,7 +519,26 @@ export const integrationOAuth = onRequest(
           selectedResourceId: null,
           scopes: config(provider).scopes,
           connectedAt: now,
-          lastHealthCheckAt: now,
+          // A fresh authorization proves the provider issued a token; it does
+          // not prove the credential can do any work, and this write must not
+          // claim otherwise. Stamping `now` here made the card read
+          // "Connected · Checked <just now>" with no error while QuickBooks
+          // was in fact answering 403 ApplicationAuthorizationFailed on every
+          // production call.
+          //
+          // The whole probe result is cleared, not just the timestamp: this
+          // set() merges, so a previous probe's latency and diagnostics
+          // otherwise survive and pair with the new timestamp. That is how
+          // Zoom came to display a brand-new "Checked" time next to 388 ms
+          // measured days earlier by a probe that had failed. Null leaves the
+          // UI at "Not tested yet" until a real health check runs — the Test
+          // control, or the scheduled sweep in saas/jobs.ts.
+          lastHealthCheckAt: null,
+          lastHealthLatencyMs: null,
+          diagnostics: null,
+          diagnosticSeverity: null,
+          diagnosticRecommendation: null,
+          diagnosticFailedJobs7d: null,
           lastError: null,
           mockMode: false,
           createdAt: now,

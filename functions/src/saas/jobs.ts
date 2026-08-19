@@ -90,8 +90,19 @@ export const operationsHealthScheduler = onSchedule(
     const batch = db.batch();
 
     for (const connection of connections.docs) {
-      const status =
-        connection.get("status") === "connected" ? "healthy" : "degraded";
+      // This scheduler mirrors stored state; it runs no provider probe of its
+      // own. Mapping a connection straight to "healthy" therefore reported as
+      // verified something nothing had verified — QuickBooks showed green here
+      // while every production call returned 403. The OAuth callback now
+      // leaves lastHealthCheckAt null until a real probe runs, and the enum
+      // already carries "unknown" for exactly this case.
+      const probed =
+        typeof connection.get("lastHealthCheckAt") === "string";
+      const status = !probed
+        ? "unknown"
+        : connection.get("status") === "connected"
+          ? "healthy"
+          : "degraded";
       batch.set(
         db.doc(`systemHealth/integration_${connection.id}`),
         {
@@ -103,8 +114,13 @@ export const operationsHealthScheduler = onSchedule(
           checkedAt,
           latencyMs: connection.get("lastHealthLatencyMs") ?? null,
           message:
-            status === "healthy" ? null : "Connection requires attention",
-          failureCount: status === "healthy" ? 0 : 1,
+            status === "healthy"
+              ? null
+              : status === "unknown"
+                ? "Not tested since connecting"
+                : "Connection requires attention",
+          // "unknown" is an absence of evidence, not a failure.
+          failureCount: status === "degraded" ? 1 : 0,
           diagnostics: connection.get("diagnostics") ?? null,
           createdAt: checkedAt,
           updatedAt: checkedAt,
