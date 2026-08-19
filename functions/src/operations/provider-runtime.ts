@@ -68,7 +68,17 @@ async function refreshCredential(reference:string,provider:Provider,current:Cred
   const response=await fetch(oauthRefreshTokenUrl(provider),{method:"POST",headers,body:params});
   const body=asRecord(await response.json().catch(()=>({})));
   const accessToken=text(body.access_token);
-  if(!response.ok||!accessToken)throw new Error(`${provider.toUpperCase()}_TOKEN_REFRESH_FAILED`);
+  if(!response.ok||!accessToken){
+    // Providers explain refusals in the body. Intuit's "invalid_grant /
+    // Incorrect Token type or clientID" is how a credential granted under a
+    // previous client id presents itself, and collapsing that to a bare
+    // *_TOKEN_REFRESH_FAILED left no way to tell a dead credential from a blip.
+    const reason=text(body.error)||`http_${response.status}`;
+    console.error(JSON.stringify({severity:"ERROR",event:"integration.token_refresh_failed",provider,status:response.status,reason,detail:text(body.error_description).slice(0,300)}));
+    // invalid_grant is terminal — that refresh token will never work again, so
+    // the studio has to reconnect. Other failures may be transient.
+    throw new Error(reason==="invalid_grant"?`${provider.toUpperCase()}_REAUTH_REQUIRED`:`${provider.toUpperCase()}_TOKEN_REFRESH_FAILED`);
+  }
   const next:Credential={
     ...current,
     accessToken,
@@ -104,7 +114,30 @@ async function connection(tenantId:string,provider:Provider){
 
 export async function checkProviderConnection(tenantId:string,provider:Provider){
   const startedAt=Date.now();
-  const current=await connection(tenantId,provider);
+  let current:Awaited<ReturnType<typeof connection>>;
+  try{
+    current=await connection(tenantId,provider);
+  }catch(caught:unknown){
+    // A credential that cannot be loaded or refreshed used to throw here before
+    // anything was written, so the connection document kept whatever it last
+    // said. That is how QuickBooks sat displaying a stale 403 from an earlier
+    // probe while the real problem was a refresh token that no longer belonged
+    // to the configured client id. Record the actual reason.
+    const code=caught instanceof Error?caught.message:`${provider.toUpperCase()}_CREDENTIAL_UNAVAILABLE`;
+    const failedAt=new Date().toISOString();
+    await getFirestore().doc(`integrationConnections/${tenantId}_${provider}`).set({
+      status:"error",
+      lastError:code,
+      lastHealthCheckAt:failedAt,
+      lastHealthLatencyMs:Date.now()-startedAt,
+      diagnosticSeverity:"blocked",
+      diagnosticRecommendation:code.endsWith("_REAUTH_REQUIRED")
+        ?"Reconnect the provider: its refresh token is no longer valid."
+        :"Reconnect the provider and confirm the app still has the required permissions.",
+      updatedAt:failedAt,
+    },{merge:true});
+    throw caught;
+  }
   const now=new Date().toISOString();
   const db=getFirestore();
   const since=new Date(Date.now()-7*24*60*60_000).toISOString();
@@ -167,6 +200,14 @@ export async function checkProviderConnection(tenantId:string,provider:Provider)
   const latencyMs=Date.now()-startedAt;
   if(!response.ok){
     const code=`${provider.toUpperCase()}_HEALTH_FAILED:${response.status}`;
+    // The provider's own body says *why* — Intuit's 403 for a realm on the wrong
+    // host, Docusign's consent_required, and so on. Discarding it left only a
+    // bare status code, which is what made the QuickBooks 403 undiagnosable from
+    // the outside. Log it server-side; the connection document keeps the short
+    // code, since tenant admins can read that and a raw provider body should not
+    // land there.
+    const detail=await response.text().then((body)=>body.slice(0,600)).catch(()=>"<unreadable>");
+    console.error(JSON.stringify({severity:"ERROR",event:"integration.health_failed",provider,status:response.status,tenantId,detail}));
     const diagnostics=buildIntegrationDiagnostics({...baseDiagnostic,latencyMs,error:code},now);
     await current.document.ref.update({status:"error",lastHealthCheckAt:now,lastHealthLatencyMs:latencyMs,diagnosticSeverity:diagnostics.severity,diagnosticRecommendation:diagnostics.recommendedAction,diagnosticFailedJobs7d:diagnostics.failedJobs7d,diagnostics,lastError:code,updatedAt:now});
     throw new Error(code);
