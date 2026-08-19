@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import test from "node:test";
 import type { AuditEvent } from "@/features/audit/schema";
 import type { Checkpoint } from "@/features/checkpoints/schema";
@@ -95,7 +96,7 @@ test("workflow instantiation snapshots a version and resolves dependencies once"
 
 test("workflow instantiation is idempotent per active project", async () => {
   const store = new MemoryWorkflowStore();
-  const service = new WorkflowService(store, () => crypto.randomUUID(), () => workflowTimestamp);
+  const service = new WorkflowService(store, () => randomUUID(), () => workflowTimestamp);
   const first = await service.instantiate(
     ownerContext,
     workflowProject,
