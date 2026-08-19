@@ -289,22 +289,35 @@ export const bookingCommand = onRequest(
           command.tenantId,
           command.idempotencyKey,
         );
+        // These placeholders are mock-mode fixtures and must not be written in
+        // live mode. The provider worker creates the real resources only when
+        // the field is still empty — `if (mode === "zoom" && !meetingId)` and
+        // `else if (!calendarEventId)` in operations/provider-runtime.ts — so a
+        // fabricated id here silently suppresses the very call it stands in for.
+        // Live consultations were being written with providerState "queued" and
+        // a `gcal_<uuid>` / `zoom_<uuid>` id, the worker then skipped both
+        // creates and marked the job succeeded, and the result was a booking
+        // with no Google Calendar event, no Zoom meeting, and a null joinUrl —
+        // so the client had nothing to join. The fields beside them
+        // (joinUrl, calendarHtmlLink, providerState) were already mock-guarded;
+        // these two were not.
         const meetingId =
-          command.input.mode === "zoom"
+          command.input.mode === "zoom" && mockMode
             ? `zoom_${command.idempotencyKey}`
             : null;
-        const joinUrl =
-          meetingId && mockMode
-            ? `https://zoom.example.test/j/${meetingId}`
-            : null;
-        const calendarEventId = `gcal_${command.idempotencyKey}`;
+        const joinUrl = meetingId
+          ? `https://zoom.example.test/j/${meetingId}`
+          : null;
+        const calendarEventId = mockMode
+          ? `gcal_${command.idempotencyKey}`
+          : null;
         await firestore.doc(`consultations/${consultationId}`).create({
           id: consultationId,
           tenantId: command.tenantId,
           projectId: command.input.projectId,
           contactId: command.input.contactId,
           mode: command.input.mode,
-          status: mockMode ? "scheduled" : "scheduled",
+          status: "scheduled",
           startsAt: command.input.startsAt,
           endsAt: command.input.endsAt,
           timezone: command.input.timezone,
