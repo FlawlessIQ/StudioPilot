@@ -76,7 +76,7 @@ the unit suite, and the e2e suite are all blind to them. Verify them with
 | SendGrid | Inbound enabled; outbound repaired August 18, 2026 | Domain authentication for `studio-cue.com` is valid and Inbound Parse for `inbound.studio-cue.com` resolves to the production webhook with a matching token. Outbound delivered live as recently as August 13, 2026 (SendGrid issued `mo97W7BITheuSRfsb2qFBA`) and then regressed: `SENDGRID_FROM_EMAIL` was set on the deployed Function out of band but never added to `functions/.env.studiohub-prod`, so the next `firebase deploy --only functions` replaced the environment without it and sends began dead-lettering. Requeue the dead-lettered `emailJobs` after confirming a live send. Signed StudioCue delivery-event analytics still require an isolated SendGrid account or subuser because the shared account's single Event Webhook belongs to another product. |
 | Stripe Billing | Enabled and production-verified | Live products/prices, 14-day Checkout trial, subscription webhook, and billing portal are configured. |
 | Stripe Connect | Enabled and production-verified | The live Connect invoice webhook and signing secret are configured and deployed. |
-| QuickBooks Online | Enabled August 19, 2026; blocked on the Production Redirect URI | Production keys were installed August 19 (`QUICKBOOKS_CLIENT_ID` v2, `QUICKBOOKS_CLIENT_SECRET` v3, bound on `integrationOAuthEast4`, `operationsTaskWorker`, `operationsJobScheduler`). Intuit then rejected the authorize request: *"The redirect_uri query parameter value is invalid."* **Intuit keeps a separate Redirect URIs list per keypair** — the Development keys had the callback registered, which is why the August 19 01:39 connect on dev keys succeeded and appeared to settle the question; the Production keys do not. Add `https://studio-cue.com/api/integrations/oauth/callback` (54 chars, no trailing slash) to the Production Redirect URIs, then reconnect. The earlier dev-key connect reached a live realm of `9341455510105739` and failed `companyinfo` with `errorCode=003100 ApplicationAuthorizationFailed`, consistent with development keys seeing only sandbox companies. |
+| QuickBooks Online | Enabled August 19, 2026; blocked inside Intuit's app configuration | Everything on the StudioCue side is verified and the request is refused by Intuit before any code is issued. See the investigation record below. |
 | Docusign | Deliberately hidden | The production request was declined. The implementation remains dormant; Dropbox Sign is the preferred e-signature path once its OAuth app is approved. |
 
 ### Zoom requests no user-profile scope, by design
@@ -112,6 +112,49 @@ body as the real one — Intuit differed by 90 bytes out of ~153 KB. Treat any
 "the redirect looks fine" claim from an unauthenticated probe as meaningless;
 the only real test is a signed-in connect attempt, whose failure surfaces as
 `Invalid redirect` (Zoom) or `redirect_uri_mismatch` (Google).
+
+### QuickBooks: verified on our side, refused by Intuit (open as of August 19, 2026)
+
+Confirmed working, so do not re-investigate these:
+
+- Production keys installed and bound — `QUICKBOOKS_CLIENT_ID` v2,
+  `QUICKBOOKS_CLIENT_SECRET` v3 on `integrationOAuthEast4`,
+  `operationsTaskWorker`, `operationsJobScheduler`. Firebase pins each secret to
+  the version resolved at deploy time, so new versions need a redeploy.
+- The client id Intuit shows for the Production keypair matches the one the
+  function sends.
+- `https://studio-cue.com/api/integrations/oauth/callback` is registered under
+  Settings → Redirect URIs → **Production** and Intuit's own field reports
+  54/512 characters, matching the 54-character value the function sends.
+- Permissions include `com.intuit.quickbooks.accounting`, the only scope
+  requested.
+- The app shows **IN PRODUCTION** on its App Overview.
+- The authorize URL is Intuit's documented shape and nothing more:
+  `response_type=code`, `client_id`, `redirect_uri`, `scope`, `state`.
+  QuickBooks is deliberately absent from `pkceProviders` in
+  `oauth-strategy.ts`, so no `code_challenge` is sent, and its `extra` map is
+  empty.
+
+The symptom: Intuit answers "Uh oh, there's a connection problem" at
+`appcenter.intuit.com/app/connect/oauth2/error` with **no** "View error details
+(for Developers)" block — unlike the earlier redirect_uri failure, which did
+carry one. Two `oauthStates` were created (02:20:55 and 02:24:28) and never
+redeemed, and no GET ever reached the callback, so the refusal happens entirely
+inside Intuit before a code is issued.
+
+Still unchecked, in priority order: Settings → **App URLs** (Intuit requires a
+Host domain for production, and the redirect URI's host must match it), Settings
+→ **App terms of service** (EULA and privacy URLs are production-required), the
+app's **Audit Log**, and Settings → **Accepted connections**.
+
+Unrelated but noted: the Webhooks Endpoint URL is empty, so
+`https://studio-cue.com/api/webhooks/quickbooks` is not registered. That does
+not affect OAuth but will block invoice-status reconciliation once connected.
+
+Reversible unblock if Intuit stays stuck: set
+`QUICKBOOKS_API_BASE_URL=https://sandbox-quickbooks.api.intuit.com` to exercise
+the customer/invoice sync against the existing sandbox realm
+`9341455510105739`, which is still the outstanding acceptance test.
 
 ## Canonical provider endpoints
 
