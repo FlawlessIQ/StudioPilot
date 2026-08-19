@@ -96,15 +96,31 @@ the unit suite, and the e2e suite are all blind to them. Verify them with
 
 The application relay targets the regional OAuth handler
 `integrationOAuthEast4` (`INTEGRATION_OAUTH_FUNCTION_URL` in `apphosting.yaml`).
-Two older `integrationOAuth` deployments still exist and are not referenced by
-production configuration: one in `us-central1`, now in `FAILED` state, kept
-only to avoid a destructive in-place region move, and one in `us-east4`.
-Neither may be deleted before the redirect URIs registered in the Google,
-Zoom, and QuickBooks consoles are confirmed to route through the survivor —
-Cloud Logging previously showed completed Google OAuth callbacks reaching the
-`us-central1` deployment. The `FAILED` revision is also why
-`firebase deploy --only functions` aborts, and why the targeted
-`--only functions:<name>,<name>` form is the current workaround.
+The `us-central1` `integrationOAuth` deployment was retired on August 19, 2026.
+It had been in `FAILED` state since July 29 with no backing Cloud Run service
+at all (`CloudRunServiceNotFound`), so it could not serve a request even in
+principle, and its only log entries in 30 days were from the moment that
+deploy broke. Its `FAILED` state was what made `firebase deploy --only
+functions` abort and forced the targeted `--only functions:<name>,<name>` form
+— which is how `emailJobTaskDispatch` and `pdfJobTaskDispatch` came to sit on
+eleven-day-old code. A full-deploy dry run passes now.
+
+An earlier note here claimed Cloud Logging showed completed Google OAuth
+callbacks reaching the `us-central1` deployment. **That was wrong about the
+region.** The traffic was on the `us-east4` `integrationOAuth`: 22 requests on
+August 5 and 31 on August 6, including the signed Google callback at
+20:19:41Z, after which `INTEGRATION_OAUTH_FUNCTION_URL` moved to
+`integrationOAuthEast4`. Its only later hit was an unauthenticated 403 probe
+with no query string on August 17.
+
+That `us-east4` `integrationOAuth` is still deployed and `ACTIVE`, and is the
+remaining cleanup item. Neither it nor `integrationOAuthEast4` is what a
+provider console points at — consoles hold the app callback
+`https://studio-cue.com/api/integrations/oauth/callback`, and the Next.js
+proxy route chooses the Function — so retiring it is a matter of confirming no
+caller still resolves the bare `integrationOAuth` name. Note the source
+exports only `integrationOAuthEast4` (aliasing the `integrationOAuth`
+implementation), so a full deploy will offer to delete the orphan.
 
 ## Job dispatch transport
 
