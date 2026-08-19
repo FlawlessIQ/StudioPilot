@@ -60,9 +60,19 @@ const config = (provider: Provider): Config => {
     google_calendar: {
       authorizeUrl: "https://accounts.google.com/o/oauth2/v2/auth",
       tokenUrl: "https://oauth2.googleapis.com/token",
+      // Narrowest pair that covers what we actually do. calendar.freebusy
+      // authorizes freebusy.query (availability intervals only);
+      // calendar.events.owned authorizes events insert/get/patch/delete on
+      // calendars the studio owns. Deliberately NOT calendar.readonly ("see and
+      // download any calendar you can access") or calendar.events ("all your
+      // calendars") — both grant far more than the scheduling workflow needs and
+      // draw correspondingly more verification scrutiny. calendar.app.created
+      // is not a substitute: it only covers secondary calendars this app
+      // creates, so consultations would stop landing on the studio's own
+      // calendar.
       scopes: [
-        "https://www.googleapis.com/auth/calendar.readonly",
-        "https://www.googleapis.com/auth/calendar.events",
+        "https://www.googleapis.com/auth/calendar.freebusy",
+        "https://www.googleapis.com/auth/calendar.events.owned",
       ],
       extra: { access_type: "offline", prompt: "consent" },
     },

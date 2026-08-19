@@ -151,7 +151,11 @@ export async function checkProviderConnection(tenantId:string,provider:Provider)
   const credential=current.credential;
   if(!credential)throw new Error("CREDENTIAL_UNAVAILABLE");
   const probes:Record<Provider,()=>Promise<Response>>={
-    google_calendar:()=>fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=1",{headers:{authorization:`Bearer ${credential.accessToken}`}}),
+    // A one-minute freeBusy query, not calendarList: this probe only needs to
+    // prove the token still works and the calendar is reachable, and freeBusy is
+    // authorized by calendar.freebusy. calendarList would force the much broader
+    // calendar.readonly scope to be requested for a health check alone.
+    google_calendar:()=>fetch("https://www.googleapis.com/calendar/v3/freeBusy",{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/json"},body:JSON.stringify({timeMin:new Date().toISOString(),timeMax:new Date(Date.now()+60_000).toISOString(),items:[{id:String(current.document.get("selectedResourceId")??"primary")}]})}),
     zoom:()=>fetch("https://api.zoom.us/v2/users/me/meetings?page_size=1",{headers:{authorization:`Bearer ${credential.accessToken}`}}),
     dropbox:()=>fetch("https://api.dropboxapi.com/2/files/list_folder",{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/json"},body:JSON.stringify({path:"",recursive:false,include_deleted:false,limit:1})}),
     docusign:()=>fetch(docusignUserInfoUrl(),{headers:{authorization:`Bearer ${credential.accessToken}`}}),

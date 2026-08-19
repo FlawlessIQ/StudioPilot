@@ -6,7 +6,7 @@ const healthy = {
   provider: "google_calendar" as const,
   credentialPresent: true,
   tokenExpiresAt: "2030-01-01T00:00:00.000Z",
-  scopes: ["calendar.events"],
+  scopes: ["calendar.events.owned"],
   latencyMs: 180,
   webhookEvents7d: 4,
   failedJobs7d: 0,
