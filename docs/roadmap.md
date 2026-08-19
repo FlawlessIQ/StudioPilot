@@ -78,7 +78,10 @@ acceptance with each provider account remains pending.
 - test customer matching, retainer and final invoices, hosted payment links,
   partial payments, refunds, voids, reconciliation, and duplicate webhooks
 
-### Stripe
+### Stripe (platform billing only)
+
+Studios paying StudioCue. Distinct from per-studio client payments, which is
+future scope — see "Stripe Connect: studio-managed client payments" below.
 
 - verify the $69 Solo, $199 Studio, and $399 Multi-Brand monthly products and
   their annual equivalents
@@ -234,6 +237,65 @@ Completion evidence:
 - load-test results and cost envelope
 - queue-level monitoring and replay evidence
 - documented rollback path
+
+## Future integration scope
+
+### Stripe Connect: studio-managed client payments
+
+Not launch-critical, and deliberately not started: it requires Connect platform
+onboarding on the FlawlessIQ Stripe account, which is a business-model decision
+rather than a configuration step.
+
+**Why it is worth doing.** The value is not "accept cards" — it is evidence for
+the booking gate. `RETAINER_PENDING → BOOKED` is evidence-controlled under
+`booking_gate` authority, and `docs/booking-gate.md` requires the retainer
+invoice paid to zero balance, stating that "invoice links, views, and StudioCue
+UI actions do not establish payment. Provider webhooks and reconciliation are
+the evidence sources." Today the only provider that can supply that is
+QuickBooks. When it is absent, `booking-gate-service.ts` satisfies the condition
+through `retainerExceptionApproved` and records the source as
+`approved_exception` — a human attestation. Bookings still work; they are
+systematically downgraded from verified evidence to an override.
+
+A payments provider is also the better evidence source in principle. QuickBooks
+knows an invoice was *marked* paid; Stripe knows money *moved*. For the gate
+that commits a studio's calendar date, the latter is stronger.
+
+**What already exists**, so this is not greenfield:
+
+- the Connect OAuth path in `functions/src/integrations/oauth.ts`, complete
+  apart from `STRIPE_CLIENT_ID` — `config()` reuses `STRIPE_SECRET_KEY` as the
+  token-exchange secret, the exchange omits `redirect_uri` for Stripe, and the
+  callback reads `stripe_user_id` as the account id
+- `providerCapabilities` already lists `stripe: ["invoicing"]` alongside
+  `quickbooks`, so capability routing can choose between them per tenant
+- the live Connect invoice webhook and signing secret are configured and
+  deployed
+
+**What is missing:** the platform onboarding decision, the per-studio connect
+UX, invoice/payment reconciliation against connected accounts, and the
+surfacing of refunds, disputes, and failed payments.
+
+**Constraint to preserve.** Connect **Standard** accounts with direct charges —
+the "build a platform" shape, not "build a marketplace". Each studio connects
+its own Stripe account and client money lands with the studio, matching the
+"studio owns the account" posture the code comments already state and keeping
+FlawlessIQ out of funds custody. A marketplace shape would route client money
+through the platform and is a materially different regulatory position.
+
+**Honest costs.** Money movement brings a support burden the product does not
+have today: refunds, disputes and chargebacks, failed and retried payments, and
+payout questions from studios. `application_fee_amount` on direct charges would
+make this a monetisation surface as well, but that is a pricing decision and
+should not be smuggled in as a technical one.
+
+### QuickBooks: second evidence source, not a replacement
+
+Whichever provider lands first, keep both wired. They are alternatives in the
+capability map, and the booking gate is the product's most consequential
+transition — a single provider outage should degrade it to an override, not
+block it. Tonight's Intuit failure is the argument: one provider down, and every
+booking silently falls back to `approved_exception`.
 
 ## Sequencing rule
 
