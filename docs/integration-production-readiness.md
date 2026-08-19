@@ -113,14 +113,36 @@ August 5 and 31 on August 6, including the signed Google callback at
 `integrationOAuthEast4`. Its only later hit was an unauthenticated 403 probe
 with no query string on August 17.
 
-That `us-east4` `integrationOAuth` is still deployed and `ACTIVE`, and is the
-remaining cleanup item. Neither it nor `integrationOAuthEast4` is what a
-provider console points at — consoles hold the app callback
-`https://studio-cue.com/api/integrations/oauth/callback`, and the Next.js
-proxy route chooses the Function — so retiring it is a matter of confirming no
-caller still resolves the bare `integrationOAuth` name. Note the source
-exports only `integrationOAuthEast4` (aliasing the `integrationOAuth`
-implementation), so a full deploy will offer to delete the orphan.
+The `us-east4` `integrationOAuth` deployment was retired the same day, leaving
+`integrationOAuthEast4` as the only OAuth Function in the project. No provider
+console referenced either one: consoles hold the app callback
+`https://studio-cue.com/api/integrations/oauth/callback`, and the Next.js proxy
+route picks the Function.
+
+**`integrationOAuth` survives as a browser-facing route name and must not be
+renamed away.** `components/integrations/integration-manager.tsx` posts Connect,
+Test, and Disconnect to `${NEXT_PUBLIC_INTEGRATION_FUNCTIONS_URL}/integrationOAuth`,
+and that variable is the relative path `/api/functions`. The proxy at
+`app/api/functions/[functionName]/route.ts` keeps `integrationOAuth` in its
+allowlist and retargets it to `INTEGRATION_OAUTH_FUNCTION_URL`, which is why
+request logs showed the traffic on `integrationOAuthEast4` while the browser
+was still asking for `integrationOAuth`.
+
+Two fallbacks used to resolve the bare name whenever
+`INTEGRATION_OAUTH_FUNCTION_URL` is absent — one in that proxy
+(`https://integrationoauth-${FUNCTIONS_RUN_HOST_SUFFIX}`) and one in
+`app/api/integrations/oauth/callback/route.ts`
+(`${FUNCTIONS_HTTPS_ORIGIN}/integrationOAuth`). Both now name
+`integrationOAuthEast4`; left alone they would have become dead ends that fail
+with an opaque 404 instead of the disclosed `FUNCTION_PROXY_NOT_CONFIGURED`.
+
+`scripts/configure-production-function-invokers.sh` also listed
+`integrationoauth`. That entry was removed in the same change, and the removal
+mattered more than tidiness: the script runs under `set -e`, so binding a
+service that no longer exists aborts the run and silently leaves every service
+listed after it — through `zoomwebhook` — with no invoker binding at all. The
+inverse of CLAUDE.md's rule 5 applies: a retired Function must leave that
+allowlist in the same change that deletes it.
 
 ## Job dispatch transport
 

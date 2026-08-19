@@ -43,6 +43,17 @@ type FunctionName = (typeof functionNames)[number];
 
 const googleAuth = new GoogleAuth();
 
+// The browser still addresses the OAuth handler by its original name, but the
+// deployed Function is integrationOAuthEast4 — the us-east4 replacement for
+// integrationOAuth, which was retired in both regions on August 19, 2026.
+// Without this, the two fallbacks below (used whenever
+// INTEGRATION_OAUTH_FUNCTION_URL is absent) resolve to a Function that no
+// longer exists, and Connect fails with an opaque 404 rather than the
+// disclosed FUNCTION_PROXY_NOT_CONFIGURED.
+function deployedFunctionName(name: FunctionName): string {
+  return name === "integrationOAuth" ? "integrationOAuthEast4" : name;
+}
+
 function isFunctionName(value: string): value is FunctionName {
   return functionNames.some((name) => name === value);
 }
@@ -65,13 +76,14 @@ async function proxy(
   }
 
   const runHostSuffix = process.env.FUNCTIONS_RUN_HOST_SUFFIX;
+  const deployedName = deployedFunctionName(functionName);
   const target =
     functionName === "integrationOAuth" &&
     process.env.INTEGRATION_OAUTH_FUNCTION_URL
       ? process.env.INTEGRATION_OAUTH_FUNCTION_URL
       : runHostSuffix
-        ? `https://${functionName.toLowerCase()}-${runHostSuffix}`
-        : `${origin.replace(/\/$/, "")}/${functionName}`;
+        ? `https://${deployedName.toLowerCase()}-${runHostSuffix}`
+        : `${origin.replace(/\/$/, "")}/${deployedName}`;
   const identityClient = await googleAuth.getIdTokenClient(target);
   const identityHeaders = await identityClient.getRequestHeaders(target);
   const serviceAuthorization = identityHeaders.get("authorization");

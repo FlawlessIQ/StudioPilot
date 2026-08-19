@@ -30,9 +30,12 @@ export async function GET(request: Request): Promise<Response> {
     );
   }
 
+  // integrationOAuthEast4, not integrationOAuth: the latter was retired in both
+  // regions on August 19, 2026, so naming it here would make this fallback a
+  // dead end the moment INTEGRATION_OAUTH_FUNCTION_URL is absent.
   const target =
     integrationUrl ??
-    `${origin?.replace(/\/$/, "")}/integrationOAuth`;
+    `${origin?.replace(/\/$/, "")}/integrationOAuthEast4`;
   const authorization = await serviceAuthorization(target);
   if (!authorization) {
     return Response.json(

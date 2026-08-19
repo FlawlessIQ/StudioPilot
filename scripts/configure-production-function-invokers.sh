@@ -26,7 +26,11 @@ app_services=(
   crmcommand
   dropboxsignwebhook
   docusignwebhook
-  integrationoauth
+  # integrationoauth was retired on August 19, 2026. Leaving it here would be
+  # actively harmful, not merely stale: this script runs under `set -e`, so the
+  # add-iam-policy-binding call for a service that no longer exists aborts the
+  # whole run and silently leaves every service listed after it — through
+  # zoomwebhook — without its invoker binding.
   integrationoautheast4
   lifecyclesettingscommand
   membershipcommand
