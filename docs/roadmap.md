@@ -266,10 +266,10 @@ To build:
   join link that must stop being valid
 - UI on the studio calendar and the consultation detail surface
 
-Note when this lands: `app/privacy/page.tsx` and the Google `calendar.events`
-scope justification both currently state that StudioCue does **not** modify or
-remove entries after creating them. Both must be updated in the same change, or
-the disclosure becomes an understatement rather than an overstatement.
+Landed in `e4cf959`, with the privacy disclosure corrected in `9b58251`. The
+requested calendar scopes have since narrowed to `calendar.freebusy` +
+`calendar.events.owned`, so the justification to update is now theirs, not
+`calendar.events`'.
 
 ### Google Calendar inbound sync
 
