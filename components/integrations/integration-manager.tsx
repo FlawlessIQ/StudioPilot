@@ -186,8 +186,6 @@ const definitions: ReadonlyArray<Definition> = [
     capabilities: ["Customers", "Invoices", "Payments"],
     icon: Landmark,
     accent: "quickbooks",
-    pendingReason:
-      "Waiting on Intuit production access. The app assessment is submitted; the saved company is still a sandbox realm, so production sync returns 403.",
   },
   {
     provider: "docusign",

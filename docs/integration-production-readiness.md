@@ -76,7 +76,7 @@ the unit suite, and the e2e suite are all blind to them. Verify them with
 | SendGrid | Inbound enabled; outbound repaired August 18, 2026 | Domain authentication for `studio-cue.com` is valid and Inbound Parse for `inbound.studio-cue.com` resolves to the production webhook with a matching token. Outbound delivered live as recently as August 13, 2026 (SendGrid issued `mo97W7BITheuSRfsb2qFBA`) and then regressed: `SENDGRID_FROM_EMAIL` was set on the deployed Function out of band but never added to `functions/.env.studiohub-prod`, so the next `firebase deploy --only functions` replaced the environment without it and sends began dead-lettering. Requeue the dead-lettered `emailJobs` after confirming a live send. Signed StudioCue delivery-event analytics still require an isolated SendGrid account or subuser because the shared account's single Event Webhook belongs to another product. |
 | Stripe Billing | Enabled and production-verified | Live products/prices, 14-day Checkout trial, subscription webhook, and billing portal are configured. |
 | Stripe Connect | Enabled and production-verified | The live Connect invoice webhook and signing secret are configured and deployed. |
-| QuickBooks Online | Deliberately disabled | The app assessment was submitted, but the saved OAuth company is a sandbox realm: sandbox API probe passes and production returns 403. Obtain Intuit production access, then reconnect a live company and run customer/invoice sync. |
+| QuickBooks Online | Enabled August 19, 2026; awaiting a live company | Intuit production access has been granted, so `quickbooks` was added to `NEXT_PUBLIC_ENABLED_OAUTH_PROVIDERS`. The saved realm `9341455510105739` is still a sandbox company in Intuit's `9341…` range, and `quickBooksApiBaseUrl()` defaults to `https://quickbooks.api.intuit.com` with `QUICKBOOKS_API_BASE_URL` deliberately unset, so that realm returns 403 by construction. Reconnect and select the live company, then run customer/invoice sync. Confirm `https://studio-cue.com/api/integrations/oauth/callback` is a registered Redirect URI on the Intuit app — this could not be verified externally (see below). |
 | Docusign | Deliberately hidden | The production request was declined. The implementation remains dormant; Dropbox Sign is the preferred e-signature path once its OAuth app is approved. |
 
 ### Zoom requests no user-profile scope, by design
@@ -98,6 +98,17 @@ connection label is the literal `Zoom` rather than the account name. Adding
 Zoom Marketplace app first — worth doing only if a real account label is wanted,
 since nothing functional depends on it. The skip is logged as
 `integration.zoom.profile_unavailable`.
+
+### Provider redirect URIs cannot be verified from outside
+
+Intuit, Google, and Zoom all defer `redirect_uri` validation until after the
+user signs in, so probing an authorize endpoint proves nothing about whether a
+callback is registered. Each was tested with a deliberately unregistered
+control URI on August 19, 2026 and returned the same status and near-identical
+body as the real one — Intuit differed by 90 bytes out of ~153 KB. Treat any
+"the redirect looks fine" claim from an unauthenticated probe as meaningless;
+the only real test is a signed-in connect attempt, whose failure surfaces as
+`Invalid redirect` (Zoom) or `redirect_uri_mismatch` (Google).
 
 ## Canonical provider endpoints
 
