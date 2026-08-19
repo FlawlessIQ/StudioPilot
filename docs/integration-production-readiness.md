@@ -69,8 +69,8 @@ the unit suite, and the e2e suite are all blind to them. Verify them with
 
 | Provider | Current launch status | Required final evidence |
 | --- | --- | --- |
-| Google Calendar | Enabled and production-verified | Production OAuth refresh and Calendar API probe passed on August 17, 2026. Complete a create/delete consultation acceptance test after the next user connection. |
-| Zoom | Enabled for reconnection | The production client secret and webhook token are configured, but the saved tenant refresh token was revoked. Reconnecting was impossible until the callback origin was corrected on August 18, 2026. Reconnect Zoom, then create/delete a test meeting and validate a signed webhook. |
+| Google Calendar | Connected and production-verified | Reconnected August 19, 2026 through the corrected callback; `GOOGLE_CALENDAR_REFRESH_NOT_CONFIGURED` is cleared and the Calendar API probe passed in 502 ms. Still outstanding: a create/delete consultation acceptance test. |
+| Zoom | Connected and production-verified | Reconnected August 19, 2026 after the callback origin was corrected and the account lookup was made non-fatal. Health probe (`GET /v2/users/me/meetings?page_size=1`) passed in 329 ms, so the stored credential works with the granted meeting scopes. `providerAccountId` is deliberately null and the label reads "Zoom" — see the scope note below. Still outstanding: create/delete a test meeting and validate a signed webhook. |
 | Dropbox | Enabled and production-verified | Production OAuth refresh and file metadata probe passed on August 17, 2026. Complete a folder create/delete acceptance test after the next project run. |
 | Dropbox Sign | Deliberately hidden; backend verified | Owner-account OAuth refresh, account probe, callback configuration, and webhook handshake passed. The API app reports `is_approved=false`; submit the OAuth app review with a complete demo before public enablement. |
 | SendGrid | Inbound enabled; outbound repaired August 18, 2026 | Domain authentication for `studio-cue.com` is valid and Inbound Parse for `inbound.studio-cue.com` resolves to the production webhook with a matching token. Outbound delivered live as recently as August 13, 2026 (SendGrid issued `mo97W7BITheuSRfsb2qFBA`) and then regressed: `SENDGRID_FROM_EMAIL` was set on the deployed Function out of band but never added to `functions/.env.studiohub-prod`, so the next `firebase deploy --only functions` replaced the environment without it and sends began dead-lettering. Requeue the dead-lettered `emailJobs` after confirming a live send. Signed StudioCue delivery-event analytics still require an isolated SendGrid account or subuser because the shared account's single Event Webhook belongs to another product. |
@@ -78,6 +78,26 @@ the unit suite, and the e2e suite are all blind to them. Verify them with
 | Stripe Connect | Enabled and production-verified | The live Connect invoice webhook and signing secret are configured and deployed. |
 | QuickBooks Online | Deliberately disabled | The app assessment was submitted, but the saved OAuth company is a sandbox realm: sandbox API probe passes and production returns 403. Obtain Intuit production access, then reconnect a live company and run customer/invoice sync. |
 | Docusign | Deliberately hidden | The production request was declined. The implementation remains dormant; Dropbox Sign is the preferred e-signature path once its OAuth app is approved. |
+
+### Zoom requests no user-profile scope, by design
+
+The Zoom app requests only `meeting:*` scopes. The OAuth callback used to call
+`GET /v2/users/me` and treat failure as fatal, so connecting died with
+`ZOOM_ACCOUNT_LOOKUP_FAILED` *after* a successful token exchange — the studio
+had already granted consent, and the only remedy implied was to widen the grant.
+
+That lookup is now best effort, because Zoom's account id is stored and never
+read: every Zoom operation addresses `/v2/users/me/...` with the meeting scopes
+already held — the health probe, meeting creation, and the summary fetch in
+`functions/src/operations/provider-runtime.ts`. Docusign needs its `accountId`
+and QuickBooks its `realmId`; Zoom does not.
+
+Consequences to expect, and not to "fix": `providerAccountId` is null and the
+connection label is the literal `Zoom` rather than the account name. Adding
+`user:read:user` would populate both, and requires enabling that scope in the
+Zoom Marketplace app first — worth doing only if a real account label is wanted,
+since nothing functional depends on it. The skip is logged as
+`integration.zoom.profile_unavailable`.
 
 ## Canonical provider endpoints
 
@@ -200,7 +220,22 @@ cadence.
 ## Acceptance record
 
 For every provider test, record the date, tenant, test object ID, result, and any
-cleanup performed. Do not paste access tokens, refresh tokens, API keys, webhook
+cleanup performed.
+
+- **2026-08-19 · tenant_be3901ee · SendGrid outbound** — live send to a real
+  inbox, SendGrid message `b_6Zoa95TFa0Et6J3yT5WA`, **delivered**. Restored by
+  adding `SENDGRID_FROM_EMAIL=studio@studio-cue.com`. The dead-lettered job was
+  requeued out of band with admin credentials and recorded in `auditEvents` as
+  actorType `system`; the audited path is Platform admin's Rerun control.
+- **2026-08-19 · tenant_be3901ee · job dispatch** — `emailJobs` reports
+  `executionTransport: cloud_tasks` after deploying the two stale dispatchers.
+  Verified with a scratch job document scheduled 20 minutes out so no email
+  could send; document deleted afterwards.
+- **2026-08-19 · tenant_be3901ee · Zoom** — connected, credential stored as
+  Secret Manager version 5, `integration.connect` audit event written, health
+  probe 329 ms. No test meeting created yet.
+- **2026-08-19 · tenant_be3901ee · Google Calendar** — connected through the
+  corrected callback, Calendar API probe 502 ms. No test consultation yet. Do not paste access tokens, refresh tokens, API keys, webhook
 signing secrets, client secrets, or raw authorization codes into this file.
 
 ## Deferred or approval-gated providers
