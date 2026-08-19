@@ -19,6 +19,14 @@ const taskInputSchema = z.object({
 
 const dispatchableStatuses = new Set(["queued", "retry_scheduled"]);
 
+// The location must be explicit. firebase-admin's parseResourceName returns no
+// locationId for a bare function name, and enqueue() then falls back to its
+// DEFAULT_LOCATION of us-central1 — where this project has no queues at all,
+// so Cloud Tasks answers "Queue does not exist" and every job silently
+// degrades to the scheduler.
+const taskQueueResource =
+  "locations/us-east4/functions/operationsTaskWorker";
+
 function dispatchKey(
   collectionName: JobCollection,
   jobId: string,
@@ -55,7 +63,7 @@ async function enqueue(
 
   try {
     await getFunctions()
-      .taskQueue("locations/us-east4/functions/operationsTaskWorker")
+      .taskQueue(taskQueueResource)
       .enqueue(
         {
           collectionName,
@@ -77,6 +85,27 @@ async function enqueue(
   } catch (caught: unknown) {
     const message =
       caught instanceof Error ? caught.message : "TASK_ENQUEUE_FAILED";
+    // This failure only ever reached the job document and Sentry, and
+    // captureOperationalError returns immediately while SENTRY_DSN is unset —
+    // so a stale deployment sent every job to the fallback for eleven days
+    // with nothing in Cloud Logging to show it. Log the resolved queue, which
+    // is what actually distinguishes the failure modes: Cloud Tasks answers
+    // NOT_FOUND both for the wrong location and for a queue the caller
+    // cannot see.
+    console.error(
+      JSON.stringify({
+        severity: "ERROR",
+        event: "operations.task.enqueue_failed",
+        collection: collectionName,
+        jobId: document.id,
+        queue: taskQueueResource,
+        code:
+          typeof (caught as { code?: unknown })?.code === "string"
+            ? (caught as { code: string }).code
+            : null,
+        message: message.slice(0, 500),
+      }),
+    );
     await document.ref.set(
       {
         taskDispatchError: message.slice(0, 500),

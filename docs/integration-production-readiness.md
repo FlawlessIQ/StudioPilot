@@ -108,38 +108,56 @@ Cloud Logging previously showed completed Google OAuth callbacks reaching the
 
 ## Job dispatch transport
 
-`emailJobs`, `providerJobs`, `aiJobs`, and `pdfJobs` are normally enqueued to
-the Cloud Tasks queue `operationsTaskWorker` in `us-east4` for immediate
-execution, and fall back to `operationsJobScheduler` when the enqueue fails.
+`emailJobs`, `providerJobs`, `aiJobs`, and `pdfJobs` are enqueued to the Cloud
+Tasks queue `operationsTaskWorker` in `us-east4` for immediate execution, and
+fall back to `operationsJobScheduler` when the enqueue fails.
 
-**Cloud Tasks enqueue is currently failing and every job runs on the
-fallback.** `emailJobTaskDispatch` records
-`Queue does not exist. If you just created the queue, wait at least a minute
-for the queue to initialize.` on the job document and sets
-`executionTransport: "scheduler_fallback"`. This is not the transient race it
-first appears to be — it recurred at `2026-08-18T23:47:01.704Z`, long after
-the queue was provisioned, while:
+Between August 7 and August 19, 2026 every `emailJobs` and `pdfJobs` record ran
+on the fallback. The cause was **a deployed/source mismatch, not a
+misconfiguration**: firebase-admin's `parseResourceName()` returns no
+`locationId` for a bare function name, and `enqueue()` then falls back to its
+`DEFAULT_LOCATION` of `us-central1`, where this project has no queues at all.
+Cloud Tasks answered `Queue does not exist. If you just created the queue,
+wait at least a minute for the queue to initialize.` — which reads as a
+transient race and is not one.
 
-- `projects/studiohub-prod/locations/us-east4/queues/operationsTaskWorker`
-  exists and is `RUNNING`, matching the path passed to
-  `getFunctions().taskQueue()` in `functions/src/operations/task-queue.ts`;
-- the Functions runtime service account holds project-level
-  `roles/cloudtasks.enqueuer`, and `operationstaskworker` grants it
-  `roles/run.invoker`.
+Commit `37682b5` (August 14) had already fixed the call to name the location
+explicitly. It simply was never deployed to `emailJobTaskDispatch` or
+`pdfJobTaskDispatch`, whose revisions still dated from August 7.
+`aiJobTaskDispatch` was redeployed at 12:26 that day and its own records show
+the switch to the minute: `scheduler_fallback` with this error at 12:22, then
+`cloud_tasks` from 12:53 onward. Deploying the two stale dispatchers on
+August 19 restored `cloud_tasks` for `emailJobs`, verified against a scratch
+job document.
 
-Cloud Tasks also returns `NOT_FOUND` for a queue the caller cannot see, so the
-message does not distinguish a naming mismatch from a permission gap. The
-`enqueue()` catch block swallows the error into the job document and
-`captureOperationalError`, so nothing reaches Cloud Logging at `WARNING` or
-above — worth surfacing before diagnosing further.
+Diagnosis was slow because the failure was invisible. `enqueue()`'s catch wrote
+only to the job document and `captureOperationalError`, which returns
+immediately while `SENTRY_DSN` has no enabled secret version, so nothing
+reached Cloud Logging for eleven days. It now logs at `ERROR` with the resolved
+queue resource, which is the field that separates the two failure modes —
+Cloud Tasks returns `NOT_FOUND` both for a queue in the wrong location and for
+one the caller cannot see.
 
-Impact is bounded: `firebase-schedule-operationsJobScheduler-us-east4` runs
-**every 1 minute**, so the fallback adds at most about a minute. The August 13
-job that waited from 11:55 until 13:00 was held by retry backoff
-(`min(6h, 30s · 2^(attempt−1))`, sixth attempt), not by the scheduler cadence.
-That job also recorded a different, older enqueue failure —
-`lacks IAM permission "iam.serviceAccounts.actAs"` — so re-check that grant
-too. Confirm `executionTransport` reads `cloud_tasks` once fixed.
+Ruled out during diagnosis, recorded so it is not re-investigated: the queue
+exists at exactly the path the SDK requests and has only ever been updated,
+never recreated; the Functions runtime service account holds unconditioned
+project-level `roles/cloudtasks.enqueuer` granted more than 30 days ago; and
+firebase-admin preserves the queue name's camel case rather than lowercasing it.
+
+A separate, older enqueue failure appears on the August 13 job
+`manual_message_draft_9416a6212d99aa4ee2f59ca26ff5ab`:
+`lacks IAM permission "iam.serviceAccounts.actAs"`. Cloud Tasks needs that on
+the OIDC service account it mints the task's token with;
+`scripts/configure-production-function-invokers.sh` grants it, and that script
+must be run after every function deploy. `operationstaskworker` was missing
+from its allowlist entirely and has been added.
+
+When a job reports `executionTransport: "scheduler_fallback"`, check Cloud
+Logging for `operations.task.enqueue_failed` before anything else. Impact is
+bounded either way: `firebase-schedule-operationsJobScheduler-us-east4` runs
+every 1 minute. The August 13 job's wait from 11:55 to 13:00 was retry backoff
+on its sixth attempt (`min(6h, 30s · 2^(attempt−1))`), not the scheduler
+cadence.
 
 ## Acceptance record
 
