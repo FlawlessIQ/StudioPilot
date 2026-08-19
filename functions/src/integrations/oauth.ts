@@ -13,7 +13,6 @@ import { providerUsesPkce } from "./oauth-strategy.js";
 import {
   docusignOAuthBaseUrl,
   docusignUserInfoUrl,
-  quickBooksApiBaseUrl,
 } from "./provider-config.js";
 
 const providerSchema = z.enum([
@@ -253,6 +252,48 @@ async function exchange(
 // provider without touching the others' already-working redirect URI.
 function redirectUriFor(provider: Provider, fallback: string): string {
   return process.env[`${provider.toUpperCase()}_OAUTH_CALLBACK_URL`] || fallback;
+}
+
+// Intuit serves sandbox companies and live companies from different API hosts,
+// and nothing in the token response says which one a realm belongs to — it
+// follows from whether the app credentials are development or production keys.
+// Storing the production host unconditionally (which this used to do) sends
+// every later call for a sandbox company to the wrong host, and Intuit answers
+// that with 403. The connection then records itself as "connected" and fails its
+// first health check, which is exactly how tenant_be3901ee sat broken from
+// 2026-08-19 with QUICKBOOKS_HEALTH_FAILED:403.
+//
+// So resolve it against the realm we were actually granted and persist the host
+// that answers for it. An explicit QUICKBOOKS_API_BASE_URL still wins, for
+// pinning a deployment at one environment.
+async function resolveQuickBooksApiBaseUrl(
+  realmId: string,
+  accessToken: string,
+): Promise<string> {
+  const configured = process.env.QUICKBOOKS_API_BASE_URL;
+  if (configured) return configured.replace(/\/$/, "");
+  const attempts: string[] = [];
+  for (const base of [
+    "https://quickbooks.api.intuit.com",
+    "https://sandbox-quickbooks.api.intuit.com",
+  ]) {
+    const realm = encodeURIComponent(realmId);
+    const response = await fetch(
+      `${base}/v3/company/${realm}/companyinfo/${realm}?minorversion=75`,
+      {
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+          accept: "application/json",
+        },
+      },
+    );
+    if (response.ok) return base;
+    attempts.push(`${base}=${response.status}`);
+  }
+  // Fail the connect rather than storing a credential we already know is
+  // unusable — a broken connection that claims to be connected is worse than a
+  // connect that reports why it could not finish.
+  throw new Error(`QUICKBOOKS_REALM_HOST_UNRESOLVED:${attempts.join(",")}`);
 }
 
 export const integrationOAuth = onRequest(
@@ -499,7 +540,10 @@ export const integrationOAuth = onRequest(
         }
       } else if (provider === "quickbooks") {
         credential.realmId = accountId;
-        credential.baseUrl = quickBooksApiBaseUrl();
+        credential.baseUrl = await resolveQuickBooksApiBaseUrl(
+          accountId,
+          String(token.access_token),
+        );
       } else if (provider === "stripe") {
         // Connect returns the connected account id directly in the token
         // response — no separate userinfo call needed.
