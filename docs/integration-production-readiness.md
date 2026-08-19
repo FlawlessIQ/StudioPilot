@@ -76,7 +76,7 @@ the unit suite, and the e2e suite are all blind to them. Verify them with
 | SendGrid | Inbound enabled; outbound repaired August 18, 2026 | Domain authentication for `studio-cue.com` is valid and Inbound Parse for `inbound.studio-cue.com` resolves to the production webhook with a matching token. Outbound delivered live as recently as August 13, 2026 (SendGrid issued `mo97W7BITheuSRfsb2qFBA`) and then regressed: `SENDGRID_FROM_EMAIL` was set on the deployed Function out of band but never added to `functions/.env.studiohub-prod`, so the next `firebase deploy --only functions` replaced the environment without it and sends began dead-lettering. Requeue the dead-lettered `emailJobs` after confirming a live send. Signed StudioCue delivery-event analytics still require an isolated SendGrid account or subuser because the shared account's single Event Webhook belongs to another product. |
 | Stripe Billing | Enabled and production-verified | Live products/prices, 14-day Checkout trial, subscription webhook, and billing portal are configured. |
 | Stripe Connect | Enabled and production-verified | The live Connect invoice webhook and signing secret are configured and deployed. |
-| QuickBooks Online | Enabled August 19, 2026; awaiting a live company | Intuit production access has been granted, so `quickbooks` was added to `NEXT_PUBLIC_ENABLED_OAUTH_PROVIDERS`. The saved realm `9341455510105739` is still a sandbox company in Intuit's `9341…` range, and `quickBooksApiBaseUrl()` defaults to `https://quickbooks.api.intuit.com` with `QUICKBOOKS_API_BASE_URL` deliberately unset, so that realm returns 403 by construction. Reconnect and select the live company, then run customer/invoice sync. Confirm `https://studio-cue.com/api/integrations/oauth/callback` is a registered Redirect URI on the Intuit app — this could not be verified externally (see below). |
+| QuickBooks Online | Enabled August 19, 2026; blocked on production app keys | The callback **is** registered — a connect on August 19 completed authorize and token exchange cleanly, which settles the redirect question for Intuit. The real health probe then returned `QUICKBOOKS_HEALTH_FAILED:403` in 1414 ms, with Intuit reporting `errorCode=003100, ApplicationAuthorizationFailed` on `companyinfo`. That names the *application*, not the company, and `QUICKBOOKS_CLIENT_ID` has exactly one Secret Manager version created 2026-07-29T16:16:07 — before production access was granted — so the stored pair is almost certainly the app's **Development** keypair. Intuit issues separate Development and Production keypairs, and development keys can only see sandbox companies, which is why the picker offered no live company and the realm stayed `9341455510105739`. Next: add the Production client ID and secret as new versions of `QUICKBOOKS_CLIENT_ID` / `QUICKBOOKS_CLIENT_SECRET`, redeploy the three functions that bind them (`integrationOAuthEast4`, `operationsTaskWorker`, `operationsJobScheduler` — Firebase pins each secret to the version resolved at deploy time), then reconnect and re-probe. |
 | Docusign | Deliberately hidden | The production request was declined. The implementation remains dormant; Dropbox Sign is the preferred e-signature path once its OAuth app is approved. |
 
 ### Zoom requests no user-profile scope, by design
@@ -228,6 +228,26 @@ every 1 minute. The August 13 job's wait from 11:55 to 13:00 was retry backoff
 on its sixth attempt (`min(6h, 30s · 2^(attempt−1))`), not the scheduler
 cadence.
 
+### A connection is not healthy until something probes it
+
+`status: "connected"` means a provider issued a token, nothing more. Until
+August 19, 2026 the OAuth callback also stamped `lastHealthCheckAt` with the
+connect time and — because that write merges — left a previous probe's latency
+and diagnostics in place, so a card could read "Connected · Checked <just now> ·
+388 ms" where the timestamp was the connect instant and the latency came from an
+older probe that had *failed*. QuickBooks showed exactly this: connected, no
+error, while every production call returned 403.
+
+The callback now clears the entire probe result, so a new connection reads
+"Not tested yet" until a real probe runs. `operationsHealthScheduler` runs no
+probe of its own — it only mirrors stored state into `systemHealth` — so it maps
+a never-probed connection to `unknown` rather than `healthy`.
+
+Only the Test control and the provider health path in
+`functions/src/operations/provider-runtime.ts` produce real evidence. When
+judging a connection, compare `lastHealthCheckAt` against `connectedAt`: equal
+values mean nothing has been verified.
+
 ## Acceptance record
 
 For every provider test, record the date, tenant, test object ID, result, and any
@@ -246,7 +266,12 @@ cleanup performed.
   Secret Manager version 5, `integration.connect` audit event written, health
   probe 329 ms. No test meeting created yet.
 - **2026-08-19 · tenant_be3901ee · Google Calendar** — connected through the
-  corrected callback, Calendar API probe 502 ms. No test consultation yet. Do not paste access tokens, refresh tokens, API keys, webhook
+  corrected callback, Calendar API probe 502 ms. No test consultation yet.
+- **2026-08-19 · tenant_be3901ee · QuickBooks** — connect completed (callback
+  registered, token exchange clean, credential version 4), but the real probe
+  failed `QUICKBOOKS_HEALTH_FAILED:403` in 1414 ms against realm
+  `9341455510105739`. Intuit: `errorCode=003100 ApplicationAuthorizationFailed`.
+  Blocked on the production keypair, not on the callback. Do not paste access tokens, refresh tokens, API keys, webhook
 signing secrets, client secrets, or raw authorization codes into this file.
 
 ## Deferred or approval-gated providers
