@@ -205,11 +205,25 @@ export function demoTenantDocuments(collectionName: string): TenantDocument[] {
         dueDate: demoDueDate(invoice.status.toLowerCase() === "paid" ? -30 : -6),
       }));
     case "consultations":
-      return demoConsultations.map((item) => ({
-        ...item,
-        projectId: demoProjectId(item.project),
-        status: item.status.toLowerCase(),
-      }));
+      // The fixtures carry only display strings ("Jul 27", "2:00 PM"), but
+      // studio-calendar.tsx requires an ISO startsAt and skips anything without
+      // one — so every demo consultation was filtered out and the booked
+      // section, including its cancel and reschedule controls, never rendered in
+      // demo mode. Anchored to today so they always land on the visible month.
+      return demoConsultations.map((item, index) => {
+        const offsets = [1, 8, -5];
+        const day = new Date();
+        day.setDate(day.getDate() + (offsets[index % offsets.length] ?? 1));
+        day.setHours(10 + index, 0, 0, 0);
+        return {
+          ...item,
+          projectId: demoProjectId(item.project),
+          status: item.status.toLowerCase(),
+          startsAt: day.toISOString(),
+          endsAt: new Date(day.valueOf() + 45 * 60_000).toISOString(),
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        };
+      });
     case "proposals":
       return demoProposals.map((item) => ({
         ...item,

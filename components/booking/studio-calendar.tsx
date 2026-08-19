@@ -41,6 +41,7 @@ import {
   sendBookingCommand,
 } from "@/lib/booking/command-client";
 import { useTenantDocuments, type TenantDocument } from "@/components/live/tenant-records";
+import { demoTenantDocuments } from "@/features/live/demo-records";
 
 type SettingsShape = Pick<
   ConsultationSettings,
@@ -100,7 +101,13 @@ export function StudioCalendar() {
   const [view, setView] = useState<"month" | "agenda">("month");
   const [blockNotice, setBlockNotice] = useState<string | null>(null);
   const [blocking, setBlocking] = useState(false);
-  const [consultations, setConsultations] = useState<TenantDocument[]>([]);
+  // Demo mode has no Firestore listener below, so seeded here or the grid shows
+  // no booked consultations at all and the cancel/reschedule controls are
+  // unreachable in a preview build. Lazy initialiser rather than an effect:
+  // setting state from an effect trips react-hooks/set-state-in-effect.
+  const [consultations, setConsultations] = useState<TenantDocument[]>(() =>
+    dataIsLive ? [] : demoTenantDocuments("consultations"),
+  );
   const [consultationsLoading, setConsultationsLoading] = useState(dataIsLive);
   const [calendarBusy, setCalendarBusy] = useState<{ start: string; end: string }[]>([]);
   const [calendarStatus, setCalendarStatus] = useState<"connected" | "unavailable" | "unknown">(
@@ -601,6 +608,12 @@ export function StudioCalendar() {
                       <span className="ds-cal-row-name">
                         {project ? String(project.name) : "Booked"}
                       </span>
+                      <ConsultationActions
+                        booking={booking}
+                        freeSlots={selectedSlots.filter(
+                          (slot) => !selectedBookedKeys.has(slot.startsAt),
+                        )}
+                      />
                       {project ? (
                         <a className="ds-cal-row-link" href={`/studio/projects/${project.id}`}>
                           <ArrowUpRight size={13} aria-hidden="true" /> Open project
@@ -645,6 +658,142 @@ export function StudioCalendar() {
         </div>
       )}
     </section>
+  );
+}
+
+function ConsultationActions({
+  booking,
+  freeSlots,
+}: {
+  booking: TenantDocument;
+  freeSlots: ConsultationSlot[];
+}) {
+  // Compact until used, matching SlotRow: a day with three consultations should
+  // read as three times, not three forms.
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [target, setTarget] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const projectId = String(booking.projectId ?? "");
+  const consultationId = String(booking.id);
+  const slot = freeSlots.find((value) => value.startsAt === target);
+
+  async function send(input: Record<string, unknown>, done: string) {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const outcome = await sendBookingCommand(input);
+      setNotice(
+        outcome.mode === "preview"
+          ? "Development preview: validated but not persisted."
+          : done,
+      );
+      setConfirmCancel(false);
+    } catch (caught: unknown) {
+      setNotice(
+        caught instanceof Error ? caught.message : "That change could not be applied.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        className="ds-cal-slot-btn"
+        onClick={() => setOpen(true)}
+      >
+        Change
+      </button>
+    );
+  }
+
+  return (
+    <span className="ds-cal-consult-actions">
+      {freeSlots.length > 0 ? (
+        <>
+          <select
+            aria-label="Move this consultation to"
+            value={target}
+            disabled={busy}
+            onChange={(event) => setTarget(event.target.value)}
+          >
+            <option value="">Move to…</option>
+            {freeSlots.map((value) => (
+              <option key={value.startsAt} value={value.startsAt}>
+                {format(new Date(value.startsAt), "h:mm a")}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="ds-cal-slot-btn"
+            disabled={busy || !slot}
+            onClick={() => {
+              if (!slot) return;
+              void send(
+                {
+                  type: "rescheduleConsultation",
+                  idempotencyKey: crypto.randomUUID(),
+                  input: {
+                    projectId,
+                    consultationId,
+                    startsAt: slot.startsAt,
+                    endsAt: slot.endsAt,
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                  },
+                },
+                "Consultation moved. The calendar invitation and any Zoom meeting were updated.",
+              );
+            }}
+          >
+            Move
+          </button>
+        </>
+      ) : (
+        <small className="ds-cal-consult-note">
+          No other open time on this day.
+        </small>
+      )}
+      <button
+        type="button"
+        className="ds-cal-slot-btn is-danger"
+        disabled={busy}
+        // Two-step, because this removes a meeting the client already holds.
+        onClick={() => {
+          if (!confirmCancel) {
+            setConfirmCancel(true);
+            return;
+          }
+          void send(
+            {
+              type: "cancelConsultation",
+              idempotencyKey: crypto.randomUUID(),
+              input: { projectId, consultationId, reason: null },
+            },
+            "Consultation cancelled. The calendar entry and any Zoom meeting were removed.",
+          );
+        }}
+      >
+        {confirmCancel ? "Confirm cancel" : "Cancel"}
+      </button>
+      <button
+        type="button"
+        className="ds-cal-row-link"
+        disabled={busy}
+        onClick={() => {
+          setOpen(false);
+          setConfirmCancel(false);
+        }}
+      >
+        Close
+      </button>
+      {notice ? <small className="ds-cal-consult-note">{notice}</small> : null}
+    </span>
   );
 }
 

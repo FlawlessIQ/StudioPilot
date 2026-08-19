@@ -232,6 +232,138 @@ export async function getCalendarBusyIntervals(
 async function providerJson(url:string,init:RequestInit,code:string):Promise<Json>{const response=await fetch(url,init);const body=asRecord(await response.json().catch(()=>({})));if(!response.ok)throw new Error(`${code}:${response.status}:${text(asRecord(body.error).message)||text(body.message)||"PROVIDER_ERROR"}`);return body}
 const mockId=(scope:string,id:string)=>`mock_${scope}_${createHash("sha256").update(id).digest("hex").slice(0,16)}`;
 
+// Cancel and reschedule are the write-back half of the calendar integration.
+// Until August 19, 2026 the runtime only ever created events: a studio could
+// cancel nothing, and an event deleted in Google left StudioCue still showing
+// the slot booked and the client confirmed.
+//
+// Both handlers read consultationId from the job document rather than parsing it
+// out of the job id, which is how createConsultationResources does it — a
+// prefix-strip that only works because that job is named after its consultation.
+async function consultationFor(job: DocumentSnapshot) {
+  const consultationId = text(job.get("consultationId"));
+  if (!consultationId) throw new Error("CONSULTATION_ID_MISSING");
+  const reference = getFirestore().doc(`consultations/${consultationId}`);
+  const consultation = await reference.get();
+  if (!consultation.exists) throw new Error("CONSULTATION_NOT_FOUND");
+  return { consultationId, reference, consultation };
+}
+
+export async function cancelConsultationResources(job: DocumentSnapshot) {
+  const { consultationId, reference, consultation } = await consultationFor(job);
+  const tenantId = String(job.get("tenantId"));
+  const calendarEventId = text(consultation.get("calendarEventId"));
+  const meetingId = text(consultation.get("meetingId"));
+  const removed: string[] = [];
+
+  if (meetingId) {
+    const zoom = await connection(tenantId, "zoom");
+    if (!zoom.mock) {
+      const response = await fetch(
+        `${zoom.credential?.baseUrl ?? "https://api.zoom.us"}/v2/meetings/${encodeURIComponent(meetingId)}`,
+        { method: "DELETE", headers: { authorization: `Bearer ${zoom.credential?.accessToken}` } },
+      );
+      // 404 means Zoom has already forgotten the meeting, which is the state we
+      // are trying to reach — treat it as success so a retry cannot fail.
+      if (!response.ok && response.status !== 404)
+        throw new Error(`ZOOM_DELETE_FAILED:${response.status}`);
+    }
+    removed.push("zoom");
+  }
+
+  if (calendarEventId) {
+    const calendar = await connection(tenantId, "google_calendar");
+    if (!calendar.mock) {
+      const calendarId = encodeURIComponent(
+        String(calendar.document.get("selectedResourceId") ?? "primary"),
+      );
+      const response = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${encodeURIComponent(calendarEventId)}?sendUpdates=all`,
+        { method: "DELETE", headers: { authorization: `Bearer ${calendar.credential?.accessToken}` } },
+      );
+      // 410 Gone is Google's answer for an event already deleted, 404 for one it
+      // cannot find. Both mean the desired end state already holds.
+      if (!response.ok && response.status !== 404 && response.status !== 410)
+        throw new Error(`CALENDAR_DELETE_FAILED:${response.status}`);
+    }
+    removed.push("google_calendar");
+  }
+
+  await reference.update({
+    providerState: "cancelled",
+    joinUrl: null,
+    updatedAt: new Date().toISOString(),
+    updatedBy: "provider-worker",
+  });
+  return { consultationId, removed };
+}
+
+export async function rescheduleConsultationResources(job: DocumentSnapshot) {
+  const { consultationId, reference, consultation } = await consultationFor(job);
+  const tenantId = String(job.get("tenantId"));
+  const startsAt = String(consultation.get("startsAt"));
+  const endsAt = String(consultation.get("endsAt"));
+  const timezone = String(consultation.get("timezone"));
+  const calendarEventId = text(consultation.get("calendarEventId"));
+  const meetingId = text(consultation.get("meetingId"));
+  const moved: string[] = [];
+
+  if (meetingId) {
+    const zoom = await connection(tenantId, "zoom");
+    if (!zoom.mock) {
+      const minutes = Math.max(
+        1,
+        Math.round((new Date(endsAt).valueOf() - new Date(startsAt).valueOf()) / 60000),
+      );
+      const response = await fetch(
+        `${zoom.credential?.baseUrl ?? "https://api.zoom.us"}/v2/meetings/${encodeURIComponent(meetingId)}`,
+        {
+          method: "PATCH",
+          headers: {
+            authorization: `Bearer ${zoom.credential?.accessToken}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ start_time: startsAt, duration: minutes, timezone }),
+        },
+      );
+      if (!response.ok) throw new Error(`ZOOM_UPDATE_FAILED:${response.status}`);
+    }
+    moved.push("zoom");
+  }
+
+  if (calendarEventId) {
+    const calendar = await connection(tenantId, "google_calendar");
+    if (!calendar.mock) {
+      const calendarId = encodeURIComponent(
+        String(calendar.document.get("selectedResourceId") ?? "primary"),
+      );
+      const response = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${encodeURIComponent(calendarEventId)}?sendUpdates=all`,
+        {
+          method: "PATCH",
+          headers: {
+            authorization: `Bearer ${calendar.credential?.accessToken}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            start: { dateTime: startsAt, timeZone: timezone },
+            end: { dateTime: endsAt, timeZone: timezone },
+          }),
+        },
+      );
+      if (!response.ok) throw new Error(`CALENDAR_UPDATE_FAILED:${response.status}`);
+    }
+    moved.push("google_calendar");
+  }
+
+  await reference.update({
+    providerState: "rescheduled",
+    updatedAt: new Date().toISOString(),
+    updatedBy: "provider-worker",
+  });
+  return { consultationId, startsAt, endsAt, moved };
+}
+
 export async function createConsultationResources(job:DocumentSnapshot){const db=getFirestore();const consultationId=job.id.replace(/^consultation_/,"");const consultationReference=db.doc(`consultations/${consultationId}`);let consultation=await consultationReference.get();if(!consultation.exists)throw new Error("CONSULTATION_NOT_FOUND");const tenantId=String(job.get("tenantId"));let meetingId:string|null=consultation.get("meetingId")||null;let joinUrl:string|null=consultation.get("joinUrl")||null;
   if(consultation.get("providerState")==="completed")return{consultationId,meetingId:consultation.get("meetingId"),calendarEventId:consultation.get("calendarEventId")};
   if(consultation.get("mode")==="zoom"&&!meetingId){const zoom=await connection(tenantId,"zoom");if(zoom.mock){meetingId=mockId("zoom",job.id);joinUrl=`https://zoom.example.test/j/${meetingId}`}else{const scopes=Array.isArray(zoom.document.get("scopes"))?zoom.document.get("scopes") as unknown[]:[];const summaryEnabled=zoom.document.get("meetingSummaryEnabled")!==false&&scopes.includes("meeting:read:summary");const value=await providerJson(`${zoom.credential?.baseUrl??"https://api.zoom.us"}/v2/users/me/meetings`,{method:"POST",headers:{authorization:`Bearer ${zoom.credential?.accessToken}`,"content-type":"application/json"},body:JSON.stringify({topic:"Photography consultation",type:2,start_time:consultation.get("startsAt"),duration:Math.max(1,Math.round((new Date(String(consultation.get("endsAt"))).valueOf()-new Date(String(consultation.get("startsAt"))).valueOf())/60000)),timezone:consultation.get("timezone"),settings:{waiting_room:true,auto_recording:"none",...(summaryEnabled?{auto_start_meeting_summary:true,who_will_receive_summary:1}:{})}})},"ZOOM_CREATE_FAILED");meetingId=String(value.id);joinUrl=text(value.join_url)}await consultationReference.update({meetingId,joinUrl,location:joinUrl??consultation.get("location"),providerState:"meeting_created",updatedAt:new Date().toISOString(),updatedBy:"provider-worker"});consultation=await consultationReference.get()}

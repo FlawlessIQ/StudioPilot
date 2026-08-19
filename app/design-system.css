@@ -2445,6 +2445,36 @@
   flex-shrink: 0;
 }
 
+/* Cancel / reschedule controls on a booked consultation row. Wraps rather than
+   widening the panel, since the row already carries a time, a name and a link. */
+.ds-cal-consult-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.ds-cal-consult-actions select {
+  font: inherit;
+  font-size: 11.5px;
+  padding: 3px 6px;
+  border: 1px solid var(--ds-line-soft);
+  border-radius: 6px;
+  background: var(--ds-paper);
+  color: var(--ds-ink);
+  max-width: 130px;
+}
+.ds-cal-slot-btn.is-danger {
+  color: var(--ds-claret);
+  border-color: var(--ds-claret);
+}
+.ds-cal-consult-note {
+  flex-basis: 100%;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ds-ink-soft);
+}
+
 /* Explanation shown in place of a Connect button for a provider that is
    gated behind an external approval. Spans the full row so a full sentence
    never widens the six-column grid. */

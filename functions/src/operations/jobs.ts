@@ -16,11 +16,13 @@ import {
   addCrewCalendarInvite,
   completeBookingResources,
   captureZoomMeetingSummary,
+  cancelConsultationResources,
   createConsultationResources,
   createDocusignEnvelope,
   createDropboxSignRequest,
   createQuickBooksInvoice,
   createStripeInvoice,
+  rescheduleConsultationResources,
   reconcileQuickBooksInvoice,
   uploadDropboxDocument,
 } from "./provider-runtime.js";
@@ -242,6 +244,10 @@ async function providerJob(document: DocumentSnapshot) {
     return captureZoomMeetingSummary(document);
   if (type === "create_consultation_resources")
     return createConsultationResources(document);
+  if (type === "cancel_consultation_resources")
+    return cancelConsultationResources(document);
+  if (type === "reschedule_consultation_resources")
+    return rescheduleConsultationResources(document);
   if (type === "create_docusign_envelope")
     return createDocusignEnvelope(document);
   if (type === "create_dropbox_sign_request")

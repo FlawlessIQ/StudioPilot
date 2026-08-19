@@ -28,6 +28,11 @@ export const consultationSchema = auditFieldsSchema.extend({
   internalNotes: z.string().max(4000).nullable(),
   reminderJobIds: z.array(z.string()),
   supersedesId: z.string().nullable(),
+  // Written by cancelConsultation / rescheduleConsultation. Optional because
+  // every consultation created before those commands existed lacks them.
+  cancelledAt: z.string().datetime().nullable().optional(),
+  cancellationReason: z.string().max(500).nullable().optional(),
+  rescheduledAt: z.string().datetime().nullable().optional(),
   archivedAt: z.string().datetime().nullable(),
 });
 

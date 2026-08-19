@@ -35,6 +35,28 @@ const commandSchema = z.discriminatedUnion("type", [
     }),
   }),
   z.object({
+    type: z.literal("cancelConsultation"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      consultationId: z.string().min(1),
+      reason: z.string().trim().max(500).nullable(),
+    }),
+  }),
+  z.object({
+    type: z.literal("rescheduleConsultation"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      consultationId: z.string().min(1),
+      startsAt: z.string().datetime(),
+      endsAt: z.string().datetime(),
+      timezone: z.string().min(1),
+    }),
+  }),
+  z.object({
     type: z.literal("createEnvelope"),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
@@ -354,6 +376,107 @@ export const bookingCommand = onRequest(
           consultationId,
           providerState: mockMode ? "completed_mock" : "queued",
         };
+      } else if (command.type === "cancelConsultation") {
+        const consultationReference = firestore.doc(
+          `consultations/${command.input.consultationId}`,
+        );
+        result = await firestore.runTransaction(async (transaction) => {
+          const consultation = await transaction.get(consultationReference);
+          if (
+            !consultation.exists ||
+            consultation.get("tenantId") !== command.tenantId ||
+            consultation.get("projectId") !== command.input.projectId
+          )
+            throw new Error("CONSULTATION_NOT_FOUND");
+          const status = String(consultation.get("status"));
+          // Cancelling an already-cancelled consultation is a no-op rather than
+          // an error, so a retried click cannot fail after the first succeeded.
+          if (status === "cancelled")
+            return { consultationId: command.input.consultationId, status };
+          if (status !== "scheduled")
+            throw new Error("CONSULTATION_NOT_CANCELLABLE");
+          transaction.update(consultationReference, {
+            status: "cancelled",
+            cancelledAt: timestamp,
+            cancellationReason: command.input.reason,
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          return { consultationId: command.input.consultationId, status: "cancelled" };
+        });
+        // The external resources are removed by the worker, not here: deleting a
+        // Google event and a Zoom meeting are non-transactional side effects and
+        // must not run inside the Firestore transaction above. calendarEventId
+        // and meetingId are deliberately left on the record so the worker knows
+        // what to remove and so the history survives cancellation.
+        if (!mockMode && (result as { status?: string }).status === "cancelled") {
+          await firestore
+            .doc(`providerJobs/consultation_cancel_${command.input.consultationId}`)
+            .set(
+              {
+                tenantId: command.tenantId,
+                projectId: command.input.projectId,
+                consultationId: command.input.consultationId,
+                type: "cancel_consultation_resources",
+                idempotencyKey: command.idempotencyKey,
+                status: "queued",
+                createdAt: timestamp,
+              },
+              { merge: true },
+            );
+        }
+      } else if (command.type === "rescheduleConsultation") {
+        const start = new Date(command.input.startsAt);
+        const end = new Date(command.input.endsAt);
+        if (!Number.isFinite(start.valueOf()) || end <= start)
+          throw new Error("INVALID_TIME_RANGE");
+        const consultationReference = firestore.doc(
+          `consultations/${command.input.consultationId}`,
+        );
+        result = await firestore.runTransaction(async (transaction) => {
+          const consultation = await transaction.get(consultationReference);
+          if (
+            !consultation.exists ||
+            consultation.get("tenantId") !== command.tenantId ||
+            consultation.get("projectId") !== command.input.projectId
+          )
+            throw new Error("CONSULTATION_NOT_FOUND");
+          if (String(consultation.get("status")) !== "scheduled")
+            throw new Error("CONSULTATION_NOT_RESCHEDULABLE");
+          // The consultation moves in place and keeps its id, so the calendar
+          // event id — sha256("consultation:<id>") — stays stable and the
+          // client's existing invitation updates instead of being replaced by a
+          // second event. supersedesId stays reserved for a future "rebook as a
+          // new consultation" flow, which is a different intent.
+          transaction.update(consultationReference, {
+            startsAt: command.input.startsAt,
+            endsAt: command.input.endsAt,
+            timezone: command.input.timezone,
+            rescheduledAt: timestamp,
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          return {
+            consultationId: command.input.consultationId,
+            startsAt: command.input.startsAt,
+            endsAt: command.input.endsAt,
+          };
+        });
+        if (!mockMode) {
+          await firestore
+            .doc(
+              `providerJobs/${stableId("consultresched", command.tenantId, command.idempotencyKey)}`,
+            )
+            .create({
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              consultationId: command.input.consultationId,
+              type: "reschedule_consultation_resources",
+              idempotencyKey: command.idempotencyKey,
+              status: "queued",
+              createdAt: timestamp,
+            });
+        }
       } else if (command.type === "createEnvelope") {
         const [project, proposal, existingContracts] = await Promise.all([
           firestore.doc(`projects/${command.input.projectId}`).get(),
