@@ -238,6 +238,67 @@ Completion evidence:
 - queue-level monitoring and replay evidence
 - documented rollback path
 
+## Open gaps in shipped integrations
+
+Found on August 19, 2026 while filming the Google OAuth verification demo.
+Neither is a new provider integration and neither needs provider approval — the
+Google Calendar connection already carries the scopes required. They are listed
+separately from Phase 6 because that phase is closed, and separately from future
+scope because the integration they belong to is already live in front of clients.
+
+### Consultation cancel and reschedule
+
+**Missing entirely.** There is no `cancelConsultation` or
+`rescheduleConsultation` command, no provider job type for it, and no calendar
+mutation anywhere: `functions/src/operations/provider-runtime.ts` contains zero
+`DELETE` and zero `PATCH` calls, and the only Zoom meeting endpoint used besides
+create is `GET /meetings/{id}/meeting_summary`. The absent UI is a symptom — the
+server-side capability does not exist.
+
+To build:
+
+- `cancelConsultation` and `rescheduleConsultation` on `bookingCommand`, with
+  the consultation status transition and an audit event
+- a provider job that issues `PATCH /calendars/{id}/events/{eventId}` to move an
+  event and `DELETE` to remove it, plus `PATCH`/`DELETE /meetings/{id}` for
+  zoom-mode consultations
+- client notification, because the client holds a confirmation email and a Zoom
+  join link that must stop being valid
+- UI on the studio calendar and the consultation detail surface
+
+Note when this lands: `app/privacy/page.tsx` and the Google `calendar.events`
+scope justification both currently state that StudioCue does **not** modify or
+remove entries after creating them. Both must be updated in the same change, or
+the disclosure becomes an understatement rather than an overstatement.
+
+### Google Calendar inbound sync
+
+**Missing entirely.** No `events.watch` channel, no `syncToken` polling, and no
+`google-calendar` route under `app/api/webhooks/` — the directory holds
+docusign, dropbox-sign, quickbooks, sendgrid, stripe, stripe-connect, and zoom.
+The integration is strictly one-way, so a studio that deletes a consultation in
+Google Calendar leaves StudioCue showing the slot booked and the client
+confirmed. That divergence has client-facing consequences and is the more
+serious of the two gaps.
+
+To build:
+
+- an `events.watch` channel per connected calendar, and a webhook route plus
+  Function to receive the push
+- channel renewal on a schedule, since Calendar push channels expire
+- incremental `events.list` with a stored `syncToken`, because Google's push
+  notification does not say what changed
+- a reconciliation sweep, since push delivery is at-least-once and can be missed
+- no new OAuth scope: `events.watch` uses the scopes already granted
+
+**Design constraint.** Google must not be treated as authoritative over
+bookings. `docs/booking-gate.md` already establishes that provider events are
+evidence and humans decide, and COI extraction leaves `humanDecision` pending
+for the same reason. An event disappearing from a studio's calendar should raise
+a discrepancy for the owner to resolve — not silently cancel a consultation a
+client has already been sent a confirmation for. Auto-cancelling on an inbound
+delete would be the easy implementation and the wrong one.
+
 ## Future integration scope
 
 ### Stripe Connect: studio-managed client payments
