@@ -13,7 +13,7 @@ export default function PrivacyPage() {
     <main className="ds-root legal-page" data-ds-theme="emerald">
       <header><Link href="/"><Logo /></Link><Link href="/"><ArrowLeft size={15} /> Back home</Link></header>
       <article>
-        <p className="eyebrow">Effective August 5, 2026</p>
+        <p className="eyebrow">Effective August 19, 2026</p>
         <h1>Privacy at StudioCue</h1>
         <p className="legal-lead">StudioCue is designed around tenant isolation, minimum necessary access, and clear control over business data.</p>
 
@@ -25,6 +25,10 @@ export default function PrivacyPage() {
 
         <h2>How information is used</h2>
         <p>We use information to deliver requested workflows, secure portals, provider synchronization, communications, reporting, audit history, customer support, and permission-aware AI assistance. AI output is advisory for legal, payment, insurance, and readiness decisions.</p>
+
+        <h2>Google Calendar data</h2>
+        <p>If a studio connects Google Calendar, StudioCue processes the OAuth authorization details for that Google Account and the calendar information needed to run the studio&apos;s scheduling workflow. With read access it retrieves the studio&apos;s list of calendars, so the owner can choose which calendar governs availability, and free/busy intervals for that calendar, so clients are only offered consultation times the studio is actually free. With write access it creates the consultation and event-day entries for that studio&apos;s booked work, and updates or cancels those entries when the studio reschedules or cancels. StudioCue acts only on entries it created, identified by the event identifier stored with the corresponding consultation or project. It does not list or read the contents of a studio&apos;s other calendar entries.</p>
+        <p>Google user data is used only to provide and improve these features for the authorizing customer. It is not sold, used for advertising, shared with unrelated customers, or used to train or improve generalized artificial-intelligence or machine-learning models. Google Calendar data is not sent to StudioCue&apos;s AI features. Access and refresh tokens remain server-side in managed secret storage and are never exposed to the browser. Disconnecting Google Calendar in StudioCue stops further synchronization, and access can be revoked at any time from the Google Account permissions page.</p>
 
         <h2>Zoom data</h2>
         <p>If a studio connects Zoom, StudioCue processes OAuth authorization details and the meeting information needed to create, view, update, and cancel that studio&apos;s Zoom meetings. Zoom information is used only to provide the connected workflow for the authorizing customer. It is not sold, used for advertising, shared with unrelated customers, or used to train AI models.</p>
