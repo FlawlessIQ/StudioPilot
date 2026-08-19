@@ -447,19 +447,46 @@ export const integrationOAuth = onRequest(
         credential.accountId = accountId;
         displayName = body.account?.email_address ?? provider;
       } else if (provider === "zoom") {
+        // Zoom's account id is stored and never read. Every Zoom operation
+        // addresses /v2/users/me/... using the meeting scopes above — the
+        // health probe, meeting creation, and summary fetch in
+        // provider-runtime.ts — unlike Docusign (accountId) and QuickBooks
+        // (realmId), which genuinely need theirs.
+        //
+        // /v2/users/me needs a user-profile scope this app deliberately does
+        // not request, so the call fails by design and treating that as fatal
+        // rejected the whole connection with ZOOM_ACCOUNT_LOOKUP_FAILED
+        // *after* a successful token exchange — the studio had already granted
+        // consent, and the only remedy on offer was to widen the scope for a
+        // value nothing consumes. Best effort instead: take the friendlier
+        // label when the scope happens to be granted, connect when it is not.
         const account = await fetch("https://api.zoom.us/v2/users/me", {
           headers: { authorization: `Bearer ${String(token.access_token)}` },
-        });
-        const body = (await account.json()) as {
-          account_id?: string;
-          display_name?: string;
-          email?: string;
-        };
-        if (!account.ok || !body.account_id)
-          throw new Error("ZOOM_ACCOUNT_LOOKUP_FAILED");
-        accountId = body.account_id;
-        credential.accountId = accountId;
-        displayName = body.display_name ?? body.email ?? provider;
+        }).catch(() => null);
+        const profile =
+          account && account.ok
+            ? ((await account.json()) as {
+                account_id?: string;
+                display_name?: string;
+                email?: string;
+              })
+            : null;
+        if (profile?.account_id) {
+          accountId = profile.account_id;
+          credential.accountId = accountId;
+        }
+        displayName = profile?.display_name ?? profile?.email ?? "Zoom";
+        if (!profile) {
+          console.info(
+            JSON.stringify({
+              severity: "INFO",
+              event: "integration.zoom.profile_unavailable",
+              status: account?.status ?? null,
+              detail:
+                "connected without /v2/users/me; add a user-read scope only if a real account label is wanted",
+            }),
+          );
+        }
       } else if (provider === "quickbooks") {
         credential.realmId = accountId;
         credential.baseUrl = quickBooksApiBaseUrl();
