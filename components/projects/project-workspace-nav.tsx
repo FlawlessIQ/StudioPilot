@@ -11,7 +11,7 @@ import {
 
 const links = [
   { label: "Overview", route: "projects", icon: Sparkles },
-  { label: "Client & booking", route: "booking", icon: HandCoins },
+  { label: "Booking", route: "booking", icon: HandCoins },
   { label: "Plan", route: "planning", icon: FolderKanban },
   { label: "Delivery", route: "delivery", icon: Images },
 ] as const;

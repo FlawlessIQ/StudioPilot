@@ -11,7 +11,7 @@ export default async function ProjectPage({
 }) {
   const { id } = await params;
   return (
-    <AppShell active="Projects">
+    <AppShell active="Jobs">
       <LiveProjectDetail projectId={id} />
     </AppShell>
   );

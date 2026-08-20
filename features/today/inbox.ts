@@ -261,6 +261,9 @@ const bandFor = (input: {
   const due = dayDiff(input.dueDate, input.now);
   if (due !== null && due < 0) return "overdue";
   const days = dayDiff(input.eventDate, input.now);
+  // A wedding that already happened and still needs work is late, not
+  // upcoming: "this fortnight" must never contain a date two months gone.
+  if (days !== null && days < 0) return "overdue";
   if (days !== null && days <= 14) return "soon";
   return "later";
 };

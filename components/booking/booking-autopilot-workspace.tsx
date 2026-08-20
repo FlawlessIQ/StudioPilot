@@ -168,7 +168,7 @@ export function BookingAutopilotWorkspace({
           text(object(recommendation?.structuredOutput).packageId),
       );
     } catch (caught: unknown) {
-      setNotice(friendlyError(caught, "Booking autopilot could not be loaded."));
+      setNotice(friendlyError(caught, "This booking could not be loaded."));
     } finally {
       setLoading(false);
     }
@@ -459,7 +459,7 @@ export function BookingAutopilotWorkspace({
     <div className="booking-autopilot">
       <header className="booking-autopilot-hero">
         <div>
-          <p className="eyebrow"><Sparkles size={14} /> Booking autopilot</p>
+          <p className="eyebrow"><Sparkles size={14} /> From the consultation</p>
           <h1>From conversation<br />to a reviewable proposal.</h1>
           <p>
             Capture what the couple said once. StudioCue grounds a brief,
@@ -504,7 +504,7 @@ export function BookingAutopilotWorkspace({
       ) : consultation.status !== "completed" ? (
         <section className="booking-consultation-capture">
           <div>
-            <p className="eyebrow">One source of truth</p>
+            <p className="eyebrow">What they told you</p>
             <h2>Capture consultation notes</h2>
             <p>
               Paste notes or import the transcript you already have. StudioCue
@@ -581,7 +581,7 @@ export function BookingAutopilotWorkspace({
         <>
           <section className="booking-ai-brief">
             <div>
-              <p className="eyebrow">AI-prepared · human-reviewed</p>
+              <p className="eyebrow">Drafted for you to check</p>
               <h2>Consultation brief</h2>
               <p>{text(summary.summary)}</p>
               <div>
@@ -601,7 +601,7 @@ export function BookingAutopilotWorkspace({
           <section className="booking-package-review">
             <header>
               <div>
-                <p className="eyebrow">Recommendation—not a decision</p>
+                <p className="eyebrow">A suggestion — your call</p>
                 <h2>Choose the package that actually fits</h2>
               </div>
               <StatusBadge tone={Number(object(packageAction.confidence).overall) >= .8 ? "success" : "warning"}>
@@ -636,7 +636,7 @@ export function BookingAutopilotWorkspace({
 
           <section className="booking-proposal-release">
             <div>
-              <p className="eyebrow">Safe release point</p>
+              <p className="eyebrow">Nothing is sent yet</p>
               <h2>Create the proposal draft</h2>
               <p>
                 This approves the reviewed AI work, snapshots the selected
