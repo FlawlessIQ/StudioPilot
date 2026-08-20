@@ -9,9 +9,6 @@ import {
   CalendarDays,
   CheckCircle2,
   CircleAlert,
-  ClipboardCheck,
-  FileCheck2,
-  FolderKanban,
   LoaderCircle,
   MapPin,
   Send,
@@ -27,7 +24,11 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { ProjectJourney } from "@/components/projects/project-journey";
+import {
+  ProjectThread,
+  ThreadMinimap,
+} from "@/components/projects/project-thread";
+import { useProjectThread } from "@/components/projects/use-project-thread";
 import { useProjectJourney } from "@/components/projects/use-project-journey";
 import { ReadinessMeter } from "@/components/ui/readiness-meter";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -176,117 +177,6 @@ function displayDate(value: unknown): string {
   }).format(date);
 }
 
-function projectAction(
-  state: ProjectState,
-  projectId: string,
-): { href: string; label: string; detail: string; headline: string } {
-  // The headline, label, and detail all derive from the live project state.
-  // (The stored project.nextAction field is written at scattered moments and
-  // goes stale — a signed project kept demanding the agreement it already had.)
-  const routes: Record<
-    ProjectState,
-    { href: string; label: string; detail: string; headline: string }
-  > = {
-    LEAD: {
-      href: `/studio/calendar?project=${projectId}`,
-      label: "Schedule consultation",
-      headline: "Complete lead review",
-      detail: "Qualify the inquiry, then choose a time with the client.",
-    },
-    CONSULTATION: {
-      href: `/studio/booking?project=${projectId}`,
-      label: "Run booking autopilot",
-      headline: "Turn the consultation into a proposal",
-      detail:
-        "Turn consultation notes into a cited brief, package fit, and unsent proposal draft.",
-    },
-    PROPOSAL: {
-      href: `/studio/proposals?project=${projectId}`,
-      label: "Review proposal",
-      headline: "Get the proposal to the client",
-      detail: "Confirm pricing, expiration, and acceptance before contracting.",
-    },
-    CONTRACT_PENDING: {
-      href: `/studio/contracts?project=${projectId}`,
-      label: "Open contract",
-      headline: "Prepare and send the photography agreement",
-      detail: "Track the authoritative signing request and signer status.",
-    },
-    RETAINER_PENDING: {
-      href: `/studio/contracts?project=${projectId}`,
-      label: "Check retainer status",
-      headline: "Collect the retainer",
-      detail: "Confirm the QuickBooks retainer evidence before booking.",
-    },
-    BOOKED: {
-      href: `/studio/vendors?project=${projectId}`,
-      label: "Begin planning",
-      headline: "Start planning the event",
-      detail: "Collect the people, locations, and requirements behind the event.",
-    },
-    PLANNING: {
-      href: `/studio/readiness?project=${projectId}`,
-      label: "Review readiness",
-      headline: "Close out the readiness blockers",
-      detail: "Resolve blocking checkpoints before moving the project to Ready.",
-    },
-    READY: {
-      href: `/studio/schedules?project=${projectId}`,
-      label: "Open final schedule",
-      headline: "Confirm the final run of show",
-      detail: "Confirm the published version and every crew acknowledgement.",
-    },
-    EVENT_COMPLETE: {
-      href: `/studio/post-production?project=${projectId}`,
-      label: "Start post-production",
-      headline: "Protect the files, then start editing",
-      detail: "Record protected backup before culling and editing begin.",
-    },
-    POST_PRODUCTION: {
-      href: `/studio/delivery?project=${projectId}`,
-      label: "Review delivery",
-      headline: "Get the gallery to the client",
-      detail: "Track the approved gallery and client delivery evidence.",
-    },
-    DELIVERED: {
-      href: `/studio/reviews?project=${projectId}`,
-      label: "Manage review request",
-      headline: "Ask for the review",
-      detail: "Invite feedback without claiming a review was posted.",
-    },
-    REVIEW_REQUESTED: {
-      href: `/studio/post-production?project=${projectId}`,
-      label: "Review closeout",
-      headline: "Close the project out",
-      detail: "Confirm every closeout requirement before closing the project.",
-    },
-    CLOSED: {
-      href: `/studio/delivery?project=${projectId}`,
-      label: "View delivery record",
-      headline: "This project is complete",
-      detail: "Keep the completed project accessible until it is archived.",
-    },
-    CANCELLED: {
-      href: `/studio/tasks/new?project=${projectId}`,
-      label: "Add follow-up task",
-      headline: "Wrap up the cancellation",
-      detail: "Record any remaining client, financial, or archival work.",
-    },
-    POSTPONED: {
-      href: `/studio/calendar?project=${projectId}`,
-      label: "Review new date",
-      headline: "Rebuild around the new date",
-      detail: "Reconfirm availability and rebuild every date-relative task.",
-    },
-    ARCHIVED: {
-      href: `/studio/documents?project=${projectId}`,
-      label: "View project files",
-      headline: "This project is archived",
-      detail: "Review retained project evidence without reopening the workflow.",
-    },
-  };
-  return routes[state];
-}
 
 function ProjectStageControl({
   projectId,
@@ -343,8 +233,10 @@ function ProjectStageControl({
   }
 
   return (
-    // Open by default: collapsed, this was the only way to advance a stage
-    // by hand and users could not find it.
+    // The card lives inside the component: an evidence-controlled stage
+    // returns null above, and an empty rail card would be a visible artifact
+    // of that. Open by default — collapsed, nobody found it.
+    <aside className="job-rail-card">
     <details className="project-stage-control" open>
       <summary>Move this project forward</summary>
       <form onSubmit={(event) => void submit(event)}>
@@ -368,6 +260,7 @@ function ProjectStageControl({
         {notice ? <p className="project-stage-notice" role="status">{notice}</p> : null}
       </form>
     </details>
+    </aside>
   );
 }
 
@@ -536,6 +429,18 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
       typeof project?.eventDate === "string" ? project.eventDate : null,
     leadId: typeof project?.leadId === "string" ? project.leadId : null,
   });
+  const thread = useProjectThread({
+    projectId,
+    projectName: String(project?.name ?? "This job"),
+    projectCreatedAt:
+      typeof project?.createdAt === "string" ? project.createdAt : null,
+    contactIds: Array.isArray(project?.clientContactIds)
+      ? project.clientContactIds.filter(
+          (value): value is string => typeof value === "string",
+        )
+      : [],
+    leadId: typeof project?.leadId === "string" ? project.leadId : null,
+  });
 
   useEffect(() => {
     if (!dataIsLive || workspace.loading || !workspace.tenantId) return;
@@ -659,7 +564,6 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
         ),
     )
     .map((checkpoint) => String(checkpoint.name ?? "Unnamed checkpoint"));
-  const action = projectAction(state, projectId);
   const current = journey.current;
   const onTransition = (nextState: string, version: number) =>
     setProject((value) =>
@@ -729,45 +633,32 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           <strong>{String(project.leadPhotographerName ?? "Unassigned")}</strong>
         </span>
       </div>
-      <div className="project-detail-grid">
-        <ProjectJourney
-          current={journey.current}
-          onTransition={onTransition}
+      {/* Phase 2 of "Today & Jobs": the job is one thread, with the next
+          step composing at the bottom. The journey rail is the minimap. */}
+      <div className="job-page-grid">
+        <ProjectThread
+          consultationId={thread.openConsultationId}
+          current={current}
+          entries={thread.entries}
+          onChanged={(nextState, version) => {
+            if (nextState && typeof version === "number")
+              onTransition(nextState, version);
+          }}
           projectId={projectId}
           stateVersion={Number(project.stateVersion ?? 0)}
-          steps={journey.steps}
         />
-        <aside className="next-action-card">
-          <p className="eyebrow">Recommended next move</p>
-          <span className="next-action-icon"><CircleAlert size={21} /></span>
-          {/* Same derivation as the journey's current step — never a second
-              opinion. The state map only covers post-journey states. */}
-          <h2>{current ? current.title : action.headline}</h2>
-          <p>{current ? current.detail : action.detail}</p>
-          <div className="project-next-actions">
-            {current?.action?.kind === "link" ? (
-              <Link
-                className="button button-light-on-dark"
-                href={current.action.href}
-              >
-                {current.action.label} <ArrowRight size={15} />
-              </Link>
-            ) : !current ? (
-              <Link className="button button-light-on-dark" href={action.href}>
-                {action.label} <ArrowRight size={15} />
-              </Link>
-            ) : null}
-            <Link className="button project-action-secondary" href={`/studio/tasks/new?project=${projectId}`}>
-              Add a task
-            </Link>
-          </div>
+        <div className="job-rail">
+          <ThreadMinimap current={current} steps={journey.steps} />
           {state === "LEAD" &&
           Array.isArray(project.clientContactIds) &&
           typeof project.clientContactIds[0] === "string" ? (
-            <ConsultationInviteAction
-              contactId={project.clientContactIds[0]}
-              projectId={projectId}
-            />
+            <aside className="job-rail-card">
+              <p className="eyebrow">Let the client pick</p>
+              <ConsultationInviteAction
+                contactId={project.clientContactIds[0]}
+                projectId={projectId}
+              />
+            </aside>
           ) : null}
           <ProjectStageControl
             onTransition={onTransition}
@@ -775,7 +666,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
             state={state}
             stateVersion={Number(project.stateVersion ?? 0)}
           />
-        </aside>
+        </div>
       </div>
       <section className="project-now-next" aria-label="Project work summary">
         <ProjectLifecycleLanes

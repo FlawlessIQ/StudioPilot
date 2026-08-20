@@ -222,6 +222,28 @@ async function cachedTenantDocuments(
   return request;
 }
 
+/**
+ * Cache invalidation for writes made elsewhere in the UI.
+ *
+ * The tenant-record cache exists so a page can read a dozen collections for
+ * one request each. That same cache means a command's effect (a logged
+ * consultation, a new task) would not appear for up to its TTL. Calling
+ * this after a successful write clears the cached entries and re-runs every
+ * mounted reader, so the surface that triggered the change shows it.
+ */
+let tenantRecordsGeneration = 0;
+const tenantRecordsListeners = new Set<() => void>();
+
+export function refreshTenantRecords(...collectionNames: string[]): void {
+  if (collectionNames.length === 0) tenantRecordsCache.clear();
+  else
+    for (const key of [...tenantRecordsCache.keys()])
+      if (collectionNames.some((name) => key.startsWith(`${name}:`)))
+        tenantRecordsCache.delete(key);
+  tenantRecordsGeneration += 1;
+  for (const listener of tenantRecordsListeners) listener();
+}
+
 export function useTenantDocuments(
   collectionName: string,
   options: { enabled?: boolean } = {},
@@ -232,6 +254,14 @@ export function useTenantDocuments(
     dataIsLive ? null : enabled ? demoTenantDocuments(collectionName) : [],
   );
   const [error, setError] = useState<string | null>(null);
+  const [generation, setGeneration] = useState(tenantRecordsGeneration);
+  useEffect(() => {
+    const listener = () => setGeneration(tenantRecordsGeneration);
+    tenantRecordsListeners.add(listener);
+    return () => {
+      tenantRecordsListeners.delete(listener);
+    };
+  }, []);
   useEffect(() => {
     if (!enabled) {
       queueMicrotask(() => {
@@ -288,6 +318,7 @@ export function useTenantDocuments(
   }, [
     collectionName,
     enabled,
+    generation,
     workspace.error,
     workspace.loading,
     workspace.projectIds,
