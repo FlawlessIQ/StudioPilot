@@ -31,7 +31,14 @@ async function requireMembership(tenantId: string, userId: string) {
 // consultation calendar's slot generation) — no idempotency ledger, same
 // precedent as public-scheduling.ts's "availability" action.
 export const consultationAvailabilityQuery = onRequest(
-  { cors: studioHubCors, invoker: "private" },
+  {
+    cors: studioHubCors,
+    invoker: "private",
+    // Same reason as publicConsultationScheduling: this reads free/busy, which
+    // refreshes the studio's Google token, and the refresh needs the client
+    // secret. See the note there.
+    secrets: ["GOOGLE_CALENDAR_CLIENT_SECRET"],
+  },
   async (request, response) => {
     if (request.method !== "POST") {
       response.status(405).json({ error: "METHOD_NOT_ALLOWED" });
