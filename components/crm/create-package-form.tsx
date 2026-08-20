@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CheckCircle2, LoaderCircle } from "lucide-react";
+import { ArrowRight, CheckCircle2, LoaderCircle } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { friendlyError } from "@/lib/ai/friendly-error";
 import { runCrmCommand } from "@/lib/crm/command-client";
 
 const schema = z.object({
@@ -23,8 +26,17 @@ const schema = z.object({
 type FormInput = z.input<typeof schema>;
 type FormValues = z.output<typeof schema>;
 
-export function CreatePackageForm() {
-  const [outcome, setOutcome] = useState<{ persisted: boolean; reference: string } | null>(null);
+export function CreatePackageForm({
+  returnTo = null,
+}: {
+  /** A /studio/… path to return to after creating (e.g. a proposal flow). */
+  returnTo?: string | null;
+} = {}) {
+  const router = useRouter();
+  const [outcome, setOutcome] = useState<{
+    persisted: boolean;
+    name: string;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(schema),
@@ -59,13 +71,32 @@ export function CreatePackageForm() {
         displayOrder: 0,
         internalNotes: null,
       });
-      setOutcome({ persisted: command.persisted, reference: String(command.result.packageId ?? command.result.reference) });
+      if (command.persisted && returnTo) {
+        // The picker promised "come back — the proposal picks up where you
+        // left off"; keep that promise without another click.
+        router.push(returnTo);
+        return;
+      }
+      setOutcome({ persisted: command.persisted, name: values.name });
     } catch (caught: unknown) {
-      setError(caught instanceof Error ? caught.message : "Package could not be created.");
+      setError(friendlyError(caught, "The package could not be created. Try again."));
     }
   });
   if (outcome) {
-    return <div className="command-success"><CheckCircle2 size={23} /><h2>Package prepared</h2><p>Reference: {outcome.reference}</p>{!outcome.persisted ? <small>Preview mode: this record was not persisted.</small> : null}</div>;
+    return (
+      <div className="command-success">
+        <CheckCircle2 size={23} />
+        <h2>{outcome.name} is ready</h2>
+        <p>Clients can now be offered this package in proposals.</p>
+        {outcome.persisted ? (
+          <Link className="button button-dark" href="/studio/packages">
+            View packages <ArrowRight size={15} />
+          </Link>
+        ) : (
+          <small>Preview mode: this record was not persisted.</small>
+        )}
+      </div>
+    );
   }
   return (
     <form className="command-form panel" onSubmit={submit}>

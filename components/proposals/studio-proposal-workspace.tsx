@@ -963,11 +963,18 @@ export function StudioProposalComposer() {
                       <span>
                         <strong>No active packages yet</strong>
                         <small>
-                          Create your first package, then come back — the
-                          proposal picks up where you left off.
+                          Create your first package and you&rsquo;ll land
+                          right back here — the proposal picks up where you
+                          left off.
                         </small>
                       </span>
-                      <Link href="/studio/packages/new">Create a package</Link>
+                      <Link
+                        href={`/studio/packages/new?return=${encodeURIComponent(
+                          `/studio/proposals/new?project=${packagePickerFor.id}`,
+                        )}`}
+                      >
+                        Create a package
+                      </Link>
                     </div>
                   ) : (
                     <div className="proposal-package-options">
