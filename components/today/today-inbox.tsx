@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
+import { formatCents } from "@/lib/format/money";
 import { AppShell } from "@/components/layout/app-shell";
 import { useTodayInbox } from "@/components/today/use-today-inbox";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -27,6 +28,33 @@ import { runAiQueueCommand } from "@/lib/ai-actions/command-client";
 
 function firstName(value: string) {
   return value.trim().split(/\s+/)[0] || "there";
+}
+
+const DATE_LABEL = new Intl.DateTimeFormat("en-US", {
+  weekday: "long",
+  month: "long",
+  day: "numeric",
+});
+
+/** One number in the briefing, with the sentence that gives it meaning. */
+function Stat({
+  label,
+  value,
+  hint,
+  tone,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  tone?: "good" | "warn";
+}) {
+  return (
+    <div className={`today-stat${tone ? ` is-${tone}` : ""}`}>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+      <small>{hint}</small>
+    </div>
+  );
 }
 
 const BAND_LABEL: Record<TodayBand, string> = {
@@ -45,7 +73,7 @@ const BAND_LABEL: Record<TodayBand, string> = {
  */
 export function TodayInbox() {
   const workspace = useWorkspace();
-  const { inbox, loading } = useTodayInbox();
+  const { inbox, metrics, booked, handled, loading } = useTodayInbox();
   const [cleared, setCleared] = useState<Set<string>>(new Set());
   const [showHandled, setShowHandled] = useState(false);
 
@@ -68,20 +96,58 @@ export function TodayInbox() {
     <AppShell active="Today">
       <div className="today-shell">
         <div className="today-main">
-          <header className="today-header">
-            <p className="eyebrow">
-              {greetingFor(new Date())}, {firstName(workspace.userName ?? "there")}
-            </p>
-            <h1>
-              {loading
-                ? "Catching up…"
-                : waiting === 0
-                  ? "You're clear."
-                  : `${waiting} ${waiting === 1 ? "thing needs" : "things need"} you.`}
-            </h1>
-            <p className="today-summary">
-              {loading ? "Reading your studio…" : summary}
-            </p>
+          <header className="today-hero">
+            <div className="today-hero-glow" aria-hidden="true" />
+            <div className="today-hero-copy">
+              <p className="today-hero-eyebrow">
+                {greetingFor(new Date())}, {firstName(workspace.userName ?? "there")}
+                <span>{DATE_LABEL.format(new Date())}</span>
+              </p>
+              <h1>
+                {loading
+                  ? "Catching up…"
+                  : waiting === 0
+                    ? "You're all clear."
+                    : `${waiting} ${waiting === 1 ? "thing needs" : "things need"} you.`}
+              </h1>
+              <p className="today-hero-sub">
+                {loading ? "Reading your studio…" : summary}
+              </p>
+            </div>
+            {!loading ? (
+              <dl className="today-hero-stats">
+                <Stat
+                  hint={
+                    metrics.nextEvent
+                      ? `next: ${metrics.nextEvent.name}`
+                      : "nothing on the books"
+                  }
+                  label="Events this month"
+                  value={String(metrics.eventsThisMonth)}
+                />
+                <Stat
+                  hint="signed and in flight"
+                  label="Booked"
+                  value={formatCents(booked)}
+                />
+                <Stat
+                  hint={
+                    metrics.overdueInvoiceCount
+                      ? `${metrics.overdueInvoiceCount} overdue`
+                      : "all on schedule"
+                  }
+                  label="Outstanding"
+                  tone={metrics.overdueInvoiceCount ? "warn" : undefined}
+                  value={formatCents(metrics.outstandingCents)}
+                />
+                <Stat
+                  hint="in the last 7 days"
+                  label="Handled for you"
+                  tone="good"
+                  value={String(handled)}
+                />
+              </dl>
+            ) : null}
           </header>
 
           {!loading && waiting === 0 ? (
