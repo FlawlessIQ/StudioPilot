@@ -10,6 +10,7 @@ import {
   refreshNeedsClientCredentials,
 } from "../integrations/provider-config.js";
 import { consumeAiQuota } from "../saas/usage.js";
+import { autoInstantiateWorkflow } from "../workflow/commands.js";
 import { productEvent } from "./product-events.js";
 
 export type Provider="google_calendar"|"zoom"|"dropbox"|"docusign"|"dropbox_sign"|"quickbooks"|"stripe";
@@ -687,10 +688,15 @@ async function dropboxFolder(accessToken:string,path:string){
 }
 
 export async function completeBookingResources(job:DocumentSnapshot){const db=getFirestore();const tenantId=String(job.get("tenantId"));const projectId=String(job.get("projectId"));const project=await db.doc(`projects/${projectId}`).get();if(!project.exists)throw new Error("PROJECT_NOT_FOUND");
-  if(project.get("bookingProviderState")==="completed")return{projectId,folderIds:project.get("dropboxFolderIds"),eventId:project.get("calendarEventId")};
+  // The job's declared "workflow"/"checkpoints" steps: start the planning
+  // workflow so readiness engages. Idempotent, and runs before the
+  // provider-state early return so a retry after a partial failure still
+  // instantiates. A skip (no template configured) never fails the booking.
+  const workflow=await autoInstantiateWorkflow({tenantId,projectId,actorId:"booking-orchestrator"});
+  if(project.get("bookingProviderState")==="completed")return{projectId,folderIds:project.get("dropboxFolderIds"),eventId:project.get("calendarEventId"),workflow};
   const date=String(project.get("eventDate"));const name=String(project.get("name"));const eventType=String(project.get("eventType"));const safe=`${date}_${name}_${eventType}`.replace(/[^a-zA-Z0-9_-]+/g,"_");const dropbox=await connection(tenantId,"dropbox");const configuredRoot=String(dropbox.document.get("selectedResourceId")??"/StudioCue");const root=configuredRoot.startsWith("/")?configuredRoot:`/${configuredRoot}`;const projectRoot=`${root.replace(/\/$/,"")}/${date.slice(0,4)}/${safe}`;const paths=[projectRoot,...["01_Contracts","02_Invoices","03_Client_Details","04_Schedule","05_COI","06_Crew","07_Delivery"].map(folder=>`${projectRoot}/${folder}`)];const folderIds:string[]=[];for(const path of paths){if(dropbox.mock){folderIds.push(mockId("dropbox",path));continue}const value=await dropboxFolder(String(dropbox.credential?.accessToken),path);folderIds.push(text(value.id))}
   const calendar=await connection(tenantId,"google_calendar");let eventId=String(project.get("calendarEventId")??"");if(!eventId&&calendar.mock)eventId=mockId("event",projectId);else if(!eventId){const calendarId=encodeURIComponent(String(calendar.document.get("selectedResourceId")??"primary"));const endDate=new Date(`${date}T00:00:00Z`);endDate.setUTCDate(endDate.getUTCDate()+1);const providerEventId=createHash("sha256").update(`project:${projectId}`).digest("hex").slice(0,32);const url=`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`;const create=await fetch(url,{method:"POST",headers:{authorization:`Bearer ${calendar.credential?.accessToken}`,"content-type":"application/json"},body:JSON.stringify({id:providerEventId,summary:`${name} · ${eventType}`,start:{date},end:{date:endDate.toISOString().slice(0,10)},transparency:"opaque",extendedProperties:{private:{studioHubProjectId:projectId}}})});if(create.status===409){const value=await providerJson(`${url}/${providerEventId}`,{headers:{authorization:`Bearer ${calendar.credential?.accessToken}`}},"CALENDAR_READ_FAILED");eventId=text(value.id)}else{const value=asRecord(await create.json().catch(()=>({})));if(!create.ok)throw new Error(`CALENDAR_CREATE_FAILED:${create.status}`);eventId=text(value.id)}}
-  const now=new Date().toISOString();const batch=db.batch();batch.update(project.ref,{dropboxRootPath:paths[0],dropboxFolderIds:folderIds,calendarEventId:eventId,bookingProviderState:"completed",updatedAt:now,updatedBy:"provider-worker"});batch.set(db.doc(`emailJobs/booking_confirmation_${projectId}`),{id:`booking_confirmation_${projectId}`,tenantId,projectId,type:"booking_confirmation",status:"queued",attempts:0,createdAt:now,updatedAt:now},{merge:false});await batch.commit();return{projectId,folderIds,eventId}}
+  const now=new Date().toISOString();const batch=db.batch();batch.update(project.ref,{dropboxRootPath:paths[0],dropboxFolderIds:folderIds,calendarEventId:eventId,bookingProviderState:"completed",updatedAt:now,updatedBy:"provider-worker"});batch.set(db.doc(`emailJobs/booking_confirmation_${projectId}`),{id:`booking_confirmation_${projectId}`,tenantId,projectId,type:"booking_confirmation",status:"queued",attempts:0,createdAt:now,updatedAt:now},{merge:false});await batch.commit();return{projectId,folderIds,eventId,workflow}}
 
 export async function uploadDropboxDocument(job:DocumentSnapshot){
   const db=getFirestore();const tenantId=String(job.get("tenantId"));const projectId=String(job.get("projectId"));const documentId=String(job.get("documentId"));

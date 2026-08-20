@@ -80,6 +80,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   const [packageSnapshot, setPackageSnapshot] = useState<RecordValue | null>(null);
   const [contact, setContact] = useState<RecordValue | null>(null);
   const [templateId, setTemplateId] = useState("");
+  const [templateConfigured, setTemplateConfigured] = useState(false);
   const [signingProvider, setSigningProvider] = useState<"docusign" | "dropbox_sign">("docusign");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -235,6 +236,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           : null,
       );
       setTemplateId((current) => current || configuredTemplate);
+      setTemplateConfigured(Boolean(configuredTemplate));
       setSigningProvider(resolvedSigningProvider);
     } catch (error: unknown) {
       setNotice(friendlyError(error));
@@ -444,14 +446,37 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
             </div>
           ) : (
             <div className="booking-action-form">
-              <label>
-                {signingProviderLabel} template ID
-                <input
-                  onChange={(event) => setTemplateId(event.target.value)}
-                  placeholder="Approved agreement template"
-                  value={templateId}
-                />
-              </label>
+              {templateConfigured ? (
+                // Provider internals stay out of the flow: a configured
+                // template needs no raw ID pasted mid-booking.
+                <details className="booking-template-configured">
+                  <summary>
+                    Using your approved {signingProviderLabel} agreement
+                    template.
+                  </summary>
+                  <label>
+                    Use a different template ID for this client only
+                    <input
+                      onChange={(event) => setTemplateId(event.target.value)}
+                      placeholder="Approved agreement template"
+                      value={templateId}
+                    />
+                  </label>
+                  <small>
+                    Set the studio default in{" "}
+                    <Link href="/studio/settings">Settings → Integrations</Link>.
+                  </small>
+                </details>
+              ) : (
+                <label>
+                  {signingProviderLabel} template ID
+                  <input
+                    onChange={(event) => setTemplateId(event.target.value)}
+                    placeholder="Approved agreement template"
+                    value={templateId}
+                  />
+                </label>
+              )}
               <button
                 className="button"
                 disabled={

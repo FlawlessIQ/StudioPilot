@@ -164,3 +164,65 @@ test("projects without a lead skip the first-reply step entirely", () => {
   const { steps } = projectJourney({ ...base, lead: null });
   assert.equal(steps.some((step) => step.key === "first_reply"), false);
 });
+
+test("every step is a door: records, owners, and unlock copy are filled", () => {
+  const { steps } = projectJourney({
+    ...base,
+    state: "CONTRACT_PENDING",
+    lead: { id: "lead-1", status: "converted" },
+    hasConsultation: true,
+    proposalStatus: "accepted",
+    contractStatus: "sent",
+  });
+  for (const step of steps) {
+    // Every step opens somewhere (the lead-less inquiry step is the only
+    // legitimate null, and this journey has a lead).
+    assert.ok(step.record, `${step.key} has no record link`);
+    assert.match(step.record.href, /^\/studio\//);
+    if (step.status === "waiting_client") assert.equal(step.owner, "client");
+    if (step.status === "waiting_other") assert.equal(step.owner, "provider");
+    if (step.status === "current") assert.equal(step.owner, "studio");
+    if (step.status === "complete" || step.status === "upcoming")
+      assert.equal(step.owner, null);
+    if (step.status === "upcoming")
+      assert.ok(step.unlock, `${step.key} upcoming without unlock copy`);
+    else assert.equal(step.unlock, null);
+  }
+});
+
+test("manual advance is offered only for the plain-transition consultation step", () => {
+  const scheduled = projectJourney({
+    ...base,
+    lead: { id: "lead-1", status: "contacted" },
+  });
+  assert.equal(scheduled.current?.key, "consultation");
+  assert.equal(scheduled.current?.advance?.targetState, "CONSULTATION");
+
+  // Evidence-controlled steps never offer a manual advance.
+  const proposal = projectJourney({
+    ...base,
+    state: "CONSULTATION",
+    lead: { id: "lead-1", status: "converted" },
+    hasConsultation: true,
+  });
+  assert.equal(proposal.current?.key, "proposal");
+  assert.equal(proposal.current?.advance, null);
+  for (const step of proposal.steps)
+    if (step.key !== "consultation") assert.equal(step.advance, null);
+});
+
+test("record links carry the project context", () => {
+  const { steps } = projectJourney({
+    ...base,
+    state: "BOOKED",
+    lead: { id: "lead-1", status: "converted" },
+    hasConsultation: true,
+    proposalStatus: "accepted",
+    contractStatus: "completed",
+    retainerInvoiceStatus: "paid",
+  });
+  const proposal = steps.find((step) => step.key === "proposal");
+  assert.equal(proposal?.record?.href, "/studio/proposals?project=project-1");
+  const contract = steps.find((step) => step.key === "contract");
+  assert.equal(contract?.record?.href, "/studio/booking?project=project-1");
+});

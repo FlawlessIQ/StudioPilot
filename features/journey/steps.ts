@@ -43,12 +43,32 @@ export type JourneyAction =
       trigger: "inquiry_reply" | "day_before_checklist" | "review_request";
     };
 
+/** Who the journey is waiting on for this step. */
+export type JourneyOwner = "studio" | "client" | "provider";
+
 export type JourneyStep = {
   key: JourneyStepKey;
   title: string;
   detail: string;
   status: JourneyStepStatus;
   action: JourneyAction | null;
+  /**
+   * Every step is a door: the place where this step's record lives, whatever
+   * its status. Complete steps open their evidence, waiting steps open the
+   * thing being waited on, upcoming steps open the surface where the work
+   * will happen.
+   */
+  record: { label: string; href: string } | null;
+  /** Owner chip: null for complete/upcoming, set while a step is in play. */
+  owner: JourneyOwner | null;
+  /** For upcoming steps: one plain sentence on what unlocks it. */
+  unlock: string | null;
+  /**
+   * Manual advance for steps whose completion is a plain state transition
+   * (never for evidence-controlled ones): "this already happened outside
+   * StudioCue — mark it done."
+   */
+  advance: { targetState: string; label: string } | null;
 };
 
 export type JourneyInput = {
@@ -108,8 +128,19 @@ export function projectJourney(input: JourneyInput): {
   const project = (suffix: string) => `${suffix}?project=${input.projectId}`;
 
   const steps: JourneyStep[] = [];
+  const push = (
+    step: Omit<JourneyStep, "record" | "owner" | "unlock" | "advance"> &
+      Partial<Pick<JourneyStep, "record" | "owner" | "unlock" | "advance">>,
+  ) =>
+    steps.push({
+      record: null,
+      owner: null,
+      unlock: null,
+      advance: null,
+      ...step,
+    });
 
-  steps.push({
+  push({
     key: "inquiry",
     title: "Inquiry received",
     detail: input.lead ? "From your inquiry form" : "Project created",
@@ -120,7 +151,7 @@ export function projectJourney(input: JourneyInput): {
   // First reply only exists when the project came from a lead.
   if (input.lead) {
     const replied = input.lead.status !== "new" || stateRank >= 1;
-    steps.push({
+    push({
       key: "first_reply",
       title: "First reply",
       detail: replied
@@ -134,14 +165,28 @@ export function projectJourney(input: JourneyInput): {
   }
 
   const consulted = input.hasConsultation || stateRank >= 2;
-  steps.push({
+  push({
     key: "consultation",
     title: "Consultation",
     detail: consulted ? "Meeting booked" : "Find a time that works",
     status: consulted ? "complete" : "current",
     action: consulted
       ? null
-      : { kind: "link", label: "Schedule consultation", href: "/studio/calendar" },
+      : {
+          kind: "link",
+          label: "Schedule consultation",
+          href: project("/studio/calendar"),
+        },
+    // Consultations often happen over the phone; completing this step is a
+    // plain state transition, so offer marking it done in place. Evidence-
+    // controlled steps (proposal, contract, retainer) never get this.
+    advance:
+      !consulted && String(input.state) === "LEAD"
+        ? {
+            targetState: "CONSULTATION",
+            label: "It already happened — mark done",
+          }
+        : null,
   });
 
   const proposalDone =
@@ -149,7 +194,7 @@ export function projectJourney(input: JourneyInput): {
   const proposalWaiting = ["sent", "viewed"].includes(
     input.proposalStatus ?? "",
   );
-  steps.push({
+  push({
     key: "proposal",
     title: "Proposal",
     detail: proposalDone
@@ -178,7 +223,7 @@ export function projectJourney(input: JourneyInput): {
     "viewed",
     "partially_signed",
   ].includes(input.contractStatus ?? "");
-  steps.push({
+  push({
     key: "contract",
     title: "Contract signed",
     detail: contractDone
@@ -208,7 +253,7 @@ export function projectJourney(input: JourneyInput): {
     "partially_paid",
     "overdue",
   ].includes(input.retainerInvoiceStatus ?? "");
-  steps.push({
+  push({
     key: "retainer",
     title: "Retainer paid",
     detail: retainerDone
@@ -236,7 +281,7 @@ export function projectJourney(input: JourneyInput): {
   const formWaiting = ["assigned", "not_started", "in_progress"].includes(
     input.questionnaireStatus ?? "",
   );
-  steps.push({
+  push({
     key: "schedule_form",
     title: "Wedding details form",
     detail: formDone
@@ -260,7 +305,7 @@ export function projectJourney(input: JourneyInput): {
   const scheduleWaiting = ["client_review", "changes_requested"].includes(
     input.scheduleStatus ?? "",
   );
-  steps.push({
+  push({
     key: "run_of_show",
     title: "Run of show",
     detail: scheduleDone
@@ -285,7 +330,7 @@ export function projectJourney(input: JourneyInput): {
   });
 
   const crewDone = input.crewAccepted > 0;
-  steps.push({
+  push({
     key: "crew",
     title: "Crew confirmed",
     detail: crewDone
@@ -313,7 +358,7 @@ export function projectJourney(input: JourneyInput): {
   const coiWaiting = ["requested", "awaiting_response", "received", "under_review", "correction_required"].includes(
     input.coiStatus ?? "",
   );
-  steps.push({
+  push({
     key: "coi",
     title: "Insurance to venue",
     detail: coiDone
@@ -336,7 +381,7 @@ export function projectJourney(input: JourneyInput): {
     input.finalInvoiceStatus ?? "",
   );
   const finalDue = days !== null && days <= 45 && days >= 0;
-  steps.push({
+  push({
     key: "final_balance",
     title: "Final balance",
     detail: finalDone
@@ -365,7 +410,7 @@ export function projectJourney(input: JourneyInput): {
     input.dayBeforeDraftStatus ?? "",
   );
   const dayBeforeDue = days !== null && days <= 2 && days >= 0;
-  steps.push({
+  push({
     key: "day_before",
     title: "Day-before checklist",
     detail: dayBeforeDone
@@ -384,7 +429,7 @@ export function projectJourney(input: JourneyInput): {
             },
   });
 
-  steps.push({
+  push({
     key: "event_day",
     title: "Event day",
     detail: afterEvent || stateRank >= 8 ? "Covered" : input.eventDate ?? "Date pending",
@@ -393,7 +438,7 @@ export function projectJourney(input: JourneyInput): {
   });
 
   const deliveryDone = input.hasDelivery || stateRank >= 10;
-  steps.push({
+  push({
     key: "delivery",
     title: "Gallery delivered",
     detail: deliveryDone
@@ -410,7 +455,7 @@ export function projectJourney(input: JourneyInput): {
         : { kind: "link", label: "Record delivery", href: "/studio/delivery" },
   });
 
-  steps.push({
+  push({
     key: "album_review",
     title: "Album & review",
     detail: input.albumOrReviewDone
@@ -443,6 +488,57 @@ export function projectJourney(input: JourneyInput): {
         currentFound = true;
       }
     }
+  }
+
+  // Every step is a door: fill in where its record lives, who owns it right
+  // now, and — for upcoming steps — what unlocks it.
+  const recordHrefs: Record<
+    JourneyStepKey,
+    { label: string; href: string } | null
+  > = {
+    inquiry: input.lead
+      ? { label: "Open inquiry", href: `/studio/leads/${input.lead.id}` }
+      : null,
+    first_reply: input.lead
+      ? { label: "Open inquiry", href: `/studio/leads/${input.lead.id}` }
+      : null,
+    consultation: { label: "Open calendar", href: project("/studio/calendar") },
+    proposal: { label: "Open proposal", href: project("/studio/proposals") },
+    contract: { label: "Open contract", href: project("/studio/booking") },
+    retainer: { label: "Open retainer", href: project("/studio/booking") },
+    schedule_form: {
+      label: "Open form",
+      href: project("/studio/questionnaires"),
+    },
+    run_of_show: { label: "Open schedule", href: project("/studio/schedules") },
+    crew: { label: "Open crew", href: project("/studio/crew") },
+    coi: { label: "Open insurance", href: project("/studio/insurance") },
+    final_balance: { label: "Open invoices", href: project("/studio/invoices") },
+    day_before: { label: "Open review queue", href: "/studio/ai-queue" },
+    event_day: { label: "Open event day", href: project("/studio/event-day") },
+    delivery: { label: "Open delivery", href: project("/studio/delivery") },
+    album_review: { label: "Open reviews", href: project("/studio/reviews") },
+  };
+  const unlockCopy: Partial<Record<JourneyStepKey, string>> = {
+    final_balance: "Unlocks about 45 days before the event.",
+    day_before: "Unlocks two days before the event.",
+    event_day: input.eventDate
+      ? `The live plan opens on ${input.eventDate}.`
+      : "Set an event date to plan the day.",
+    delivery: "Unlocks after the event is covered.",
+    album_review: "Unlocks after the gallery is delivered.",
+  };
+  for (const step of steps) {
+    step.record = step.record ?? recordHrefs[step.key];
+    if (step.status === "waiting_client") step.owner = "client";
+    else if (step.status === "waiting_other") step.owner = "provider";
+    else if (step.status === "current") step.owner = "studio";
+    else step.owner = null;
+    step.unlock =
+      step.status === "upcoming"
+        ? (unlockCopy[step.key] ?? "Unlocks when the steps above are done.")
+        : null;
+    if (step.status !== "current") step.advance = null;
   }
 
   return { steps, current: steps.find((step) => step.status === "current") ?? null };
