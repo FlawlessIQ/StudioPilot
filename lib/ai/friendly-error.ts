@@ -46,6 +46,13 @@ const FRIENDLY_BY_PHRASE: Array<[RegExp, string]> = [
     /failed to fetch|network ?error|load failed/i,
     "We couldn't reach the server. Check your connection and try again.",
   ],
+  // Firestore security-rules evaluation dumps ("evaluation error at L386:22
+  // for 'get' … Null value error.") read as prose to looksHumanWritten but
+  // are plumbing, never something a photographer can act on.
+  [
+    /evaluation error at L\d+|null value error/i,
+    "Some records couldn't be loaded. Refresh to try again — if this keeps happening, contact support.",
+  ],
 ];
 
 const PREFIX_FALLBACKS: Array<[RegExp, string]> = [

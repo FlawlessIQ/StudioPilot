@@ -61,6 +61,25 @@ function futureDate(days: number) {
   return date;
 }
 
+const COMMAND_ERRORS: Record<string, string> = {
+  PROJECT_NOT_IN_CONSULTATION:
+    "This project is still marked as a lead. Open the project overview and move it to the Consultation stage, then complete the notes here.",
+  CONSULTATION_NOT_FOUND:
+    "This consultation could not be found. Refresh and try again.",
+  CONSULTATION_ALREADY_COMPLETED:
+    "This consultation is already completed. Refresh to see the booking brief.",
+  PACKAGE_SNAPSHOT_REQUIRED:
+    "Approve a package recommendation below before creating the proposal draft.",
+  CLIENT_EMAIL_REQUIRED:
+    "Add a valid email address for the client before creating the proposal.",
+};
+
+function commandError(caught: unknown, fallback: string): string {
+  const code =
+    caught instanceof Error ? caught.message.split(":")[0]?.trim() ?? "" : "";
+  return COMMAND_ERRORS[code] ?? friendlyError(caught, fallback);
+}
+
 export function BookingAutopilotWorkspace({
   projectId,
 }: {
@@ -160,6 +179,27 @@ export function BookingAutopilotWorkspace({
       void Promise.resolve().then(load);
   }, [load, workspace.loading, workspace.tenantId]);
 
+  // Notes are typed once and easily lost to a stray navigation; keep a local
+  // draft per project until the consultation is completed.
+  const notesDraftKey = `studiocue:consultation-notes:${projectId}`;
+  useEffect(() => {
+    void Promise.resolve().then(() => {
+      try {
+        const saved = window.localStorage.getItem(notesDraftKey);
+        if (saved) setNotes((current) => current || saved);
+      } catch {
+        // Storage unavailable (private mode) — drafts just don't persist.
+      }
+    });
+  }, [notesDraftKey]);
+  useEffect(() => {
+    try {
+      if (notes.trim()) window.localStorage.setItem(notesDraftKey, notes);
+    } catch {
+      // Storage unavailable — ignore.
+    }
+  }, [notes, notesDraftKey]);
+
   const summaryAction = actions.find(
     (action) => action.capability === "consultation_summary",
   );
@@ -229,6 +269,11 @@ export function BookingAutopilotWorkspace({
       setNotice(
         "Consultation saved. StudioCue is preparing a cited brief, package fit, and proposal draft.",
       );
+      try {
+        window.localStorage.removeItem(notesDraftKey);
+      } catch {
+        // Storage unavailable — ignore.
+      }
       for (let attempt = 0; attempt < 20; attempt += 1) {
         await new Promise((resolve) => window.setTimeout(resolve, 1500));
         const { firestore } = getFirebaseClient();
@@ -259,11 +304,7 @@ export function BookingAutopilotWorkspace({
       }
       await load();
     } catch (caught: unknown) {
-      setNotice(
-        caught instanceof Error
-          ? caught.message.replaceAll("_", " ")
-          : "The consultation could not be completed.",
-      );
+      setNotice(commandError(caught, "The consultation could not be completed."));
     } finally {
       setBusy(null);
     }
@@ -393,11 +434,7 @@ export function BookingAutopilotWorkspace({
         "Proposal draft created from the approved package snapshot. Nothing has been sent.",
       );
     } catch (caught: unknown) {
-      setNotice(
-        caught instanceof Error
-          ? caught.message.replaceAll("_", " ")
-          : "The proposal draft could not be created.",
-      );
+      setNotice(commandError(caught, "The proposal draft could not be created."));
     } finally {
       setBusy(null);
     }
@@ -506,6 +543,23 @@ export function BookingAutopilotWorkspace({
             <small>Comparing the notes only with active packages and approved terms.</small>
           </span>
         </section>
+      ) : laterBookingState ? (
+        // The project has moved past consultation — never re-offer the
+        // "create draft" release point for work that is already approved.
+        <section className="booking-autopilot-empty">
+          <Check />
+          <span>
+            <strong>The consultation stage is complete.</strong>
+            <small>Continue with proposal, contract, retainer, and booking evidence.</small>
+          </span>
+          {proposalId ? (
+            <Link href={`/studio/proposals/${proposalId}`}>
+              Open proposal draft <ArrowRight />
+            </Link>
+          ) : (
+            <Link href={`/studio/projects/${projectId}`}>Open project <ArrowRight /></Link>
+          )}
+        </section>
       ) : summaryAction && packageAction && proposalAction ? (
         <>
           <section className="booking-ai-brief">
@@ -590,15 +644,6 @@ export function BookingAutopilotWorkspace({
             ) : null}
           </section>
         </>
-      ) : laterBookingState ? (
-        <section className="booking-autopilot-empty">
-          <Check />
-          <span>
-            <strong>The consultation stage is complete.</strong>
-            <small>Continue with proposal, contract, retainer, and booking evidence.</small>
-          </span>
-          <Link href={`/studio/projects/${projectId}`}>Open project <ArrowRight /></Link>
-        </section>
       ) : (
         <section className="booking-autopilot-empty">
           <CircleAlert />

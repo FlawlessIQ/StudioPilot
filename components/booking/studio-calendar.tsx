@@ -31,6 +31,7 @@ import {
   Settings2,
   Unlock,
 } from "lucide-react";
+import { friendlyError } from "@/lib/ai/friendly-error";
 import { generateConsultationSlots, type ConsultationSlot } from "@/features/consultations/slots";
 import type { ConsultationSettings, Weekday } from "@/features/consultations/availability-schema";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -833,6 +834,27 @@ function BookSlotForm({
   const [notice, setNotice] = useState<string | null>(null);
   const [booked, setBooked] = useState(false);
 
+  // "Schedule consultation" on a project links here with ?project=<id>;
+  // carry that context into the form instead of asking the user to re-pick
+  // the project they just came from.
+  useEffect(() => {
+    if (loading || !projects?.length) return;
+    void Promise.resolve().then(() => {
+      const requested = new URLSearchParams(window.location.search).get(
+        "project",
+      );
+      const selected = projects.find((project) => project.id === requested);
+      if (!selected) return;
+      setProjectId((current) => current || selected.id);
+      const contacts = selected.clientContactIds;
+      setContactId(
+        (current) =>
+          current ||
+          (Array.isArray(contacts) ? String(contacts[0] ?? "") : ""),
+      );
+    });
+  }, [loading, projects]);
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!projectId || !contactId) {
@@ -862,7 +884,7 @@ function BookSlotForm({
           : "Consultation booked.",
       );
     } catch (caught: unknown) {
-      setNotice(caught instanceof Error ? caught.message : "Consultation could not be scheduled.");
+      setNotice(friendlyError(caught, "Consultation could not be scheduled."));
     } finally {
       setSubmitting(false);
     }

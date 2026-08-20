@@ -134,8 +134,15 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               where("tenantId", "==", workspace.tenantId),
             ),
           ),
-          getDoc(doc(firestore, "integrationRouting", workspace.tenantId)),
-          getDoc(doc(firestore, "bookingOrchestrations", projectId)),
+          // These docs may not exist yet (fresh project / unconfigured
+          // routing) and are role-restricted; a denied or failed read must
+          // not take down the whole workspace load with it.
+          getDoc(doc(firestore, "integrationRouting", workspace.tenantId)).catch(
+            () => null,
+          ),
+          getDoc(doc(firestore, "bookingOrchestrations", projectId)).catch(
+            () => null,
+          ),
         ]);
       const proposalValue =
         proposals.docs
@@ -185,7 +192,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
       ]);
       const signingResolution = resolveActiveProvider({
         capability: "signing",
-        routing: routing.exists()
+        routing: routing?.exists()
           ? {
               selections:
                 (routing.get("selections") as Record<string, "docusign" | "dropbox_sign" | null>) ?? {},
@@ -213,7 +220,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
       setContract(contractValue);
       setInvoice(invoiceValue);
       setOrchestration(
-        bookingPlan.exists()
+        bookingPlan?.exists()
           ? { id: bookingPlan.id, ...bookingPlan.data() }
           : null,
       );
@@ -407,8 +414,9 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
             </StatusBadge>
           </div>
           <p>
-            The accepted proposal supplies the exact package and price. {signingProviderLabel}
-            remains the authority for signature completion.
+            The accepted proposal supplies the exact package and price.{" "}
+            {signingProviderLabel} remains the authority for signature
+            completion.
           </p>
           {!contract ? (
             <aside className="booking-provider-migration">

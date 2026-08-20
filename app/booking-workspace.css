@@ -83,6 +83,23 @@
   border-top: 1px solid var(--line);
 }
 
+/* Without this the aside's strong + small render inline and run together
+   ("…routine booking workApprove this sequence…"). */
+.booking-provider-migration {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-soft, transparent);
+}
+
+.booking-provider-migration small {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 .booking-evidence {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }

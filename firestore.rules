@@ -68,6 +68,13 @@ service cloud.firestore {
         && projectId in membership(tenantId).projectIds;
     }
 
+    // For project-keyed documents that may not exist yet: dereferencing
+    // resource.data on a missing doc aborts rules evaluation, so the
+    // missing-doc branch must authorize through the project document instead.
+    function projectTenant(projectId) {
+      return get(/databases/$(database)/documents/projects/$(projectId)).data.tenantId;
+    }
+
     function tenantUnchanged() {
       return request.resource.data.tenantId == resource.data.tenantId;
     }
@@ -290,13 +297,31 @@ service cloud.firestore {
     }
 
     match /readinessAssessments/{projectId} {
-      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+      allow read: if (
+          resource != null
+          && (
+            hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+            || (
+              isAssignedToProject(resource.data.tenantId, projectId)
+              && hasRole(resource.data.tenantId, [
+                "studio_coordinator",
+                "staff_photographer"
+              ])
+            )
+          )
+        )
         || (
-          isAssignedToProject(resource.data.tenantId, projectId)
-          && hasRole(resource.data.tenantId, [
-            "studio_coordinator",
-            "staff_photographer"
-          ])
+          resource == null
+          && (
+            hasRole(projectTenant(projectId), ["studio_owner", "studio_admin"])
+            || (
+              isAssignedToProject(projectTenant(projectId), projectId)
+              && hasRole(projectTenant(projectId), [
+                "studio_coordinator",
+                "staff_photographer"
+              ])
+            )
+          )
         );
       allow write: if false;
     }
@@ -383,10 +408,25 @@ service cloud.firestore {
     }
 
     match /bookingOrchestrations/{projectId} {
-      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+      allow read: if (
+          resource != null
+          && (
+            hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+            || (
+              isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+              && hasRole(resource.data.tenantId, ["studio_coordinator"])
+            )
+          )
+        )
         || (
-          isAssignedToProject(resource.data.tenantId, resource.data.projectId)
-          && hasRole(resource.data.tenantId, ["studio_coordinator"])
+          resource == null
+          && (
+            hasRole(projectTenant(projectId), ["studio_owner", "studio_admin"])
+            || (
+              isAssignedToProject(projectTenant(projectId), projectId)
+              && hasRole(projectTenant(projectId), ["studio_coordinator"])
+            )
+          )
         );
       allow write: if false;
     }

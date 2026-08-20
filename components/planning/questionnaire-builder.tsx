@@ -58,11 +58,17 @@ function templateFieldCount(sections: unknown): number {
   }, 0);
 }
 
-export function QuestionnaireBuilder() {
+export function QuestionnaireBuilder({
+  defaultMode = "create",
+  defaultProjectId,
+}: {
+  defaultMode?: "create" | "assign";
+  defaultProjectId?: string;
+} = {}) {
   const workspace = useWorkspace();
   const { records: projects } = useTenantDocuments("projects");
   const { records: templates } = useTenantDocuments("questionnaireTemplates");
-  const [mode, setMode] = useState<"create" | "assign">("create");
+  const [mode, setMode] = useState<"create" | "assign">(defaultMode);
   const [fields, setFields] = useState<FieldRow[]>(startingFields);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -236,7 +242,7 @@ export function QuestionnaireBuilder() {
         </form>
       ) : (
         <form className="questionnaire-assign-form" onSubmit={(event) => void assign(event)}>
-          <label>Project <span className="required-mark">Required</span><select name="projectId" required><option value="">Select project</option>{projects?.map((project) => <option key={project.id} value={project.id}>{String(project.name)}</option>)}</select></label>
+          <label>Project <span className="required-mark">Required</span><select defaultValue={defaultProjectId ?? ""} name="projectId" required><option value="">Select project</option>{projects?.map((project) => <option key={project.id} value={project.id}>{String(project.name)}</option>)}</select></label>
           <label>Template <span className="required-mark">Required</span><select name="templateId" required><option value="">Select template</option>{templates?.filter((template) => template.status === "active").map((template) => <option key={template.id} value={template.id}>{String(template.name)}</option>)}</select></label>
           <button className="button button-dark" disabled={busy} type="submit"><Send size={16} /> {busy ? "Assigning…" : "Assign questionnaire"}</button>
         </form>

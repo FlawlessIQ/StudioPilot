@@ -178,87 +178,109 @@ function displayDate(value: unknown): string {
 function projectAction(
   state: ProjectState,
   projectId: string,
-): { href: string; label: string; detail: string } {
-  const routes: Record<ProjectState, { href: string; label: string; detail: string }> = {
+): { href: string; label: string; detail: string; headline: string } {
+  // The headline, label, and detail all derive from the live project state.
+  // (The stored project.nextAction field is written at scattered moments and
+  // goes stale — a signed project kept demanding the agreement it already had.)
+  const routes: Record<
+    ProjectState,
+    { href: string; label: string; detail: string; headline: string }
+  > = {
     LEAD: {
       href: `/studio/calendar?project=${projectId}`,
       label: "Schedule consultation",
+      headline: "Complete lead review",
       detail: "Qualify the inquiry, then choose a time with the client.",
     },
     CONSULTATION: {
       href: `/studio/booking?project=${projectId}`,
       label: "Run booking autopilot",
+      headline: "Turn the consultation into a proposal",
       detail:
         "Turn consultation notes into a cited brief, package fit, and unsent proposal draft.",
     },
     PROPOSAL: {
       href: `/studio/proposals?project=${projectId}`,
       label: "Review proposal",
+      headline: "Get the proposal to the client",
       detail: "Confirm pricing, expiration, and acceptance before contracting.",
     },
     CONTRACT_PENDING: {
       href: `/studio/contracts?project=${projectId}`,
       label: "Open contract",
+      headline: "Prepare and send the photography agreement",
       detail: "Track the authoritative signing request and signer status.",
     },
     RETAINER_PENDING: {
       href: `/studio/contracts?project=${projectId}`,
       label: "Check retainer status",
+      headline: "Collect the retainer",
       detail: "Confirm the QuickBooks retainer evidence before booking.",
     },
     BOOKED: {
       href: `/studio/vendors?project=${projectId}`,
       label: "Begin planning",
+      headline: "Start planning the event",
       detail: "Collect the people, locations, and requirements behind the event.",
     },
     PLANNING: {
       href: `/studio/readiness?project=${projectId}`,
       label: "Review readiness",
+      headline: "Close out the readiness blockers",
       detail: "Resolve blocking checkpoints before moving the project to Ready.",
     },
     READY: {
       href: `/studio/schedules?project=${projectId}`,
       label: "Open final schedule",
+      headline: "Confirm the final run of show",
       detail: "Confirm the published version and every crew acknowledgement.",
     },
     EVENT_COMPLETE: {
       href: `/studio/post-production?project=${projectId}`,
       label: "Start post-production",
+      headline: "Protect the files, then start editing",
       detail: "Record protected backup before culling and editing begin.",
     },
     POST_PRODUCTION: {
       href: `/studio/delivery?project=${projectId}`,
       label: "Review delivery",
+      headline: "Get the gallery to the client",
       detail: "Track the approved gallery and client delivery evidence.",
     },
     DELIVERED: {
       href: `/studio/reviews?project=${projectId}`,
       label: "Manage review request",
+      headline: "Ask for the review",
       detail: "Invite feedback without claiming a review was posted.",
     },
     REVIEW_REQUESTED: {
       href: `/studio/post-production?project=${projectId}`,
       label: "Review closeout",
+      headline: "Close the project out",
       detail: "Confirm every closeout requirement before closing the project.",
     },
     CLOSED: {
       href: `/studio/delivery?project=${projectId}`,
       label: "View delivery record",
+      headline: "This project is complete",
       detail: "Keep the completed project accessible until it is archived.",
     },
     CANCELLED: {
       href: `/studio/tasks/new?project=${projectId}`,
       label: "Add follow-up task",
+      headline: "Wrap up the cancellation",
       detail: "Record any remaining client, financial, or archival work.",
     },
     POSTPONED: {
       href: `/studio/calendar?project=${projectId}`,
       label: "Review new date",
+      headline: "Rebuild around the new date",
       detail: "Reconfirm availability and rebuild every date-relative task.",
     },
     ARCHIVED: {
       href: `/studio/documents?project=${projectId}`,
       label: "View project files",
+      headline: "This project is archived",
       detail: "Review retained project evidence without reopening the workflow.",
     },
   };
@@ -320,8 +342,10 @@ function ProjectStageControl({
   }
 
   return (
-    <details className="project-stage-control">
-      <summary>Update project stage</summary>
+    // Open by default: collapsed, this was the only way to advance a stage
+    // by hand and users could not find it.
+    <details className="project-stage-control" open>
+      <summary>Move this project forward</summary>
       <form onSubmit={(event) => void submit(event)}>
         <span>
           <small>Current stage</small>
@@ -329,12 +353,13 @@ function ProjectStageControl({
         </span>
         <ArrowRight aria-hidden="true" size={16} />
         <span>
-          <small>Next allowed stage</small>
+          <small>Next stage</small>
           <strong>{stateLabel(nextStage)}</strong>
         </span>
         <p>
-          This deterministic change creates an audit event. Ready status will
-          still be blocked unless every required readiness rule passes.
+          Use this when the step happened outside StudioCue — for example a
+          consultation handled over the phone. The change is recorded in the
+          audit log.
         </p>
         <button className="button button-light-on-dark" disabled={busy} type="submit">
           {busy ? "Updating…" : `Confirm ${stateLabel(nextStage)}`}
@@ -656,6 +681,12 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
                 {outstanding[0]}
                 {outstanding.length > 1 ? ` +${outstanding.length - 1} more` : ""}
               </a>
+            ) : checkpoints.length === 0 ? (
+              // With no checkpoints yet, "0% and nothing blocking" reads as a
+              // contradiction. Say what is actually true instead.
+              <small className="project-readiness-clear">
+                Readiness tracking starts once planning begins.
+              </small>
             ) : (
               <small className="project-readiness-clear">
                 Nothing blocking — every required checkpoint is complete.
@@ -695,7 +726,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
         <aside className="next-action-card">
           <p className="eyebrow">Recommended next move</p>
           <span className="next-action-icon"><CircleAlert size={21} /></span>
-          <h2>{String(project.nextAction ?? "Review project readiness")}</h2>
+          <h2>{action.headline}</h2>
           <p>{action.detail}</p>
           <div className="project-next-actions">
             <Link className="button button-light-on-dark" href={action.href}>
