@@ -133,6 +133,28 @@ async function proxy(
   const setCookie = upstream.headers.get("set-cookie");
   if (setCookie) responseHeaders.set("set-cookie", setCookie);
 
+  // A failing upstream that answers with HTML — Cloud Run's own 403
+  // "Forbidden" page when a new revision lost its invoker binding is the
+  // recurring case — must not reach the browser, where every command client
+  // does response.json() and surfaces "Unexpected token '<'". Convert it to
+  // a JSON error and keep the evidence in the server log.
+  if (!upstream.ok && !(contentType ?? "").includes("application/json")) {
+    const body = await upstream.text().catch(() => "");
+    console.error(
+      `functions relay: ${deployedName} answered ${upstream.status} with non-JSON body`,
+      body.slice(0, 300),
+    );
+    return Response.json(
+      {
+        error:
+          upstream.status === 403
+            ? "FUNCTION_ACCESS_DENIED"
+            : "FUNCTION_UPSTREAM_UNAVAILABLE",
+      },
+      { status: 502 },
+    );
+  }
+
   return new Response(upstream.body, {
     status: upstream.status,
     headers: responseHeaders,

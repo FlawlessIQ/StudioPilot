@@ -769,6 +769,11 @@ export const crmCommand = onRequest(
           return output;
         }
 
+        // Explicit guard: this block used to be the implicit fallthrough, so
+        // any future schema type without a handler would have silently
+        // created a malformed contact from its input.
+        if (command.type !== "createContact")
+          throw new Error("UNSUPPORTED_COMMAND");
         const contactId = randomUUID();
         const normalizedEmail =
           command.input.email?.trim().toLowerCase() ?? null;

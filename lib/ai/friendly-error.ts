@@ -19,6 +19,10 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   INVALID_COVERAGE_RANGE: "Coverage must end after it starts.",
   FORBIDDEN: "You don't have permission to do this for the selected project.",
   METHOD_NOT_ALLOWED: "Something about this request didn't look right. Refresh and try again.",
+  FUNCTION_ACCESS_DENIED:
+    "The studio server refused this request — usually a deploy still settling. Try again in a minute; if it keeps happening, contact support.",
+  FUNCTION_UPSTREAM_UNAVAILABLE:
+    "The studio server didn't answer properly. Try again in a minute; if it keeps happening, contact support.",
   VERTEX_AI_SCHEDULE_NOT_CONFIGURED:
     "AI drafting isn't switched on for this workspace yet.",
   VERTEX_AI_COPILOT_NOT_CONFIGURED:
