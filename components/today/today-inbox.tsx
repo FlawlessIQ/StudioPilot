@@ -4,8 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
+  CalendarDays,
   Check,
+  ChevronDown,
   CircleAlert,
+  Clock3,
   LoaderCircle,
   ShieldCheck,
   Sparkles,
@@ -14,7 +17,11 @@ import { AppShell } from "@/components/layout/app-shell";
 import { useTodayInbox } from "@/components/today/use-today-inbox";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { greetingFor } from "@/features/dashboard/home-metrics";
-import { todaySummary, type TodayItem } from "@/features/today/inbox";
+import {
+  todaySummary,
+  type TodayBand,
+  type TodayItem,
+} from "@/features/today/inbox";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { runAiQueueCommand } from "@/lib/ai-actions/command-client";
 
@@ -22,18 +29,23 @@ function firstName(value: string) {
   return value.trim().split(/\s+/)[0] || "there";
 }
 
+const BAND_LABEL: Record<TodayBand, string> = {
+  overdue: "Already late",
+  soon: "This fortnight",
+  later: "When you get to it",
+};
+
 /**
  * Today — the studio's inbox of moments.
  *
- * Phase 1 of the "Today & Jobs" design: the home screen is the queue, not a
- * dashboard of collections. Three lanes, one action per card, and approvals
- * that complete without leaving the screen. Designed thumb-first — this is
- * the surface a photographer triages from a phone in the evening.
+ * Every card answers, without being opened: what is this, whose job is it,
+ * when is the event, how long has it waited, and what is the one thing to
+ * do. Items are grouped by how late they are so the ranking is visible
+ * rather than implied by list order.
  */
 export function TodayInbox() {
   const workspace = useWorkspace();
   const { inbox, loading } = useTodayInbox();
-  /** Items decided in place this session, hidden optimistically. */
   const [cleared, setCleared] = useState<Set<string>>(new Set());
   const [showHandled, setShowHandled] = useState(false);
 
@@ -42,105 +54,185 @@ export function TodayInbox() {
   const act = visible(inbox.act);
   const approve = visible(inbox.approve);
   const waiting = act.length + approve.length;
-  // Recomputed from what is on screen: approving a card in place must move
-  // this line too, or the summary describes a queue that no longer exists.
   const summary = todaySummary({
     act: act.length,
     approve: approve.length,
     inMotion: inbox.inMotion,
   });
 
+  const bands: TodayBand[] = ["overdue", "soon", "later"];
+  const clear = (id: string) =>
+    setCleared((current) => new Set(current).add(id));
+
   return (
     <AppShell active="Today">
-      <div className="today-page">
-        <header className="today-header">
-          <p className="eyebrow">
-            {greetingFor(new Date())}, {firstName(workspace.userName ?? "there")}
-          </p>
-          <h1>
-            {loading
-              ? "Catching up…"
-              : waiting === 0
-                ? "You're clear."
-                : `${waiting} ${waiting === 1 ? "thing needs" : "things need"} you.`}
-          </h1>
-          <p className="today-summary">
-            {loading ? "Reading your studio…" : summary}
-          </p>
-        </header>
+      <div className="today-shell">
+        <div className="today-main">
+          <header className="today-header">
+            <p className="eyebrow">
+              {greetingFor(new Date())}, {firstName(workspace.userName ?? "there")}
+            </p>
+            <h1>
+              {loading
+                ? "Catching up…"
+                : waiting === 0
+                  ? "You're clear."
+                  : `${waiting} ${waiting === 1 ? "thing needs" : "things need"} you.`}
+            </h1>
+            <p className="today-summary">
+              {loading ? "Reading your studio…" : summary}
+            </p>
+          </header>
 
-        {!loading && waiting === 0 ? (
-          <section className="today-clear">
-            <span className="today-clear-icon">
-              <Check size={20} />
-            </span>
-            <div>
-              <strong>Nothing is waiting on you.</strong>
-              <small>
-                {inbox.inMotion > 0
-                  ? "Everything in flight is with a client, a provider, or not due yet. StudioCue will bring it back when it needs a decision."
-                  : "When an inquiry arrives or a job needs a decision, it appears here."}
-              </small>
-            </div>
-            <Link className="button button-light" href="/studio/projects">
-              See all jobs <ArrowRight size={15} />
-            </Link>
-          </section>
-        ) : null}
-
-        {act.length ? (
-          <section className="today-lane" aria-label="Needs you">
-            <div className="today-lane-heading">
-              <h2>Only you can do this</h2>
-              <span>{act.length}</span>
-            </div>
-            {act.map((item) => (
-              <TodayCard key={item.id} item={item} tone="act" />
-            ))}
-          </section>
-        ) : null}
-
-        {approve.length ? (
-          <section className="today-lane" aria-label="Ready for your approval">
-            <div className="today-lane-heading">
-              <h2>Prepared for you — one tap</h2>
-              <span>{approve.length}</span>
-            </div>
-            {approve.map((item) => (
-              <TodayCard
-                key={item.id}
-                item={item}
-                onCleared={() =>
-                  setCleared((current) => new Set(current).add(item.id))
-                }
-                tone="approve"
-              />
-            ))}
-          </section>
-        ) : null}
-
-        {inbox.fyi.length ? (
-          <section className="today-handled" aria-label="Handled for you">
-            <button
-              aria-expanded={showHandled}
-              onClick={() => setShowHandled((value) => !value)}
-              type="button"
-            >
-              <ShieldCheck size={15} />
-              {inbox.fyi.length} handled for you
-              <em>{showHandled ? "Hide" : "Show"}</em>
-            </button>
-            {showHandled ? (
-              <div className="today-handled-list">
-                {inbox.fyi.map((item) => (
-                  <TodayCard key={item.id} item={item} tone="fyi" />
-                ))}
+          {!loading && waiting === 0 ? (
+            <section className="today-clear">
+              <span className="today-clear-icon">
+                <Check size={20} />
+              </span>
+              <div>
+                <strong>Nothing is waiting on you.</strong>
+                <small>
+                  {inbox.inMotion > 0
+                    ? "Everything in flight is with a client, a provider, or not due yet. StudioCue will bring it back when it needs a decision."
+                    : "When an inquiry arrives or a job needs a decision, it appears here."}
+                </small>
               </div>
-            ) : null}
-          </section>
-        ) : null}
+              <Link className="button button-light" href="/studio/projects">
+                See all jobs <ArrowRight size={15} />
+              </Link>
+            </section>
+          ) : null}
+
+          {approve.length ? (
+            <section className="today-lane" aria-label="Ready for your approval">
+              <div className="today-lane-heading">
+                <h2>Prepared for you</h2>
+                <span>{approve.length} · one tap each</span>
+              </div>
+              {approve.map((item) => (
+                <TodayCard
+                  item={item}
+                  key={item.id}
+                  onCleared={() => clear(item.id)}
+                  tone="approve"
+                />
+              ))}
+            </section>
+          ) : null}
+
+          {act.length ? (
+            <section className="today-lane" aria-label="Needs you">
+              <div className="today-lane-heading">
+                <h2>Only you can do this</h2>
+                <span>{act.length}</span>
+              </div>
+              {bands.map((band) => {
+                const items = act.filter((item) => item.band === band);
+                if (!items.length) return null;
+                return (
+                  <div className="today-band" key={band}>
+                    <p className={`today-band-label is-${band}`}>
+                      {BAND_LABEL[band]}
+                      <em>{items.length}</em>
+                    </p>
+                    {items.map((item) => (
+                      <TodayCard item={item} key={item.id} tone="act" />
+                    ))}
+                  </div>
+                );
+              })}
+            </section>
+          ) : null}
+
+          {inbox.fyi.length ? (
+            <section className="today-handled" aria-label="Handled for you">
+              <button
+                aria-expanded={showHandled}
+                onClick={() => setShowHandled((value) => !value)}
+                type="button"
+              >
+                <ShieldCheck size={15} />
+                {inbox.fyi.length} handled for you
+                <em>{showHandled ? "Hide" : "Show"}</em>
+              </button>
+              {showHandled ? (
+                <div className="today-handled-list">
+                  {inbox.fyi.map((item) => (
+                    <TodayCard item={item} key={item.id} tone="fyi" />
+                  ))}
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+        </div>
+
+        <TodayRail
+          inMotion={inbox.inMotion}
+          loading={loading}
+          upcoming={inbox.upcoming}
+        />
       </div>
     </AppShell>
+  );
+}
+
+/** What is in flight and what is coming — context, not work. */
+function TodayRail({
+  inMotion,
+  upcoming,
+  loading,
+}: {
+  inMotion: number;
+  upcoming: Array<{ projectId: string; name: string; eventDate: string; inDays: number }>;
+  loading: boolean;
+}) {
+  if (loading) return <aside className="today-rail" />;
+  return (
+    <aside className="today-rail" aria-label="Coming up">
+      <section className="today-rail-card">
+        <p className="eyebrow">Coming up</p>
+        {upcoming.length === 0 ? (
+          <p className="today-rail-empty">No events on the books yet.</p>
+        ) : (
+          <ul className="today-upcoming">
+            {upcoming.map((event) => (
+              <li key={event.projectId}>
+                <Link href={`/studio/projects/${event.projectId}`}>
+                  <strong>{event.name}</strong>
+                  <small>
+                    <CalendarDays size={11} />
+                    {new Intl.DateTimeFormat("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      timeZone: "UTC",
+                    }).format(new Date(`${event.eventDate}T12:00:00Z`))}
+                    {" · "}
+                    {event.inDays === 0
+                      ? "today"
+                      : event.inDays === 1
+                        ? "tomorrow"
+                        : `in ${event.inDays} days`}
+                  </small>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      {inMotion > 0 ? (
+      <section className="today-rail-card is-quiet">
+        <p className="eyebrow">In motion</p>
+        <p className="today-rail-count">{inMotion}</p>
+        <small>
+          {inMotion === 1 ? "job is" : "jobs are"} waiting on a client, a
+          provider, or a date — nothing for you to do.
+        </small>
+        <Link href="/studio/projects">
+          All jobs <ArrowRight size={13} />
+        </Link>
+      </section>
+      ) : null}
+    </aside>
   );
 }
 
@@ -155,6 +247,7 @@ function TodayCard({
 }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
 
   async function approveInPlace() {
     if (item.action.kind !== "approve") return;
@@ -174,12 +267,38 @@ function TodayCard({
     }
   }
 
+  const preview = item.action.kind === "approve" ? item.action.preview : null;
+
   return (
-    <article className={`today-card is-${tone}`}>
-      <span className="today-card-dot" aria-hidden="true" />
+    <article className={`today-card is-${tone} band-${item.band}`}>
       <div className="today-card-body">
-        <strong>{item.title}</strong>
-        {item.detail ? <small>{item.detail}</small> : null}
+        <div className="today-card-title">
+          <strong>{item.title}</strong>
+          {item.projectName && !item.title.includes(item.projectName) ? (
+            <em>{item.projectName}</em>
+          ) : null}
+        </div>
+        {/* The project name is already the chip beside the title; repeating
+            it as the detail line is noise. */}
+        {item.detail && item.detail !== item.projectName ? (
+          <p>{item.detail}</p>
+        ) : null}
+        {item.facts.length ? (
+          <ul className="today-card-facts">
+            {item.facts.map((fact) => (
+              <li key={fact}>
+                {/^waiting/.test(fact) ? <Clock3 size={10} /> : null}
+                {fact}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {preview && open ? (
+          <div className="today-card-preview">
+            {preview.subject ? <strong>{preview.subject}</strong> : null}
+            <p>{preview.body}</p>
+          </div>
+        ) : null}
         {item.evidence ? (
           <span className="today-card-evidence">
             {tone === "approve" ? (
@@ -198,6 +317,7 @@ function TodayCard({
           </span>
         ) : null}
       </div>
+
       <div className="today-card-actions">
         {item.action.kind === "approve" ? (
           <>
@@ -214,9 +334,24 @@ function TodayCard({
               )}
               {busy ? "Approving…" : item.action.label}
             </button>
-            <Link className="today-card-secondary" href={item.action.href}>
-              Review first
-            </Link>
+            {preview ? (
+              <button
+                aria-expanded={open}
+                className="today-card-secondary"
+                onClick={() => setOpen((value) => !value)}
+                type="button"
+              >
+                {open ? "Hide" : "Read it"}
+                <ChevronDown
+                  size={12}
+                  style={open ? { transform: "rotate(180deg)" } : undefined}
+                />
+              </button>
+            ) : (
+              <Link className="today-card-secondary" href={item.action.href}>
+                Review first
+              </Link>
+            )}
           </>
         ) : item.action.kind === "link" ? (
           <>

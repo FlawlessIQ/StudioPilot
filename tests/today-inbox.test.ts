@@ -199,3 +199,64 @@ test("the summary adds what the heading cannot say", () => {
   });
   assert.equal(inbox.summary, "1 only you can do · 1 ready to approve · 1 in motion.");
 });
+
+test("a job blocked by missing setup is not also told to proceed", () => {
+  // The contradiction this replaces: "Smith can't be priced until a package
+  // exists" shown beside "Smith — prepare proposal".
+  const inbox = todayInbox({
+    ...base,
+    setupGaps: [
+      {
+        key: "packages",
+        title: "Add your packages",
+        detail: "Smith Wedding can't get a proposal until a package exists.",
+        actionLabel: "Add a package",
+        href: "/studio/packages/new",
+        blocking: true,
+        blockedProjectName: "Smith Wedding",
+      },
+    ],
+    journeys: [
+      journey({ projectId: "smith", projectName: "Smith Wedding" }),
+      journey({ projectId: "chen", projectName: "Chen Wedding" }),
+    ],
+  });
+  const ids = inbox.act.map((item) => item.id);
+  assert.ok(ids.includes("setup-packages"));
+  assert.ok(!ids.includes("journey-smith"), "blocked job must not also appear");
+  // An unblocked job is untouched.
+  assert.ok(ids.includes("journey-chen"));
+});
+
+test("items carry the facts needed to judge them without opening anything", () => {
+  const inbox = todayInbox({
+    ...base,
+    journeys: [journey({ eventDate: "2026-08-28" })],
+    invoiceReferences: [
+      {
+        id: "inv-1",
+        projectId: "project-1",
+        balanceCents: 195000,
+        dueDate: "2026-08-01",
+        status: "sent",
+      },
+    ],
+  });
+  const step = inbox.act.find((item) => item.id === "journey-project-1");
+  assert.ok(step?.facts.some((fact) => fact.includes("Aug 28, 2026")));
+  assert.equal(step?.band, "soon");
+
+  const invoice = inbox.act.find((item) => item.id === "invoice-inv-1");
+  assert.ok(invoice?.facts.includes("$1,950"), invoice?.facts.join());
+  assert.equal(invoice?.band, "overdue");
+});
+
+test("provider names keep their real capitalisation", () => {
+  const inbox = todayInbox({
+    ...base,
+    integrationConnections: [
+      { id: "c-1", provider: "quickbooks", status: "error" },
+    ],
+  });
+  assert.equal(inbox.act[0]?.title, "Reconnect QuickBooks");
+});
