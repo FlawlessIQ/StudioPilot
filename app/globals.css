@@ -1040,6 +1040,42 @@ textarea:focus-visible {
   cursor: pointer;
 }
 
+.proposal-package-picker {
+  display: grid;
+  gap: 14px;
+}
+
+.proposal-package-picker > p {
+  margin: 0;
+  color: var(--muted, #6b7570);
+  line-height: 1.55;
+}
+
+.proposal-package-options {
+  display: grid;
+  gap: 10px;
+}
+
+.proposal-package-options article {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border: 1px solid var(--line, #e6eae4);
+  border-radius: 12px;
+}
+
+.proposal-package-options article > span {
+  display: grid;
+  gap: 2px;
+}
+
+.proposal-package-options article small {
+  color: var(--muted, #6b7570);
+}
+
 .proposal-copy-copilot {
   display: flex;
   flex-wrap: wrap;
