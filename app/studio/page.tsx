@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import { StudioDashboard } from "@/components/dashboard/studio-dashboard";
+import { TodayInbox } from "@/components/today/today-inbox";
 
 export const metadata: Metadata = {
-  title: "Studio Dashboard",
-  description: "Your projects, blockers, next actions, and studio readiness in one view.",
+  title: "Today",
+  description:
+    "Everything that needs you, ranked by what it costs to wait — and everything StudioCue already handled.",
 };
 
 export default function StudioPage() {
-  return <StudioDashboard />;
+  return <TodayInbox />;
 }

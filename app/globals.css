@@ -1,6 +1,7 @@
 @import "tailwindcss" source(none);
 @import "./booking-workspace.css";
 @import "./project-intake.css";
+@import "./today.css";
 @import "./communications.css";
 @import "./questionnaire-intelligence.css";
 @import "./schedule-impact.css";
