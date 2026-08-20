@@ -100,6 +100,24 @@
   line-height: 1.5;
 }
 
+.booking-template-configured summary {
+  color: var(--green, #2e7042);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.booking-template-configured label {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.7rem;
+}
+
+.booking-template-configured small {
+  display: block;
+  margin-top: 0.4rem;
+  color: var(--muted);
+}
+
 .booking-evidence {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }

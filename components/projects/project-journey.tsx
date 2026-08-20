@@ -4,120 +4,44 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
+  ArrowUpRight,
   CheckCircle2,
   Circle,
   LoaderCircle,
   Sparkles,
   UserRound,
 } from "lucide-react";
-import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import {
-  projectJourney,
-  type JourneyAction,
-  type JourneyStep,
+import type {
+  JourneyAction,
+  JourneyStep,
 } from "@/features/journey/steps";
+import { runCrmCommand } from "@/lib/crm/command-client";
+import { friendlyError } from "@/lib/ai/friendly-error";
 import { requestMessageDraft } from "@/lib/ai/message-draft-client";
-
-const text = (value: unknown): string =>
-  typeof value === "string" ? value : "";
-const record = (value: unknown): Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
 
 /**
  * The Journey — the project page as the photographer's own mental model.
  *
- * One vertical thread from inquiry to review. Every step reads its state from
- * real records; exactly one step carries the next action, inline. No tabs to
- * hunt through, no operations vocabulary.
+ * One vertical thread from inquiry to review, computed once by
+ * useProjectJourney and shared with the next-move card. Every step is a
+ * door: complete steps open their record, the current step carries the
+ * action inline, waiting steps say who they're waiting on, and upcoming
+ * steps say what unlocks them.
  */
 export function ProjectJourney({
   projectId,
-  projectState,
-  eventDate,
-  leadId,
+  steps,
+  current,
+  stateVersion,
+  onTransition,
 }: {
   projectId: string;
-  projectState: string;
-  eventDate: string | null;
-  leadId: string | null;
+  steps: JourneyStep[];
+  current: JourneyStep | null;
+  stateVersion: number;
+  onTransition: (state: string, version: number) => void;
 }) {
-  const leads = useTenantDocuments("leads");
-  const consultations = useTenantDocuments("consultations");
-  const proposals = useTenantDocuments("proposals");
-  const contracts = useTenantDocuments("contracts");
-  const invoices = useTenantDocuments("invoiceReferences");
-  const questionnaires = useTenantDocuments("questionnaireResponses");
-  const schedules = useTenantDocuments("schedules");
-  const crewAssignments = useTenantDocuments("crewAssignments");
-  const crewCascades = useTenantDocuments("crewCascades");
-  const insuranceRequests = useTenantDocuments("insuranceRequests");
-  const deliveries = useTenantDocuments("deliveryRecords");
-  const aiActions = useTenantDocuments("aiActions");
-
-  const forProject = (records: Array<Record<string, unknown> & { id: string }> | null) =>
-    (records ?? []).filter((item) => item.projectId === projectId);
-
-  const lead =
-    (leads.records ?? []).find(
-      (item) => item.id === leadId || item.projectId === projectId,
-    ) ?? null;
-  const latestSchedule = forProject(schedules.records).sort(
-    (left, right) => Number(right.version ?? 0) - Number(left.version ?? 0),
-  )[0];
-  const projectInvoices = forProject(invoices.records);
-  const retainerInvoice = projectInvoices.find(
-    (invoice) => invoice.kind === "retainer",
-  );
-  const finalInvoice = projectInvoices.find(
-    (invoice) => invoice.kind === "final",
-  );
-  const dayBeforeAction = forProject(aiActions.records).find(
-    (action) =>
-      text(record(action.structuredOutput).trigger) === "day_before_checklist",
-  );
-  const coi = forProject(insuranceRequests.records).sort((left, right) =>
-    text(right.createdAt).localeCompare(text(left.createdAt)),
-  )[0];
-
-  const { steps, current } = projectJourney({
-    projectId,
-    state: projectState,
-    eventDate,
-    today: new Date().toISOString().slice(0, 10),
-    lead: lead ? { id: lead.id, status: text(lead.status) || "new" } : null,
-    hasConsultation: forProject(consultations.records).length > 0,
-    proposalStatus:
-      text(
-        forProject(proposals.records).sort((left, right) =>
-          text(right.createdAt).localeCompare(text(left.createdAt)),
-        )[0]?.status,
-      ) || null,
-    contractStatus:
-      text(
-        forProject(contracts.records).sort((left, right) =>
-          text(right.createdAt).localeCompare(text(left.createdAt)),
-        )[0]?.status,
-      ) || null,
-    retainerInvoiceStatus: text(retainerInvoice?.status) || null,
-    finalInvoiceStatus: text(finalInvoice?.status) || null,
-    questionnaireStatus:
-      text(forProject(questionnaires.records)[0]?.status) || null,
-    scheduleStatus: text(latestSchedule?.status) || null,
-    crewAccepted: forProject(crewAssignments.records).filter(
-      (assignment) => assignment.status === "accepted",
-    ).length,
-    crewCascadeActive: forProject(crewCascades.records).some(
-      (cascade) => cascade.status === "active",
-    ),
-    coiStatus: text(coi?.status) || null,
-    dayBeforeDraftStatus: text(dayBeforeAction?.status) || null,
-    hasDelivery: forProject(deliveries.records).length > 0,
-    albumOrReviewDone: ["REVIEW_REQUESTED", "CLOSED"].includes(projectState),
-  });
-
   const complete = steps.filter((step) => step.status === "complete").length;
 
   return (
@@ -125,9 +49,7 @@ export function ProjectJourney({
       <div className="panel-heading">
         <div>
           <p className="eyebrow">The journey</p>
-          <h2>
-            {current ? current.title : "Everything is handled"}
-          </h2>
+          <h2>{current ? current.title : "Everything is handled"}</h2>
           <p>
             {current
               ? "Your one next step — everything else is done, waiting, or not due yet."
@@ -140,20 +62,47 @@ export function ProjectJourney({
       </div>
       <ol className="project-journey-steps">
         {steps.map((step) => (
-          <JourneyStepRow key={step.key} projectId={projectId} step={step} />
+          <JourneyStepRow
+            key={step.key}
+            onTransition={onTransition}
+            projectId={projectId}
+            stateVersion={stateVersion}
+            step={step}
+          />
         ))}
       </ol>
     </section>
   );
 }
 
+const OWNER_LABEL = {
+  studio: "You",
+  client: "Client",
+  provider: "In motion",
+} as const;
+
 function JourneyStepRow({
   projectId,
   step,
+  stateVersion,
+  onTransition,
 }: {
   projectId: string;
   step: JourneyStep;
+  stateVersion: number;
+  onTransition: (state: string, version: number) => void;
 }) {
+  // The current step's primary action usually points where the record link
+  // would; don't render the same door twice.
+  const showRecord =
+    step.record !== null &&
+    !(
+      step.status === "current" &&
+      step.action?.kind === "link" &&
+      step.action.href === step.record.href
+    ) &&
+    step.status !== "upcoming";
+
   return (
     <li className={`journey-step is-${step.status}`}>
       <span className="journey-step-marker" aria-hidden="true">
@@ -166,19 +115,100 @@ function JourneyStepRow({
         )}
       </span>
       <span className="journey-step-copy">
-        <strong>{step.title}</strong>
+        <span className="journey-step-title-line">
+          <strong>{step.title}</strong>
+          {step.owner && step.status !== "current" ? (
+            <em className={`journey-step-owner is-${step.owner}`}>
+              {OWNER_LABEL[step.owner]}
+            </em>
+          ) : null}
+        </span>
         <small>
           {step.status === "waiting_client"
             ? `Waiting on the client · ${step.detail}`
             : step.status === "waiting_other"
               ? `In motion · ${step.detail}`
-              : step.detail}
+              : step.status === "upcoming"
+                ? (step.unlock ?? step.detail)
+                : step.detail}
         </small>
+        {showRecord && step.record ? (
+          <Link className="journey-step-record" href={step.record.href}>
+            {step.record.label} <ArrowUpRight size={12} />
+          </Link>
+        ) : null}
       </span>
-      {step.status === "current" && step.action ? (
-        <JourneyActionButton action={step.action} projectId={projectId} />
+      {step.status === "current" ? (
+        <span className="journey-step-actions">
+          {step.action ? (
+            <JourneyActionButton action={step.action} projectId={projectId} />
+          ) : null}
+          {step.advance ? (
+            <JourneyAdvanceButton
+              advance={step.advance}
+              onTransition={onTransition}
+              projectId={projectId}
+              stateVersion={stateVersion}
+            />
+          ) : null}
+        </span>
       ) : null}
     </li>
+  );
+}
+
+/**
+ * "It already happened" — the manual state transition, offered on the step
+ * itself for work done outside StudioCue. Server-authorized; evidence-
+ * controlled steps never render this.
+ */
+function JourneyAdvanceButton({
+  advance,
+  projectId,
+  stateVersion,
+  onTransition,
+}: {
+  advance: NonNullable<JourneyStep["advance"]>;
+  projectId: string;
+  stateVersion: number;
+  onTransition: (state: string, version: number) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  async function submit() {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const response = await runCrmCommand("transitionProject", {
+        projectId,
+        expectedVersion: stateVersion,
+        targetState: advance.targetState,
+      });
+      if (response.persisted) {
+        onTransition(
+          advance.targetState,
+          Number(response.result.stateVersion ?? stateVersion + 1),
+        );
+        setNotice("Marked done and recorded in the audit log.");
+      } else {
+        setNotice("Preview: this step would be marked done.");
+      }
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "This step could not be marked done."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <span className="journey-step-advance">
+      <button disabled={busy} onClick={() => void submit()} type="button">
+        {busy ? <LoaderCircle className="spin" size={13} /> : null}
+        {advance.label}
+      </button>
+      {notice ? <small role="status">{notice}</small> : null}
+    </span>
   );
 }
 
@@ -220,9 +250,7 @@ function JourneyActionButton({
       );
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error
-          ? caught.message
-          : "We couldn't prepare this draft. Try again.",
+        friendlyError(caught, "We couldn't prepare this draft. Try again."),
       );
     } finally {
       setBusy(false);

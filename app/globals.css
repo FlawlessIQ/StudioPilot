@@ -10754,4 +10754,16 @@ textarea:focus-visible {
 .journey-step-action:hover{opacity:.92}
 .journey-step-draft{display:grid;gap:5px;justify-items:end}
 .journey-step-draft small{color:var(--muted,#6b7570);font-size:11px;max-width:220px;text-align:right}
+.journey-step-title-line{display:flex;gap:8px;align-items:center;min-width:0}
+.journey-step-owner{font:650 9.5px/1 inherit;font-style:normal;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:99px;white-space:nowrap}
+.journey-step-owner.is-client{background:#faf3e3;color:#8a6420}
+.journey-step-owner.is-provider{background:#eaeef7;color:#4a5f8a}
+.journey-step-owner.is-studio{background:#e9f4ec;color:#2e7042}
+.journey-step-record{display:inline-flex;gap:3px;align-items:center;width:fit-content;margin-top:2px;color:var(--accent,#2e7042);font-size:11px;font-weight:650;text-decoration:none}
+.journey-step-record:hover{text-decoration:underline}
+.journey-step-actions{display:grid;gap:6px;justify-items:end}
+.journey-step-advance{display:grid;gap:4px;justify-items:end}
+.journey-step-advance button{display:inline-flex;gap:5px;align-items:center;border:1px solid var(--line,#dfe4df);border-radius:99px;background:transparent;color:var(--muted,#6b7570);padding:6px 12px;font:600 11px/1 inherit;cursor:pointer;white-space:nowrap}
+.journey-step-advance button:hover{color:var(--ink,#1d2420);border-color:var(--ink,#1d2420)}
+.journey-step-advance small{color:var(--muted,#6b7570);font-size:10.5px;max-width:220px;text-align:right}
 .journey-up-next-icon.is-waiting{background:#faf3e3;color:#8a6420}

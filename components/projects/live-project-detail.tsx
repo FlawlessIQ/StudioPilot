@@ -28,6 +28,7 @@ import {
   where,
 } from "firebase/firestore";
 import { ProjectJourney } from "@/components/projects/project-journey";
+import { useProjectJourney } from "@/components/projects/use-project-journey";
 import { ReadinessMeter } from "@/components/ui/readiness-meter";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { stateTone } from "@/lib/status-tone";
@@ -526,6 +527,15 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
   );
   const [related, setRelated] = useState<RelatedRecords>(emptyRelatedRecords);
   const [error, setError] = useState<string | null>(null);
+  // One derivation of the project's position, shared by the journey panel
+  // and the recommended-move card so they can never disagree.
+  const journey = useProjectJourney({
+    projectId,
+    projectState: String(project?.state ?? "LEAD"),
+    eventDate:
+      typeof project?.eventDate === "string" ? project.eventDate : null,
+    leadId: typeof project?.leadId === "string" ? project.leadId : null,
+  });
 
   useEffect(() => {
     if (!dataIsLive || workspace.loading || !workspace.tenantId) return;
@@ -650,6 +660,11 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
     )
     .map((checkpoint) => String(checkpoint.name ?? "Unnamed checkpoint"));
   const action = projectAction(state, projectId);
+  const current = journey.current;
+  const onTransition = (nextState: string, version: number) =>
+    setProject((value) =>
+      value ? { ...value, state: nextState, stateVersion: version } : value,
+    );
   return (
     <div className="project-detail-page">
       <Link className="back-link" href="/studio/projects">
@@ -716,22 +731,32 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
       </div>
       <div className="project-detail-grid">
         <ProjectJourney
-          eventDate={
-            typeof project.eventDate === "string" ? project.eventDate : null
-          }
-          leadId={typeof project.leadId === "string" ? project.leadId : null}
+          current={journey.current}
+          onTransition={onTransition}
           projectId={projectId}
-          projectState={state}
+          stateVersion={Number(project.stateVersion ?? 0)}
+          steps={journey.steps}
         />
         <aside className="next-action-card">
           <p className="eyebrow">Recommended next move</p>
           <span className="next-action-icon"><CircleAlert size={21} /></span>
-          <h2>{action.headline}</h2>
-          <p>{action.detail}</p>
+          {/* Same derivation as the journey's current step — never a second
+              opinion. The state map only covers post-journey states. */}
+          <h2>{current ? current.title : action.headline}</h2>
+          <p>{current ? current.detail : action.detail}</p>
           <div className="project-next-actions">
-            <Link className="button button-light-on-dark" href={action.href}>
-              {action.label} <ArrowRight size={15} />
-            </Link>
+            {current?.action?.kind === "link" ? (
+              <Link
+                className="button button-light-on-dark"
+                href={current.action.href}
+              >
+                {current.action.label} <ArrowRight size={15} />
+              </Link>
+            ) : !current ? (
+              <Link className="button button-light-on-dark" href={action.href}>
+                {action.label} <ArrowRight size={15} />
+              </Link>
+            ) : null}
             <Link className="button project-action-secondary" href={`/studio/tasks/new?project=${projectId}`}>
               Add a task
             </Link>
@@ -745,13 +770,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
             />
           ) : null}
           <ProjectStageControl
-            onTransition={(nextState, version) =>
-              setProject((current) =>
-                current
-                  ? { ...current, state: nextState, stateVersion: version }
-                  : current,
-              )
-            }
+            onTransition={onTransition}
             projectId={projectId}
             state={state}
             stateVersion={Number(project.stateVersion ?? 0)}

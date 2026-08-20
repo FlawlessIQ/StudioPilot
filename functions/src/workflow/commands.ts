@@ -1094,3 +1094,243 @@ export const workflowCommand = onRequest(
     }
   },
 );
+
+/**
+ * Booking-time workflow start.
+ *
+ * The booking gate's promise — "confirmed booking idempotently creates the
+ * workflow run, dated tasks, and checkpoints" — had no caller: the
+ * instantiateWorkflow command existed but nothing invoked it, so readiness
+ * never engaged for real projects. This runs from the booking side-effects
+ * job with the same construction as the command, minus end-user identity.
+ *
+ * Idempotent: an existing active run short-circuits, and the transaction
+ * re-checks before writing. Missing template or event date skips quietly —
+ * booking completion must never fail because planning isn't configured.
+ */
+export async function autoInstantiateWorkflow(input: {
+  tenantId: string;
+  projectId: string;
+  actorId: string;
+}): Promise<
+  | {
+      workflowRunId: string;
+      checkpointCount: number;
+      readinessScore: number;
+      existing: boolean;
+    }
+  | {
+      skipped:
+        | "project_not_found"
+        | "no_event_date"
+        | "no_active_template"
+        | "template_invalid";
+    }
+> {
+  const db = getFirestore();
+  const timestamp = new Date().toISOString();
+  const activeRunQuery = db
+    .collection("workflowRuns")
+    .where("tenantId", "==", input.tenantId)
+    .where("projectId", "==", input.projectId)
+    .where("status", "==", "active")
+    .limit(1);
+  const [projectSnapshot, templates, activeRuns] = await Promise.all([
+    db.doc(`projects/${input.projectId}`).get(),
+    db
+      .collection("workflowTemplates")
+      .where("tenantId", "==", input.tenantId)
+      .where("status", "==", "active")
+      .limit(50)
+      .get(),
+    activeRunQuery.get(),
+  ]);
+  const project = projectSnapshot.data() as
+    | {
+        tenantId: string;
+        eventTypeId: string;
+        eventDate: string;
+        createdAt: string;
+        state: string;
+      }
+    | undefined;
+  if (!project || project.tenantId !== input.tenantId)
+    return { skipped: "project_not_found" };
+  if (!project.eventDate) return { skipped: "no_event_date" };
+  const existingRun = activeRuns.docs[0];
+  if (existingRun) {
+    const checkpointIds = existingRun.get("checkpointIds");
+    return {
+      workflowRunId: existingRun.id,
+      checkpointCount: Array.isArray(checkpointIds) ? checkpointIds.length : 0,
+      readinessScore: 0,
+      existing: true,
+    };
+  }
+  const templateSnapshot = templates.docs
+    .filter((candidate) => candidate.get("eventTypeId") === project.eventTypeId)
+    .sort(
+      (left, right) =>
+        Number(right.get("version") ?? 0) - Number(left.get("version") ?? 0),
+    )[0];
+  if (!templateSnapshot) return { skipped: "no_active_template" };
+  const parsedTemplates = z
+    .array(checkpointTemplateSchema)
+    .safeParse(templateSnapshot.get("checkpointTemplates"));
+  if (!parsedTemplates.success) return { skipped: "template_invalid" };
+  const template = {
+    name: String(templateSnapshot.get("name") ?? ""),
+    description: String(templateSnapshot.get("description") ?? ""),
+    eventTypeId: String(templateSnapshot.get("eventTypeId") ?? ""),
+    eventTypeLabel: String(templateSnapshot.get("eventTypeLabel") ?? ""),
+    version: Number(templateSnapshot.get("version") ?? 1),
+    checkpointTemplates: parsedTemplates.data,
+    automationRules: templateSnapshot.get("automationRules") ?? [],
+  };
+  const bookingDate = timestamp.slice(0, 10);
+
+  return db.runTransaction(async (transaction) => {
+    const again = await transaction.get(activeRunQuery);
+    const alreadyRunning = again.docs[0];
+    if (alreadyRunning) {
+      const checkpointIds = alreadyRunning.get("checkpointIds");
+      return {
+        workflowRunId: alreadyRunning.id,
+        checkpointCount: Array.isArray(checkpointIds)
+          ? checkpointIds.length
+          : 0,
+        readinessScore: 0,
+        existing: true,
+      };
+    }
+    const runId = randomUUID();
+    const checkpointIds = new Map(
+      template.checkpointTemplates.map((checkpoint) => [
+        checkpoint.key,
+        randomUUID(),
+      ]),
+    );
+    const checkpointDocuments: CheckpointDocument[] =
+      template.checkpointTemplates.map((definition) => {
+        const checkpointId = checkpointIds.get(definition.key);
+        if (!checkpointId) throw new Error("CHECKPOINT_ID_FAILED");
+        const dependencyIds = definition.dependencies.map((key) => {
+          const dependencyId = checkpointIds.get(key);
+          if (!dependencyId) throw new Error("INVALID_CHECKPOINT_DEPENDENCY");
+          return dependencyId;
+        });
+        return {
+          id: checkpointId,
+          tenantId: input.tenantId,
+          projectId: input.projectId,
+          workflowRunId: runId,
+          templateKey: definition.key,
+          name: definition.name,
+          description: definition.description,
+          category: definition.category,
+          ownerType: definition.ownerType,
+          assignedUserId: definition.assignedUserId,
+          assignedContactId: definition.assignedContactId,
+          dueDateRule: definition.dueDateRule,
+          resolvedDueDate: resolveDueDate(definition.dueDateRule, {
+            eventDate: project.eventDate,
+            projectCreated: String(project.createdAt ?? timestamp).slice(0, 10),
+            bookingDate,
+            workflowStarted: timestamp.slice(0, 10),
+          }),
+          visibility: definition.visibility,
+          blocking: definition.blocking,
+          dependencyIds,
+          completionMethod: definition.completionMethod,
+          requiredEvidence: definition.requiredEvidence,
+          reminderRules: definition.reminderRules,
+          escalationRules: definition.escalationRules,
+          waiverAllowed: definition.waiverAllowed,
+          status: dependencyIds.length === 0 ? "ready" : "not_started",
+          completionTimestamp: null,
+          completionActorId: null,
+          evidence: [],
+          notes: null,
+          waiverReason: null,
+          waiverExpiresAt: null,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          createdBy: input.actorId,
+          updatedBy: input.actorId,
+          archivedAt: null,
+        };
+      });
+    transaction.create(db.doc(`workflowRuns/${runId}`), {
+      id: runId,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      workflowTemplateId: templateSnapshot.id,
+      workflowVersion: template.version,
+      status: "active",
+      inputSnapshot: {
+        eventDate: project.eventDate,
+        eventTypeId: project.eventTypeId,
+        projectState: project.state,
+        bookingDate,
+      },
+      templateSnapshot: {
+        name: template.name,
+        description: template.description,
+        eventTypeId: template.eventTypeId,
+        eventTypeLabel: template.eventTypeLabel,
+        version: template.version,
+        checkpointTemplates: template.checkpointTemplates,
+        automationRules: template.automationRules,
+      },
+      checkpointIds: checkpointDocuments.map((checkpoint) => checkpoint.id),
+      startedAt: timestamp,
+      completedAt: null,
+      failureReason: null,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      createdBy: input.actorId,
+      updatedBy: input.actorId,
+      archivedAt: null,
+    });
+    for (const checkpoint of checkpointDocuments) {
+      transaction.create(db.doc(`checkpoints/${checkpoint.id}`), checkpoint);
+    }
+    const projection = await writeReadiness(transaction, db, {
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      workflowRunId: runId,
+      checkpoints: checkpointDocuments,
+      timestamp,
+      actorId: input.actorId,
+    });
+    const auditId = randomUUID();
+    transaction.create(
+      db.doc(`auditEvents/${auditId}`),
+      auditDocument({
+        id: auditId,
+        tenantId: input.tenantId,
+        projectId: input.projectId,
+        actorId: input.actorId,
+        action: "workflow.instantiated",
+        entityType: "workflowRun",
+        entityId: runId,
+        timestamp,
+        before: null,
+        after: {
+          workflowVersion: template.version,
+          checkpointCount: checkpointDocuments.length,
+          readinessScore: projection.score,
+          trigger: "booking_completed",
+        },
+        correlationId: `booking_workflow_${input.projectId}`,
+        userAgent: null,
+      }),
+    );
+    return {
+      workflowRunId: runId,
+      checkpointCount: checkpointDocuments.length,
+      readinessScore: projection.score,
+      existing: false,
+    };
+  });
+}
