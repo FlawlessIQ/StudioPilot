@@ -21,6 +21,7 @@ import {
   proximityWeight,
   stalenessWeight,
 } from "@/features/dashboard/urgency";
+import type { SetupGap } from "@/features/today/setup-gaps";
 
 export type TodayLane = "act" | "approve" | "fyi";
 
@@ -95,6 +96,11 @@ export type TodayInput = {
   invoiceReferences?: TodayRecord[] | null;
   actionReceipts?: TodayRecord[] | null;
   journeys?: TodayJourneyPosition[] | null;
+  /**
+   * Studio setup that isn't done. Only the gaps that block real work reach
+   * Today — an empty studio is new, not broken.
+   */
+  setupGaps?: SetupGap[] | null;
 };
 
 const text = (value: unknown): string =>
@@ -396,6 +402,24 @@ export function todayInbox(input: TodayInput): TodayInbox {
         updatedAt: position.updatedAt,
         now,
       }),
+    });
+  }
+
+  // ── Act · setup that is blocking real work ─────────────────────────
+  for (const gap of input.setupGaps ?? []) {
+    if (!gap.blocking) continue;
+    act.push({
+      id: `setup-${gap.key}`,
+      lane: "act",
+      title: gap.title,
+      detail: gap.detail,
+      evidence: "One-time studio setup",
+      projectId: null,
+      projectName: gap.blockedProjectName,
+      action: { kind: "link", label: gap.actionLabel, href: gap.href },
+      jobHref: null,
+      // Setup that blocks a job ranks with exceptions: work has stopped.
+      score: score({ lane: "act", severity: "exception", now }),
     });
   }
 

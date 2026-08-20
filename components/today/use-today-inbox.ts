@@ -4,6 +4,7 @@ import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { projectJourney } from "@/features/journey/steps";
 import { activeProjectStates } from "@/features/dashboard/active-states";
+import { useSetupState } from "@/components/setup/use-setup-state";
 import {
   todayInbox,
   type TodayInbox,
@@ -33,6 +34,7 @@ export function useTodayInbox(): { inbox: TodayInbox; loading: boolean } {
     workspace.role ?? "",
   );
 
+  const setup = useSetupState();
   const projects = useTenantDocuments("projects");
   const leads = useTenantDocuments("leads");
   const tasks = useTenantDocuments("tasks");
@@ -175,6 +177,7 @@ export function useTodayInbox(): { inbox: TodayInbox; loading: boolean } {
     crewCascades: crewCascades.records,
     invoiceReferences: invoiceReferences.records,
     journeys,
+    setupGaps: setup.gaps,
   });
 
   return {
