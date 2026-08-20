@@ -5,9 +5,9 @@ import { AppShell } from "@/components/layout/app-shell";
 import { ProjectContextBar, StudioDomainPage } from "@/components/studio/live-domain-view";
 
 export const metadata: Metadata = {
-  title: "Booking autopilot",
+  title: "Booking",
   description:
-    "Move from consultation notes to a reviewed package, proposal, contract, retainer, and deterministic booking gate.",
+    "Turn consultation notes into a package, a proposal, an agreement, and a paid retainer — with the studio approving each step.",
 };
 
 export default async function BookingPage({
@@ -23,11 +23,12 @@ export default async function BookingPage({
           <ProjectContextBar projectId={project} />
           <BookingAutopilotWorkspace projectId={project} />
           <section className="booking-evidence-heading">
-            <p className="eyebrow">Provider-authoritative completion</p>
-            <h2>Contract, retainer, and booking gate</h2>
+            <p className="eyebrow">Agreement and payment</p>
+            <h2>Getting them booked</h2>
             <p>
-              Signing-provider and QuickBooks evidence—not AI—control booking
-              completion.
+              A booking is only confirmed once the signature and the payment
+              are real — verified with your signing and accounting tools, not
+              assumed by StudioCue.
             </p>
           </section>
           <ProjectBookingWorkspace projectId={project} />

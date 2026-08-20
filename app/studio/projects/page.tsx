@@ -4,7 +4,7 @@ import { Filter, Plus } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { LiveProjectRows } from "@/components/live/tenant-records";
 
-export const metadata: Metadata = { title: "Projects" };
+export const metadata: Metadata = { title: "Jobs" };
 
 export default async function ProjectsPage({
   searchParams,
@@ -13,10 +13,10 @@ export default async function ProjectsPage({
 }) {
   const { view = "active", type = "all" } = await searchParams;
   return (
-    <AppShell active="Projects">
+    <AppShell active="Jobs">
       <div className="crm-page">
         <div className="dashboard-heading">
-          <div><p className="eyebrow">Your work</p><h1>Projects</h1><p>See each event date, current stage, readiness, and next action.</p></div>
+          <div><p className="eyebrow">Your work</p><h1>Jobs</h1><p>Every wedding and event you are working on, and what each one needs next.</p></div>
           <Link className="button button-dark" href="/studio/projects/new"><Plus size={16} /> Create project</Link>
         </div>
         <section className="panel crm-table-panel">

@@ -260,3 +260,18 @@ test("provider names keep their real capitalisation", () => {
   });
   assert.equal(inbox.act[0]?.title, "Reconnect QuickBooks");
 });
+
+test("work left over from a past event is late, never 'this fortnight'", () => {
+  const inbox = todayInbox({
+    ...base,
+    journeys: [
+      journey({
+        projectId: "past",
+        projectName: "Johnson Wedding",
+        eventDate: "2026-06-20",
+        stepTitle: "Gallery delivered",
+      }),
+    ],
+  });
+  assert.equal(inbox.act[0]?.band, "overdue");
+});

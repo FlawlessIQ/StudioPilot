@@ -32,24 +32,30 @@ import {
   workspaceRoleLabel,
 } from "@/features/auth/workspace-context";
 
+/**
+ * Two destinations, then everything else.
+ *
+ * Phase 4 of "Today & Jobs": the product is what needs you (Today) and the
+ * work itself (Jobs). The surfaces that used to sit beside them are views
+ * of a job or a studio-wide list, reached from cards and links — so they
+ * move under "More" rather than competing for the same attention. Nothing
+ * is removed: every route stays addressable, and the thread and Today link
+ * into them directly.
+ */
 const navSections = [
   {
     label: "Workspace",
     items: [
       { label: "Today", href: "/studio", icon: CircleGauge },
-      { label: "Projects", href: "/studio/projects", icon: FolderKanban },
-      { label: "Calendar", href: "/studio/calendar", icon: CalendarDays },
-      { label: "Messages", href: "/studio/messages", icon: MessageSquareText },
-      { label: "People", href: "/studio/clients", icon: UsersRound },
+      { label: "Jobs", href: "/studio/projects", icon: FolderKanban },
     ],
   },
   {
-    // Cross-project workspaces. Both existed in the product's own nav plan and
-    // were lost in the simplification pass: the AI review queue was reachable
-    // only via a "Review all" link that read like "more inquiries", and
-    // Insights sat inside the account popover next to Sign out.
-    label: "Studio",
+    label: "More",
     items: [
+      { label: "Calendar", href: "/studio/calendar", icon: CalendarDays },
+      { label: "Messages", href: "/studio/messages", icon: MessageSquareText },
+      { label: "People", href: "/studio/clients", icon: UsersRound },
       { label: "AI review", href: "/studio/ai-queue", icon: Sparkles },
       { label: "Insights", href: "/studio/reports", icon: ChartNoAxesColumn },
     ],
@@ -61,12 +67,13 @@ const activeGroups: Record<string, string[]> = {
   "AI review": ["AI review", "Copilot"],
   Insights: ["Insights"],
   Messages: ["Messages"],
-  Projects: [
+  Jobs: [
+    "Jobs",
     "Projects",
     "Proposals",
     "Contracts",
     "Invoices",
-    "Client & booking",
+    "Booking",
     "Planning",
     "Questionnaires",
     "Insurance",
@@ -88,7 +95,7 @@ const studioRouteLabels: Record<string, string> = {
   audit: "Workflows",
   "ai-queue": "AI review",
   automations: "Workflows",
-  booking: "Client & booking",
+  booking: "Booking",
   calendar: "Calendar",
   clients: "Clients",
   contracts: "Contracts",
@@ -108,7 +115,7 @@ const studioRouteLabels: Record<string, string> = {
   packages: "Packages",
   planning: "Planning",
   "post-production": "Post-production",
-  projects: "Projects",
+  projects: "Jobs",
   proposals: "Proposals",
   questionnaires: "Questionnaires",
   readiness: "Readiness",
@@ -191,7 +198,7 @@ function StudioShell({
   const userName = workspace.error ? "Signed-in user" : workspace.userName;
   const staffAllowed = new Set([
     "Today",
-    "Projects",
+    "Jobs",
     "Calendar",
     "Messages",
     "People",

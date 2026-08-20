@@ -406,7 +406,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           </span>
           <div className="booking-step-heading">
             <FileSignature aria-hidden="true" />
-            <span><small>Agreement</small><h2>Contract</h2></span>
+            <span><small>The agreement</small><h2>Contract</h2></span>
             <StatusBadge
               tone={contractComplete ? "success" : contract ? "info" : "neutral"}
             >
@@ -499,7 +499,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           </span>
           <div className="booking-step-heading">
             <ReceiptText aria-hidden="true" />
-            <span><small>Payment</small><h2>Retainer</h2></span>
+            <span><small>The deposit</small><h2>Retainer</h2></span>
             <StatusBadge tone={invoicePaid ? "success" : invoice ? "warning" : "neutral"}>
               {invoice ? String(invoice.status).replaceAll("_", " ") : "Not created"}
             </StatusBadge>
@@ -555,15 +555,15 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           </span>
           <div className="booking-step-heading">
             <ShieldCheck aria-hidden="true" />
-            <span><small>Deterministic gate</small><h2>Confirm booking</h2></span>
+            <span><small>The final check</small><h2>Confirm booking</h2></span>
             <StatusBadge tone={bookingComplete ? "success" : "neutral"}>
               {bookingComplete ? "Booked" : "Waiting"}
             </StatusBadge>
           </div>
           <p>
-            The server verifies the signature, invoice, cleared balance, event
-            date, and required client details. The browser and AI cannot override
-            these checks.
+            StudioCue confirms the booking once the agreement is signed, the
+            retainer has cleared, and the date and client details check out.
+            Nothing here can be talked into skipping a step.
           </p>
           {bookingComplete ? (
             <div className="booking-complete-message">
@@ -596,7 +596,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               onClick={() => void reviewBooking()}
               type="button"
             >
-              {busy === "gate" ? "Checking evidence…" : "Run booking review"}
+              {busy === "gate" ? "Checking…" : "Check and confirm"}
               <ShieldCheck size={16} />
             </button>
           )}
