@@ -28,10 +28,25 @@ export type TodayLane = "act" | "approve" | "fyi";
 export type TodayAction =
   /** Navigate to the surface that completes the moment. */
   | { kind: "link"; label: string; href: string }
-  /** Approve AI-prepared work in place, without leaving Today. */
-  | { kind: "approve"; label: string; actionId: string; href: string }
+  /**
+   * Approve AI-prepared work in place. `preview` is the drafted content
+   * itself, so the card can show the work before it is released.
+   */
+  | {
+      kind: "approve";
+      label: string;
+      actionId: string;
+      href: string;
+      preview: { subject: string | null; body: string } | null;
+    }
   /** Nothing to do — the engines handled it. */
   | { kind: "none"; label: string };
+
+/**
+ * When this needs attention. Ranking decides order; the band tells the
+ * reader *why* something is at the top, which a flat list cannot.
+ */
+export type TodayBand = "overdue" | "soon" | "later";
 
 export type TodayItem = {
   id: string;
@@ -45,13 +60,29 @@ export type TodayItem = {
   action: TodayAction;
   /** Always offered when the moment belongs to a job. */
   jobHref: string | null;
+  /**
+   * The concrete facts a photographer needs to judge this without opening
+   * anything: the date, who it's for, the money, how long it has waited.
+   */
+  facts: string[];
+  band: TodayBand;
+  eventDate: string | null;
   score: number;
+};
+
+export type TodayUpcomingEvent = {
+  projectId: string;
+  name: string;
+  eventDate: string;
+  inDays: number;
 };
 
 export type TodayInbox = {
   act: TodayItem[];
   approve: TodayItem[];
   fyi: TodayItem[];
+  /** The next events on the books — context beside the queue. */
+  upcoming: TodayUpcomingEvent[];
   /** Jobs in flight with nothing owed by the studio right now. */
   inMotion: number;
   /** One honest sentence about the state of the studio. */
@@ -107,7 +138,20 @@ const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
 const rows = (records?: TodayRecord[] | null) => records ?? [];
 
+const BRANDS: Record<string, string> = {
+  quickbooks: "QuickBooks",
+  docusign: "DocuSign",
+  dropbox_sign: "Dropbox Sign",
+  google_calendar: "Google Calendar",
+  sendgrid: "SendGrid",
+  zoom: "Zoom",
+  dropbox: "Dropbox",
+  stripe: "Stripe",
+};
+
+/** Brand names keep their own capitalisation; everything else title-cases. */
 const readable = (value: unknown) =>
+  BRANDS[text(value).toLowerCase()] ??
   text(value)
     .replaceAll("_", " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -154,6 +198,80 @@ function score(input: {
 
 const byScore = (left: TodayItem, right: TodayItem) => right.score - left.score;
 
+/**
+ * The drafted content, when the output has something readable in it. Shown
+ * on the card so "approve" is never a blind tap.
+ */
+function previewOf(
+  output: unknown,
+): { subject: string | null; body: string } | null {
+  if (typeof output !== "object" || output === null) return null;
+  const value = output as Record<string, unknown>;
+  const body = [value.body, value.summary, value.message, value.notes]
+    .map((candidate) => text(candidate).trim())
+    .find(Boolean);
+  if (!body) return null;
+  return {
+    subject: text(value.subject).trim() || null,
+    body: body.length > 600 ? `${body.slice(0, 600)}…` : body,
+  };
+}
+
+const dayDiff = (iso: string | null | undefined, now: Date): number | null => {
+  if (!iso) return null;
+  const parsed = Date.parse(iso.length <= 10 ? `${iso}T12:00:00Z` : iso);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.round((parsed - now.valueOf()) / 86_400_000);
+};
+
+/** "Oct 9, 2027 · in 14 months" — the date, and what it means. */
+function eventFact(eventDate: string | null | undefined, now: Date): string | null {
+  const days = dayDiff(eventDate, now);
+  if (!eventDate || days === null) return null;
+  const when = new Date(`${eventDate.slice(0, 10)}T12:00:00Z`);
+  const label = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(when);
+  if (days < 0) return `${label} · ${Math.abs(days)}d ago`;
+  if (days === 0) return `${label} · today`;
+  if (days === 1) return `${label} · tomorrow`;
+  if (days <= 60) return `${label} · in ${days}d`;
+  return `${label} · in ${Math.round(days / 30)} months`;
+}
+
+/** "waiting 3 days" — silence is the thing that costs money. */
+function waitingFact(updatedAt: string | null | undefined, now: Date): string | null {
+  const days = dayDiff(updatedAt, now);
+  if (days === null || days > 0) return null;
+  const waited = Math.abs(days);
+  if (waited < 1) return null;
+  return `waiting ${waited} ${waited === 1 ? "day" : "days"}`;
+}
+
+const bandFor = (input: {
+  eventDate?: string | null;
+  dueDate?: string | null;
+  overdue?: boolean;
+  now: Date;
+}): TodayBand => {
+  if (input.overdue) return "overdue";
+  const due = dayDiff(input.dueDate, input.now);
+  if (due !== null && due < 0) return "overdue";
+  const days = dayDiff(input.eventDate, input.now);
+  if (days !== null && days <= 14) return "soon";
+  return "later";
+};
+
+const currency = (cents: unknown) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(Number(cents ?? 0) / 100);
+
 export function todayInbox(input: TodayInput): TodayInbox {
   const now = new Date(input.now);
   const today = input.now.slice(0, 10);
@@ -173,6 +291,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
       text(lead.eventDate),
       text(lead.venue) || text(lead.city),
     ].filter(Boolean);
+    const leadEvent = text(lead.eventDate) || null;
     act.push({
       id: `lead-${lead.id}`,
       lane: "act",
@@ -188,6 +307,13 @@ export function todayInbox(input: TodayInput): TodayInbox {
         href: `/studio/leads/${lead.id}`,
       },
       jobHref: null,
+      facts: [
+        eventFact(leadEvent, now),
+        readable(lead.eventType) || null,
+        waitingFact(changedAt(lead), now),
+      ].filter((fact): fact is string => Boolean(fact)),
+      band: bandFor({ eventDate: leadEvent, now }),
+      eventDate: leadEvent,
       score: score({
         lane: "act",
         severity: "inquiry",
@@ -210,6 +336,8 @@ export function todayInbox(input: TodayInput): TodayInbox {
     updatedAt?: string | null;
     amountCents?: number | null;
     label?: string;
+    dueDate?: string | null;
+    extraFacts?: Array<string | null>;
   }) => {
     act.push({
       id: item.id,
@@ -225,6 +353,18 @@ export function todayInbox(input: TodayInput): TodayInbox {
         href: item.href,
       },
       jobHref: item.projectId ? `/studio/projects/${item.projectId}` : null,
+      facts: [
+        ...(item.extraFacts ?? []),
+        eventFact(item.eventDate, now),
+        waitingFact(item.updatedAt, now),
+      ].filter((fact): fact is string => Boolean(fact)),
+      band: bandFor({
+        eventDate: item.eventDate,
+        dueDate: item.dueDate,
+        overdue: true,
+        now,
+      }),
+      eventDate: item.eventDate ?? null,
       score: score({
         lane: "act",
         severity: "exception",
@@ -253,7 +393,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
     exception({
       id: `task-${task.id}`,
       title: text(task.title) || "Overdue task",
-      detail: `${nameFor(task.projectId) ?? "Studio"} · was due ${due}`,
+      detail: nameFor(task.projectId) ?? "Studio task",
+      dueDate: due,
+      extraFacts: [`was due ${due}`],
       href: task.projectId
         ? `/studio/projects/${text(task.projectId)}`
         : "/studio/tasks",
@@ -279,7 +421,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
     exception({
       id: `invoice-${invoice.id}`,
       title: "Balance overdue",
-      detail: `${nameFor(invoice.projectId) ?? "Client"} · due ${due}`,
+      detail: nameFor(invoice.projectId) ?? "Client balance",
+      dueDate: due,
+      extraFacts: [currency(balance), `due ${due}`],
       href: "/studio/invoices",
       projectId: text(invoice.projectId) || null,
       projectName: nameFor(invoice.projectId),
@@ -368,12 +512,22 @@ export function todayInbox(input: TodayInput): TodayInbox {
   }
 
   // ── Act · jobs whose next step is yours ────────────────────────────
+  //
+  // A job whose next step is blocked by missing studio setup must not also
+  // be told to take that step: "add your packages, Smith can't be priced"
+  // beside "Smith — prepare proposal" is a contradiction, not two moments.
+  const blockedProjectNames = new Set(
+    (input.setupGaps ?? [])
+      .filter((gap) => gap.blocking && gap.blockedProjectName)
+      .map((gap) => gap.blockedProjectName as string),
+  );
   let inMotion = 0;
   for (const position of input.journeys ?? []) {
     if (position.owner !== "studio") {
       if (position.owner) inMotion += 1;
       continue;
     }
+    if (blockedProjectNames.has(position.projectName)) continue;
     act.push({
       id: `journey-${position.projectId}`,
       lane: "act",
@@ -395,6 +549,12 @@ export function todayInbox(input: TodayInput): TodayInbox {
               href: `/studio/projects/${position.projectId}`,
             },
       jobHref: `/studio/projects/${position.projectId}`,
+      facts: [
+        eventFact(position.eventDate, now),
+        waitingFact(position.updatedAt, now),
+      ].filter((fact): fact is string => Boolean(fact)),
+      band: bandFor({ eventDate: position.eventDate, now }),
+      eventDate: position.eventDate,
       score: score({
         lane: "act",
         severity: "step",
@@ -418,6 +578,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
       projectName: gap.blockedProjectName,
       action: { kind: "link", label: gap.actionLabel, href: gap.href },
       jobHref: null,
+      facts: gap.blockedProjectName ? [`blocking ${gap.blockedProjectName}`] : [],
+      band: "overdue",
+      eventDate: null,
       // Setup that blocks a job ranks with exceptions: work has stopped.
       score: score({ lane: "act", severity: "exception", now }),
     });
@@ -441,10 +604,17 @@ export function todayInbox(input: TodayInput): TodayInbox {
         label: "Approve",
         actionId: action.id,
         href: "/studio/ai-queue",
+        preview: previewOf(action.structuredOutput),
       },
       jobHref: action.projectId
         ? `/studio/projects/${text(action.projectId)}`
         : null,
+      facts: [
+        eventFact(eventFor(action.projectId), now),
+        waitingFact(changedAt(action), now),
+      ].filter((fact): fact is string => Boolean(fact)),
+      band: bandFor({ eventDate: eventFor(action.projectId), now }),
+      eventDate: eventFor(action.projectId),
       score: score({
         lane: "approve",
         eventDate: eventFor(action.projectId),
@@ -475,6 +645,12 @@ export function todayInbox(input: TodayInput): TodayInbox {
       jobHref: item.projectId
         ? `/studio/projects/${text(item.projectId)}`
         : null,
+      facts: [
+        eventFact(eventFor(item.projectId), now),
+        waitingFact(item.updatedAt ?? null, now),
+      ].filter((fact): fact is string => Boolean(fact)),
+      band: bandFor({ eventDate: eventFor(item.projectId), now }),
+      eventDate: eventFor(item.projectId),
       score: score({
         lane: "approve",
         eventDate: eventFor(item.projectId),
@@ -552,6 +728,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
       jobHref: receipt.projectId
         ? `/studio/projects/${text(receipt.projectId)}`
         : null,
+      facts: [],
+      band: "later",
+      eventDate: null,
       score: score({ lane: "fyi", updatedAt: changedAt(receipt), now }),
     });
   }
@@ -560,10 +739,22 @@ export function todayInbox(input: TodayInput): TodayInbox {
   approve.sort(byScore);
   fyi.sort(byScore);
 
+  const upcoming = (input.journeys ?? [])
+    .map((position) => ({
+      projectId: position.projectId,
+      name: position.projectName,
+      eventDate: position.eventDate ?? "",
+      inDays: dayDiff(position.eventDate, now) ?? Number.MAX_SAFE_INTEGER,
+    }))
+    .filter((event) => event.eventDate && event.inDays >= 0)
+    .sort((left, right) => left.inDays - right.inDays)
+    .slice(0, 4);
+
   return {
     act,
     approve,
     fyi,
+    upcoming,
     inMotion,
     summary: todaySummary({
       act: act.length,

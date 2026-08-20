@@ -2,10 +2,24 @@
    photographer triages from a phone, so touch targets and stacking come
    first and the desktop layout is the enhancement. */
 
-.today-page {
+.today-shell {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) 290px;
   gap: 26px;
-  max-width: 760px;
+  align-items: start;
+  max-width: 1120px;
+}
+
+@media (max-width: 1040px) {
+  .today-shell {
+    grid-template-columns: 1fr;
+  }
+}
+
+.today-main {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
 }
 
 .today-header {
@@ -62,7 +76,7 @@
   color: #2e7042;
 }
 
-/* ── Lanes ────────────────────────────────────────────────────────── */
+/* ── Lanes and bands ──────────────────────────────────────────────── */
 
 .today-lane {
   display: grid;
@@ -78,8 +92,8 @@
 .today-lane-heading h2 {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 17px;
-  letter-spacing: -0.01em;
+  font-size: 19px;
+  letter-spacing: -0.015em;
 }
 
 .today-lane-heading span {
@@ -88,81 +102,175 @@
   font-weight: 700;
 }
 
+.today-band {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.today-band-label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 6px 0 0;
+  color: var(--muted, #8a938d);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.today-band-label::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.today-band-label.is-overdue {
+  color: #b0522d;
+}
+
+.today-band-label.is-soon {
+  color: #8a6420;
+}
+
+.today-band-label em {
+  font-style: normal;
+  color: var(--muted, #a6afa8);
+}
+
 /* ── Cards ────────────────────────────────────────────────────────── */
 
 .today-card {
   display: grid;
-  grid-template-columns: 10px 1fr;
   gap: 12px;
-  align-items: start;
-  padding: 16px 18px;
+  padding: 17px 20px;
   border: 1px solid var(--line, #e6eae4);
+  border-left: 3px solid var(--line, #e6eae4);
   border-radius: 14px;
   background: var(--panel, #fff);
 }
 
-.today-card-dot {
-  width: 9px;
-  height: 9px;
-  margin-top: 7px;
-  border-radius: 50%;
-  background: var(--muted, #8a938d);
+.today-card.band-overdue {
+  border-left-color: #b0522d;
 }
 
-.today-card.is-act .today-card-dot {
-  background: #b0522d;
+.today-card.band-soon {
+  border-left-color: #c9a227;
 }
 
-.today-card.is-approve .today-card-dot {
-  background: #2e7042;
+.today-card.is-approve {
+  border-left-color: #2e7042;
+  background: #fbfdfb;
+}
+
+.today-card.is-fyi {
+  border-left-color: var(--line, #e6eae4);
+  background: transparent;
 }
 
 .today-card-body {
   display: grid;
-  gap: 3px;
+  gap: 5px;
   min-width: 0;
 }
 
-.today-card-body strong {
-  font-size: 15px;
-  line-height: 1.35;
+.today-card-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
 }
 
-.today-card-body small {
-  color: var(--muted, #6b7570);
+.today-card-title strong {
+  font-size: 15.5px;
+  line-height: 1.3;
+}
+
+.today-card-title em {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted, #8a938d);
+}
+
+.today-card-body > p {
+  margin: 0;
+  color: var(--muted, #5b655e);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.today-card-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 3px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.today-card-facts li {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 99px;
+  background: #f1f4f0;
+  color: var(--muted, #55605a);
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.today-card-preview {
+  display: grid;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 12px 14px;
+  border-radius: 11px;
+  background: #f2f6f2;
+}
+
+.today-card-preview strong {
   font-size: 13px;
-  line-height: 1.45;
+}
+
+.today-card-preview p {
+  margin: 0;
+  color: var(--muted, #4c554e);
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
 }
 
 .today-card-evidence {
   display: inline-flex;
   gap: 5px;
   align-items: center;
-  margin-top: 4px;
+  margin-top: 3px;
   color: var(--muted, #8a938d);
   font-size: 11.5px;
 }
 
 .today-card-notice {
-  margin-top: 6px;
   color: #b0522d;
   font-size: 12.5px;
 }
 
 .today-card-actions {
-  grid-column: 2;
   display: flex;
   flex-wrap: wrap;
   gap: 8px 16px;
   align-items: center;
-  margin-top: 12px;
 }
 
 .today-card-primary {
   display: inline-flex;
   gap: 7px;
   align-items: center;
-  /* Comfortably tappable on a phone. */
   min-height: 40px;
   padding: 0 18px;
   border: 0;
@@ -184,10 +292,15 @@
 }
 
 .today-card-secondary {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  border: 0;
+  background: none;
   color: var(--muted, #6b7570);
-  font-size: 13px;
-  font-weight: 600;
+  font: 600 13px/1 inherit;
   text-decoration: none;
+  cursor: pointer;
 }
 
 .today-card-secondary:hover {
@@ -236,20 +349,103 @@
   gap: 8px;
 }
 
-.today-handled-list .today-card {
+/* ── Rail ─────────────────────────────────────────────────────────── */
+
+.today-rail {
+  display: grid;
+  gap: 14px;
+  position: sticky;
+  top: 18px;
+}
+
+@media (max-width: 1040px) {
+  .today-rail {
+    position: static;
+  }
+}
+
+.today-rail-card {
+  padding: 18px;
+  border: 1px solid var(--line, #e6eae4);
+  border-radius: 14px;
+  background: var(--panel, #fff);
+}
+
+.today-rail-card.is-quiet {
   background: transparent;
+  border-style: dashed;
+}
+
+.today-rail-empty {
+  margin: 6px 0 0;
+  color: var(--muted, #8a938d);
+  font-size: 13px;
+}
+
+.today-upcoming {
+  display: grid;
+  gap: 2px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.today-upcoming a {
+  display: grid;
+  gap: 1px;
+  padding: 7px 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.today-upcoming strong {
+  font-size: 13.5px;
+}
+
+.today-upcoming small {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  color: var(--muted, #8a938d);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.today-upcoming a:hover strong {
+  text-decoration: underline;
+}
+
+.today-rail-count {
+  margin: 6px 0 2px;
+  font-family: var(--font-display);
+  font-size: 30px;
+  line-height: 1;
+}
+
+.today-rail-card small {
+  color: var(--muted, #6b7570);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.today-rail-card > a {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  margin-top: 10px;
+  color: var(--green, #2e7042);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-decoration: none;
 }
 
 @media (min-width: 720px) {
   .today-card {
-    grid-template-columns: 10px 1fr auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
   }
 
   .today-card-actions {
-    grid-column: 3;
-    grid-row: 1;
-    margin-top: 0;
     justify-content: flex-end;
   }
 }
