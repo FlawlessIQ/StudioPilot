@@ -226,7 +226,15 @@ const definitions: ReadonlyArray<Definition> = [
 // DocuSign remains implemented server-side so an approved production
 // integration can be restored later, but it must not be offered in the UI
 // until StudioCue has production access.
-const hiddenUiProviders = new Set<Provider>(["docusign"]);
+//
+// Stripe here is Stripe *Connect* — per-studio client payments — which
+// docs/roadmap.md records as "not launch-critical, and deliberately not
+// started", because it needs Connect platform onboarding on the FlawlessIQ
+// account: a business-model decision, not a configuration step. Showing it as
+// "Setup required" implied it was mid-setup, and the accompanying copy named an
+// internal env var (STRIPE_CLIENT_ID) at a studio owner. Platform billing —
+// studios paying StudioCue — is a separate concern that does not surface here.
+const hiddenUiProviders = new Set<Provider>(["docusign", "stripe"]);
 const visibleDefinitions = definitions.filter(
   (definition) => !hiddenUiProviders.has(definition.provider),
 );
