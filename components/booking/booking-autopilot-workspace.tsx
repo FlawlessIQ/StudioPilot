@@ -475,7 +475,24 @@ export function BookingAutopilotWorkspace({
         </aside>
       </header>
 
-      {!consultation ? (
+      {!consultation && laterBookingState ? (
+        // The stage moved past consultation without a meeting record (booked
+        // by phone, stage advanced by hand). Don't demand a consultation
+        // that will never exist — point at the proposal flow instead.
+        <section className="booking-autopilot-empty">
+          <Check />
+          <span>
+            <strong>No consultation was recorded — that&rsquo;s fine.</strong>
+            <small>
+              You can prepare the proposal directly; it will lock a package
+              if one isn&rsquo;t chosen yet.
+            </small>
+          </span>
+          <Link href={`/studio/proposals/new?project=${projectId}`}>
+            Prepare the proposal <ArrowRight />
+          </Link>
+        </section>
+      ) : !consultation ? (
         <section className="booking-autopilot-empty">
           <CircleAlert />
           <span>

@@ -168,7 +168,13 @@ export function projectJourney(input: JourneyInput): {
   push({
     key: "consultation",
     title: "Consultation",
-    detail: consulted ? "Meeting booked" : "Find a time that works",
+    // Honesty: a stage advanced by hand is not a booked meeting. Say what
+    // actually happened instead of claiming a record that doesn't exist.
+    detail: input.hasConsultation
+      ? "Meeting booked"
+      : consulted
+        ? "Marked done — no meeting was recorded"
+        : "Find a time that works",
     status: consulted ? "complete" : "current",
     action: consulted
       ? null
@@ -212,7 +218,12 @@ export function projectJourney(input: JourneyInput): {
       : {
           kind: "link",
           label: proposalWaiting ? "View proposal" : "Prepare proposal",
-          href: project("/studio/proposals"),
+          // No proposal yet → straight into the guided composer (which also
+          // locks a package when one is missing). An existing proposal →
+          // the project's proposal list.
+          href: proposalWaiting
+            ? project("/studio/proposals")
+            : project("/studio/proposals/new"),
         },
   });
 

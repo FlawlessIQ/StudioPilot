@@ -45,6 +45,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { friendlyAiError } from "@/lib/ai/friendly-error";
 import { draftProposalCopy } from "@/lib/ai/proposal-drafting-client";
+import { runCrmCommand } from "@/lib/crm/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import {
   runProposalCommand,
@@ -266,7 +267,10 @@ function commandError(error: string): string {
   return messages[error] ?? error.replaceAll("_", " ").toLowerCase();
 }
 
-async function loadProjectOptions(tenantId: string): Promise<ProjectOption[]> {
+async function loadProjectOptions(tenantId: string): Promise<{
+  ready: ProjectOption[];
+  needsPackage: ProjectNeedingPackage[];
+}> {
   const { firestore } = getFirebaseClient();
   const [projects, proposals] = await Promise.all([
     getDocs(
@@ -294,12 +298,26 @@ async function loadProjectOptions(tenantId: string): Promise<ProjectOption[]> {
       openByProject.set(String(proposal.get("projectId")), proposal.id);
     }
   }
-  const eligible = projects.docs.filter(
-    (project) =>
-      ["CONSULTATION", "PROPOSAL"].includes(String(project.get("state"))) &&
-      typeof project.get("packageSnapshotId") === "string",
+  const atProposalStage = projects.docs.filter((project) =>
+    ["CONSULTATION", "PROPOSAL"].includes(String(project.get("state"))),
   );
-  return Promise.all(
+  const eligible = atProposalStage.filter(
+    (project) => typeof project.get("packageSnapshotId") === "string",
+  );
+  // Projects at the right stage without a locked package are not dead ends:
+  // the composer offers the package picker for them in place.
+  const needsPackage = atProposalStage
+    .filter(
+      (project) => typeof project.get("packageSnapshotId") !== "string",
+    )
+    .map((project) => ({
+      id: project.id,
+      name: text(project.get("name"), "Photography project"),
+      eventDate: text(project.get("eventDate"), ""),
+      eventType: text(project.get("eventType"), "Photography"),
+      state: text(project.get("state"), ""),
+    }));
+  const ready = await Promise.all(
     eligible.map(async (project) => {
       const packageSnapshotId = String(project.get("packageSnapshotId"));
       const contactIds = Array.isArray(project.get("clientContactIds"))
@@ -330,7 +348,16 @@ async function loadProjectOptions(tenantId: string): Promise<ProjectOption[]> {
       };
     }),
   );
+  return { ready, needsPackage };
 }
+
+type ProjectNeedingPackage = {
+  id: string;
+  name: string;
+  eventDate: string;
+  eventType: string;
+  state: string;
+};
 
 export function StudioProposalCenter() {
   const workspace = useWorkspace();
@@ -569,16 +596,16 @@ export function StudioProposalCenter() {
             {focusProject ? (
               <>
                 <p>
-                  {focusProject.name || "This project"} needs a completed
-                  consultation and a locked package first — the consultation
-                  copilot on Client &amp; booking prepares both, plus the
-                  proposal draft itself.
+                  {focusProject.name || "This project"}
+                  {" doesn't have a proposal yet. Prepare one — the composer "}
+                  {"locks a package first if one isn't chosen, then drafts "}
+                  {"the copy for you."}
                 </p>
                 <Link
                   className="button button-light"
-                  href={`/studio/booking?project=${focusProject.id}`}
+                  href={`/studio/proposals/new?project=${focusProject.id}`}
                 >
-                  Open Client &amp; booking
+                  Prepare the proposal
                 </Link>
               </>
             ) : (
@@ -707,29 +734,25 @@ export function StudioProposalComposer() {
   const [termsSummary, setTermsSummary] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  // Links arrive with either ?projectId= (proposal center) or ?project=
-  // (project journey); honor both so the composer never loses its context.
-  const [requestedProjectId, setRequestedProjectId] = useState<string | null>(
-    null,
-  );
-
-  useEffect(() => {
-    void Promise.resolve().then(() => {
-      const params = new URLSearchParams(window.location.search);
-      setRequestedProjectId(params.get("projectId") ?? params.get("project"));
-    });
-  }, []);
+  // A project at the right stage without a locked package is not a dead
+  // end: the composer walks through locking one right here. (Links arrive
+  // with ?projectId= from the proposal center or ?project= from the
+  // journey; the load effect honors both.)
+  const [packagePickerFor, setPackagePickerFor] =
+    useState<ProjectNeedingPackage | null>(null);
+  const [activePackages, setActivePackages] = useState<Value[] | null>(null);
+  const [lockingPackageId, setLockingPackageId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!dataIsLive || workspace.loading || !workspace.tenantId) return;
     let active = true;
     void loadProjectOptions(workspace.tenantId)
-      .then((value) => {
+      .then(async (value) => {
         if (!active) return;
-        setProjects(value);
+        setProjects(value.ready);
         const params = new URLSearchParams(window.location.search);
         const requested = params.get("projectId") ?? params.get("project");
-        const requestedProject = value.find(
+        const requestedProject = value.ready.find(
           (project) => project.id === requested,
         );
         if (requestedProject) {
@@ -744,6 +767,24 @@ export function StudioProposalComposer() {
               dateInput(addDays(event, -14).toISOString()),
             );
           }
+          return;
+        }
+        const pending = value.needsPackage.find(
+          (project) => project.id === requested,
+        );
+        if (pending) {
+          setPackagePickerFor(pending);
+          const packageDocs = await getDocs(
+            query(
+              collection(getFirebaseClient().firestore, "packages"),
+              where("tenantId", "==", workspace.tenantId),
+              where("active", "==", true),
+            ),
+          );
+          if (!active) return;
+          setActivePackages(
+            packageDocs.docs.map((item): Value => ({ id: item.id, ...item.data() })),
+          );
         }
       })
       .catch((caught: unknown) => {
@@ -776,6 +817,51 @@ export function StudioProposalComposer() {
         ? ""
         : dateInput(addDays(event, -14).toISOString()),
     );
+  }
+
+  /**
+   * Lock a package for the requested project right here — the missing link
+   * that used to bounce people to Client & booking with no explanation.
+   * selectPackage creates the immutable pricing snapshot server-side; the
+   * composer then continues with the now-eligible project.
+   */
+  async function lockPackage(packageId: string) {
+    if (!packagePickerFor || !workspace.tenantId) return;
+    setLockingPackageId(packageId);
+    setError("");
+    try {
+      const command = await runCrmCommand("selectPackage", {
+        projectId: packagePickerFor.id,
+        packageId,
+        selectedAddOns: [],
+        discount: { type: "none" },
+      });
+      if (!command.persisted) {
+        setError("Preview mode: the package would be locked to this project.");
+        return;
+      }
+      const value = await loadProjectOptions(workspace.tenantId);
+      setProjects(value.ready);
+      const readyProject = value.ready.find(
+        (project) => project.id === packagePickerFor.id,
+      );
+      setPackagePickerFor(null);
+      if (readyProject) {
+        setProjectId(readyProject.id);
+        setNotes(text(readyProject.packageSnapshot.description, ""));
+        setTermsSummary(text(readyProject.packageSnapshot.terms, ""));
+        const event = new Date(`${readyProject.eventDate}T12:00:00`);
+        if (!Number.isNaN(event.valueOf())) {
+          setBalanceDueDate(dateInput(addDays(event, -14).toISOString()));
+        }
+      }
+    } catch (caught: unknown) {
+      setError(
+        friendlyAiError(caught, "The package could not be locked. Try again."),
+      );
+    } finally {
+      setLockingPackageId(null);
+    }
   }
 
   const pricing = objectValue(selected?.packageSnapshot);
@@ -861,26 +947,79 @@ export function StudioProposalComposer() {
                 <div className="proposal-inline-loading">
                   <LoaderCircle className="spin" /> Loading eligible projects…
                 </div>
+              ) : packagePickerFor ? (
+                <div className="proposal-package-picker">
+                  <p>
+                    <strong>{packagePickerFor.name}</strong>
+                    {" doesn't have a package locked yet. Choose the "}
+                    {"coverage — pricing snapshots the moment you lock it, "}
+                    {"and the proposal continues right here."}
+                  </p>
+                  {activePackages === null ? (
+                    <small>Loading your packages…</small>
+                  ) : activePackages.length === 0 ? (
+                    <div className="proposal-inline-empty">
+                      <Inbox />
+                      <span>
+                        <strong>No active packages yet</strong>
+                        <small>
+                          Create your first package, then come back — the
+                          proposal picks up where you left off.
+                        </small>
+                      </span>
+                      <Link href="/studio/packages/new">Create a package</Link>
+                    </div>
+                  ) : (
+                    <div className="proposal-package-options">
+                      {activePackages.map((studioPackage) => (
+                        <article key={studioPackage.id}>
+                          <span>
+                            <strong>{text(studioPackage.name, "Package")}</strong>
+                            <small>
+                              {money(
+                                number(studioPackage.basePriceCents),
+                                text(studioPackage.currency, "USD"),
+                              )}
+                              {" · "}
+                              {Math.round(
+                                number(studioPackage.includedCoverageMinutes) / 60,
+                              )}{" "}
+                              hours ·{" "}
+                              {number(studioPackage.includedPhotographers) || 1}{" "}
+                              photographer
+                              {number(studioPackage.includedPhotographers) > 1
+                                ? "s"
+                                : ""}
+                            </small>
+                          </span>
+                          <button
+                            className="button button-dark"
+                            disabled={lockingPackageId !== null}
+                            onClick={() => void lockPackage(studioPackage.id)}
+                            type="button"
+                          >
+                            {lockingPackageId === studioPackage.id ? (
+                              <LoaderCircle className="spin" size={14} />
+                            ) : null}
+                            Lock this package
+                          </button>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </div>
               ) : projects.length === 0 ? (
                 <div className="proposal-inline-empty">
                   <Inbox />
                   <span>
                     <strong>No project is ready yet</strong>
                     <small>
-                      Proposals start from a completed consultation with a
-                      locked package. Both happen on a project&rsquo;s Client
-                      &amp; booking tab.
+                      Proposals start from a project at the consultation or
+                      proposal stage. Open one and choose &ldquo;Prepare
+                      proposal&rdquo; on its journey.
                     </small>
                   </span>
-                  {requestedProjectId ? (
-                    <Link
-                      href={`/studio/booking?project=${requestedProjectId}`}
-                    >
-                      Open Client &amp; booking for this project
-                    </Link>
-                  ) : (
-                    <Link href="/studio/projects">Open projects</Link>
-                  )}
+                  <Link href="/studio/projects">Open projects</Link>
                 </div>
               ) : (
                 <label className="proposal-field">
