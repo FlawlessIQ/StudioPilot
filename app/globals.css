@@ -1009,6 +1009,36 @@ textarea:focus-visible {
   line-height: 1.65;
 }
 
+.proposal-center-focus {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.1rem;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel, transparent);
+}
+
+.proposal-center-focus > div {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.proposal-center-focus a,
+.proposal-center-focus button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--green);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
 .proposal-center-metrics {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

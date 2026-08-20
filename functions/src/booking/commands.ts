@@ -561,6 +561,25 @@ export const bookingCommand = onRequest(
             createdAt: timestamp,
             updatedAt: timestamp,
           });
+        // Sending the agreement fulfills the "Prepare client agreement" task
+        // the portal creates on acceptance; left open it keeps demanding the
+        // contract long after it is signed.
+        const decisionTask = await firestore
+          .doc(`tasks/proposal_decision_${command.input.proposalId}`)
+          .get();
+        if (
+          decisionTask.exists &&
+          decisionTask.get("tenantId") === command.tenantId &&
+          decisionTask.get("status") !== "completed"
+        ) {
+          batch.update(decisionTask.ref, {
+            status: "completed",
+            completedAt: timestamp,
+            completedBy: identity.uid,
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+        }
         if (command.input.activateBookingAutomation) {
           batch.set(
             firestore.doc(`bookingOrchestrations/${command.input.projectId}`),

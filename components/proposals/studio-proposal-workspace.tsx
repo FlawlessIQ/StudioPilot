@@ -352,6 +352,43 @@ export function StudioProposalCenter() {
     "all" | "approval" | "client" | "complete"
   >("all");
   const [error, setError] = useState("");
+  // The project journey links here as /studio/proposals?project=<id>; keep
+  // that context instead of dropping the user into the global list.
+  const [focusProject, setFocusProject] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get(
+      "project",
+    );
+    if (!requested) return;
+    void Promise.resolve().then(() =>
+      setFocusProject((current) => current ?? { id: requested, name: "" }),
+    );
+    if (!dataIsLive || workspace.loading || !workspace.tenantId) return;
+    let active = true;
+    void getDoc(doc(getFirebaseClient().firestore, "projects", requested))
+      .then((snapshot) => {
+        if (!active) return;
+        if (
+          snapshot.exists() &&
+          snapshot.get("tenantId") === workspace.tenantId
+        ) {
+          setFocusProject({
+            id: requested,
+            name: text(snapshot.get("name"), ""),
+          });
+        }
+      })
+      .catch(() => {
+        // Name is cosmetic; the id filter still applies.
+      });
+    return () => {
+      active = false;
+    };
+  }, [workspace.loading, workspace.tenantId]);
 
   useEffect(() => {
     if (!dataIsLive || workspace.loading || !workspace.tenantId) return;
@@ -397,6 +434,11 @@ export function StudioProposalCenter() {
   const visible = useMemo(
     () =>
       (proposals ?? []).filter((proposal) => {
+        if (
+          focusProject &&
+          text(proposal.projectId, "") !== focusProject.id
+        )
+          return false;
         const status = text(proposal.status, "draft");
         if (filter === "approval")
           return ["draft", "internal_review", "approved"].includes(status);
@@ -407,7 +449,7 @@ export function StudioProposalCenter() {
           );
         return true;
       }),
-    [filter, proposals],
+    [filter, focusProject, proposals],
   );
   const counts = useMemo(() => {
     const values = proposals ?? [];
@@ -435,10 +477,34 @@ export function StudioProposalCenter() {
             your client has reviewed it.
           </p>
         </div>
-        <Link className="button button-dark" href="/studio/proposals/new">
+        <Link
+          className="button button-dark"
+          href={
+            focusProject
+              ? `/studio/proposals/new?projectId=${focusProject.id}`
+              : "/studio/proposals/new"
+          }
+        >
           <Plus /> New proposal
         </Link>
       </header>
+
+      {focusProject ? (
+        <section className="proposal-center-focus" aria-live="polite">
+          <span>
+            Showing proposals for{" "}
+            <strong>{focusProject.name || "this project"}</strong>.
+          </span>
+          <div>
+            <Link href={`/studio/projects/${focusProject.id}`}>
+              Back to project
+            </Link>
+            <button onClick={() => setFocusProject(null)} type="button">
+              View all proposals
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <section className="proposal-center-metrics" aria-label="Proposal summary">
         <article>
@@ -566,6 +632,18 @@ export function StudioProposalComposer() {
   const [termsSummary, setTermsSummary] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  // Links arrive with either ?projectId= (proposal center) or ?project=
+  // (project journey); honor both so the composer never loses its context.
+  const [requestedProjectId, setRequestedProjectId] = useState<string | null>(
+    null,
+  );
+
+  useEffect(() => {
+    void Promise.resolve().then(() => {
+      const params = new URLSearchParams(window.location.search);
+      setRequestedProjectId(params.get("projectId") ?? params.get("project"));
+    });
+  }, []);
 
   useEffect(() => {
     if (!dataIsLive || workspace.loading || !workspace.tenantId) return;
@@ -574,9 +652,8 @@ export function StudioProposalComposer() {
       .then((value) => {
         if (!active) return;
         setProjects(value);
-        const requested = new URLSearchParams(window.location.search).get(
-          "projectId",
-        );
+        const params = new URLSearchParams(window.location.search);
+        const requested = params.get("projectId") ?? params.get("project");
         const requestedProject = value.find(
           (project) => project.id === requested,
         );
@@ -715,10 +792,20 @@ export function StudioProposalComposer() {
                   <span>
                     <strong>No project is ready yet</strong>
                     <small>
-                      Complete a consultation and select a package first.
+                      Proposals start from a completed consultation with a
+                      locked package. Both happen on a project&rsquo;s Client
+                      &amp; booking tab.
                     </small>
                   </span>
-                  <Link href="/studio/projects">Open projects</Link>
+                  {requestedProjectId ? (
+                    <Link
+                      href={`/studio/booking?project=${requestedProjectId}`}
+                    >
+                      Open Client &amp; booking for this project
+                    </Link>
+                  ) : (
+                    <Link href="/studio/projects">Open projects</Link>
+                  )}
                 </div>
               ) : (
                 <label className="proposal-field">

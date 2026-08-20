@@ -95,7 +95,14 @@ export function LeadIntakeForm({
       }
       setResult(payload);
     } catch (error: unknown) {
-      setServerError(error instanceof Error ? error.message : "Inquiry could not be submitted.");
+      const message = error instanceof Error ? error.message : "";
+      setServerError(
+        message === "INVALID_INQUIRY"
+          ? "Some details didn't look right. Check the highlighted fields and try again."
+          : message === "RATE_LIMITED"
+            ? "Too many inquiries from this connection. Please wait a minute and try again."
+            : "Your inquiry could not be submitted. Please try again, or email the studio directly.",
+      );
     }
   });
 
@@ -106,8 +113,12 @@ export function LeadIntakeForm({
         <p className="eyebrow">Inquiry received</p>
         <h2>Thank you. We’ll be in touch shortly.</h2>
         <p>
-          Your reference is <strong>{result.leadId}</strong>. Our team will review the
-          event details and confirm availability before discussing packages.
+          {/* Couples don't need a raw UUID; a short suffix is enough to quote
+              in a follow-up and looks like a confirmation, not a database id. */}
+          Your confirmation code is{" "}
+          <strong>{result.leadId.slice(-6).toUpperCase()}</strong>. Our team
+          will review the event details and confirm availability before
+          discussing packages.
         </p>
         {result.missingInformation.length > 0 ? (
           <small>
