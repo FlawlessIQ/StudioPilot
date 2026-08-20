@@ -1040,6 +1040,19 @@ textarea:focus-visible {
   cursor: pointer;
 }
 
+.proposal-copy-copilot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.proposal-copy-copilot small {
+  color: var(--muted, #6b7570);
+  font-size: 12px;
+}
+
 .proposal-center-metrics {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

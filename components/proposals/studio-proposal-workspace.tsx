@@ -43,6 +43,8 @@ import {
 import { getDownloadURL, getStorage, ref } from "firebase/storage";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { friendlyAiError } from "@/lib/ai/friendly-error";
+import { draftProposalCopy } from "@/lib/ai/proposal-drafting-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import {
   runProposalCommand,
@@ -564,10 +566,29 @@ export function StudioProposalCenter() {
           <div className="proposal-center-state">
             <FileText />
             <strong>No proposals in this view</strong>
-            <p>Start from a project with a selected package.</p>
-            <Link className="button button-light" href="/studio/proposals/new">
-              Create a proposal
-            </Link>
+            {focusProject ? (
+              <>
+                <p>
+                  {focusProject.name || "This project"} needs a completed
+                  consultation and a locked package first — the consultation
+                  copilot on Client &amp; booking prepares both, plus the
+                  proposal draft itself.
+                </p>
+                <Link
+                  className="button button-light"
+                  href={`/studio/booking?project=${focusProject.id}`}
+                >
+                  Open Client &amp; booking
+                </Link>
+              </>
+            ) : (
+              <>
+                <p>Start from a project with a selected package.</p>
+                <Link className="button button-light" href="/studio/proposals/new">
+                  Create a proposal
+                </Link>
+              </>
+            )}
           </div>
         ) : (
           <div className="proposal-center-list">
@@ -612,6 +633,60 @@ export function StudioProposalCenter() {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+/**
+ * Copilot for the proposal's free-text copy. Drafts only the introduction
+ * and terms summary from the consultation review and the locked package
+ * snapshot — pricing and legal terms stay authoritative elsewhere, and the
+ * result lands in the editable fields for the studio to change or discard.
+ */
+function ProposalCopyCopilot({
+  projectId,
+  onDraft,
+}: {
+  projectId: string;
+  onDraft: (introduction: string, termsSummary: string) => void;
+}) {
+  const workspace = useWorkspace();
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  async function run() {
+    if (!workspace.tenantId || !projectId) return;
+    setBusy(true);
+    setStatus(null);
+    try {
+      const result = await draftProposalCopy(workspace.tenantId, projectId);
+      onDraft(result.introduction, result.termsSummary);
+      setStatus(
+        result.mode === "ai"
+          ? "Drafted from the consultation — read it over and make it yours."
+          : "Drafted from the package details (AI unavailable right now) — read it over and make it yours.",
+      );
+    } catch (caught: unknown) {
+      setStatus(
+        friendlyAiError(caught, "We couldn't draft this copy. Try again."),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="proposal-copy-copilot">
+      <button
+        className="button button-light"
+        disabled={busy || !projectId}
+        onClick={() => void run()}
+        type="button"
+      >
+        {busy ? <LoaderCircle className="spin" size={14} /> : <Sparkles size={14} />}
+        {busy ? "Drafting…" : "Draft from the consultation"}
+      </button>
+      {status ? <small role="status">{status}</small> : null}
     </div>
   );
 }
@@ -865,6 +940,13 @@ export function StudioProposalComposer() {
                   This copy appears in the client portal and the branded PDF.
                 </p>
               </div>
+              <ProposalCopyCopilot
+                onDraft={(introduction, terms) => {
+                  setNotes(introduction);
+                  if (terms) setTermsSummary(terms);
+                }}
+                projectId={projectId}
+              />
               <label className="proposal-field">
                 <span>Client-facing introduction</span>
                 <textarea
@@ -1265,15 +1347,24 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
             <p className="eyebrow">The offer</p>
             <h2>{text(pricing.packageName, "Photography coverage")}</h2>
             {isEditable ? (
-              <label className="proposal-field">
-                <span>Client-facing introduction</span>
-                <textarea
-                  maxLength={4000}
-                  onChange={(eventValue) => setNotes(eventValue.target.value)}
-                  rows={5}
-                  value={notes}
+              <>
+                <ProposalCopyCopilot
+                  onDraft={(introduction, terms) => {
+                    setNotes(introduction);
+                    if (terms) setTermsSummary(terms);
+                  }}
+                  projectId={text(proposal.projectId, "")}
                 />
-              </label>
+                <label className="proposal-field">
+                  <span>Client-facing introduction</span>
+                  <textarea
+                    maxLength={4000}
+                    onChange={(eventValue) => setNotes(eventValue.target.value)}
+                    rows={5}
+                    value={notes}
+                  />
+                </label>
+              </>
             ) : (
               <p>{text(proposal.notes, "Coverage prepared for this event.")}</p>
             )}

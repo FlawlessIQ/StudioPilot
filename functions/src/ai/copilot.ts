@@ -26,6 +26,17 @@ const intakeRequestSchema = z.object({
   message: z.string().trim().min(10).max(8000),
 });
 
+const proposalDraftRequestSchema = z.object({
+  kind: z.literal("proposal_drafting"),
+  tenantId: z.string().min(1),
+  projectId: z.string().min(1),
+});
+
+const proposalDraftSchema = z.object({
+  introduction: z.string().min(1).max(2000),
+  termsSummary: z.string().min(1).max(2000),
+});
+
 const intakeExtractionSchema = z.object({
   firstName: z.string().max(80).nullable(),
   lastName: z.string().max(80).nullable(),
@@ -317,6 +328,101 @@ async function generateIntake(
   }
 }
 
+/**
+ * Proposal-copy drafting: introduction and terms summary in the studio's
+ * voice, grounded ONLY in the consultation review and the locked package
+ * snapshot. Pricing, dates, and legal terms are never authored here — the
+ * snapshot and the signed agreement stay authoritative, and the studio
+ * edits and approves before anything is sent.
+ */
+async function generateProposalDraft(facts: {
+  studioName: string;
+  project: Json;
+  consultation: Json;
+  packageSnapshot: Json;
+}): Promise<{
+  draft: z.infer<typeof proposalDraftSchema>;
+  mode: "ai" | "deterministic";
+}> {
+  const fallback = () => {
+    const packageName = String(facts.packageSnapshot.packageName ?? "your coverage");
+    const priorities = Array.isArray(facts.consultation.priorities)
+      ? (facts.consultation.priorities as unknown[]).map(String).slice(0, 3)
+      : [];
+    const introduction = [
+      "Thank you for sharing what matters most for your celebration.",
+      priorities.length
+        ? `We heard you clearly on ${priorities.join(", ")}, and this proposal is shaped around exactly that.`
+        : "This proposal reflects the priorities discussed during your consultation.",
+      `${packageName} covers your day the way we talked it through — and nothing here changes without your say-so.`,
+    ].join(" ");
+    const terms = String(facts.packageSnapshot.terms ?? "").trim();
+    const termsSummary = terms
+      ? `In plain language: ${terms}`
+      : "Coverage and deliverables are governed by the completed studio agreement.";
+    return {
+      draft: proposalDraftSchema.parse({
+        introduction: introduction.slice(0, 2000),
+        termsSummary: termsSummary.slice(0, 2000),
+      }),
+      mode: "deterministic" as const,
+    };
+  };
+  if (process.env.PROVIDER_MOCK_MODE === "true") return fallback();
+  const project = process.env.VERTEX_AI_PROJECT_ID;
+  const location = process.env.VERTEX_AI_LOCATION ?? "us-east4";
+  const model =
+    process.env.VERTEX_AI_DRAFTING_MODEL ?? process.env.VERTEX_AI_EXTRACTION_MODEL;
+  if (!project || !model) return fallback();
+  try {
+    const token = await cloudAccessToken();
+    const response = await fetch(
+      `https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [
+              {
+                text: "Write proposal copy for a photography studio, grounded ONLY in the supplied facts. introduction: 2-4 warm, professional sentences addressed to the client, reflecting their stated priorities; never invent prices, dates, discounts, deliverables, or promises not in the facts. termsSummary: restate the package's approved terms in plain client-friendly language; never add, soften, or remove a term, and never write legal language of your own. The studio edits and approves this before anything is sent. Return JSON only.",
+              },
+            ],
+          },
+          contents: [{ role: "user", parts: [{ text: JSON.stringify(facts) }] }],
+          generationConfig: {
+            temperature: 0.2,
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: "OBJECT",
+              properties: {
+                introduction: { type: "STRING" },
+                termsSummary: { type: "STRING" },
+              },
+              required: ["introduction", "termsSummary"],
+            },
+          },
+        }),
+      },
+    );
+    if (!response.ok) throw new Error(`VERTEX_AI_FAILED:${response.status}`);
+    const body = asRecord(await response.json());
+    const candidates = Array.isArray(body.candidates) ? body.candidates : [];
+    const content = asRecord(asRecord(candidates[0]).content);
+    const parts = Array.isArray(content.parts) ? content.parts : [];
+    const output = asRecord(parts[0]).text;
+    if (typeof output !== "string") throw new Error("VERTEX_AI_EMPTY_OUTPUT");
+    const parsed = proposalDraftSchema.safeParse(JSON.parse(output));
+    if (!parsed.success) return fallback();
+    return { draft: parsed.data, mode: "ai" };
+  } catch {
+    return fallback();
+  }
+}
+
 export const aiCopilotCommand = onRequest(
   { cors: studioHubCors, invoker: "private", timeoutSeconds: 60 },
   async (request, response) => {
@@ -361,6 +467,96 @@ export const aiCopilotCommand = onRequest(
           createdAt: now,
         });
         response.status(200).json({ extraction, mode, interactionId });
+        return;
+      }
+
+      if (asRecord(request.body).kind === "proposal_drafting") {
+        const draftRequest = proposalDraftRequestSchema.parse(request.body);
+        const db = getFirestore();
+        const draftMembership = await db
+          .doc(`memberships/${draftRequest.tenantId}_${identity.uid}`)
+          .get();
+        if (
+          !draftMembership.exists ||
+          draftMembership.get("status") !== "active" ||
+          !internalRoles.has(String(draftMembership.get("role")))
+        )
+          throw new Error("FORBIDDEN");
+        const projectDocument = await db
+          .doc(`projects/${draftRequest.projectId}`)
+          .get();
+        if (
+          !projectDocument.exists ||
+          projectDocument.get("tenantId") !== draftRequest.tenantId
+        )
+          throw new Error("PROJECT_NOT_FOUND");
+        const snapshotId = String(projectDocument.get("packageSnapshotId") ?? "");
+        if (!snapshotId) throw new Error("PACKAGE_SNAPSHOT_REQUIRED");
+        const [snapshotDocument, consultations, tenantDocument] =
+          await Promise.all([
+            db.doc(`packageSnapshots/${snapshotId}`).get(),
+            db
+              .collection("consultations")
+              .where("tenantId", "==", draftRequest.tenantId)
+              .where("projectId", "==", draftRequest.projectId)
+              .limit(5)
+              .get(),
+            db.doc(`tenants/${draftRequest.tenantId}`).get(),
+          ]);
+        if (
+          !snapshotDocument.exists ||
+          snapshotDocument.get("tenantId") !== draftRequest.tenantId
+        )
+          throw new Error("PACKAGE_SNAPSHOT_REQUIRED");
+        const consultation = consultations.docs
+          .map((item) => asRecord(item.data()))
+          .sort((left, right) =>
+            String(right.startsAt ?? "").localeCompare(String(left.startsAt ?? "")),
+          )[0];
+        const review = asRecord(consultation?.aiReview);
+        const now = new Date().toISOString();
+        await db.runTransaction((transaction) =>
+          consumeAiQuota(transaction, db, draftRequest.tenantId, now),
+        );
+        const { draft, mode } = await generateProposalDraft({
+          studioName: String(tenantDocument.get("name") ?? "the studio"),
+          project: {
+            name: projectDocument.get("name"),
+            eventType: projectDocument.get("eventType"),
+            eventDate: projectDocument.get("eventDate"),
+            venueName: projectDocument.get("venueName"),
+            city: projectDocument.get("city"),
+          },
+          consultation: {
+            summary: review.summary ?? null,
+            priorities: review.priorities ?? [],
+          },
+          packageSnapshot: {
+            packageName: snapshotDocument.get("packageName"),
+            description: snapshotDocument.get("description"),
+            includedCoverageMinutes: snapshotDocument.get("includedCoverageMinutes"),
+            includedPhotographers: snapshotDocument.get("includedPhotographers"),
+            includedDeliverables: snapshotDocument.get("includedDeliverables"),
+            terms: snapshotDocument.get("terms"),
+          },
+        });
+        const interactionId = `ai_${randomUUID()}`;
+        await db.doc(`aiInteractions/${interactionId}`).create({
+          id: interactionId,
+          tenantId: draftRequest.tenantId,
+          projectId: draftRequest.projectId,
+          userId: identity.uid,
+          type: "proposal_copy_draft",
+          result: draft,
+          mode,
+          model:
+            mode === "ai"
+              ? (process.env.VERTEX_AI_DRAFTING_MODEL ??
+                process.env.VERTEX_AI_EXTRACTION_MODEL)
+              : "deterministic",
+          createdAt: now,
+        });
+        response.status(200).json({ draft, mode, interactionId });
         return;
       }
 
