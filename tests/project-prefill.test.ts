@@ -52,3 +52,42 @@ test("empty or unhelpful text extracts nothing and invents nothing", () => {
   assert.equal(result.venueName, null);
   assert.equal(result.eventType, null);
 });
+
+test("the real-world sample email extracts everything (regression)", () => {
+  const result = prefillFromText(
+    [
+      "Hi there!",
+      "",
+      "My name is Maren Castillo and I found you through a friend. Diego and I",
+      "just got engaged and we're getting married on October 9, 2027 at The",
+      "Ryland Inn in Whitehouse Station, NJ. We're expecting around 140 guests",
+      "and we both love a candid, documentary style.",
+      "",
+      "You can reach me at maren.castillo@example.com or call/text 908-555-0164.",
+      "Would love to hear about your packages!",
+      "",
+      "Maren",
+    ].join("\n"),
+  );
+  assert.equal(result.firstName, "Maren");
+  assert.equal(result.lastName, "Castillo");
+  assert.equal(result.partnerName, "Diego");
+  assert.equal(result.eventDate, "2027-10-09");
+  assert.equal(result.eventType, "Wedding");
+  // Hard line-wrapping must not leave a newline inside the venue.
+  assert.equal(result.venueName, "The Ryland Inn");
+  assert.equal(result.city, "Whitehouse Station, NJ");
+  assert.equal(result.email, "maren.castillo@example.com");
+  assert.equal(result.phone, "908-555-0164");
+});
+
+test("a signature line names the sender when nothing else does", () => {
+  const result = prefillFromText(
+    "We are so excited to get married next fall!\n\nThanks so much,\nJordan Reyes",
+  );
+  assert.equal(result.firstName, "Jordan");
+  assert.equal(result.lastName, "Reyes");
+  // A closing word alone is never mistaken for a name.
+  const closing = prefillFromText("Looking forward to it.\n\nBest regards");
+  assert.equal(closing.firstName, null);
+});

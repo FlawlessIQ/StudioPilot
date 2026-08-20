@@ -75,7 +75,8 @@ function extractDate(text: string): string | null {
 
 function extractEventType(text: string): ProjectPrefill["eventType"] {
   const lowered = text.toLowerCase();
-  if (/\bwedding|bride|groom|fianc/.test(lowered)) return "Wedding";
+  if (/\bwedding|bride|groom|fianc|marri|engag|elop/.test(lowered))
+    return "Wedding";
   if (/\bcorporate|conference|summit|company event|gala\b/.test(lowered))
     return "Corporate";
   if (/\bsports?|tournament|match day|game day\b/.test(lowered))
@@ -86,9 +87,12 @@ function extractEventType(text: string): ProjectPrefill["eventType"] {
 const PROPER = "[A-Z][\\w''.-]+";
 
 // The proper-noun pattern accepts internal punctuation ("O'Brien",
-// "St.John") which also swallows sentence-ending marks; strip those.
+// "St.John") which also swallows sentence-ending marks; strip those, and
+// collapse any whitespace an email's hard line-wrapping left inside a
+// captured phrase ("The\nRyland Inn").
 const cleanName = (value: string | null | undefined): string | null => {
-  const trimmed = value?.replace(/[.,;:!?]+$/, "").trim() ?? "";
+  const trimmed =
+    value?.replace(/\s+/g, " ").replace(/[.,;:!?]+$/, "").trim() ?? "";
   return trimmed || null;
 };
 
@@ -107,35 +111,84 @@ function extractCity(text: string): string | null {
   const inMatch = text.match(
     new RegExp(`\\bin\\s+(${PROPER}(?:\\s+${PROPER}){0,2})(?:,\\s*([A-Z]{2}))?\\b`),
   );
-  if (!inMatch?.[1]) return null;
-  return inMatch[2] ? `${inMatch[1]}, ${inMatch[2]}` : inMatch[1];
+  const place = cleanName(inMatch?.[1]);
+  if (!place) return null;
+  return inMatch?.[2] ? `${place}, ${inMatch[2]}` : place;
 }
 
-function extractNames(text: string): {
+// Words that end an email and are never a signature name.
+const CLOSINGS = new Set([
+  "thanks", "thank", "best", "regards", "cheers", "sincerely", "warmly",
+  "talk", "soon", "xo", "xoxo", "hi", "hello", "hey",
+]);
+
+function signatureName(raw: string): string | null {
+  const lines = raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const last = lines[lines.length - 1];
+  if (!last || /\d|@/.test(last)) return null;
+  const words = last.replace(/[.,;:!]+$/, "").split(/\s+/);
+  if (words.length < 1 || words.length > 3) return null;
+  const properWords = words.every(
+    (word) =>
+      /^[A-Z]/.test(word) && !CLOSINGS.has(word.toLowerCase()),
+  );
+  return properWords ? words.join(" ") : null;
+}
+
+function extractNames(
+  text: string,
+  raw: string,
+): {
   firstName: string | null;
   lastName: string | null;
   partnerName: string | null;
 } {
-  // "I'm Ava" / "my name is Ava Chen" / "this is Ava".
+  // "I'm Ava" / "My name is Ava Chen" / "This is Ava" — the phrase is
+  // matched in either capitalization; the NAME must stay capitalized, so
+  // the whole pattern cannot simply be case-insensitive.
   const intro = text.match(
     new RegExp(
-      `\\b(?:I'?m|I am|my name is|this is)\\s+(${PROPER})(?:\\s+(${PROPER}))?`,
+      `\\b(?:I'?m|I am|[Mm]y name is|[Tt]his is|[Ww]e'?re|[Ww]e are)\\s+(${PROPER})(?:\\s+(${PROPER}))?`,
     ),
   );
   // "Ava and Liam" / "Ava & Liam" — the couple pattern.
   const couple = text.match(
     new RegExp(`\\b(${PROPER})\\s+(?:and|&)\\s+(${PROPER})\\b`),
   );
-  const firstName = cleanName(intro?.[1] ?? couple?.[1]);
-  const lastName = cleanName(intro?.[2]);
-  const rawPartner =
+  const signature = signatureName(raw);
+  const signatureWords = signature?.split(" ") ?? [];
+  const firstName = cleanName(
+    intro?.[1] ?? couple?.[1] ?? signatureWords[0],
+  );
+  const lastName = cleanName(intro?.[2] ?? signatureWords[1]);
+  let partnerName =
     couple && cleanName(couple[1]) !== firstName
       ? cleanName(couple[1])
       : cleanName(couple?.[2]);
+  // "Diego and I just got engaged" — the partner is the one named next to
+  // "I". Skip candidates that are actually the sender's own first or last
+  // name ("Maren Castillo and I …").
+  if (!partnerName || partnerName === lastName) {
+    for (const match of text.matchAll(
+      new RegExp(`\\b(${PROPER})\\s+(?:and|&)\\s+I\\b`, "g"),
+    )) {
+      const candidate = cleanName(match[1]);
+      if (candidate && candidate !== firstName && candidate !== lastName) {
+        partnerName = candidate;
+        break;
+      }
+    }
+  }
   return {
     firstName,
     lastName,
-    partnerName: rawPartner === firstName ? null : rawPartner,
+    partnerName:
+      partnerName === firstName || partnerName === lastName
+        ? null
+        : partnerName,
   };
 }
 
@@ -167,6 +220,6 @@ export function prefillFromText(raw: string): ProjectPrefill {
     phone: phone?.trim() ?? null,
     venueName: extractVenue(text),
     city: extractCity(text),
-    ...extractNames(text),
+    ...extractNames(text, raw),
   };
 }
