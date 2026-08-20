@@ -383,6 +383,13 @@ test(
       await assertSucceeds(getDoc(doc(ownerDb, "galleryInboxes/project-a")));
       await assertSucceeds(getDoc(doc(ownerDb, "deliveryDrafts/delivery-draft-a")));
       await assertSucceeds(getDoc(doc(ownerDb, "bookingOrchestrations/project-a")));
+      // Project-keyed docs that do not exist yet must read as "not found",
+      // not abort rules evaluation (regression: fresh projects broke the
+      // booking workspace before the orchestration doc was created).
+      await assertSucceeds(getDoc(doc(ownerDb, "bookingOrchestrations/project-unassigned")));
+      await assertSucceeds(getDoc(doc(ownerDb, "readinessAssessments/project-unassigned")));
+      await assertFails(getDoc(doc(ownerDb, "bookingOrchestrations/project-b")));
+      await assertFails(getDoc(doc(ownerDb, "readinessAssessments/project-b")));
       await assertSucceeds(getDoc(doc(ownerDb, "messageTemplates/tenant-a_client_invitation_v1")));
       await assertSucceeds(getDoc(doc(ownerDb, "messageTemplatePointers/tenant-a_client_invitation")));
       await assertSucceeds(getDoc(doc(ownerDb, "productEvents/product-a")));
