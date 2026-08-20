@@ -102,7 +102,18 @@ async function slotsFor(link: FirebaseFirestore.QueryDocumentSnapshot) {
 }
 
 export const publicConsultationScheduling = onRequest(
-  { cors: studioHubCors, invoker: "private" },
+  {
+    cors: studioHubCors,
+    invoker: "private",
+    // getCalendarBusyIntervals refreshes the studio's Google token when it is
+    // near expiry, and the refresh needs the OAuth client secret. Without this
+    // binding the refresh threw GOOGLE_CALENDAR_REFRESH_NOT_CONFIGURED, and
+    // because connection() records that on the connection document, a perfectly
+    // valid grant flipped to status "error" and the studio's Integrations page
+    // showed Google Calendar as disconnected — roughly an hour after every
+    // connect, which is how long the first access token lasts.
+    secrets: ["GOOGLE_CALENDAR_CLIENT_SECRET"],
+  },
   async (request, response) => {
     if (request.method !== "POST") {
       response.status(405).json({ error: "METHOD_NOT_ALLOWED" });
