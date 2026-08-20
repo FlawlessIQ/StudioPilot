@@ -4149,6 +4149,70 @@ textarea:focus-visible {
   min-width: 180px;
 }
 
+.project-prefill {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 24px;
+  padding: 16px 18px;
+  border: 1px dashed var(--line, #dfe4df);
+  border-radius: 12px;
+}
+
+.project-prefill label {
+  display: grid;
+  gap: 8px;
+}
+
+.project-prefill label > span {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.project-prefill label > span em {
+  margin-left: auto;
+  color: var(--muted, #6b7570);
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.project-prefill textarea {
+  resize: vertical;
+  min-height: 64px;
+}
+
+.project-prefill > .button {
+  justify-self: start;
+}
+
+.project-prefill small[role="status"] {
+  color: var(--muted, #6b7570);
+}
+
+.client-choice {
+  display: grid;
+  gap: 14px;
+  margin: 24px 0;
+  padding: 18px;
+  border: 1px solid var(--line, #dfe4df);
+  border-radius: 12px;
+}
+
+.client-choice legend {
+  padding: 0 6px;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.client-choice .segmented-control {
+  justify-self: start;
+}
+
 .command-success {
   background: white;
   border: 1px solid var(--line);

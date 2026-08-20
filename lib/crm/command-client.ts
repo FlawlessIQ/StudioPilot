@@ -38,7 +38,11 @@ export async function runCrmCommand(
       input,
     }),
   });
-  const result = (await response.json()) as CrmCommandResult;
+  // Never let a non-JSON error page become "Unexpected token '<'" — the
+  // parse failure must read as a server problem, not gibberish.
+  const result = (await response
+    .json()
+    .catch(() => ({ error: "FUNCTION_UPSTREAM_UNAVAILABLE" }))) as CrmCommandResult;
   if (!response.ok) {
     throw new Error(typeof result.error === "string" ? result.error : "Studio command failed.");
   }
