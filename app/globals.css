@@ -4609,6 +4609,25 @@ textarea:focus-visible {
   margin: 34px 0 10px;
 }
 
+.legal-page article > ul.legal-list {
+  color: var(--ink-2);
+  font-size: 15px;
+  line-height: 1.7;
+  margin: 0 0 18px;
+  /* The global reset zeroes list-style, so restore markers explicitly —
+     without them these read as indented paragraphs, not an enumeration. */
+  list-style: disc outside;
+  padding-left: 22px;
+}
+
+.legal-page article > ul.legal-list > li {
+  margin-bottom: 10px;
+}
+
+.legal-page article > ul.legal-list strong {
+  overflow-wrap: anywhere;
+}
+
 .legal-page article > p {
   color: var(--ink-soft);
   font-size: 13px;
