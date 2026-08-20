@@ -186,8 +186,6 @@ const definitions: ReadonlyArray<Definition> = [
     capabilities: ["Customers", "Invoices", "Payments"],
     icon: Landmark,
     accent: "quickbooks",
-    pendingReason:
-      "Intuit is refusing the connection even though the app is live and its keys, callback URL, and permissions all check out. Raised with Intuit — connecting stays closed until it completes reliably.",
   },
   {
     provider: "docusign",
