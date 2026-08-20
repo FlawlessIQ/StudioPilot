@@ -25,8 +25,32 @@
 }
 
 .job-thread-empty {
-  margin: 0 0 10px;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  padding: 28px 24px;
+  border: 1px dashed var(--line, #e2e7e1);
+  border-radius: 14px;
+  text-align: center;
   color: var(--muted, #6b7570);
+}
+
+.job-thread-empty svg {
+  color: var(--muted, #a6b0a8);
+}
+
+.job-thread-empty strong {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--ink, #1d2420);
+}
+
+.job-thread-empty p {
+  max-width: 46ch;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .job-thread-day {
@@ -164,40 +188,126 @@
   border-top: 1px solid var(--line, #e6eae4);
 }
 
+/* The next move is the most consequential thing on the page, so it looks
+   it — the same spruce language as the Today briefing. */
 .thread-next {
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 16px;
   align-items: center;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: #f2f6f2;
+  padding: 18px 20px;
+  border-radius: 16px;
+  color: #eef3ee;
+  background: linear-gradient(145deg, #22503f 0%, #1a3c30 70%), #1a3c30;
 }
 
-.thread-next > span {
+.thread-next-glow {
+  position: absolute;
+  inset: -60% -20% auto auto;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(255 255 255 / 13%) 0%, transparent 62%);
+  pointer-events: none;
+}
+
+.thread-next-copy {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 220px;
+}
+
+.thread-next-eyebrow {
   display: inline-flex;
-  gap: 7px;
+  gap: 6px;
   align-items: center;
-  font-size: 13px;
+  margin: 0;
+  color: #9dc0ac;
+  font-size: 10px;
   font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
 }
 
-.thread-next > div {
+.thread-next-copy strong {
+  font-family: var(--font-display);
+  font-size: 21px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.thread-next-copy small {
+  color: #b7cdc0;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.thread-next-actions {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 8px 14px;
   align-items: center;
   margin-left: auto;
 }
 
-.thread-mark-done {
-  font-size: 12px;
+.thread-next-go {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 20px;
+  border-radius: 99px;
+  background: #f3f7f3;
+  color: #1a3c30;
+  font: 700 13.5px/1 inherit;
+  text-decoration: none;
+  transition: transform 140ms ease;
+}
+
+.thread-next-go:hover {
+  transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thread-next-go {
+    transition: none;
+  }
+  .thread-next-go:hover {
+    transform: none;
+  }
+}
+
+/* Mark-done sits inside the dark card, so it reads on that ground. */
+.thread-next .thread-mark-done {
+  min-height: 38px;
+  border: 1px solid rgb(255 255 255 / 24%);
+  background: transparent;
+  color: #cfe0d5;
+  font-size: 12.5px;
+}
+
+.thread-next .thread-mark-done:hover {
+  border-color: rgb(255 255 255 / 45%);
+  color: #fff;
+}
+
+.thread-next small[role="status"] {
+  color: #cfe0d5;
 }
 
 .thread-composer-modes {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  padding: 4px;
+  border-radius: 99px;
+  background: #eef1ee;
+  width: fit-content;
 }
 
 .thread-composer-modes button {
@@ -205,37 +315,100 @@
   gap: 6px;
   align-items: center;
   min-height: 32px;
-  padding: 0 12px;
-  border: 1px solid var(--line, #e6eae4);
+  padding: 0 14px;
+  border: 0;
   border-radius: 99px;
   background: transparent;
   color: var(--muted, #6b7570);
-  font: 600 12px/1 inherit;
+  font: 650 12.5px/1 inherit;
   cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.thread-composer-modes button:hover {
+  color: var(--ink, #1d2420);
 }
 
 .thread-composer-modes button.is-active {
-  border-color: var(--ink, #1d2420);
-  background: var(--ink, #1d2420);
-  color: #fff;
+  background: #fff;
+  color: var(--ink, #1d2420);
+  box-shadow: 0 1px 3px rgb(29 36 32 / 10%);
 }
 
 .thread-composer-input {
-  display: flex;
+  display: grid;
   gap: 10px;
-  align-items: flex-end;
-  padding: 10px 12px;
+  padding: 14px 16px 12px;
   border: 1.5px solid var(--line, #dfe4df);
-  border-radius: 13px;
+  border-radius: 16px;
   background: var(--panel, #fff);
+  transition: border-color 140ms ease, box-shadow 140ms ease;
 }
 
 .thread-composer-input:focus-within {
-  border-color: var(--green, #2e7042);
+  border-color: #2e7042;
+  box-shadow: 0 0 0 4px rgb(46 112 66 / 10%);
+}
+
+.thread-composer-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: center;
+}
+
+.thread-composer-hint {
+  color: var(--muted, #8a938d);
+  font-size: 11.5px;
+}
+
+.thread-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1 1 auto;
+}
+
+.thread-suggestions button {
+  padding: 6px 12px;
+  border: 1px solid var(--line, #e6eae4);
+  border-radius: 99px;
+  background: transparent;
+  color: var(--muted, #55605a);
+  font: 600 12px/1.2 inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+.thread-suggestions button:hover {
+  border-color: #2e7042;
+  color: #2e7042;
+}
+
+.thread-send {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  min-height: 38px;
+  margin-left: auto;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 99px;
+  background: #2e7042;
+  color: #fff;
+  font: 700 13px/1 inherit;
+  cursor: pointer;
+}
+
+.thread-send:disabled {
+  background: #e6eae4;
+  color: var(--muted, #9aa39c);
+  cursor: default;
 }
 
 .thread-composer-input textarea {
-  flex: 1;
+  width: 100%;
   border: 0;
   background: transparent;
   color: inherit;
@@ -246,24 +419,7 @@
   outline: none;
 }
 
-.thread-composer-input button {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border: 0;
-  border-radius: 50%;
-  background: var(--green, #2e7042);
-  color: #fff;
-  cursor: pointer;
-}
 
-.thread-composer-input button:disabled {
-  background: var(--line, #dfe4df);
-  color: var(--muted, #8a938d);
-  cursor: default;
-}
 
 .thread-answer {
   display: grid;

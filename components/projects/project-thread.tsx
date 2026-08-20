@@ -77,10 +77,14 @@ export function ProjectThread({
   return (
     <section className="job-thread" aria-label="Job history">
       {days.length === 0 ? (
-        <p className="job-thread-empty">
-          Nothing has happened yet. Everything you and your client do will
-          appear here.
-        </p>
+        <div className="job-thread-empty">
+          <MessageSquareText size={18} />
+          <strong>This is where the whole job lives.</strong>
+          <p>
+            Every message, consultation, proposal, payment and delivery will
+            appear here in order — so you can see the story at a glance.
+          </p>
+        </div>
       ) : null}
       {days.map((bucket) => (
         <div className="job-thread-day" key={bucket.day}>
@@ -133,6 +137,23 @@ function ThreadEntryCard({ entry }: { entry: ThreadEntry }) {
 type ComposerMode = "note" | "ask" | "task";
 
 /**
+ * A blank box is the worst copilot interface: people do not know what it
+ * can answer. These are questions the thread's own records can actually
+ * settle, offered as one tap.
+ */
+const ASK_SUGGESTIONS = [
+  "What's outstanding on this job?",
+  "What has the client not replied to?",
+  "What do I owe them next?",
+] as const;
+
+const NOTE_SUGGESTIONS = [
+  "Just got off the phone with them —",
+  "They want to add",
+  "They asked about",
+] as const;
+
+/**
  * The composer: say what happened, ask a question, or capture a task —
  * without deciding which page to visit first. Modes are explicit rather
  * than guessed from prose: a misread that files a consultation as a task
@@ -159,6 +180,13 @@ function ThreadComposer({
   const [busy, setBusy] = useState(false);
   const [answer, setAnswer] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  const suggestions =
+    mode === "ask"
+      ? ASK_SUGGESTIONS
+      : mode === "note"
+        ? NOTE_SUGGESTIONS
+        : [];
 
   const placeholder =
     mode === "note"
@@ -233,13 +261,18 @@ function ThreadComposer({
     <div className="thread-composer">
       {current ? (
         <div className="thread-next">
-          <span>
-            <Sparkles size={13} /> Next: {current.title.toLowerCase()}
-          </span>
-          <div>
+          <span className="thread-next-glow" aria-hidden="true" />
+          <div className="thread-next-copy">
+            <p className="thread-next-eyebrow">
+              <Sparkles size={12} /> Your next move
+            </p>
+            <strong>{current.title}</strong>
+            <small>{current.detail}</small>
+          </div>
+          <div className="thread-next-actions">
             {current.action?.kind === "link" ? (
-              <Link className="button button-dark" href={current.action.href}>
-                {current.action.label} <ArrowRight size={14} />
+              <Link className="thread-next-go" href={current.action.href}>
+                {current.action.label} <ArrowRight size={15} />
               </Link>
             ) : null}
             {current.advance ? (
@@ -290,17 +323,51 @@ function ThreadComposer({
         <textarea
           onChange={(event) => setValue(event.target.value)}
           placeholder={placeholder}
-          rows={2}
+          rows={3}
           value={value}
         />
-        <button
-          aria-label="Submit"
-          disabled={busy || !value.trim()}
-          onClick={() => void submit()}
-          type="button"
-        >
-          {busy ? <LoaderCircle className="spin" size={15} /> : <Send size={15} />}
-        </button>
+        <div className="thread-composer-foot">
+          {suggestions.length && !value.trim() ? (
+            <div className="thread-suggestions">
+              {suggestions.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  onClick={() => setValue(suggestion)}
+                  type="button"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <small className="thread-composer-hint">
+              {mode === "ask"
+                ? "Answered from this job's records — nothing changes."
+                : mode === "note"
+                  ? "Saved to this job, and StudioCue drafts what follows."
+                  : "Added to your tasks for this job."}
+            </small>
+          )}
+          <button
+            className="thread-send"
+            disabled={busy || !value.trim()}
+            onClick={() => void submit()}
+            type="button"
+          >
+            {busy ? (
+              <LoaderCircle className="spin" size={14} />
+            ) : (
+              <Send size={14} />
+            )}
+            {busy
+              ? "Working…"
+              : mode === "ask"
+                ? "Ask"
+                : mode === "note"
+                  ? "Save the note"
+                  : "Add task"}
+          </button>
+        </div>
       </div>
 
       {answer ? (
