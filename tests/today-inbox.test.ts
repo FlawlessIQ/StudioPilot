@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  bookedValueCents,
+  handledThisWeek,
   todayInbox,
   type TodayInput,
   type TodayJourneyPosition,
@@ -274,4 +276,45 @@ test("work left over from a past event is late, never 'this fortnight'", () => {
     ],
   });
   assert.equal(inbox.act[0]?.band, "overdue");
+});
+
+test("handled-this-week counts only work that genuinely completed, and only recently", () => {
+  const now = new Date(NOW);
+  const recent = "2026-08-19T10:00:00.000Z";
+  const old = "2026-07-01T10:00:00.000Z";
+  const count = handledThisWeek(
+    {
+      actionReceipts: [
+        { id: "r1", status: "completed", completedAt: recent },
+        { id: "r2", status: "completed", completedAt: old },
+        { id: "r3", status: "failed", completedAt: recent },
+      ],
+      automationRuns: [
+        { id: "a1", status: "succeeded", updatedAt: recent },
+        { id: "a2", status: "queued", updatedAt: recent },
+      ],
+      emailJobs: [{ id: "e1", status: "sent", updatedAt: recent }],
+    },
+    now,
+  );
+  assert.equal(count, 3);
+});
+
+test("booked value counts won work, not invoices raised", () => {
+  const value = bookedValueCents({
+    projects: [
+      { id: "p1", state: "BOOKED", packageSnapshotId: "s1" },
+      { id: "p2", state: "DELIVERED", packageSnapshotId: "s2" },
+      // Not yet won — a proposal is not a booking.
+      { id: "p3", state: "PROPOSAL", packageSnapshotId: "s3" },
+      // Won, but no snapshot to price it.
+      { id: "p4", state: "PLANNING", packageSnapshotId: "missing" },
+    ],
+    packageSnapshots: [
+      { id: "s1", totalCents: 650000 },
+      { id: "s2", totalCents: 480000 },
+      { id: "s3", totalCents: 900000 },
+    ],
+  });
+  assert.equal(value, 1130000);
 });

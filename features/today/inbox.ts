@@ -793,3 +793,71 @@ export function todaySummary(counts: {
     .filter(Boolean)
     .join(" · ")}.`;
 }
+
+/**
+ * What StudioCue did for the studio in the last seven days.
+ *
+ * The product's promise is that work happens without the photographer
+ * touching it. That promise is invisible unless it is counted, so this is
+ * the one number on Today that exists to be felt rather than acted on.
+ * Only genuinely completed work counts — never queued or attempted.
+ */
+export function handledThisWeek(
+  input: {
+    actionReceipts?: TodayRecord[] | null;
+    automationRuns?: TodayRecord[] | null;
+    emailJobs?: TodayRecord[] | null;
+  },
+  now: Date,
+): number {
+  const since = new Date(now.valueOf() - 7 * 86_400_000).toISOString();
+  const done = (record: TodayRecord, states: string[]) => {
+    if (!states.includes(text(record.status))) return false;
+    const at = changedAt(record);
+    return Boolean(at && at >= since);
+  };
+  return (
+    rows(input.actionReceipts).filter((row) => done(row, ["completed"])).length +
+    rows(input.automationRuns).filter((row) => done(row, ["succeeded"])).length +
+    rows(input.emailJobs).filter((row) => done(row, ["sent", "delivered"]))
+      .length
+  );
+}
+
+/**
+ * The value of work the studio has actually won.
+ *
+ * homeMetrics' bookedValueCents sums invoices, which answers "what have I
+ * billed", not "what have I booked" — a studio with nine weddings and one
+ * deposit invoice would see a number smaller than a single job. This sums
+ * the locked package snapshot of every project from the signed agreement
+ * onward, which is the number a photographer means.
+ */
+const BOOKED_STATES = new Set([
+  "BOOKED",
+  "PLANNING",
+  "READY",
+  "EVENT_COMPLETE",
+  "POST_PRODUCTION",
+  "DELIVERED",
+  "REVIEW_REQUESTED",
+  "CLOSED",
+]);
+
+export function bookedValueCents(input: {
+  projects?: TodayRecord[] | null;
+  packageSnapshots?: TodayRecord[] | null;
+}): number {
+  const totals = new Map(
+    rows(input.packageSnapshots).map((snapshot) => [
+      snapshot.id,
+      Number(snapshot.totalCents ?? 0),
+    ]),
+  );
+  return rows(input.projects)
+    .filter((project) => BOOKED_STATES.has(text(project.state)))
+    .reduce(
+      (sum, project) => sum + (totals.get(text(project.packageSnapshotId)) ?? 0),
+      0,
+    );
+}

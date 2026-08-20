@@ -5,7 +5,10 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { projectJourney } from "@/features/journey/steps";
 import { activeProjectStates } from "@/features/dashboard/active-states";
 import { useSetupState } from "@/components/setup/use-setup-state";
+import { homeMetrics, type HomeMetrics } from "@/features/dashboard/home-metrics";
 import {
+  bookedValueCents,
+  handledThisWeek,
   todayInbox,
   type TodayInbox,
   type TodayJourneyPosition,
@@ -28,13 +31,21 @@ type Row = Record<string, unknown> & { id: string };
  * for it — which is what makes running the journey engine for *every* job on
  * the home page affordable.
  */
-export function useTodayInbox(): { inbox: TodayInbox; loading: boolean } {
+export function useTodayInbox(): {
+  inbox: TodayInbox;
+  metrics: HomeMetrics;
+  /** Value of work actually won — see bookedValueCents. */
+  booked: number;
+  handled: number;
+  loading: boolean;
+} {
   const workspace = useWorkspace();
   const ownerOperations = ["studio_owner", "studio_admin"].includes(
     workspace.role ?? "",
   );
 
   const setup = useSetupState();
+  const packageSnapshots = useTenantDocuments("packageSnapshots");
   const projects = useTenantDocuments("projects");
   const leads = useTenantDocuments("leads");
   const tasks = useTenantDocuments("tasks");
@@ -180,8 +191,27 @@ export function useTodayInbox(): { inbox: TodayInbox; loading: boolean } {
     setupGaps: setup.gaps,
   });
 
+  const now = new Date();
   return {
     inbox,
+    // The studio's pulse, from the same engine the old dashboard used.
+    metrics: homeMetrics({
+      now,
+      projects: projects.records,
+      invoiceReferences: invoiceReferences.records,
+    }),
+    booked: bookedValueCents({
+      projects: projects.records,
+      packageSnapshots: packageSnapshots.records,
+    }),
+    handled: handledThisWeek(
+      {
+        actionReceipts: actionReceipts.records,
+        automationRuns: automationRuns.records,
+        emailJobs: emailJobs.records,
+      },
+      now,
+    ),
     loading: projects.records === null || leads.records === null,
   };
 }
