@@ -1,0 +1,255 @@
+/* Today — the studio's inbox of moments. Thumb-first: this is the surface a
+   photographer triages from a phone, so touch targets and stacking come
+   first and the desktop layout is the enhancement. */
+
+.today-page {
+  display: grid;
+  gap: 26px;
+  max-width: 760px;
+}
+
+.today-header {
+  display: grid;
+  gap: 4px;
+}
+
+.today-header h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(28px, 6vw, 40px);
+  line-height: 1.06;
+  letter-spacing: -0.03em;
+}
+
+.today-summary {
+  margin: 0;
+  color: var(--muted, #6b7570);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+/* ── Clear state ──────────────────────────────────────────────────── */
+
+.today-clear {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  padding: 22px;
+  border: 1px solid var(--line, #e6eae4);
+  border-radius: 14px;
+  background: var(--panel, #fff);
+}
+
+.today-clear > div {
+  display: grid;
+  gap: 3px;
+  flex: 1 1 260px;
+}
+
+.today-clear small {
+  color: var(--muted, #6b7570);
+  line-height: 1.5;
+}
+
+.today-clear-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #e9f4ec;
+  color: #2e7042;
+}
+
+/* ── Lanes ────────────────────────────────────────────────────────── */
+
+.today-lane {
+  display: grid;
+  gap: 10px;
+}
+
+.today-lane-heading {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.today-lane-heading h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+
+.today-lane-heading span {
+  color: var(--muted, #8a938d);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ── Cards ────────────────────────────────────────────────────────── */
+
+.today-card {
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 16px 18px;
+  border: 1px solid var(--line, #e6eae4);
+  border-radius: 14px;
+  background: var(--panel, #fff);
+}
+
+.today-card-dot {
+  width: 9px;
+  height: 9px;
+  margin-top: 7px;
+  border-radius: 50%;
+  background: var(--muted, #8a938d);
+}
+
+.today-card.is-act .today-card-dot {
+  background: #b0522d;
+}
+
+.today-card.is-approve .today-card-dot {
+  background: #2e7042;
+}
+
+.today-card-body {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.today-card-body strong {
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.today-card-body small {
+  color: var(--muted, #6b7570);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.today-card-evidence {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  margin-top: 4px;
+  color: var(--muted, #8a938d);
+  font-size: 11.5px;
+}
+
+.today-card-notice {
+  margin-top: 6px;
+  color: #b0522d;
+  font-size: 12.5px;
+}
+
+.today-card-actions {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.today-card-primary {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  /* Comfortably tappable on a phone. */
+  min-height: 40px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 99px;
+  background: var(--ink, #1d2420);
+  color: #fff;
+  font: 700 13px/1 inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.today-card.is-approve .today-card-primary {
+  background: #2e7042;
+}
+
+.today-card-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.today-card-secondary {
+  color: var(--muted, #6b7570);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.today-card-secondary:hover {
+  color: var(--ink, #1d2420);
+  text-decoration: underline;
+}
+
+.today-card-done {
+  color: #2e7042;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+/* ── Handled-for-you ──────────────────────────────────────────────── */
+
+.today-handled {
+  display: grid;
+  gap: 10px;
+}
+
+.today-handled > button {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px dashed var(--line, #dfe4df);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--muted, #6b7570);
+  font: 600 13px/1 inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.today-handled > button em {
+  margin-left: auto;
+  font-style: normal;
+  font-weight: 700;
+  color: var(--green, #2e7042);
+}
+
+.today-handled-list {
+  display: grid;
+  gap: 8px;
+}
+
+.today-handled-list .today-card {
+  background: transparent;
+}
+
+@media (min-width: 720px) {
+  .today-card {
+    grid-template-columns: 10px 1fr auto;
+    align-items: center;
+  }
+
+  .today-card-actions {
+    grid-column: 3;
+    grid-row: 1;
+    margin-top: 0;
+    justify-content: flex-end;
+  }
+}

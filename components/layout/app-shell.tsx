@@ -36,7 +36,7 @@ const navSections = [
   {
     label: "Workspace",
     items: [
-      { label: "Home", href: "/studio", icon: CircleGauge },
+      { label: "Today", href: "/studio", icon: CircleGauge },
       { label: "Projects", href: "/studio/projects", icon: FolderKanban },
       { label: "Calendar", href: "/studio/calendar", icon: CalendarDays },
       { label: "Messages", href: "/studio/messages", icon: MessageSquareText },
@@ -57,7 +57,7 @@ const navSections = [
 ] as const;
 
 const activeGroups: Record<string, string[]> = {
-  Home: ["Dashboard", "Notifications", "Leads", "Inquiries"],
+  Today: ["Today", "Dashboard", "Notifications", "Leads", "Inquiries"],
   "AI review": ["AI review", "Copilot"],
   Insights: ["Insights"],
   Messages: ["Messages"],
@@ -190,7 +190,7 @@ function StudioShell({
   const tenantName = workspace.error ? "Workspace unavailable" : workspace.tenantName;
   const userName = workspace.error ? "Signed-in user" : workspace.userName;
   const staffAllowed = new Set([
-    "Home",
+    "Today",
     "Projects",
     "Calendar",
     "Messages",
@@ -209,7 +209,7 @@ function StudioShell({
   const currentGroup =
     Object.entries(activeGroups).find(([, values]) =>
       values.includes(resolvedActive),
-    )?.[0] ?? "Home";
+    )?.[0] ?? "Today";
 
   return (
     <div className="ds-root" data-ds-theme="emerald">
@@ -338,7 +338,7 @@ function StudioShell({
               <Menu size={20} />
             </button>
             <span className="ds-crumb">
-              <b>Workspace ·</b> {resolvedActive === "Dashboard" ? "Home" : resolvedActive}
+              <b>Workspace ·</b> {resolvedActive === "Dashboard" ? "Today" : resolvedActive}
             </span>
             <GlobalSearch />
             <Link
