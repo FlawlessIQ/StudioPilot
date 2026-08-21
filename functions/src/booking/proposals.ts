@@ -18,6 +18,17 @@ const authoringFields = z.object({
   termsSummary: z.string().trim().min(10).max(6000),
   retainerDueDate: z.string().date().nullable(),
   balanceDueDate: z.string().date().nullable(),
+  /**
+   * The deposit to ask for on this offer, overriding what the package's
+   * rule produced.
+   *
+   * An imported price list rarely states a retainer, so the package it
+   * becomes often carries none — and a photographer setting one client's
+   * deposit should not have to go and edit the package first. The locked
+   * snapshot is untouched: it stays the record of what was priced, and this
+   * only moves the split between the two payments.
+   */
+  retainerOverrideCents: z.number().int().nonnegative().safe().nullable().optional(),
 });
 
 const commandSchema = z.discriminatedUnion("type", [
@@ -182,9 +193,15 @@ function paymentSchedule(
   packageData: Record<string, unknown>,
   retainerDueDate: string | null,
   balanceDueDate: string | null,
+  retainerOverrideCents?: number | null,
 ) {
   const totalCents = numberValue(packageData.totalCents);
-  const retainerCents = numberValue(packageData.retainerCents);
+  // Never more than the total: a deposit larger than the price would make
+  // the final balance negative.
+  const retainerCents =
+    typeof retainerOverrideCents === "number"
+      ? Math.min(retainerOverrideCents, totalCents)
+      : numberValue(packageData.retainerCents);
   return [
     {
       label: "Retainer",
@@ -382,6 +399,7 @@ export const proposalCommand = onRequest(
                 packageData,
                 command.input.retainerDueDate,
                 command.input.balanceDueDate,
+                command.input.retainerOverrideCents,
               ),
               expiresAt: command.input.expiresAt,
               notes: command.input.notes,
@@ -475,6 +493,7 @@ export const proposalCommand = onRequest(
                 pricing,
                 command.input.retainerDueDate,
                 command.input.balanceDueDate,
+                command.input.retainerOverrideCents,
               ),
               draftRevision: nextRevision,
               updatedAt: timestamp,
