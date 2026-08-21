@@ -21,10 +21,13 @@ import { getFirebaseClient } from "@/lib/firebase/client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { statusLabel } from "@/features/format/status-label";
+import { AddressField } from "@/components/forms/address-field";
+import type { CapturedPlace } from "@/features/places/schema";
 
 type RequestRecord = Record<string, unknown> & { id: string };
 
 export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
+  const [venueAddress, setVenueAddress] = useState<CapturedPlace | null>(null);
   const workspace = useWorkspace();
   const { records: projects, loading: projectsLoading } =
     useTenantDocuments("projects");
@@ -170,10 +173,24 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
             Venue legal name
             <input name="venueLegalName" required />
           </label>
-          <label>
-            Venue address
-            <input name="venueAddress" required />
-          </label>
+          {/* The one address in the product with a legal consequence: it
+              goes on the certificate the venue checks at the door. Looking
+              it up beats retyping it off an email thread. The `name` prop
+              still writes a plain form value, so the command that sends
+              this is unchanged. */}
+          <AddressField
+            hint={
+              venueAddress?.verified
+                ? "Confirmed address — safe to put on the certificate."
+                : "Look the venue up so the certificate carries its real address."
+            }
+            label="Venue address"
+            name="venueAddress"
+            onChange={setVenueAddress}
+            placeholder="Venue street address"
+            required
+            value={venueAddress}
+          />
           <label>
             Event date
             <input name="eventDate" type="date" required />

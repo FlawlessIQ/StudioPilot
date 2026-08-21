@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { formatDueDate } from "@/lib/format/event-date";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -199,7 +200,7 @@ export function EventDayCopilot({
           <option value="">Select an upcoming project</option>
           {upcoming.map((item) => (
             <option key={item.id} value={item.id}>
-              {text(item.eventDate)} · {text(item.name)}
+              {formatDueDate(text(item.eventDate))} · {text(item.name)}
             </option>
           ))}
         </select>

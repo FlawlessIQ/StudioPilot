@@ -7,6 +7,12 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { publicLeadIntakeSchema, type PublicLeadIntake } from "@/features/leads/schema";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
+import { AddressField } from "@/components/forms/address-field";
+import {
+  placeCity,
+  placeLabel,
+  type CapturedPlace,
+} from "@/features/places/schema";
 
 type PublicLeadIntakeInput = z.input<typeof publicLeadIntakeSchema>;
 
@@ -54,11 +60,28 @@ export function LeadIntakeForm({
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<PublicLeadIntakeInput, unknown, PublicLeadIntake>({
     defaultValues: { ...defaultValues, tenantSlug },
     resolver: zodResolver(publicLeadIntakeSchema),
   });
+
+  const [venue, setVenue] = useState<CapturedPlace | null>(null);
+
+  /**
+   * The captured venue fills the two fields the inquiry actually submits.
+   * City is required, so a chosen venue completing it saves a step; a
+   * half-typed one must never wipe a city already entered by hand.
+   */
+  function applyVenue(place: CapturedPlace | null) {
+    setVenue(place);
+    setValue("venue", place ? placeLabel(place).slice(0, 160) : null, {
+      shouldValidate: true,
+    });
+    const city = placeCity(place);
+    if (city) setValue("city", city.slice(0, 120), { shouldValidate: true });
+  }
 
   const submit = handleSubmit(async (values) => {
     setServerError(null);
@@ -156,7 +179,21 @@ export function LeadIntakeForm({
       <div className="form-grid">
         <label>Event date<input {...register("eventDate")} type="date" /><small>{errors.eventDate?.message}</small></label>
         <label>Event type<select {...register("eventType")}><option value="wedding">Wedding</option><option value="corporate">Corporate</option><option value="sports">Sports</option><option value="other">Other</option></select></label>
-        <label>Venue<input {...register("venue", { setValueAs: (value) => value || null })} placeholder="If selected" /></label>
+        {/* The venue a couple types here is the first thing the studio
+            ever learns about the job, and it fed straight through to the
+            project. Looking it up means the studio gets the real place
+            rather than whatever fitted in the box — and it fills the city
+            below, which is required. */}
+        <div className="form-span">
+          <AddressField
+            hint="If you have chosen one. Start typing and pick from the list."
+            label="Venue"
+            onChange={applyVenue}
+            placeholder="Venue name or address"
+            source={{ kind: "public", tenantSlug }}
+            value={venue}
+          />
+        </div>
         <label>City<input {...register("city")} /><small>{errors.city?.message}</small></label>
         <label>Estimated guests<input {...register("estimatedGuestCount", { setValueAs: (value) => value ? Number(value) : null })} type="number" min="1" /></label>
         <label>Budget range<select {...register("budgetRange", { setValueAs: (value) => value || null })}><option value="">Prefer not to say</option><option>$3,000–$5,000</option><option>$5,000–$8,000</option><option>$8,000–$12,000</option><option>$12,000+</option></select></label>

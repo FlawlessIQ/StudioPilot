@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { capturedPlaceSchema } from "@/features/places/schema";
 import { auditFieldsSchema } from "@/features/tenants/schema";
 
 export const projectStateSchema = z.enum([
@@ -39,6 +40,15 @@ export const projectSchema = auditFieldsSchema.extend({
   packageSnapshotId: z.string().nullable().default(null),
   venueName: z.string().max(160).nullable().default(null),
   city: z.string().max(120).nullable().default(null),
+  /**
+   * The venue as captured from an address lookup, when one was used.
+   *
+   * `venueName` and `city` remain the fields everything reads — this sits
+   * beside them for the things a typed string cannot support: a map link,
+   * a drive time, grouping repeat bookings at the same venue, and a
+   * certificate of insurance that has to carry a real postal address.
+   */
+  venue: capturedPlaceSchema.nullable().default(null),
   readinessScore: z.number().int().min(0).max(100).default(0),
   nextAction: z.string().max(500).nullable().default(null),
   archivedAt: z.string().datetime().nullable(),

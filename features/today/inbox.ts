@@ -379,7 +379,11 @@ export function todayInbox(input: TodayInput): TodayInbox {
       `${text(lead.firstName)} ${text(lead.lastName)}`.trim();
     const facts = [
       readable(lead.eventType),
-      text(lead.eventDate),
+      // A machine date read straight out of the record — "2027-06-27" — in
+      // a line a photographer reads over their coffee. Still dropped when
+      // absent rather than becoming "Date to confirm": an inquiry with no
+      // date yet is normal, and saying so here adds nothing.
+      text(lead.eventDate) ? formatDueDate(lead.eventDate) : null,
       text(lead.venue) || text(lead.city),
     ].filter(Boolean);
     const leadEvent = text(lead.eventDate) || null;

@@ -35,14 +35,17 @@ const EXEMPT = [
   join("components", "ai", "structured-content-fields.tsx"),
 ];
 
-function sourceFiles(directory: string): string[] {
+function sourceFiles(
+  directory: string,
+  extensions: string[] = [".tsx"],
+): string[] {
   const found: string[] = [];
   for (const entry of readdirSync(directory)) {
     const full = join(directory, entry);
     if (statSync(full).isDirectory()) {
       if (entry === "node_modules" || entry === ".next") continue;
-      found.push(...sourceFiles(full));
-    } else if (entry.endsWith(".tsx")) {
+      found.push(...sourceFiles(full, extensions));
+    } else if (extensions.some((extension) => entry.endsWith(extension))) {
       found.push(full);
     }
   }
@@ -58,6 +61,21 @@ function withoutComments(source: string): string {
 
 const files = SURFACES.flatMap((surface) => sourceFiles(surface)).filter(
   (path) => !EXEMPT.some((exempt) => path.startsWith(exempt)),
+);
+
+/**
+ * Everywhere user-visible copy is *built*, not just where it is rendered.
+ *
+ * The rules below split into two kinds. Banned words and raw-status renders
+ * are about components, and `features/` is exempt from them by design —
+ * CONTRACT_PENDING belongs in the engine. But a date format is a property
+ * of the string itself, and Today's card details are assembled in
+ * features/today/inbox.ts, in a plain `.ts` file. The first version of this
+ * sweep looked only at `.tsx` under app/ and components/, so it passed with
+ * the reported bug still in place.
+ */
+const copyFiles = ["app", "components", "features"].flatMap((surface) =>
+  sourceFiles(surface, [".ts", ".tsx"]),
 );
 
 test("the engine's vocabulary stays out of the interface", () => {
@@ -95,6 +113,52 @@ test("dates on screen go through the shared formatter", () => {
     [],
     offences.length
       ? `Use lib/format/event-date.ts instead:\n  ${offences.join("\n  ")}`
+      : "",
+  );
+});
+
+test("a stored date never reaches the screen unformatted", () => {
+  // Two list subtitles printed the record's own value — "Wedding ·
+  // 2027-06-27 · The Rockleigh" on Today, "Project · Wedding · 2026-10-18"
+  // in search. Neither is a format anyone chose; both are the field.
+  //
+  // The first version of this test scanned app/ and components/ only and
+  // passed with the Today bug still in place, because the string is built
+  // in features/. Date rules apply wherever user-visible copy is made, so
+  // this one walks the engine too.
+  const DATE_FIELD =
+    /text\(\s*[\w.]*\.(eventDate|dueDate|dueAt|startDate|endDate|scheduledFor|startsAt|expiresAt)\s*\)/g;
+
+  // A raw read is fine as *input* — to a formatter, a comparison, a sort, a
+  // guard. It is an offence only when the value itself is the output.
+  const CONSUMED_BEFORE =
+    /(format\w*|describe\w*|parse\w*|days\w*|Date|new|return|=|:)\s*\(?\s*$/;
+  const CONSUMED_AFTER =
+    /^\s*(\?|:|\)|\.\w|[<>!=]=?|&&|\|\||\+|,\s*now|\s*\|\|\s*null)/;
+
+  const offences: string[] = [];
+  for (const path of copyFiles) {
+    const original = readFileSync(path, "utf8");
+    const source = withoutComments(original);
+    for (const hit of source.matchAll(DATE_FIELD)) {
+      const at = hit.index ?? 0;
+      const before = source.slice(Math.max(0, at - 40), at);
+      const after = source.slice(at + hit[0].length, at + hit[0].length + 24);
+      if (CONSUMED_BEFORE.test(before)) continue;
+      if (CONSUMED_AFTER.test(after)) continue;
+      // Report the line in the file as written. Counting in the stripped
+      // copy sends the reader to the wrong place by however many comment
+      // lines precede the offence — which, in this codebase, is a lot.
+      const found = original.indexOf(hit[0]);
+      const line = original.slice(0, found < 0 ? at : found).split("\n").length;
+      offences.push(`${path}:${line}: ${hit[0]}`);
+    }
+  }
+  assert.deepEqual(
+    offences,
+    [],
+    offences.length
+      ? `Format it with lib/format/event-date.ts first:\n  ${offences.join("\n  ")}`
       : "",
   );
 });

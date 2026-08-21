@@ -70,6 +70,28 @@ const commandSchema = z.discriminatedUnion("type", [
       leadId: z.string().nullable(),
       venueName: z.string().max(160).nullable(),
       city: z.string().max(120).nullable(),
+      // The venue as captured, not as typed. Mirrors
+      // capturedPlaceSchema in features/places/schema.ts — functions/ is a
+      // separate package with no "@/features" path, so the shape is
+      // duplicated here and tests/places-schema.test.ts asserts the two
+      // copies still agree. `verified` is what a certificate of insurance
+      // has to check before it trusts the address.
+      venue: z
+        .object({
+          placeId: z.string().max(400).nullable(),
+          formatted: z.string().min(1).max(500),
+          name: z.string().max(300).nullable(),
+          line1: z.string().max(300).nullable(),
+          city: z.string().max(160).nullable(),
+          region: z.string().max(160).nullable(),
+          postalCode: z.string().max(40).nullable(),
+          country: z.string().length(2).nullable(),
+          latitude: z.number().min(-90).max(90).nullable(),
+          longitude: z.number().min(-180).max(180).nullable(),
+          verified: z.boolean(),
+        })
+        .nullable()
+        .default(null),
     }),
   }),
   z.object({

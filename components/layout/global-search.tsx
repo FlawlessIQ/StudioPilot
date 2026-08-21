@@ -18,6 +18,7 @@ import {
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { KindGlyph } from "@/components/library/kind-glyph";
+import { formatDueDate } from "@/lib/format/event-date";
 import type { LibraryKind } from "@/features/library/kinds";
 
 type SearchResult = {
@@ -115,7 +116,12 @@ export function GlobalSearch() {
       ...(projects ?? []).map((project) => ({
         id: `project-${project.id}`,
         label: text(project.name) || "Untitled project",
-        detail: [text(project.eventType), text(project.eventDate)]
+        detail: [
+          text(project.eventType),
+          // Search results are read at a glance; a machine date is the one
+          // thing in this line the reader has to decode.
+          text(project.eventDate) ? formatDueDate(project.eventDate) : "",
+        ]
           .filter(Boolean)
           .join(" · "),
         href: `/studio/projects/${project.id}`,
@@ -133,7 +139,9 @@ export function GlobalSearch() {
       ...(tasks ?? []).map((task) => ({
         id: `task-${task.id}`,
         label: text(task.title) || text(task.name) || "Task",
-        detail: text(task.projectName) || text(task.dueDate),
+        detail:
+          text(task.projectName) ||
+          (text(task.dueDate) ? `Due ${formatDueDate(task.dueDate)}` : ""),
         href: task.projectId
           ? `/studio/projects/${String(task.projectId)}`
           : "/studio/tasks",

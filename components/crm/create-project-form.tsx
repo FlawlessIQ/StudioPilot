@@ -23,6 +23,13 @@ import {
   type ProjectIntakeResult,
 } from "@/lib/ai/project-intake-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
+import { AddressField } from "@/components/forms/address-field";
+import {
+  placeCity,
+  placeLabel,
+  unverifiedPlace,
+  type CapturedPlace,
+} from "@/features/places/schema";
 
 const schema = z
   .object({
@@ -137,6 +144,7 @@ export function CreateProjectForm() {
   const [filled, setFilled] = useState<Partial<Record<FillableField, boolean>>>(
     {},
   );
+  const [venue, setVenue] = useState<CapturedPlace | null>(null);
   const {
     register,
     handleSubmit,
@@ -195,6 +203,10 @@ export function CreateProjectForm() {
       set("eventType", found.eventType);
       set("venueName", found.venueName);
       set("city", found.city);
+      // The copilot read a venue out of the client's email, so show it in
+      // the address box — unverified, because a name pulled from prose is
+      // not a confirmed address. Choosing a suggestion upgrades it.
+      if (found.venueName) setVenue(unverifiedPlace(found.venueName));
       if (found.firstName || found.email || found.phone)
         setValue("clientMode", "new");
       set("newClientFirstName", found.firstName);
@@ -214,6 +226,25 @@ export function CreateProjectForm() {
     } finally {
       setReading(false);
     }
+  }
+
+  /**
+   * Keep the flat fields in step with the captured place.
+   *
+   * `venueName` and `city` are what the rest of the product reads — the
+   * Jobs table, the AI drafts, the PDF renderer. The structured place sits
+   * beside them rather than replacing them, so choosing an address
+   * improves every one of those without any of them changing.
+   */
+  function applyVenue(place: CapturedPlace | null) {
+    setVenue(place);
+    setValue("venueName", place ? placeLabel(place).slice(0, 160) : "", {
+      shouldValidate: true,
+    });
+    const city = placeCity(place);
+    // Only overwrite the city when the lookup actually knows one — a
+    // half-typed venue must not wipe a city the reader already entered.
+    if (city) setValue("city", city.slice(0, 120), { shouldValidate: true });
   }
 
   const submit = handleSubmit(async (values) => {
@@ -243,6 +274,7 @@ export function CreateProjectForm() {
         leadId: null,
         venueName: values.venueName || null,
         city: values.city || null,
+        venue,
       });
       setOutcome({
         persisted: command.persisted,
@@ -466,11 +498,27 @@ export function CreateProjectForm() {
         <fieldset className="intake-section">
           <legend>Where</legend>
           <div className="form-grid">
-            <label className={filled.venueName ? "is-filled" : ""}>
-              Venue
-              {filled.venueName ? <FilledTag /> : null}
-              <input {...fieldProps("venueName")} placeholder="Venue name, if known" />
-            </label>
+            {/* Venue was a free-text box, so the same estate arrived as
+                "The Ryland Inn", "Ryland Inn" and "ryland inn, whitehouse
+                station" across three jobs — three venues as far as the
+                product was concerned, and only as good as the typing on
+                the certificate of insurance that goes to them. Choosing
+                the place fills the city too, and keeps the postal address
+                and coordinates beside it. Typing an unlisted barn still
+                works; it is stored unverified rather than refused. */}
+            <div className="form-span">
+              <AddressField
+                hint={
+                  venue?.verified
+                    ? "Confirmed address — used for insurance certificates and directions."
+                    : "Start typing a venue or address, or enter your own."
+                }
+                label="Venue"
+                onChange={applyVenue}
+                placeholder="Venue name or address"
+                value={venue}
+              />
+            </div>
             <label className={filled.city ? "is-filled" : ""}>
               City
               {filled.city ? <FilledTag /> : null}
