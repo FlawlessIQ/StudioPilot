@@ -90,45 +90,67 @@ When adding a domain capability, expect to touch the deterministic core in `feat
 
 Deployment targets Firebase App Hosting (`apphosting.yaml`). The Next.js app is also packaged through a Cloudflare-compatible runtime (`vinext` / wrangler) via the `*:sites` scripts for preview. Heavier work (PDF rendering, document extraction, safe file processing, larger AI) is designed to run in `cloud-run/`, out of the functions path.
 
-## Working across clones (read before committing to `main`)
+## Working on `main` (read before pushing)
 
-This project is checked out in **more than one place** on this machine, and both
-checkouts push to the same remote. `main` has drifted three times
+Work lands directly on `main`. There are no customers yet, so the cost of a
+PR round-trip outweighs the review it buys — commit, push, roll out.
+
+That removes the one thing that used to keep the two checkouts in step, so
+the rest of this section matters more than it did, not less.
+
+This project is checked out in **more than one place** on this machine, and
+both checkouts push to the same remote. `main` has drifted three times
 (2026-07-30, 2026-08-06, 2026-08-18); each reconcile was manual and each one
 risked reverting the other clone's work.
 
 **Rules:**
 
-1. **Never commit directly to `main`.** Branch from `origin/main`, then open a PR:
+1. **`git fetch` before starting anything, and pull before you push.** This is
+   the whole defence now:
    ```bash
-   git fetch origin && git switch -c feat/<name> origin/main
+   git fetch origin && git rev-list --left-right --count origin/main...HEAD
    ```
-2. **`git fetch` before starting anything.** Confirm you are not behind:
+   A non-zero left number means origin has moved; pull before you commit, not
+   after.
+2. **When reconciling divergence, `origin/main` is always the base.** Replay
+   local work on top of it; never fast-forward `main` over upstream. If
+   upstream deleted a component you still want, keep it as its own importable
+   module rather than re-mounting it during the merge — that keeps lint green
+   without losing the work.
+3. **Verify before pushing, because nothing else will.** With no PR there is
+   no second look:
    ```bash
-   git rev-list --left-right --count origin/main...HEAD
+   npm run typecheck && npm test && npm run lint && npm run build
    ```
-3. **When reconciling divergence, `origin/main` is always the base.** Replay local
-   work on top of it; never fast-forward `main` over upstream. If upstream deleted
-   a component you still want, keep it as its own importable module rather than
-   re-mounting it during the merge — that keeps lint green without losing the work.
-4. **The `functions/` build is a separate gate.** Root `npm run typecheck` excludes
-   `functions/`, so a merge can typecheck cleanly and still not compile. Always run
-   `cd functions && npm run build` after touching anything under `functions/`.
-5. **Deploy order is functions first, then the app.** Pushing `main` triggers the
-   App Hosting rollout on its own, but Cloud Functions do not deploy with it. If a
-   push ships UI that calls a new function, deploy functions *first*:
+4. **The `functions/` build is a separate gate.** Root `npm run typecheck`
+   excludes `functions/`, so a change can typecheck cleanly and still not
+   compile. Always run `cd functions && npm run build` after touching anything
+   under `functions/`.
+5. **Deploy order is functions first, then the app.** Cloud Functions do not
+   deploy with the app. If a push ships UI that calls a changed function,
+   deploy functions *first*:
    ```bash
    cd functions && npm run build
    firebase deploy --only functions --project production
    ./scripts/configure-production-function-invokers.sh studiohub-prod us-east4
    ```
-   That last script is **not optional** — this org resets Cloud Run invoker IAM on
-   every function revision, and any new function must also be added to the script's
-   allowlist in the same change or it 403s with an HTML body (which surfaces
-   client-side as `Unexpected token '<'`). See `docs/deployment.md`.
+   That last script is **not optional** — this org resets Cloud Run invoker IAM
+   on every function revision, and any new function must also be added to the
+   script's allowlist in the same change or it 403s with an HTML body (which
+   surfaces client-side as `Unexpected token '<'`). See `docs/deployment.md`.
+6. **Create the App Hosting rollout explicitly and verify it.** Auto-rollout on
+   push is **unreliable** — observed both firing and silently not firing on
+   merges to `main` (2026-08-20 and 2026-08-21). Never assume a push deployed:
+   ```bash
+   firebase apphosting:rollouts:create studiohub --git-branch main --project production --force
+   ```
+   Then confirm the rollout reached `SUCCEEDED` *and* that its build's commit
+   message is the one you expect — a green rollout of the previous commit looks
+   identical to a green rollout of yours.
 
-A `pre-push` hook enforces rule 1 by refusing any push that would not
-fast-forward `main`. Enable it once per clone:
+The `pre-push` hook still applies and should stay enabled. It never blocked
+direct commits — it refuses a push to `main` that would **not** fast-forward,
+which is exactly the drift scenario above. Enable it once per clone:
 
 ```bash
 git config core.hooksPath .githooks
