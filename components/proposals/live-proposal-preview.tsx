@@ -7,6 +7,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { formatDueDate } from "@/lib/format/event-date";
 
 type Proposal = Record<string, unknown> & { id: string };
 function nested(value: Proposal, path: string) {
@@ -101,7 +102,7 @@ export function LiveProposalPreview({ id }: { id: string }) {
         <table><tbody><tr><td>{packageName}</td><td>{money(snapshot?.subtotalCents ?? total, currency)}</td></tr><tr><td>Discounts and tax</td><td>{money(Number(snapshot?.taxCents ?? 0) - Number(snapshot?.discountCents ?? 0), currency)}</td></tr><tr className="total"><td>Total</td><td>{money(total, currency)}</td></tr></tbody></table>
       </section>
       <section className="pdf-terms"><h2>Payment schedule</h2><div><span><small>Retainer</small><strong>{money(retainer, currency)}</strong></span><span><small>Remaining balance</small><strong>{money(Math.max(0, total - retainer), currency)}</strong></span></div><p>{String(proposal.termsSummary ?? "Final contractual terms are governed only by the completed signature-provider agreement.")}</p></section>
-      <footer><span>Generated {new Date().toLocaleDateString()}</span><span>{workspace.tenantName}</span><span>Preview</span></footer>
+      <footer><span>Generated {formatDueDate(new Date().toISOString())}</span><span>{workspace.tenantName}</span><span>Preview</span></footer>
       </main>
     </div>
   );
