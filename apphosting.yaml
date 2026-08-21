@@ -6,6 +6,26 @@ runConfig:
   memoryMiB: 512
 
 env:
+  # Address autocomplete for venue, COI and service-area fields.
+  #
+  # Commented out until the secret exists, because App Hosting fails the
+  # rollout when a referenced secret is missing — leaving this live would
+  # break every deploy rather than merely leaving the feature off. Every
+  # address field works without it and says so on screen.
+  #
+  # To enable, once, then uncomment these four lines and push:
+  #   gcloud services enable places-backend.googleapis.com --project studiohub-prod
+  #   printf '%s' 'YOUR_KEY' | gcloud secrets create googlePlacesApiKey \
+  #     --project studiohub-prod --data-file=-
+  #   firebase apphosting:secrets:grantaccess googlePlacesApiKey \
+  #     --backend studiohub --project production
+  #
+  # Restrict the key to "Places API (New)" in the Cloud console. It is
+  # server-only — never expose it as NEXT_PUBLIC_.
+  # - variable: GOOGLE_PLACES_API_KEY
+  #   secret: googlePlacesApiKey
+  #   availability:
+  #     - RUNTIME
   - variable: NEXT_PUBLIC_APP_URL
     value: https://studio-cue.com
     availability:

@@ -69,6 +69,8 @@ export function AddressField({
   const [busy, setBusy] = useState(false);
   const [active, setActive] = useState(-1);
   const [live, setLive] = useState<boolean | null>(null);
+  /** The query the last completed search was for. */
+  const [searched, setSearched] = useState("");
   const session = useRef<string>(newPlacesSession());
   const box = useRef<HTMLDivElement>(null);
   // Set while a suggestion is being applied, so the resulting text change
@@ -87,11 +89,27 @@ export function AddressField({
     setText(committed);
   }
 
+  /**
+   * `source` is a fresh object on every render, so depending on it directly
+   * would refetch on each keystroke. It is a two-case union, so the effect
+   * rebuilds it from the two primitives that can actually change the
+   * answer — which the dependency checker can verify, unlike a ref.
+   */
+  const sourceKind = source.kind;
+  const tenantSlug = "tenantSlug" in source ? source.tenantSlug : null;
+
   const query = text.trim();
   // Derived, not cleared in an effect: a query too short to search has no
   // suggestions by definition, and saying so with state means two renders
   // and a flash of the previous list.
   const visible = query.length >= 3 ? suggestions : [];
+
+  const status =
+    live === false
+      ? "Address lookup is not connected, so there is nothing to choose from. What you type is saved as you type it."
+      : query.length >= 3 && searched === query && !busy && visible.length === 0
+        ? "No match found. What you type is saved as you type it."
+        : null;
 
   useEffect(() => {
     if (applying.current) {
@@ -99,13 +117,21 @@ export function AddressField({
       return;
     }
     if (query.length < 3) return;
+    // Once the provider has told us it is not configured, stop asking. The
+    // answer will not change within this page load, and the notice below
+    // already says so.
+    if (live === false) return;
+    const target: PlacesSource =
+      sourceKind === "public" && tenantSlug
+        ? { kind: "public", tenantSlug }
+        : { kind: "studio" };
     const controller = new AbortController();
     // Long enough that a normal typing rhythm produces one request per
     // pause rather than one per letter.
     const timer = setTimeout(() => {
       setBusy(true);
       suggestPlaces(
-        { query, country, sessionToken: session.current, source },
+        { query, country, sessionToken: session.current, source: target },
         controller.signal,
       )
         .then((result) => {
@@ -113,6 +139,7 @@ export function AddressField({
           setLive(result.live);
           setOpen(result.value.length > 0);
           setActive(-1);
+          setSearched(query);
         })
         // Autocomplete is an enhancement. Losing it is not an error the
         // person filling in a venue needs to hear about.
@@ -125,7 +152,7 @@ export function AddressField({
     };
     // `source` is a fresh object each render for the studio case; keying on
     // its kind and slug keeps this from re-running every render.
-  }, [query, country, source.kind, "tenantSlug" in source ? source.tenantSlug : null]);
+  }, [query, country, live, sourceKind, tenantSlug]);
 
   useEffect(() => {
     if (!open) return;
@@ -253,15 +280,20 @@ export function AddressField({
               {suggestion.secondary ? <small>{suggestion.secondary}</small> : null}
             </li>
           ))}
-          {live === false ? (
-            <li className="address-suggestions-note" role="presentation">
-              Sample addresses — address lookup is not connected yet.
-            </li>
-          ) : null}
+
         </ul>
       ) : null}
 
-      {hint ? <small className="address-field-hint">{hint}</small> : null}
+      {/* A field that searches and says nothing is indistinguishable from a
+          broken one. The reported symptom was exactly this: typing a real
+          venue into an unconfigured deployment looked like the feature had
+          failed, because the only disclosure lived inside a suggestion
+          list that never appeared. */}
+      {status ? (
+        <small className="address-field-hint is-status">{status}</small>
+      ) : hint ? (
+        <small className="address-field-hint">{hint}</small>
+      ) : null}
     </div>
   );
 }

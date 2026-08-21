@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  addPlaceTag,
   capturedPlaceSchema,
   fromGooglePlace,
   placeCity,
@@ -139,4 +140,25 @@ test("the functions copy of the venue schema still matches this one", () => {
     expected.sort(),
     "features/places/schema.ts and functions/src/crm/commands.ts disagree",
   );
+});
+
+test("service areas dedupe case-insensitively and survive typed commas", () => {
+  // Replacing a comma-separated box only helps if the list cannot hold the
+  // same area twice under two spellings — that was the original problem.
+  let areas: string[] = [];
+  areas = addPlaceTag(areas, "Hudson Valley");
+  areas = addPlaceTag(areas, "hudson valley");
+  areas = addPlaceTag(areas, "  HUDSON   VALLEY  ");
+  assert.deepEqual(areas, ["Hudson Valley"]);
+
+  // Typing "The Catskills," commits on the comma, which must not survive.
+  areas = addPlaceTag(areas, "The Catskills,");
+  assert.deepEqual(areas, ["Hudson Valley", "The Catskills"]);
+
+  // Nothing is added for nothing.
+  assert.equal(addPlaceTag(areas, "   "), areas);
+  assert.equal(addPlaceTag(areas, ","), areas);
+
+  // Unchanged input returns the same array, so the caller can skip onChange.
+  assert.equal(addPlaceTag(areas, "hudson valley"), areas);
 });

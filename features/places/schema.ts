@@ -109,6 +109,25 @@ export function placeCity(place: CapturedPlace | null): string | null {
   return parts.length >= 3 ? (parts.at(-3) ?? null) : null;
 }
 
+/**
+ * Add one area to a list of them, or return the list unchanged.
+ *
+ * Pure because it carries the rules that matter and the component around it
+ * cannot be driven reliably from a test: whitespace collapses, a trailing
+ * comma from typing "Hudson Valley," is dropped, and a duplicate is
+ * rejected case-insensitively — which is the entire point of replacing a
+ * comma-separated text box, since "Hudson Valley" and "hudson valley" in
+ * one list is the problem, not two separate lists.
+ */
+export function addPlaceTag(values: string[], entry: string): string[] {
+  const cleaned = entry.trim().replace(/\s+/g, " ").replace(/,+$/, "").trim();
+  if (!cleaned) return values;
+  const exists = values.some(
+    (existing) => existing.toLowerCase() === cleaned.toLowerCase(),
+  );
+  return exists ? values : [...values, cleaned];
+}
+
 /** Google's address component types, in the order we care about them. */
 const COMPONENT_FIELDS: Array<[keyof CapturedPlace, string[]]> = [
   ["city", ["locality", "postal_town", "sublocality"]],
