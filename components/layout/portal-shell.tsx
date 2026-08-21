@@ -13,6 +13,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   CircleAlert,
   ClipboardList,
+  CircleDollarSign,
   FolderOpen,
   Home,
   LockKeyhole,
@@ -156,6 +157,10 @@ function ClientPortalShell({
         ]
       : []),
     { label: "Project records", icon: FolderOpen, href: "/client/documents" },
+    // Payments had no entry at all, so a couple with an outstanding balance
+    // could not reach the page that shows it — the studio chases them for
+    // money they have no way to see.
+    { label: "Payments", icon: CircleDollarSign, href: "/client/payments" },
     { label: "Messages", icon: MessageCircle, href: "/client/messages" },
   ];
   const contextualRoutes = new Set([

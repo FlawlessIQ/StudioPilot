@@ -199,6 +199,13 @@ function mockClientRecords(
   return records[collectionName] ?? [];
 }
 
+/** Unpaid and past its due date, from the client's point of view. */
+function invoiceOverdue(invoice: Record<string, unknown>): boolean {
+  if (number(invoice.balanceCents) <= 0) return false;
+  const due = text(invoice.dueDate).slice(0, 10);
+  return Boolean(due) && due < new Date().toISOString().slice(0, 10);
+}
+
 function useProject(): Loadable<ClientPortalProject | null> {
   const workspace = useWorkspace();
   const [state, setState] = useState<Loadable<ClientPortalProject | null>>({
@@ -1849,7 +1856,7 @@ export function LiveClientPayments() {
     <div className="client-booking-page">
       <p className="eyebrow">Payments</p>
       <h1>Your payment schedule</h1>
-      <p>QuickBooks Online is the accounting and payment system of record.</p>
+      <p>Every payment and its status, kept in one place.</p>
       <Link className="client-context-message-link" href="/client/messages?context=Payments">
         <MessageCircle /> Ask your studio a payment question
       </Link>
@@ -1858,17 +1865,36 @@ export function LiveClientPayments() {
         .map((invoice) => (
           <section className="panel client-payment-card" key={invoice.id}>
             <div>
+              {/* "retainer" and "final" are the system's words for these,
+                  not a couple's. And an overdue balance has to say so on the
+                  client's own page — the studio can see it, so hiding it here
+                  only makes the reminder email a surprise. */}
               <span>
-                <small>{text(invoice.kind)}</small>
+                <small>
+                  {text(invoice.kind) === "retainer"
+                    ? "Deposit"
+                    : text(invoice.kind) === "final"
+                      ? "Final balance"
+                      : text(invoice.kind).replace(/^\w/, (c) => c.toUpperCase())}
+                </small>
                 <strong>{money(invoice.amountCents, invoice.currency)}</strong>
               </span>
-              <StatusBadge tone={statusTone(invoice.status)}>
-                {text(invoice.status).replaceAll("_", " ")}
+              <StatusBadge
+                tone={
+                  invoiceOverdue(invoice)
+                    ? "danger"
+                    : statusTone(invoice.status)
+                }
+              >
+                {invoiceOverdue(invoice)
+                  ? "Overdue"
+                  : text(invoice.status).replaceAll("_", " ")}
               </StatusBadge>
             </div>
             <p>
-              Due {date(invoice.dueDate)} · Balance{" "}
-              {money(invoice.balanceCents, invoice.currency)}
+              {number(invoice.balanceCents) > 0
+                ? `${money(invoice.balanceCents, invoice.currency)} still to pay · due ${date(invoice.dueDate)}`
+                : `Paid in full · ${date(invoice.dueDate)}`}
             </p>
             {typeof invoice.hostedUrl === "string" && invoice.hostedUrl ? (
               <div className="client-provider-handoff">
