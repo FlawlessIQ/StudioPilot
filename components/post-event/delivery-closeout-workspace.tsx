@@ -196,7 +196,7 @@ export function DeliveryCloseoutWorkspace({
       <section className="panel closeout-assistant">
         <header className="panel-heading">
           <div>
-            <p className="eyebrow">Deterministic closeout</p>
+            <p className="eyebrow">Closing the job</p>
             <h2>Closeout assistant</h2>
             <p>
               Reconcile contract, QuickBooks balance, final schedule, delivery,

@@ -25,7 +25,7 @@ export default async function ProjectsPage({
             <form className="crm-search-form" method="get"><input name="view" type="hidden" value={view} /><Filter size={15} /><select aria-label="Project type" defaultValue={type} name="type"><option value="all">All project types</option><option value="wedding">Wedding</option><option value="corporate">Corporate</option><option value="sports">Sports</option></select><button type="submit">Apply</button></form>
           </div>
           <div className="crm-table crm-projects-table">
-            <div className="crm-table-head"><span>Project</span><span>Date & venue</span><span>State</span><span>Readiness</span><span>Next action</span><span /></div>
+            <div className="crm-table-head"><span>Project</span><span>Date & venue</span><span>State</span><span>Value</span><span>Next action</span><span /></div>
             <LiveProjectRows type={type} view={view}/>
           </div>
         </section>

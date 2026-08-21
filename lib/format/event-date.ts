@@ -50,6 +50,19 @@ export function formatEventDate(value: unknown, now: Date = new Date()): string 
     : monthDayYear.format(date);
 }
 
+/**
+ * "Sep 3, 2026" — always with the year, never relative to today.
+ *
+ * Due dates and expiries routinely sit on the far side of a year boundary,
+ * and they are read as commitments rather than as "soon". Unlike
+ * formatEventDate this never varies with the current year, which also keeps
+ * the deterministic engines that emit these strings deterministic.
+ */
+export function formatDueDate(value: unknown): string {
+  const date = parseEventDate(value);
+  return date ? monthDayYear.format(date) : "Date to confirm";
+}
+
 /** "Saturday, August 15" — for day detail panels and agendas. */
 export function formatEventDateLong(value: unknown): string {
   const date = parseEventDate(value);

@@ -40,6 +40,8 @@ import { getStudioRecords } from "@/lib/studio/records-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { stateTone } from "@/lib/status-tone";
 import { projectStateLabel } from "@/features/projects/state-label";
+import { compareJobsForList } from "@/features/projects/job-order";
+import { formatCents } from "@/lib/format/money";
 import { useTodayInbox } from "@/components/today/use-today-inbox";
 import { ReadinessMeter } from "@/components/ui/readiness-meter";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -611,17 +613,6 @@ function LiveRecordsState({
   );
 }
 
-/**
- * Readiness answers "can this event actually be executed", which is only a
- * live question once the job is booked and before the day itself.
- */
-const READINESS_STATES = new Set([
-  "BOOKED",
-  "PLANNING",
-  "READY",
-]);
-const readinessApplies = (state: string) => READINESS_STATES.has(state);
-
 export function LiveProjectRows({
   type,
   view,
@@ -637,6 +628,33 @@ export function LiveProjectRows({
   const journeyById = new Map(
     journeys.map((position) => [position.projectId, position]),
   );
+  // What a job is worth and what is still owed — the two questions this
+  // table exists to answer and could not. Both collections are already in
+  // the shared document cache, so reading them here costs nothing.
+  const snapshots = useTenantDocuments("packageSnapshots");
+  const invoices = useTenantDocuments("invoiceReferences");
+  const snapshotTotals = new Map(
+    (snapshots.records ?? []).map((row) => [
+      row.id,
+      Number(row.totalCents ?? 0),
+    ]),
+  );
+  const today = new Date().toISOString().slice(0, 10);
+  const owed = new Map<string, { cents: number; overdue: boolean }>();
+  for (const invoice of invoices.records ?? []) {
+    const balance = Number(invoice.balanceCents ?? 0);
+    if (balance <= 0) continue;
+    if (["voided", "refunded", "paid"].includes(String(invoice.status)))
+      continue;
+    const projectId = String(invoice.projectId ?? "");
+    if (!projectId) continue;
+    const due = String(invoice.dueDate ?? "").slice(0, 10);
+    const prior = owed.get(projectId) ?? { cents: 0, overdue: false };
+    owed.set(projectId, {
+      cents: prior.cents + balance,
+      overdue: prior.overdue || (Boolean(due) && due < today),
+    });
+  }
   const values = records
     ? records
         .filter((item) =>
@@ -648,8 +666,11 @@ export function LiveProjectRows({
           (item) =>
             type === "all" || String(item.eventType).toLowerCase() === type,
         )
+        // Nearest wedding first — never document order. See job-order.ts.
+        .sort((left, right) => compareJobsForList(left, right))
         .map((item) => {
           const position = journeyById.get(item.id);
+          const balance = owed.get(item.id) ?? null;
           return {
             id: item.id,
             name: String(item.name),
@@ -660,6 +681,10 @@ export function LiveProjectRows({
             venue: String(item.venueName ?? item.city ?? "Location pending"),
             state: String(item.state),
             readiness: Number(item.readinessScore ?? 0),
+            valueCents:
+              snapshotTotals.get(String(item.packageSnapshotId ?? "")) ?? null,
+            owedCents: balance?.cents ?? null,
+            owedOverdue: balance?.overdue ?? false,
             // The real outstanding step, not a generic instruction repeated
             // down the column — including on jobs that are already finished.
             nextAction:
@@ -725,19 +750,26 @@ export function LiveProjectRows({
               {projectStateLabel(project.state)}
             </StatusBadge>
           </span>
-          {/* Readiness only means something between booking and the event.
-              A delivered wedding scored "0 · Not ready" is alarming
-              nonsense, and so is scoring a job that has no checkpoints yet. */}
-          <span className="readiness-cell">
-            {readinessApplies(project.state) ? (
-              <>
-                <ReadinessMeter value={project.readiness} size="sm" />
-                <small>
-                  {project.readiness === 100 ? "Ready" : "Not ready"}
-                </small>
-              </>
+          {/* What the job is worth, and what is still owed on it — the two
+              questions a photographer scans this list for. Readiness moved
+              to the job itself, where it has the checkpoints to explain it. */}
+          <span className="value-cell">
+            <strong>
+              {"valueCents" in project && project.valueCents
+                ? formatCents(project.valueCents)
+                : "—"}
+            </strong>
+            {"owedCents" in project && project.owedCents ? (
+              <small className={project.owedOverdue ? "is-overdue" : undefined}>
+                {formatCents(project.owedCents)}{" "}
+                {project.owedOverdue ? "overdue" : "outstanding"}
+              </small>
+            ) : "valueCents" in project && project.valueCents ? (
+              <small>paid up</small>
             ) : (
-              <small>—</small>
+              // No package locked yet, so there is nothing to owe. "Paid up"
+              // on a job that was never invoiced is a small lie.
+              <small>not booked yet</small>
             )}
           </span>
           <span>

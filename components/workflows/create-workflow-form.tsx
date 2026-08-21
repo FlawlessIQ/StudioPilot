@@ -61,7 +61,7 @@ const automationChoices = [
   {
     key: "complete-contract-checkpoint",
     name: "Complete the contract checkpoint",
-    detail: "Use the connected signing provider's completion event as deterministic evidence.",
+    detail: "Wait for the signing provider to confirm completion — never a guess.",
     trigger: "contract_completed",
     actions: [
       {

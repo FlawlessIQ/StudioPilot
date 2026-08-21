@@ -201,8 +201,15 @@ export function TodayInbox() {
                       {BAND_LABEL[band]}
                       <em>{items.length}</em>
                     </p>
-                    {items.map((item) => (
-                      <TodayCard item={item} key={item.id} tone="act" />
+                    {/* The same reassurance under seven consecutive cards
+                        stops being reassurance. Say it once per band. */}
+                    {items.map((item, index) => (
+                      <TodayCard
+                        item={item}
+                        key={item.id}
+                        showEvidence={index === 0}
+                        tone="act"
+                      />
                     ))}
                   </div>
                 );
@@ -306,10 +313,13 @@ function TodayCard({
   item,
   tone,
   onCleared,
+  showEvidence = true,
 }: {
   item: TodayItem;
   tone: "act" | "approve" | "fyi";
   onCleared?: () => void;
+  /** False on all but the first card of a band — see the call site. */
+  showEvidence?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -365,7 +375,7 @@ function TodayCard({
             <p>{preview.body}</p>
           </div>
         ) : null}
-        {item.evidence ? (
+        {item.evidence && showEvidence ? (
           <span className="today-card-evidence">
             {tone === "approve" ? (
               <Sparkles size={11} />

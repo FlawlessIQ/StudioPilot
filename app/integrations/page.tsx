@@ -12,7 +12,7 @@ export default function IntegrationsPage() {
         { title: "Google Calendar & Zoom", text: "Consultation and production scheduling.", points: ["Availability checks", "Duplicate-safe events", "No automatic recording"] },
         { title: "Dropbox", text: "Project folder and approved-document operations.", points: ["Configurable root", "Canonical file IDs", "Booking and COI uploads"] },
         { title: "SendGrid & Twilio", text: "Auditable tenant-branded communications.", points: ["Transactional delivery", "Inbound COI routing", "Consent-aware SMS architecture"] },
-        { title: "Vertex AI", text: "Structured assistance with deterministic boundaries.", points: ["Extraction and comparison", "Schedule drafting", "Risk explanation"] },
+        { title: "Vertex AI", text: "Real help drafting, with hard limits on what it may decide.", points: ["Extraction and comparison", "Schedule drafting", "Risk explanation"] },
       ]} />
     </MarketingLayout>
   );

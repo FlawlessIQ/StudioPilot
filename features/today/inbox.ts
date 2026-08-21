@@ -22,6 +22,8 @@ import {
   stalenessWeight,
 } from "@/features/dashboard/urgency";
 import type { SetupGap } from "@/features/today/setup-gaps";
+import { formatDueDate } from "@/lib/format/event-date";
+import { providerName as readable } from "@/lib/format/provider-name";
 
 export type TodayLane = "act" | "approve" | "fyi";
 
@@ -138,23 +140,6 @@ const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
 const rows = (records?: TodayRecord[] | null) => records ?? [];
 
-const BRANDS: Record<string, string> = {
-  quickbooks: "QuickBooks",
-  docusign: "DocuSign",
-  dropbox_sign: "Dropbox Sign",
-  google_calendar: "Google Calendar",
-  sendgrid: "SendGrid",
-  zoom: "Zoom",
-  dropbox: "Dropbox",
-  stripe: "Stripe",
-};
-
-/** Brand names keep their own capitalisation; everything else title-cases. */
-const readable = (value: unknown) =>
-  BRANDS[text(value).toLowerCase()] ??
-  text(value)
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 /**
  * When an inquiry actually landed.
@@ -451,7 +436,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
       title: text(task.title) || "Overdue task",
       detail: nameFor(task.projectId) ?? "Studio task",
       dueDate: due,
-      extraFacts: [`was due ${due}`],
+      extraFacts: [`was due ${formatDueDate(due)}`],
       href: task.projectId
         ? `/studio/projects/${text(task.projectId)}`
         : "/studio/tasks",
@@ -476,10 +461,13 @@ export function todayInbox(input: TodayInput): TodayInbox {
       continue;
     exception({
       id: `invoice-${invoice.id}`,
-      title: "Balance overdue",
+      // The amount leads. Four cards titled "Balance overdue" above four
+      // identical buttons made the only thing that differed — how much, and
+      // whose — the smallest text on the card.
+      title: `${currency(balance)} overdue`,
       detail: nameFor(invoice.projectId) ?? "Client balance",
       dueDate: due,
-      extraFacts: [currency(balance), `due ${due}`],
+      extraFacts: [`due ${formatDueDate(due)}`],
       href: "/studio/invoices",
       projectId: text(invoice.projectId) || null,
       projectName: nameFor(invoice.projectId),

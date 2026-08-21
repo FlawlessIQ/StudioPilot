@@ -12,11 +12,11 @@ export default async function StudioCrewPage({ searchParams }: { searchParams: P
       <div className="live-domain-page">
         <header className="page-heading">
           <div>
-            <p className="eyebrow">People & assignments</p>
-            <h1>Crew operations</h1>
+            <p className="eyebrow">Your people</p>
+            <h1>Crew</h1>
             <p>
-              Manage your collaborators, project invitations, requirements,
-              and schedule acknowledgements.
+              Who you work with, what they have agreed to, and what they still
+              owe you before a wedding.
             </p>
           </div>
           <Link className="button button-dark" href="/studio/crew/new">

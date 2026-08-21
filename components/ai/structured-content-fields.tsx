@@ -263,25 +263,58 @@ export function StructuredContentFields({
   );
 }
 
+/** Long-form text is the draft itself, and reads as prose, not as a field. */
+const proseKeys = new Set(["body", "summary", "message", "notes"]);
+
+const isEmpty = (item: unknown) =>
+  item === null ||
+  item === undefined ||
+  (typeof item === "string" && !item.trim()) ||
+  (Array.isArray(item) && item.length === 0);
+
+/**
+ * A read-only look at prepared work.
+ *
+ * This is what a photographer sees before approving, so it shows the draft
+ * rather than the shape of the record holding it: the written body reads as
+ * prose, and a field the model left blank is omitted instead of announcing
+ * itself as "Subject · Not set".
+ */
 export function StructuredContentPreview({ value }: { value: StructuredValue }) {
+  const entries = Object.entries(value).filter(
+    ([key, item]) => !hiddenByDefault.has(key) && !isEmpty(item),
+  );
+  const prose = entries.filter(([key]) => proseKeys.has(key));
+  const facts = entries.filter(([key]) => !proseKeys.has(key));
+
   return (
-    <dl className="structured-preview">
-      {Object.entries(value)
-        .filter(([key]) => !hiddenByDefault.has(key))
-        .map(([key, item]) => (
-          <div key={key}>
-            <dt>{labelFor(key)}</dt>
-            <dd>
-              {Array.isArray(item)
-                ? `${item.length} ${item.length === 1 ? "item" : "items"}`
-                : isRecord(item)
-                  ? Object.entries(item)
-                      .map(([nestedKey, nested]) => `${labelFor(nestedKey)}: ${String(nested)}`)
-                      .join(" · ")
-                  : String(item ?? "Not set")}
-            </dd>
-          </div>
-        ))}
-    </dl>
+    <div className="structured-preview-body">
+      {prose.map(([key, item]) => (
+        <p className="structured-preview-prose" key={key}>
+          {String(item)}
+        </p>
+      ))}
+      {facts.length ? (
+        <dl className="structured-preview">
+          {facts.map(([key, item]) => (
+            <div key={key}>
+              <dt>{labelFor(key)}</dt>
+              <dd>
+                {Array.isArray(item)
+                  ? `${item.length} ${item.length === 1 ? "item" : "items"}`
+                  : isRecord(item)
+                    ? Object.entries(item)
+                        .map(
+                          ([nestedKey, nested]) =>
+                            `${labelFor(nestedKey)}: ${String(nested)}`,
+                        )
+                        .join(" · ")
+                    : String(item)}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+    </div>
   );
 }

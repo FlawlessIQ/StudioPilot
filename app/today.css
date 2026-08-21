@@ -319,7 +319,9 @@
   font-style: normal;
   font-size: 12px;
   font-weight: 600;
-  color: var(--muted, #8a938d);
+  /* Small text carries the client name and the money; it has to pass AA,
+     which neither #8a938d (3.2:1) nor the shared --muted (4.25:1) did. */
+  color: var(--card-small, #5f6a63);
 }
 
 .today-card-body > p {
@@ -345,7 +347,7 @@
   padding: 3px 9px;
   border-radius: 99px;
   background: #f1f4f0;
-  color: var(--muted, #55605a);
+  color: var(--card-small, #5f6a63);
   font-size: 11.5px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -377,7 +379,7 @@
   gap: 5px;
   align-items: center;
   margin-top: 3px;
-  color: var(--muted, #8a938d);
+  color: var(--card-small, #5f6a63);
   font-size: 11.5px;
 }
 

@@ -1163,7 +1163,7 @@ export function LiveCrewRequirements() {
         <div>
           <p className="eyebrow">Assignment evidence</p>
           <h1>Requirements</h1>
-          <p>These deterministic gates control assignment readiness.</p>
+          <p>Every one of these must be in place before the assignment is confirmed.</p>
         </div>
       </header>
       <div className="crew-requirements-summary">

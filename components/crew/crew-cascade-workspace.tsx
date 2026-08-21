@@ -419,9 +419,9 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
             />
           </label>
           <p className="form-notice form-span">
-            Times come from the current schedule, rate from the crew profile,
-            and responsibilities from scheduled coverage. Review the suggested
-            order, then approve the cascade.
+            Times come from the current schedule, the rate from the crew
+            profile, and the responsibilities from the coverage you planned.
+            Check the order below, then send the first offer.
           </p>
         </div>
         <div className="crew-recommendation-heading">
@@ -429,8 +429,8 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
             <UserRoundSearch />
             <strong>Recommended order</strong>
             <small>
-              {included.length} eligible ·{" "}
-              {recommendations.filter((candidate) => !candidate.eligible).length} excluded by hard gates
+              {included.length} available ·{" "}
+              {recommendations.filter((candidate) => !candidate.eligible).length} ruled out
             </small>
           </span>
           <StatusBadge tone={included.length ? "success" : "warning"}>
@@ -531,11 +531,12 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
         <div className="crew-cascade-boundary">
           <Clock3 />
           <span>
-            <strong>Sequential release</strong>
+            <strong>One offer at a time</strong>
             <small>
-              One person sees each role offer at a time. Acceptance stops that
-              role&apos;s cascade; a decline or expiry advances it. Candidates are
-              never placed into two active role plans.
+              Each person sees the offer alone. If they accept, the role is
+              filled and nobody else is asked. If they decline or run out of
+              time, it moves to the next person. Nobody is ever offered two
+              roles at once.
             </small>
           </span>
           <button

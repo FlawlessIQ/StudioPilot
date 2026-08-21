@@ -81,7 +81,7 @@ test("artifact entries carry live facts so the card can be operated", () => {
   assert.deepEqual(card?.artifact?.facts, [
     "$6,500",
     "Accepted",
-    "expires 2026-09-03",
+    "expires Sep 3, 2026",
   ]);
   assert.equal(card?.artifact?.href, "/studio/proposals/p-1");
 });
@@ -164,5 +164,55 @@ test("entries group into day buckets in order", () => {
   assert.deepEqual(
     days.map((bucket) => bucket.day),
     ["2026-08-12", "2026-08-14"],
+  );
+});
+
+test("no thread entry ever shows a raw ISO date", () => {
+  const entries = projectThread({
+    projectId: "p-1",
+    projectName: "Okafor Wedding",
+    createdAt: "2025-11-16T10:00:00.000Z",
+    consultations: [
+      {
+        id: "c-1",
+        mode: "zoom",
+        status: "completed",
+        startsAt: "2025-12-06T15:00:00.000Z",
+        createdAt: "2025-11-26T10:00:00.000Z",
+      },
+    ],
+    proposals: [
+      {
+        id: "p-1",
+        version: 1,
+        packageName: "The Signature Collection",
+        totalCents: 650000,
+        status: "accepted",
+        expiresAt: "2026-01-05",
+        viewedAt: "2025-12-17T09:00:00.000Z",
+        sentAt: "2025-12-16T09:00:00.000Z",
+        createdAt: "2025-12-14T09:00:00.000Z",
+      },
+    ],
+    invoices: [
+      {
+        id: "i-1",
+        kind: "retainer",
+        amountCents: 195000,
+        status: "paid",
+        dueDate: "2025-12-31",
+        createdAt: "2025-12-28T09:00:00.000Z",
+      },
+    ],
+  });
+  const shown = entries.flatMap((entry) => [
+    entry.title,
+    entry.detail ?? "",
+    ...(entry.artifact?.facts ?? []),
+  ]);
+  assert.deepEqual(
+    shown.filter((value) => /\d{4}-\d{2}-\d{2}/.test(value)),
+    [],
+    shown.join(" | "),
   );
 });
