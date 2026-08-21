@@ -18,8 +18,7 @@ import { todayInbox, type TodayJourneyPosition } from "@/features/today/inbox";
 
 const TODAY = "2026-08-21";
 
-const journeyFor = (state: string) =>
-  projectJourney({
+const journeyInput = (state: string) => ({
     projectId: "job-1",
     state,
     eventDate: "2026-09-12",
@@ -37,8 +36,10 @@ const journeyFor = (state: string) =>
     coiStatus: null,
     dayBeforeDraftStatus: null,
     hasDelivery: false,
-    albumOrReviewDone: false,
-  });
+  albumOrReviewDone: false,
+});
+
+const journeyFor = (state: string) => projectJourney(journeyInput(state));
 
 /** Exactly what components/today/use-today-inbox.ts builds. */
 const positionFrom = (
@@ -95,4 +96,38 @@ test("the current step is the only instruction the engine offers", () => {
   // Exactly one step is current — the invariant every surface leans on.
   assert.equal(steps.filter((step) => step.status === "current").length, 1);
   assert.equal(current?.status, "current");
+});
+
+test("an overdue balance is the studio's move, not the client's", () => {
+  // The walkthrough that found this: a wedding four days out with $6,265
+  // outstanding. Today ranked that balance the single most urgent thing in
+  // the studio, while the Jobs row said "In motion" and the job page said
+  // "Nothing for you right now. This job is waiting on someone else."
+  // Everything before the balance is settled, so the balance decides.
+  const settled = {
+    ...journeyInput("READY"),
+    crewAccepted: 1,
+    coiStatus: "venue_acknowledged",
+    finalInvoiceStatus: "sent",
+  };
+
+  const waiting = projectJourney({ ...settled, finalInvoiceOverdue: false });
+  assert.notEqual(
+    waiting.current?.key,
+    "final_balance",
+    "merely sent: the balance is with the client, not a studio step",
+  );
+
+  const overdue = projectJourney({ ...settled, finalInvoiceOverdue: true });
+  assert.equal(overdue.current?.key, "final_balance");
+  assert.equal(overdue.current?.owner, "studio");
+  assert.equal(
+    overdue.current?.action?.kind === "link" && overdue.current.action.label,
+    "Chase payment",
+  );
+
+  // And so every surface derived from it now says the same thing.
+  const position = positionFrom(overdue.current, "READY");
+  assert.equal(position.owner, "studio");
+  assert.equal(position.actionLabel, "Chase payment");
 });

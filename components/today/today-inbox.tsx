@@ -97,6 +97,14 @@ export function TodayInbox() {
   const leadLabel =
     lead?.action.kind === "link" ? lead.action.label : "Open it";
 
+  // The hero *is* the first item of the queue, shown larger. Listing it
+  // again immediately beneath — same title, same button — reads as a bug.
+  // The summary line still counts it, so nothing goes missing.
+  const laneAct = lead ? act.filter((item) => item.id !== lead.id) : act;
+  const laneApprove = lead
+    ? approve.filter((item) => item.id !== lead.id)
+    : approve;
+
   const bands: TodayBand[] = ["overdue", "soon", "later"];
   const clear = (id: string) =>
     setCleared((current) => new Set(current).add(id));
@@ -191,13 +199,13 @@ export function TodayInbox() {
             </section>
           ) : null}
 
-          {approve.length ? (
+          {laneApprove.length ? (
             <section className="today-lane" aria-label="Ready for your approval">
               <div className="today-lane-heading">
                 <h2>Prepared for you</h2>
-                <span>{approve.length} · one tap each</span>
+                <span>{laneApprove.length} · one tap each</span>
               </div>
-              {approve.map((item) => (
+              {laneApprove.map((item) => (
                 <TodayCard
                   item={item}
                   key={item.id}
@@ -208,14 +216,14 @@ export function TodayInbox() {
             </section>
           ) : null}
 
-          {act.length ? (
+          {laneAct.length ? (
             <section className="today-lane" aria-label="Needs you">
               <div className="today-lane-heading">
-                <h2>Only you can do this</h2>
-                <span>{act.length}</span>
+                <h2>{lead?.lane === "act" ? "Then these" : "Only you can do this"}</h2>
+                <span>{laneAct.length}</span>
               </div>
               {bands.map((band) => {
-                const items = act.filter((item) => item.band === band);
+                const items = laneAct.filter((item) => item.band === band);
                 if (!items.length) return null;
                 return (
                   <div className="today-band" id={`band-${band}`} key={band}>
@@ -264,7 +272,7 @@ export function TodayInbox() {
         <TodayRail
           bands={bands.map((band) => ({
             band,
-            count: act.filter((item) => item.band === band).length,
+            count: laneAct.filter((item) => item.band === band).length,
           }))}
           inMotion={inbox.inMotion}
           loading={loading}

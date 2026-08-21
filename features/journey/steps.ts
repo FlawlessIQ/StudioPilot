@@ -82,6 +82,13 @@ export type JourneyInput = {
   contractStatus: string | null;
   retainerInvoiceStatus: string | null;
   finalInvoiceStatus: string | null;
+  /**
+   * True when the final balance is past its due date. Status alone cannot
+   * say this, and it changes whose job the step is: an invoice merely sent
+   * is with the client, but one that has gone past its date is the studio's
+   * to chase.
+   */
+  finalInvoiceOverdue?: boolean;
   questionnaireStatus: string | null;
   scheduleStatus: string | null;
   crewAccepted: number;
@@ -117,6 +124,23 @@ const daysUntil = (eventDate: string | null, today: string): number | null => {
   if (!Number.isFinite(event) || !Number.isFinite(now)) return null;
   return Math.round((event - now) / 86_400_000);
 };
+
+/**
+ * An unpaid invoice past its due date. Shared so every caller of
+ * projectJourney decides this the same way — the surfaces disagreeing about
+ * one job was the whole reason the step gained this input.
+ */
+export function invoiceIsOverdue(
+  invoice: Record<string, unknown> | null | undefined,
+  today: string,
+): boolean {
+  if (!invoice) return false;
+  const status = typeof invoice.status === "string" ? invoice.status : "";
+  if (["paid", "voided", "refunded"].includes(status)) return false;
+  if (Number(invoice.balanceCents ?? 0) <= 0 && status !== "sent") return false;
+  const due = typeof invoice.dueDate === "string" ? invoice.dueDate.slice(0, 10) : "";
+  return Boolean(due) && due < today;
+}
 
 export function projectJourney(input: JourneyInput): {
   steps: JourneyStep[];
@@ -394,27 +418,41 @@ export function projectJourney(input: JourneyInput): {
     input.finalInvoiceStatus ?? "",
   );
   const finalDue = days !== null && days <= 45 && days >= 0;
+  // An invoice that has gone past its date stops being the client's move and
+  // becomes the studio's: somebody has to chase it. Without this the job
+  // page said "nothing for you right now" on a wedding four days out with
+  // $6,265 outstanding, while Today ranked that same balance as the single
+  // most urgent thing in the studio.
+  const finalOverdue = Boolean(input.finalInvoiceOverdue) && !finalDone;
   push({
     key: "final_balance",
     title: "Final balance",
     detail: finalDone
       ? "Paid in full"
-      : finalWaiting
-        ? "Invoice with the client"
-        : "Total − retainer, computed exactly · one month out",
+      : finalOverdue
+        ? "Past its due date — worth a nudge"
+        : finalWaiting
+          ? "Invoice with the client"
+          : "Total − retainer, computed exactly · one month out",
     status: finalDone
       ? "complete"
-      : finalWaiting
-        ? "waiting_client"
-        : finalDue
-          ? "current"
-          : "upcoming",
+      : finalOverdue
+        ? "current"
+        : finalWaiting
+          ? "waiting_client"
+          : finalDue
+            ? "current"
+            : "upcoming",
     action:
-      finalDone || (!finalWaiting && !finalDue)
+      finalDone || (!finalWaiting && !finalDue && !finalOverdue)
         ? null
         : {
             kind: "link",
-            label: finalWaiting ? "Check payment status" : "Send final invoice",
+            label: finalOverdue
+              ? "Chase payment"
+              : finalWaiting
+                ? "Check payment status"
+                : "Send final invoice",
             href: project("/studio/invoices"),
           },
   });
