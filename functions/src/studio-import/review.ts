@@ -672,39 +672,85 @@ export async function activateStudioImport(input: {
         ? (session.get("activatedAssetVersionIds") as unknown[]).map(String)
         : [],
     );
-    const activatedPackages = versions.filter(
+    // Repair every asset type, not only packages. A session activated before
+    // native materialisation shipped holds active asset versions and no
+    // usable records at all — its contract never became an agreement
+    // template and its questionnaire never became a form, so repairing only
+    // the packages left the studio with two thirds of an import.
+    const activatedVersions = versions.filter(
       (version) =>
-        version.get("assetType") === "package" &&
         version.get("status") === "active" &&
         (activatedIds.size === 0 || activatedIds.has(version.id)),
     );
-    if (activatedPackages.length) {
+    const activatedPackages = activatedVersions.filter(
+      (version) => version.get("assetType") === "package",
+    );
+    if (activatedVersions.length) {
       const now = new Date().toISOString();
       const batch = db.batch();
-      activatedPackages.forEach((version, index) => {
+      activatedVersions.forEach((version, index) => {
         const assetId = string(version.get("assetId"));
-        const packageId = `imported_package_${assetId}`;
-        batch.set(
-          db.doc(`packages/${packageId}`),
-          {
-            id: packageId,
-            tenantId: input.tenantId,
-            ...importedStudioPackage({
-              name: string(version.get("name")) || "Imported package",
-              structuredContent: version.get("structuredContent"),
-              displayOrder: index,
-            }),
-            version: Number(version.get("version") ?? 1),
-            sourceStudioAssetId: assetId,
-            sourceStudioAssetVersionId: version.id,
-            createdAt: string(version.get("createdAt")) || now,
-            updatedAt: now,
-            createdBy: string(version.get("createdBy")) || input.actorId,
-            updatedBy: input.actorId,
-            archivedAt: null,
-          },
-          { merge: true },
-        );
+        const assetType = string(version.get("assetType"));
+        const shared = {
+          tenantId: input.tenantId,
+          version: Number(version.get("version") ?? 1),
+          sourceStudioAssetId: assetId,
+          sourceStudioAssetVersionId: version.id,
+          createdAt: string(version.get("createdAt")) || now,
+          updatedAt: now,
+          createdBy: string(version.get("createdBy")) || input.actorId,
+          updatedBy: input.actorId,
+          archivedAt: null,
+        };
+        if (assetType === "package") {
+          const packageId = `imported_package_${assetId}`;
+          batch.set(
+            db.doc(`packages/${packageId}`),
+            {
+              id: packageId,
+              ...shared,
+              ...importedStudioPackage({
+                name: string(version.get("name")) || "Imported package",
+                structuredContent: version.get("structuredContent"),
+                displayOrder: index,
+              }),
+            },
+            { merge: true },
+          );
+        }
+        if (assetType === "contract") {
+          const templateId = `imported_agreement_${assetId}`;
+          batch.set(
+            db.doc(`agreementTemplates/${templateId}`),
+            {
+              id: templateId,
+              ...shared,
+              name: string(version.get("name")) || "Imported agreement",
+              status: "active",
+              body: version.get("structuredContent") ?? null,
+            },
+            { merge: true },
+          );
+        }
+        if (assetType === "questionnaire") {
+          const templateId = `imported_questionnaire_${assetId}`;
+          batch.set(
+            db.doc(`questionnaireTemplates/${templateId}`),
+            {
+              id: templateId,
+              ...shared,
+              name: version.get("name"),
+              eventTypeId: "wedding",
+              status: "active",
+              sections: importedQuestionnaireSections(
+                version.get("structuredContent"),
+              ),
+              dueDaysBeforeEvent: 60,
+              reminderDaysBeforeDue: [7, 3, 1],
+            },
+            { merge: true },
+          );
+        }
       });
       await batch.commit();
     }
@@ -713,6 +759,7 @@ export async function activateStudioImport(input: {
       status: "activated",
       activatedAssetVersionIds: [...activatedIds],
       repairedNativePackageCount: activatedPackages.length,
+      repairedNativeRecordCount: activatedVersions.length,
     };
   }
   const approved = versions.filter(

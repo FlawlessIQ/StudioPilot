@@ -636,7 +636,7 @@ export function StudioImportReviewWorkspace({
               : duplicateActivationBlocked
                 ? `${blockingDuplicateSources
                     .map((source) => source.name)
-                    .join(", ")} was already imported and activated. Reject or ignore ${blockingDuplicateSources.length === 1 ? "its drafts" : "their drafts"} to activate the rest of this import.`
+                    .join(", ")} was already imported and activated in an earlier session. Open that session to check its content reached your library, or reject these drafts to activate the rest of this import.`
               : pending > 0
                 ? `Review ${pending} remaining draft${pending === 1 ? "" : "s"}. Approve, reject, or ignore each one to unlock activation.`
                 : approved === 0
@@ -655,6 +655,28 @@ export function StudioImportReviewWorkspace({
         >
           <Play /> Simulate a wedding
         </button>
+        {/* The block used to be a dead end: the earlier session that owns
+            this content was named nowhere and reachable from nothing. */}
+        {duplicateActivationBlocked
+          ? blockingDuplicateSources
+              .map((source) => source.duplicate?.sessionId)
+              .filter(
+                (sessionId): sessionId is string =>
+                  typeof sessionId === "string" &&
+                  sessionId.length > 0 &&
+                  sessionId !== review.session.id,
+              )
+              .slice(0, 1)
+              .map((sessionId) => (
+                <a
+                  className="studio-import-open-prior"
+                  href={`/studio/import?session=${encodeURIComponent(sessionId)}`}
+                  key={sessionId}
+                >
+                  Open the earlier import
+                </a>
+              ))
+          : null}
         <button
           className="is-activate"
           disabled={

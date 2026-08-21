@@ -11139,3 +11139,22 @@ textarea:focus-visible {
 .crew-cascade-restart > summary:hover {
   color: var(--ink, #1d2420);
 }
+
+/* Import · the way back to the session that already owns this content. */
+.studio-import-open-prior {
+  align-items: center;
+  border: 1px solid var(--border, #e3e1d8);
+  border-radius: 99px;
+  color: var(--ink, #1d2420);
+  display: inline-flex;
+  font: 650 12.5px/1 inherit;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 16px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.studio-import-open-prior:hover {
+  border-color: #9dbfa6;
+}
