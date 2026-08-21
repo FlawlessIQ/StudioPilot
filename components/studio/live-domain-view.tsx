@@ -25,6 +25,7 @@ import {
 import { StatusBadge } from "@/components/ui/status-badge";
 import { stateTone } from "@/lib/status-tone";
 import { projectStateLabel } from "@/features/projects/state-label";
+import { formatDueDate } from "@/lib/format/event-date";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
@@ -408,10 +409,10 @@ function display(
       currency: typeof currency === "string" ? currency : "USD",
     }).format(Number(value) / 100);
   if (kind === "date") {
-    const parsed = new Date(String(value));
-    return Number.isNaN(parsed.valueOf())
-      ? "—"
-      : parsed.toLocaleDateString();
+    // Bare toLocaleDateString() produced "9/13/2026" — a fourth date format
+    // alongside the three the rest of the product uses. This renderer feeds
+    // every domain list, so it was the widest single source of the drift.
+    return formatDueDate(String(value));
   }
   if (kind === "count") return Array.isArray(value) ? value.length : Number(value);
   if (kind === "percent") return `${Number(value)}%`;

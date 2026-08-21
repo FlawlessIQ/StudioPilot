@@ -13,6 +13,7 @@ import {
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { runClientInvitation } from "@/lib/client/invitation-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
+import { formatDueDate } from "@/lib/format/event-date";
 
 export type ClientInviteProjectOption = {
   id: string;
@@ -120,7 +121,7 @@ export function ClientPortalInvite({
     () =>
       projects.map((project) => ({
         ...project,
-        label: `${project.name}${project.eventDate ? ` · ${new Date(`${project.eventDate}T12:00:00`).toLocaleDateString()}` : ""}`,
+        label: `${project.name}${project.eventDate ? ` · ${formatDueDate(project.eventDate)}` : ""}`,
       })),
     [projects],
   );

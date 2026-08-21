@@ -1,27 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import {
-  ArrowRight,
-  CalendarClock,
-  ClipboardList,
-  FileStack,
-  Radio,
-  ShieldCheck,
-  UsersRound,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ProjectContextBar } from "@/components/studio/live-domain-view";
+import { PlanAreas } from "@/components/projects/plan-areas";
 
 export const metadata: Metadata = { title: "Project planning" };
 
-const areas = [
-  { label: "Client details", detail: "Review questionnaire answers and missing facts.", route: "questionnaires", icon: ClipboardList },
-  { label: "Timeline", detail: "Generate, review, and publish the run of show.", route: "schedules", icon: CalendarClock },
-  { label: "Crew", detail: "Fill roles and monitor acceptances.", route: "crew", icon: UsersRound },
-  { label: "Venue & insurance", detail: "Confirm operational requirements and evidence.", route: "insurance", icon: ShieldCheck },
-  { label: "Project files", detail: "Keep schedules, documents, and deliverables together.", route: "documents", icon: FileStack },
-  { label: "Event Day", detail: "Open the live brief when coverage begins.", route: "event-day", icon: Radio },
-] as const;
 
 export default async function PlanningPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
   const { project } = await searchParams;
@@ -37,18 +22,7 @@ export default async function PlanningPage({ searchParams }: { searchParams: Pro
         </header>
         {project ? <ProjectContextBar projectId={project} /> : null}
         {project ? (
-          <section className="project-plan-grid" aria-label="Planning areas">
-            {areas.map((area) => {
-              const Icon = area.icon;
-              return (
-                <Link href={`/studio/${area.route}?project=${project}`} key={area.label}>
-                  <span><Icon size={19} /></span>
-                  <div><strong>{area.label}</strong><small>{area.detail}</small></div>
-                  <ArrowRight size={15} />
-                </Link>
-              );
-            })}
-          </section>
+          <PlanAreas projectId={project} />
         ) : (
           <section className="panel project-plan-empty">
             <h2>Choose a project first</h2>

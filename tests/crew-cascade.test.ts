@@ -136,3 +136,37 @@ test("authoritative acceptance fills and stops the cascade", () => {
     }),
   );
 });
+
+test("a candidate is described by what is known, not by what is missing", () => {
+  const [candidate] = rankCrewCandidates({
+    roleSpecialty: "weddings",
+    serviceArea: "New York",
+    startsAt: "2027-06-12T14:00:00.000Z",
+    endsAt: "2027-06-13T00:00:00.000Z",
+    candidates: [
+      {
+        ...base,
+        id: "sparse",
+        name: "Jordan Reid",
+        // Nothing on file beyond the specialty: no availability window, a
+        // service area that does not match, no preference rank.
+        serviceAreas: ["Chicago"],
+        availability: [],
+        preferenceRank: null,
+      },
+    ],
+  });
+
+  // Every explanation is an affirmative fact. This used to read
+  // "No explicit availability signal · Travel area needs confirmation ·
+  // No studio preference rank" — three absences posing as three objections.
+  assert.deepEqual(candidate?.explanations, [
+    "Specialty matches the requested role",
+  ]);
+  assert.ok(
+    candidate?.explanations.every((reason) => !/^No |needs confirmation/.test(reason)),
+    candidate?.explanations.join(" · "),
+  );
+  // What is unknown is still reported, as unknown.
+  assert.deepEqual(candidate?.unknowns, ["availability", "travel area"]);
+});
