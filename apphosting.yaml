@@ -8,27 +8,22 @@ runConfig:
 env:
   # Address autocomplete for venue, COI and service-area fields.
   #
-  # Commented out until the secret exists, because App Hosting fails the
-  # rollout when a referenced secret is missing — leaving this live would
-  # break every deploy rather than merely leaving the feature off. Every
-  # address field works without it and says so on screen.
+  # Server-only: RUNTIME availability, never BUILD, and never prefixed
+  # NEXT_PUBLIC_. Both lookup routes proxy it so the key stays out of the
+  # browser, where a referrer-restricted key would still be a spendable
+  # secret sitting in page source.
   #
-  # To enable, once, then uncomment these four lines and push:
-  #   # "Places API (New)" — places.googleapis.com. NOT
-  #   # places-backend.googleapis.com, which is the legacy Places API and
-  #   # will 403 the v1 endpoints this provider calls.
-  #   gcloud services enable places.googleapis.com --project studiohub-prod
-  #   printf '%s' 'YOUR_KEY' | gcloud secrets create googlePlacesApiKey \
-  #     --project studiohub-prod --data-file=-
-  #   firebase apphosting:secrets:grantaccess googlePlacesApiKey \
-  #     --backend studiohub --project production
+  # The key is restricted to "Places API (New)" — places.googleapis.com,
+  # not places-backend.googleapis.com, which is the legacy Places API and
+  # 403s the v1 endpoints this provider calls.
   #
-  # Restrict the key to "Places API (New)" in the Cloud console. It is
-  # server-only — never expose it as NEXT_PUBLIC_.
-  # - variable: GOOGLE_PLACES_API_KEY
-  #   secret: googlePlacesApiKey
-  #   availability:
-  #     - RUNTIME
+  # If the secret is ever deleted, comment this block out before pushing:
+  # App Hosting fails the whole rollout on a missing secret reference, so
+  # a broken deploy is the failure mode rather than a disabled feature.
+  - variable: GOOGLE_PLACES_API_KEY
+    secret: googlePlacesApiKey
+    availability:
+      - RUNTIME
   - variable: NEXT_PUBLIC_APP_URL
     value: https://studio-cue.com
     availability:
