@@ -19,6 +19,7 @@ import {
 } from "@/features/crew/cascade";
 import { sendCrewCommand } from "@/lib/crew/command-client";
 import { crewPublicError } from "@/lib/crew/public-error";
+import { statusLabel } from "@/features/format/status-label";
 
 const text = (value: unknown) =>
   typeof value === "string" ? value : "";
@@ -848,7 +849,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
                       : "warning"
                 }
               >
-                {text(cascade.status)}
+                {statusLabel(cascade.status)}
               </StatusBadge>
             </article>
           ))}

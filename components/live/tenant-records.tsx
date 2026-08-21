@@ -59,6 +59,7 @@ import {
   formatEventDate,
 } from "@/lib/format/event-date";
 import { formatDueDate } from "@/lib/format/event-date";
+import { statusLabel } from "@/features/format/status-label";
 
 // Re-exported so existing importers of this module keep working.
 export { demoTenantDocuments };
@@ -963,7 +964,7 @@ export function LiveLeadDetail({ id }: { id: string }) {
           <p>{String(lead.eventType ?? "Photography")} inquiry for {String(lead.eventDate ?? "a date to be confirmed")}.</p>
         </div>
         <StatusBadge tone={stateTone(String(lead.status ?? ""))}>
-          {String(lead.status ?? "new").replaceAll("_", " ")}
+          {statusLabel(lead.status ?? "new")}
         </StatusBadge>
       </header>
       <div className="lead-action-row">
@@ -1030,7 +1031,7 @@ export function LiveLeadDetail({ id }: { id: string }) {
             <StatusBadge
               tone={replyAction.status === "approved" ? "success" : "warning"}
             >
-              {String(replyAction.status).replaceAll("_", " ")}
+              {statusLabel(replyAction.status)}
             </StatusBadge>
           </header>
           <div>

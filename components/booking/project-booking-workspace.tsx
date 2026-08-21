@@ -32,6 +32,7 @@ import {
   PanelLoading,
   useWorkspaceGate,
 } from "@/components/ui/panel-state";
+import { statusLabel } from "@/features/format/status-label";
 
 type RecordValue = Record<string, unknown> & { id: string };
 
@@ -473,7 +474,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               tone={contractComplete ? "success" : contract ? "info" : "neutral"}
             >
               {contract
-                ? String(contract.status).replaceAll("_", " ")
+                ? statusLabel(contract.status)
                 : "Not created"}
             </StatusBadge>
           </div>
@@ -566,7 +567,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
             <ReceiptText aria-hidden="true" />
             <span><small>The deposit</small><h2>Retainer</h2></span>
             <StatusBadge tone={invoicePaid ? "success" : invoice ? "warning" : "neutral"}>
-              {invoice ? String(invoice.status).replaceAll("_", " ") : "Not created"}
+              {invoice ? statusLabel(invoice.status) : "Not created"}
             </StatusBadge>
           </div>
           <p>

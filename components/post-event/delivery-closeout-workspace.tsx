@@ -13,6 +13,7 @@ import {
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { sendPostEventCommand } from "@/lib/post-event/command-client";
+import { statusLabel } from "@/features/format/status-label";
 
 const text = (value: unknown) =>
   typeof value === "string" ? value : "";
@@ -136,7 +137,7 @@ export function DeliveryCloseoutWorkspace({
                   <StatusBadge
                     tone={album.status === "fulfilled" ? "success" : "warning"}
                   >
-                    {text(album.status).replaceAll("_", " ")}
+                    {statusLabel(album.status)}
                   </StatusBadge>
                 </header>
                 <div className="studio-album-authority">

@@ -30,6 +30,7 @@ import {
   type StudioImportReviewDraft,
 } from "@/lib/studio-import/command-client";
 import { StructuredContentFields } from "@/components/ai/structured-content-fields";
+import { statusLabel } from "@/features/format/status-label";
 
 const labels: Record<string, string> = {
   message_template: "Message",
@@ -429,7 +430,7 @@ export function StudioImportReviewWorkspace({
             .map((source) => (
               <div className="studio-import-source-file" key={source.id}>
                 <strong>{source.name}</strong>
-                <small>{source.status.replaceAll("_", " ")}</small>
+                <small>{statusLabel(source.status)}</small>
                 {source.duplicate ? (
                   <span className="is-duplicate">
                     <ArrowLeftRight size={13} /> Exact file already imported

@@ -20,6 +20,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { statusLabel } from "@/features/format/status-label";
 
 type RequestRecord = Record<string, unknown> & { id: string };
 
@@ -238,7 +239,7 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
                       <strong>{request.id}</strong>
                     </span>
                     <StatusBadge tone={request.status === "approved" ? "success" : "warning"}>
-                      {String(request.status).replaceAll("_", " ")}
+                      {statusLabel(request.status)}
                     </StatusBadge>
                   </header>
                   <div className="coi-status-track" aria-label="COI progress">
