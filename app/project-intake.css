@@ -153,12 +153,41 @@
   border: 0;
 }
 
+/* Creating a job is three things in order — the event, the client, where —
+   and the form said so only by the order they happened to appear in. The
+   import studio's numbered badge is the clearest thing about that page,
+   and it is the second-most portable idea in it.
+
+   Numbered by a CSS counter rather than by hand, so a section added or
+   removed cannot leave the sequence lying. */
+.intake-form {
+  counter-reset: intake-step;
+}
+
 .intake-section legend {
+  align-items: center;
+  counter-increment: intake-step;
+  display: flex;
+  gap: 11px;
   padding: 0;
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 650;
   letter-spacing: -0.01em;
+}
+
+.intake-section legend::before {
+  align-items: center;
+  background: var(--cue-plum, #24192f);
+  border-radius: 10px;
+  color: #fff;
+  content: counter(intake-step);
+  display: flex;
+  flex-shrink: 0;
+  font-size: 13px;
+  height: 32px;
+  justify-content: center;
+  width: 32px;
 }
 
 .intake-section .form-grid {

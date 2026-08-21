@@ -206,6 +206,12 @@ const kindAliases: Record<string, LibraryKind> = {
   tasks: "task",
   gallery: "delivery",
   questionnaire_response: "questionnaire",
+  // Domain page slugs that do not already match a kind name.
+  crew_profiles: "crew",
+  crew_assignments: "crew",
+  booking_gates: "calendar",
+  post_production: "delivery",
+  automations: "automation",
   // AI capabilities — what the draft on the approval card is a draft *of*.
   message_draft: "message",
   inquiry_reply_draft: "message",

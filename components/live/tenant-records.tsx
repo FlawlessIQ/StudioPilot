@@ -40,6 +40,7 @@ import { getStudioRecords } from "@/lib/studio/records-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { stateTone } from "@/lib/status-tone";
 import { projectStateLabel } from "@/features/projects/state-label";
+import { PhaseTrack } from "@/components/projects/phase-track";
 import { compareJobsForList } from "@/features/projects/job-order";
 import { formatCents } from "@/lib/format/money";
 import { useTodayInbox } from "@/components/today/use-today-inbox";
@@ -758,10 +759,14 @@ export function LiveProjectRows({
             <strong>{project.date}</strong>
             <small>{project.venue}</small>
           </span>
-          <span>
+          {/* The chip says how this one job is doing; the track says where
+              it sits in the season. A column of chips that all read
+              "advancing" was three different moments wearing one green. */}
+          <span className="state-cell">
             <StatusBadge tone={stateTone(project.state)}>
               {projectStateLabel(project.state)}
             </StatusBadge>
+            <PhaseTrack state={project.state} />
           </span>
           {/* What the job is worth, and what is still owed on it — the two
               questions a photographer scans this list for. Readiness moved

@@ -24,6 +24,8 @@ import {
 } from "firebase/firestore";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { stateTone } from "@/lib/status-tone";
+import { KindGlyph } from "@/components/library/kind-glyph";
+import { kindFromValue } from "@/features/library/kinds";
 import { projectStateLabel } from "@/features/projects/state-label";
 import { formatDueDate } from "@/lib/format/event-date";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -655,9 +657,14 @@ export function LiveDomainView({
       title: "Nothing here yet",
       detail: "Records will appear here after you create or receive them.",
     };
+    // An empty list is the first thing a new studio sees on most of these
+    // pages, and a grey inbox icon says only "nothing". The kind's own
+    // glyph says what belongs here — a violet contract, a gold
+    // questionnaire — which is the one useful thing an empty page can do.
+    const kind = kindFromValue(domain);
     return (
-      <section className="panel live-domain-state">
-        <Inbox />
+      <section className="panel live-domain-state is-empty">
+        {kind ? <KindGlyph kind={kind} size={54} /> : <Inbox />}
         <span>
           <strong>{copy.title}</strong>
           <small>{copy.detail}</small>

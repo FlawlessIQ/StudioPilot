@@ -3744,6 +3744,37 @@ textarea:focus-visible {
   grid-template-columns: 1.25fr 0.95fr 0.7fr 0.62fr 1fr auto;
 }
 
+/* The state cell carries the chip and, under it, where the job sits in the
+   five arcs of a wedding. */
+.state-cell {
+  align-items: flex-start;
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+
+.phase-track {
+  display: flex;
+  gap: 3px;
+}
+
+.phase-track i {
+  background: var(--ds-line, #e8eaf0);
+  border-radius: 2px;
+  height: 3px;
+  width: 11px;
+}
+
+/* Arcs already behind this job read quietly; the one it is in does not. */
+.phase-track i.is-done {
+  background: color-mix(in srgb, var(--accent, #0ea372) 34%, transparent);
+}
+
+.phase-track i.is-here {
+  background: var(--accent, #0ea372);
+  width: 15px;
+}
+
 .crm-table-head {
   background: #f8f9f7;
   color: var(--muted);
@@ -4048,26 +4079,33 @@ textarea:focus-visible {
   padding-top: 0;
 }
 
+/* The step badge, matched to the one the import studio uses.
+   It was a 25px circle with 8px type — a marker you had to lean in to
+   read, on the one screen in the product that already used it. A rounded
+   square at display size is what makes the import page's sequence
+   legible as a sequence, and it costs one span wherever it is wanted. */
 .form-section-heading > span {
   align-items: center;
-  background: var(--ink);
-  border-radius: 50%;
-  color: white;
+  background: var(--cue-plum, #24192f);
+  border-radius: 10px;
+  color: #fff;
   display: flex;
-  font-size: 8px;
-  height: 25px;
+  flex-shrink: 0;
+  font: 650 13px var(--font-display);
+  height: 34px;
   justify-content: center;
-  width: 25px;
+  width: 34px;
 }
 
 .form-section-heading h2 {
-  font-size: 15px;
-  margin: 2px 0 3px;
+  font-size: 16.5px;
+  margin: 4px 0 3px;
 }
 
 .form-section-heading p {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 12.5px;
+  line-height: 1.5;
   margin: 0;
 }
 
@@ -5168,7 +5206,18 @@ textarea:focus-visible {
 
 .crew-availability-form{display:grid;grid-template-columns:1fr 1fr .8fr 1fr auto;gap:12px;align-items:end;margin-bottom:18px}.crew-availability-form label{display:grid;gap:6px;font-size:12px;color:var(--muted)}.crew-availability-form input,.crew-availability-form select{min-height:42px;border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:0 10px;color:var(--ink)}@media(max-width:900px){.crew-availability-form{grid-template-columns:1fr 1fr}}@media(max-width:560px){.crew-availability-form{grid-template-columns:1fr}}
 
-.live-domain-page{display:grid;gap:20px}.live-domain-state{display:flex;align-items:center;justify-content:center;gap:14px;min-height:180px}.live-domain-state>span{display:grid;gap:4px}.live-domain-state small{color:var(--muted)}.live-domain-error svg{color:var(--danger)}.live-domain-table{display:grid;padding:0;overflow:hidden}.live-domain-table>a,.live-domain-table>article{display:grid;grid-template-columns:minmax(190px,1.5fr) repeat(3,minmax(110px,.75fr)) auto auto;align-items:center;gap:16px;padding:16px 20px;border-bottom:1px solid var(--line);color:inherit;text-decoration:none}.live-domain-table>a:last-child,.live-domain-table>article:last-child{border-bottom:0}.live-domain-table>a:hover{background:color-mix(in srgb,var(--surface) 70%,var(--background))}.live-domain-table span{display:grid;gap:3px;min-width:0}.live-domain-table small{color:var(--muted);overflow:hidden;text-overflow:ellipsis}.live-domain-primary strong,.live-domain-primary small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.live-domain-table svg{width:16px;height:16px}@media(max-width:900px){.live-domain-table>a,.live-domain-table>article{grid-template-columns:1fr 1fr}.live-domain-primary{grid-column:1/-1}.live-domain-table .status-badge{justify-self:start}.live-domain-table>a>svg{justify-self:end}}@media(max-width:560px){.live-domain-table>a,.live-domain-table>article{grid-template-columns:1fr}.live-domain-primary{grid-column:auto}}
+.live-domain-page{display:grid;gap:20px}.live-domain-state{display:flex;align-items:center;justify-content:center;gap:14px;min-height:180px}
+/* An empty page is the first thing a new studio sees. Stacked and given
+   room, with the glyph of whatever belongs here, it reads as a place
+   waiting to be filled rather than a list that failed to load. */
+/* Written as a grid, not a column flex: `.panel` sets display:grid from a
+   later sheet, which makes flex-direction inert and left the glyph sitting
+   beside the copy. */
+.live-domain-state.is-empty{display:grid;grid-auto-flow:row;grid-template-columns:minmax(0,1fr);justify-items:center;align-content:center;gap:16px;min-height:280px;text-align:center}
+.live-domain-state.is-empty>span{justify-items:center;max-width:44ch}
+.live-domain-state.is-empty strong{font:600 19px/1.3 var(--font-display)}
+.live-domain-state.is-empty small{font-size:13.5px;line-height:1.6}
+.live-domain-state.is-empty .kind-glyph{border-radius:16px}.live-domain-state>span{display:grid;gap:4px}.live-domain-state small{color:var(--muted)}.live-domain-error svg{color:var(--danger)}.live-domain-table{display:grid;padding:0;overflow:hidden}.live-domain-table>a,.live-domain-table>article{display:grid;grid-template-columns:minmax(190px,1.5fr) repeat(3,minmax(110px,.75fr)) auto auto;align-items:center;gap:16px;padding:16px 20px;border-bottom:1px solid var(--line);color:inherit;text-decoration:none}.live-domain-table>a:last-child,.live-domain-table>article:last-child{border-bottom:0}.live-domain-table>a:hover{background:color-mix(in srgb,var(--surface) 70%,var(--background))}.live-domain-table span{display:grid;gap:3px;min-width:0}.live-domain-table small{color:var(--muted);overflow:hidden;text-overflow:ellipsis}.live-domain-primary strong,.live-domain-primary small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.live-domain-table svg{width:16px;height:16px}@media(max-width:900px){.live-domain-table>a,.live-domain-table>article{grid-template-columns:1fr 1fr}.live-domain-primary{grid-column:1/-1}.live-domain-table .status-badge{justify-self:start}.live-domain-table>a>svg{justify-self:end}}@media(max-width:560px){.live-domain-table>a,.live-domain-table>article{grid-template-columns:1fr}.live-domain-primary{grid-column:auto}}
 .support-summary{max-height:320px;overflow:auto;padding:12px;border-radius:10px;background:var(--ink);color:#e8eee9;font:12px/1.55 var(--font-geist-mono);white-space:pre-wrap}
 .admin-live-row{grid-template-columns:minmax(220px,1.5fr) minmax(120px,1fr) minmax(120px,1fr) auto auto}.admin-live-row>span{display:grid;gap:3px}.admin-live-row>span:first-child{display:flex;gap:10px;align-items:center}.admin-live-row>span:first-child>span{display:grid}.admin-live-row small{color:var(--muted)}
 .copilot-workspace{display:grid;gap:20px;max-width:1050px;margin:auto}.copilot-boundary,.copilot-error{display:flex;gap:13px;align-items:center;padding:16px;border-radius:14px;background:color-mix(in srgb,var(--success) 8%,var(--surface));border:1px solid color-mix(in srgb,var(--success) 32%,var(--line))}.copilot-boundary>svg{color:var(--success)}.copilot-boundary span,.copilot-error span{display:grid;gap:4px}.copilot-boundary small,.copilot-error small{color:var(--muted)}.copilot-compose{display:grid;gap:18px}.copilot-prompts{display:flex;gap:8px;flex-wrap:wrap}.copilot-prompts button{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:8px 11px;color:var(--ink);cursor:pointer}.copilot-compose form{display:grid;gap:13px}.copilot-compose form>label:first-child{display:grid;gap:8px;font-size:13px;font-weight:650}.copilot-compose textarea{min-height:130px;border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--background);color:var(--ink);font:inherit;resize:vertical}.copilot-scope{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:13px}.copilot-compose .button{justify-self:start}.copilot-error{background:color-mix(in srgb,var(--danger) 8%,var(--surface));border-color:color-mix(in srgb,var(--danger) 32%,var(--line))}.copilot-error>svg{color:var(--danger)}.copilot-result{display:grid;gap:20px}.copilot-result>header{display:flex;gap:12px;align-items:center}.copilot-result>header>svg{color:var(--accent)}.copilot-result>header span{display:grid;gap:3px}.copilot-result h2{font:500 28px/1.25 var(--font-display);margin:0}.copilot-result h3{font-size:13px;margin:0 0 8px}.copilot-result ul{display:grid;gap:8px;margin:0;padding-left:20px;color:var(--muted)}.copilot-result footer{display:flex;flex-wrap:wrap;gap:8px;padding-top:14px;border-top:1px solid var(--line)}.copilot-result footer a{border:1px solid var(--line);border-radius:9px;padding:8px 10px;color:var(--ink);text-decoration:none}
