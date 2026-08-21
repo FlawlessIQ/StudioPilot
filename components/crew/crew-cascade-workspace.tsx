@@ -153,8 +153,13 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
   const projectAssignments = (assignments ?? []).filter(
     (item) => item.projectId === projectId,
   );
-  const awaitingReply = projectAssignments.filter(
-    (item) => String(item.status) === "offered",
+  // "invited" and "viewed" are what an outstanding offer actually is —
+  // functions/src/crew/commands.ts writes "invited" on release, and the
+  // portal marks it "viewed" when the person opens it. This filtered on
+  // "offered", which is not in assignmentStatusSchema at all, so the
+  // waiting state never fired outside the demo that shared the mistake.
+  const awaitingReply = projectAssignments.filter((item) =>
+    ["invited", "viewed"].includes(String(item.status)),
   );
   const acceptedHere = projectAssignments.filter(
     (item) => String(item.status) === "accepted",

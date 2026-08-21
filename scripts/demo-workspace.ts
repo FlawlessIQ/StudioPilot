@@ -64,6 +64,19 @@ const ownerSnapshot = await firestore
   .get();
 const ownerId = String(ownerSnapshot.docs[0]?.get("userId") ?? "demo-owner");
 
+/**
+ * The crew portal filters assignments by userId, so an assignment written
+ * without one is invisible to the person it was offered to — the portal
+ * showed "0 invitations" while two offers were outstanding.
+ */
+const crewMembershipSnapshot = await firestore
+  .collection("memberships")
+  .where("tenantId", "==", tenantId)
+  .where("role", "==", "subcontractor")
+  .limit(1)
+  .get();
+const crewUserId = crewMembershipSnapshot.docs[0]?.get("userId") ?? null;
+
 const audit = {
   tenantId,
   createdAt: iso,
@@ -629,9 +642,25 @@ for (const job of jobs) {
         id: `crew-${job.id}`,
         projectId: job.id,
         crewProfileId: "crew-jordan",
+        userId: crewUserId,
         crewName: "Jordan Reid",
         role: "Second photographer",
-        status: job.eventDays < 12 ? "accepted" : "offered",
+        // What a real offer carries. Without these the crew portal shows a
+        // job with no fee, no place and no duties under an "Accept" button.
+        compensationType: "flat",
+        compensationCents: 80000,
+        currency: "USD",
+        compensationVisibleToCrew: true,
+        inviteExpiresAt: at(job.eventDays - 30),
+        locations: [{ name: job.venue, address: job.city }],
+        responsibilities: [
+          "Ceremony reactions from the rear",
+          "Cocktail-hour candids",
+          "Backup primary photographer",
+        ],
+        // "offered" is not in assignmentStatusSchema; the system writes
+        // "invited" when a role offer is released.
+        status: job.eventDays < 12 ? "accepted" : "invited",
         arrivalAt: at(job.eventDays, 13),
         departureAt: at(job.eventDays, 23),
         respondedAt: job.eventDays < 12 ? at(job.eventDays - 20) : null,
@@ -937,6 +966,30 @@ for (const membership of clientMemberships.docs) {
   await firestore.doc(`projects/${portalJob.id}`).update({
     clientContactIds: [`contact-${portalJob.id}`],
     portalUserIds: [membership.get("userId")],
+    updatedAt: iso,
+    updatedBy: ownerId,
+  });
+}
+
+/**
+ * Point the demo's crew member at the jobs he is actually assigned to.
+ *
+ * Same gap as the client above: the base seed binds crew@studiohub.test to
+ * projects this script wipes, so the crew portal — what a second shooter
+ * sees when you offer them a role — showed nothing at all.
+ */
+const crewJobIds = jobs
+  .filter((job) => job.eventDays > -60)
+  .map((job) => job.id);
+const crewMemberships = await firestore
+  .collection("memberships")
+  .where("tenantId", "==", tenantId)
+  .where("role", "==", "subcontractor")
+  .get();
+for (const membership of crewMemberships.docs) {
+  await membership.ref.update({
+    projectIds: crewJobIds,
+    status: "active",
     updatedAt: iso,
     updatedBy: ownerId,
   });
