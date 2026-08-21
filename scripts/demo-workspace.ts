@@ -351,6 +351,20 @@ for (const job of jobs) {
   const snapshotId = `snapshot-${job.id}`;
   const retainerCents = Math.round(job.priceCents * 0.3);
   const hasSnapshot = job.state !== "CONSULTATION";
+  /**
+   * How far through the five readiness checkpoints this job has got. A job
+   * that is READY has cleared them all; one still in PLANNING has cleared
+   * the early ones. This is what gives the readiness score something real
+   * to be derived from.
+   */
+  const readyDepth =
+    job.state === "READY"
+      ? 5
+      : job.state === "PLANNING"
+        ? 2
+        : job.state === "BOOKED"
+          ? 1
+          : 0;
 
   put(`contacts/${contactId}`, {
     ...audit,
@@ -621,6 +635,38 @@ for (const job of jobs) {
         arrivalAt: at(job.eventDays, 13),
         departureAt: at(job.eventDays, 23),
         respondedAt: job.eventDays < 12 ? at(job.eventDays - 20) : null,
+      });
+
+      // Readiness checkpoints — the thing the readiness score is derived
+      // from. Without these the job page has a score it cannot explain, and
+      // the whole readiness surface goes unexercised in the demo.
+      // Named as things still outstanding, because that is how they are
+      // listed when they block: "3 blockers: Final balance settled" reads as
+      // an announcement that it is done.
+      const checkpoints: Array<[string, string, string, number]> = [
+        ["questionnaire", "Client details form", "client", 60],
+        ["schedule", "Run of show approval", "studio", 21],
+        ["crew", "Crew for the day", "subcontractor", 14],
+        ["insurance", "Certificate of insurance for the venue", "studio", 10],
+        ["balance", "Final balance", "client", 7],
+      ];
+      checkpoints.forEach(([key, name, ownerType, daysBefore], index) => {
+        // Earlier checkpoints are done on jobs that are further along.
+        const done = job.eventDays < 0 || index < readyDepth;
+        put(`checkpoints/checkpoint-${job.id}-${key}`, {
+          ...audit,
+          id: `checkpoint-${job.id}-${key}`,
+          projectId: job.id,
+          workflowRunId: `run-${job.id}`,
+          templateKey: key,
+          name,
+          ownerType,
+          blocking: true,
+          status: done ? "complete" : index === readyDepth ? "in_progress" : "not_started",
+          resolvedDueDate: day(job.eventDays - daysBefore),
+          waiverExpiresAt: null,
+          completedAt: done ? at(job.eventDays - daysBefore - 1) : null,
+        });
       });
 
       put(`insuranceRequests/coi-${job.id}`, {
