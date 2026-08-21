@@ -48,6 +48,7 @@ import {
   type LifecycleRecord,
 } from "@/features/projects/lifecycle-projection";
 import { projectStateLabel } from "@/features/projects/state-label";
+import { describeEventProximity } from "@/lib/format/event-date";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
@@ -171,24 +172,6 @@ function displayDate(value: unknown): string {
     day: "numeric",
     year: "numeric",
   }).format(date);
-}
-
-/**
- * "in 4 days" / "yesterday" / "26 days ago" — the event date in the terms a
- * photographer thinks in. Null when there is no usable date.
- */
-function countdown(value: unknown): string | null {
-  const source = String(value ?? "").slice(0, 10);
-  const parsed = Date.parse(`${source}T12:00:00Z`);
-  if (!Number.isFinite(parsed)) return null;
-  const days = Math.round((parsed - Date.now()) / 86_400_000);
-  if (days === 0) return "today";
-  if (days === 1) return "tomorrow";
-  if (days === -1) return "yesterday";
-  if (days > 0)
-    return days <= 45 ? `in ${days} days` : `in ${Math.round(days / 30)} months`;
-  const ago = Math.abs(days);
-  return ago <= 45 ? `${ago} days ago` : `${Math.round(ago / 30)} months ago`;
 }
 
 function ProjectStageControl({
@@ -640,9 +623,9 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           <small>Event date</small>
           <strong>{displayDate(project.eventDate)}</strong>
           {/* The countdown is the fact a photographer actually reads. */}
-          {countdown(project.eventDate) ? (
+          {describeEventProximity(project.eventDate) ? (
             <em className="project-fact-countdown">
-              {countdown(project.eventDate)}
+              {describeEventProximity(project.eventDate)}
             </em>
           ) : null}
         </span>
