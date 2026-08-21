@@ -100,7 +100,7 @@ type DomainConfig = {
   primary: string[];
   secondary: string[];
   status: string[];
-  facts: Array<{ label: string; fields: string[]; kind?: "money" | "date" | "count" | "percent" }>;
+  facts: Array<{ label: string; fields: string[]; kind?: "money" | "date" | "count" | "percent" | "retainer" }>;
   href?: (record: Value) => string;
 };
 
@@ -112,9 +112,13 @@ const configurations: Record<Domain, DomainConfig> = {
     status: ["active"],
     facts: [
       { label: "Base price", fields: ["basePriceCents"], kind: "money" },
-      { label: "Version", fields: ["version"] },
+      // The deposit is the number a photographer checks; the row version is
+      // bookkeeping. An imported package arrives with no retainer at all, so
+      // showing it here is how you notice.
+      { label: "Deposit", fields: ["retainerRule"], kind: "retainer" },
       { label: "Coverage", fields: ["includedCoverageMinutes"] },
     ],
+    href: (record) => `/studio/packages/${record.id}`,
   },
   proposals: {
     collection: "proposals",
@@ -399,7 +403,7 @@ function nested(record: Value, paths: string[]) {
 
 function display(
   value: unknown,
-  kind: "money" | "date" | "count" | "percent" | undefined,
+  kind: "money" | "date" | "count" | "percent" | "retainer" | undefined,
   currency: unknown,
 ) {
   if (value === null || value === undefined || value === "") return "—";
@@ -408,6 +412,25 @@ function display(
       style: "currency",
       currency: typeof currency === "string" ? currency : "USD",
     }).format(Number(value) / 100);
+  if (kind === "retainer") {
+    const rule =
+      typeof value === "object" && value !== null
+        ? (value as Record<string, unknown>)
+        : {};
+    const type = String(rule.type ?? "");
+    if (type === "percentage")
+      return `${Number(rule.basisPoints ?? 0) / 100}% of total`;
+    const money = (cents: unknown) =>
+      new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: typeof currency === "string" ? currency : "USD",
+        maximumFractionDigits: 0,
+      }).format(Number(cents ?? 0) / 100);
+    if (type === "fixed") return money(rule.amountCents);
+    if (type === "per_crew_member")
+      return `${money(rule.amountPerCrewCents)} per crew`;
+    return "Not set";
+  }
   if (kind === "date") {
     // Bare toLocaleDateString() produced "9/13/2026" — a fourth date format
     // alongside the three the rest of the product uses. This renderer feeds

@@ -730,6 +730,8 @@ export function StudioProposalComposer() {
     dateInput(addDays(new Date(), 7).toISOString()),
   );
   const [retainerDueDate, setRetainerDueDate] = useState("");
+  /** null means "use whatever the package's rule produced". */
+  const [retainerOverride, setRetainerOverride] = useState<string | null>(null);
   const [balanceDueDate, setBalanceDueDate] = useState("");
   const [notes, setNotes] = useState("");
   const [termsSummary, setTermsSummary] = useState("");
@@ -891,6 +893,10 @@ export function StudioProposalComposer() {
         notes: notes.trim() || null,
         termsSummary,
         retainerDueDate: retainerDueDate || null,
+        retainerOverrideCents:
+          retainerOverride === null
+            ? null
+            : Math.round(Number(retainerOverride || 0) * 100),
         balanceDueDate: balanceDueDate || null,
       });
       const proposalId = text(command.result.proposalId, "demo-proposal");
@@ -1227,11 +1233,32 @@ export function StudioProposalComposer() {
               <dd>{money(pricing.taxCents, currency)}</dd>
             </div>
           </dl>
+          {/* Editable here because an imported price list rarely states a
+              deposit, and a photographer setting one client's retainer
+              should not have to go and edit the package first. The locked
+              snapshot is untouched — this only moves the split between the
+              two payments. */}
           <div className="proposal-composer-retainer">
             <CircleDollarSign />
             <span>
               <small>Retainer</small>
-              <strong>{money(pricing.retainerCents, currency)}</strong>
+              <input
+                aria-label="Retainer amount"
+                min="0"
+                onChange={(event) => setRetainerOverride(event.target.value)}
+                step="0.01"
+                type="number"
+                value={
+                  retainerOverride === null
+                    ? String(number(pricing.retainerCents) / 100)
+                    : retainerOverride
+                }
+              />
+              <em>
+                {retainerOverride === null
+                  ? "From the package"
+                  : `Package says ${money(pricing.retainerCents, currency)}`}
+              </em>
             </span>
           </div>
           {error ? (

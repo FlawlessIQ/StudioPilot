@@ -104,6 +104,49 @@ const commandSchema = z.discriminatedUnion("type", [
       contactTypes: z.array(z.string().min(1)).min(1),
     }),
   }),
+  /**
+   * Correct a package that already exists.
+   *
+   * An imported price list rarely states a retainer or says whether the
+   * pricing may be shown to clients, so the importer writes a zero retainer
+   * and keeps the package private. Until this existed there was no way to
+   * change either: packages could be created and never edited, so an import
+   * with the wrong deposit was permanent.
+   *
+   * Deliberately narrow — the fields a studio corrects after an import,
+   * not a general-purpose overwrite.
+   */
+  z.object({
+    type: z.literal("updatePackage"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      packageId: z.string().min(1),
+      name: z.string().trim().min(2).max(120).optional(),
+      description: z.string().trim().min(10).max(3000).optional(),
+      basePriceCents: z.number().int().nonnegative().safe().optional(),
+      retainerRule: z
+        .discriminatedUnion("type", [
+          z.object({
+            type: z.literal("fixed"),
+            amountCents: z.number().int().nonnegative().safe(),
+          }),
+          z.object({
+            type: z.literal("percentage"),
+            basisPoints: z.number().int().min(0).max(10000),
+          }),
+          z.object({
+            type: z.literal("per_crew_member"),
+            amountPerCrewCents: z.number().int().nonnegative().safe(),
+          }),
+        ])
+        .optional(),
+      includedCoverageMinutes: z.number().int().positive().optional(),
+      includedPhotographers: z.number().int().positive().optional(),
+      active: z.boolean().optional(),
+      publicVisible: z.boolean().optional(),
+    }),
+  }),
   z.object({
     type: z.literal("createPackage"),
     tenantId: z.string().min(1),
@@ -559,6 +602,51 @@ export const crmCommand = onRequest(
             state: command.input.targetState,
             stateVersion: project.stateVersion + 1,
           };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        if (command.type === "updatePackage") {
+          const reference = db.doc(`packages/${command.input.packageId}`);
+          const existing = await transaction.get(reference);
+          if (!existing.exists || existing.get("tenantId") !== command.tenantId)
+            throw new Error("PACKAGE_NOT_FOUND");
+          const { packageId, ...changes } = command.input;
+          // Only what was actually sent; an omitted field is untouched.
+          const patch = Object.fromEntries(
+            Object.entries(changes).filter(([, value]) => value !== undefined),
+          );
+          if (!Object.keys(patch).length) throw new Error("NO_PACKAGE_CHANGES");
+          const nextVersion = Number(existing.get("version") ?? 1) + 1;
+          transaction.update(reference, {
+            ...patch,
+            version: nextVersion,
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          const auditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${auditId}`), {
+            id: auditId,
+            tenantId: command.tenantId,
+            projectId: null,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "package.updated",
+            entityType: "package",
+            entityId: packageId,
+            timestamp,
+            before: Object.fromEntries(
+              Object.keys(patch).map((key) => [key, existing.get(key) ?? null]),
+            ),
+            after: patch,
+            providerEventId: null,
+          });
+          const output = { packageId, version: nextVersion };
           transaction.create(commandReference, {
             tenantId: command.tenantId,
             idempotencyKey: command.idempotencyKey,
