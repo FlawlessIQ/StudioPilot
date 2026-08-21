@@ -10910,3 +10910,62 @@ textarea:focus-visible {
 .journey-step-advance button:hover{color:var(--ink,#1d2420);border-color:var(--ink,#1d2420)}
 .journey-step-advance small{color:var(--muted,#6b7570);font-size:10.5px;max-width:220px;text-align:right}
 .journey-up-next-icon.is-waiting{background:#faf3e3;color:#8a6420}
+
+/* Settings hub — the way back to integrations, billing, team, and setup.
+   The collapsed nav has no room for them, so this grid is their only
+   entrance. */
+.settings-destinations {
+  display: grid;
+  gap: 11px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.settings-destinations > a {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: inherit;
+  display: grid;
+  gap: 13px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 16px 17px;
+  text-decoration: none;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.settings-destinations > a:hover {
+  border-color: #9dbfa6;
+  box-shadow: 0 8px 22px rgba(45, 91, 59, .07);
+}
+
+.settings-destination-icon {
+  align-items: center;
+  background: #eef3ef;
+  border-radius: 10px;
+  color: var(--accent);
+  display: flex;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.settings-destinations > a > span:nth-child(2) {
+  display: grid;
+  gap: 3px;
+}
+
+.settings-destinations strong {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.settings-destinations small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.settings-destinations > a > svg {
+  color: var(--muted);
+}

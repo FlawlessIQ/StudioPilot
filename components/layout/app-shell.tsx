@@ -305,7 +305,11 @@ function StudioShell({
                 <Link href="/studio/library"><LibraryBig size={15} /> Library</Link>
               ) : null}
               {workspace.role === "studio_owner" ? (
-                <Link href="/studio/setup"><Settings size={15} /> Studio settings</Link>
+                /* Settings is the hub — it links on to setup, integrations,
+                   billing and the team. Pointing this straight at /studio/setup
+                   stranded all four behind a page that only asks onboarding
+                   questions. */
+                <Link href="/studio/settings"><Settings size={15} /> Studio settings</Link>
               ) : null}
               <Link href="/auth/workspaces">Switch workspace</Link>
               <PlatformReturnLink />
