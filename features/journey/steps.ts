@@ -348,7 +348,7 @@ export function projectJourney(input: JourneyInput): {
       ? `${input.crewAccepted} accepted`
       : input.crewCascadeActive
         ? "Offer cascading through your ranked list"
-        : "Offer roles in one reviewed cascade",
+        : "Offer each role to one person at a time",
     status: crewDone
       ? "complete"
       : input.crewCascadeActive
@@ -358,7 +358,9 @@ export function projectJourney(input: JourneyInput): {
       ? null
       : {
           kind: "link",
-          label: input.crewCascadeActive ? "Watch the cascade" : "Fill crew roles",
+          label: input.crewCascadeActive
+            ? "See who has been asked"
+            : "Fill crew roles",
           href: project("/studio/crew"),
         },
   });

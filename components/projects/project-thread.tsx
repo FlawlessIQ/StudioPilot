@@ -271,7 +271,14 @@ function ThreadComposer({
             <p className="thread-next-eyebrow">
               <Sparkles size={12} /> Your next move
             </p>
-            <strong>{current.title}</strong>
+            {/* Step titles are milestone names written in the past ("Crew
+                confirmed"), which read as an announcement that the thing is
+                done. The outstanding action is what this card is for. */}
+            <strong>
+              {current.action?.kind === "link"
+                ? current.action.label
+                : current.title}
+            </strong>
             <small>{current.detail}</small>
           </div>
           <div className="thread-next-actions">
@@ -290,7 +297,22 @@ function ThreadComposer({
             ) : null}
           </div>
         </div>
-      ) : null}
+      ) : (
+        // One voice means it also speaks when the answer is "nothing". The
+        // thread used to simply end, which reads as a page that has not
+        // finished loading rather than a job that is genuinely waiting.
+        <div className="thread-next is-clear">
+          <div className="thread-next-copy">
+            <p className="thread-next-eyebrow">
+              <Check size={12} /> Nothing for you right now
+            </p>
+            <strong>This job is waiting on someone else.</strong>
+            <small>
+              It comes back here the moment it needs a decision from you.
+            </small>
+          </div>
+        </div>
+      )}
 
       <div className="thread-composer-modes" role="tablist" aria-label="What are you adding?">
         {consultationId ? (
@@ -451,13 +473,7 @@ function MarkDoneButton({
 }
 
 /** The compact rail: where this job sits, and how far it has come. */
-export function ThreadMinimap({
-  steps,
-  current,
-}: {
-  steps: JourneyStep[];
-  current: JourneyStep | null;
-}) {
+export function ThreadMinimap({ steps }: { steps: JourneyStep[] }) {
   const complete = steps.filter((step) => step.status === "complete").length;
   return (
     <aside className="thread-minimap" aria-label="Journey">
@@ -485,11 +501,9 @@ export function ThreadMinimap({
           </li>
         ))}
       </ol>
-      {current ? (
-        <p className="thread-minimap-now">
-          Now: <strong>{current.title}</strong>
-        </p>
-      ) : null}
+      {/* The rail used to restate the current step as "Now: X" while the
+          next-move card gave the same step as an instruction. The highlighted
+          row already says where the job is; one voice is enough. */}
     </aside>
   );
 }

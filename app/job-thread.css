@@ -619,3 +619,24 @@
 .job-rail-card > .eyebrow {
   margin: 0 0 10px;
 }
+
+/* The next-move card when nothing is owed by the studio. Same shape, quiet
+   palette — a job waiting on a client is not a job with a task. */
+.thread-next.is-clear {
+  background: var(--paper, #fafbf9);
+  border: 1px solid var(--line, #e6eae4);
+  box-shadow: none;
+  color: var(--ink, #1d2420);
+}
+
+.thread-next.is-clear .thread-next-eyebrow {
+  color: var(--muted, #6b7570);
+}
+
+.thread-next.is-clear strong {
+  color: var(--ink, #1d2420);
+}
+
+.thread-next.is-clear small {
+  color: var(--muted, #6b7570);
+}
