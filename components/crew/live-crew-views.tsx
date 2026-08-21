@@ -334,9 +334,21 @@ function useSelectedAssignment(
   const candidates = useMemo(
     () => {
       const allowed = statusKey.split("|");
-      return data.assignments
-        .filter((item) => allowed.includes(String(item.status)))
+      // Soonest upcoming first, then the most recent past work. Sorting
+      // everything by arrival ascending opened Schedule & prep on a wedding
+      // four weeks gone while the one in four days sat below it — the crew
+      // portal's version of the same mistake Today made on the studio side.
+      const now = new Date().toISOString();
+      const withArrival = data.assignments.filter((item) =>
+        allowed.includes(String(item.status)),
+      );
+      const upcoming = withArrival
+        .filter((item) => String(item.arrivalAt) >= now)
         .sort((a, b) => String(a.arrivalAt).localeCompare(String(b.arrivalAt)));
+      const past = withArrival
+        .filter((item) => String(item.arrivalAt) < now)
+        .sort((a, b) => String(b.arrivalAt).localeCompare(String(a.arrivalAt)));
+      return [...upcoming, ...past];
     },
     [data.assignments, statusKey],
   );
@@ -581,6 +593,24 @@ function assignmentLocation(assignment: Value) {
   return locations[0] ?? null;
 }
 
+/**
+ * Where to turn up.
+ *
+ * An assignment only carries its own locations once a run of show pins them,
+ * so before that the crew portal said "Location pending" on a wedding whose
+ * venue has been on the project since booking. That is the single fact a
+ * second shooter needs, and the product already knew it.
+ */
+function assignmentPlace(
+  assignment: Value,
+  project: Value | null | undefined,
+): string {
+  const named = text(assignmentLocation(assignment)?.name);
+  if (named) return named;
+  const venue = text(project?.venueName) || text(project?.city);
+  return venue || "Location pending";
+}
+
 export function LiveCrewHome() {
   const workspace = useWorkspace();
   const data = useCrewData();
@@ -598,9 +628,15 @@ export function LiveCrewHome() {
       number(assignment.acknowledgedScheduleVersion) !==
         number(assignment.currentScheduleVersion),
   );
-  const next = [...accepted].sort((a, b) =>
-    String(a.arrivalAt).localeCompare(String(b.arrivalAt)),
-  )[0];
+  // Sorting every accepted assignment by arrival and taking the first put a
+  // wedding from four weeks ago under the heading "Next accepted job".
+  // What is next is what has not happened yet; if nothing has, say so rather
+  // than presenting the most recent past job as upcoming.
+  const nowIso = new Date().toISOString();
+  const upcoming = accepted
+    .filter((assignment) => String(assignment.arrivalAt) >= nowIso)
+    .sort((a, b) => String(a.arrivalAt).localeCompare(String(b.arrivalAt)));
+  const next = upcoming[0];
   const project = next ? projectFor(data, next) : null;
   return (
     <div className="crew-mobile-page">
@@ -632,6 +668,21 @@ export function LiveCrewHome() {
           </Link>
         </section>
       ) : null}
+      {!next && accepted.length ? (
+        <section className="panel crew-upcoming-card is-clear">
+          <div>
+            <span>
+              <p className="eyebrow">Nothing booked</p>
+              <h2>No upcoming jobs right now</h2>
+            </span>
+          </div>
+          <p>
+            You have {accepted.length} completed{" "}
+            {accepted.length === 1 ? "assignment" : "assignments"} on file.
+            New offers appear here.
+          </p>
+        </section>
+      ) : null}
       {next && project ? (
         <section className="panel crew-upcoming-card">
           <div>
@@ -642,7 +693,7 @@ export function LiveCrewHome() {
             <StatusBadge tone="success">Accepted</StatusBadge>
           </div>
           <p>
-            <MapPin /> {text(assignmentLocation(next)?.name, "Location pending")}
+            <MapPin /> {assignmentPlace(next, project)}
           </p>
           <dl>
             <div>
@@ -685,9 +736,9 @@ export function LiveCrewJobs() {
             <header><span><p className="eyebrow">{text(assignment.role)}</p><h2>{text(project?.name)}</h2></span><StatusBadge tone={accepted || assignment.status === "completed" ? "success" : pending ? "warning" : "neutral"}>{status}</StatusBadge></header>
             <div className="crew-job-decision-grid">
               <span><Clock3/><small>Call and wrap</small><strong>{dateTime(assignment.arrivalAt)} – {dateTime(assignment.departureAt)}</strong></span>
-              <span><MapPin/><small>{locations.length > 1 ? `${locations.length} locations` : "Location"}</small><strong>{locations.map((item) => text(item.name)).join(" · ") || "Pending"}</strong></span>
-              <span><CircleDollarSign/><small>{text(assignment.compensationType, "Compensation")} compensation</small><strong>{assignment.compensationVisibleToCrew ? money(assignment.compensationCents, assignment.currency) : "Contact studio"}</strong></span>
-              {pending ? <span><CalendarDays/><small>Respond by</small><strong>{dateTime(assignment.inviteExpiresAt)}</strong></span> : null}
+              <span><MapPin/><small>{locations.length > 1 ? `${locations.length} locations` : "Location"}</small><strong>{locations.map((item) => text(item.name)).join(" · ") || assignmentPlace(assignment, project)}</strong></span>
+              <span><CircleDollarSign/><small>{text(assignment.compensationType) ? `${text(assignment.compensationType)} rate` : "Fee"}</small><strong>{assignment.compensationVisibleToCrew ? money(assignment.compensationCents, assignment.currency) : "Contact studio"}</strong></span>
+              {pending && text(assignment.inviteExpiresAt) ? <span><CalendarDays/><small>Respond by</small><strong>{dateTime(assignment.inviteExpiresAt)}</strong></span> : null}
             </div>
             {responsibilities.length ? <section className="crew-responsibilities"><strong>Responsibilities</strong><ul>{responsibilities.map((item) => <li key={item}><CheckCircle2 size={15}/>{item}</li>)}</ul></section> : <p className="crew-missing-detail"><AlertTriangle size={15}/> Responsibilities have not been supplied. Contact the studio before accepting.</p>}
             {pending ? <AssignmentActions assignmentId={assignment.id} projectId={text(assignment.projectId)} initialStatus={assignment.status === "viewed" ? "viewed" : "invited"} startsAt={text(assignment.arrivalAt)} endsAt={text(assignment.departureAt)} projectName={text(project?.name)} role={text(assignment.role)} location={text(locations[0]?.name)} onAssignmentChanged={data.refresh} /> : null}
@@ -766,7 +817,7 @@ export function LiveCrewPending() {
                 <StatusBadge tone="warning">Response requested</StatusBadge>
               </div>
               <p>
-                <MapPin /> {text(location?.name, "Location pending")}
+                <MapPin /> {assignmentPlace(assignment, project)}
               </p>
               <div className="crew-invite-facts">
                 <span>
