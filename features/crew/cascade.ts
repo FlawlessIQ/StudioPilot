@@ -26,6 +26,8 @@ export type CrewCandidateRecommendation = {
   eligible: boolean;
   score: number;
   explanations: string[];
+  /** Dimensions with no data — reported as unknown, not as objections. */
+  unknowns: string[];
   exclusions: string[];
   incompleteProfile: string[];
 };
@@ -111,20 +113,27 @@ export function rankCrewCandidates(input: {
         name: candidate.name,
         eligible: exclusions.length === 0,
         score,
+        // Only what is actually known about this person. The list used to
+        // carry a line per dimension whether or not there was anything to
+        // say, so a perfectly good candidate was described as "No explicit
+        // availability signal · Travel area needs confirmation · No studio
+        // preference rank" — three absences reading as three objections.
+        // What is unknown is still reported, separately and as unknown.
         explanations: [
-          specialtyMatch
-            ? "Specialty matches the requested role"
-            : "No specialty match",
+          specialtyMatch ? "Specialty matches the requested role" : null,
           explicitAvailability
             ? `Availability is ${explicitAvailability.status}`
-            : "No explicit availability signal",
-          serviceAreaMatch
-            ? "Service area matches"
-            : "Travel area needs confirmation",
+            : null,
+          serviceAreaMatch ? "Service area matches" : null,
           candidate.preferenceRank === null
-            ? "No studio preference rank"
+            ? null
             : `Studio preference rank ${candidate.preferenceRank}`,
-        ],
+        ].filter((value): value is string => value !== null),
+        unknowns: [
+          specialtyMatch ? null : "specialty",
+          explicitAvailability ? null : "availability",
+          serviceAreaMatch ? null : "travel area",
+        ].filter((value): value is string => value !== null),
         exclusions,
         incompleteProfile,
       };

@@ -147,6 +147,21 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
     .sort((left, right) => Number(right.version) - Number(left.version))[0];
   const projectCascades =
     cascades?.filter((cascade) => cascade.projectId === projectId) ?? [];
+  // What is already happening on this job. The screen used to open on a
+  // blank staffing form regardless — inviting the photographer to start work
+  // that was already offered and waiting on someone's reply.
+  const projectAssignments = (assignments ?? []).filter(
+    (item) => item.projectId === projectId,
+  );
+  const awaitingReply = projectAssignments.filter(
+    (item) => String(item.status) === "offered",
+  );
+  const acceptedHere = projectAssignments.filter(
+    (item) => String(item.status) === "accepted",
+  );
+  const staffingInFlight =
+    awaitingReply.length > 0 ||
+    projectCascades.some((cascade) => String(cascade.status) === "active");
   const roles = rolesText
     .split("\n")
     .map((value) => value.trim())
@@ -341,18 +356,261 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
 
   return (
     <section className="crew-cascade-workspace">
-      <header className="crew-cascade-hero">
-        <div>
-          <p className="eyebrow">AI-assisted staffing</p>
-          <h2>Fill every open role in one reviewed plan</h2>
-          <p>
-            StudioCue ranks eligible collaborators from role, availability,
-            conflicts, travel, studio preference, and document readiness. You
-            control the final order.
-          </p>
-        </div>
-        <Sparkles aria-hidden="true" />
-      </header>
+      {staffingInFlight ? (
+        <header className="crew-cascade-hero is-waiting">
+          <div>
+            <p className="eyebrow">Already out</p>
+            <h2>
+              {awaitingReply.length === 1
+                ? `Waiting on ${text(awaitingReply[0]?.crewName) || "one person"}`
+                : `Waiting on ${awaitingReply.length} people`}
+            </h2>
+            <p>
+              {awaitingReply
+                .map(
+                  (item) =>
+                    `${text(item.role) || "Role"} · ${text(item.crewName) || "Offered"}`,
+                )
+                .join(" · ") || "An offer is out and has not been answered."}
+              {acceptedHere.length
+                ? ` — ${acceptedHere.length} already accepted.`
+                : ""}
+            </p>
+          </div>
+          <Clock3 aria-hidden="true" />
+        </header>
+      ) : (
+        <header className="crew-cascade-hero">
+          <div>
+            <p className="eyebrow">Staffing</p>
+            <h2>Fill every open role in one reviewed plan</h2>
+            <p>
+              StudioCue ranks the people you work with by role, availability,
+              conflicts, travel and paperwork. You control the final order.
+            </p>
+          </div>
+          <Sparkles aria-hidden="true" />
+        </header>
+      )}
+      {/* When an offer is already out, starting a second staffing plan is
+          almost never what the photographer came here to do. The form stays
+          one click away rather than being the first thing on the page. */}
+      {staffingInFlight ? (
+        <details className="crew-cascade-restart">
+          <summary>Offer this role to someone else instead</summary>
+        <form className="panel crew-cascade-form" onSubmit={(event) => void create(event)}>
+          <div className="crew-cascade-config">
+            <label>
+              Roles to fill, one per line
+              <textarea
+                onChange={(event) => setRolesText(event.target.value)}
+                value={rolesText}
+              />
+            </label>
+            <label>
+              Required specialty
+              <select
+                onChange={(event) => setSpecialty(event.target.value)}
+                value={specialty}
+              >
+                <option value="weddings">Weddings</option>
+                <option value="video">Video</option>
+                <option value="assistant">Assistant</option>
+                <option value="corporate">Corporate</option>
+                <option value="sports">Sports</option>
+              </select>
+            </label>
+            <label>
+              Arrival
+              <input
+                onChange={(event) => setStartsAt(event.target.value)}
+                type="datetime-local"
+                value={startsAt}
+              />
+            </label>
+            <label>
+              Departure
+              <input
+                onChange={(event) => setEndsAt(event.target.value)}
+                type="datetime-local"
+                value={endsAt}
+              />
+            </label>
+            <label>
+              Event rate (USD)
+              <input
+                min="0"
+                name="compensationDollars"
+                onChange={(event) => setCompensationDollars(event.target.value)}
+                type="number"
+                value={compensationDollars}
+              />
+            </label>
+            <label>
+              Response window
+              <select defaultValue="24" name="responseWindowHours">
+                <option value="12">12 hours</option>
+                <option value="24">24 hours</option>
+                <option value="48">48 hours</option>
+                <option value="72">72 hours</option>
+              </select>
+            </label>
+            <label className="form-span">
+              Responsibilities, one per line
+              <textarea
+                name="responsibilities"
+                onChange={(event) => setResponsibilities(event.target.value)}
+                value={responsibilities}
+              />
+            </label>
+            <p className="form-notice form-span">
+              Times come from the current schedule, the rate from the crew
+              profile, and the responsibilities from the coverage you planned.
+              Check the order below, then send the first offer.
+            </p>
+          </div>
+          <div className="crew-recommendation-heading">
+            <span>
+              <UserRoundSearch />
+              <strong>Recommended order</strong>
+              <small>
+                {included.length} available ·{" "}
+                {recommendations.filter((candidate) => !candidate.eligible).length} ruled out
+              </small>
+            </span>
+            <StatusBadge tone={included.length ? "success" : "warning"}>
+              {loading ? "Ranking…" : included.length ? "Ready to review" : "Needs candidates"}
+            </StatusBadge>
+          </div>
+          {rolePlans.length > 1 ? (
+            <div className="crew-role-plan-summary">
+              {rolePlans.map((plan) => (
+                <article key={plan.role}>
+                  <strong>{plan.role}</strong>
+                  <small>
+                    {plan.candidates.length
+                      ? plan.candidates.map((candidate) => candidate.name).join(" → ")
+                      : "Add more eligible candidates before approval"}
+                  </small>
+                </article>
+              ))}
+            </div>
+          ) : null}
+          <div className="crew-recommendation-list">
+            {recommendations.map((candidate) => {
+              const isExcluded =
+                excluded.has(candidate.crewProfileId) || !candidate.eligible;
+              const includedIndex = included.findIndex(
+                (item) => item.crewProfileId === candidate.crewProfileId,
+              );
+              return (
+                <article
+                  className={
+                    isExcluded ? "is-excluded" : "is-included"
+                  }
+                  key={candidate.crewProfileId}
+                >
+                  <span className="crew-rank">
+                    {candidate.eligible && !isExcluded ? includedIndex + 1 : "—"}
+                  </span>
+                  <div>
+                    <strong>{candidate.name}</strong>
+                    <small>
+                      {candidate.explanations.length
+                        ? candidate.explanations.join(" · ")
+                        : "Nothing on file about this person yet"}
+                      {candidate.unknowns.length ? (
+                        <em className="crew-candidate-unknowns">
+                          {" "}
+                          Not known: {candidate.unknowns.join(", ")}
+                        </em>
+                      ) : null}
+                    </small>
+                    {candidate.incompleteProfile.length ? (
+                      <em>
+                        <CircleAlert size={12} /> Complete:{" "}
+                        {candidate.incompleteProfile.join(", ")}
+                      </em>
+                    ) : (
+                      <em className="is-complete">
+                        <CheckCircle2 size={12} /> Profile complete
+                      </em>
+                    )}
+                    {candidate.exclusions.length ? (
+                      <em>{candidate.exclusions.join(" · ")}</em>
+                    ) : null}
+                  </div>
+                  <b>{candidate.score}</b>
+                  {candidate.eligible ? (
+                    <footer>
+                      <button
+                        aria-label={`Move ${candidate.name} up`}
+                        disabled={isExcluded || includedIndex <= 0}
+                        onClick={() => move(candidate.crewProfileId, -1)}
+                        type="button"
+                      >
+                        <ArrowUp />
+                      </button>
+                      <button
+                        aria-label={`Move ${candidate.name} down`}
+                        disabled={
+                          isExcluded || includedIndex === included.length - 1
+                        }
+                        onClick={() => move(candidate.crewProfileId, 1)}
+                        type="button"
+                      >
+                        <ArrowDown />
+                      </button>
+                      <button
+                        onClick={() =>
+                          setExcluded((current) => {
+                            const next = new Set(current);
+                            if (next.has(candidate.crewProfileId))
+                              next.delete(candidate.crewProfileId);
+                            else next.add(candidate.crewProfileId);
+                            return next;
+                          })
+                        }
+                        type="button"
+                      >
+                        {excluded.has(candidate.crewProfileId)
+                          ? "Include"
+                          : "Exclude"}
+                      </button>
+                    </footer>
+                  ) : null}
+                </article>
+              );
+            })}
+          </div>
+          <div className="crew-cascade-boundary">
+            <Clock3 />
+            <span>
+              <strong>One offer at a time</strong>
+              <small>
+                Each person sees the offer alone. If they accept, the role is
+                filled and nobody else is asked. If they decline or run out of
+                time, it moves to the next person. Nobody is ever offered two
+                roles at once.
+              </small>
+            </span>
+            <button
+              className="button button-dark"
+              disabled={
+                busy ||
+                !included.length ||
+                !roles.length ||
+                rolePlans.some((plan) => !plan.candidates.length)
+              }
+              type="submit"
+            >
+              <Send /> {busy ? "Starting…" : "Approve crew plan and start"}
+            </button>
+          </div>
+          {notice ? <p className="form-notice" role="status">{notice}</p> : null}
+        </form>
+        </details>
+      ) : (
       <form className="panel crew-cascade-form" onSubmit={(event) => void create(event)}>
         <div className="crew-cascade-config">
           <label>
@@ -392,7 +650,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
             />
           </label>
           <label>
-            Event rate
+            Event rate (USD)
             <input
               min="0"
               name="compensationDollars"
@@ -470,7 +728,17 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
                 </span>
                 <div>
                   <strong>{candidate.name}</strong>
-                  <small>{candidate.explanations.join(" · ")}</small>
+                  <small>
+                      {candidate.explanations.length
+                        ? candidate.explanations.join(" · ")
+                        : "Nothing on file about this person yet"}
+                      {candidate.unknowns.length ? (
+                        <em className="crew-candidate-unknowns">
+                          {" "}
+                          Not known: {candidate.unknowns.join(", ")}
+                        </em>
+                      ) : null}
+                    </small>
                   {candidate.incompleteProfile.length ? (
                     <em>
                       <CircleAlert size={12} /> Complete:{" "}
@@ -554,6 +822,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
         </div>
         {notice ? <p className="form-notice" role="status">{notice}</p> : null}
       </form>
+      )}
       {projectCascades.length ? (
         <div className="crew-cascade-statuses">
           {projectCascades.map((cascade) => (

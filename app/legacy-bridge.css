@@ -340,6 +340,39 @@
   color: #ddefe3;
 }
 
+/* An offer already out is not a pitch. This lives here rather than in
+   globals.css because legacy-bridge loads last and its .ds-root heroes
+   would otherwise repaint the gradient over it. */
+.ds-root .crew-cascade-hero.is-waiting,
+.ds-root .booking-autopilot-hero.is-settled {
+  background: var(--ds-surface, #fff);
+  border: 1px solid var(--ds-line, #e3e1d8);
+  box-shadow: none;
+  color: var(--ds-ink, #1d2420);
+}
+
+.ds-root .crew-cascade-hero.is-waiting {
+  border-left: 3px solid #b08a3a;
+}
+
+.ds-root .crew-cascade-hero.is-waiting h2 {
+  font-size: clamp(21px, 2.6vw, 28px);
+}
+
+.ds-root .crew-cascade-hero.is-waiting p,
+.ds-root .booking-autopilot-hero.is-settled > div > p:last-child {
+  color: var(--ds-muted, #5f6a63);
+}
+
+.ds-root .crew-cascade-hero.is-waiting .eyebrow,
+.ds-root .crew-cascade-hero.is-waiting > svg {
+  color: #b08a3a;
+}
+
+.ds-root .booking-autopilot-hero.is-settled .eyebrow {
+  color: #2e7042;
+}
+
 .ds-root .event-day-hero .eyebrow {
   color: #eaf5ed;
 }
@@ -2018,4 +2051,44 @@
 /* The spam/duplicate note sat 3px off the panel's bottom border. */
 .ds-root .panel.crm-table-panel > .crm-empty-hint {
   padding-bottom: 16px;
+}
+
+/* Plan · each area says what it currently needs, instead of six identical
+   links. Lives here so the flags win over the base grid styles. */
+.ds-root .plan-area-flag {
+  align-items: center;
+  border-radius: 99px;
+  display: inline-flex;
+  flex: none;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+  gap: 4px;
+  letter-spacing: .04em;
+  padding: 4px 9px;
+  text-transform: uppercase;
+}
+
+.ds-root .plan-area-flag.is-now {
+  background: #e9f4ec;
+  color: #2e7042;
+}
+
+.ds-root .plan-area-flag.is-waiting {
+  background: #faf3e3;
+  color: #8a6420;
+}
+
+.ds-root .plan-area-flag.is-done {
+  background: transparent;
+  color: var(--ds-muted, #747d77);
+}
+
+.ds-root .project-plan-grid > a.is-now {
+  border-color: #9dbfa6;
+  box-shadow: 0 6px 18px rgb(46 112 66 / 9%);
+}
+
+.ds-root .project-plan-grid > a.is-done {
+  opacity: .72;
 }

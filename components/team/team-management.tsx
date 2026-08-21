@@ -26,6 +26,7 @@ import {
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { runMembershipCommand } from "@/lib/memberships/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { formatDueDate } from "@/lib/format/event-date";
 
 type MemberRow = {
   id: string;
@@ -306,7 +307,7 @@ export function TeamManagement() {
               <span>
                 <strong>{workspaceRoleLabel(invitation.role)}</strong>
                 <small>
-                  Expires {new Date(invitation.expiresAt).toLocaleDateString()}
+                  Expires {formatDueDate(invitation.expiresAt)}
                 </small>
               </span>
               <StatusBadge tone="warning">Pending</StatusBadge>

@@ -37,6 +37,7 @@ import {
   PanelLoading,
   useWorkspaceGate,
 } from "@/components/ui/panel-state";
+import { projectStateLabel } from "@/features/projects/state-label";
 
 type Value = Record<string, unknown> & { id: string };
 
@@ -457,23 +458,43 @@ export function BookingAutopilotWorkspace({
 
   return (
     <div className="booking-autopilot">
-      <header className="booking-autopilot-hero">
-        <div>
-          <p className="eyebrow"><Sparkles size={14} /> From the consultation</p>
-          <h1>From conversation<br />to a reviewable proposal.</h1>
-          <p>
-            Capture what the couple said once. StudioCue grounds a brief,
-            recommends an existing package, and prepares a proposal without
-            inventing pricing or sending anything.
-          </p>
-        </div>
-        <aside>
-          <span className={consultation ? "is-complete" : ""}><Check /> Inquiry</span>
-          <span className={consultation?.status === "completed" ? "is-complete" : ""}><MessageSquareText /> Consultation</span>
-          <span className={packageAction ? "is-complete" : ""}><PackageCheck /> Package fit</span>
-          <span className={proposalId || laterBookingState ? "is-complete" : ""}><FileText /> Proposal</span>
-        </aside>
-      </header>
+      {/* This hero used to explain turning an inquiry into a proposal on
+          every job, including weddings signed and paid eight months ago. A
+          screen that reads identically on day one and day three hundred is
+          not telling anyone where their job is. Past consultation, it states
+          the stage instead of pitching the flow. */}
+      {laterBookingState ? (
+        <header className="booking-autopilot-hero is-settled">
+          <div>
+            <p className="eyebrow">
+              <Check size={14} /> {projectStateLabel(text(project?.state))}
+            </p>
+            <h1>{text(project?.name) || "This job"} is past the proposal.</h1>
+            <p>
+              The agreement, the retainer and the balance for this job are
+              below. Nothing here needs the consultation flow any more.
+            </p>
+          </div>
+        </header>
+      ) : (
+        <header className="booking-autopilot-hero">
+          <div>
+            <p className="eyebrow"><Sparkles size={14} /> From the consultation</p>
+            <h1>From conversation<br />to a reviewable proposal.</h1>
+            <p>
+              Capture what the couple said once. StudioCue grounds a brief,
+              recommends an existing package, and prepares a proposal without
+              inventing pricing or sending anything.
+            </p>
+          </div>
+          <aside>
+            <span className={consultation ? "is-complete" : ""}><Check /> Inquiry</span>
+            <span className={consultation?.status === "completed" ? "is-complete" : ""}><MessageSquareText /> Consultation</span>
+            <span className={packageAction ? "is-complete" : ""}><PackageCheck /> Package fit</span>
+            <span className={proposalId ? "is-complete" : ""}><FileText /> Proposal</span>
+          </aside>
+        </header>
+      )}
 
       {!consultation && laterBookingState ? (
         // The stage moved past consultation without a meeting record (booked
@@ -561,22 +582,20 @@ export function BookingAutopilotWorkspace({
           </span>
         </section>
       ) : laterBookingState ? (
-        // The project has moved past consultation — never re-offer the
-        // "create draft" release point for work that is already approved.
-        <section className="booking-autopilot-empty">
-          <Check />
-          <span>
-            <strong>The consultation stage is complete.</strong>
-            <small>Continue with proposal, contract, retainer, and booking evidence.</small>
-          </span>
-          {proposalId ? (
+        // The hero above already states that this job is past the proposal;
+        // repeating it here as a banner was the screen saying one thing
+        // twice. Only the way onward is kept.
+        proposalId ? (
+          <section className="booking-autopilot-empty is-quiet">
+            <Check />
+            <span>
+              <strong>The proposal they accepted is on file.</strong>
+            </span>
             <Link href={`/studio/proposals/${proposalId}`}>
-              Open proposal draft <ArrowRight />
+              Open proposal <ArrowRight />
             </Link>
-          ) : (
-            <Link href={`/studio/projects/${projectId}`}>Open project <ArrowRight /></Link>
-          )}
-        </section>
+          </section>
+        ) : null
       ) : summaryAction && packageAction && proposalAction ? (
         <>
           <section className="booking-ai-brief">

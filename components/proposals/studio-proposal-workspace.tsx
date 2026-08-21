@@ -52,6 +52,7 @@ import {
   type ProposalCommandType,
 } from "@/lib/proposals/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { formatEventDate } from "@/lib/format/event-date";
 
 type Value = Record<string, unknown> & { id: string };
 
@@ -1171,15 +1172,38 @@ export function StudioProposalComposer() {
           <div className="proposal-composer-preview-label">
             <Sparkles /> Offer snapshot
           </div>
+          {/* The job is known from the first step and from the URL. Telling
+              the photographer to "select a project" while the step above
+              names the couple is the panel arguing with the page. Until a
+              package is locked there is no price yet — say that, rather than
+              showing $0.00 as though it were the quote. */}
           <div>
             <small>Prepared for</small>
-            <strong>{selected?.contactName ?? "Select a project"}</strong>
-            <span>{selected?.name ?? "Project details appear here"}</span>
+            <strong>
+              {selected?.contactName ??
+                packagePickerFor?.name ??
+                "Select a job"}
+            </strong>
+            <span>
+              {selected?.name ??
+                (packagePickerFor
+                  ? `${packagePickerFor.eventType} · ${formatEventDate(packagePickerFor.eventDate)}`
+                  : "Job details appear here")}
+            </span>
           </div>
           <div className="proposal-composer-price">
             <small>Project total</small>
-            <strong>{money(pricing.totalCents, currency)}</strong>
-            <span>{text(pricing.packageName, "Locked package")}</span>
+            {selected ? (
+              <>
+                <strong>{money(pricing.totalCents, currency)}</strong>
+                <span>{text(pricing.packageName, "Locked package")}</span>
+              </>
+            ) : (
+              <>
+                <strong className="is-pending">Not priced yet</strong>
+                <span>Lock a package above and the total appears here</span>
+              </>
+            )}
           </div>
           <dl>
             <div>

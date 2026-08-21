@@ -11054,3 +11054,88 @@ textarea:focus-visible {
   margin: 0;
   white-space: pre-wrap;
 }
+
+/* Booking · past the proposal, the hero states the stage rather than
+   pitching the flow. Single column, and considerably less shouting: this is
+   a record of something that already happened. */
+.booking-autopilot-hero.is-settled {
+  align-items: center;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e3e1d8);
+  box-shadow: none;
+  color: var(--ink, #1d2420);
+  grid-template-columns: minmax(0, 1fr);
+  padding: 24px 26px;
+}
+
+.booking-autopilot-hero.is-settled .eyebrow {
+  color: #2e7042;
+}
+
+.booking-autopilot-hero.is-settled h1 {
+  font-size: clamp(20px, 2.4vw, 26px);
+  line-height: 1.2;
+  margin: 6px 0 4px;
+}
+
+.booking-autopilot-hero.is-settled > div > p:last-child {
+  color: var(--muted, #5f6a63);
+  font-size: 14px;
+  max-width: 62ch;
+}
+
+/* Crew · what is not known about a candidate, marked as unknown rather than
+   sitting in the same list as the reasons to pick them. */
+.crew-candidate-unknowns {
+  color: var(--muted, #747d77);
+  font-style: normal;
+  opacity: .8;
+}
+
+/* Crew · the hero when an offer is already out and unanswered. */
+.crew-cascade-hero.is-waiting {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e3e1d8);
+  border-left: 3px solid #b08a3a;
+  box-shadow: none;
+  color: var(--ink, #1d2420);
+}
+
+.crew-cascade-hero.is-waiting .eyebrow,
+.crew-cascade-hero.is-waiting > svg {
+  color: #b08a3a;
+}
+
+.crew-cascade-hero.is-waiting p {
+  color: var(--muted, #5f6a63);
+}
+
+/* Starting a second staffing plan is one click away, not the front door. */
+.crew-cascade-restart {
+  margin-top: 4px;
+}
+
+.crew-cascade-restart > summary {
+  color: var(--muted, #5f6a63);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 650;
+  list-style: none;
+  padding: 10px 2px;
+}
+
+.crew-cascade-restart > summary::-webkit-details-marker {
+  display: none;
+}
+
+.crew-cascade-restart > summary::before {
+  content: "+ ";
+}
+
+.crew-cascade-restart[open] > summary::before {
+  content: "− ";
+}
+
+.crew-cascade-restart > summary:hover {
+  color: var(--ink, #1d2420);
+}

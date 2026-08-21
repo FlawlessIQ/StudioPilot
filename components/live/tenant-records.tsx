@@ -58,6 +58,7 @@ import {
   describeEventProximity,
   formatEventDate,
 } from "@/lib/format/event-date";
+import { formatDueDate } from "@/lib/format/event-date";
 
 // Re-exported so existing importers of this module keep working.
 export { demoTenantDocuments };
@@ -807,7 +808,7 @@ export function LiveLeadRows({ view, q }: { view: string; q: string }) {
             item.displayName ??
               `${item.firstName ?? ""} ${item.lastName ?? ""}`,
           ),
-          age: new Date(String(item.createdAt)).toLocaleDateString(),
+          age: formatDueDate(String(item.createdAt)),
           event: String(item.eventType ?? "Event"),
           date: String(item.eventDate ?? "Date pending"),
           venue: String(item.venue ?? item.city ?? "Venue pending"),

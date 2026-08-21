@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   Bell,
   CalendarDays,
@@ -160,6 +160,13 @@ function StudioShell({
 }) {
   const pathname = usePathname();
   const [navigationOpen, setNavigationOpen] = useState(false);
+  /**
+   * True when the URL carries ?project= — crew, booking, planning and the
+   * rest, reached from inside one job. Those routes belong to People or
+   * their own group by default, so arriving at Crew from a job highlighted
+   * "People" and lost the thread the photographer was following.
+   */
+  const inJob = useSearchParams().has("project");
   // The drawer is only a drawer below 860px; above that the sidebar is
   // permanently visible and must never be inert.
   const [compactViewport, setCompactViewport] = useState(false);
@@ -213,10 +220,11 @@ function StudioShell({
       items: section.items.filter((item) => canSee(item.label)),
     }))
     .filter((section) => section.items.length);
-  const currentGroup =
-    Object.entries(activeGroups).find(([, values]) =>
-      values.includes(resolvedActive),
-    )?.[0] ?? "Today";
+  const currentGroup = inJob
+    ? "Jobs"
+    : (Object.entries(activeGroups).find(([, values]) =>
+        values.includes(resolvedActive),
+      )?.[0] ?? "Today");
 
   return (
     <div className="ds-root" data-ds-theme="emerald">
