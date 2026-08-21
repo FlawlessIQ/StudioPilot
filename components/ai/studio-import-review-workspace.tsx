@@ -199,9 +199,23 @@ export function StudioImportReviewWorkspace({
     (draft) => draft.assetType === "contract",
   );
   const duplicateSources = review.sources.filter((source) => source.duplicate);
-  const duplicateActivationBlocked = duplicateSources.some(
-    (source) => source.duplicate?.activationBlocked === true,
+  /**
+   * Which sources back a draft the studio actually approved. A duplicate file
+   * only blocks activation if its content is going live — one already
+   * imported file whose drafts were rejected or excluded used to disable the
+   * button for every unrelated approved draft in the session.
+   */
+  const approvedSourceItemIds = new Set(
+    visibleDrafts
+      .filter((draft) => draft.reviewDecision === "approved")
+      .flatMap((draft) => draft.sourceItemIds),
   );
+  const blockingDuplicateSources = duplicateSources.filter(
+    (source) =>
+      source.duplicate?.activationBlocked === true &&
+      approvedSourceItemIds.has(source.id),
+  );
+  const duplicateActivationBlocked = blockingDuplicateSources.length > 0;
   const mergeCandidates = selected
     ? visibleDrafts.filter(
         (draft) =>
@@ -217,6 +231,30 @@ export function StudioImportReviewWorkspace({
     (draft) =>
       draft.assetType === "questionnaire" && draft.reviewDecision === "approved",
   );
+
+  /**
+   * Decide the current draft, then move to the next one that still needs a
+   * decision.
+   *
+   * Approving used to leave you on the draft you had just approved, so
+   * clearing eleven drafts meant eleven approvals plus eleven scroll-and-
+   * clicks through the left-hand queue. The next undecided draft is computed
+   * before the action so the refresh cannot move the target underneath it.
+   */
+  async function decideAndAdvance(
+    action: "approve" | "reject",
+    versionId: string,
+  ) {
+    const advanceTo = nextPendingDraft?.id ?? null;
+    await run(action, () =>
+      reviewStudioImportDraft({
+        sessionId: review.session.id,
+        versionId,
+        action,
+      }),
+    );
+    if (advanceTo && advanceTo !== versionId) selectDraftAndReveal(advanceTo);
+  }
 
   function selectDraftAndReveal(draftId: string) {
     setSelectedId(draftId);
@@ -244,19 +282,36 @@ export function StudioImportReviewWorkspace({
       <div className="studio-import-review-summary">
         <div>
           <span><Sparkles size={15} /> AI review workspace</span>
+          {/* One line for where this import actually is. It used to say
+              "N packages ready to review · nothing is live" at every stage,
+              including after every draft had been decided — so a finished
+              queue still read as untouched work. */}
           <strong>
-            {usablePackages.length
-              ? `${usablePackages.length} package${usablePackages.length === 1 ? "" : "s"} ready to review`
-              : `${usableDrafts.length} usable draft${usableDrafts.length === 1 ? "" : "s"} ready`}
+            {review.session.status === "activated"
+              ? `${approved} ${approved === 1 ? "item is" : "items are"} live in your library`
+              : pending > 0
+                ? `${pending} still to review`
+                : approved > 0
+                  ? `${approved} approved, ready to activate`
+                  : "Nothing approved yet"}
           </strong>
           <small>
-            {contractDrafts.length
-              ? `${contractDrafts.length} contract${contractDrafts.length === 1 ? "" : "s"} requires review · `
-              : ""}
-            {blockedDrafts.length
-              ? `${blockedDrafts.length} blocked item${blockedDrafts.length === 1 ? "" : "s"} excluded · `
-              : ""}
-            {approved} approved · nothing is live
+            {[
+              pending > 0 && usablePackages.length
+                ? `${usablePackages.length} package${usablePackages.length === 1 ? "" : "s"}`
+                : "",
+              pending > 0 && contractDrafts.length
+                ? `${contractDrafts.length} contract${contractDrafts.length === 1 ? "" : "s"}`
+                : "",
+              blockedDrafts.length
+                ? `${blockedDrafts.length} excluded — StudioCue could not read ${blockedDrafts.length === 1 ? "it" : "them"}`
+                : "",
+              review.session.status === "activated"
+                ? "Live"
+                : "Nothing is live until you activate",
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </small>
         </div>
         <div className="studio-import-coverage">
@@ -464,15 +519,7 @@ export function StudioImportReviewWorkspace({
                 selected.reviewDecision === "approved" ||
                 selected.validation.status !== "passed"
               }
-              onClick={() =>
-                void run("approve", () =>
-                  reviewStudioImportDraft({
-                    sessionId: review.session.id,
-                    versionId: selected.id,
-                    action: "approve",
-                  }),
-                )
-              }
+              onClick={() => void decideAndAdvance("approve", selected.id)}
               type="button"
             >
               {busyAction === "approve" ? (
@@ -484,15 +531,7 @@ export function StudioImportReviewWorkspace({
             </button>
             <button
               disabled={Boolean(busyAction)}
-              onClick={() =>
-                void run("reject", () =>
-                  reviewStudioImportDraft({
-                    sessionId: review.session.id,
-                    versionId: selected.id,
-                    action: "reject",
-                  }),
-                )
-              }
+              onClick={() => void decideAndAdvance("reject", selected.id)}
               type="button"
             >
               <X /> Reject
@@ -595,7 +634,9 @@ export function StudioImportReviewWorkspace({
             {review.session.status === "activated"
               ? "This import is activated. Sync once to repair or confirm its native Library records."
               : duplicateActivationBlocked
-                ? "This exact source was activated from an earlier import session. This session cannot be activated again."
+                ? `${blockingDuplicateSources
+                    .map((source) => source.name)
+                    .join(", ")} was already imported and activated. Reject or ignore ${blockingDuplicateSources.length === 1 ? "its drafts" : "their drafts"} to activate the rest of this import.`
               : pending > 0
                 ? `Review ${pending} remaining draft${pending === 1 ? "" : "s"}. Approve, reject, or ignore each one to unlock activation.`
                 : approved === 0
@@ -641,7 +682,13 @@ export function StudioImportReviewWorkspace({
             ? librarySyncComplete
               ? "Library synced"
               : "Sync to library"
-            : `Activate ${approved} approved`}
+            : duplicateActivationBlocked
+              ? "Already imported"
+              : pending > 0
+                ? `${pending} still to review`
+                : approved === 0
+                  ? "Nothing approved yet"
+                  : `Activate ${approved} approved`}
         </button>
       </div>
       {review.session.status === "activated" ? (

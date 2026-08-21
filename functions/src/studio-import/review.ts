@@ -755,9 +755,16 @@ export async function activateStudioImport(input: {
       ),
     }];
   });
+  // Only the sources that actually back an approved draft can block this
+  // activation. Collecting every item's duplicate pointer meant one already
+  // imported file — even one whose drafts were rejected, ignored, or excluded
+  // as blocked — refused the whole session, stranding every unrelated
+  // approved draft alongside it. `sourceLocks` above is already scoped this
+  // way; this is the same rule applied to the duplicate check.
   const duplicateItemIds = [
     ...new Set(
       items.flatMap((item) => {
+        if (!approvedSourceItemIds.has(item.id)) return [];
         const duplicateItemId = string(record(item.get("duplicate")).itemId);
         return duplicateItemId ? [duplicateItemId] : [];
       }),
