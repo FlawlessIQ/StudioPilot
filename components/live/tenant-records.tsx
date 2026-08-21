@@ -381,7 +381,18 @@ export function LiveClientCards({
         .toLowerCase()
         .includes(q.toLowerCase())
     );
-  });
+  })
+    // Firestore document order is not an order a person recognises. It only
+    // looks alphabetical here because the demo's ids happen to be built from
+    // surnames; with real generated ids this list arrives shuffled. Same
+    // failure the job list had, one collection over.
+    .sort((left, right) =>
+      String(left.displayName ?? "").localeCompare(
+        String(right.displayName ?? ""),
+        undefined,
+        { sensitivity: "base" },
+      ),
+    );
   const projects = useMemo<ClientInviteProjectOption[]>(
     () =>
       (projectRecords ?? [])
