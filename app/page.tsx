@@ -162,10 +162,10 @@ export default function MarketingHome() {
         </section>
 
         <section className="trust-strip" aria-label="Workflow capabilities">
-          <span>LEAD TO CLOSEOUT</span>
-          <span>DETERMINISTIC READINESS</span>
-          <span>PERMISSION-AWARE AI</span>
-          <span>AUDITED AUTOMATION</span>
+          <span>INQUIRY TO DELIVERY</span>
+          <span>READY BEFORE THE DAY</span>
+          <span>AI THAT ASKS FIRST</span>
+          <span>EVERY ACTION ON RECORD</span>
         </section>
 
         <section className="platform-section" id="platform">
@@ -173,8 +173,8 @@ export default function MarketingHome() {
           <div className="section-intro">
             <h2>Less chasing. More certainty.</h2>
             <p>
-              Replace the scattered tabs, spreadsheets, and status messages with one
-              source of operational truth.
+              Replace the scattered tabs, spreadsheets and status messages with
+              one place that always knows where every wedding stands.
             </p>
           </div>
           <div className="feature-grid">

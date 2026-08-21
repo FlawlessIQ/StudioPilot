@@ -88,6 +88,15 @@ export function TodayInbox() {
     inMotion: inbox.inMotion,
   });
 
+  // The single most urgent thing, by the same ranking the lanes use.
+  const lead = act[0] ?? approve[0] ?? null;
+  const leadHref =
+    lead?.action.kind === "link"
+      ? lead.action.href
+      : (lead?.jobHref ?? "/studio/projects");
+  const leadLabel =
+    lead?.action.kind === "link" ? lead.action.label : "Open it";
+
   const bands: TodayBand[] = ["overdue", "soon", "later"];
   const clear = (id: string) =>
     setCleared((current) => new Set(current).add(id));
@@ -103,16 +112,29 @@ export function TodayInbox() {
                 {greetingFor(new Date())}, {firstName(workspace.userName ?? "there")}
                 <span>{DATE_LABEL.format(new Date())}</span>
               </p>
+              {/* "20 things need you" counts what has not been done. The
+                  same data supports a truer opening: the one thing that
+                  matters most right now, named. The total moves to the line
+                  beneath, where it is information rather than a verdict. */}
               <h1>
                 {loading
                   ? "Catching up…"
                   : waiting === 0
                     ? "You're all clear."
-                    : `${waiting} ${waiting === 1 ? "thing needs" : "things need"} you.`}
+                    : (lead?.title ?? "Here's where things stand.")}
               </h1>
               <p className="today-hero-sub">
-                {loading ? "Reading your studio…" : summary}
+                {loading
+                  ? "Reading your studio…"
+                  : waiting === 0
+                    ? summary
+                    : `${lead?.projectName ? `${lead.projectName} · ` : ""}${summary}`}
               </p>
+              {!loading && lead ? (
+                <Link className="today-hero-go" href={leadHref}>
+                  {leadLabel} <ArrowRight size={15} />
+                </Link>
+              ) : null}
             </div>
             {!loading ? (
               <dl className="today-hero-stats">
@@ -196,7 +218,7 @@ export function TodayInbox() {
                 const items = act.filter((item) => item.band === band);
                 if (!items.length) return null;
                 return (
-                  <div className="today-band" key={band}>
+                  <div className="today-band" id={`band-${band}`} key={band}>
                     <p className={`today-band-label is-${band}`}>
                       {BAND_LABEL[band]}
                       <em>{items.length}</em>
@@ -240,6 +262,10 @@ export function TodayInbox() {
         </div>
 
         <TodayRail
+          bands={bands.map((band) => ({
+            band,
+            count: act.filter((item) => item.band === band).length,
+          }))}
           inMotion={inbox.inMotion}
           loading={loading}
           upcoming={inbox.upcoming}
@@ -254,14 +280,37 @@ function TodayRail({
   inMotion,
   upcoming,
   loading,
+  bands,
 }: {
   inMotion: number;
   upcoming: Array<{ projectId: string; name: string; eventDate: string; inDays: number }>;
   loading: boolean;
+  bands: Array<{ band: TodayBand; count: number }>;
 }) {
   if (loading) return <aside className="today-rail" />;
+  const shaped = bands.filter((entry) => entry.count > 0);
   return (
     <aside className="today-rail" aria-label="Coming up">
+      {/* The queue runs to three and a half screens on a laptop, and the
+          rail used to stop after one — 85% of the column was empty while
+          the reader scrolled past it. It is sticky now, and it carries the
+          shape of what they are scrolling through. */}
+      {shaped.length > 1 ? (
+        <section className="today-rail-card">
+          <p className="eyebrow">In this queue</p>
+          <ul className="today-rail-jump">
+            {shaped.map((entry) => (
+              <li key={entry.band}>
+                <a href={`#band-${entry.band}`}>
+                  <span className={`today-rail-dot is-${entry.band}`} />
+                  {BAND_LABEL[entry.band]}
+                  <em>{entry.count}</em>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       <section className="today-rail-card">
         <p className="eyebrow">Coming up</p>
         {upcoming.length === 0 ? (
