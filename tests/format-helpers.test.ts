@@ -7,6 +7,7 @@ import {
 } from "../lib/format/money.ts";
 import {
   daysUntilEvent,
+  countdownPhrase,
   describeEventProximity,
   eventDateHasPassed,
   formatEventDate,
@@ -77,4 +78,16 @@ test("a passed event date is detectable — the demo tenant's silent failure", (
   assert.equal(eventDateHasPassed("2026-08-18", now), false, "today has not passed");
   assert.equal(eventDateHasPassed("2026-09-04", now), false);
   assert.equal(eventDateHasPassed(null, now), false, "unknown dates are not overdue");
+});
+
+test("long horizons are spoken in months and years, not day counts", () => {
+  const now = new Date("2026-08-21T12:00:00Z");
+  // Couples book 12–18 months out, so this is the normal case, not an edge.
+  assert.equal(describeEventProximity("2027-10-09", now), "in 14 months");
+  assert.equal(describeEventProximity("2026-10-14", now), "in 54 days");
+  assert.equal(describeEventProximity("2026-11-20", now), "in 3 months");
+  assert.equal(describeEventProximity("2029-08-21", now), "in 3 years");
+  assert.equal(countdownPhrase(1), "1 day");
+  assert.equal(countdownPhrase(60), "60 days");
+  assert.equal(countdownPhrase(61), "2 months");
 });

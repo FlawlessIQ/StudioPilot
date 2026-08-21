@@ -97,6 +97,17 @@
   text-wrap: balance;
 }
 
+/* Real work has real names. "Confirm the family photo list with Ada's
+   mother" is exactly the kind of thing that should headline this page, and
+   at the display size it ran to four lines and swallowed the hero. Long
+   titles step down a size rather than being truncated — the sentence is
+   the point. */
+.today-hero h1.is-long {
+  font-size: clamp(27px, 3.6vw, 34px);
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+}
+
 .today-hero-sub {
   margin: 2px 0 0;
   color: #b7cdc0;
@@ -108,9 +119,10 @@
   position: relative;
   grid-column: 1 / -1;
   display: grid;
-  /* Four fixed tracks, so two stats sit at a quarter width each rather than
-     stretching across half the hero and looking like a placeholder. */
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* One track per stat. Four fixed tracks left a working studio with two
+     numbers staring at two empty quarters — the dead space read as
+     something failing to load rather than as restraint. */
+  grid-template-columns: repeat(var(--today-stat-count, 4), minmax(0, 1fr));
   gap: 1px;
   margin: 0;
   padding-top: 20px;
@@ -877,9 +889,21 @@
   }
 
   /* Events-this-month and handled-this-week are reassurance, not work;
-     they stay on the wider layouts and step aside on a phone. */
-  .today-hero-stats .today-stat:first-child,
-  .today-hero-stats .today-stat:last-child {
+     they stay on the wider layouts and step aside on a phone.
+     Guarded by count: written as a plain first/last pair it assumed there
+     were always four, so a studio with two stats had *both* of them
+     hidden — the phone showed a divider with 21px of nothing under it. */
+  .today-hero-stats .today-stat:first-child:nth-last-child(4),
+  .today-hero-stats
+    .today-stat:first-child:nth-last-child(4)
+    ~ .today-stat:last-child {
+    display: none;
+  }
+
+  /* With three, only the trailing one steps aside. */
+  .today-hero-stats
+    .today-stat:first-child:nth-last-child(3)
+    ~ .today-stat:last-child {
     display: none;
   }
 
@@ -985,5 +1009,71 @@
   /* The full date is the one thing that does not earn its line here. */
   .today-countdown small {
     display: none;
+  }
+}
+
+/* The countdown is the next job, so it opens the job. */
+.today-countdown {
+  border-radius: 12px;
+  color: inherit;
+  text-decoration: none;
+  transition: background 140ms ease;
+}
+
+.today-countdown:hover,
+.today-countdown:focus-visible {
+  background: rgb(255 255 255 / 6%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .today-countdown { transition: none; }
+}
+
+/* ── Arrival ──────────────────────────────────────────────────────────
+   The page appeared fully formed and inert, which is the main reason a
+   calm layout reads as a dead one. A short staggered rise on first paint
+   makes opening the studio feel like something happening rather than
+   something already over. It runs once, on load, and never on update —
+   nothing here re-animates while the reader is working. */
+@keyframes today-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.today-hero-copy,
+.today-countdown,
+.today-hero-stats .today-stat {
+  animation: today-rise 520ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+}
+
+.today-countdown { animation-delay: 90ms; }
+.today-hero-stats .today-stat:nth-child(1) { animation-delay: 150ms; }
+.today-hero-stats .today-stat:nth-child(2) { animation-delay: 200ms; }
+.today-hero-stats .today-stat:nth-child(3) { animation-delay: 250ms; }
+.today-hero-stats .today-stat:nth-child(4) { animation-delay: 300ms; }
+
+/* The glow sweeps in behind it all, so the panel lights rather than
+   switches on. */
+@keyframes today-glow-in {
+  from { opacity: 0; transform: translate(30px, -20px) scale(0.9); }
+  to { opacity: 1; transform: none; }
+}
+
+.today-hero-glow {
+  animation: today-glow-in 900ms ease-out backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .today-hero-copy,
+  .today-countdown,
+  .today-hero-glow,
+  .today-hero-stats .today-stat {
+    animation: none;
   }
 }

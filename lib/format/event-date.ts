@@ -79,8 +79,13 @@ export function daysUntilEvent(value: unknown, now: Date = new Date()): number |
 }
 
 /**
- * How soon, in words: "today", "tomorrow", "in 12 days", "3 days ago".
+ * How soon, in words: "today", "tomorrow", "in 12 days", "in 14 months".
  * Phrasing the photographer would use, not a duration.
+ *
+ * Past about two months a day count stops being a unit anyone thinks in.
+ * A 2027 wedding was reading "in 414 days" — technically true, and no
+ * photographer has ever said it. Couples book 12–18 months out, so long
+ * horizons are the normal case here, not an edge one.
  */
 export function describeEventProximity(
   value: unknown,
@@ -91,9 +96,29 @@ export function describeEventProximity(
   if (days === 0) return "today";
   if (days === 1) return "tomorrow";
   if (days === -1) return "yesterday";
-  if (days > 0) return `in ${days} day${days === 1 ? "" : "s"}`;
-  const past = Math.abs(days);
-  return `${past} day${past === 1 ? "" : "s"} ago`;
+  if (days > 0) return `in ${countdownPhrase(days)}`;
+  return `${countdownPhrase(Math.abs(days))} ago`;
+}
+
+/**
+ * "9 days" / "3 months" / "2 years" — the span alone, so callers can put
+ * their own preposition on it.
+ */
+export function countdownPhrase(days: number): string {
+  if (days <= 60) return `${days} day${days === 1 ? "" : "s"}`;
+  if (days < 365) {
+    const months = Math.round(days / 30);
+    return `${months} month${months === 1 ? "" : "s"}`;
+  }
+  const years = days / 365;
+  // "in 1 year" is a worse answer than "in 13 months" for anything that is
+  // not close to a round year.
+  if (years < 1.75) {
+    const months = Math.round(days / 30.44);
+    return `${months} month${months === 1 ? "" : "s"}`;
+  }
+  const rounded = Math.round(years);
+  return `${rounded} year${rounded === 1 ? "" : "s"}`;
 }
 
 /**

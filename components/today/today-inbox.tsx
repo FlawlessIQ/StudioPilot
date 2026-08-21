@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -13,12 +13,14 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
+import { countdownPhrase } from "@/lib/format/event-date";
 import { formatCents } from "@/lib/format/money";
 import { AppShell } from "@/components/layout/app-shell";
 import { useTodayInbox } from "@/components/today/use-today-inbox";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { greetingFor } from "@/features/dashboard/home-metrics";
 import {
+  todayHeadline,
   todaySummary,
   type TodayBand,
   type TodayItem,
@@ -89,8 +91,9 @@ export function TodayInbox() {
     inMotion: inbox.inMotion,
   });
 
-  // The single most urgent thing, by the same ranking the lanes use.
-  const lead = act[0] ?? approve[0] ?? null;
+  // The single most urgent thing that is *about a client or a job* — see
+  // todayHeadline. Studio plumbing keeps its rank in the queue below.
+  const lead = todayHeadline(act, approve);
   const leadHref =
     lead?.action.kind === "link"
       ? lead.action.href
@@ -117,6 +120,12 @@ export function TodayInbox() {
     ? {
         days: nextEvent.inDays,
         name: nextEvent.name,
+        projectId: nextEvent.projectId,
+        href: `/studio/projects/${nextEvent.projectId}`,
+        // "414" is not a countdown anyone runs in their head. Past two
+        // months the unit changes with it — "14 months", not 414 days.
+        count: countdownPhrase(nextEvent.inDays).split(" ")[0],
+        unit: countdownPhrase(nextEvent.inDays).split(" ")[1],
         when: new Intl.DateTimeFormat("en-US", {
           weekday: "long",
           month: "long",
@@ -139,9 +148,14 @@ export function TodayInbox() {
       ? {
           label: "Events this month",
           value: String(metrics.eventsThisMonth),
-          hint: metrics.nextEvent
-            ? `next: ${metrics.nextEvent.name}`
-            : "on the books",
+          // Same reason as "jobs in flight": the countdown is naming it
+          // already, and the name was being ellipsised to fit a quarter
+          // column anyway.
+          hint: countdown
+            ? "on the books"
+            : metrics.nextEvent
+              ? `next: ${metrics.nextEvent.name}`
+              : "on the books",
         }
       : null,
     booked > 0
@@ -187,7 +201,9 @@ export function TodayInbox() {
         ? {
             label: journeys.length === 1 ? "Job in flight" : "Jobs in flight",
             value: String(journeys.length),
-            hint: countdown ? `next: ${countdown.name}` : "in your studio",
+            // The countdown already names the next one, a few inches to
+            // the right. Saying it a third time is not emphasis.
+            hint: countdown ? "in your studio" : "on the books",
           }
         : null,
       approve.length
@@ -220,7 +236,16 @@ export function TodayInbox() {
     }
   }
 
+  const headline = loading
+    ? "Catching up…"
+    : waiting === 0
+      ? "You're all clear."
+      : (lead?.title ?? "Here's where things stand.");
+
   const bands: TodayBand[] = ["overdue", "soon", "later"];
+  const actBands = bands.filter((band) =>
+    laneAct.some((item) => item.band === band),
+  );
   const clear = (id: string) =>
     setCleared((current) => new Set(current).add(id));
 
@@ -239,19 +264,21 @@ export function TodayInbox() {
                   same data supports a truer opening: the one thing that
                   matters most right now, named. The total moves to the line
                   beneath, where it is information rather than a verdict. */}
-              <h1>
-                {loading
-                  ? "Catching up…"
-                  : waiting === 0
-                    ? "You're all clear."
-                    : (lead?.title ?? "Here's where things stand.")}
+              <h1 className={headline.length > 38 ? "is-long" : undefined}>
+                {headline}
               </h1>
+              {/* What the headline is *about*. This used to be the queue
+                  breakdown — "4 only you can do." — which the "Needs you"
+                  stat directly below already says, and which told a reader
+                  looking at a named piece of work nothing about it. */}
               <p className="today-hero-sub">
                 {loading
                   ? "Reading your studio…"
                   : waiting === 0
                     ? summary
-                    : `${lead?.projectName ? `${lead.projectName} · ` : ""}${summary}`}
+                    : [lead?.detail, lead?.facts[0]]
+                        .filter(Boolean)
+                        .join(" · ") || summary}
               </p>
               {!loading && lead ? (
                 <Link className="today-hero-go" href={leadHref}>
@@ -264,21 +291,32 @@ export function TodayInbox() {
                 something about, and it used to be a small grey line in the
                 rail. It also fills the empty right half of the hero. */}
             {!loading && countdown ? (
-              <div className="today-countdown" aria-label="Next wedding">
+              <Link
+                aria-label={`Next event: ${countdown.name}`}
+                className="today-countdown"
+                href={countdown.href}
+              >
                 <span className="today-countdown-number">
-                  {countdown.days === 0 ? "Today" : countdown.days}
+                  {countdown.days === 0 ? "Today" : countdown.count}
                 </span>
                 {countdown.days > 0 ? (
                   <span className="today-countdown-unit">
-                    {countdown.days === 1 ? "day to" : "days to"}
+                    {countdown.unit} to
                   </span>
                 ) : null}
                 <strong>{countdown.name}</strong>
                 <small>{countdown.when}</small>
-              </div>
+              </Link>
             ) : null}
             {!loading && stats.length ? (
-              <dl className="today-hero-stats">
+              <dl
+                className="today-hero-stats"
+                style={
+                  {
+                    "--today-stat-count": stats.length,
+                  } as CSSProperties
+                }
+              >
                 {stats.map((stat) => (
                   <Stat key={stat.label} {...stat} />
                 ))}
@@ -325,18 +363,29 @@ export function TodayInbox() {
           {laneAct.length ? (
             <section className="today-lane" aria-label="Needs you">
               <div className="today-lane-heading">
-                <h2>{lead?.lane === "act" ? "Then these" : "Only you can do this"}</h2>
+                {/* Two headings and the same count twice — "Then these · 2"
+                    directly above "WHEN YOU GET TO IT · 2" — is a band
+                    system announcing itself on a list too short to need
+                    one. With a single band, the band *is* the heading. */}
+                <h2>
+                  {actBands.length === 1
+                    ? BAND_LABEL[actBands[0]]
+                    : lead?.lane === "act"
+                      ? "Then these"
+                      : "Only you can do this"}
+                </h2>
                 <span>{laneAct.length}</span>
               </div>
-              {bands.map((band) => {
+              {actBands.map((band) => {
                 const items = laneAct.filter((item) => item.band === band);
-                if (!items.length) return null;
                 return (
                   <div className="today-band" id={`band-${band}`} key={band}>
+                    {actBands.length > 1 ? (
                     <p className={`today-band-label is-${band}`}>
                       {BAND_LABEL[band]}
                       <em>{items.length}</em>
                     </p>
+                    ) : null}
                     {/* The same reassurance under seven consecutive cards
                         stops being reassurance. Say it once per band. */}
                     {items.map((item, index) => (
@@ -380,6 +429,7 @@ export function TodayInbox() {
             band,
             count: laneAct.filter((item) => item.band === band).length,
           }))}
+          headlinedProjectId={countdown?.projectId ?? null}
           inMotion={inbox.inMotion}
           loading={loading}
           upcoming={inbox.upcoming}
@@ -391,6 +441,7 @@ export function TodayInbox() {
 
 /** What is in flight and what is coming — context, not work. */
 function TodayRail({
+  headlinedProjectId,
   inMotion,
   upcoming,
   loading,
@@ -400,8 +451,13 @@ function TodayRail({
   upcoming: Array<{ projectId: string; name: string; eventDate: string; inDays: number }>;
   loading: boolean;
   bands: Array<{ band: TodayBand; count: number }>;
+  /** Already counted down in the hero; showing it again reads as a bug. */
+  headlinedProjectId: string | null;
 }) {
   if (loading) return <aside className="today-rail" />;
+  const rest = upcoming.filter(
+    (event) => event.projectId !== headlinedProjectId,
+  );
   const shaped = bands.filter((entry) => entry.count > 0);
   return (
     <aside className="today-rail" aria-label="Coming up">
@@ -425,13 +481,14 @@ function TodayRail({
           </ul>
         </section>
       ) : null}
+      {rest.length || !headlinedProjectId ? (
       <section className="today-rail-card">
-        <p className="eyebrow">Coming up</p>
-        {upcoming.length === 0 ? (
+        <p className="eyebrow">{headlinedProjectId ? "After that" : "Coming up"}</p>
+        {rest.length === 0 ? (
           <p className="today-rail-empty">No events on the books yet.</p>
         ) : (
           <ul className="today-upcoming">
-            {upcoming.map((event) => (
+            {rest.map((event) => (
               <li key={event.projectId}>
                 <Link href={`/studio/projects/${event.projectId}`}>
                   <strong>{event.name}</strong>
@@ -447,7 +504,7 @@ function TodayRail({
                       ? "today"
                       : event.inDays === 1
                         ? "tomorrow"
-                        : `in ${event.inDays} days`}
+                        : `in ${countdownPhrase(event.inDays)}`}
                   </small>
                 </Link>
               </li>
@@ -455,6 +512,7 @@ function TodayRail({
           </ul>
         )}
       </section>
+      ) : null}
       {inMotion > 0 ? (
       <section className="today-rail-card is-quiet">
         <p className="eyebrow">In motion</p>

@@ -22,7 +22,7 @@ import {
   stalenessWeight,
 } from "@/features/dashboard/urgency";
 import type { SetupGap } from "@/features/today/setup-gaps";
-import { formatDueDate } from "@/lib/format/event-date";
+import { countdownPhrase, formatDueDate } from "@/lib/format/event-date";
 import { providerName as readable } from "@/lib/format/provider-name";
 
 export type TodayLane = "act" | "approve" | "fyi";
@@ -203,6 +203,33 @@ function score(input: {
 const byScore = (left: TodayItem, right: TodayItem) => right.score - left.score;
 
 /**
+ * What the page opens with.
+ *
+ * The hero is not just the top of the queue rendered larger — it is the
+ * first sentence a photographer reads about their own business each
+ * morning, in the biggest type on the screen. A studio with two weddings on
+ * the books was being greeted by "Reconnect QuickBooks", because a paused
+ * integration outranks a proposal that is not due for weeks. The ranking is
+ * right for the *queue* — the connector really is the next thing to fix —
+ * and wrong for the headline: nobody opens their studio to be told about an
+ * accounting connector.
+ *
+ * So the headline prefers the most urgent moment that concerns a client or
+ * a job, and falls back to studio plumbing only when there is no client
+ * work waiting at all. Nothing is hidden either way: whatever is not
+ * headlined stays in the queue, in its proper rank.
+ */
+export function todayHeadline(
+  act: TodayItem[],
+  approve: TodayItem[],
+): TodayItem | null {
+  const ranked = [...act, ...approve].sort(byScore);
+  return (
+    ranked.find((item) => item.projectId !== null) ?? ranked[0] ?? null
+  );
+}
+
+/**
  * The drafted content, when the output has something readable in it. Shown
  * on the card so "approve" is never a blind tap.
  */
@@ -242,8 +269,7 @@ function eventFact(eventDate: string | null | undefined, now: Date): string | nu
   if (days < 0) return `${label} · ${Math.abs(days)}d ago`;
   if (days === 0) return `${label} · today`;
   if (days === 1) return `${label} · tomorrow`;
-  if (days <= 60) return `${label} · in ${days}d`;
-  return `${label} · in ${Math.round(days / 30)} months`;
+  return `${label} · in ${countdownPhrase(days)}`;
 }
 
 /** "waiting 3 days" — silence is the thing that costs money. */
@@ -444,7 +470,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
       projectName: nameFor(task.projectId),
       eventDate: eventFor(task.projectId),
       updatedAt: changedAt(task),
-      label: "Open",
+      label: task.projectId ? "Open the job" : "Open the task",
     });
   }
 

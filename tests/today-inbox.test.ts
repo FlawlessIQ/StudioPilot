@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   bookedValueCents,
   handledThisWeek,
+  todayHeadline,
   todayInbox,
   type TodayInput,
   type TodayJourneyPosition,
@@ -439,5 +440,43 @@ test("dates on cards are written for a person, never as ISO", () => {
   assert.deepEqual(
     facts.filter((fact) => /\d{4}-\d{2}-\d{2}/.test(fact)),
     [],
+  );
+});
+
+test("the headline is client work, not studio plumbing", () => {
+  // The exact shape of a real solo studio on 2026-08-21: two weddings on
+  // the books, nothing invoiced yet, and a lapsed accounting connector.
+  // The connector outranks both proposals in the queue — correctly, it is
+  // the next thing to fix — and it was becoming the greeting, in the
+  // largest type on the page, every single morning.
+  const inbox = todayInbox({
+    ...base,
+    integrationConnections: [
+      { id: "conn-1", provider: "quickbooks", status: "error" },
+    ],
+    journeys: [
+      journey({ projectId: "smith", projectName: "Smith Wedding", eventDate: "2026-10-14" }),
+      journey({ projectId: "chen", projectName: "Chen Wedding", eventDate: "2027-10-09" }),
+    ],
+  });
+
+  assert.equal(inbox.act[0]?.title, "Reconnect QuickBooks");
+
+  const headline = todayHeadline(inbox.act, inbox.approve);
+  assert.equal(headline?.projectName, "Smith Wedding");
+  // Nothing is hidden by the choice — the connector keeps its rank below.
+  assert.ok(inbox.act.some((item) => item.id === "connection-conn-1"));
+});
+
+test("plumbing still headlines when there is no client work at all", () => {
+  const inbox = todayInbox({
+    ...base,
+    integrationConnections: [
+      { id: "conn-1", provider: "quickbooks", status: "error" },
+    ],
+  });
+  assert.equal(
+    todayHeadline(inbox.act, inbox.approve)?.id,
+    "connection-conn-1",
   );
 });
