@@ -83,16 +83,146 @@ async function accessToken() {
   return body.access_token;
 }
 
+/**
+ * "Wednesday, October 6, 2027" — a date a couple would recognise. An ISO
+ * string in a client email reads as a database export, and this text goes
+ * out over the studio's name.
+ */
+const dateWords = (value: string | null): string | null => {
+  if (!value) return null;
+  const day = value.slice(0, 10);
+  const parsed = Date.parse(`${day}T12:00:00Z`);
+  if (!Number.isFinite(parsed)) return null;
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(parsed));
+};
+
+const money = (cents: unknown): string | null => {
+  const value = Number(cents);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value / 100);
+};
+
+/**
+ * A grounded draft written without the model.
+ *
+ * Personalized triggers used to go straight to Vertex, so the studio's most
+ * visible AI button ("Review reply" on an inquiry) failed outright wherever
+ * Vertex was unavailable — mock mode, local emulator, or a transient outage
+ * in production. A photographer does not care why; they see a dead button on
+ * the one screen that decides whether they win the job.
+ *
+ * These templates use only facts already in `context`, exactly like the
+ * lifecycle renderer, and flag what they could not fill.
+ */
+function fallbackDraft(input: {
+  trigger: string;
+  context: Json;
+}): z.infer<typeof modelOutputSchema> {
+  const lead = record(input.context.lead);
+  const project = record(input.context.project);
+  const studioName = text(record(input.context.studio).name) || "our studio";
+  const who =
+    text(lead.name).split(" ")[0] ||
+    text(record(input.context.client).firstName) ||
+    "there";
+  const eventDate = text(lead.eventDate) || text(project.eventDate) || null;
+  const venue =
+    text(lead.venue) ||
+    text(lead.city) ||
+    text(project.venueName) ||
+    text(project.city) ||
+    null;
+  const missingInformation: string[] = [];
+  const highlights: string[] = [];
+
+  if (input.trigger === "inquiry_reply" || input.trigger === "consultation_dates") {
+    const packages = Array.isArray(input.context.packages)
+      ? (input.context.packages as unknown[]).map(record)
+      : [];
+    // The packages arrive in no particular order, so the cheapest and dearest
+    // have to be found rather than assumed from the ends of the list —
+    // quoting a floor that is not the real floor loses the job outright.
+    const prices = packages
+      .map((item) => Number(item.basePriceCents))
+      .filter((value) => Number.isFinite(value) && value > 0);
+    const range = prices.length
+      ? prices.length === 1
+        ? `Our collection is ${money(prices[0])}.`
+        : `Our collections run from ${money(Math.min(...prices))} to ${money(Math.max(...prices))}.`
+      : null;
+    if (!range)
+      missingInformation.push(
+        "No active packages are published, so this reply quotes no prices.",
+      );
+    if (!eventDate)
+      missingInformation.push("No event date was given in the inquiry.");
+    missingInformation.push(
+      "Confirm you are actually free that date before sending.",
+    );
+    const when = dateWords(eventDate);
+    if (when) highlights.push(`Their date: ${when}`);
+    if (venue) highlights.push(`Venue: ${venue}`);
+    const body = [
+      `Hi ${who},`,
+      "",
+      `Thank you for getting in touch — ${when ? `${when}${venue ? ` at ${venue}` : ""} sounds wonderful` : "I would love to hear more about your day"}.`,
+      "",
+      range ??
+        "I'd love to talk through what coverage would suit the day you have in mind.",
+      "",
+      "Would a short call this week suit? I'll walk you through how I work and answer anything you're wondering about.",
+      "",
+      "Warmly,",
+      studioName,
+    ].join("\n");
+    return {
+      subject: `Thanks for reaching out${when ? ` about ${when}` : ""}`,
+      body,
+      highlights,
+      missingInformation,
+    };
+  }
+
+  const name = text(project.name) || "your event";
+  missingInformation.push("Review and personalize before sending.");
+  return {
+    subject: `An update on ${name}`,
+    body: [
+      `Hi ${who},`,
+      "",
+      `A quick update on ${name}${dateWords(eventDate) ? ` on ${dateWords(eventDate)}` : ""}.`,
+      "",
+      "Warmly,",
+      studioName,
+    ].join("\n"),
+    highlights,
+    missingInformation,
+  };
+}
+
 async function generateDraft(input: {
   trigger: string;
   instructions: string;
   context: Json;
 }): Promise<z.infer<typeof modelOutputSchema>> {
+  if (process.env.PROVIDER_MOCK_MODE === "true")
+    return fallbackDraft({ trigger: input.trigger, context: input.context });
   const project = process.env.VERTEX_AI_PROJECT_ID;
   const location = process.env.VERTEX_AI_LOCATION ?? "us-east4";
   const model =
     process.env.VERTEX_AI_MESSAGE_MODEL ?? process.env.VERTEX_AI_SCHEDULE_MODEL;
-  if (!project || !model) throw new Error("VERTEX_AI_MESSAGE_NOT_CONFIGURED");
+  if (!project || !model)
+    return fallbackDraft({ trigger: input.trigger, context: input.context });
   const token = await accessToken();
   const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`;
   const callModel = async (contents: Array<Json>) => {
@@ -414,15 +544,26 @@ export const aiMessageDraftCommand = onRequest(
         await db.runTransaction((transaction) =>
           consumeAiQuota(transaction, db, input.tenantId, now),
         );
-        draft = await generateDraft({
-          trigger: input.trigger,
-          instructions: input.instructions,
-          context,
-        });
-        modelUsed =
-          process.env.VERTEX_AI_MESSAGE_MODEL ??
-          process.env.VERTEX_AI_SCHEDULE_MODEL ??
-          "vertex";
+        try {
+          draft = await generateDraft({
+            trigger: input.trigger,
+            instructions: input.instructions,
+            context,
+          });
+          modelUsed =
+            process.env.VERTEX_AI_MESSAGE_MODEL ??
+            process.env.VERTEX_AI_SCHEDULE_MODEL ??
+            "vertex";
+        } catch {
+          // A model outage must not become a dead button on the screen that
+          // decides whether the studio wins the job. Fall back to the
+          // grounded template and label it honestly.
+          draft = fallbackDraft({ trigger: input.trigger, context });
+          draft.missingInformation = [
+            "Drafted from your records without the model — read it closely.",
+            ...draft.missingInformation,
+          ];
+        }
       }
 
       const issues = draft.missingInformation.map((message) => ({

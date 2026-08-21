@@ -564,6 +564,17 @@
 /* The stage control was authored for the dark next-move card; on the light
    rail its white-on-white text was unreadable. Restate the colours for the
    rail rather than forking the component. */
+/* These buttons were drawn for the old dark project panel, so on the light
+   rail they render near-white on white and read as an empty card. */
+.job-rail-card .project-action-secondary {
+  border-color: var(--line, #e6eae4);
+  color: var(--ink, #1d2420);
+}
+
+.job-rail-card .project-action-secondary:hover {
+  background: var(--paper, #fafbf9);
+}
+
 .job-rail-card .project-stage-control {
   margin-top: 0;
   padding-top: 0;

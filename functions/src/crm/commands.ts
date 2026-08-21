@@ -276,10 +276,18 @@ export const crmCommand = onRequest(
             ) {
               throw new Error("LEAD_NOT_CONVERTIBLE");
             }
+            // Most inquiries arrive from a web form long before the couple
+            // is anyone in the address book, so `primaryContactId` is
+            // routinely absent. There is nothing to mismatch in that case —
+            // the caller has just created the contact from the inquiry — and
+            // rejecting it made converting a cold lead impossible. Only a
+            // lead that already names a contact has to agree with the
+            // project's.
+            const leadContactId = leadDocument.get("primaryContactId");
             if (
-              !command.input.clientContactIds.includes(
-                String(leadDocument.get("primaryContactId")),
-              )
+              typeof leadContactId === "string" &&
+              leadContactId &&
+              !command.input.clientContactIds.includes(leadContactId)
             ) {
               throw new Error("LEAD_CONTACT_MISMATCH");
             }
@@ -304,6 +312,14 @@ export const crmCommand = onRequest(
           if (leadReference) {
             transaction.update(leadReference, {
               projectId,
+              // A lead that had no contact adopts the one the project was
+              // created with, so the inquiry and the client stay joined up
+              // afterwards rather than the link existing only in the project.
+              primaryContactId:
+                typeof leadDocument?.get("primaryContactId") === "string" &&
+                leadDocument.get("primaryContactId")
+                  ? leadDocument.get("primaryContactId")
+                  : (command.input.clientContactIds[0] ?? null),
               status: "converted",
               convertedAt: timestamp,
               convertedBy: identity.uid,

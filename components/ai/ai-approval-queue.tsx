@@ -81,7 +81,9 @@ export function AiQueueCard({
   const blocking = issues.some((issue) => issue.severity === "blocking");
   const sources = list(action.sourceReferences).map(object);
   const downstream = object(action.downstreamCommand);
-  const affected = sources[0];
+  // A draft may cite no source at all (a free-form reply, an imported record).
+  // That is not a reason to take the whole job page down.
+  const affected = sources[0] ?? {};
 
   async function decide(
     decision: "approved" | "rejected" | "dismissed",
@@ -201,26 +203,15 @@ export function AiQueueCard({
         </span>
       </header>
 
-      <div className="ai-queue-impact">
-        <span>
-          <small>Affects</small>
-          <strong>
-            {readable(text(affected.entityType) || "Project record")}
-          </strong>
-        </span>
-        <span>
-          <small>If approved</small>
-          <strong>
-            {text(downstream.commandType)
-              ? readable(text(downstream.commandType))
-              : "Saves an approved draft only"}
-          </strong>
-        </span>
-        <span>
-          <small>Authority boundary</small>
-          <strong>{readable(text(action.authorityBoundary))}</strong>
-        </span>
-      </div>
+      {/* What approving actually does, in one sentence. The entity type,
+          downstream command and authority boundary are audit metadata, not
+          the question being asked of a photographer — they stay available
+          under "Why StudioCue prepared this". */}
+      <p className="ai-queue-consequence">
+        {text(downstream.commandType)
+          ? `Approving runs ${readable(text(downstream.commandType)).toLowerCase()}.`
+          : "Approving saves the draft. Nothing goes to the client until you send it."}
+      </p>
 
       {issues.length ? (
         <div className="ai-queue-issues">
@@ -245,9 +236,14 @@ export function AiQueueCard({
         </summary>
         <div>
           <p>
-            This draft uses {sources.length} tenant-scoped source
-            {sources.length === 1 ? "" : "s"}. It cannot make payments,
-            signatures, readiness decisions, or provider claims.
+            {sources.length
+              ? `Written from ${sources.length} record${sources.length === 1 ? "" : "s"} in this job.`
+              : "Written from what is already in this job."}{" "}
+            StudioCue can never take a payment, sign anything, or mark a job
+            ready on its own.
+            {text(affected.entityType)
+              ? ` Affects the ${readable(text(affected.entityType)).toLowerCase()}.`
+              : ""}
           </p>
           {sources.map((source, index) => (
             <span key={`${source.entityId}-${index}`}>

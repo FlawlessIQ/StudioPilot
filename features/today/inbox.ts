@@ -156,6 +156,17 @@ const readable = (value: unknown) =>
     .replaceAll("_", " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 
+/**
+ * When an inquiry actually landed.
+ *
+ * `changedAt` prefers `updatedAt`, which is right for work in flight and
+ * wrong for a lead: any background touch of the record resets it, and the
+ * inquiry silently looks fresh again when it has in fact gone unanswered for
+ * a week. Arrival is the only honest clock for "how long have they waited".
+ */
+const arrivedAt = (record: TodayRecord) =>
+  text(record.receivedAt ?? record.submittedAt ?? record.createdAt) || null;
+
 const changedAt = (record: TodayRecord) =>
   text(
     record.updatedAt ??
@@ -173,11 +184,19 @@ const laneWeight: Record<TodayLane, number> = {
 };
 
 /**
- * Within Act, an exception (something already went wrong) outranks a job
- * step (something is merely waiting on you), which outranks a fresh
- * inquiry only when the event is closer — proximity does that work.
+ * Within Act, an unanswered inquiry leads.
+ *
+ * It used to sit below exceptions on the reasoning that a failure is worse
+ * than a lead. Walking a real studio's queue showed why that is wrong: an
+ * overdue balance is money already earned and it will still be there
+ * tomorrow, whereas a couple who does not hear back today books one of the
+ * three other photographers they emailed. The inquiry is the only item in
+ * the lane whose value evaporates while it waits.
+ *
+ * Exceptions still outrank ordinary job steps, and proximity still lifts an
+ * imminent event above all of it.
  */
-const severityBonus = { exception: 200, inquiry: 100, step: 0 } as const;
+const severityBonus = { inquiry: 250, exception: 200, step: 0 } as const;
 
 function score(input: {
   lane: TodayLane;
@@ -255,17 +274,47 @@ const bandFor = (input: {
   eventDate?: string | null;
   dueDate?: string | null;
   overdue?: boolean;
+  /** Days after the event this step may legitimately still take. */
+  graceDays?: number;
   now: Date;
 }): TodayBand => {
   if (input.overdue) return "overdue";
   const due = dayDiff(input.dueDate, input.now);
   if (due !== null && due < 0) return "overdue";
   const days = dayDiff(input.eventDate, input.now);
+  if (days === null) return "later";
   // A wedding that already happened and still needs work is late, not
   // upcoming: "this fortnight" must never contain a date two months gone.
-  if (days !== null && days < 0) return "overdue";
-  if (days !== null && days <= 14) return "soon";
+  // But post-event work has its own clock — a gallery is not late three
+  // weeks after the wedding, it is in progress — so the caller can say how
+  // long that step is legitimately allowed to take.
+  if (days < 0) return Math.abs(days) > (input.graceDays ?? 0) ? "overdue" : "soon";
+  if (days <= 14) return "soon";
   return "later";
+};
+
+/**
+ * How long a step is allowed to take after the event before it is genuinely
+ * late, in days. These are the turnarounds photographers actually promise:
+ * a few days to cull, roughly six weeks to a gallery, a season to an album.
+ */
+function graceAfterEvent(state: string): number {
+  if (["EVENT_COMPLETE", "POST_PRODUCTION"].includes(state)) return 42;
+  if (["DELIVERED", "REVIEW_REQUESTED"].includes(state)) return 90;
+  return 0;
+}
+
+/**
+ * How late a reply to an inquiry is. Couples shop several studios in the
+ * first day or two; a lead untouched for two days is already cold, whatever
+ * its event date says.
+ */
+const leadBand = (receivedAt: string | null, now: Date): TodayBand => {
+  const days = dayDiff(receivedAt, now);
+  if (days === null) return "soon";
+  const waited = Math.abs(Math.min(0, days));
+  if (waited >= 2) return "overdue";
+  return "soon";
 };
 
 const currency = (cents: unknown) =>
@@ -313,15 +362,19 @@ export function todayInbox(input: TodayInput): TodayInbox {
       facts: [
         eventFact(leadEvent, now),
         readable(lead.eventType) || null,
-        waitingFact(changedAt(lead), now),
+        waitingFact(arrivedAt(lead), now),
       ].filter((fact): fact is string => Boolean(fact)),
-      band: bandFor({ eventDate: leadEvent, now }),
+      // An inquiry is urgent because it is unanswered, never because the
+      // wedding is close: couples book 12–18 months out, so banding a fresh
+      // lead by its event date buries the most time-critical thing a studio
+      // owns under jobs it has already won.
+      band: leadBand(arrivedAt(lead), now),
       eventDate: leadEvent,
       score: score({
         lane: "act",
         severity: "inquiry",
         eventDate: text(lead.eventDate) || null,
-        updatedAt: changedAt(lead),
+        updatedAt: arrivedAt(lead) ?? changedAt(lead),
         now,
       }),
     });
@@ -534,7 +587,11 @@ export function todayInbox(input: TodayInput): TodayInbox {
     act.push({
       id: `journey-${position.projectId}`,
       lane: "act",
-      title: `${position.projectName} — ${position.stepTitle.toLowerCase()}`,
+      // Step titles are milestone names written in the past ("Gallery
+      // delivered", "Crew confirmed") — correct on the journey rail beside a
+      // tick, but read as an announcement that the thing is already done
+      // when they head a to-do. The action is what is actually outstanding.
+      title: `${position.projectName} — ${(position.actionLabel ?? position.stepTitle).toLowerCase()}`,
       detail: position.stepDetail,
       evidence: null,
       projectId: position.projectId,
@@ -556,7 +613,11 @@ export function todayInbox(input: TodayInput): TodayInbox {
         eventFact(position.eventDate, now),
         waitingFact(position.updatedAt, now),
       ].filter((fact): fact is string => Boolean(fact)),
-      band: bandFor({ eventDate: position.eventDate, now }),
+      band: bandFor({
+        eventDate: position.eventDate,
+        graceDays: graceAfterEvent(position.state),
+        now,
+      }),
       eventDate: position.eventDate,
       score: score({
         lane: "act",

@@ -39,6 +39,8 @@ import { requestMessageDraft } from "@/lib/ai/message-draft-client";
 import { getStudioRecords } from "@/lib/studio/records-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { stateTone } from "@/lib/status-tone";
+import { projectStateLabel } from "@/features/projects/state-label";
+import { useTodayInbox } from "@/components/today/use-today-inbox";
 import { ReadinessMeter } from "@/components/ui/readiness-meter";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
@@ -609,6 +611,17 @@ function LiveRecordsState({
   );
 }
 
+/**
+ * Readiness answers "can this event actually be executed", which is only a
+ * live question once the job is booked and before the day itself.
+ */
+const READINESS_STATES = new Set([
+  "BOOKED",
+  "PLANNING",
+  "READY",
+]);
+const readinessApplies = (state: string) => READINESS_STATES.has(state);
+
 export function LiveProjectRows({
   type,
   view,
@@ -617,6 +630,13 @@ export function LiveProjectRows({
   view: string;
 }) {
   const { records, error, loading } = useTenantDocuments("projects");
+  // The same journey engine Today runs, so the two screens can never name
+  // different next steps for the same job. The document cache is shared, so
+  // this costs no extra reads.
+  const { journeys } = useTodayInbox();
+  const journeyById = new Map(
+    journeys.map((position) => [position.projectId, position]),
+  );
   const values = records
     ? records
         .filter((item) =>
@@ -628,19 +648,33 @@ export function LiveProjectRows({
           (item) =>
             type === "all" || String(item.eventType).toLowerCase() === type,
         )
-        .map((item) => ({
-          id: item.id,
-          name: String(item.name),
-          event: String(item.eventType),
-          date: String(item.eventDate ?? "")
-          ? `${formatEventDate(item.eventDate)} · ${describeEventProximity(item.eventDate)}`
-          : "Date to confirm",
-          venue: String(item.venueName ?? item.city ?? "Location pending"),
-          state: String(item.state),
-          readiness: Number(item.readinessScore ?? 0),
-          nextAction: String(item.nextAction ?? "Review project readiness"),
-          owner: "Assigned team",
-        }))
+        .map((item) => {
+          const position = journeyById.get(item.id);
+          return {
+            id: item.id,
+            name: String(item.name),
+            event: String(item.eventType),
+            date: String(item.eventDate ?? "")
+              ? `${formatEventDate(item.eventDate)} · ${describeEventProximity(item.eventDate)}`
+              : "Date to confirm",
+            venue: String(item.venueName ?? item.city ?? "Location pending"),
+            state: String(item.state),
+            readiness: Number(item.readinessScore ?? 0),
+            // The real outstanding step, not a generic instruction repeated
+            // down the column — including on jobs that are already finished.
+            nextAction:
+              position?.actionLabel ??
+              position?.stepTitle ??
+              String(item.nextAction ?? "Nothing outstanding"),
+            owner: position
+              ? position.owner === "studio"
+                ? "You"
+                : position.owner === "client"
+                  ? "Waiting on the client"
+                  : "In motion"
+              : "Nothing due",
+          };
+        })
     : view === "archived"
       ? []
       : crmProjects.filter(
@@ -688,12 +722,23 @@ export function LiveProjectRows({
           </span>
           <span>
             <StatusBadge tone={stateTone(project.state)}>
-              {project.state.replaceAll("_", " ")}
+              {projectStateLabel(project.state)}
             </StatusBadge>
           </span>
+          {/* Readiness only means something between booking and the event.
+              A delivered wedding scored "0 · Not ready" is alarming
+              nonsense, and so is scoring a job that has no checkpoints yet. */}
           <span className="readiness-cell">
-            <ReadinessMeter value={project.readiness} size="sm" />
-            <small>{project.readiness === 100 ? "Ready" : "Not ready"}</small>
+            {readinessApplies(project.state) ? (
+              <>
+                <ReadinessMeter value={project.readiness} size="sm" />
+                <small>
+                  {project.readiness === 100 ? "Ready" : "Not ready"}
+                </small>
+              </>
+            ) : (
+              <small>—</small>
+            )}
           </span>
           <span>
             <strong>{project.nextAction}</strong>
@@ -1030,6 +1075,40 @@ function DraftReplyButton({ leadId }: { leadId: string }) {
   );
 }
 
+/**
+ * Turn the inquiry itself into a client record.
+ *
+ * The lead already holds everything `createContact` needs — a website form
+ * captures a name and an email before it captures anything else — so the
+ * conversion never has to stop and ask.
+ */
+async function createContactFromLead(
+  lead: TenantDocument,
+  displayName: string,
+): Promise<string> {
+  const parts = displayName.split(/\s+/).filter(Boolean);
+  const firstName =
+    (typeof lead.firstName === "string" && lead.firstName) || parts[0] || "Client";
+  const lastName =
+    (typeof lead.lastName === "string" && lead.lastName) ||
+    parts.slice(1).join(" ") ||
+    // createContact requires a surname; the inquiry's own event is a more
+    // useful placeholder than an empty string the studio has to clean up.
+    String(lead.eventTypeLabel ?? lead.eventType ?? "Inquiry");
+  const created = await runCrmCommand("createContact", {
+    firstName,
+    lastName,
+    email: typeof lead.email === "string" && lead.email ? lead.email : null,
+    phone: typeof lead.phone === "string" && lead.phone ? lead.phone : null,
+    company: null,
+    contactTypes: ["client"],
+  });
+  const contactId = String(created.result.contactId ?? "");
+  if (!contactId)
+    throw new Error("We couldn't create the client record for this inquiry.");
+  return contactId;
+}
+
 function ConvertInquiryButton({ lead }: { lead: TenantDocument }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -1046,15 +1125,23 @@ function ConvertInquiryButton({ lead }: { lead: TenantDocument }) {
         lead.displayName ??
           `${String(lead.firstName ?? "")} ${String(lead.lastName ?? "")}`,
       ).trim();
+      // A web inquiry arrives before the couple is anyone in the address
+      // book, so most leads carry no contact at all. Creating the client from
+      // what they already told us is the whole point of "convert" — asking
+      // the photographer to go and make one first (or worse, failing with
+      // CLIENT_NOT_FOUND) is how this used to dead-end.
+      const contactId =
+        typeof lead.primaryContactId === "string" && lead.primaryContactId
+          ? lead.primaryContactId
+          : await createContactFromLead(lead, displayName);
+
       const response = await runCrmCommand("createProject", {
         name: `${displayName || "Client"} ${eventTypeLabel}`.trim(),
-        eventTypeId: String(
-          lead.eventTypeId ?? eventTypeLabel.toLowerCase(),
-        ),
+        eventTypeId: String(lead.eventTypeId ?? eventTypeLabel.toLowerCase()),
         eventType: eventTypeLabel,
         eventDate: String(lead.eventDate),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        clientContactIds: [String(lead.primaryContactId)],
+        clientContactIds: [contactId],
         leadPhotographerId: null,
         leadId: lead.id,
         venueName:

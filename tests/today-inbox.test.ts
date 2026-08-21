@@ -52,7 +52,9 @@ test("a job whose next step is yours becomes an Act item carrying that action", 
   assert.equal(inbox.act.length, 1);
   const item = inbox.act[0];
   assert.equal(item?.lane, "act");
-  assert.equal(item?.title, "Chen Wedding — proposal");
+  // The outstanding action, not the milestone name: "Chen Wedding —
+  // proposal" reads as an announcement that a proposal exists.
+  assert.equal(item?.title, "Chen Wedding — prepare proposal");
   assert.deepEqual(item?.action, {
     kind: "link",
     label: "Prepare proposal",
@@ -317,4 +319,90 @@ test("booked value counts won work, not invoices raised", () => {
     ],
   });
   assert.equal(value, 1130000);
+});
+
+test("post-event work is only late once its own turnaround has passed", () => {
+  const inbox = todayInbox({
+    ...base,
+    journeys: [
+      // Shot three weeks ago and still editing — normal, not late.
+      journey({
+        projectId: "editing",
+        projectName: "Rivera",
+        eventDate: "2026-07-30",
+        state: "POST_PRODUCTION",
+        actionLabel: "Record delivery",
+      }),
+      // Delivered five months ago with the album still outstanding — late.
+      journey({
+        projectId: "album",
+        projectName: "Whitfield",
+        eventDate: "2026-03-15",
+        state: "DELIVERED",
+        actionLabel: "Draft the review request",
+      }),
+    ],
+  });
+  const band = (id: string) =>
+    inbox.act.find((item) => item.id === `journey-${id}`)?.band;
+  assert.equal(band("editing"), "soon");
+  assert.equal(band("album"), "overdue");
+});
+
+test("an inquiry is ranked by how long it has gone unanswered, not by its event date", () => {
+  const inbox = todayInbox({
+    ...base,
+    leads: [
+      {
+        id: "fresh",
+        displayName: "Hana Park",
+        eventDate: "2027-06-26",
+        status: "new",
+        receivedAt: "2026-08-20T08:00:00.000Z",
+      },
+      {
+        id: "stale",
+        displayName: "Aoife Donnelly",
+        // A wedding 14 months out: the old banding called this "later" and
+        // buried the studio's most perishable work.
+        eventDate: "2027-10-06",
+        status: "new",
+        receivedAt: "2026-08-16T08:00:00.000Z",
+      },
+    ],
+  });
+  const band = (id: string) =>
+    inbox.act.find((item) => item.id === `lead-${id}`)?.band;
+  assert.equal(band("fresh"), "soon");
+  assert.equal(band("stale"), "overdue");
+  // Neither is ever filed under "when you get to it".
+  assert.ok(inbox.act.every((item) => item.band !== "later"));
+});
+
+test("an unanswered inquiry outranks chasing money already earned", () => {
+  const inbox = todayInbox({
+    ...base,
+    leads: [
+      {
+        id: "lead-1",
+        displayName: "Aoife Donnelly",
+        eventDate: "2027-10-06",
+        status: "new",
+        receivedAt: "2026-08-15T09:00:00.000Z",
+      },
+    ],
+    invoiceReferences: [
+      {
+        id: "inv-1",
+        projectId: "project-1",
+        balanceCents: 268500,
+        dueDate: "2026-03-14",
+        status: "sent",
+      },
+    ],
+    // The invoice's own job is months out, so proximity does not decide it.
+    journeys: [journey({ eventDate: "2026-11-25", owner: "client" })],
+  });
+  assert.equal(inbox.act[0]?.id, "lead-lead-1");
+  assert.equal(inbox.act[1]?.id, "invoice-inv-1");
 });

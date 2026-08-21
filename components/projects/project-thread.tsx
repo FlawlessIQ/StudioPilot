@@ -38,7 +38,12 @@ function dayLabel(day: string): string {
   if (Number.isNaN(parsed.valueOf())) return day;
   const today = new Date().toISOString().slice(0, 10);
   if (day === today) return "Today";
-  return DAY.format(parsed);
+  // A wedding books a year out, so a thread routinely spans years. "Fri,
+  // Dec 5" on a job whose event is next week reads as next month unless the
+  // year that is not this one is stated.
+  return parsed.getFullYear() === new Date().getFullYear()
+    ? DAY.format(parsed)
+    : `${DAY.format(parsed)}, ${parsed.getFullYear()}`;
 }
 
 const ACTOR_LABEL: Record<ThreadActor, string> = {

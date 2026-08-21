@@ -2049,6 +2049,16 @@
   color: #a64257;
 }
 
+.ai-queue-consequence {
+  background: #faf8fb;
+  border-block: 1px solid var(--cue-line);
+  color: #6a5f6d;
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 0;
+  padding: 10px 18px;
+}
+
 .ai-queue-impact {
   background: #faf8fb;
   border-block: 1px solid var(--cue-line);
