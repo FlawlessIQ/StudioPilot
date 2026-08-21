@@ -1,48 +1,55 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import {
-  ArrowRight,
-  ClipboardList,
-  FileStack,
-  MessageCircle,
-  Package,
-  Workflow,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PendingImportNotice } from "@/components/ai/pending-import-notice";
+import { KindGlyph } from "@/components/library/kind-glyph";
+import type { LibraryKind } from "@/features/library/kinds";
 
 export const metadata: Metadata = { title: "Studio library" };
 
-const resources = [
+/**
+ * These five cards are the same five kinds the import studio colour-codes
+ * on its way in. Until now they all arrived here as identical green tiles,
+ * so a photographer who had just been shown a violet contract, a gold
+ * questionnaire and a violet package watched all three turn the same
+ * colour the moment they reached the place they live.
+ */
+const resources: Array<{
+  title: string;
+  description: string;
+  href: string;
+  kind: LibraryKind;
+}> = [
   {
     title: "Packages",
     description: "Build reusable offers, pricing, coverage, and add-ons.",
     href: "/studio/packages",
-    icon: Package,
+    kind: "package",
   },
   {
     title: "Questionnaire templates",
     description: "Collect the client details each project type needs.",
     href: "/studio/questionnaires",
-    icon: ClipboardList,
+    kind: "questionnaire",
   },
   {
     title: "Workflow templates",
     description: "Define repeatable tasks, deadlines, and readiness requirements.",
     href: "/studio/workflows",
-    icon: Workflow,
+    kind: "workflow",
   },
   {
     title: "Documents",
     description: "Find generated documents and project files.",
     href: "/studio/documents",
-    icon: FileStack,
+    kind: "document",
   },
   {
     title: "Communications",
     description: "Review client and project message history.",
     href: "/studio/messages",
-    icon: MessageCircle,
+    kind: "message",
   },
 ];
 
@@ -59,16 +66,13 @@ export default function LibraryPage() {
         </header>
         <PendingImportNotice />
         <section className="hub-grid">
-          {resources.map((resource) => {
-            const Icon = resource.icon;
-            return (
-              <Link href={resource.href} key={resource.title}>
-                <span><Icon size={20} /></span>
-                <div><h2>{resource.title}</h2><p>{resource.description}</p></div>
-                <ArrowRight size={17} />
-              </Link>
-            );
-          })}
+          {resources.map((resource) => (
+            <Link href={resource.href} key={resource.title}>
+              <KindGlyph kind={resource.kind} size={42} />
+              <div><h2>{resource.title}</h2><p>{resource.description}</p></div>
+              <ArrowRight size={17} />
+            </Link>
+          ))}
         </section>
       </div>
     </AppShell>

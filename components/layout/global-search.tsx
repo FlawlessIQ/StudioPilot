@@ -8,10 +8,8 @@ import {
   CalendarPlus,
   CalendarRange,
   ContactRound,
-  FileCheck2,
   FolderKanban,
   ListTodo,
-  Mail,
   Plus,
   Search,
   UserPlus,
@@ -19,6 +17,8 @@ import {
 } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { KindGlyph } from "@/components/library/kind-glyph";
+import type { LibraryKind } from "@/features/library/kinds";
 
 type SearchResult = {
   id: string;
@@ -33,6 +33,28 @@ type SearchResult = {
     | "Schedule"
     | "Message"
     | "AI review";
+};
+
+/**
+ * Search is the one list in the product that is always mixed, which makes
+ * it the place kind-colour earns its keep with no explanation at all: five
+ * results, five record types, told apart before a word is read.
+ *
+ * A project and a person are not one of the five families and take the
+ * tile without a colour, rather than being assigned a hue to look
+ * consistent.
+ */
+const searchResultGlyphs: Record<
+  SearchResult["kind"],
+  { kind: LibraryKind | null; icon?: typeof FolderKanban }
+> = {
+  Project: { kind: null, icon: FolderKanban },
+  Client: { kind: null, icon: ContactRound },
+  "AI review": { kind: null, icon: BrainCircuit },
+  Task: { kind: "task" },
+  Contract: { kind: "contract" },
+  Schedule: { kind: "schedule" },
+  Message: { kind: "message" },
 };
 
 function text(value: unknown): string {
@@ -285,23 +307,17 @@ export function GlobalSearch() {
             ) : results.length ? (
               <div className="search-results">
                 {results.map((result) => {
-                  const Icon =
-                    result.kind === "Project"
-                      ? FolderKanban
-                      : result.kind === "Client"
-                        ? ContactRound
-                        : result.kind === "Contract"
-                          ? FileCheck2
-                          : result.kind === "Schedule"
-                            ? CalendarRange
-                            : result.kind === "Message"
-                              ? Mail
-                              : result.kind === "AI review"
-                                ? BrainCircuit
-                                : ListTodo;
+                  const entry = searchResultGlyphs[result.kind] ?? {
+                    kind: null,
+                    icon: ListTodo,
+                  };
                   return (
                     <Link href={result.href} key={result.id} onClick={close}>
-                      <Icon size={17} />
+                      <KindGlyph
+                        icon={entry.icon}
+                        kind={entry.kind}
+                        size={30}
+                      />
                       <span>
                         <strong>{result.label}</strong>
                         <small>

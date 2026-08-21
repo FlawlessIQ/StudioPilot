@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
+import { KindGlyph } from "@/components/library/kind-glyph";
 import { countdownPhrase } from "@/lib/format/event-date";
 import { formatCents } from "@/lib/format/money";
 import { AppShell } from "@/components/layout/app-shell";
@@ -567,7 +568,15 @@ function TodayCard({
   const preview = item.action.kind === "approve" ? item.action.preview : null;
 
   return (
-    <article className={`today-card is-${tone} band-${item.band}`}>
+    <article
+      className={`today-card is-${tone} band-${item.band}${item.kind ? " has-glyph" : ""}`}
+    >
+      {/* The queue is the other genuinely mixed list in the product: an
+          invoice, a crew gap and a drafted email, one after another, all
+          rendered alike. The glyph says which before the title is read.
+          Items with no record behind them — studio setup, a broken
+          connector — stay plain rather than borrowing a colour. */}
+      {item.kind ? <KindGlyph kind={item.kind} size={30} /> : null}
       <div className="today-card-body">
         <div className="today-card-title">
           <strong>{item.title}</strong>

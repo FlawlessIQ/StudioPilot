@@ -323,6 +323,29 @@
   background: transparent;
 }
 
+/* With a glyph the card grows a gutter, and the glyph spans every row so
+   it sits against the title rather than floating beside the buttons. On a
+   phone that is two columns; from 720px the card puts its actions on the
+   right, so it becomes three. Stated in full at both widths, because a
+   blanket `grid-column: 2` here silently collapsed the wide layout and
+   dropped Approve onto its own line. */
+.today-card.has-glyph {
+  column-gap: 13px;
+  grid-template-columns: 30px minmax(0, 1fr);
+}
+
+.today-card.has-glyph > .kind-glyph {
+  align-self: start;
+  grid-column: 1;
+  grid-row: 1 / -1;
+  margin-top: 1px;
+}
+
+.today-card.has-glyph > .today-card-body,
+.today-card.has-glyph > .today-card-actions {
+  grid-column: 2;
+}
+
 .today-card-body {
   display: grid;
   gap: 5px;
@@ -613,6 +636,14 @@
   .today-card {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
+  }
+
+  .today-card.has-glyph {
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+  }
+
+  .today-card.has-glyph > .today-card-actions {
+    grid-column: 3;
   }
 
   .today-card-actions {

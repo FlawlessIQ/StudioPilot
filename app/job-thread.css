@@ -92,8 +92,28 @@
 }
 
 .thread-entry.is-artifact {
-  border-left: 3px solid var(--green, #2e7042);
   background: var(--panel, #fff);
+}
+
+/* An entry that is about a record gets that record's glyph. The card used
+   to carry a green left rail instead, which marked "this is an artifact"
+   in the same colour whether it was a contract, an invoice or a gallery —
+   a distinction the reader could already make from the title. The glyph
+   says which, not merely that, so the rail is redundant and goes. */
+.thread-entry.has-glyph {
+  column-gap: 11px;
+  grid-template-columns: 26px minmax(0, 1fr);
+}
+
+.thread-entry.has-glyph > .kind-glyph {
+  align-self: start;
+  border-radius: 8px;
+  grid-row: 1 / -1;
+  margin-top: 1px;
+}
+
+.thread-entry.has-glyph > *:not(.kind-glyph) {
+  grid-column: 2;
 }
 
 .thread-entry-head {
@@ -489,6 +509,40 @@
   color: var(--muted, #8a938d);
   font-size: 11.5px;
   font-weight: 700;
+}
+
+/* The five arcs. A phase heading is structure, not a kind, so it takes no
+   hue — it earns its place by letting the reader skip four fifths of the
+   rail to the part they are actually in. */
+.thread-phase + .thread-phase {
+  border-top: 1px solid var(--line-soft, #f0f3f0);
+  margin-top: 9px;
+  padding-top: 9px;
+}
+
+.thread-phase-label {
+  align-items: baseline;
+  color: var(--muted, #8a938d);
+  display: flex;
+  font-size: 10px;
+  font-weight: 700;
+  gap: 8px;
+  letter-spacing: 0.11em;
+  margin: 0 0 5px;
+  text-transform: uppercase;
+}
+
+.thread-phase-label em {
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0;
+  margin-left: auto;
+  opacity: 0.75;
+}
+
+/* The arc the job is actually in is the only one that raises its voice. */
+.thread-phase.is-active .thread-phase-label {
+  color: var(--green, #2e7042);
 }
 
 .thread-minimap ol {

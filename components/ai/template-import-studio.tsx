@@ -6,13 +6,9 @@ import {
   CheckCircle2,
   ChevronRight,
   CircleAlert,
-  FileCheck2,
-  FileText,
   Globe2,
   LoaderCircle,
   Mail,
-  MessageSquareText,
-  PackageCheck,
   RefreshCw,
   ShieldCheck,
   Sparkles,
@@ -40,6 +36,8 @@ import {
   type StudioImportReview,
   type StudioImportUploadProgress,
 } from "@/lib/studio-import/command-client";
+import { kindTone, type LibraryKind } from "@/features/library/kinds";
+import { kindIcon } from "@/components/library/kind-glyph";
 
 type SourceMode = "files" | "email" | "website";
 type ImportKind =
@@ -91,40 +89,22 @@ const sourceModes: Array<{
   },
 ];
 
-const kindDetails: Record<
-  ImportKind,
-  { icon: typeof FileText; destination: string; tone: string }
-> = {
-  "Email journey": {
-    icon: MessageSquareText,
-    destination: "Branded email template",
-    tone: "coral",
-  },
-  Contract: {
-    icon: FileCheck2,
-    destination: "Booking agreement draft",
-    tone: "violet",
-  },
-  Questionnaire: {
-    icon: FileText,
-    destination: "Client questionnaire",
-    tone: "gold",
-  },
-  Schedule: {
-    icon: Workflow,
-    destination: "Timeline rules & milestones",
-    tone: "blue",
-  },
-  Package: {
-    icon: PackageCheck,
-    destination: "Package and pricing draft",
-    tone: "mint",
-  },
-  Workflow: {
-    icon: WandSparkles,
-    destination: "End-to-end workflow",
-    tone: "rose",
-  },
+/**
+ * What this page shows for each kind it can import.
+ *
+ * The tone and the icon are no longer decided here — they come from
+ * `features/library/kinds.ts`, so a contract is the same violet in this
+ * plan, in the Library it lands in, and in the journey rail of every job
+ * that later uses it. Only `destination` is local, because "Booking
+ * agreement draft" is copy about importing, not about contracts.
+ */
+const kindDetails: Record<ImportKind, { kind: LibraryKind; destination: string }> = {
+  "Email journey": { kind: "message", destination: "Branded email template" },
+  Contract: { kind: "contract", destination: "Booking agreement draft" },
+  Questionnaire: { kind: "questionnaire", destination: "Client questionnaire" },
+  Schedule: { kind: "schedule", destination: "Timeline rules & milestones" },
+  Package: { kind: "package", destination: "Package and pricing draft" },
+  Workflow: { kind: "workflow", destination: "End-to-end workflow" },
 };
 
 function inferKind(name: string): ImportKind {
@@ -743,13 +723,15 @@ export function TemplateImportStudio({
                 <div className="template-file-list">
                   {files.map((file) => {
                     const detail = kindDetails[file.kind];
-                    const Icon = detail.icon;
+                    const Icon = kindIcon(detail.kind);
                     const remoteItem = uploadProgress?.items.find(
                       (item) => item.clientId === file.id,
                     );
                     return (
                       <article key={file.id}>
-                        <span className={`template-file-icon tone-${detail.tone}`}>
+                        <span
+                          className={`template-file-icon tone-${kindTone(detail.kind)}`}
+                        >
                           <Icon size={17} />
                         </span>
                         <span>
@@ -937,7 +919,7 @@ export function TemplateImportStudio({
               <div className="template-plan-list">
                 {planKinds.map((kind) => {
                   const detail = kindDetails[kind];
-                  const Icon = detail.icon;
+                  const Icon = kindIcon(detail.kind);
                   const checked = selected.includes(kind);
                   return (
                     <button
@@ -953,7 +935,9 @@ export function TemplateImportStudio({
                       }
                       type="button"
                     >
-                      <span className={`template-plan-icon tone-${detail.tone}`}>
+                      <span
+                        className={`template-plan-icon tone-${kindTone(detail.kind)}`}
+                      >
                         <Icon size={18} />
                       </span>
                       <span>

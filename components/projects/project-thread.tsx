@@ -14,6 +14,9 @@ import {
   UserRound,
 } from "lucide-react";
 import type { JourneyStep } from "@/features/journey/steps";
+import { groupJourneyByPhase } from "@/features/journey/phases";
+import { KindGlyph } from "@/components/library/kind-glyph";
+import type { LibraryKind } from "@/features/library/kinds";
 import {
   groupThreadByDay,
   type ThreadActor,
@@ -110,12 +113,43 @@ export function ProjectThread({
   );
 }
 
+/**
+ * What sort of record this entry is about, in the app's shared vocabulary.
+ *
+ * The thread is the one genuinely mixed feed in the product — a proposal,
+ * a phone note, an invoice and a schedule version, in date order — and
+ * every row rendered identically. A glyph makes the feed scannable without
+ * adding a word to it.
+ */
+function entryKind(entry: ThreadEntry): LibraryKind | null {
+  if (entry.artifact) return threadArtifactKinds[entry.artifact.type];
+  if (entry.kind === "message") return "message";
+  // System narration is the engines talking about themselves. It has no
+  // subject of its own, and inventing one would be a lie in colour.
+  return null;
+}
+
+const threadArtifactKinds: Record<
+  NonNullable<ThreadEntry["artifact"]>["type"],
+  LibraryKind
+> = {
+  proposal: "proposal",
+  contract: "contract",
+  invoice: "invoice",
+  schedule: "schedule",
+  questionnaire: "questionnaire",
+  delivery: "delivery",
+  consultation: "calendar",
+};
+
 function ThreadEntryCard({ entry }: { entry: ThreadEntry }) {
+  const kind = entryKind(entry);
   return (
     <article
-      className={`thread-entry is-${entry.kind} from-${entry.actor}`}
+      className={`thread-entry is-${entry.kind} from-${entry.actor}${kind ? " has-glyph" : ""}`}
       data-actor={entry.actor}
     >
+      {kind ? <KindGlyph kind={kind} size={26} /> : null}
       <div className="thread-entry-head">
         <strong>{entry.title}</strong>
         <em>{ACTOR_LABEL[entry.actor]}</em>
@@ -187,11 +221,7 @@ function ThreadComposer({
   const [notice, setNotice] = useState<string | null>(null);
 
   const suggestions =
-    mode === "ask"
-      ? ASK_SUGGESTIONS
-      : mode === "note"
-        ? NOTE_SUGGESTIONS
-        : [];
+    mode === "ask" ? ASK_SUGGESTIONS : mode === "note" ? NOTE_SUGGESTIONS : [];
 
   const placeholder =
     mode === "note"
@@ -314,7 +344,11 @@ function ThreadComposer({
         </div>
       )}
 
-      <div className="thread-composer-modes" role="tablist" aria-label="What are you adding?">
+      <div
+        className="thread-composer-modes"
+        role="tablist"
+        aria-label="What are you adding?"
+      >
         {consultationId ? (
           <button
             aria-selected={mode === "note"}
@@ -475,6 +509,10 @@ function MarkDoneButton({
 /** The compact rail: where this job sits, and how far it has come. */
 export function ThreadMinimap({ steps }: { steps: JourneyStep[] }) {
   const complete = steps.filter((step) => step.status === "complete").length;
+  // Fifteen identical ticks is an accurate index and a poor map. The arcs
+  // are what a photographer thinks in: am I still selling this, or am I
+  // shooting it in a fortnight?
+  const groups = groupJourneyByPhase(steps);
   return (
     <aside className="thread-minimap" aria-label="Journey">
       <div className="thread-minimap-head">
@@ -483,24 +521,37 @@ export function ThreadMinimap({ steps }: { steps: JourneyStep[] }) {
           {complete}/{steps.length}
         </span>
       </div>
-      <ol>
-        {steps.map((step) => (
-          <li className={`is-${step.status}`} key={step.key}>
-            <span aria-hidden="true">
-              {step.status === "complete" ? (
-                <Check size={11} />
-              ) : step.status === "waiting_client" ? (
-                <UserRound size={10} />
-              ) : null}
-            </span>
-            {step.record && step.status !== "upcoming" ? (
-              <Link href={step.record.href}>{step.title}</Link>
-            ) : (
-              <em>{step.title}</em>
-            )}
-          </li>
-        ))}
-      </ol>
+      {groups.map((group) => (
+        <section
+          className={`thread-phase${group.active ? " is-active" : ""}`}
+          key={group.phase}
+        >
+          <p className="thread-phase-label">
+            {group.label}
+            <em>
+              {group.complete}/{group.steps.length}
+            </em>
+          </p>
+          <ol>
+            {group.steps.map((step) => (
+              <li className={`is-${step.status}`} key={step.key}>
+                <span aria-hidden="true">
+                  {step.status === "complete" ? (
+                    <Check size={11} />
+                  ) : step.status === "waiting_client" ? (
+                    <UserRound size={10} />
+                  ) : null}
+                </span>
+                {step.record && step.status !== "upcoming" ? (
+                  <Link href={step.record.href}>{step.title}</Link>
+                ) : (
+                  <em>{step.title}</em>
+                )}
+              </li>
+            ))}
+          </ol>
+        </section>
+      ))}
       {/* The rail used to restate the current step as "Now: X" while the
           next-move card gave the same step as an instruction. The highlighted
           row already says where the job is; one voice is enough. */}

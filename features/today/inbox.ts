@@ -22,6 +22,7 @@ import {
   stalenessWeight,
 } from "@/features/dashboard/urgency";
 import type { SetupGap } from "@/features/today/setup-gaps";
+import { kindFromValue, type LibraryKind } from "@/features/library/kinds";
 import { countdownPhrase, formatDueDate } from "@/lib/format/event-date";
 import { providerName as readable } from "@/lib/format/provider-name";
 
@@ -70,6 +71,12 @@ export type TodayItem = {
   band: TodayBand;
   eventDate: string | null;
   score: number;
+  /**
+   * What sort of record this moment is about, for the shared glyph. Null
+   * where the moment has no record behind it — studio setup, an engine
+   * narrating itself — because a colour there would be a guess.
+   */
+  kind: LibraryKind | null;
 };
 
 export type TodayUpcomingEvent = {
@@ -201,6 +208,27 @@ function score(input: {
 }
 
 const byScore = (left: TodayItem, right: TodayItem) => right.score - left.score;
+
+/**
+ * The kind a free-text record type names, or null.
+ *
+ * Server records carry their own vocabulary — asset types, receipt types,
+ * step keys — and `toneForValue` already knows the aliases. This narrows
+ * that to the kind itself so the card can pick an icon as well as a hue.
+ */
+function toneKindFor(value: string): LibraryKind | null {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return null;
+  return kindFromValue(normalized);
+}
+
+/** The subject of a job's current journey step. */
+function journeyStepKind(position: TodayJourneyPosition): LibraryKind | null {
+  // The action href names the surface the step lives on, which is the most
+  // reliable signal available here — the position carries no step key.
+  const surface = (position.actionHref ?? "").split("?")[0].split("/")[2] ?? "";
+  return kindFromValue(surface) ?? kindFromValue(position.state.toLowerCase());
+}
 
 /**
  * What the page opens with.
@@ -358,6 +386,8 @@ export function todayInbox(input: TodayInput): TodayInbox {
     act.push({
       id: `lead-${lead.id}`,
       lane: "act",
+      // An inquiry is a message that has not been answered yet.
+      kind: "message",
       // A nameless inquiry is titled once, not "New inquiry — New inquiry".
       title: name ? `New inquiry — ${name}` : "New inquiry",
       detail: facts.join(" · ") || "Waiting on your first reply",
@@ -405,10 +435,12 @@ export function todayInbox(input: TodayInput): TodayInbox {
     label?: string;
     dueDate?: string | null;
     extraFacts?: Array<string | null>;
+    kind?: LibraryKind | null;
   }) => {
     act.push({
       id: item.id,
       lane: "act",
+      kind: item.kind ?? null,
       title: item.title,
       detail: item.detail,
       evidence: "StudioCue stopped safely — this one needs you",
@@ -459,6 +491,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
     if (!due || due >= today || done) continue;
     exception({
       id: `task-${task.id}`,
+      kind: "task",
       title: text(task.title) || "Overdue task",
       detail: nameFor(task.projectId) ?? "Studio task",
       dueDate: due,
@@ -487,6 +520,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
       continue;
     exception({
       id: `invoice-${invoice.id}`,
+      kind: "invoice",
       // The amount leads. Four cards titled "Balance overdue" above four
       // identical buttons made the only thing that differed — how much, and
       // whose — the smallest text on the card.
@@ -508,6 +542,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
     if (text(cascade.status) !== "exhausted") continue;
     exception({
       id: `cascade-${cascade.id}`,
+      kind: "crew",
       title: `No one accepted ${text(cascade.role) || "the crew role"}`,
       detail: `${nameFor(cascade.projectId) ?? "Event"} · every candidate declined or expired`,
       href: "/studio/crew",
@@ -526,6 +561,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
       : "";
     exception({
       id: `booking-${plan.id}`,
+      kind: "calendar",
       title: "Booking stopped for a reason",
       detail: `${nameFor(plan.projectId) ?? "Project"}${blockers ? ` · ${blockers}` : ""}`,
       href: `/studio/booking?project=${text(plan.projectId)}`,
@@ -542,6 +578,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
   for (const run of rows(input.automationRuns).filter(failed))
     exception({
       id: `automation-${run.id}`,
+      kind: "automation",
       title: "An automation could not finish",
       detail: `${nameFor(run.projectId) ?? "Studio"} · ${readable(run.status)}`,
       href: "/studio/automations",
@@ -552,6 +589,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
   for (const job of rows(input.providerJobs).filter(failed))
     exception({
       id: `provider-${job.id}`,
+      kind: null,
       title: "A provider step could not finish",
       detail: `${nameFor(job.projectId) ?? "Studio"} · ${readable(job.type) || readable(job.status)}`,
       href: "/studio/integrations",
@@ -562,6 +600,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
   for (const job of rows(input.emailJobs).filter(failed))
     exception({
       id: `email-${job.id}`,
+      kind: "email",
       title: "An email did not send",
       detail: `${nameFor(job.projectId) ?? "Studio"} · ${readable(job.type)}`,
       href: "/studio/messages",
@@ -573,6 +612,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
     if (text(connection.status) !== "error" && !connection.lastError) continue;
     exception({
       id: `connection-${connection.id}`,
+      kind: null,
       title: `Reconnect ${readable(connection.provider) || "an integration"}`,
       detail: "Automation is paused until this is reconnected",
       href: "/studio/integrations",
@@ -601,6 +641,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
     act.push({
       id: `journey-${position.projectId}`,
       lane: "act",
+      // The step's own subject — a proposal step is violet, a run-of-show
+      // step is blue — resolved through the alias table.
+      kind: journeyStepKind(position),
       // Step titles are milestone names written in the past ("Gallery
       // delivered", "Crew confirmed") — correct on the journey rail beside a
       // tick, but read as an announcement that the thing is already done
@@ -649,6 +692,8 @@ export function todayInbox(input: TodayInput): TodayInbox {
     act.push({
       id: `setup-${gap.key}`,
       lane: "act",
+      // Studio setup is about the studio, not about a record.
+      kind: null,
       title: gap.title,
       detail: gap.detail,
       evidence: "One-time studio setup",
@@ -672,6 +717,10 @@ export function todayInbox(input: TodayInput): TodayInbox {
     approve.push({
       id: `ai-${action.id}`,
       lane: "approve",
+      // What the draft is a draft *of* — the capability names it.
+      kind: toneKindFor(
+        text(action.capability) || text(action.assetType) || text(action.type),
+      ),
       title: text(action.title) || "Review prepared work",
       detail: nameFor(action.projectId) ?? "Studio workflow",
       evidence: "StudioCue prepared this — you decide",
@@ -706,6 +755,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
     id: string;
     title: string;
     detail: string;
+    kind?: LibraryKind | null;
     href: string;
     label: string;
     projectId?: unknown;
@@ -714,6 +764,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
     approve.push({
       id: item.id,
       lane: "approve",
+      kind: item.kind ?? null,
       title: item.title,
       detail: item.detail,
       evidence: "StudioCue prepared this — you decide",
@@ -742,6 +793,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
     if (text(approval.status) !== "pending") continue;
     prepared({
       id: `automation-approval-${approval.id}`,
+      kind: "automation",
       title: `Approve ${readable(approval.actionType) || "a workflow step"}`,
       detail: nameFor(approval.projectId) ?? "Studio workflow",
       href: "/studio/ai-queue",
@@ -755,6 +807,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
     if (!["needs_approval", "approved_unsent"].includes(status)) continue;
     prepared({
       id: `message-${draft.id}`,
+      kind: "message",
       title:
         status === "approved_unsent"
           ? `Send: ${text(draft.subject) || "approved email"}`
@@ -770,6 +823,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
     if (text(draft.status) !== "review_required") continue;
     prepared({
       id: `delivery-${draft.id}`,
+      kind: "delivery",
       title: "Approve the gallery delivery",
       detail: nameFor(draft.projectId) ?? "Delivery",
       href: `/studio/delivery?project=${text(draft.projectId)}`,
@@ -782,6 +836,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
     if (text(proposal.status) !== "internal_review") continue;
     prepared({
       id: `proposal-${proposal.id}`,
+      kind: "proposal",
       title: "Approve the prepared proposal",
       detail: nameFor(proposal.projectId) ?? "Client offer",
       href: `/studio/proposals/${proposal.id}`,
@@ -797,6 +852,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
     fyi.push({
       id: `receipt-${receipt.id}`,
       lane: "fyi",
+      kind: toneKindFor(text(receipt.type) || text(receipt.kind)),
       title: text(receipt.title) || "Handled for you",
       detail: text(receipt.summary) || nameFor(receipt.projectId) || "",
       evidence: "Verified by provider evidence",

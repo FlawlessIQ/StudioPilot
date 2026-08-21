@@ -505,12 +505,47 @@
   width: 35px;
 }
 
-.tone-coral { background: var(--cue-coral-soft); color: #d65b52; }
-.tone-violet { background: var(--cue-violet-soft); color: #7554cf; }
-.tone-gold { background: var(--cue-gold-soft); color: #aa7012; }
-.tone-blue { background: var(--cue-blue-soft); color: #4677da; }
-.tone-mint { background: var(--cue-mint-soft); color: #249b76; }
-.tone-rose { background: var(--cue-rose-soft); color: #c9597e; }
+/**
+ * The shared tinted tile — see components/library/kind-glyph.tsx.
+ *
+ * Lives beside the tone utilities because it is meaningless without them,
+ * and because these six rules are the only place in the product where a
+ * kind gets a colour.
+ */
+/* Not every row in a mixed list is one of the five families. A project or
+   a person gets the tile's shape without its colour, so the column stays
+   even and colour keeps meaning something. */
+.kind-glyph.is-neutral {
+  background: var(--ds-line-soft, #f1f2f5);
+  color: var(--ds-muted, #8b929d);
+}
+
+.kind-glyph {
+  align-items: center;
+  border-radius: 10px;
+  display: inline-flex;
+  flex-shrink: 0;
+  justify-content: center;
+}
+
+/* Each tone is declared twice over: once bare, for the import studio's own
+   sized spans, and once compounded with .kind-glyph. The shared glyph gets
+   dropped into containers that already paint their icon slot — the Library
+   hub's `.hub-grid > a > span` is one — and a lone `.tone-*` class loses to
+   those on specificity. Compounding puts the glyph a class ahead, so it
+   keeps its colour wherever it lands. */
+.tone-coral,
+.kind-glyph.tone-coral { background: var(--cue-coral-soft); color: #d65b52; }
+.tone-violet,
+.kind-glyph.tone-violet { background: var(--cue-violet-soft); color: #7554cf; }
+.tone-gold,
+.kind-glyph.tone-gold { background: var(--cue-gold-soft); color: #aa7012; }
+.tone-blue,
+.kind-glyph.tone-blue { background: var(--cue-blue-soft); color: #4677da; }
+.tone-mint,
+.kind-glyph.tone-mint { background: var(--cue-mint-soft); color: #249b76; }
+.tone-rose,
+.kind-glyph.tone-rose { background: var(--cue-rose-soft); color: #c9597e; }
 
 .template-file-list article > span:nth-child(2) {
   display: grid;
