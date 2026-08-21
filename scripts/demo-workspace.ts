@@ -912,6 +912,36 @@ for (const [path, data] of writes) {
 }
 if (queued) await batch.commit();
 
+/**
+ * Point the demo's client at a real job.
+ *
+ * The base seed binds client@studiohub.test to a project this script wipes,
+ * so the client portal opened on "No project is assigned to this portal
+ * membership" — which meant the half of the product a paying couple sees was
+ * never exercised by the demo at all.
+ */
+const portalJob = jobs[0]!;
+const clientMemberships = await firestore
+  .collection("memberships")
+  .where("tenantId", "==", tenantId)
+  .where("role", "==", "client")
+  .get();
+for (const membership of clientMemberships.docs) {
+  await membership.ref.update({
+    projectIds: [portalJob.id],
+    status: "active",
+    updatedAt: iso,
+    updatedBy: ownerId,
+  });
+  // The portal needs a person on the project, not only a membership.
+  await firestore.doc(`projects/${portalJob.id}`).update({
+    clientContactIds: [`contact-${portalJob.id}`],
+    portalUserIds: [membership.get("userId")],
+    updatedAt: iso,
+    updatedBy: ownerId,
+  });
+}
+
 console.log(
-  `Demo workspace ready for ${tenantId}: ${jobs.length} jobs, ${packages.length} packages, 2 inquiries, ${drafts.length} drafts awaiting approval, ${handled.length} things already handled.`,
+  `Demo workspace ready for ${tenantId}: ${jobs.length} jobs, ${packages.length} packages, 2 inquiries, ${drafts.length} drafts awaiting approval, ${handled.length} things already handled. Client portal: ${portalJob.couple}.`,
 );

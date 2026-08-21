@@ -21,7 +21,17 @@ import { join } from "node:path";
  */
 
 const APP = "app";
-const STUDIO = join(APP, "studio");
+/**
+ * Every area a signed-in person navigates. It used to be the studio alone,
+ * which is how /client/payments stayed orphaned: a couple with an
+ * outstanding balance had no link to the page that shows it, and this test
+ * passed the whole time because it never looked at the portals.
+ */
+const AREAS = [
+  { root: join(APP, "studio"), prefix: "/studio" },
+  { root: join(APP, "client"), prefix: "/client" },
+  { root: join(APP, "crew"), prefix: "/crew" },
+];
 
 function routesUnder(directory: string, prefix: string): string[] {
   const found: string[] = [];
@@ -63,10 +73,17 @@ const DEEP_LINK_ONLY = new Map<string, string>([
   ["/studio/readiness", "reached from the readiness link on a job header"],
   ["/studio/audit", "owner-only forensic view, reached from an audit event"],
   ["/studio/copilot", "reached from the composer's escalation link"],
+  // Left behind when the crew nav collapsed "Pending offers" and "Accepted
+  // jobs" into one "Jobs" entry. Nothing links to them and nothing routes to
+  // them; only e2e/authenticated-visual-shell.spec.ts still visits them.
+  // Exempted rather than papered over with invented nav entries — they are
+  // candidates for deletion once that spec is updated.
+  ["/crew/accepted", "superseded by /crew/jobs — dead, pending deletion"],
+  ["/crew/pending", "superseded by /crew/jobs — dead, pending deletion"],
 ]);
 
-test("every studio page has something linking to it", () => {
-  const routes = routesUnder(STUDIO, "/studio");
+test("every page behind a login has something linking to it", () => {
+  const routes = AREAS.flatMap((area) => routesUnder(area.root, area.prefix));
   const sources = [
     ...sourceFiles("components"),
     ...sourceFiles(APP),
@@ -106,7 +123,9 @@ test("every studio page has something linking to it", () => {
 
 test("the exemption list stays honest", () => {
   // An exemption for a route that no longer exists is a stale decision.
-  const routes = new Set(routesUnder(STUDIO, "/studio"));
+  const routes = new Set(
+    AREAS.flatMap((area) => routesUnder(area.root, area.prefix)),
+  );
   const gone = [...DEEP_LINK_ONLY.keys()].filter((route) => !routes.has(route));
   assert.deepEqual(gone, [], `Exempted routes that no longer exist: ${gone.join(", ")}`);
 });
