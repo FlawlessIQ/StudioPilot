@@ -251,7 +251,9 @@ test("items carry the facts needed to judge them without opening anything", () =
   assert.equal(step?.band, "soon");
 
   const invoice = inbox.act.find((item) => item.id === "invoice-inv-1");
-  assert.ok(invoice?.facts.includes("$1,950"), invoice?.facts.join());
+  // The amount is the headline now, not a chip among chips.
+  assert.equal(invoice?.title, "$1,950 overdue");
+  assert.ok(invoice?.facts.includes("due Aug 1, 2026"), invoice?.facts.join());
   assert.equal(invoice?.band, "overdue");
 });
 
@@ -405,4 +407,37 @@ test("an unanswered inquiry outranks chasing money already earned", () => {
   });
   assert.equal(inbox.act[0]?.id, "lead-lead-1");
   assert.equal(inbox.act[1]?.id, "invoice-inv-1");
+});
+
+test("dates on cards are written for a person, never as ISO", () => {
+  const inbox = todayInbox({
+    ...base,
+    invoiceReferences: [
+      {
+        id: "inv-1",
+        projectId: "project-1",
+        balanceCents: 626500,
+        dueDate: "2026-07-25",
+        status: "sent",
+      },
+    ],
+    tasks: [
+      {
+        id: "task-1",
+        projectId: "project-1",
+        title: "Confirm the family photo list",
+        dueAt: "2026-08-17",
+        status: "open",
+      },
+    ],
+    journeys: [journey({ owner: "client" })],
+  });
+  const facts = inbox.act.flatMap((item) => item.facts);
+  assert.ok(facts.includes("due Jul 25, 2026"));
+  assert.ok(facts.includes("was due Aug 17, 2026"));
+  // No fact anywhere may carry a raw YYYY-MM-DD.
+  assert.deepEqual(
+    facts.filter((fact) => /\d{4}-\d{2}-\d{2}/.test(fact)),
+    [],
+  );
 });

@@ -30,7 +30,7 @@ export default async function PlanningPage({ searchParams }: { searchParams: Pro
       <div className="project-plan-hub">
         <header className="page-heading">
           <div>
-            <p className="eyebrow">Project workspace</p>
+            <p className="eyebrow">The job</p>
             <h1>Plan</h1>
             <p>One place for the client facts, timeline, crew, requirements, and files that make the event ready.</p>
           </div>

@@ -24,6 +24,7 @@ import {
 } from "firebase/firestore";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { stateTone } from "@/lib/status-tone";
+import { projectStateLabel } from "@/features/projects/state-label";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
@@ -784,7 +785,7 @@ export function ProjectContextBar({ projectId }: { projectId: string }) {
             <span className="project-context-status">
               {state ? (
                 <StatusBadge dot tone={stateTone(state)}>
-                  {state.replaceAll("_", " ").toLowerCase()}
+                  {projectStateLabel(state)}
                 </StatusBadge>
               ) : null}
               {/* The ring carries the number, so no separate label: printing

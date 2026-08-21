@@ -28,7 +28,7 @@ const productPoints = [
     icon: Gauge,
     eyebrow: "Know what’s ready",
     title: "One clear readiness score",
-    text: "Every contract, payment, document, assignment, and approval rolls into a deterministic project view.",
+    text: "Every contract, payment, document, assignment, and approval in one view of the job.",
   },
   {
     icon: CalendarCheck2,
@@ -208,7 +208,7 @@ export default function MarketingHome() {
             </p>
             <ul>
               <li>
-                <ShieldCheck size={18} /> Deterministic rules—never an AI guess
+                <ShieldCheck size={18} /> Fixed rules—never an AI guess
               </li>
               <li>
                 <Users size={18} /> A clear owner for every blocker

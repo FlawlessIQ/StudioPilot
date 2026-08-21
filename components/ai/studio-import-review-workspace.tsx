@@ -428,7 +428,7 @@ export function StudioImportReviewWorkspace({
             </div>
           ) : (
             <p className="studio-import-validation-passed">
-              <Check size={14} /> Deterministic checks passed
+              <Check size={14} /> Checks passed
             </p>
           )}
 

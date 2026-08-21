@@ -10969,3 +10969,88 @@ textarea:focus-visible {
 .settings-destinations > a > svg {
   color: var(--muted);
 }
+
+/* Jobs list · what a job is worth, and what is still owed on it. Replaces
+   the readiness column, which was blank on seven rows in ten. */
+.value-cell {
+  display: grid;
+  gap: 3px;
+}
+
+.value-cell > strong {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.value-cell > small {
+  color: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.value-cell > small.is-overdue {
+  color: #a6402f;
+  font-weight: 650;
+}
+
+/* Booking · what is still owed, above the record of how they were booked. */
+.booking-outstanding {
+  align-items: center;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e3e1d8);
+  border-left: 3px solid #b08a3a;
+  border-radius: 14px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  margin-bottom: 16px;
+  padding: 15px 18px;
+}
+
+.booking-outstanding.is-overdue {
+  border-left-color: #a6402f;
+}
+
+.booking-outstanding > svg {
+  color: #b08a3a;
+}
+
+.booking-outstanding.is-overdue > svg {
+  color: #a6402f;
+}
+
+.booking-outstanding span {
+  display: grid;
+  gap: 3px;
+}
+
+.booking-outstanding strong {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.booking-outstanding small {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.booking-outstanding.is-overdue small {
+  color: #a6402f;
+  font-weight: 600;
+}
+
+/* Prepared work reads as the draft it is, not as the record holding it. */
+.structured-preview-body {
+  display: grid;
+  gap: 10px;
+}
+
+.structured-preview-prose {
+  color: var(--ink);
+  font-size: 13.5px;
+  line-height: 1.6;
+  margin: 0;
+  white-space: pre-wrap;
+}

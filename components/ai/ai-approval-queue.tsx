@@ -395,7 +395,7 @@ export function AutomationApprovalCard({
       <header>
         <span className="ai-queue-capability-icon"><FileClock size={18} /></span>
         <span>
-          <small>Deterministic workflow approval</small>
+          <small>Workflow step awaiting your yes</small>
           <strong>{readable(text(approval.actionType))}</strong>
           <em>Requested {relativeTime(approval.requestedAt)}</em>
         </span>

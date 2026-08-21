@@ -17,8 +17,9 @@ export default async function DeliveryPage({
             <p className="eyebrow">Gallery handoff</p>
             <h1>Delivery</h1>
             <p>
-              Record a secure gallery only after the deterministic
-              post-production delivery gate passes.
+              Record the gallery once the edit is finished. StudioCue checks
+              the balance, the contract and the crew before anything reaches
+              the couple.
             </p>
           </div>
         </header>

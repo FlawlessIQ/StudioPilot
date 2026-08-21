@@ -109,7 +109,7 @@ const config: Record<
       ["Steps", ["steps"]],
     ],
     boundary:
-      "Closeout remains deterministic: delivery, download, financial, crew, and review evidence must be resolved.",
+      "A job closes only once the gallery, the money, the crew and the review are all settled.",
   },
   workflow: {
     collections: ["workflowTemplates"],

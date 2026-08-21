@@ -15,6 +15,8 @@
  * Pure function, no I/O: the UI feeds it plain records.
  */
 
+import { formatDueDate } from "@/lib/format/event-date";
+
 export type ThreadActor = "client" | "studio" | "studiocue" | "provider";
 
 export type ThreadEntryKind =
@@ -153,7 +155,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
             kind: "artifact",
             title: "Consultation booked",
             detail: text(consultation.startsAt)
-              ? `${readable(consultation.mode)} · ${text(consultation.startsAt).slice(0, 10)}`
+              ? `${readable(consultation.mode)} · ${formatDueDate(text(consultation.startsAt))}`
               : readable(consultation.mode),
             artifact: {
               type: "consultation",
@@ -208,7 +210,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
                 total,
                 readable(status),
                 text(proposal.expiresAt)
-                  ? `expires ${text(proposal.expiresAt).slice(0, 10)}`
+                  ? `expires ${formatDueDate(text(proposal.expiresAt))}`
                   : "",
               ].filter(Boolean),
               href: `/studio/proposals/${proposal.id}`,
@@ -226,7 +228,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
             kind: "system",
             title: "Proposal sent to the client",
             detail: text(proposal.viewedAt)
-              ? `Viewed ${text(proposal.viewedAt).slice(0, 10)}`
+              ? `Viewed ${formatDueDate(text(proposal.viewedAt))}`
               : "Not opened yet",
             artifact: null,
           }
@@ -308,7 +310,9 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
               facts: [
                 money(invoice.amountCents, invoice.currency),
                 readable(status),
-                text(invoice.dueDate) ? `due ${text(invoice.dueDate)}` : "",
+                text(invoice.dueDate)
+                  ? `due ${formatDueDate(text(invoice.dueDate))}`
+                  : "",
               ].filter(Boolean),
               href: "/studio/invoices",
             },

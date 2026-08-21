@@ -572,7 +572,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
       </Link>
       <header className="project-detail-header">
         <div>
-          <p className="eyebrow">Project command center</p>
+          <p className="eyebrow">The job</p>
           <div className="project-title-line">
             <h1>{String(project.name)}</h1>
             <StatusBadge tone={stateTone(state)} dot>

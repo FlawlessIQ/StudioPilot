@@ -25,6 +25,8 @@ import { sendBookingCommand } from "@/lib/booking/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { resolveActiveProvider } from "@/features/integrations/routing";
 import { friendlyError as friendlySharedError } from "@/lib/ai/friendly-error";
+import { formatDueDate } from "@/lib/format/event-date";
+import { providerName } from "@/lib/format/provider-name";
 import {
   PanelError,
   PanelLoading,
@@ -76,6 +78,14 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   const [proposal, setProposal] = useState<RecordValue | null>(null);
   const [contract, setContract] = useState<RecordValue | null>(null);
   const [invoice, setInvoice] = useState<RecordValue | null>(null);
+  // The retainer is only one of a job's invoices. The final balance lives
+  // here too, and it is the number that actually needs chasing — leaving it
+  // off the money screen was the sharpest finding of the audit.
+  const [outstanding, setOutstanding] = useState<{
+    cents: number;
+    overdue: boolean;
+    dueDate: string | null;
+  } | null>(null);
   const [orchestration, setOrchestration] = useState<RecordValue | null>(null);
   const [packageSnapshot, setPackageSnapshot] = useState<RecordValue | null>(null);
   const [contact, setContact] = useState<RecordValue | null>(null);
@@ -176,6 +186,33 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               String(left.createdAt ?? ""),
             ),
           )[0] ?? null;
+      const unpaid = invoices.docs
+        .map((item): RecordValue => ({ id: item.id, ...item.data() }))
+        .filter(
+          (item) =>
+            Number(item.balanceCents ?? 0) > 0 &&
+            !["paid", "voided", "refunded"].includes(String(item.status)),
+        );
+      const todayIso = new Date().toISOString().slice(0, 10);
+      setOutstanding(
+        unpaid.length
+          ? {
+              cents: unpaid.reduce(
+                (sum, item) => sum + Number(item.balanceCents ?? 0),
+                0,
+              ),
+              overdue: unpaid.some((item) => {
+                const due = String(item.dueDate ?? "").slice(0, 10);
+                return Boolean(due) && due < todayIso;
+              }),
+              dueDate:
+                unpaid
+                  .map((item) => String(item.dueDate ?? "").slice(0, 10))
+                  .filter(Boolean)
+                  .sort()[0] ?? null,
+            }
+          : null,
+      );
       const packageSnapshotId =
         typeof projectValue.packageSnapshotId === "string"
           ? projectValue.packageSnapshotId
@@ -397,6 +434,31 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
 
   return (
     <section className="booking-workspace">
+      {/* Money still owed leads, because it is the only thing on this screen
+          that needs doing. The three steps below are a record of a booking
+          that, by the time a balance is outstanding, already happened. */}
+      {outstanding ? (
+        <aside
+          className={`booking-outstanding${outstanding.overdue ? " is-overdue" : ""}`}
+        >
+          <ReceiptText aria-hidden="true" size={18} />
+          <span>
+            <strong>
+              {currency(outstanding.cents, invoice?.currency)} still owed
+            </strong>
+            <small>
+              {outstanding.overdue
+                ? `Overdue since ${formatDueDate(outstanding.dueDate)}`
+                : outstanding.dueDate
+                  ? `Due ${formatDueDate(outstanding.dueDate)}`
+                  : "No due date set"}
+            </small>
+          </span>
+          <Link className="button button-dark" href="/studio/invoices">
+            Chase payment <ArrowRight size={15} />
+          </Link>
+        </aside>
+      ) : null}
       <div className="booking-steps" aria-label="Booking workflow">
         <article
           className={contractComplete ? "booking-step is-complete" : "booking-step"}
@@ -441,8 +503,11 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           </aside>
           {contract ? (
             <div className="booking-evidence">
-              <span><small>Envelope</small><strong>{String(contract.providerEnvelopeId ?? "Creating…")}</strong></span>
-              <span><small>Sent</small><strong>{contract.sentAt ? new Date(String(contract.sentAt)).toLocaleDateString() : "Queued"}</strong></span>
+              {/* The provider's envelope id is an internal reference, not a
+                  number the couple would ever quote. Who signed it and when
+                  is what the studio actually needs to see. */}
+              <span><small>Signed with</small><strong>{providerName(String(contract.provider ?? "the signing provider"))}</strong></span>
+              <span><small>Sent</small><strong>{contract.sentAt ? formatDueDate(String(contract.sentAt)) : "Queued"}</strong></span>
             </div>
           ) : (
             <div className="booking-action-form">
