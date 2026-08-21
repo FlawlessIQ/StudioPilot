@@ -48,6 +48,7 @@ import {
   type LifecycleRecord,
 } from "@/features/projects/lifecycle-projection";
 import { projectStateLabel } from "@/features/projects/state-label";
+import { readinessSummary } from "@/features/projects/readiness-summary";
 import { describeEventProximity } from "@/lib/format/event-date";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
@@ -355,12 +356,15 @@ function ProjectLifecycleLanes({
     <section className="project-lifecycle-cockpit" id="project-checkpoints">
       <header>
         <div>
-          <p className="eyebrow">Where this job stands</p>
-          <h2>Who needs to do what next</h2>
+          <p className="eyebrow">Reference</p>
+          <h2>Everything outstanding, by who owes it</h2>
+          {/* This panel used to open with "Main blocker: …", which competed
+              with the next-move card and, on a fully planned wedding, called
+              an unpaid balance a blocker for work that was not blocked. It is
+              a reference list now; the instruction lives in one place. */}
           <p>
-            {projection.primaryBlocker
-              ? `Main blocker: ${projection.primaryBlocker}`
-              : `No hard blocker. Next action belongs to ${projection.nextAction.owner.toLowerCase()}.`}
+            Your next move is at the end of the thread above. This is the rest
+            of what is open on this job.
           </p>
         </div>
       </header>
@@ -548,18 +552,13 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
 
   const parsedState = projectStateSchema.safeParse(project.state);
   const state: ProjectState = parsedState.success ? parsedState.data : "LEAD";
-  const readiness = Number(project.readinessScore ?? 0);
-  // The checkpoints that are both required and unfinished — i.e. the missing
-  // percentage, in words.
-  const outstanding = checkpoints
-    .filter(
-      (checkpoint) =>
-        checkpoint.blocking === true &&
-        !["complete", "completed", "waived"].includes(
-          String(checkpoint.status ?? ""),
-        ),
-    )
-    .map((checkpoint) => String(checkpoint.name ?? "Unnamed checkpoint"));
+  // One source for readiness. It used to come from project.readinessScore
+  // while the sentence beside it was decided by whether checkpoints had
+  // loaded, so the same page could read "—" in the header and "68% ready" in
+  // the footer. See features/projects/readiness-summary.ts.
+  const readinessView = readinessSummary(checkpoints);
+  const readiness = readinessView.percent;
+  const outstanding = readinessView.blocking;
   const current = journey.current;
   const onTransition = (nextState: string, version: number) =>
     setProject((value) =>
@@ -584,37 +583,33 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
             {displayDate(project.eventDate)}
           </p>
         </div>
-        <div className="project-readiness-summary">
-          <span>
-            <small>Event readiness</small>
-            {/* With no checkpoints there is nothing to score. "100%" beside
-                "tracking hasn't started" is a contradiction; a dash is the
-                truth. */}
-            <strong>{checkpoints.length === 0 ? "—" : `${readiness}%`}</strong>
-            {/* A bare percentage says nothing about the gap. Name what the
-                remainder actually is, and point at the list that holds it. */}
-            {outstanding.length ? (
-              <a className="project-readiness-gap" href="#project-checkpoints">
-                {outstanding.length} blocker{outstanding.length === 1 ? "" : "s"}:{" "}
-                {outstanding[0]}
-                {outstanding.length > 1 ? ` +${outstanding.length - 1} more` : ""}
-              </a>
-            ) : checkpoints.length === 0 ? (
-              // With no checkpoints yet, "0% and nothing blocking" reads as a
-              // contradiction. Say what is actually true instead.
-              <small className="project-readiness-clear">
-                Readiness tracking starts once planning begins.
-              </small>
-            ) : (
-              <small className="project-readiness-clear">
-                Nothing blocking — every required checkpoint is complete.
-              </small>
-            )}
-          </span>
-          {checkpoints.length === 0 ? null : (
+        {/* Readiness appears only when something backs it. A job with no
+            required checkpoints is not 0% ready and not "—" ready; it simply
+            is not being tracked yet, and the header stays quiet about it. */}
+        {readinessView.tracked ? (
+          <div className="project-readiness-summary">
+            <span>
+              <small>Event readiness</small>
+              <strong>{readiness}%</strong>
+              {/* A bare percentage says nothing about the gap. Name what the
+                  remainder actually is, and point at the list that holds it. */}
+              {outstanding.length ? (
+                <a className="project-readiness-gap" href="#project-checkpoints">
+                  {outstanding.length} blocker
+                  {outstanding.length === 1 ? "" : "s"}: {outstanding[0]}
+                  {outstanding.length > 1
+                    ? ` +${outstanding.length - 1} more`
+                    : ""}
+                </a>
+              ) : (
+                <small className="project-readiness-clear">
+                  Nothing blocking — every required checkpoint is complete.
+                </small>
+              )}
+            </span>
             <ReadinessMeter value={readiness} size="lg" />
-          )}
-        </div>
+          </div>
+        ) : null}
       </header>
       <ProjectWorkspaceNav projectId={projectId} />
       <div className="project-facts">
@@ -655,7 +650,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           stateVersion={Number(project.stateVersion ?? 0)}
         />
         <div className="job-rail">
-          <ThreadMinimap current={current} steps={journey.steps} />
+          <ThreadMinimap steps={journey.steps} />
           {state === "LEAD" &&
           Array.isArray(project.clientContactIds) &&
           typeof project.clientContactIds[0] === "string" ? (
@@ -686,10 +681,12 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
       <details className="project-detail-disclosure">
         <summary>
           <span>
-            <small>Coming next</small>
-            <strong>Planning automation and readiness details</strong>
+            <small>More detail</small>
+            <strong>Planning checks and automation</strong>
           </span>
-          <em>{readiness}% ready</em>
+          {/* Only ever the same number the header shows, and only when the
+              header is showing one. */}
+          {readinessView.tracked ? <em>{readiness}% ready</em> : null}
         </summary>
         <div className="project-detail-disclosure-body">
           <ProjectPlanningCopilot
@@ -705,9 +702,13 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
                 <h2>Readiness checkpoints</h2>
                 <p>Requirements that must be completed before the event.</p>
               </div>
-              <StatusBadge tone={readiness === 100 ? "success" : "warning"}>
-                {readiness}% ready
-              </StatusBadge>
+              {readinessView.tracked ? (
+                <StatusBadge tone={readiness === 100 ? "success" : "warning"}>
+                  {readiness}% ready
+                </StatusBadge>
+              ) : (
+                <StatusBadge tone="neutral">Not tracked yet</StatusBadge>
+              )}
             </div>
             <div className="project-checkpoint-list">
               {checkpoints.map((checkpoint) => {
