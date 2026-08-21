@@ -3,6 +3,7 @@ import { ConsultationAvailability } from "@/components/settings/consultation-ava
 import { DataControls } from "@/components/settings/data-controls";
 import { EmailBranding } from "@/components/settings/email-branding";
 import { EmailTemplateDesigner } from "@/components/communications/email-template-designer";
+import { SettingsDestinations } from "@/components/settings/settings-destinations";
 
 export default function SettingsPage() {
   return (
@@ -10,13 +11,15 @@ export default function SettingsPage() {
       <div className="saas-page">
         <header className="page-heading">
           <div>
-            <p className="eyebrow">Workspace settings</p>
-            <h1>Workspace settings</h1>
+            <p className="eyebrow">Your studio</p>
+            <h1>Studio settings</h1>
             <p>
-              Control how clients see your studio and manage your account data.
+              How clients see your studio, what it connects to, and what you
+              pay for.
             </p>
           </div>
         </header>
+        <SettingsDestinations />
         <EmailBranding />
         <EmailTemplateDesigner />
         <ConsultationAvailability />
