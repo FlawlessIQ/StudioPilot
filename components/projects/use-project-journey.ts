@@ -2,6 +2,7 @@
 
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import {
+  invoiceIsOverdue,
   projectJourney,
   type JourneyStep,
 } from "@/features/journey/steps";
@@ -89,6 +90,10 @@ export function useProjectJourney({
       ) || null,
     retainerInvoiceStatus: text(retainerInvoice?.status) || null,
     finalInvoiceStatus: text(finalInvoice?.status) || null,
+    finalInvoiceOverdue: invoiceIsOverdue(
+      finalInvoice,
+      new Date().toISOString().slice(0, 10),
+    ),
     questionnaireStatus:
       text(forProject(questionnaires.records)[0]?.status) || null,
     scheduleStatus: text(latestSchedule?.status) || null,

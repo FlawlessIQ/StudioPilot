@@ -167,7 +167,17 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
         : null,
     );
     if (status === "completed") {
-      const done = firstAt(consultation, "aiReviewedAt", "updatedAt");
+      // `updatedAt` is when the record was last touched, not when the
+      // consultation happened — a background write would drag a November
+      // meeting onto today's date in the thread. Prefer the meeting's own
+      // end, then its review, and fall back only if neither exists.
+      const done = firstAt(
+        consultation,
+        "completedAt",
+        "endsAt",
+        "aiReviewedAt",
+        "updatedAt",
+      );
       push(
         done
           ? {

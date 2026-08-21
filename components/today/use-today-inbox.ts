@@ -2,7 +2,7 @@
 
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { projectJourney } from "@/features/journey/steps";
+import { invoiceIsOverdue, projectJourney } from "@/features/journey/steps";
 import { activeProjectStates } from "@/features/dashboard/active-states";
 import { useSetupState } from "@/components/setup/use-setup-state";
 import { homeMetrics, type HomeMetrics } from "@/features/dashboard/home-metrics";
@@ -141,6 +141,10 @@ export function useTodayInbox(): {
           text(
             projectInvoices.find((invoice) => invoice.kind === "final")?.status,
           ) || null,
+        finalInvoiceOverdue: invoiceIsOverdue(
+          projectInvoices.find((invoice) => invoice.kind === "final"),
+          today,
+        ),
         questionnaireStatus:
           text(forProject(questionnaires.records, projectId)[0]?.status) || null,
         scheduleStatus: text(latestSchedule?.status) || null,
