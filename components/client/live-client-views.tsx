@@ -48,6 +48,7 @@ import {
   type ClientMessageAttachment,
 } from "@/lib/client/message-upload";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { statusLabel } from "@/features/format/status-label";
 
 type RecordValue = Record<string, unknown> & { id: string };
 type Loadable<T> = {
@@ -549,7 +550,7 @@ export function LiveClientHome() {
     {
       label: "Album",
       detail: album
-        ? text(album.status).replaceAll("_", " ")
+        ? statusLabel(album.status)
         : "Not included or not started",
       ready: Boolean(album),
       href: "/client/delivery",
@@ -841,7 +842,7 @@ export function LiveClientDocuments() {
     ...albums.value.map((record) => ({
       id: `album-${record.id}`,
       label: "Album record",
-      detail: `Album · ${text(record.status).replaceAll("_", " ")}`,
+      detail: `Album · ${statusLabel(record.status)}`,
       status: text(record.status),
       href: "/client/delivery",
       external: false,
@@ -891,7 +892,7 @@ export function LiveClientDocuments() {
                   <Link href={record.href}>Review <ArrowRight /></Link>
                 )
               ) : (
-                <StatusBadge tone={statusTone(record.status)}>{record.status.replaceAll("_", " ")}</StatusBadge>
+                <StatusBadge tone={statusTone(record.status)}>{statusLabel(record.status)}</StatusBadge>
               )}
             </article>
           ))}
@@ -1008,7 +1009,7 @@ export function LiveClientMessages() {
                   {messageAttachments.length ? (
                     <small><Paperclip /> {messageAttachments.map((attachment) => text(attachment.name, "Attachment")).join(", ")}</small>
                   ) : null}
-                  <small>{fromStudio ? workspace.tenantName : "You"} · {date(message.sentAt ?? message.createdAt)} · {text(message.status, "sent").replaceAll("_", " ")}</small>
+                  <small>{fromStudio ? workspace.tenantName : "You"} · {date(message.sentAt ?? message.createdAt)} · {statusLabel(message.status) || "sent"}</small>
                 </span>
                 {fromStudio ? (
                   <button
@@ -1754,7 +1755,7 @@ export function LiveClientContract() {
         <ShieldCheck />
         <div>
           <StatusBadge tone={statusTone(contract.status)}>
-            {text(contract.status).replaceAll("_", " ")}
+            {statusLabel(contract.status)}
           </StatusBadge>
           <h2>
             {complete
@@ -1770,7 +1771,7 @@ export function LiveClientContract() {
                 {signer.status === "completed" ? <CheckCircle2 /> : null}
                 {text(signer.name)}
               </span>
-              <strong>{text(signer.status)}</strong>
+              <strong>{statusLabel(signer.status)}</strong>
             </div>
           ))}
           {signingUrl && !complete ? (
@@ -1888,7 +1889,7 @@ export function LiveClientPayments() {
               >
                 {invoiceOverdue(invoice)
                   ? "Overdue"
-                  : text(invoice.status).replaceAll("_", " ")}
+                  : statusLabel(invoice.status)}
               </StatusBadge>
             </div>
             <p>
@@ -2007,7 +2008,7 @@ export function LiveClientQuestionnaire() {
                 </small>
               </span>
               <StatusBadge tone={response.status === "submitted" ? "success" : "warning"}>
-                {text(response.status, "in progress").replaceAll("_", " ")}
+                {statusLabel(response.status) || "in progress"}
               </StatusBadge>
             </button>
           ))}
@@ -2283,7 +2284,7 @@ export function LiveClientDelivery() {
         </div>
         <div className="gallery-copy">
           <StatusBadge tone={statusTone(delivery.status)}>
-            {text(delivery.status)}
+            {statusLabel(delivery.status)}
           </StatusBadge>
           <h2>{workspace.projectName}</h2>
           <dl>

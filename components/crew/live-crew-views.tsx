@@ -50,6 +50,7 @@ import { sendCrewCommand } from "@/lib/crew/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { withTimeout } from "@/lib/async/with-timeout";
 import { crewPublicError } from "@/lib/crew/public-error";
+import { statusLabel } from "@/features/format/status-label";
 
 type Value = Record<string, unknown> & { id: string };
 type CrewData = {
@@ -726,7 +727,7 @@ export function LiveCrewJobs() {
       <header className="crew-portal-hero"><div><p className="eyebrow">Your work</p><h1>Jobs</h1><p>Every offer and assignment, with one clear status and next step.</p></div><StatusBadge tone="neutral">{assignments.length} total</StatusBadge></header>
       {assignments.length ? assignments.map((assignment) => {
         const project = projectFor(data, assignment);
-        const status = text(assignment.status).replaceAll("_", " ");
+        const status = statusLabel(assignment.status);
         const pending = ["invited", "viewed"].includes(String(assignment.status));
         const accepted = assignment.status === "accepted";
         const locations = list(assignment.locations).map(record);
@@ -1238,7 +1239,7 @@ export function LiveCrewRequirements() {
               <span>
                 <strong>{text(item.name)}</strong>
                 <small>
-                  {text(item.kind).replaceAll("_", " ")}
+                  {statusLabel(item.kind)}
                   {item.dueAt ? ` · Due ${dateTime(item.dueAt)}` : ""}
                 </small>
                 {item.notes || item.instructions ? (
@@ -1246,7 +1247,7 @@ export function LiveCrewRequirements() {
                 ) : null}
               </span>
               <StatusBadge tone={done ? "success" : "warning"}>
-                {text(item.status).replaceAll("_", " ")}
+                {statusLabel(item.status)}
               </StatusBadge>
               {!done ? <RequirementAction data={data} assignment={assignment} requirement={item} /> : null}
             </article>
@@ -1296,13 +1297,13 @@ export function LiveCrewDocuments() {
             <FileCheck2 />
             <span>
               <strong>{text(item.name)}</strong>
-              <small>{text(item.kind)}{item.dueAt ? ` · Due ${dateTime(item.dueAt)}` : ""}</small>
+              <small>{statusLabel(item.kind)}{item.dueAt ? ` · Due ${dateTime(item.dueAt)}` : ""}</small>
               {item.instructions ? <small>{text(item.instructions, "")}</small> : null}
             </span>
             <StatusBadge
               tone={["complete", "waived"].includes(String(item.status)) ? "success" : "warning"}
             >
-              {text(item.status).replaceAll("_", " ")}
+              {statusLabel(item.status)}
             </StatusBadge>
           </article>
         )) : <p className="crew-empty-timeline">This job has no document requirements.</p>}
@@ -1375,8 +1376,8 @@ export function LiveCrewCloseout() {
       <header className="crew-portal-hero"><div><p className="eyebrow">After the event</p><h1>Closeout & payment</h1><p>{text(project?.name)} · Preserve your hours, expenses and deliverables in one record.</p></div><StatusBadge tone={payment.status === "paid" ? "success" : submitted ? "info" : "warning"}>{payment.status === "paid" ? "Paid" : submitted ? "Studio review" : "Not submitted"}</StatusBadge></header>
       <section className="crew-payment-summary">
         <article className="panel"><small>Agreed compensation</small><strong>{assignment.compensationVisibleToCrew ? money(assignment.compensationCents, assignment.currency) : "Contact studio"}</strong><span>{text(assignment.compensationType, "event")}</span></article>
-        <article className="panel"><small>Closeout</small><strong>{text(closeout.status, "Not submitted").replaceAll("_", " ")}</strong><span>{closeout.reviewerNote ? text(closeout.reviewerNote) : closeout.submittedAt ? `Submitted ${dateTime(closeout.submittedAt)}` : "Hours and expenses due after the event"}</span></article>
-        <article className="panel"><small>Payment</small><strong>{text(payment.status, "Not scheduled").replaceAll("_", " ")}</strong><span>{payment.paidAt ? `Paid ${dateTime(payment.paidAt)}` : payment.expectedAt ? `Expected ${dateTime(payment.expectedAt)}` : "The studio will update this after review"}</span></article>
+        <article className="panel"><small>Closeout</small><strong>{statusLabel(closeout.status) || "Not submitted"}</strong><span>{closeout.reviewerNote ? text(closeout.reviewerNote) : closeout.submittedAt ? `Submitted ${dateTime(closeout.submittedAt)}` : "Hours and expenses due after the event"}</span></article>
+        <article className="panel"><small>Payment</small><strong>{statusLabel(payment.status) || "Not scheduled"}</strong><span>{payment.paidAt ? `Paid ${dateTime(payment.paidAt)}` : payment.expectedAt ? `Expected ${dateTime(payment.expectedAt)}` : "The studio will update this after review"}</span></article>
       </section>
       {closeoutStatus === "needs_changes" ? <div className="crew-next-action"><AlertTriangle/><span><strong>The studio requested changes</strong><small>{text(closeout.reviewerNote, "Review your work record and submit it again.")}</small></span></div> : null}
       {!submitted ? <form className="panel crew-closeout-form" onSubmit={(event) => void submit(event)}>

@@ -113,3 +113,44 @@ test("money is never rendered as raw cents", () => {
   }
   assert.deepEqual(offences, [], offences.join("\n  "));
 });
+
+/**
+ * Status enums are not reader-facing words.
+ *
+ * The walkthroughs kept turning this up in new places: a client shown
+ * "review_required" on their gallery, a signer row reading "completed", a
+ * crew cascade badge reading "exhausted". Each was fixed where it was found
+ * and then reappeared one screen over, because nothing stopped it.
+ *
+ * Only `.status` and `.kind` are checked. `.role` and `.name` are free text
+ * a studio typed ("Second photographer") and are correct rendered raw —
+ * flagging those would make this noisy enough to be switched off, which is
+ * worse than not having it.
+ */
+test("status and kind values go through a label before they are shown", () => {
+  const offences: string[] = [];
+  const patterns = [
+    // The direct render: {text(x.status)} / {String(x.kind)}
+    /\{\s*(?:String|text)\(\s*[A-Za-z_$][\w$.?]*\.(?:status|kind)\s*\)\s*\}/,
+    // The codebase's own idiom for dressing an enum up as words. Swapping
+    // underscores for spaces still shows the enum — "awaiting signature",
+    // "review required" — and this caught nineteen instances the direct
+    // pattern alone missed, seven of them on client-facing screens.
+    /[A-Za-z_$][\w$.?]*\.(?:status|kind)[^;\n]{0,40}\.replaceAll\("_",\s*" "\)/,
+  ];
+  for (const path of files) {
+    const source = withoutComments(readFileSync(path, "utf8"));
+    for (const line of source.split("\n")) {
+      if (patterns.some((pattern) => pattern.test(line)))
+        offences.push(`${path}: ${line.trim().slice(0, 90)}`);
+    }
+  }
+  assert.deepEqual(
+    offences,
+    [],
+    offences.length
+      ? "Use statusLabel() from features/format/status-label.ts:\n  " +
+        offences.join("\n  ")
+      : "",
+  );
+});
