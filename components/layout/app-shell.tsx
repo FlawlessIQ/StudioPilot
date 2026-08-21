@@ -60,6 +60,17 @@ const navSections = [
       { label: "Insights", href: "/studio/reports", icon: ChartNoAxesColumn },
     ],
   },
+  {
+    // The studio's own setup used to live behind the avatar menu, beside
+    // "Sign out" — which is where you put things people rarely need. Your
+    // packages, your agreement and your integrations are not that.
+    label: "Studio",
+    items: [
+      { label: "Library", href: "/studio/library", icon: LibraryBig },
+      // Owner-only, as it was in the avatar menu: settings reaches billing.
+      { label: "Studio settings", href: "/studio/settings", icon: Settings, ownerOnly: true },
+    ],
+  },
 ] as const;
 
 const activeGroups: Record<string, string[]> = {
@@ -87,6 +98,8 @@ const activeGroups: Record<string, string[]> = {
   ],
   Calendar: ["Calendar"],
   People: ["Clients", "Crew", "Team", "Vendors"],
+  Library: ["Library", "Packages", "AI setup", "Studio setup"],
+  "Studio settings": ["Settings", "Integrations", "Subscription"],
 };
 
 const StudioShellContext = createContext(false);
@@ -210,14 +223,16 @@ function StudioShell({
     "Messages",
     "People",
   ]);
-  const canSee = (label: string) => {
-    if (workspace.role === "staff_photographer") return staffAllowed.has(label);
+  const canSee = (item: { label: string; ownerOnly?: boolean }) => {
+    if (item.ownerOnly && workspace.role !== "studio_owner") return false;
+    if (workspace.role === "staff_photographer")
+      return staffAllowed.has(item.label);
     return true;
   };
   const visibleSections = navSections
     .map((section) => ({
       ...section,
-      items: section.items.filter((item) => canSee(item.label)),
+      items: section.items.filter((item) => canSee(item)),
     }))
     .filter((section) => section.items.length);
   const currentGroup = inJob
@@ -305,20 +320,8 @@ function StudioShell({
                   <small>{workspaceRoleLabel(workspace.role)}</small>
                 </span>
               </div>
-              <span className="ds-user-pop-label">Studio</span>
-              {/* Insights moved to the sidebar — analytics do not belong in a
-                  menu next to Sign out. Library stays here until it earns a
-                  nav item of its own. */}
-              {workspace.role !== "staff_photographer" ? (
-                <Link href="/studio/library"><LibraryBig size={15} /> Library</Link>
-              ) : null}
-              {workspace.role === "studio_owner" ? (
-                /* Settings is the hub — it links on to setup, integrations,
-                   billing and the team. Pointing this straight at /studio/setup
-                   stranded all four behind a page that only asks onboarding
-                   questions. */
-                <Link href="/studio/settings"><Settings size={15} /> Studio settings</Link>
-              ) : null}
+              {/* Library and Studio settings are nav items now. What is left
+                  here is about the account, not the studio. */}
               <Link href="/auth/workspaces">Switch workspace</Link>
               <PlatformReturnLink />
               <SignOutButton className="ds-user-signout" />

@@ -73,7 +73,8 @@ const BAND_LABEL: Record<TodayBand, string> = {
  */
 export function TodayInbox() {
   const workspace = useWorkspace();
-  const { inbox, metrics, booked, handled, loading } = useTodayInbox();
+  const { inbox, metrics, booked, handled, journeys, loading } =
+    useTodayInbox();
   const [cleared, setCleared] = useState<Set<string>>(new Set());
   const [showHandled, setShowHandled] = useState(false);
 
@@ -104,6 +105,120 @@ export function TodayInbox() {
   const laneApprove = lead
     ? approve.filter((item) => item.id !== lead.id)
     : approve;
+
+  /**
+   * The next wedding, in the terms a photographer counts in.
+   *
+   * `upcoming` is already sorted soonest-first and filtered to future
+   * events by the engine.
+   */
+  const nextEvent = inbox.upcoming[0];
+  const countdown = nextEvent
+    ? {
+        days: nextEvent.inDays,
+        name: nextEvent.name,
+        when: new Intl.DateTimeFormat("en-US", {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+          timeZone: "UTC",
+        }).format(new Date(`${nextEvent.eventDate}T12:00:00Z`)),
+      }
+    : null;
+
+  /**
+   * Only the numbers that say something.
+   *
+   * A studio with two jobs and no invoices raised saw "0 · $0 · $0 · 0" —
+   * four zeros as the first thing on screen every morning. A zero here is
+   * not a measurement, it is the absence of one, and printing four of them
+   * makes a working studio look like a failing one.
+   */
+  const stats = [
+    metrics.eventsThisMonth > 0
+      ? {
+          label: "Events this month",
+          value: String(metrics.eventsThisMonth),
+          hint: metrics.nextEvent
+            ? `next: ${metrics.nextEvent.name}`
+            : "on the books",
+        }
+      : null,
+    booked > 0
+      ? {
+          label: "Booked",
+          value: formatCents(booked),
+          hint: "signed and in flight",
+        }
+      : null,
+    metrics.outstandingCents > 0
+      ? {
+          label: "Outstanding",
+          value: formatCents(metrics.outstandingCents),
+          hint: metrics.overdueInvoiceCount
+            ? `${metrics.overdueInvoiceCount} overdue`
+            : "all on schedule",
+          tone: metrics.overdueInvoiceCount
+            ? ("warn" as const)
+            : undefined,
+        }
+      : null,
+    handled > 0
+      ? {
+          label: "Handled for you",
+          value: String(handled),
+          hint: "in the last 7 days",
+          tone: "good" as const,
+        }
+      : null,
+  ].filter((stat): stat is NonNullable<typeof stat> => stat !== null);
+
+  /**
+   * A studio that has not invoiced anything yet still has a business.
+   *
+   * Suppressing the zeros is only half the fix — it leaves the rail empty on
+   * exactly the studios that most need to feel something is happening. So
+   * when there is little money to report, the rail measures activity
+   * instead: jobs in flight, work prepared, what is waiting.
+   */
+  if (stats.length < 4) {
+    const activity = [
+      journeys.length
+        ? {
+            label: journeys.length === 1 ? "Job in flight" : "Jobs in flight",
+            value: String(journeys.length),
+            hint: countdown ? `next: ${countdown.name}` : "in your studio",
+          }
+        : null,
+      approve.length
+        ? {
+            label: "Prepared for you",
+            value: String(approve.length),
+            hint: "one tap each",
+            tone: "good" as const,
+          }
+        : null,
+      act.length
+        ? {
+            label: "Needs you",
+            value: String(act.length),
+            hint: "only you can do these",
+          }
+        : null,
+      inbox.inMotion
+        ? {
+            label: "In motion",
+            value: String(inbox.inMotion),
+            hint: "waiting on someone else",
+          }
+        : null,
+    ].filter((stat): stat is NonNullable<typeof stat> => stat !== null);
+    for (const stat of activity) {
+      if (stats.length >= 4) break;
+      if (stats.some((existing) => existing.label === stat.label)) continue;
+      stats.push(stat);
+    }
+  }
 
   const bands: TodayBand[] = ["overdue", "soon", "later"];
   const clear = (id: string) =>
@@ -144,38 +259,29 @@ export function TodayInbox() {
                 </Link>
               ) : null}
             </div>
-            {!loading ? (
+            {/* The next wedding, counted down.
+                This is the one thing on the page a photographer feels
+                something about, and it used to be a small grey line in the
+                rail. It also fills the empty right half of the hero. */}
+            {!loading && countdown ? (
+              <div className="today-countdown" aria-label="Next wedding">
+                <span className="today-countdown-number">
+                  {countdown.days === 0 ? "Today" : countdown.days}
+                </span>
+                {countdown.days > 0 ? (
+                  <span className="today-countdown-unit">
+                    {countdown.days === 1 ? "day to" : "days to"}
+                  </span>
+                ) : null}
+                <strong>{countdown.name}</strong>
+                <small>{countdown.when}</small>
+              </div>
+            ) : null}
+            {!loading && stats.length ? (
               <dl className="today-hero-stats">
-                <Stat
-                  hint={
-                    metrics.nextEvent
-                      ? `next: ${metrics.nextEvent.name}`
-                      : "nothing on the books"
-                  }
-                  label="Events this month"
-                  value={String(metrics.eventsThisMonth)}
-                />
-                <Stat
-                  hint="signed and in flight"
-                  label="Booked"
-                  value={formatCents(booked)}
-                />
-                <Stat
-                  hint={
-                    metrics.overdueInvoiceCount
-                      ? `${metrics.overdueInvoiceCount} overdue`
-                      : "all on schedule"
-                  }
-                  label="Outstanding"
-                  tone={metrics.overdueInvoiceCount ? "warn" : undefined}
-                  value={formatCents(metrics.outstandingCents)}
-                />
-                <Stat
-                  hint="in the last 7 days"
-                  label="Handled for you"
-                  tone="good"
-                  value={String(handled)}
-                />
+                {stats.map((stat) => (
+                  <Stat key={stat.label} {...stat} />
+                ))}
               </dl>
             ) : null}
           </header>
