@@ -62,7 +62,11 @@ export function LiveReports() {
   const invoices = (invoicesState.records ?? []).filter((invoice) =>
     projectIds.has(String(invoice.projectId)),
   );
-  const bookedValue = invoices.reduce(
+  // Named for what it is. This is the sum of invoice amounts; Today's
+  // "Booked" is the value of signed work from the package snapshots. Both
+  // are useful and they are not the same number — calling both "Booked
+  // value" put $37,485 on this page and $37,400 on the home page.
+  const invoicedValue = invoices.reduce(
     (sum, invoice) => sum + Number(invoice.amountCents ?? 0),
     0,
   );
@@ -70,13 +74,20 @@ export function LiveReports() {
     (sum, invoice) => sum + Number(invoice.balanceCents ?? 0),
     0,
   );
-  const collected = bookedValue - outstanding;
-  const readinessAverage = projects.length
+  const collected = invoicedValue - outstanding;
+  // Averaging readiness across every job counts a delivered wedding and an
+  // unbooked inquiry as 0% ready, which drags the number to something that
+  // describes nothing. Readiness is only a live question between booking
+  // and the event, so only those jobs are averaged.
+  const readinessTracked = projects.filter((project) =>
+    ["BOOKED", "PLANNING", "READY"].includes(String(project.state)),
+  );
+  const readinessAverage = readinessTracked.length
     ? Math.round(
-        projects.reduce(
+        readinessTracked.reduce(
           (sum, project) => sum + Number(project.readinessScore ?? 0),
           0,
-        ) / projects.length,
+        ) / readinessTracked.length,
       )
     : 0;
   const leadSources = Object.entries(
@@ -242,8 +253,8 @@ export function LiveReports() {
     <div className="post-event-page report-page">
       <header className="page-heading">
         <div>
-          <p className="eyebrow">Operational intelligence</p>
-          <h1>Reports</h1>
+          <p className="eyebrow">How the studio is doing</p>
+          <h1>Insights</h1>
           <p>Understand the health of your pipeline, projects, and collections without losing sight of where each number came from.</p>
         </div>
         <div className="report-actions">
@@ -289,11 +300,11 @@ export function LiveReports() {
         </article>
         <article className="panel report-metric-card report-metric-readiness">
           <span className="report-metric-icon"><Gauge /></span>
-          <span className="report-metric-copy"><small>Average readiness</small><strong>{loading ? "—" : `${readinessAverage}%`}</strong><span>Across filtered projects</span></span>
+          <span className="report-metric-copy"><small>Average readiness</small><strong>{loading ? "—" : `${readinessAverage}%`}</strong><span>{`Across ${readinessTracked.length} booked ${readinessTracked.length === 1 ? "job" : "jobs"}`}</span></span>
         </article>
         <article className="panel report-metric-card report-metric-booked">
           <span className="report-metric-icon"><CircleDollarSign /></span>
-          <span className="report-metric-copy"><small>Booked value</small><strong>{loading ? "—" : formatCents(bookedValue)}</strong><span>Synced invoice references</span></span>
+          <span className="report-metric-copy"><small>Invoiced</small><strong>{loading ? "—" : formatCents(invoicedValue)}</strong><span>Across every invoice raised</span></span>
         </article>
         <article className="panel report-metric-card report-metric-outstanding">
           <span className="report-metric-icon"><WalletCards /></span>

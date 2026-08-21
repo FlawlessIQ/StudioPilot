@@ -119,6 +119,26 @@ export function CommunicationsCenter({
         ),
     [messages],
   );
+  /**
+   * Message records do not always carry a denormalised project or person —
+   * anything written by a webhook, an import or a seed may hold only ids.
+   * The component already has both collections in hand, so it resolves the
+   * names rather than rendering String(undefined), which is how nine rows
+   * of "To undefined" reached the Sent list.
+   */
+  const projectNameFor = (projectId: unknown) =>
+    projects.find((project) => project.id === String(projectId ?? ""))?.name;
+  const clientNameFor = (projectId: unknown) => {
+    const project = projects.find(
+      (item) => item.id === String(projectId ?? ""),
+    );
+    const ids = Array.isArray(project?.clientContactIds)
+      ? (project.clientContactIds as unknown[]).map(String)
+      : [];
+    const contact = contacts.find((item) => ids.includes(item.id));
+    return contact?.displayName ?? contact?.email;
+  };
+
   const [drafts, setDrafts] = useState<Value[]>([]);
   const [emailJobs, setEmailJobs] = useState<Value[]>([]);
   const [projectId, setProjectId] = useState(initialProjectId ?? "");
@@ -752,10 +772,22 @@ export function CommunicationsCenter({
                 <span>
                   <strong>{String(message.subject)}</strong>
                   <small>
-                    From {String(message.senderName ?? "your client")}
-                    {message.projectName ? ` · ${String(message.projectName)}` : ""} · {stamp(message.createdAt)}
+                    From{" "}
+                    {String(
+                      message.senderName ??
+                        clientNameFor(message.projectId) ??
+                        "your client",
+                    )}
+                    {(() => {
+                      const name =
+                        message.projectName ?? projectNameFor(message.projectId);
+                      return name ? ` · ${String(name)}` : "";
+                    })()}{" "}
+                    · {stamp(message.sentAt ?? message.createdAt)}
                   </small>
-                  {message.bodyPreview ? <p>{String(message.bodyPreview)}</p> : null}
+                  {message.bodyPreview || message.preview ? (
+                    <p>{String(message.bodyPreview ?? message.preview)}</p>
+                  ) : null}
                 </span>
                 <button className="ds-btn ds-btn-ghost ds-btn-sm" onClick={() => replyTo(message)} type="button">
                   <Reply aria-hidden="true" size={14} /> Reply
@@ -784,8 +816,24 @@ export function CommunicationsCenter({
                   <span className="communications-message-icon"><Mail size={15} /></span>
                   <span>
                     <strong>{String(message.subject)}</strong>
-                    <small>To {String(message.recipient)} · {stamp(message.sentAt)}</small>
-                    {message.bodyPreview ? <p>{String(message.bodyPreview)}</p> : null}
+                    <small>
+                      To{" "}
+                      {String(
+                        message.recipient ??
+                          clientNameFor(message.projectId) ??
+                          "the client",
+                      )}
+                      {(() => {
+                        const name =
+                          message.projectName ??
+                          projectNameFor(message.projectId);
+                        return name ? ` · ${String(name)}` : "";
+                      })()}{" "}
+                      · {stamp(message.sentAt ?? message.createdAt)}
+                    </small>
+                    {message.bodyPreview || message.preview ? (
+                      <p>{String(message.bodyPreview ?? message.preview)}</p>
+                    ) : null}
                   </span>
                   <StatusBadge tone={presentation.tone}>{presentation.label}</StatusBadge>
                 </article>
