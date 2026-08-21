@@ -47,6 +47,7 @@ import {
   type LifecycleLaneKey,
   type LifecycleRecord,
 } from "@/features/projects/lifecycle-projection";
+import { projectStateLabel } from "@/features/projects/state-label";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
@@ -159,12 +160,7 @@ function mockCheckpoints(projectId: string): CheckpointRecord[] {
   ];
 }
 
-function stateLabel(state: ProjectState): string {
-  return state
-    .toLowerCase()
-    .replaceAll("_", " ")
-    .replace(/^\w/, (value) => value.toUpperCase());
-}
+const stateLabel = (state: ProjectState): string => projectStateLabel(state);
 
 function displayDate(value: unknown): string {
   const source = String(value ?? "");
@@ -177,6 +173,23 @@ function displayDate(value: unknown): string {
   }).format(date);
 }
 
+/**
+ * "in 4 days" / "yesterday" / "26 days ago" — the event date in the terms a
+ * photographer thinks in. Null when there is no usable date.
+ */
+function countdown(value: unknown): string | null {
+  const source = String(value ?? "").slice(0, 10);
+  const parsed = Date.parse(`${source}T12:00:00Z`);
+  if (!Number.isFinite(parsed)) return null;
+  const days = Math.round((parsed - Date.now()) / 86_400_000);
+  if (days === 0) return "today";
+  if (days === 1) return "tomorrow";
+  if (days === -1) return "yesterday";
+  if (days > 0)
+    return days <= 45 ? `in ${days} days` : `in ${Math.round(days / 30)} months`;
+  const ago = Math.abs(days);
+  return ago <= 45 ? `${ago} days ago` : `${Math.round(ago / 30)} months ago`;
+}
 
 function ProjectStageControl({
   projectId,
@@ -359,7 +372,7 @@ function ProjectLifecycleLanes({
     <section className="project-lifecycle-cockpit" id="project-checkpoints">
       <header>
         <div>
-          <p className="eyebrow">One operational truth</p>
+          <p className="eyebrow">Where this job stands</p>
           <h2>Who needs to do what next</h2>
           <p>
             {projection.primaryBlocker
@@ -388,11 +401,11 @@ function ProjectLifecycleLanes({
                       <strong>{work.label}</strong>
                       <small>{work.detail}</small>
                       <em>
+                        {/* A truncated document id is not evidence to a
+                            photographer; the due date or the plain status is. */}
                         {work.dueAt
                           ? `Due ${displayDate(work.dueAt.slice(0, 10))}`
-                          : work.evidence
-                            ? `Evidence ${work.evidence.slice(0, 12)}`
-                            : work.status}
+                          : work.status}
                       </em>
                     </span>
                     <ArrowRight size={14} />
@@ -591,7 +604,10 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
         <div className="project-readiness-summary">
           <span>
             <small>Event readiness</small>
-            <strong>{readiness}%</strong>
+            {/* With no checkpoints there is nothing to score. "100%" beside
+                "tracking hasn't started" is a contradiction; a dash is the
+                truth. */}
+            <strong>{checkpoints.length === 0 ? "—" : `${readiness}%`}</strong>
             {/* A bare percentage says nothing about the gap. Name what the
                 remainder actually is, and point at the list that holds it. */}
             {outstanding.length ? (
@@ -612,7 +628,9 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
               </small>
             )}
           </span>
-          <ReadinessMeter value={readiness} size="lg" />
+          {checkpoints.length === 0 ? null : (
+            <ReadinessMeter value={readiness} size="lg" />
+          )}
         </div>
       </header>
       <ProjectWorkspaceNav projectId={projectId} />
@@ -621,6 +639,12 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           <CalendarDays size={17} />
           <small>Event date</small>
           <strong>{displayDate(project.eventDate)}</strong>
+          {/* The countdown is the fact a photographer actually reads. */}
+          {countdown(project.eventDate) ? (
+            <em className="project-fact-countdown">
+              {countdown(project.eventDate)}
+            </em>
+          ) : null}
         </span>
         <span>
           <MapPin size={17} />

@@ -37,6 +37,11 @@ export function useTodayInbox(): {
   /** Value of work actually won — see bookedValueCents. */
   booked: number;
   handled: number;
+  /**
+   * Where every active job stands. Exposed so the Jobs table can name the
+   * same next step Today names, instead of keeping its own opinion.
+   */
+  journeys: TodayJourneyPosition[];
   loading: boolean;
 } {
   const workspace = useWorkspace();
@@ -194,6 +199,7 @@ export function useTodayInbox(): {
   const now = new Date();
   return {
     inbox,
+    journeys,
     // The studio's pulse, from the same engine the old dashboard used.
     metrics: homeMetrics({
       now,

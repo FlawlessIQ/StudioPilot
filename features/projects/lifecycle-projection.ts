@@ -57,6 +57,13 @@ const text = (value: unknown): string =>
 const number = (value: unknown): number =>
   Number.isFinite(Number(value)) ? Number(value) : 0;
 const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+/** Money is stored in cents and must never be shown that way. */
+const money = (cents: number): string =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(cents / 100);
 
 function due(record: LifecycleRecord): string | null {
   return (
@@ -166,8 +173,7 @@ export function projectLifecycleProjection(input: {
         item({
           id: `ai-review-${action.id}`,
           label: text(action.title) || "Review AI-prepared work",
-          detail:
-            "Sources, confidence, affected record, and downstream consequence are ready to inspect.",
+          detail: "Drafted and waiting on your yes.",
           status: "ready",
           owner: "Studio",
           dueAt: due(action),
@@ -261,7 +267,7 @@ export function projectLifecycleProjection(input: {
           text(invoice.kind) === "retainer"
             ? "Pay booking retainer"
             : "Pay outstanding invoice",
-        detail: `${number(invoice.balanceCents)} cents balance · QuickBooks remains authoritative`,
+        detail: `${money(number(invoice.balanceCents))} still owed`,
         status: overdue(dueAt, now) ? "blocked" : "waiting",
         owner: "Client",
         dueAt,
