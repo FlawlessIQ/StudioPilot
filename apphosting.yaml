@@ -14,7 +14,10 @@ env:
   # address field works without it and says so on screen.
   #
   # To enable, once, then uncomment these four lines and push:
-  #   gcloud services enable places-backend.googleapis.com --project studiohub-prod
+  #   # "Places API (New)" — places.googleapis.com. NOT
+  #   # places-backend.googleapis.com, which is the legacy Places API and
+  #   # will 403 the v1 endpoints this provider calls.
+  #   gcloud services enable places.googleapis.com --project studiohub-prod
   #   printf '%s' 'YOUR_KEY' | gcloud secrets create googlePlacesApiKey \
   #     --project studiohub-prod --data-file=-
   #   firebase apphosting:secrets:grantaccess googlePlacesApiKey \
