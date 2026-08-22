@@ -11624,3 +11624,35 @@ form:has(> .address-field) > .address-field,
 .live-detail-list.is-two-column > article > .status-badge {
   justify-self: end;
 }
+
+/* What happens next, wherever a provider is about to be used. Quiet when
+   everything is connected; it is a statement of fact, not an alert. */
+.capability-note {
+  align-items: flex-start;
+  color: var(--muted);
+  display: flex;
+  font-size: 12.5px;
+  gap: 7px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.capability-note > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.capability-note.is-ready > svg { color: var(--accent, #0ea372); }
+
+/* Something needs connecting or choosing. Amber, because nothing has gone
+   wrong yet — a step is about to stay manual. */
+.capability-note.is-attention {
+  color: var(--amber-dark, #8a6420);
+}
+
+.capability-note a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

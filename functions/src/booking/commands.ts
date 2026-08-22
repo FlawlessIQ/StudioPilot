@@ -5,7 +5,10 @@ import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { consumeAiQuota } from "../saas/usage.js";
-import { resolveProviderForTenant } from "../integrations/capability-resolution.js";
+import {
+  requireProviderForTenant,
+  resolveProviderForTenant,
+} from "../integrations/capability-resolution.js";
 import { productEvent } from "../operations/product-events.js";
 import { availabilityWindowSchema } from "./availability.js";
 
@@ -507,12 +510,23 @@ export const bookingCommand = onRequest(
         if (!existingContracts.empty) {
           throw new Error("CONTRACT_ALREADY_EXISTS");
         }
-        const signingProvider = await resolveProviderForTenant(
-          firestore,
-          command.tenantId,
-          "signing",
-          "docusign",
-        );
+        // Outside mock mode this queues a real signature request, so an
+        // unresolved capability must refuse rather than guess DocuSign and
+        // fail minutes later inside a provider job. In mock mode nothing is
+        // dispatched and the provider name is only recorded, so the old
+        // fallback is still the right behaviour there.
+        const signingProvider = mockMode
+          ? await resolveProviderForTenant(
+              firestore,
+              command.tenantId,
+              "signing",
+              "docusign",
+            )
+          : await requireProviderForTenant(
+              firestore,
+              command.tenantId,
+              "signing",
+            );
         const contractId = stableId(
           "contract",
           command.tenantId,
@@ -663,12 +677,20 @@ export const bookingCommand = onRequest(
         if (!existingInvoices.empty) {
           throw new Error("RETAINER_INVOICE_ALREADY_EXISTS");
         }
-        const invoicingProvider = await resolveProviderForTenant(
-          firestore,
-          command.tenantId,
-          "invoicing",
-          "quickbooks",
-        );
+        // Same reasoning as signing above: refuse rather than raise an
+        // invoice against a QuickBooks account nobody connected.
+        const invoicingProvider = mockMode
+          ? await resolveProviderForTenant(
+              firestore,
+              command.tenantId,
+              "invoicing",
+              "quickbooks",
+            )
+          : await requireProviderForTenant(
+              firestore,
+              command.tenantId,
+              "invoicing",
+            );
         const invoiceId = stableId(
           "invoice",
           command.tenantId,

@@ -97,10 +97,21 @@ export function resolveActiveProvider(input: {
 /**
  * Firestore-backed resolution for one tenant + capability, for use inside
  * command/webhook handlers that need to know "which provider is active"
- * without a round trip through the client. Falls back to `fallback` when
- * resolution is unresolved, so existing single-provider tenants (nothing
- * explicitly routed, exactly one provider ever connected) keep behaving
- * exactly as they did before a capability had more than one option.
+ * without a round trip through the client.
+ *
+ * `fallback` is a last resort and, on the paths that actually call a
+ * provider, the wrong answer. The case it was written for — a tenant with
+ * exactly one connected provider and no explicit routing — is already
+ * handled by `resolveActiveProvider` as `sole_connected_provider`. What is
+ * left when resolution fails is: nothing connected, two connected and no
+ * choice made, or a choice pointing at something disconnected. Guessing in
+ * any of those queues a job against a provider the studio has no
+ * credentials for, and the first anyone hears of it is a failed provider
+ * job some minutes later.
+ *
+ * So live paths should call `requireProviderForTenant`, which refuses. This
+ * one remains for mock mode and for recording a provider name on a record
+ * where nothing is actually dispatched.
  */
 export async function resolveProviderForTenant(
   db: Firestore,
@@ -122,4 +133,36 @@ export async function resolveProviderForTenant(
   }));
   const resolution = resolveActiveProvider({ capability, selections, connections });
   return resolution.outcome === "resolved" ? resolution.provider : fallback;
+}
+
+/**
+ * The provider for a capability, or a refusal naming why.
+ *
+ * For the paths that dispatch real work. The thrown codes are the same
+ * vocabulary `resolveActiveProvider` returns, so the surface that catches
+ * them can say something true: nothing connected, more than one and no
+ * choice, or a choice that has gone stale.
+ */
+export async function requireProviderForTenant(
+  db: Firestore,
+  tenantId: string,
+  capability: Capability,
+): Promise<Provider> {
+  const [routingDoc, connectionsSnapshot] = await Promise.all([
+    db.doc(`integrationRouting/${tenantId}`).get(),
+    db.collection("integrationConnections").where("tenantId", "==", tenantId).get(),
+  ]);
+  const selections = (routingDoc.data()?.selections ?? null) as
+    | Partial<Record<Capability, Provider | null>>
+    | null;
+  const connections: RoutableConnection[] = connectionsSnapshot.docs.map((doc) => ({
+    provider: doc.get("provider") as Provider,
+    status: String(doc.get("status")),
+    archivedAt: (doc.get("archivedAt") as string | null) ?? null,
+  }));
+  const resolution = resolveActiveProvider({ capability, selections, connections });
+  if (resolution.outcome === "resolved") return resolution.provider;
+  throw new Error(
+    `${capability.toUpperCase()}_${resolution.reason.toUpperCase()}`,
+  );
 }

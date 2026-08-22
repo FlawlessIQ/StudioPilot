@@ -29,6 +29,27 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "The assistant isn't switched on for this workspace yet.",
   VERTEX_AI_EMPTY_OUTPUT: "We couldn't draft this. Try again.",
   GOOGLE_RUNTIME_IDENTITY_UNAVAILABLE: "We couldn't draft this. Try again.",
+
+  /**
+   * Capability resolution refusing to guess.
+   *
+   * These used to be silent: with nothing connected, signing fell back to
+   * DocuSign and queued a request against an account that did not exist,
+   * so the studio learned about it from a failed provider job rather than
+   * from the button they pressed. Each of these names the actual fix.
+   */
+  SIGNING_NO_CONNECTED_PROVIDER:
+    "No signing app is connected, so the agreement can't go out for signature. Connect DocuSign or Dropbox Sign in Studio settings, then try again.",
+  SIGNING_AMBIGUOUS_MULTIPLE_PROVIDERS:
+    "Both DocuSign and Dropbox Sign are connected, so StudioCue doesn't know which should send the agreement. Choose one in Studio settings.",
+  SIGNING_SELECTED_PROVIDER_NOT_CONNECTED:
+    "The signing app you chose isn't connected any more. Reconnect it in Studio settings, or choose another.",
+  INVOICING_NO_CONNECTED_PROVIDER:
+    "No invoicing app is connected, so the retainer invoice can't be raised. Connect QuickBooks or Stripe in Studio settings, then try again.",
+  INVOICING_AMBIGUOUS_MULTIPLE_PROVIDERS:
+    "Both QuickBooks and Stripe are connected, so StudioCue doesn't know which should raise the invoice. Choose one in Studio settings.",
+  INVOICING_SELECTED_PROVIDER_NOT_CONNECTED:
+    "The invoicing app you chose isn't connected any more. Reconnect it in Studio settings, or choose another.",
 };
 
 /**

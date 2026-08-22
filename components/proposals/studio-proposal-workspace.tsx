@@ -53,6 +53,7 @@ import {
 } from "@/lib/proposals/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { formatEventDate } from "@/lib/format/event-date";
+import { CapabilityNote } from "@/components/integrations/capability-note";
 
 type Value = Record<string, unknown> & { id: string };
 
@@ -1740,6 +1741,13 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
                 <small>
                   The client cannot see drafts or internal review activity.
                 </small>
+                {/* What happens after they accept. The page offered this
+                    button without ever saying that an accepted proposal
+                    leads to a signature request, which provider sends it,
+                    or whether that provider is connected — all three of
+                    which the system already knew. */}
+                <CapabilityNote capability="signing" />
+                <CapabilityNote capability="invoicing" />
               </div>
             ) : null}
 
@@ -1750,6 +1758,8 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
                   <span><Check /> Expiration and payment dates are explicit</span>
                   <span><Check /> Contract and payment remain separate</span>
                 </div>
+                <CapabilityNote capability="signing" />
+                <CapabilityNote capability="invoicing" />
                 {canApprove ? (
                   <button
                     className="button button-dark"
