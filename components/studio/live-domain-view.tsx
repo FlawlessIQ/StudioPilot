@@ -303,8 +303,12 @@ const configurations: Record<Domain, DomainConfig> = {
     status: ["status"],
     facts: [
       { label: "Version", fields: ["version"] },
-      { label: "Checkpoints", fields: ["checkpoints"], kind: "count" },
-      { label: "Automations", fields: ["automations"], kind: "count" },
+      // The records store checkpointTemplates and automationRules; these
+      // read "checkpoints" and "automations", so every row showed an em
+      // dash where its size should be — on the one list whose whole job is
+      // telling you what a template contains.
+      { label: "Checkpoints", fields: ["checkpointTemplates"], kind: "count" },
+      { label: "Automations", fields: ["automationRules"], kind: "count" },
     ],
     href: (record) => `/studio/workflows/${record.id}`,
   },

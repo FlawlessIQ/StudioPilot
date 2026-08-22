@@ -11589,3 +11589,19 @@ form:has(> .address-field) > .address-field,
   display: grid;
   gap: 14px;
 }
+
+/* The create-workflow success state now goes somewhere. */
+.command-success-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.command-success > p {
+  color: var(--ink-soft, #56605a);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 6px 0 0;
+  max-width: 60ch;
+}

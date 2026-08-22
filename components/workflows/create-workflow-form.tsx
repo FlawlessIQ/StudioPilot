@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CheckCircle2, LoaderCircle } from "lucide-react";
+import { ArrowRight, CheckCircle2, LoaderCircle } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { runWorkflowCommand } from "@/lib/workflows/command-client";
+import { useTenantDocuments } from "@/components/live/tenant-records";
 
 const formSchema = z.object({
   name: z.string().trim().min(2).max(160),
@@ -181,13 +183,19 @@ const automationChoices = [
 ] as const;
 
 export function CreateWorkflowForm() {
+  const templates = useTenantDocuments("workflowTemplates");
   const [selected, setSelected] = useState<string[]>(
     checkpointChoices.map((checkpoint) => checkpoint.key),
   );
   const [selectedAutomations, setSelectedAutomations] = useState<string[]>(
     automationChoices.map((automation) => automation.key),
   );
-  const [outcome, setOutcome] = useState<{ persisted: boolean; reference: string } | null>(null);
+  const [outcome, setOutcome] = useState<{
+    persisted: boolean;
+    reference: string;
+    active: boolean;
+    eventType: string;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const {
     register,
@@ -200,10 +208,26 @@ export function CreateWorkflowForm() {
       name: "Wedding Photography",
       description: "A complete client lifecycle from booking through event readiness.",
       eventType: "Wedding",
-      status: "draft",
+      // Publishing is the point. A draft template is inert, and defaulting
+      // to it meant the ordinary path through this form produced nothing.
+      status: "active",
     },
   });
   const eventType = watch("eventType");
+  const status = watch("status");
+  const name = watch("name").trim().toLowerCase();
+  /**
+   * Editing a workflow is republishing one under the same name.
+   *
+   * createWorkflowTemplate looks up prior versions by name, increments the
+   * version and supersedes the previous active one — so the mechanism for
+   * "change my workflow" already exists and works. Nothing anywhere said
+   * so, which left a photographer with a template they could not edit and
+   * no way to discover that recreating it *is* the edit.
+   */
+  const existingName = (templates.records ?? []).some(
+    (template) => String(template.name ?? "").trim().toLowerCase() === name,
+  );
   const availableAutomations = automationChoices.filter(
     (automation) =>
       !("eventTypes" in automation) ||
@@ -270,6 +294,8 @@ export function CreateWorkflowForm() {
         reference: String(
           command.result.workflowTemplateId ?? command.result.reference,
         ),
+        active: values.status === "active",
+        eventType: values.eventType,
       });
     } catch (caught: unknown) {
       setError(caught instanceof Error ? caught.message : "Workflow could not be created.");
@@ -280,10 +306,32 @@ export function CreateWorkflowForm() {
     return (
       <div className="command-success">
         <CheckCircle2 size={23} />
-        <h2>Workflow saved</h2>
+        <h2>{outcome.active ? "Workflow is live" : "Workflow saved as a draft"}</h2>
+        {/* "Workflow saved" and nothing else was a dead end: no link to the
+            thing just made, no way back to the list, and — the part that
+            actually matters — no statement of whether it will ever run. A
+            draft never does. */}
+        <p>
+          {outcome.active
+            ? `From now on, every ${outcome.eventType.toLowerCase()} that reaches booking starts with these checkpoints, dated from its event date.`
+            : `Drafts do not run. Nothing will change on your ${outcome.eventType.toLowerCase()} jobs until you publish this.`}
+        </p>
         {!outcome.persisted ? (
           <small>This is a preview. Connect the live database to save it.</small>
         ) : null}
+        <div className="command-success-actions">
+          <Link className="button button-dark" href="/studio/workflows">
+            Back to workflows <ArrowRight size={15} />
+          </Link>
+          {outcome.reference && outcome.persisted ? (
+            <Link
+              className="button button-light"
+              href={`/studio/workflows/${outcome.reference}`}
+            >
+              Open this workflow
+            </Link>
+          ) : null}
+        </div>
       </div>
     );
   }
@@ -294,7 +342,23 @@ export function CreateWorkflowForm() {
         <label className="form-span">Template name<input {...register("name")} /><small>{errors.name?.message}</small></label>
         <label className="form-span">Description<textarea {...register("description")} rows={3} /><small>{errors.description?.message}</small></label>
         <label>Event type<select {...register("eventType")}><option>Wedding</option><option>Corporate</option><option>Sports</option></select></label>
-        <label>Availability<select {...register("status")}><option value="draft">Keep as draft</option><option value="active">Make available now</option></select></label>
+        <label>
+          Availability
+          <select {...register("status")}>
+            <option value="active">Publish — use on new {eventType.toLowerCase()} jobs</option>
+            <option value="draft">Keep as a draft — does not run</option>
+          </select>
+          {/* Draft used to be the default, which meant the ordinary result
+              of filling this in was a template that would never do
+              anything, with nothing on screen to say so. */}
+          <small>
+            {status === "active"
+              ? existingName
+                ? `Publishing replaces your current “${watch("name")}” for future jobs. Jobs already running keep the version they started on.`
+                : "Runs automatically when a job reaches booking."
+              : "Saved, but it will not run until you publish it."}
+          </small>
+        </label>
       </div>
       <fieldset className="checkpoint-picker">
         <legend>Starting checkpoints</legend>
