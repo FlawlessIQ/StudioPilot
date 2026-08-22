@@ -11462,3 +11462,130 @@ form:has(> .address-field) > .address-field,
 .form-grid:has(.address-field) > .address-field {
   align-self: start;
 }
+
+/* ── Library shelves ──────────────────────────────────────────────────
+   See components/library/library-shelves.tsx for why the page splits into
+   what a studio sets up and what its jobs leave behind. */
+.library-shelf {
+  display: grid;
+  gap: 12px;
+}
+
+.library-shelf-heading h2 {
+  font: 600 18px/1.25 var(--font-display);
+  letter-spacing: -0.015em;
+  margin: 0;
+}
+
+.library-shelf-heading p {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 3px 0 0;
+}
+
+/* The count is the answer to "have I set my studio up yet", so it reads
+   as data — tabular, and darker than the description above it. */
+.hub-grid .hub-count {
+  color: var(--ink-soft, #56605a);
+  display: block;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  margin-top: 7px;
+  min-height: 17px;
+}
+
+.hub-grid > a.is-empty .hub-count {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* An empty shelf is not a failure — it is the next thing to do. Marked,
+   not alarmed. */
+.hub-grid > a.is-empty {
+  border-style: dashed;
+}
+
+/* The way to stock the shelves, above them. Not a sixth card: it is an
+   action, and the page had no link to it at all. */
+.library-import-cta {
+  align-items: center;
+  background: linear-gradient(112deg, #24553f 0%, #1c4433 62%, #17372a 100%);
+  border-radius: 18px;
+  color: #eef3ee;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 20px 22px;
+  text-decoration: none;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.library-import-cta:hover {
+  box-shadow: 0 18px 40px rgb(22 46 34 / 22%);
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .library-import-cta { transition: none; }
+  .library-import-cta:hover { transform: none; }
+}
+
+.library-import-glyph {
+  align-items: center;
+  background: rgb(255 255 255 / 13%);
+  border-radius: 12px;
+  color: #d8ead9;
+  display: flex;
+  height: 44px;
+  justify-content: center;
+  width: 44px;
+}
+
+.library-import-cta strong {
+  display: block;
+  font: 600 17px/1.25 var(--font-display);
+  letter-spacing: -0.015em;
+}
+
+.library-import-cta small {
+  color: #b7cdc0;
+  display: block;
+  font-size: 12.5px;
+  line-height: 1.55;
+  margin-top: 4px;
+  max-width: 62ch;
+}
+
+.library-import-go {
+  align-items: center;
+  background: #f7faf7;
+  border-radius: 999px;
+  color: #1c4433;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 650;
+  gap: 7px;
+  padding: 11px 16px;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .library-import-cta {
+    /* Top-aligned once the copy wraps to four lines: centred leaves the
+       glyph floating beside the middle of a paragraph. */
+    align-items: start;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .library-import-go {
+    grid-column: 1 / -1;
+    justify-content: center;
+  }
+}
+
+/* The import studio had no way back to the library it fills. */
+.template-import-shell {
+  display: grid;
+  gap: 14px;
+}

@@ -2401,28 +2401,89 @@
   gap: 4px;
 }
 
+/* This banner carries the one instruction standing between a studio's
+   approved work and it being live, and it was set at 10px — smaller than
+   anything else on the page, and below what most people read comfortably. */
 .pending-import-notice strong {
   color: #3b303f;
-  font-size: 13px;
+  font-size: 14.5px;
 }
 
 .pending-import-notice p {
-  color: #746a77;
-  font-size: 10px;
+  color: #6b6172;
+  font-size: 13px;
+  line-height: 1.5;
   margin: 0;
 }
 
-.pending-import-notice > a {
+.pending-import-notice a {
   align-items: center;
   background: #2c2035;
   border-radius: 10px;
   color: #fff;
   display: inline-flex;
-  font-size: 10px;
-  font-weight: 750;
+  font-size: 13px;
+  font-weight: 650;
   gap: 7px;
-  padding: 11px 14px;
+  padding: 11px 15px;
   text-decoration: none;
+  white-space: nowrap;
+}
+
+/* The banner now offers two ways forward: finish the import, or say it was
+   handled elsewhere. Stacked on a phone so neither is a 10px tap target. */
+.pending-import-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.pending-import-dismiss {
+  align-items: center;
+  background: transparent;
+  border: 1px solid #ddd0ae;
+  border-radius: 10px;
+  color: #6d5f45;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  gap: 6px;
+  padding: 10px 12px;
+  white-space: nowrap;
+}
+
+.pending-import-dismiss:hover:not(:disabled) {
+  background: #fff6e2;
+  color: #3b303f;
+}
+
+.pending-import-dismiss:disabled {
+  cursor: progress;
+  opacity: 0.65;
+}
+
+.pending-import-spin {
+  animation: studiohub-spin 1s linear infinite;
+}
+
+.pending-import-error {
+  color: #a63c3a;
+  font-weight: 600;
+}
+
+@media (max-width: 720px) {
+  .pending-import-notice {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .pending-import-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
 }
 
 .pending-import-notice.is-repair {

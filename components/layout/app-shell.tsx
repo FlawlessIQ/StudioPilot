@@ -98,7 +98,7 @@ const activeGroups: Record<string, string[]> = {
   ],
   Calendar: ["Calendar"],
   People: ["Clients", "Crew", "Team", "Vendors"],
-  Library: ["Library", "Packages", "AI setup", "Studio setup"],
+  Library: ["Library", "Packages", "AI import", "Studio setup"],
   "Studio settings": ["Settings", "Integrations", "Subscription"],
 };
 
@@ -119,7 +119,10 @@ const studioRouteLabels: Record<string, string> = {
   documents: "Documents",
   insurance: "Insurance",
   integrations: "Integrations",
-  import: "AI setup",
+  // The page calls itself the AI import studio and the nav highlights
+  // Library; "AI setup" was a third name for the same place, and the only
+  // one the reader ever saw in the breadcrumb.
+  import: "AI import",
   invoices: "Invoices",
   leads: "Inquiries",
   library: "Library",

@@ -1,27 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, History, PackageCheck } from "lucide-react";
-import { useMemo } from "react";
+import { ArrowRight, History, LoaderCircle, PackageCheck, X } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
+import {
+  pendingImportNotice,
+  type PendingImportDestination,
+} from "@/features/studio-import/pending-notice";
+import { cancelStudioImport } from "@/lib/studio-import/command-client";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
-function timeValue(value: unknown): number {
-  if (typeof value === "string") return Date.parse(value) || 0;
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    "toDate" in value &&
-    typeof value.toDate === "function"
-  ) {
-    return value.toDate().valueOf();
-  }
-  return 0;
-}
-
+/**
+ * The unfinished-import banner.
+ *
+ * The decision about what to say lives in
+ * `features/studio-import/pending-notice.ts`; this renders it and offers
+ * the two ways forward — finish the import, or say it was handled some
+ * other way. The second used to be missing, which is how a studio whose
+ * packages were already in the library ended up being told, permanently,
+ * that they were not.
+ */
 export function PendingImportNotice({
   destination = "library",
 }: {
-  destination?: "library" | "packages" | "questionnaires";
+  destination?: PendingImportDestination;
 }) {
   const { records: sessions } = useTenantDocuments("studioImportSessions");
   const { records: versions } = useTenantDocuments("studioAssetVersions");
@@ -33,93 +36,74 @@ export function PendingImportNotice({
     { enabled: destination !== "packages" },
   );
 
-  const notice = useMemo(() => {
-    if (!sessions || !versions) return null;
-    const sortedSessions = [...sessions].sort(
-      (left, right) =>
-        timeValue(right.updatedAt) - timeValue(left.updatedAt),
-    );
-    const unfinished = sortedSessions.find(
-      (session) => !["activated", "cancelled"].includes(String(session.status)),
-    );
-    if (unfinished) {
-      const sessionVersions = versions.filter(
-        (version) => version.importSessionId === unfinished.id,
+  const [dismissed, setDismissed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const notice = useMemo(
+    () =>
+      pendingImportNotice({
+        sessions,
+        versions,
+        packages,
+        questionnaireTemplates,
+        destination,
+      }),
+    [packages, questionnaireTemplates, sessions, versions, destination],
+  );
+
+  async function dismiss(sessionId: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await cancelStudioImport(sessionId);
+      // Hidden straight away rather than waiting for the shared document
+      // cache to catch up. The reminder is the whole complaint.
+      setDismissed(true);
+    } catch (caught: unknown) {
+      setError(
+        friendlyError(caught, "That import could not be closed. Try again."),
       );
-      const approved = sessionVersions.filter(
-        (version) =>
-          version.reviewDecision === "approved" && version.status === "draft",
-      ).length;
-      const pending = sessionVersions.filter(
-        (version) =>
-          version.reviewDecision === "pending" && version.status === "draft",
-      ).length;
-      return {
-        icon: History,
-        title: approved
-          ? `${approved} approved import draft${approved === 1 ? " is" : "s are"} waiting to be activated`
-          : "An AI import still needs your review",
-        detail: approved
-          ? pending
-            ? `Your work is saved. Resolve ${pending} remaining draft${pending === 1 ? "" : "s"}, then activate the approved content.`
-            : "Your approvals are saved, but they are not in the live library until you activate them."
-          : "Your extracted drafts are saved in their original import session and have not been lost.",
-        label: approved ? "Finish and activate" : "Resume import",
-        href: `/studio/import?session=${encodeURIComponent(unfinished.id)}`,
-        tone: "pending",
-      };
+      setBusy(false);
     }
+  }
 
-    const nativePackageVersions = new Set(
-      (packages ?? []).map((item) => String(item.sourceStudioAssetVersionId ?? "")),
-    );
-    const nativeQuestionnaireVersions = new Set(
-      (questionnaireTemplates ?? []).map((item) =>
-        String(item.sourceStudioAssetVersionId ?? ""),
-      ),
-    );
-    const activatedNeedingSync = sortedSessions.find((session) => {
-      if (session.status !== "activated") return false;
-      return versions.some((version) => {
-        if (version.importSessionId !== session.id || version.status !== "active")
-          return false;
-        if (
-          destination !== "questionnaires" &&
-          version.assetType === "package" &&
-          !nativePackageVersions.has(version.id)
-        )
-          return true;
-        return (
-          destination !== "packages" &&
-          version.assetType === "questionnaire" &&
-          !nativeQuestionnaireVersions.has(version.id)
-        );
-      });
-    });
-    if (!activatedNeedingSync) return null;
-    return {
-      icon: PackageCheck,
-      title: "An activated import needs to be synced to this library",
-      detail:
-        "Your approvals still exist. Open the original import and use Sync to library—there is no need to upload or review the file again.",
-      label: "Repair library",
-      href: `/studio/import?session=${encodeURIComponent(activatedNeedingSync.id)}`,
-      tone: "repair",
-    };
-  }, [packages, questionnaireTemplates, sessions, versions, destination]);
-
-  if (!notice) return null;
-  const Icon = notice.icon;
+  if (!notice || dismissed) return null;
+  const Icon = notice.kind === "repair" ? PackageCheck : History;
   return (
-    <aside className={`pending-import-notice is-${notice.tone}`} role="status">
-      <span><Icon size={20} /></span>
+    <aside className={`pending-import-notice is-${notice.kind}`} role="status">
+      <span>
+        <Icon size={20} />
+      </span>
       <div>
         <strong>{notice.title}</strong>
         <p>{notice.detail}</p>
+        {error ? <p className="pending-import-error">{error}</p> : null}
       </div>
-      <Link href={notice.href}>
-        {notice.label} <ArrowRight size={16} />
-      </Link>
+      <div className="pending-import-actions">
+        <Link href={notice.href}>
+          {notice.label} <ArrowRight size={16} />
+        </Link>
+        {/* Cancelling keeps every extracted draft — see cancelSession. It
+            closes the session so the reminder stops, which is the only
+            thing a studio that finished the job elsewhere actually wants. */}
+        {notice.sessionId ? (
+          <button
+            className="pending-import-dismiss"
+            disabled={busy}
+            onClick={() => void dismiss(notice.sessionId as string)}
+            title="Keeps the extracted drafts; stops the reminder"
+            type="button"
+          >
+            {busy ? (
+              <LoaderCircle className="pending-import-spin" size={13} />
+            ) : (
+              <X size={13} />
+            )}
+            Already handled
+          </button>
+        ) : null}
+      </div>
     </aside>
   );
 }
