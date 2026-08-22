@@ -507,25 +507,57 @@ export const workflowCommand = onRequest(
         }
 
         if (command.type === "createWorkflowTemplate") {
-          const versions = await transaction.get(
-            db
-              .collection("workflowTemplates")
-              .where("tenantId", "==", command.tenantId)
-              .where("name", "==", command.input.name)
-              .orderBy("version", "desc")
-              .limit(20),
-          );
+          /**
+           * Version by name; supersede by event type.
+           *
+           * These were both keyed on name, and booking-time selection is
+           * keyed on eventTypeId — so two differently-named active
+           * templates for the same event type both stayed active, tied on
+           * version, and the one that actually ran was whichever Firestore
+           * happened to return first. Silently, and differently on
+           * different days.
+           *
+           * The version counter stays per-name so a template's own history
+           * reads as v1, v2, v3. Supersession moves to event type, because
+           * "the workflow for weddings" is what the runtime resolves and
+           * there can only usefully be one.
+           */
+          const [versions, activeForEventType] = await Promise.all([
+            transaction.get(
+              db
+                .collection("workflowTemplates")
+                .where("tenantId", "==", command.tenantId)
+                .where("name", "==", command.input.name)
+                .orderBy("version", "desc")
+                .limit(20),
+            ),
+            transaction.get(
+              db
+                .collection("workflowTemplates")
+                .where("tenantId", "==", command.tenantId)
+                .where("eventTypeId", "==", command.input.eventTypeId)
+                .where("status", "==", "active")
+                .limit(20),
+            ),
+          ]);
           const version =
             ((versions.docs[0]?.data().version as number | undefined) ?? 0) + 1;
           if (command.input.status === "active") {
-            for (const document of versions.docs) {
-              if (document.data().status === "active") {
-                transaction.update(document.ref, {
-                  status: "superseded",
-                  updatedAt: timestamp,
-                  updatedBy: identity.uid,
-                });
-              }
+            // The two queries overlap whenever the new version shares its
+            // name with the outgoing one, which is the common case.
+            const superseded = new Set<string>();
+            for (const document of [
+              ...versions.docs,
+              ...activeForEventType.docs,
+            ]) {
+              if (document.data().status !== "active") continue;
+              if (superseded.has(document.ref.path)) continue;
+              superseded.add(document.ref.path);
+              transaction.update(document.ref, {
+                status: "superseded",
+                updatedAt: timestamp,
+                updatedBy: identity.uid,
+              });
             }
           }
           const templateId = randomUUID();

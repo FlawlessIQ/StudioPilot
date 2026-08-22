@@ -11605,3 +11605,22 @@ form:has(> .address-field) > .address-field,
   margin: 6px 0 0;
   max-width: 60ch;
 }
+
+/* Status plus whatever action the record type offers. */
+.live-detail-header-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* The detail row grid is three columns, shaped for schedule items
+   (time | title | duration). A workflow step is a description and a state,
+   so its badge was landing in the middle track and stretching across it. */
+.live-detail-list.is-two-column > article {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.live-detail-list.is-two-column > article > .status-badge {
+  justify-self: end;
+}

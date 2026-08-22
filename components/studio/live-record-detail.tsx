@@ -2,7 +2,8 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, CircleDollarSign, DatabaseZap, FileCheck2, LoaderCircle, ReceiptText, ShieldCheck, XCircle } from "lucide-react";
+import { statusLabel } from "@/features/format/status-label";
+import { ArrowLeft, CheckCircle2, Copy, CircleDollarSign, DatabaseZap, FileCheck2, LoaderCircle, ReceiptText, ShieldCheck, XCircle } from "lucide-react";
 import { collection, doc, getDoc, getDocs, limit, query, where } from "firebase/firestore";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -123,8 +124,10 @@ const config: Record<
     facts: [
       ["Version", ["version"]],
       ["Event type", ["eventTypeId"]],
-      ["Checkpoints", ["checkpoints"]],
-      ["Automations", ["automations"]],
+      // Same field-name mismatch the list had: the records store
+      // checkpointTemplates and automationRules.
+      ["Checkpoints", ["checkpointTemplates"]],
+      ["Automations", ["automationRules"]],
       ["Created", ["createdAt"]],
       ["Updated", ["updatedAt"]],
     ],
@@ -420,12 +423,48 @@ export function LiveRecordDetail({
   const requirements = Array.isArray(record.requirements)
     ? record.requirements.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
     : [];
+  /**
+   * A workflow's steps, on the page that describes itself as showing
+   * "the reusable steps and automations in this workflow version".
+   *
+   * It showed neither — six metadata tiles and a boundary note. Someone
+   * trying to work out what a workflow actually does had nowhere to look,
+   * which is most of why the feature reads as unknowable.
+   */
+  const checkpoints = Array.isArray(record.checkpointTemplates)
+    ? record.checkpointTemplates.filter(
+        (item): item is Record<string, unknown> =>
+          Boolean(item) && typeof item === "object",
+      )
+    : [];
+  const automations = Array.isArray(record.automationRules)
+    ? record.automationRules.filter(
+        (item): item is Record<string, unknown> =>
+          Boolean(item) && typeof item === "object",
+      )
+    : [];
   return (
     <div className="live-detail-page">
       <Link className="back-link" href={selected.back}><ArrowLeft /> Back to {selected.backLabel}</Link>
       <header className="page-heading">
         <div><p className="eyebrow">{selected.label}</p><h1>{title}</h1><p>{selected.description}</p></div>
-        <StatusBadge tone={/approved|complete|published|active|accepted/i.test(status) ? "success" : "warning"}>{status}</StatusBadge>
+        <div className="live-detail-header-actions">
+          <StatusBadge tone={/approved|complete|published|active|accepted/i.test(status) ? "success" : "warning"}>{status}</StatusBadge>
+          {/* Published versions are immutable, which is right — a wedding
+              three months into its checkpoints must not have its rules
+              changed underneath it. The other half of that bargain is an
+              obvious way to make the next version, and it was missing:
+              the mechanism existed but was spelled "create a new thing
+              with the same name". */}
+          {kind === "workflow" ? (
+            <Link
+              className="button button-dark button-sm"
+              href={`/studio/workflows/new?from=${encodeURIComponent(String(record.id ?? ""))}`}
+            >
+              <Copy size={14} /> New version
+            </Link>
+          ) : null}
+        </div>
       </header>
       <section className="live-detail-grid">
         {selected.facts.map(([label, fields]) => (
@@ -434,6 +473,62 @@ export function LiveRecordDetail({
       </section>
       {items.length ? <section className="panel live-detail-list"><div className="panel-heading"><div><h2>Schedule items</h2><p>Current immutable version</p></div></div>{items.map((item, index) => <article key={String(item.id ?? index)}><time>{show(item.startAt, "Arrival")}</time><span><strong>{show(item.title, "Title")}</strong><small>{show(item.location, "Location")}</small></span><small>{show(item.endAt, "Departure")}</small></article>)}</section> : null}
       {requirements.length ? <section className="panel live-detail-list"><div className="panel-heading"><div><h2>Requirements</h2><p>Verified completion evidence</p></div></div>{requirements.map((item, index) => <article key={String(item.id ?? index)}><span><strong>{show(item.name, "Name")}</strong><small>{show(item.kind, "Kind")}</small></span><StatusBadge>{show(item.status, "Status")}</StatusBadge></article>)}</section> : null}
+      {checkpoints.length ? (
+        <section className="panel live-detail-list is-two-column">
+          <div className="panel-heading">
+            <div>
+              <h2>Steps</h2>
+              <p>Dated from each job&rsquo;s event date when the workflow starts</p>
+            </div>
+          </div>
+          {checkpoints.map((item, index) => {
+            const offset = Number(
+              (item.dueDateRule as { offsetDays?: unknown } | undefined)
+                ?.offsetDays ?? 0,
+            );
+            return (
+              <article key={String(item.key ?? index)}>
+                <span>
+                  <strong>{show(item.name, "Step")}</strong>
+                  <small>
+                    {show(item.category, "Stage")}
+                    {offset ? ` · ${Math.abs(offset)} days before the event` : ""}
+                    {item.ownerType ? ` · ${statusLabel(String(item.ownerType))}` : ""}
+                  </small>
+                </span>
+                {item.blocking ? (
+                  <StatusBadge tone="warning">Required for readiness</StatusBadge>
+                ) : (
+                  <StatusBadge>Optional</StatusBadge>
+                )}
+              </article>
+            );
+          })}
+        </section>
+      ) : null}
+      {automations.length ? (
+        <section className="panel live-detail-list is-two-column">
+          <div className="panel-heading">
+            <div>
+              <h2>Automations</h2>
+              <p>What StudioCue does on its own while a job runs</p>
+            </div>
+          </div>
+          {automations.map((item, index) => (
+            <article key={String(item.key ?? index)}>
+              <span>
+                <strong>{show(item.name, "Automation")}</strong>
+                <small>
+                  Runs when: {statusLabel(String(item.trigger ?? ""))}
+                </small>
+              </span>
+              <StatusBadge tone={item.active === false ? "neutral" : "success"}>
+                {item.active === false ? "Off" : "On"}
+              </StatusBadge>
+            </article>
+          ))}
+        </section>
+      ) : null}
       {kind === "crew" && typeof record.projectId === "string" ? <CrewStudioOperations assignment={record} onChanged={() => setRefreshVersion((value) => value + 1)} /> : null}
       <section className="panel live-detail-boundary"><ShieldCheck /><span><strong>How this record works</strong><small>{selected.boundary}</small></span></section>
     </div>

@@ -8,6 +8,10 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { runWorkflowCommand } from "@/lib/workflows/command-client";
 import { useTenantDocuments } from "@/components/live/tenant-records";
+import {
+  describePublishEffect,
+  publishEffect,
+} from "@/features/workflows/publication";
 
 const formSchema = z.object({
   name: z.string().trim().min(2).max(160),
@@ -182,8 +186,18 @@ const automationChoices = [
   },
 ] as const;
 
-export function CreateWorkflowForm() {
+export function CreateWorkflowForm({
+  reviseTemplateId = null,
+}: {
+  /** Set when arriving from "New version" on an existing template. */
+  reviseTemplateId?: string | null;
+} = {}) {
   const templates = useTenantDocuments("workflowTemplates");
+  const source = reviseTemplateId
+    ? (templates.records ?? []).find(
+        (template) => String(template.id) === reviseTemplateId,
+      )
+    : undefined;
   const [selected, setSelected] = useState<string[]>(
     checkpointChoices.map((checkpoint) => checkpoint.key),
   );
@@ -200,6 +214,7 @@ export function CreateWorkflowForm() {
   const {
     register,
     handleSubmit,
+    setValue,
     watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
@@ -213,9 +228,72 @@ export function CreateWorkflowForm() {
       status: "active",
     },
   });
+  /**
+   * Adopt the template being revised, once.
+   *
+   * Adjusted during render rather than in an effect: an effect renders the
+   * blank form first and then the filled one, and a form that visibly
+   * rewrites itself under the cursor is worse than one that waits. Keyed
+   * on the record's id so it happens exactly once per template.
+   */
+  const [adopted, setAdopted] = useState<string | null>(null);
+  if (source && adopted !== reviseTemplateId) {
+    setAdopted(reviseTemplateId);
+    setValue("name", String(source.name ?? ""));
+    setValue("description", String(source.description ?? ""));
+    const label = String(source.eventTypeLabel ?? "");
+    if (["Wedding", "Corporate", "Sports"].includes(label)) {
+      setValue("eventType", label as FormValues["eventType"]);
+    }
+    const keys = new Set(
+      (Array.isArray(source.checkpointTemplates)
+        ? source.checkpointTemplates
+        : []
+      ).map((entry) => String((entry as { key?: unknown }).key ?? "")),
+    );
+    // Only the checkpoints this form knows how to offer. A template that
+    // carries steps the form cannot render must not have them silently
+    // dropped from the tick list and then dropped from the new version —
+    // see the note below the picker.
+    setSelected(
+      checkpointChoices
+        .filter((choice) => keys.has(choice.key))
+        .map((choice) => choice.key),
+    );
+    const ruleKeys = new Set(
+      (Array.isArray(source.automationRules) ? source.automationRules : []).map(
+        (entry) => String((entry as { key?: unknown }).key ?? ""),
+      ),
+    );
+    setSelectedAutomations(
+      automationChoices
+        .filter((choice) => ruleKeys.has(choice.key))
+        .map((choice) => choice.key),
+    );
+  }
+
+  /**
+   * Steps the source template has that this form cannot show.
+   *
+   * Publishing would drop them, because the payload is rebuilt from the
+   * tick list. Saying so is the minimum; the real fix is the editor that
+   * can render them, which is a separate piece of work.
+   */
+  const unrenderable = source
+    ? (Array.isArray(source.checkpointTemplates)
+        ? source.checkpointTemplates
+        : []
+      ).filter(
+        (entry) =>
+          !checkpointChoices.some(
+            (choice) =>
+              choice.key === String((entry as { key?: unknown }).key ?? ""),
+          ),
+      ).length
+    : 0;
+
   const eventType = watch("eventType");
   const status = watch("status");
-  const name = watch("name").trim().toLowerCase();
   /**
    * Editing a workflow is republishing one under the same name.
    *
@@ -225,9 +303,18 @@ export function CreateWorkflowForm() {
    * so, which left a photographer with a template they could not edit and
    * no way to discover that recreating it *is* the edit.
    */
-  const existingName = (templates.records ?? []).some(
-    (template) => String(template.name ?? "").trim().toLowerCase() === name,
-  );
+  const effect = publishEffect({
+    name: watch("name"),
+    eventTypeId: watch("eventType").toLowerCase(),
+    status: watch("status"),
+    existing: (templates.records ?? []).map((template) => ({
+      id: String(template.id ?? ""),
+      name: String(template.name ?? ""),
+      eventTypeId: String(template.eventTypeId ?? ""),
+      status: String(template.status ?? ""),
+      version: Number(template.version ?? 0),
+    })),
+  });
   const availableAutomations = automationChoices.filter(
     (automation) =>
       !("eventTypes" in automation) ||
@@ -353,9 +440,8 @@ export function CreateWorkflowForm() {
               anything, with nothing on screen to say so. */}
           <small>
             {status === "active"
-              ? existingName
-                ? `Publishing replaces your current “${watch("name")}” for future jobs. Jobs already running keep the version they started on.`
-                : "Runs automatically when a job reaches booking."
+              ? (describePublishEffect(effect, eventType) ??
+                "Runs automatically when a job reaches booking.")
               : "Saved, but it will not run until you publish it."}
           </small>
         </label>
@@ -380,6 +466,11 @@ export function CreateWorkflowForm() {
           </label>
         ))}
       </fieldset>
+      {unrenderable ? (
+        <p className="form-notice" role="status">
+          {`This workflow has ${unrenderable} step${unrenderable === 1 ? "" : "s"} that this form cannot show yet, so publishing from here would leave ${unrenderable === 1 ? "it" : "them"} out. The current version stays untouched until you publish.`}
+        </p>
+      ) : null}
       <fieldset className="checkpoint-picker">
         <legend>Starting automations</legend>
         {availableAutomations.map((automation) => (

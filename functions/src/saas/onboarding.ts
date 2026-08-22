@@ -4,6 +4,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
+import { starterTemplates } from "../workflow/starter-templates.js";
 
 const inputSchema = z.object({
   businessName: z.string().trim().min(2).max(120),
@@ -151,6 +152,43 @@ export const tenantOnboardingCommand = onRequest(
           updatedBy: identity.uid,
           archivedAt: null,
         });
+        /**
+         * Readiness needs a workflow, and a new studio had none.
+         *
+         * autoInstantiateWorkflow resolves an active template by event type
+         * when a job reaches booking. With nothing published, it returns
+         * `no_active_template` and readiness silently never engages — so
+         * the product's central idea was switched off until a photographer
+         * authored a template themselves. These three are the same
+         * definitions the demo studio has always used; there was never a
+         * reason they belonged only to the demo.
+         *
+         * Inside the onboarding transaction, so a tenant either exists with
+         * its workflows or does not exist at all.
+         */
+        for (const starter of starterTemplates()) {
+          const templateId = randomUUID();
+          transaction.create(db.doc(`workflowTemplates/${templateId}`), {
+            id: templateId,
+            tenantId,
+            name: starter.name,
+            description: starter.description,
+            eventTypeId: starter.eventTypeId,
+            eventTypeLabel: starter.eventTypeLabel,
+            checkpointTemplates: starter.checkpointTemplates,
+            automationRules: [],
+            version: 1,
+            status: "active",
+            immutable: true,
+            publishedAt: now,
+            publishedBy: identity.uid,
+            createdAt: now,
+            updatedAt: now,
+            createdBy: identity.uid,
+            updatedBy: identity.uid,
+            archivedAt: null,
+          });
+        }
         transaction.create(onboardingReference, {
           userId: identity.uid,
           tenantId,
