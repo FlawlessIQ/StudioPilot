@@ -5097,11 +5097,6 @@ textarea:focus-visible {
     display: none;
   }
 }
-.booking-form { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.booking-form label { display: grid; gap: 7px; font-size: 13px; font-weight: 650; }
-.booking-form input, .booking-form select { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 11px 12px; background: var(--surface); color: var(--ink); font: inherit; }
-.booking-form-wide, .booking-form .form-notice { grid-column: 1 / -1; }
-.booking-form .button { justify-self: start; }
 .proposal-detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
 .proposal-sheet { padding: 34px; }
 .proposal-brand { display: flex; align-items: center; gap: 13px; margin-bottom: 54px; }
@@ -5159,8 +5154,6 @@ textarea:focus-visible {
   .proposal-controls { position: static; }
 }
 @media (max-width: 720px) {
-  .booking-form { grid-template-columns: 1fr; }
-  .booking-form label, .booking-form .form-notice { grid-column: 1; }
   .proposal-sheet, .client-package-card, .client-contract-card, .client-payment-card { padding: 20px; }
   .proposal-payment, .pdf-terms > div { grid-template-columns: 1fr; }
   .client-booking-page { padding: 32px 18px; }
@@ -5412,21 +5405,14 @@ textarea:focus-visible {
   border-radius: 16px;
 }
 
-.booking-form-panel,
 .vendor-create-panel,
 .questionnaire-builder > .panel {
   overflow: hidden;
 }
 
-.booking-form,
 .vendor-create-panel form,
 .questionnaire-builder form {
   padding: 2px 28px 28px;
-}
-
-.booking-form {
-  column-gap: 22px;
-  row-gap: 19px;
 }
 
 .vendor-create-panel {
@@ -5441,8 +5427,7 @@ textarea:focus-visible {
 }
 
 .vendor-create-panel .button,
-.questionnaire-builder .button,
-.booking-form .button {
+.questionnaire-builder .button {
   min-height: 43px;
   padding-inline: 18px;
   width: fit-content;
@@ -5458,7 +5443,6 @@ textarea:focus-visible {
   row-gap: 17px;
 }
 
-.booking-form label,
 .vendor-create-panel label,
 .questionnaire-builder label {
   color: #38423c;
@@ -5468,7 +5452,6 @@ textarea:focus-visible {
 }
 
 :is(
-  .booking-form,
   .vendor-create-panel,
   .questionnaire-builder,
   .copilot-compose,
@@ -5492,7 +5475,6 @@ textarea:focus-visible {
 }
 
 :is(
-  .booking-form,
   .vendor-create-panel,
   .questionnaire-builder,
   .copilot-compose,
@@ -5699,14 +5681,12 @@ textarea:focus-visible {
     padding: 22px;
   }
 
-  .booking-form,
   .vendor-create-panel form,
   .questionnaire-builder form {
     grid-template-columns: 1fr;
     padding: 0 20px 22px;
   }
 
-  .booking-form-wide,
   .questionnaire-builder .form-span {
     grid-column: auto;
   }
@@ -11776,12 +11756,6 @@ form:has(> .address-field) > .address-field,
 }
 
 .inline-link-button:hover { color: var(--ink); }
-
-/* Provider notes sit under the action they describe, spanning the form. */
-.booking-form-notes {
-  display: grid;
-  gap: 6px;
-}
 
 .ds-cal-book-notes {
   display: grid;
