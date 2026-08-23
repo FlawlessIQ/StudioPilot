@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { CapabilityNote } from "@/components/integrations/capability-note";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -555,6 +556,12 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 <ArrowRight size={15} />
               </button>
               {!proposal ? <small>The client’s accepted proposal is required first.</small> : null}
+              {/* This button is where signing actually fires, and the
+                  retainer follows it. The workspace names the provider in
+                  its copy but never said whether it is connected — it only
+                  read the connection to guess a default template. */}
+              <CapabilityNote capability="signing" />
+              <CapabilityNote capability="invoicing" />
             </div>
           )}
         </article>

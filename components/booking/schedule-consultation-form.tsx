@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { CapabilityNote } from "@/components/integrations/capability-note";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -18,6 +19,15 @@ const schema = z.object({
 });
 type Values = z.infer<typeof schema>;
 
+/**
+ * Nothing renders this.
+ *
+ * The live consultation booking is the form inside StudioCalendar, which
+ * posts the same `scheduleConsultation` command; this component is exported
+ * and never imported. Left in place rather than deleted because deleting a
+ * working form is a bigger call than noting it, but it should either get a
+ * route or go — see the route-reachability sweep in tests/.
+ */
 export function ScheduleConsultationForm() {
   const [notice, setNotice] = useState<string | null>(null);
   const [interactive, setInteractive] = useState(false);
@@ -67,6 +77,8 @@ export function ScheduleConsultationForm() {
       setNotice(caught instanceof Error ? caught.message : "Consultation could not be scheduled.");
     }
   });
+  const mode = form.watch("mode");
+
   return (
     <form className="booking-form" onSubmit={submit}>
       <label><span>Project</span><select disabled={loading} {...form.register("projectId", { onChange: (event) => {
@@ -80,6 +92,14 @@ export function ScheduleConsultationForm() {
       <label className="booking-form-wide"><span>Location (optional)</span><input placeholder="Studio address or call details" {...form.register("location")} /></label>
       <input type="hidden" {...form.register("contactId")} />
       <input type="hidden" {...form.register("timezone")} />
+      {/* Scheduling always writes a calendar event; it only mints a
+          meeting link when the type is Zoom. Showing the meetings note on
+          an in-person consultation would be noise about a provider the
+          booking is not going to use. */}
+      <div className="booking-form-wide booking-form-notes">
+        <CapabilityNote capability="calendar" />
+        {mode === "zoom" ? <CapabilityNote capability="meetings" /> : null}
+      </div>
       <button className="button button-dark" type="submit" disabled={!interactive || form.formState.isSubmitting}>{form.formState.isSubmitting ? "Checking availability…" : "Schedule consultation"}</button>
       {notice ? <p className="form-notice" role="status">{notice}</p> : null}
     </form>

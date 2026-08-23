@@ -11776,3 +11776,14 @@ form:has(> .address-field) > .address-field,
 }
 
 .inline-link-button:hover { color: var(--ink); }
+
+/* Provider notes sit under the action they describe, spanning the form. */
+.booking-form-notes {
+  display: grid;
+  gap: 6px;
+}
+
+.ds-cal-book-notes {
+  display: grid;
+  gap: 6px;
+}

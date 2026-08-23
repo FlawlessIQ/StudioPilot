@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AvailabilityDialog } from "@/components/booking/availability-dialog";
+import { CapabilityNote } from "@/components/integrations/capability-note";
 import {
   addMonths,
   eachDayOfInterval,
@@ -928,6 +929,14 @@ function BookSlotForm({
           <option value="custom">Custom</option>
         </select>
       </label>
+      {/* Booking writes a calendar event, and mints a meeting link only
+          when the type is Zoom — so the meetings note appears only then.
+          On an in-person consultation it would be noise about a provider
+          this booking will not touch. */}
+      <div className="ds-cal-book-notes">
+        <CapabilityNote capability="calendar" />
+        {mode === "zoom" ? <CapabilityNote capability="meetings" /> : null}
+      </div>
       <div className="ds-cal-book-actions">
         <button className="ds-btn ds-btn-primary ds-btn-sm" type="submit" disabled={submitting || booked}>
           {submitting ? "Booking…" : booked ? "Booked" : "Confirm booking"}
