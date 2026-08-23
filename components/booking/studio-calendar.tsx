@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { AvailabilityDialog } from "@/components/booking/availability-dialog";
 import {
   addMonths,
   eachDayOfInterval,
@@ -28,7 +29,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Lock,
-  Settings2,
   Unlock,
 } from "lucide-react";
 import { friendlyError } from "@/lib/ai/friendly-error";
@@ -385,9 +385,7 @@ export function StudioCalendar() {
               <span className="ds-cal-legend-dot" /> Blocked
             </span>
           </div>
-          <a className="ds-cal-legend-link" href="/studio/settings">
-            <Settings2 size={13} aria-hidden="true" /> Availability settings
-          </a>
+          <AvailabilityDialog label="Availability settings" variant="link" />
         </div>
 
         {view === "agenda" ? (
@@ -637,10 +635,15 @@ export function StudioCalendar() {
                 This day is blocked — clients can’t book a consultation here.
               </p>
             ) : selectedSlots.length === 0 ? (
-              <p className="ds-cal-empty-note">
-                No consultation windows are configured for this day. Set your weekly hours in{" "}
-                <a href="/studio/settings">Settings</a>.
-              </p>
+              // A div, not a p: this one carries a dialog trigger, and the
+              // dialog's own markup is a section/form. React validates HTML
+              // nesting on the component tree rather than the DOM, so even
+              // portalled it reports section-inside-p as a hydration error.
+              // It is a prompt with an action, not a paragraph of prose.
+              <div className="ds-cal-empty-note">
+                No consultation windows are configured for this day.{" "}
+                <AvailabilityDialog label="Set your weekly hours" variant="inline" />.
+              </div>
             ) : (
               <ul className="ds-cal-list">
                 {selectedSlots.map((slot) =>

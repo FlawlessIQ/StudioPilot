@@ -11690,3 +11690,89 @@ form:has(> .address-field) > .address-field,
   .crew-profile-created { grid-template-columns: auto minmax(0, 1fr); }
   .crew-profile-created-actions { grid-column: 1 / -1; }
 }
+
+/* ── Sheet dialog ─────────────────────────────────────────────────────
+   A panel over the page for settings you want without leaving where you
+   are. See components/ui/sheet-dialog.tsx. */
+.sheet-backdrop {
+  align-items: flex-start;
+  background: rgb(14 20 16 / 42%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 8vh 20px 20px;
+  position: fixed;
+  z-index: 100;
+}
+
+.sheet-dismiss {
+  background: transparent;
+  border: 0;
+  inset: 0;
+  position: absolute;
+}
+
+.sheet-dialog {
+  background: var(--surface, #fff);
+  border-radius: 18px;
+  box-shadow: 0 28px 90px rgb(10 18 12 / 28%);
+  max-height: 84vh;
+  max-width: 720px;
+  overflow: auto;
+  position: relative;
+  width: 100%;
+}
+
+.sheet-dialog:focus-visible { outline: none; }
+
+/* The panel inside is already a card; a second border around it would read
+   as two boxes. */
+.sheet-dialog > .panel {
+  border: 0;
+  border-radius: inherit;
+  box-shadow: none;
+  margin: 0;
+}
+
+.sheet-close {
+  align-items: center;
+  background: var(--soft, #f2f5f2);
+  border: 0;
+  border-radius: 50%;
+  color: var(--ink-soft, #56605a);
+  cursor: pointer;
+  display: flex;
+  height: 32px;
+  justify-content: center;
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  width: 32px;
+  z-index: 1;
+}
+
+.sheet-close:hover { background: var(--line, #e2e7e2); color: var(--ink); }
+
+@media (max-width: 640px) {
+  .sheet-backdrop { padding: 0; }
+  .sheet-dialog {
+    border-radius: 18px 18px 0 0;
+    margin-top: auto;
+    max-height: 92vh;
+  }
+}
+
+/* A button that reads as a link, for prompts written as sentences. */
+.inline-link-button {
+  background: none;
+  border: 0;
+  color: var(--accent, #0ea372);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 650;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.inline-link-button:hover { color: var(--ink); }
