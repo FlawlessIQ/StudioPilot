@@ -6,7 +6,23 @@ import {
   resolveActiveProvider,
   type RoutableConnection,
 } from "../features/integrations/routing";
-import { providerCapabilities } from "../features/integrations/schema";
+import {
+  integrationProviderSchema,
+  providerCapabilities,
+} from "../features/integrations/schema";
+
+/**
+ * Every provider, offered or not.
+ *
+ * These tests exercise the routing algebra — precedence, ambiguity, the
+ * disconnected-selection case — which is general and must keep working for
+ * whatever the catalogue holds. `resolveActiveProvider` narrows to what the
+ * product currently offers by default, and with today's catalogue that is
+ * one provider per capability, so the ambiguity branch would be unreachable
+ * from here. Passing the full set keeps the algebra under test; the default
+ * is covered by tests/capability-readiness.test.ts.
+ */
+const ALL_PROVIDERS = new Set(integrationProviderSchema.options);
 
 function connection(
   provider: RoutableConnection["provider"],
@@ -43,6 +59,7 @@ test("capabilitySelectionsSchema rejects a provider that doesn't exist", () => {
 
 test("with no connections and no selection, signing is unresolved", () => {
   const result = resolveActiveProvider({
+    offered: ALL_PROVIDERS,
     capability: "signing",
     routing: null,
     connections: [],
@@ -52,6 +69,7 @@ test("with no connections and no selection, signing is unresolved", () => {
 
 test("a single connected signing provider auto-resolves with no explicit selection", () => {
   const result = resolveActiveProvider({
+    offered: ALL_PROVIDERS,
     capability: "signing",
     routing: null,
     connections: [connection("docusign")],
@@ -65,6 +83,7 @@ test("a single connected signing provider auto-resolves with no explicit selecti
 
 test("two connected signing providers with no explicit selection are ambiguous", () => {
   const result = resolveActiveProvider({
+    offered: ALL_PROVIDERS,
     capability: "signing",
     routing: null,
     connections: [connection("docusign"), connection("dropbox_sign")],
@@ -77,6 +96,7 @@ test("two connected signing providers with no explicit selection are ambiguous",
 
 test("an explicit selection wins over the sole-provider default", () => {
   const result = resolveActiveProvider({
+    offered: ALL_PROVIDERS,
     capability: "signing",
     routing: { selections: { signing: "dropbox_sign" } },
     connections: [connection("docusign"), connection("dropbox_sign")],
@@ -90,6 +110,7 @@ test("an explicit selection wins over the sole-provider default", () => {
 
 test("an explicit selection to a disconnected provider does not resolve", () => {
   const result = resolveActiveProvider({
+    offered: ALL_PROVIDERS,
     capability: "signing",
     routing: { selections: { signing: "dropbox_sign" } },
     connections: [
@@ -105,6 +126,7 @@ test("an explicit selection to a disconnected provider does not resolve", () => 
 
 test("an explicit selection to a degraded provider does not resolve", () => {
   const result = resolveActiveProvider({
+    offered: ALL_PROVIDERS,
     capability: "signing",
     routing: { selections: { signing: "docusign" } },
     connections: [connection("docusign", { status: "degraded" })],
@@ -117,6 +139,7 @@ test("an explicit selection to a degraded provider does not resolve", () => {
 
 test("an explicit selection to an archived connection does not resolve", () => {
   const result = resolveActiveProvider({
+    offered: ALL_PROVIDERS,
     capability: "signing",
     routing: { selections: { signing: "docusign" } },
     connections: [
@@ -132,6 +155,7 @@ test("an explicit selection to an archived connection does not resolve", () => {
 test("an explicit selection to a provider that cannot serve the capability does not resolve", () => {
   // quickbooks is connected, but only serves invoicing, not signing.
   const result = resolveActiveProvider({
+    offered: ALL_PROVIDERS,
     capability: "signing",
     routing: { selections: { signing: "quickbooks" } },
     connections: [connection("quickbooks")],
@@ -144,6 +168,7 @@ test("an explicit selection to a provider that cannot serve the capability does 
 
 test("a null explicit selection falls back to auto-resolution", () => {
   const result = resolveActiveProvider({
+    offered: ALL_PROVIDERS,
     capability: "invoicing",
     routing: { selections: { invoicing: null } },
     connections: [connection("quickbooks")],
@@ -162,11 +187,13 @@ test("invoicing resolves independently of signing on the same tenant", () => {
     connection("quickbooks"),
   ];
   const invoicing = resolveActiveProvider({
+    offered: ALL_PROVIDERS,
     capability: "invoicing",
     routing: null,
     connections,
   });
   const signing = resolveActiveProvider({
+    offered: ALL_PROVIDERS,
     capability: "signing",
     routing: null,
     connections,
@@ -177,6 +204,7 @@ test("invoicing resolves independently of signing on the same tenant", () => {
 
 test("a provider connected for an unrelated capability does not count as a candidate", () => {
   const result = resolveActiveProvider({
+    offered: ALL_PROVIDERS,
     capability: "meetings",
     routing: null,
     connections: [connection("google_calendar"), connection("dropbox")],
@@ -188,24 +216,58 @@ test("a provider connected for an unrelated capability does not count as a candi
 });
 
 test("eligibleProvidersFor lists only connected, capability-matching providers", () => {
-  const eligible = eligibleProvidersFor("invoicing", [
-    connection("quickbooks"),
-    connection("stripe"),
-    connection("docusign"),
-    connection("dropbox", { status: "error" }),
-  ]);
+  const eligible = eligibleProvidersFor(
+    "invoicing",
+    [
+      connection("quickbooks"),
+      connection("stripe"),
+      connection("docusign"),
+      connection("dropbox", { status: "error" }),
+    ],
+    ALL_PROVIDERS,
+  );
   assert.deepEqual(new Set(eligible), new Set(["quickbooks", "stripe"]));
 });
 
 test("eligibleProvidersFor excludes archived connections", () => {
-  const eligible = eligibleProvidersFor("signing", [
-    connection("docusign", { archivedAt: "2026-01-01T00:00:00.000Z" }),
-    connection("dropbox_sign"),
-  ]);
+  const eligible = eligibleProvidersFor(
+    "signing",
+    [
+      connection("docusign", { archivedAt: "2026-01-01T00:00:00.000Z" }),
+      connection("dropbox_sign"),
+    ],
+    ALL_PROVIDERS,
+  );
   assert.deepEqual(eligible, ["dropbox_sign"]);
 });
 
 test("eligibleProvidersFor returns an empty list when nothing qualifies", () => {
-  const eligible = eligibleProvidersFor("signing", [connection("quickbooks")]);
+  const eligible = eligibleProvidersFor(
+      "signing",
+      [connection("quickbooks")]);
   assert.deepEqual(eligible, []);
+});
+
+test("by default, a provider the product does not offer is never eligible", () => {
+  // The reported contradiction: Studio settings resolved signing to Dropbox
+  // Sign while the proposal page said it did not know which app to use, and
+  // the booking command fell back to DocuSign — sending contracts through a
+  // provider the studio cannot see, has not chosen, and could not have
+  // connected. Settings filtered DocuSign out of its own private copy of
+  // the list; nothing else did. The default now does it for everyone.
+  assert.deepEqual(
+    eligibleProvidersFor("signing", [
+      connection("docusign"),
+      connection("dropbox_sign"),
+    ]),
+    ["dropbox_sign"],
+  );
+  assert.deepEqual(
+    resolveActiveProvider({
+      capability: "signing",
+      routing: null,
+      connections: [connection("docusign"), connection("dropbox_sign")],
+    }),
+    { outcome: "resolved", provider: "dropbox_sign", reason: "sole_connected_provider" },
+  );
 });

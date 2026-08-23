@@ -2,6 +2,7 @@ import { z } from "zod";
 import { auditFieldsSchema } from "@/features/tenants/schema";
 import {
   integrationProviderSchema,
+  offeredProviders,
   providerCapabilities,
   type IntegrationCapability,
   type IntegrationProvider,
@@ -39,15 +40,29 @@ export type ProviderResolution =
   | { outcome: "resolved"; provider: IntegrationProvider; reason: "explicit_selection" | "sole_connected_provider" }
   | { outcome: "unresolved"; reason: "no_connected_provider" | "ambiguous_multiple_providers" | "selected_provider_not_connected" };
 
-function isUsable(connection: RoutableConnection): boolean {
-  return connection.status === "connected" && connection.archivedAt === null;
+function isUsable(
+  connection: RoutableConnection,
+  offered: ReadonlySet<IntegrationProvider>,
+): boolean {
+  // A provider the product does not offer cannot be the answer, however
+  // connected its record looks. A leftover DocuSign connection is residue a
+  // studio can neither see nor manage, and routing on it sent contracts
+  // through a provider nobody chose.
+  return (
+    connection.status === "connected" &&
+    connection.archivedAt === null &&
+    offered.has(connection.provider)
+  );
 }
 
 function connectedProvidersFor(
   capability: IntegrationCapability,
   connections: readonly RoutableConnection[],
+  offered: ReadonlySet<IntegrationProvider>,
 ): IntegrationProvider[] {
-  const usable = connections.filter(isUsable);
+  const usable = connections.filter((connection) =>
+    isUsable(connection, offered),
+  );
   const seen = new Set<IntegrationProvider>();
   for (const connection of usable) {
     if (providerCapabilities[connection.provider].includes(capability)) {
@@ -69,14 +84,22 @@ function connectedProvidersFor(
  *     with no configuration step.
  *  3. Otherwise unresolved: zero connected providers (nothing to route to)
  *     or more than one with no explicit choice (ambiguous).
+ *
+ * `offered` narrows the field to what the product actually sells today and
+ * defaults to exactly that. It is a parameter rather than a hard-coded
+ * filter for one reason: with the current catalogue every capability has a
+ * single offered provider, so a resolver that always applied it could never
+ * reach its own ambiguity branch in a test. Production callers take the
+ * default and cannot forget it; the tests for the algebra pass a wider set.
  */
 export function resolveActiveProvider(input: {
   capability: IntegrationCapability;
   routing: Pick<CapabilityRouting, "selections"> | null;
   connections: readonly RoutableConnection[];
+  offered?: ReadonlySet<IntegrationProvider>;
 }): ProviderResolution {
-  const { capability, routing, connections } = input;
-  const candidates = connectedProvidersFor(capability, connections);
+  const { capability, routing, connections, offered = offeredProviders } = input;
+  const candidates = connectedProvidersFor(capability, connections, offered);
 
   const explicit = routing?.selections[capability] ?? null;
   if (explicit !== null) {
@@ -103,6 +126,7 @@ export function resolveActiveProvider(input: {
 export function eligibleProvidersFor(
   capability: IntegrationCapability,
   connections: readonly RoutableConnection[],
+  offered: ReadonlySet<IntegrationProvider> = offeredProviders,
 ): IntegrationProvider[] {
-  return connectedProvidersFor(capability, connections);
+  return connectedProvidersFor(capability, connections, offered);
 }

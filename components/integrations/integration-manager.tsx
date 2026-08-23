@@ -28,9 +28,10 @@ import {
   resolveActiveProvider,
   type CapabilitySelections,
 } from "@/features/integrations/routing";
-import type {
-  IntegrationCapability,
-  IntegrationProvider,
+import {
+  isOfferedProvider,
+  type IntegrationCapability,
+  type IntegrationProvider,
 } from "@/features/integrations/schema";
 
 // The connect/disconnect UI below only has cards for the providers a studio
@@ -234,7 +235,16 @@ const definitions: ReadonlyArray<Definition> = [
 // "Setup required" implied it was mid-setup, and the accompanying copy named an
 // internal env var (STRIPE_CLIENT_ID) at a studio owner. Platform billing —
 // studios paying StudioCue — is a separate concern that does not surface here.
-const hiddenUiProviders = new Set<Provider>(["docusign", "stripe"]);
+// The list now lives in features/integrations/schema.ts as offeredProviders,
+// because "we do not offer this" is a fact about the product rather than
+// about this screen — the resolver and the booking commands need it too.
+// Keeping a second private copy here is how the proposal page and the
+// server came to disagree with these rows about which app signs a contract.
+const hiddenUiProviders = new Set<Provider>(
+  (
+    ["google_calendar", "zoom", "docusign", "dropbox_sign", "quickbooks", "stripe", "dropbox"] as Provider[]
+  ).filter((provider) => !isOfferedProvider(provider)),
+);
 const visibleDefinitions = definitions.filter(
   (definition) => !hiddenUiProviders.has(definition.provider),
 );

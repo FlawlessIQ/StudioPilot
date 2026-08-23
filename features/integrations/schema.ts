@@ -41,6 +41,37 @@ export const providerCapabilities: Readonly<
   dropbox: ["storage"],
 };
 
+/**
+ * Providers StudioCue actually offers a studio today.
+ *
+ * DocuSign stays implemented server-side so an approved production
+ * integration can be restored later, and Stripe Connect needs platform
+ * onboarding that has not happened — so neither is shown, connectable, or
+ * choosable. That was a filter inside the settings component, which meant
+ * only that screen knew about it.
+ *
+ * Everything else — the capability note on the proposal page, and
+ * critically the server resolving which provider signs a contract — worked
+ * from the raw connection list. A tenant carrying a leftover `docusign`
+ * connection therefore looked unambiguous in settings ("Dropbox Sign") and
+ * ambiguous everywhere else, and the booking command resolved it by falling
+ * back to DocuSign: sending contracts through a provider the studio cannot
+ * see, has not chosen, and could not have connected.
+ *
+ * Being offered is a property of the product, not of one screen.
+ */
+export const offeredProviders: ReadonlySet<IntegrationProvider> = new Set([
+  "google_calendar",
+  "zoom",
+  "dropbox_sign",
+  "quickbooks",
+  "dropbox",
+]);
+
+export function isOfferedProvider(provider: IntegrationProvider): boolean {
+  return offeredProviders.has(provider);
+}
+
 export const integrationConnectionSchema = auditFieldsSchema.extend({
   id: z.string().min(1),
   tenantId: z.string().min(1),

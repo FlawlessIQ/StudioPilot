@@ -39,15 +39,15 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
    * from the button they pressed. Each of these names the actual fix.
    */
   SIGNING_NO_CONNECTED_PROVIDER:
-    "No signing app is connected, so the agreement can't go out for signature. Connect DocuSign or Dropbox Sign in Studio settings, then try again.",
+    "No signing app is connected, so the agreement can't go out for signature. Connect Dropbox Sign in Studio settings, then try again.",
   SIGNING_AMBIGUOUS_MULTIPLE_PROVIDERS:
-    "Both DocuSign and Dropbox Sign are connected, so StudioCue doesn't know which should send the agreement. Choose one in Studio settings.",
+    "More than one signing app is connected, so StudioCue doesn't know which should send the agreement. Choose one in Studio settings.",
   SIGNING_SELECTED_PROVIDER_NOT_CONNECTED:
     "The signing app you chose isn't connected any more. Reconnect it in Studio settings, or choose another.",
   INVOICING_NO_CONNECTED_PROVIDER:
-    "No invoicing app is connected, so the retainer invoice can't be raised. Connect QuickBooks or Stripe in Studio settings, then try again.",
+    "No invoicing app is connected, so the retainer invoice can't be raised. Connect QuickBooks in Studio settings, then try again.",
   INVOICING_AMBIGUOUS_MULTIPLE_PROVIDERS:
-    "Both QuickBooks and Stripe are connected, so StudioCue doesn't know which should raise the invoice. Choose one in Studio settings.",
+    "More than one invoicing app is connected, so StudioCue doesn't know which should raise the invoice. Choose one in Studio settings.",
   INVOICING_SELECTED_PROVIDER_NOT_CONNECTED:
     "The invoicing app you chose isn't connected any more. Reconnect it in Studio settings, or choose another.",
 };

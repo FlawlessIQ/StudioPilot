@@ -1,4 +1,5 @@
 import {
+  isOfferedProvider,
   providerCapabilities,
   type IntegrationCapability,
   type IntegrationProvider,
@@ -60,12 +61,21 @@ const CAPABILITY_WORK: Record<IntegrationCapability, string> = {
   storage: "deliver files",
 };
 
-/** The providers a studio could connect for this, for the "none" case. */
+/**
+ * The providers a studio could actually connect for this.
+ *
+ * Offered ones only. Naming Stripe in "Connect QuickBooks or Stripe" sends
+ * someone to a settings page that does not list Stripe, because Stripe
+ * Connect is not offered yet — a remedy pointing at something that is not
+ * there is worse than a shorter one.
+ */
 function candidatesFor(capability: IntegrationCapability): string {
-  const names = (
-    Object.keys(providerCapabilities) as IntegrationProvider[]
-  )
-    .filter((provider) => providerCapabilities[provider].includes(capability))
+  const names = (Object.keys(providerCapabilities) as IntegrationProvider[])
+    .filter(
+      (provider) =>
+        isOfferedProvider(provider) &&
+        providerCapabilities[provider].includes(capability),
+    )
     .map(providerName);
   if (names.length <= 1) return names[0] ?? "a provider";
   return `${names.slice(0, -1).join(", ")} or ${names.at(-1)}`;

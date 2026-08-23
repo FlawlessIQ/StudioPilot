@@ -28,6 +28,21 @@ export const providerSchema = z.enum([
 ]);
 export type Provider = z.infer<typeof providerSchema>;
 
+/**
+ * Providers StudioCue offers today. Mirrors offeredProviders in
+ * features/integrations/schema.ts — see the reasoning there. DocuSign and
+ * Stripe Connect are implemented but not offered, so a leftover connection
+ * for either must not decide which provider signs a contract or raises an
+ * invoice.
+ */
+export const offeredProviders: ReadonlySet<Provider> = new Set<Provider>([
+  "google_calendar",
+  "zoom",
+  "dropbox_sign",
+  "quickbooks",
+  "dropbox",
+]);
+
 export const providerCapabilities: Readonly<Record<Provider, readonly Capability[]>> = {
   google_calendar: ["calendar"],
   zoom: ["meetings"],
@@ -44,15 +59,26 @@ type RoutableConnection = {
   archivedAt: string | null;
 };
 
-function isUsable(connection: RoutableConnection): boolean {
-  return connection.status === "connected" && connection.archivedAt === null;
+function isUsable(
+  connection: RoutableConnection,
+  offered: ReadonlySet<Provider>,
+): boolean {
+  // Not offered means not eligible, however connected the record looks.
+  return (
+    connection.status === "connected" &&
+    connection.archivedAt === null &&
+    offered.has(connection.provider)
+  );
 }
 
 function connectedProvidersFor(
   capability: Capability,
   connections: readonly RoutableConnection[],
+  offered: ReadonlySet<Provider>,
 ): Provider[] {
-  const usable = connections.filter(isUsable);
+  const usable = connections.filter((connection) =>
+    isUsable(connection, offered),
+  );
   const seen = new Set<Provider>();
   for (const connection of usable) {
     if (providerCapabilities[connection.provider].includes(capability)) {
@@ -72,9 +98,11 @@ export function resolveActiveProvider(input: {
   capability: Capability;
   selections: Partial<Record<Capability, Provider | null>> | null;
   connections: readonly RoutableConnection[];
+  /** Defaults to what the product offers — see offeredProviders. */
+  offered?: ReadonlySet<Provider>;
 }): ProviderResolution {
-  const { capability, selections, connections } = input;
-  const candidates = connectedProvidersFor(capability, connections);
+  const { capability, selections, connections, offered = offeredProviders } = input;
+  const candidates = connectedProvidersFor(capability, connections, offered);
 
   const explicit = selections?.[capability] ?? null;
   if (explicit !== null) {

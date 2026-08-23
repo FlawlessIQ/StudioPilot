@@ -6,6 +6,10 @@ import {
   providerName,
 } from "@/features/integrations/capability-readiness";
 import type { RoutableConnection } from "@/features/integrations/routing";
+import {
+  offeredProviders,
+  providerCapabilities,
+} from "@/features/integrations/schema";
 import { friendlyError } from "@/lib/ai/friendly-error";
 
 const connected = (provider: string): RoutableConnection =>
@@ -39,24 +43,40 @@ test("nothing connected says the step stays manual", () => {
   assert.equal(readiness.ok, false);
   assert.equal(readiness.state, "none_connected");
   assert.match(readiness.summary, /Nothing is connected/);
-  assert.equal(readiness.remedy, "Connect DocuSign or Dropbox Sign");
+  // Only apps a studio can actually connect: DocuSign is implemented but
+  // not offered, so naming it would point at a settings page that has no
+  // DocuSign row.
+  assert.equal(readiness.remedy, "Connect Dropbox Sign");
 });
 
-test("two signers with no choice is ambiguous, not a silent pick", () => {
-  const readiness = capabilityReadiness({
-    capability: "signing",
-    connections: [connected("docusign"), connected("dropbox_sign")],
-    selections: null,
-  });
-  assert.equal(readiness.state, "ambiguous");
-  assert.equal(readiness.provider, null);
-  assert.match(readiness.remedy ?? "", /Choose one/);
+test("ambiguity is currently unreachable, because each job has one offered app", () => {
+  // Worth stating rather than leaving implicit. DocuSign and Stripe Connect
+  // are implemented but not offered, which leaves exactly one offered
+  // provider per capability — so the "choose one in Studio settings" path
+  // is dormant. When a second signer or a second invoicer is offered, this
+  // test fails and the ambiguity copy starts earning its place.
+  const byCapability = new Map<string, string[]>();
+  for (const provider of offeredProviders) {
+    for (const capability of providerCapabilities[provider]) {
+      byCapability.set(capability, [
+        ...(byCapability.get(capability) ?? []),
+        provider,
+      ]);
+    }
+  }
+  for (const [capability, providers] of byCapability) {
+    assert.equal(
+      providers.length,
+      1,
+      `${capability} now has ${providers.length} offered providers — the ambiguity path is live`,
+    );
+  }
 });
 
-test("an explicit choice settles ambiguity", () => {
+test("an explicit choice is honoured", () => {
   const readiness = capabilityReadiness({
     capability: "signing",
-    connections: [connected("docusign"), connected("dropbox_sign")],
+    connections: [connected("dropbox_sign")],
     selections: { signing: "dropbox_sign" },
   });
   assert.equal(readiness.ok, true);
@@ -66,7 +86,7 @@ test("an explicit choice settles ambiguity", () => {
 test("a choice pointing at a disconnected app names that app", () => {
   const readiness = capabilityReadiness({
     capability: "invoicing",
-    connections: [connected("stripe")],
+    connections: [],
     selections: { invoicing: "quickbooks" },
   });
   assert.equal(readiness.state, "selection_broken");
@@ -125,6 +145,85 @@ test("every refusal the server can throw has plain-English copy", () => {
       assert.ok(
         !copy.includes(code),
         `${code} is shown to the reader as a raw code`,
+      );
+    }
+  }
+});
+
+test("a provider StudioCue does not offer cannot win the routing", () => {
+  // The reported contradiction. Studio settings showed "Document signing →
+  // Dropbox Sign" while the proposal page said StudioCue did not know which
+  // app to use. Settings was filtering DocuSign out of its own copy of the
+  // list; the resolver was not — and neither was the server, which fell
+  // back to DocuSign and queued a signature request through a provider the
+  // studio cannot see, has not chosen, and could not have connected.
+  const readiness = capabilityReadiness({
+    capability: "signing",
+    connections: [connected("docusign"), connected("dropbox_sign")],
+    selections: null,
+  });
+  assert.equal(readiness.state, "ready");
+  assert.equal(readiness.provider, "dropbox_sign");
+});
+
+test("with only an unoffered provider connected, nothing is connected", () => {
+  const readiness = capabilityReadiness({
+    capability: "signing",
+    connections: [connected("docusign")],
+    selections: null,
+  });
+  assert.equal(readiness.state, "none_connected");
+});
+
+test("the offered set is the same in features/ and functions/", () => {
+  // Two copies of this list is how the divergence happened in the first
+  // place. functions/ cannot import from features/, so the copies stay —
+  // but they may not disagree.
+  const read = (path: string) =>
+    [
+      ...readFileSync(path, "utf8")
+        .slice(
+          readFileSync(path, "utf8").indexOf("offeredProviders"),
+        )
+        .matchAll(/"([a-z_]+)"/g),
+    ]
+      .map((match) => match[1])
+      .slice(0, 5)
+      .sort();
+  assert.deepEqual(
+    read("functions/src/integrations/capability-resolution.ts"),
+    read("features/integrations/schema.ts"),
+    "offeredProviders disagrees between features/ and functions/",
+  );
+});
+
+test("an unoffered provider is never eligible, whatever its status", () => {
+  for (const status of ["connected", "degraded", "error", "disconnected"]) {
+    const readiness = capabilityReadiness({
+      capability: "invoicing",
+      connections: [
+        { provider: "stripe", status, archivedAt: null } as RoutableConnection,
+      ],
+      selections: null,
+    });
+    assert.equal(readiness.state, "none_connected", status);
+  }
+});
+
+test("a remedy never names an app the studio cannot connect", () => {
+  // "Connect QuickBooks or Stripe" sent someone to a page with no Stripe
+  // row on it.
+  const unofferedNames = ["DocuSign", "Stripe"];
+  for (const capability of ["signing", "invoicing", "calendar", "meetings", "storage"] as const) {
+    const readiness = capabilityReadiness({
+      capability,
+      connections: [],
+      selections: null,
+    });
+    for (const name of unofferedNames) {
+      assert.ok(
+        !(readiness.remedy ?? "").includes(name),
+        `${capability} remedy names ${name}, which is not offered`,
       );
     }
   }
