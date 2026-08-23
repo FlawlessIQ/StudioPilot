@@ -96,7 +96,9 @@ export function QuestionnaireBuilder({
     event.preventDefault();
     setBusy(true);
     setNotice(null);
-    const form = new FormData(event.currentTarget);
+    // See vendor-create-form: `currentTarget` is null after the await.
+    const element = event.currentTarget;
+    const form = new FormData(element);
     try {
       if (!fields.length) throw new Error("Add at least one field.");
       if (fields.some((field) => !field.label.trim()))
@@ -133,7 +135,7 @@ export function QuestionnaireBuilder({
         reminderDaysBeforeDue: [7, 3, 1],
       });
       setNotice("Questionnaire template saved.");
-      event.currentTarget.reset();
+      element.reset();
       setFields(startingFields);
     } catch (caught: unknown) {
       setNotice(caught instanceof Error ? caught.message : "Template could not be saved.");
@@ -146,14 +148,15 @@ export function QuestionnaireBuilder({
     event.preventDefault();
     setBusy(true);
     setNotice(null);
-    const form = new FormData(event.currentTarget);
+    const element = event.currentTarget;
+    const form = new FormData(element);
     try {
       await sendPlanningCommand("assignQuestionnaire", {
         projectId: String(form.get("projectId")),
         templateId: String(form.get("templateId")),
       });
       setNotice("Questionnaire assigned. Its due date was calculated from the project date.");
-      event.currentTarget.reset();
+      element.reset();
     } catch (caught: unknown) {
       setNotice(caught instanceof Error ? caught.message : "Questionnaire could not be assigned.");
     } finally {

@@ -60,7 +60,9 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
     event.preventDefault();
     setBusy(true);
     setNotice(null);
-    const form = new FormData(event.currentTarget);
+    // See vendor-create-form: `currentTarget` is null after the await.
+    const element = event.currentTarget;
+    const form = new FormData(element);
     try {
       const result = await sendPlanningCommand("createCoiRequest", {
         projectId: String(form.get("projectId")),
@@ -92,7 +94,8 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
           : "Development preview validated the COI request.",
       );
       if (result.persisted) {
-        event.currentTarget.reset();
+        element.reset();
+        setVenueAddress(null);
       }
     } catch (caught: unknown) {
       setNotice(caught instanceof Error ? caught.message : "Request failed.");

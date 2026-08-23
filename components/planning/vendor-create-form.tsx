@@ -20,7 +20,12 @@ export function VendorCreateForm() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
-    const form = new FormData(event.currentTarget);
+    // Captured before the await: React nulls `currentTarget` once the
+    // handler returns, so reaching for it afterwards throws — and because
+    // the success notice is set first, the catch overwrites it and reports
+    // failure on a request that worked.
+    const element = event.currentTarget;
+    const form = new FormData(element);
     try {
       await sendPlanningCommand("createVendor", {
         projectId: String(form.get("projectId")),
@@ -30,7 +35,7 @@ export function VendorCreateForm() {
         type: String(form.get("type")),
       });
       setNotice("Vendor created and associated with the selected project.");
-      event.currentTarget.reset();
+      element.reset();
     } catch (caught: unknown) {
       setNotice(caught instanceof Error ? caught.message : "Vendor creation failed.");
     } finally {

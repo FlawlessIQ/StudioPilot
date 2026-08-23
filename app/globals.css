@@ -11656,3 +11656,37 @@ form:has(> .address-field) > .address-field,
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* Adding a collaborator makes a directory entry, not a booking. Saying so
+   at the moment it happens, with the way to actually offer them work —
+   the form used to end on "you can now assign this collaborator to a
+   project" and no route to doing it. */
+.crew-profile-created {
+  align-items: center;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.crew-profile-created > svg {
+  color: var(--accent, #0ea372);
+  height: 24px;
+  width: 24px;
+}
+
+.crew-profile-created > div { display: grid; gap: 5px; }
+
+.crew-profile-created p {
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.6;
+  margin: 0;
+  max-width: 60ch;
+}
+
+.crew-profile-created-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+
+@media (max-width: 720px) {
+  .crew-profile-created { grid-template-columns: auto minmax(0, 1fr); }
+  .crew-profile-created-actions { grid-column: 1 / -1; }
+}
