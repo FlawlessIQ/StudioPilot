@@ -41,11 +41,18 @@ const route = readFileSync(
   join(root, "app/api/functions/[functionName]/route.ts"),
   "utf8",
 );
+// Scrape the array itself, not every quoted string in the file — a stray
+// literal elsewhere would otherwise pad the list and weaken both checks.
+const arrayBody = /const functionNames = \[([\s\S]*?)\] as const;/.exec(route);
 const allowlist = new Set(
-  [...route.matchAll(/^\s*"([A-Za-z][A-Za-z0-9]*)",\s*$/gm)].map(
+  [...(arrayBody?.[1] ?? "").matchAll(/"([A-Za-z][A-Za-z0-9]*)"/g)].map(
     (match) => match[1] as string,
   ),
 );
+
+/** The relay renames one Function on the way out; mirror that here. */
+const deployedName = (name: string) =>
+  name === "integrationOAuth" ? "integrationOAuthEast4" : name;
 
 test("the relay allowlist is not empty", () => {
   // A refactor that renames the array must not silently turn this whole
@@ -83,5 +90,44 @@ test("every browser-called Function is in the relay allowlist", () => {
     [],
     `these Functions are called from the browser but missing from the relay allowlist in app/api/functions/[functionName]/route.ts:\n` +
       missing.map(([name, file]) => `  ${name}  (${file})`).join("\n"),
+  );
+});
+
+/**
+ * And every one of them needs an invoker binding.
+ *
+ * These Functions deploy private, and this org resets Cloud Run invoker IAM
+ * on every revision, so the binding is reapplied by
+ * scripts/configure-production-function-invokers.sh. A Function the relay
+ * calls but the script does not list therefore answers a 403 HTML page,
+ * which the relay reports as FUNCTION_ACCESS_DENIED — with nothing wrong in
+ * the Function, its logs, or the code. integrationsCommand shipped that way
+ * and broke capability routing and the agreement template.
+ */
+test("every relay-called Function has an invoker binding", () => {
+  const script = readFileSync(
+    join(root, "scripts/configure-production-function-invokers.sh"),
+    "utf8",
+  );
+  const services = new Set(
+    [...script.matchAll(/^ {2}([a-z0-9]+)\s*$/gm)].map(
+      (match) => match[1] as string,
+    ),
+  );
+  assert.ok(
+    services.size > 20,
+    `parsed ${services.size} service names from the invoker script; its shape probably changed`,
+  );
+
+  const missing = [...allowlist].filter(
+    (name) => !services.has(deployedName(name).toLowerCase()),
+  );
+  assert.deepEqual(
+    missing,
+    [],
+    "these Functions are reachable through the relay but missing from " +
+      "scripts/configure-production-function-invokers.sh, so they will 403 " +
+      "once this org next resets invoker IAM:\n" +
+      missing.map((name) => `  ${name}`).join("\n"),
   );
 });

@@ -31,6 +31,11 @@ app_services=(
   # add-iam-policy-binding call for a service that no longer exists aborts the
   # whole run and silently leaves every service listed after it — through
   # zoomwebhook — without its invoker binding.
+  # The browser reaches this through the Next relay like any other private
+  # Function, so it needs the App Hosting service account as an invoker. It
+  # was never listed, so capability routing and the agreement template both
+  # failed with a 403 HTML page the relay reports as FUNCTION_ACCESS_DENIED.
+  integrationscommand
   integrationoautheast4
   lifecyclesettingscommand
   membershipcommand
