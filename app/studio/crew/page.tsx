@@ -3,6 +3,7 @@ import { UserPlus } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { CrewCascadeWorkspace } from "@/components/crew/crew-cascade-workspace";
 import { CrewPlanProjectPicker } from "@/components/crew/crew-plan-project-picker";
+import { DirectInviteForm } from "@/components/crew/direct-invite-form";
 import {
   LiveDomainView,
   ProjectContextBar,
@@ -34,7 +35,10 @@ export default async function StudioCrewPage({
         <PeopleSectionNav />
         {project ? <ProjectContextBar projectId={project} /> : null}
         {project ? (
-          <CrewCascadeWorkspace projectId={project} />
+          <>
+            <CrewCascadeWorkspace projectId={project} />
+            <DirectInviteForm projectId={project} />
+          </>
         ) : (
           <CrewPlanProjectPicker />
         )}

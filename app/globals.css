@@ -11678,6 +11678,100 @@ form:has(> .address-field) > .address-field,
   .crew-profile-created-actions { grid-column: 1 / -1; }
 }
 
+/* ── Direct invite ────────────────────────────────────────────────────
+   The secondary staffing path: one named person, no ranking. Folded shut
+   so it does not compete with the cascade for the first read. */
+.crew-direct-invite {
+  margin-top: 2px;
+}
+
+.crew-direct-invite > summary {
+  align-items: center;
+  color: var(--muted, #5f6a63);
+  cursor: pointer;
+  display: flex;
+  font-size: 13px;
+  font-weight: 650;
+  gap: 8px;
+  list-style: none;
+  padding: 11px 2px;
+}
+
+/* `display: flex` on a summary makes Chrome lay the disclosure triangle
+   out as its own box, so list-style alone does not hide it. */
+.crew-direct-invite > summary::marker {
+  content: "";
+}
+
+.crew-direct-invite > summary::-webkit-details-marker {
+  display: none;
+}
+
+.crew-direct-invite > summary:hover {
+  color: var(--ink, #1d2420);
+}
+
+.crew-direct-invite-form {
+  display: grid;
+  gap: 17px;
+  margin-top: 4px;
+}
+
+.crew-direct-invite-note {
+  border-left: 2px solid var(--accent, #0ea372);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+  max-width: 68ch;
+  padding-left: 12px;
+}
+
+.crew-direct-invite-form > .button {
+  justify-self: start;
+}
+
+/* Sending is blocked until someone is chosen; the button has to look it. */
+.crew-direct-invite-form .button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  transform: none;
+}
+
+.crew-direct-sent {
+  align-items: start;
+  display: grid;
+  gap: 13px 15px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 26px 28px;
+}
+
+.crew-direct-sent > svg {
+  color: var(--accent, #0ea372);
+  height: 24px;
+  width: 24px;
+}
+
+.crew-direct-sent > div { display: grid; gap: 5px; }
+
+.crew-direct-sent p {
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.6;
+  margin: 0;
+  max-width: 64ch;
+}
+
+.crew-direct-sent-actions {
+  grid-column: 2;
+  margin-top: 3px;
+}
+
+@media (max-width: 720px) {
+  .crew-direct-sent { padding: 22px; }
+  .crew-direct-sent-actions { grid-column: 1 / -1; }
+}
+
 /* ── Crew plan picker ─────────────────────────────────────────────────
    The staffing workspace is per-job, so reaching it needs a job. */
 .crew-plan-picker {
