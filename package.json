@@ -25,7 +25,8 @@
     "secrets:initialize": "bash scripts/initialize-production-owned-secrets.sh studiohub-prod",
     "secrets:status": "bash scripts/configure-production-secrets.sh studiohub-prod status",
     "db:generate": "drizzle-kit generate",
-    "audit:insets": "node scripts/audit/sweep.mjs"
+    "audit:insets": "node scripts/audit/sweep.mjs",
+    "audit:selftest": "node scripts/audit/self-test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.5.7",

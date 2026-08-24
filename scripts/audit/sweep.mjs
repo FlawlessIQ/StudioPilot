@@ -147,6 +147,15 @@ for (const route of routes) {
     // Slow data pages settle after load; measure what rendered anyway.
   }
   await page.waitForTimeout(1200);
+  // Open every disclosure before measuring. The detector skips the contents
+  // of a closed <details>, because Chromium lays them out and reports them
+  // as visible even though the disclosure clips them — but a panel folded
+  // behind a summary is still a panel someone opens, and the crew direct
+  // invite form is one of them. Measure the state the studio actually sees.
+  await page.evaluate(() => {
+    for (const d of document.querySelectorAll("details")) d.open = true;
+  });
+  await page.waitForTimeout(900);
   const report = await page.evaluate(detector);
   if (!report) {
     skipped.push(route);

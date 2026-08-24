@@ -22,9 +22,25 @@
     ".report-funnel, .project-lifecycle-cockpit, .communications-timeline, " +
     ".studio-attention-queue, .studio-handling, .crm-table-panel, .panel-state";
 
+  // Chromium keeps a closed <details>'s contents in the layout tree — they
+  // report display, visibility and a full-size box exactly like painted
+  // content, while the disclosure clips them to the height of its summary.
+  // Measuring them produced findings for a collapsed invite form and a
+  // collapsed delivery options grid that nobody can see.
+  const inClosedDetails = (el) => {
+    for (let node = el.parentElement; node; node = node.parentElement) {
+      if (node.tagName !== "DETAILS" || node.open) continue;
+      const summary = node.querySelector(":scope > summary");
+      if (!summary || !summary.contains(el)) return true;
+    }
+    return false;
+  };
+
   const isVisible = (el) => {
     const cs = getComputedStyle(el);
     if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") return false;
+    if (cs.contentVisibility === "hidden") return false;
+    if (inClosedDetails(el)) return false;
     const r = el.getBoundingClientRect();
     return r.width > 1 && r.height > 1;
   };
