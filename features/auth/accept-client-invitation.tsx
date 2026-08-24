@@ -68,7 +68,14 @@ function friendlyError(message: string) {
   return "We couldn’t connect your project just yet. Please try again or ask the studio to resend the invitation.";
 }
 
-export function AcceptClientInvitation({ token }: { token: string }) {
+export function AcceptClientInvitation({
+  token,
+  landing,
+}: {
+  token: string;
+  /** Optional in-portal path the invitation was issued for. */
+  landing?: string;
+}) {
   const router = useRouter();
   const acceptStarted = useRef(false);
   const [authResolved, setAuthResolved] = useState(!authIsLive);
@@ -83,7 +90,20 @@ export function AcceptClientInvitation({ token }: { token: string }) {
     "idle" | "sending" | "sent" | "error"
   >("idle");
 
-  const next = `/auth/client-invite?token=${encodeURIComponent(token)}`;
+  // Where to land once the invitation is accepted. A proposal email sends
+  // the client here with next=/client/proposal, because "Review proposal"
+  // should end on the proposal and not on the portal's front door. Only
+  // in-portal paths are honoured, so the parameter cannot be used to
+  // bounce an authenticated client somewhere else.
+  const destination =
+    landing && landing.startsWith("/client") && !landing.startsWith("//")
+      ? landing
+      : "/client";
+  // Round-tripping through sign-in has to come back to this invitation,
+  // carrying the destination with it.
+  const next = `/auth/client-invite?token=${encodeURIComponent(token)}${
+    destination === "/client" ? "" : `&next=${encodeURIComponent(destination)}`
+  }`;
   const loginHref = `/auth/login?next=${encodeURIComponent(next)}`;
   const registerHref = `/auth/register?next=${encodeURIComponent(next)}`;
   const eventDate = formatDate(preview?.eventDate ?? null);
@@ -152,7 +172,7 @@ export function AcceptClientInvitation({ token }: { token: string }) {
         }
         setActivation("accepted");
         setMessage("Your secure project portal is ready.");
-        router.replace("/client");
+        router.replace(destination);
       })
       .catch((caught: unknown) => {
         setActivation("error");
@@ -162,7 +182,7 @@ export function AcceptClientInvitation({ token }: { token: string }) {
           ),
         );
       });
-  }, [preview, router, token, user]);
+  }, [destination, preview, router, token, user]);
 
   async function resendVerification() {
     if (!user?.email) return;

@@ -3,6 +3,7 @@ import { getFirestore, type Transaction } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
+import { mintClientInvitation } from "../client/invitation-mint.js";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import {
@@ -608,15 +609,55 @@ export const proposalCommand = onRequest(
             );
             const recipient = objectValue(proposal.get("clientSnapshot"));
             const emailJobReference = db.doc(`emailJobs/${emailJobId}`);
+            const appUrl =
+              process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app";
+            const proposalPath = "/client/proposal";
+
+            // Where "Review proposal" should send them.
+            //
+            // A client who already has portal access goes straight to the
+            // proposal. One who does not used to get that same link, which
+            // is an authenticated route — it bounced them to a sign-in page
+            // for an account nobody had created, with the studio none the
+            // wiser. Sending a proposal now carries its own invitation.
+            //
+            // Reads before writes: this is a transaction, so the contact is
+            // fetched here rather than beside the writes below.
+            const projectReference = db.doc(`projects/${projectId}`);
+            const projectForSend = await transaction.get(projectReference);
+            const clientContactId = stringList(
+              projectForSend.get("clientContactIds"),
+            )[0];
+            const clientContact = clientContactId
+              ? await transaction.get(db.doc(`contacts/${clientContactId}`))
+              : null;
+            const clientEmail = stringValue(recipient.email).toLowerCase();
+            const hasPortalAccess = Boolean(
+              clientContact?.get("portalUserId"),
+            );
+            // An invitation is only useful if we know who to attach it to.
+            const invitation =
+              !hasPortalAccess && clientContactId && clientEmail
+                ? mintClientInvitation({
+                    tenantId: command.tenantId,
+                    projectId,
+                    email: clientEmail,
+                    appUrl,
+                    next: proposalPath,
+                  })
+                : null;
+
             const emailJob = {
               id: emailJobId,
               tenantId: command.tenantId,
               projectId,
               proposalId: proposal.id,
               type: "proposal_sent",
-              recipient: stringValue(recipient.email).toLowerCase(),
+              recipient: clientEmail,
               recipientName: stringValue(recipient.displayName),
-              actionUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app"}/client/proposal`,
+              actionUrl: invitation
+                ? invitation.inviteUrl
+                : `${appUrl}${proposalPath}`,
               attachmentDocumentId: pdfDocumentId,
               status: "queued",
               attempts: 0,
@@ -624,10 +665,51 @@ export const proposalCommand = onRequest(
               updatedAt: timestamp,
             };
 
+            /**
+             * Persist the invitation the email is about to link to.
+             *
+             * The id is derived from tenant, project and email, so a client
+             * invited by hand and then sent a proposal keeps one invitation
+             * rather than collecting rival ones. The token is fresh each
+             * time, which retires the link in any earlier invitation email
+             * — the same thing "Resend invitation" does, and safe here
+             * because the client is holding a newer email that works.
+             */
+            const writeInvitation = () => {
+              if (!invitation || !clientContactId) return;
+              transaction.set(
+                db.doc(`clientInvitations/${invitation.invitationId}`),
+                {
+                  id: invitation.invitationId,
+                  tenantId: command.tenantId,
+                  projectId,
+                  contactId: clientContactId,
+                  email: invitation.email,
+                  normalizedEmail: invitation.email,
+                  status: "pending",
+                  tokenHash: invitation.tokenHash,
+                  expiresAt: invitation.expiresAt,
+                  acceptedAt: null,
+                  acceptedBy: null,
+                  revokedAt: null,
+                  lastSentAt: timestamp,
+                  latestEmailJobId: emailJobId,
+                  // The proposal email carries the invitation, so this is
+                  // the send that counts.
+                  sendCount: 1,
+                  createdAt: timestamp,
+                  updatedAt: timestamp,
+                  createdBy: identity.uid,
+                  updatedBy: identity.uid,
+                  archivedAt: null,
+                },
+                { merge: true },
+              );
+            };
+
             if (command.type === "send") {
-              const projectReference = db.doc(`projects/${projectId}`);
-              const [project, versions] = await Promise.all([
-                transaction.get(projectReference),
+              const project = projectForSend;
+              const [versions] = await Promise.all([
                 transaction.get(
                   db
                     .collection("proposals")
@@ -655,6 +737,7 @@ export const proposalCommand = onRequest(
                   });
                 }
               }
+              writeInvitation();
               transaction.create(emailJobReference, emailJob);
               transaction.update(proposalReference, {
                 status: "sent",
@@ -687,6 +770,7 @@ export const proposalCommand = onRequest(
                 ),
               };
             } else {
+              writeInvitation();
               transaction.create(emailJobReference, emailJob);
               transaction.update(proposalReference, {
                 emailJobId,

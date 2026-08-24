@@ -1,7 +1,11 @@
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
+import {
+  invitationIdFor,
+  mintClientInvitation,
+} from "./invitation-mint.js";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 
@@ -77,12 +81,7 @@ const maskedEmail = (value: string) => {
   const visible = local.slice(0, Math.min(2, local.length));
   return `${visible}${"•".repeat(Math.max(3, local.length - visible.length))}@${domain}`;
 };
-const invitationIdFor = (
-  tenantId: string,
-  projectId: string,
-  email: string,
-) =>
-  `client_invite_${hash(`${tenantId}:${projectId}:${email}`).slice(0, 32)}`;
+
 
 export const clientInvitationCommand = onRequest(
   { cors: studioHubCors, invoker: "private" },
@@ -490,20 +489,17 @@ export const clientInvitationCommand = onRequest(
       const email = normalizeEmail(String(contact.get("email") ?? ""));
       if (!z.string().email().safeParse(email).success)
         throw new Error("CLIENT_EMAIL_REQUIRED");
-      const invitationId = invitationIdFor(
-        parsed.tenantId,
-        parsed.input.projectId,
+      const minted = mintClientInvitation({
+        tenantId: parsed.tenantId,
+        projectId: parsed.input.projectId,
         email,
-      );
+        appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app",
+      });
+      const { invitationId, expiresAt, inviteUrl } = minted;
       const reference = db.doc(`clientInvitations/${invitationId}`);
       const existing = await reference.get();
       const isResend =
         existing.exists && existing.get("status") === "pending";
-      const token = randomBytes(32).toString("base64url");
-      const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString();
-      const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app";
-      const inviteUrl = `${appUrl}/auth/client-invite?token=${encodeURIComponent(token)}`;
       const emailJobId = `client_invite_${invitationId}_${Date.now()}`;
       const batch = db.batch();
       batch.set(reference, {
@@ -514,7 +510,7 @@ export const clientInvitationCommand = onRequest(
         email,
         normalizedEmail: email,
         status: "pending",
-        tokenHash: hash(token),
+        tokenHash: minted.tokenHash,
         expiresAt,
         acceptedAt: null,
         acceptedBy: null,

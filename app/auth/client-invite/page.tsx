@@ -9,8 +9,8 @@ export const metadata: Metadata = {
 export default async function ClientInvitationPage({
   searchParams,
 }: {
-  searchParams: Promise<{ token?: string }>;
+  searchParams: Promise<{ token?: string; next?: string }>;
 }) {
-  const token = (await searchParams).token ?? "";
-  return <AcceptClientInvitation token={token} />;
+  const { token, next } = await searchParams;
+  return <AcceptClientInvitation token={token ?? ""} landing={next} />;
 }
