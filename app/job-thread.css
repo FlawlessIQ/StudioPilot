@@ -208,6 +208,13 @@
   border-top: 1px solid var(--line, #e6eae4);
 }
 
+/* The next move now leads the thread instead of trailing it, so it owns
+   the gap to the history below rather than inheriting the composer's
+   divider above. */
+.thread-next-slot {
+  margin-bottom: 18px;
+}
+
 /* The next move is the most consequential thing on the page, so it looks
    it — the same spruce language as the Today briefing. */
 .thread-next {

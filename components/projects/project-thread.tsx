@@ -94,6 +94,12 @@ export function ProjectThread({
           </p>
         </div>
       ) : null}
+      <ThreadNextMove
+        current={current}
+        onChanged={onChanged}
+        projectId={projectId}
+        stateVersion={stateVersion}
+      />
       {days.map((bucket) => (
         <div className="job-thread-day" key={bucket.day}>
           <span className="job-thread-daylabel">{dayLabel(bucket.day)}</span>
@@ -104,10 +110,8 @@ export function ProjectThread({
       ))}
       <ThreadComposer
         consultationId={consultationId}
-        current={current}
         onChanged={onChanged}
         projectId={projectId}
-        stateVersion={stateVersion}
       />
     </section>
   );
@@ -198,16 +202,88 @@ const NOTE_SUGGESTIONS = [
  * than guessed from prose: a misread that files a consultation as a task
  * would be worse than one extra tap.
  */
+/**
+ * What to do next, above the history rather than after it.
+ *
+ * This used to sit at the bottom of the thread, inside the composer. A
+ * thread is chronological and grows for the life of the job, so the single
+ * most consequential thing on the page ended up below months of activity —
+ * a studio with an accepted proposal had to scroll past every consultation
+ * and email to find "Send contract". The compose box still belongs at the
+ * end, where a reply box goes; the instruction does not.
+ */
+function ThreadNextMove({
+  current,
+  onChanged,
+  projectId,
+  stateVersion,
+}: {
+  current: JourneyStep | null;
+  onChanged: (state?: string, version?: number) => void;
+  projectId: string;
+  stateVersion: number;
+}) {
+  return (
+    <div className="thread-next-slot">
+      {current ? (
+        <div className="thread-next">
+          <span className="thread-next-glow" aria-hidden="true" />
+          <div className="thread-next-copy">
+            <p className="thread-next-eyebrow">
+              <Sparkles size={12} /> Your next move
+            </p>
+            {/* Step titles are milestone names written in the past ("Crew
+              confirmed"), which read as an announcement that the thing is
+              done. The outstanding action is what this card is for. */}
+            <strong>
+              {current.action?.kind === "link"
+                ? current.action.label
+                : current.title}
+            </strong>
+            <small>{current.detail}</small>
+          </div>
+          <div className="thread-next-actions">
+            {current.action?.kind === "link" ? (
+              <Link className="thread-next-go" href={current.action.href}>
+                {current.action.label} <ArrowRight size={15} />
+              </Link>
+            ) : null}
+            {current.advance ? (
+              <MarkDoneButton
+                advance={current.advance}
+                onChanged={onChanged}
+                projectId={projectId}
+                stateVersion={stateVersion}
+              />
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        // One voice means it also speaks when the answer is "nothing". The
+        // thread used to simply end, which reads as a page that has not
+        // finished loading rather than a job that is genuinely waiting.
+        <div className="thread-next is-clear">
+          <div className="thread-next-copy">
+            <p className="thread-next-eyebrow">
+              <Check size={12} /> Nothing for you right now
+            </p>
+            <strong>This job is waiting on someone else.</strong>
+            <small>
+              It comes back here the moment it needs a decision from you.
+            </small>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ThreadComposer({
   projectId,
-  current,
-  stateVersion,
   consultationId,
   onChanged,
 }: {
   projectId: string;
-  current: JourneyStep | null;
-  stateVersion: number;
   consultationId: string | null;
   onChanged: (state?: string, version?: number) => void;
 }) {
@@ -294,56 +370,6 @@ function ThreadComposer({
 
   return (
     <div className="thread-composer">
-      {current ? (
-        <div className="thread-next">
-          <span className="thread-next-glow" aria-hidden="true" />
-          <div className="thread-next-copy">
-            <p className="thread-next-eyebrow">
-              <Sparkles size={12} /> Your next move
-            </p>
-            {/* Step titles are milestone names written in the past ("Crew
-                confirmed"), which read as an announcement that the thing is
-                done. The outstanding action is what this card is for. */}
-            <strong>
-              {current.action?.kind === "link"
-                ? current.action.label
-                : current.title}
-            </strong>
-            <small>{current.detail}</small>
-          </div>
-          <div className="thread-next-actions">
-            {current.action?.kind === "link" ? (
-              <Link className="thread-next-go" href={current.action.href}>
-                {current.action.label} <ArrowRight size={15} />
-              </Link>
-            ) : null}
-            {current.advance ? (
-              <MarkDoneButton
-                advance={current.advance}
-                onChanged={onChanged}
-                projectId={projectId}
-                stateVersion={stateVersion}
-              />
-            ) : null}
-          </div>
-        </div>
-      ) : (
-        // One voice means it also speaks when the answer is "nothing". The
-        // thread used to simply end, which reads as a page that has not
-        // finished loading rather than a job that is genuinely waiting.
-        <div className="thread-next is-clear">
-          <div className="thread-next-copy">
-            <p className="thread-next-eyebrow">
-              <Check size={12} /> Nothing for you right now
-            </p>
-            <strong>This job is waiting on someone else.</strong>
-            <small>
-              It comes back here the moment it needs a decision from you.
-            </small>
-          </div>
-        </div>
-      )}
-
       <div
         className="thread-composer-modes"
         role="tablist"

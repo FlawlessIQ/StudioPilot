@@ -11688,6 +11688,41 @@ form:has(> .address-field) > .address-field,
   .crew-profile-created-actions { grid-column: 1 / -1; }
 }
 
+/* No agreement chosen yet: say what is missing and where to fix it,
+   rather than presenting an unexplained field for a provider GUID. */
+.booking-template-missing {
+  border: 1px solid var(--line, #e3e1d8);
+  border-radius: 12px;
+  display: grid;
+  gap: 5px;
+  padding: 14px 16px;
+}
+
+.booking-template-missing > small {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.booking-template-missing > details {
+  margin-top: 5px;
+}
+
+.booking-template-missing summary {
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12.5px;
+}
+
+.booking-template-missing summary:hover {
+  color: var(--ink, #1d2420);
+}
+
+.booking-template-missing details label {
+  display: grid;
+  gap: 6px;
+  margin-top: 9px;
+}
+
 /* ── Panel insets ─────────────────────────────────────────────────────
    `.panel` is deliberately padding-free so that table and list panels can
    run edge to edge (see the note above `.copilot-result`). The cost is

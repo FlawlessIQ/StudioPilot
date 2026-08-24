@@ -45,7 +45,9 @@ function nestedString(value: unknown, key: string): string {
 
 function friendlyError(error: unknown): string {
   const message =
-    error instanceof Error ? error.message : "This action could not be completed.";
+    error instanceof Error
+      ? error.message
+      : "This action could not be completed.";
   const known: Record<string, string> = {
     CONTRACT_NOT_READY:
       "The accepted proposal must be ready before a contract can be sent.",
@@ -63,7 +65,10 @@ function friendlyError(error: unknown): string {
   // Domain codes win; anything else goes through the shared helper so raw
   // infrastructure text ("Firebase client configuration is incomplete: …")
   // never reaches the notice.
-  return known[message] ?? friendlySharedError(error, "This action could not be completed.");
+  return (
+    known[message] ??
+    friendlySharedError(error, "This action could not be completed.")
+  );
 }
 
 function currency(cents: unknown, code: unknown): string {
@@ -89,11 +94,15 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
     dueDate: string | null;
   } | null>(null);
   const [orchestration, setOrchestration] = useState<RecordValue | null>(null);
-  const [packageSnapshot, setPackageSnapshot] = useState<RecordValue | null>(null);
+  const [packageSnapshot, setPackageSnapshot] = useState<RecordValue | null>(
+    null,
+  );
   const [contact, setContact] = useState<RecordValue | null>(null);
   const [templateId, setTemplateId] = useState("");
   const [templateConfigured, setTemplateConfigured] = useState(false);
-  const [signingProvider, setSigningProvider] = useState<"docusign" | "dropbox_sign">("docusign");
+  const [signingProvider, setSigningProvider] = useState<
+    "docusign" | "dropbox_sign"
+  >("docusign");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -106,7 +115,9 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
       // See booking-autopilot-workspace: constructing the client outside the
       // try turned a config error into a permanent spinner.
       const { firestore } = getFirebaseClient();
-      const projectSnapshot = await getDoc(doc(firestore, "projects", projectId));
+      const projectSnapshot = await getDoc(
+        doc(firestore, "projects", projectId),
+      );
       if (
         !projectSnapshot.exists() ||
         projectSnapshot.get("tenantId") !== workspace.tenantId
@@ -117,51 +128,56 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
         id: projectSnapshot.id,
         ...projectSnapshot.data(),
       };
-      const [proposals, contracts, invoices, tenant, connections, routing, bookingPlan] =
-        await Promise.all([
-          getDocs(
-            query(
-              collection(firestore, "proposals"),
-              where("tenantId", "==", workspace.tenantId),
-              where("projectId", "==", projectId),
-            ),
+      const [
+        proposals,
+        contracts,
+        invoices,
+        tenant,
+        connections,
+        routing,
+        bookingPlan,
+      ] = await Promise.all([
+        getDocs(
+          query(
+            collection(firestore, "proposals"),
+            where("tenantId", "==", workspace.tenantId),
+            where("projectId", "==", projectId),
           ),
-          getDocs(
-            query(
-              collection(firestore, "contracts"),
-              where("tenantId", "==", workspace.tenantId),
-              where("projectId", "==", projectId),
-            ),
+        ),
+        getDocs(
+          query(
+            collection(firestore, "contracts"),
+            where("tenantId", "==", workspace.tenantId),
+            where("projectId", "==", projectId),
           ),
-          getDocs(
-            query(
-              collection(firestore, "invoiceReferences"),
-              where("tenantId", "==", workspace.tenantId),
-              where("projectId", "==", projectId),
-            ),
+        ),
+        getDocs(
+          query(
+            collection(firestore, "invoiceReferences"),
+            where("tenantId", "==", workspace.tenantId),
+            where("projectId", "==", projectId),
           ),
-          getDoc(doc(firestore, "tenants", workspace.tenantId)),
-          getDocs(
-            query(
-              collection(firestore, "integrationConnections"),
-              where("tenantId", "==", workspace.tenantId),
-            ),
+        ),
+        getDoc(doc(firestore, "tenants", workspace.tenantId)),
+        getDocs(
+          query(
+            collection(firestore, "integrationConnections"),
+            where("tenantId", "==", workspace.tenantId),
           ),
-          // These docs may not exist yet (fresh project / unconfigured
-          // routing) and are role-restricted; a denied or failed read must
-          // not take down the whole workspace load with it.
-          getDoc(doc(firestore, "integrationRouting", workspace.tenantId)).catch(
-            () => null,
-          ),
-          getDoc(doc(firestore, "bookingOrchestrations", projectId)).catch(
-            () => null,
-          ),
-        ]);
+        ),
+        // These docs may not exist yet (fresh project / unconfigured
+        // routing) and are role-restricted; a denied or failed read must
+        // not take down the whole workspace load with it.
+        getDoc(doc(firestore, "integrationRouting", workspace.tenantId)).catch(
+          () => null,
+        ),
+        getDoc(doc(firestore, "bookingOrchestrations", projectId)).catch(
+          () => null,
+        ),
+      ]);
       const proposalValue =
         proposals.docs
-          .map(
-            (item): RecordValue => ({ id: item.id, ...item.data() }),
-          )
+          .map((item): RecordValue => ({ id: item.id, ...item.data() }))
           .sort(
             (left, right) =>
               Number(right.version ?? 0) - Number(left.version ?? 0),
@@ -169,9 +185,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           .find((item) => item.status === "accepted") ?? null;
       const contractValue =
         contracts.docs
-          .map(
-            (item): RecordValue => ({ id: item.id, ...item.data() }),
-          )
+          .map((item): RecordValue => ({ id: item.id, ...item.data() }))
           .sort((left, right) =>
             String(right.createdAt ?? "").localeCompare(
               String(left.createdAt ?? ""),
@@ -179,9 +193,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           )[0] ?? null;
       const invoiceValue =
         invoices.docs
-          .map(
-            (item): RecordValue => ({ id: item.id, ...item.data() }),
-          )
+          .map((item): RecordValue => ({ id: item.id, ...item.data() }))
           .filter((item) => item.kind === "retainer")
           .sort((left, right) =>
             String(right.createdAt ?? "").localeCompare(
@@ -235,7 +247,10 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
         routing: routing?.exists()
           ? {
               selections:
-                (routing.get("selections") as Record<string, "docusign" | "dropbox_sign" | null>) ?? {},
+                (routing.get("selections") as Record<
+                  string,
+                  "docusign" | "dropbox_sign" | null
+                >) ?? {},
             }
           : null,
         connections: connections.docs.map((item) => ({
@@ -317,7 +332,9 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
 
   async function createContract() {
     if (!project || !proposal || !contact || !templateId.trim()) {
-      setNotice(`Choose a ${signingProviderLabel} template and confirm the client contact first.`);
+      setNotice(
+        `Choose a ${signingProviderLabel} template and confirm the client contact first.`,
+      );
       return;
     }
     setBusy("contract");
@@ -368,7 +385,9 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           dueDate,
         },
       });
-      setNotice("QuickBooks customer matching and retainer creation are queued.");
+      setNotice(
+        "QuickBooks customer matching and retainer creation are queued.",
+      );
       await load();
     } catch (error: unknown) {
       setNotice(friendlyError(error));
@@ -463,20 +482,25 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
       ) : null}
       <div className="booking-steps" aria-label="Booking workflow">
         <article
-          className={contractComplete ? "booking-step is-complete" : "booking-step"}
+          className={
+            contractComplete ? "booking-step is-complete" : "booking-step"
+          }
         >
           <span className="booking-step-number">
             {contractComplete ? <Check size={17} /> : "1"}
           </span>
           <div className="booking-step-heading">
             <FileSignature aria-hidden="true" />
-            <span><small>The agreement</small><h2>Contract</h2></span>
+            <span>
+              <small>The agreement</small>
+              <h2>Contract</h2>
+            </span>
             <StatusBadge
-              tone={contractComplete ? "success" : contract ? "info" : "neutral"}
+              tone={
+                contractComplete ? "success" : contract ? "info" : "neutral"
+              }
             >
-              {contract
-                ? statusLabel(contract.status)
-                : "Not created"}
+              {contract ? statusLabel(contract.status) : "Not created"}
             </StatusBadge>
           </div>
           <p>
@@ -484,32 +508,27 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
             {signingProviderLabel} remains the authority for signature
             completion.
           </p>
-          {!contract ? (
-            <aside className="booking-provider-migration">
-              <strong>One approval completes the routine booking work</strong>
-              <small>
-                Approve this sequence once. StudioCue will wait for verified
-                signature evidence, create the retainer, wait for provider
-                payment evidence, and finish project setup. It stops if an
-                exception needs you.
-              </small>
-            </aside>
-          ) : null}
-          <aside className="booking-provider-migration">
-            <strong>Your approved agreement stays reusable</strong>
-            <small>
-              Import the current agreement once. StudioCue preserves its wording
-              and signer fields, then reuses the approved {signingProviderLabel} template
-              so you do not place fields for every client.
-            </small>
-          </aside>
           {contract ? (
             <div className="booking-evidence">
               {/* The provider's envelope id is an internal reference, not a
                   number the couple would ever quote. Who signed it and when
                   is what the studio actually needs to see. */}
-              <span><small>Signed with</small><strong>{providerName(String(contract.provider ?? "the signing provider"))}</strong></span>
-              <span><small>Sent</small><strong>{contract.sentAt ? formatDueDate(String(contract.sentAt)) : "Queued"}</strong></span>
+              <span>
+                <small>Signed with</small>
+                <strong>
+                  {providerName(
+                    String(contract.provider ?? "the signing provider"),
+                  )}
+                </strong>
+              </span>
+              <span>
+                <small>Sent</small>
+                <strong>
+                  {contract.sentAt
+                    ? formatDueDate(String(contract.sentAt))
+                    : "Queued"}
+                </strong>
+              </span>
             </div>
           ) : (
             <div className="booking-action-form">
@@ -535,19 +554,37 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   </small>
                 </details>
               ) : (
-                <label>
-                  {signingProviderLabel} template ID
-                  <input
-                    onChange={(event) => setTemplateId(event.target.value)}
-                    placeholder="Approved agreement template"
-                    value={templateId}
-                  />
-                </label>
+                // No studio default yet. An empty box labelled with a
+                // provider's internal ID is not an instruction — a studio
+                // arriving here from "Send contract" has no idea a GUID is
+                // wanted, or where to get one. Name the missing thing and
+                // point at the one screen that sets it.
+                <div className="booking-template-missing">
+                  <strong>Choose your agreement first</strong>
+                  <small>
+                    StudioCue sends the agreement you pick once in{" "}
+                    <Link href="/studio/integrations">Integrations</Link>, and
+                    reuses it for every booking.
+                  </small>
+                  <details>
+                    <summary>Or paste a {signingProviderLabel} template ID</summary>
+                    <label>
+                      {signingProviderLabel} template ID
+                      <input
+                        onChange={(event) => setTemplateId(event.target.value)}
+                        placeholder="Approved agreement template"
+                        value={templateId}
+                      />
+                    </label>
+                  </details>
+                </div>
               )}
               <button
                 className="button"
                 disabled={
-                  busy !== null || !proposal || projectState !== "CONTRACT_PENDING"
+                  busy !== null ||
+                  !proposal ||
+                  projectState !== "CONTRACT_PENDING"
                 }
                 onClick={() => void createContract()}
                 type="button"
@@ -555,7 +592,9 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 {busy === "contract" ? "Preparing…" : "Approve sequence & send"}
                 <ArrowRight size={15} />
               </button>
-              {!proposal ? <small>The client’s accepted proposal is required first.</small> : null}
+              {!proposal ? (
+                <small>The client’s accepted proposal is required first.</small>
+              ) : null}
               {/* This button is where signing actually fires, and the
                   retainer follows it. The workspace names the provider in
                   its copy but never said whether it is connected — it only
@@ -564,16 +603,46 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               <CapabilityNote capability="invoicing" />
             </div>
           )}
+          {/* Background, deliberately after the action. This card used to
+              open with two explanatory panels, so the one control on it sat
+              below a screen of prose and a studio arriving from "Send
+              contract" could not see what it was being asked to do. */}
+          {!contract ? (
+            <aside className="booking-provider-migration">
+              <strong>One approval completes the routine booking work</strong>
+              <small>
+                Approve this sequence once. StudioCue will wait for verified
+                signature evidence, create the retainer, wait for provider
+                payment evidence, and finish project setup. It stops if an
+                exception needs you.
+              </small>
+            </aside>
+          ) : null}
+          <aside className="booking-provider-migration">
+            <strong>Your approved agreement stays reusable</strong>
+            <small>
+              Import the current agreement once. StudioCue preserves its wording
+              and signer fields, then reuses the approved {signingProviderLabel}{" "}
+              template so you do not place fields for every client.
+            </small>
+          </aside>
         </article>
 
-        <article className={invoicePaid ? "booking-step is-complete" : "booking-step"}>
+        <article
+          className={invoicePaid ? "booking-step is-complete" : "booking-step"}
+        >
           <span className="booking-step-number">
             {invoicePaid ? <Check size={17} /> : "2"}
           </span>
           <div className="booking-step-heading">
             <ReceiptText aria-hidden="true" />
-            <span><small>The deposit</small><h2>Retainer</h2></span>
-            <StatusBadge tone={invoicePaid ? "success" : invoice ? "warning" : "neutral"}>
+            <span>
+              <small>The deposit</small>
+              <h2>Retainer</h2>
+            </span>
+            <StatusBadge
+              tone={invoicePaid ? "success" : invoice ? "warning" : "neutral"}
+            >
               {invoice ? statusLabel(invoice.status) : "Not created"}
             </StatusBadge>
           </div>
@@ -583,8 +652,18 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           </p>
           {invoice ? (
             <div className="booking-evidence">
-              <span><small>Amount</small><strong>{currency(invoice.amountCents, invoice.currency)}</strong></span>
-              <span><small>Balance</small><strong>{currency(invoice.balanceCents, invoice.currency)}</strong></span>
+              <span>
+                <small>Amount</small>
+                <strong>
+                  {currency(invoice.amountCents, invoice.currency)}
+                </strong>
+              </span>
+              <span>
+                <small>Balance</small>
+                <strong>
+                  {currency(invoice.balanceCents, invoice.currency)}
+                </strong>
+              </span>
               {typeof invoice.hostedUrl === "string" && invoice.hostedUrl ? (
                 <Link href={invoice.hostedUrl} rel="noreferrer" target="_blank">
                   Open QuickBooks invoice <ArrowRight size={13} />
@@ -596,12 +675,18 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               <LoaderCircle className="spin" size={18} />
               <span>
                 <strong>Waiting for verified signature</strong>
-                <small>StudioCue will create this retainer automatically after {signingProviderLabel} confirms completion.</small>
+                <small>
+                  StudioCue will create this retainer automatically after{" "}
+                  {signingProviderLabel} confirms completion.
+                </small>
               </span>
             </div>
           ) : (
             <div className="booking-action-form">
-              <span><small>Retainer due</small><strong>{dueDate}</strong></span>
+              <span>
+                <small>Retainer due</small>
+                <strong>{dueDate}</strong>
+              </span>
               <button
                 className="button"
                 disabled={
@@ -615,20 +700,29 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 {busy === "retainer" ? "Creating…" : "Create retainer invoice"}
                 <ArrowRight size={15} />
               </button>
-              {!contractComplete ? <small>{signingProviderLabel} completion unlocks this step.</small> : null}
+              {!contractComplete ? (
+                <small>
+                  {signingProviderLabel} completion unlocks this step.
+                </small>
+              ) : null}
             </div>
           )}
         </article>
 
         <article
-          className={bookingComplete ? "booking-step is-complete" : "booking-step"}
+          className={
+            bookingComplete ? "booking-step is-complete" : "booking-step"
+          }
         >
           <span className="booking-step-number">
             {bookingComplete ? <Check size={17} /> : "3"}
           </span>
           <div className="booking-step-heading">
             <ShieldCheck aria-hidden="true" />
-            <span><small>The final check</small><h2>Confirm booking</h2></span>
+            <span>
+              <small>The final check</small>
+              <h2>Confirm booking</h2>
+            </span>
             <StatusBadge tone={bookingComplete ? "success" : "neutral"}>
               {bookingComplete ? "Booked" : "Waiting"}
             </StatusBadge>
@@ -643,7 +737,10 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               <Check size={18} />
               <span>
                 <strong>Booking is confirmed</strong>
-                <small>Portal, workflow, calendar, and project folders are being prepared.</small>
+                <small>
+                  Portal, workflow, calendar, and project folders are being
+                  prepared.
+                </small>
               </span>
             </div>
           ) : automationActive ? (
@@ -651,7 +748,10 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               <LoaderCircle className="spin" size={18} />
               <span>
                 <strong>Automatic confirmation is active</strong>
-                <small>StudioCue will run the evidence check as soon as the connected provider reports the retainer paid.</small>
+                <small>
+                  StudioCue will run the evidence check as soon as the connected
+                  provider reports the retainer paid.
+                </small>
               </span>
             </div>
           ) : automationNeedsAttention ? (
@@ -659,7 +759,10 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               <CircleAlert size={18} />
               <span>
                 <strong>StudioCue stopped safely</strong>
-                <small>Resolve the exception shown in your next actions, then run the booking review again.</small>
+                <small>
+                  Resolve the exception shown in your next actions, then run the
+                  booking review again.
+                </small>
               </span>
             </div>
           ) : (
@@ -686,7 +789,9 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
         </article>
       </div>
       {notice ? (
-        <p className="booking-workspace-notice" role="status">{notice}</p>
+        <p className="booking-workspace-notice" role="status">
+          {notice}
+        </p>
       ) : null}
     </section>
   );
