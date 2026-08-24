@@ -198,6 +198,77 @@ async function saveCredential(
   if (!add.ok) throw new Error("SECRET_MANAGER_WRITE_FAILED");
   return `${name}/versions/latest`;
 }
+
+// Disconnect used to null encryptedCredentialRef and stop there, which left the
+// provider's access and refresh tokens sitting in Secret Manager — unreferenced
+// but intact, and still valid at the provider. Destroying the versions removes
+// the token material itself, so "disconnect" means the credential is gone rather
+// than merely unreachable, which is what app/privacy/page.tsx tells studios.
+//
+// Versions are destroyed rather than the secret deleted, deliberately: it needs
+// only secretmanager.versions.{list,destroy} instead of secrets.delete, which
+// keeps the runtime service account unable to remove secret containers. An empty
+// secret shell is harmless, and saveCredential already tolerates the container
+// existing (it treats create's 409 as success), so a later reconnect just adds a
+// fresh version.
+//
+// Every version must go, not just the latest: refreshCredential adds a new
+// version on each token refresh, so a long-lived connection accumulates many,
+// and any surviving one still holds a usable refresh token.
+//
+// The secret id has to be derived exactly as saveCredential derives it, or this
+// silently destroys nothing.
+async function deleteCredential(tenantId: string, provider: Provider) {
+  const project =
+    process.env.GOOGLE_CLOUD_PROJECT ??
+    process.env.GCLOUD_PROJECT ??
+    getApp().options.projectId;
+  if (!project) throw new Error("GOOGLE_CLOUD_PROJECT_REQUIRED");
+  const token = await runtimeToken();
+  const secretId = `studiohub-${tenantId}-${provider}`
+    .replace(/[^a-zA-Z0-9_-]/g, "-")
+    .slice(0, 240);
+  const secret = `projects/${project}/secrets/${encodeURIComponent(secretId)}`;
+  const authorization = { authorization: `Bearer ${token}` };
+  const fail = async (response: Response, stage: string) => {
+    const detail = await response
+      .text()
+      .then((body) => body.slice(0, 300))
+      .catch(() => "<unreadable>");
+    console.error(
+      JSON.stringify({
+        severity: "ERROR",
+        event: "integration.credential_destroy_failed",
+        provider,
+        tenantId,
+        stage,
+        status: response.status,
+        detail,
+      }),
+    );
+    throw new Error(`SECRET_MANAGER_DESTROY_FAILED:${stage}:${response.status}`);
+  };
+  const listed = await fetch(
+    `https://secretmanager.googleapis.com/v1/${secret}/versions?pageSize=200`,
+    { headers: authorization },
+  );
+  // A secret that never existed is already the desired end state — a connection
+  // predating stored credentials, or a retried disconnect.
+  if (listed.status === 404) return;
+  if (!listed.ok) await fail(listed, "list");
+  const body = (await listed.json().catch(() => ({}))) as {
+    versions?: Array<{ name?: string; state?: string }>;
+  };
+  for (const version of body.versions ?? []) {
+    // DESTROYED versions hold no payload; destroying one again is an error.
+    if (!version.name || version.state === "DESTROYED") continue;
+    const destroyed = await fetch(
+      `https://secretmanager.googleapis.com/v1/${version.name}:destroy`,
+      { method: "POST", headers: authorization },
+    );
+    if (!destroyed.ok) await fail(destroyed, "destroy");
+  }
+}
 function basic(clientId: string, clientSecret: string) {
   return `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`;
 }
@@ -351,6 +422,11 @@ export const integrationOAuth = onRequest(
           const reference = db.doc(`integrationConnections/${connectionId}`);
           const connection = await reference.get();
           if (!connection.exists) throw new Error("CONNECTION_NOT_FOUND");
+          // Delete the credential before recording the disconnect, not after. If
+          // deletion fails this throws with nothing written, so the studio sees a
+          // failed disconnect and can retry — rather than a connection marked
+          // disconnected while its tokens are still live at the provider.
+          await deleteCredential(input.tenantId, input.provider);
           const now = new Date().toISOString();
           const batch = db.batch();
           batch.update(reference, {
