@@ -44,6 +44,7 @@ app_services=(
   sendgrideventwebhook
   sendgridinboundcoi
   sendgridinboundgallery
+  signingtemplatesquery
   stripeconnectwebhook
   stripewebhook
   studioimportcommand

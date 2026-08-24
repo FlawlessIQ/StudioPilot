@@ -56,12 +56,113 @@ export async function setCapabilityProvider(
     },
   );
   const result = (await response.json()) as
-    | SetCapabilityProviderResult
-    | { error: string };
+    SetCapabilityProviderResult | { error: string };
   if (!response.ok || "error" in result) {
     throw new Error(
-      "error" in result ? result.error : "Could not change the connected provider.",
+      "error" in result
+        ? result.error
+        : "Could not change the connected provider.",
     );
   }
   return { persisted: true, result };
+}
+
+export type SigningTemplate = { id: string; name: string };
+
+export type SigningTemplateList = {
+  provider: IntegrationProvider | null;
+  /** False when the resolved provider has no template listing to offer. */
+  listable: boolean;
+  templates: SigningTemplate[];
+  /** Set when signing could not be resolved at all, e.g. nothing connected. */
+  unavailable?: string;
+};
+
+/**
+ * The agreement templates the studio's signing provider holds.
+ *
+ * Sending a contract needs a provider template id. Before this the only way
+ * to supply one was to copy a GUID out of Dropbox Sign for every project,
+ * so this exists to let a person pick by name instead.
+ */
+export async function listSigningTemplates(
+  tenantId: string,
+): Promise<SigningTemplateList> {
+  const endpoint = process.env.NEXT_PUBLIC_INTEGRATION_FUNCTIONS_URL;
+  if (!endpoint) {
+    return {
+      provider: null,
+      listable: false,
+      templates: [],
+      unavailable: "PREVIEW_MODE",
+    };
+  }
+  const { auth } = getFirebaseClient();
+  const user = auth.currentUser;
+  if (!user) throw new Error("Sign in to load agreement templates.");
+  const appCheckToken = await getOptionalAppCheckToken();
+  const response = await fetch(
+    `${endpoint.replace(/\/$/, "")}/signingTemplatesQuery`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${await user.getIdToken()}`,
+        ...(appCheckToken ? { "x-firebase-appcheck": appCheckToken } : {}),
+      },
+      body: JSON.stringify({ tenantId }),
+    },
+  );
+  const payload = (await response.json()) as Record<string, unknown>;
+  if (!response.ok) {
+    throw new Error(
+      String(payload.error ?? "Agreement templates could not be loaded."),
+    );
+  }
+  return payload as unknown as SigningTemplateList;
+}
+
+export type ContractTemplateResult = {
+  templateId: string | null;
+  templateName: string | null;
+};
+
+/** Saves the studio-wide default agreement template. */
+export async function setContractTemplate(
+  input: { templateId: string | null; templateName: string | null },
+  tenantId: string,
+): Promise<{ persisted: boolean; result: ContractTemplateResult }> {
+  const endpoint = process.env.NEXT_PUBLIC_INTEGRATION_FUNCTIONS_URL;
+  if (!endpoint) return { persisted: false, result: input };
+  const { auth } = getFirebaseClient();
+  const user = auth.currentUser;
+  if (!user) throw new Error("Sign in before changing the agreement template.");
+  const appCheckToken = await getOptionalAppCheckToken();
+  const response = await fetch(
+    `${endpoint.replace(/\/$/, "")}/integrationsCommand`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${await user.getIdToken()}`,
+        ...(appCheckToken ? { "x-firebase-appcheck": appCheckToken } : {}),
+      },
+      body: JSON.stringify({
+        type: "setContractTemplate",
+        tenantId,
+        idempotencyKey: crypto.randomUUID(),
+        input,
+      }),
+    },
+  );
+  const payload = (await response.json()) as Record<string, unknown>;
+  if (!response.ok) {
+    throw new Error(
+      String(payload.error ?? "The agreement template could not be saved."),
+    );
+  }
+  return {
+    persisted: true,
+    result: payload as unknown as ContractTemplateResult,
+  };
 }

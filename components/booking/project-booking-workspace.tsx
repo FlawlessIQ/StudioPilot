@@ -531,7 +531,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   </label>
                   <small>
                     Set the studio default in{" "}
-                    <Link href="/studio/settings">Settings → Integrations</Link>.
+                    <Link href="/studio/integrations">Integrations</Link>.
                   </small>
                 </details>
               ) : (

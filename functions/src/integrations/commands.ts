@@ -23,6 +23,27 @@ const commandSchema = z.discriminatedUnion("type", [
       provider: providerSchema.nullable(),
     }),
   }),
+  z.object({
+    /**
+     * The studio's default agreement template.
+     *
+     * `defaultContractSettings.templateId` was read by the booking
+     * workspace and by the setup checklist, and written by nothing — so the
+     * booking page's "set the studio default in Settings" pointed at a
+     * field no code path could produce, and the setup step for the
+     * agreement could never be ticked. This is the writer.
+     */
+    type: z.literal("setContractTemplate"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      // null clears the default and returns every project to asking for a
+      // template id per send.
+      templateId: z.string().min(1).max(200).nullable(),
+      /** Shown instead of the id once chosen; the id stays authoritative. */
+      templateName: z.string().max(200).nullable().default(null),
+    }),
+  }),
 ]);
 
 export const integrationsCommand = onRequest(
@@ -153,6 +174,57 @@ export const integrationsCommand = onRequest(
           });
 
           const output = { capability, provider };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        if (command.type === "setContractTemplate") {
+          const { templateId, templateName } = command.input;
+          const tenantReference = db.doc(`tenants/${command.tenantId}`);
+          const tenant = await transaction.get(tenantReference);
+          if (!tenant.exists) throw new Error("TENANT_NOT_FOUND");
+          const before =
+            (tenant.get("defaultContractSettings") as
+              | { templateId?: string; templateName?: string }
+              | undefined) ?? {};
+
+          transaction.update(tenantReference, {
+            defaultContractSettings: {
+              templateId,
+              templateName: templateId ? templateName : null,
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            },
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+
+          const auditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${auditId}`), {
+            id: auditId,
+            tenantId: command.tenantId,
+            projectId: null,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "integration.contract_template_set",
+            entityType: "tenant",
+            entityId: command.tenantId,
+            timestamp,
+            before: { templateId: before.templateId ?? null },
+            after: { templateId },
+            ipAddress: request.ip ?? null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
+
+          const output = { templateId, templateName: templateId ? templateName : null };
           transaction.create(commandReference, {
             tenantId: command.tenantId,
             idempotencyKey: command.idempotencyKey,

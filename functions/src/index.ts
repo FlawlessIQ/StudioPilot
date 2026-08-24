@@ -56,6 +56,7 @@ export { studioImportCommand } from "./studio-import/commands.js";
 // in-place during rollout.
 export { integrationOAuth as integrationOAuthEast4 } from "./integrations/oauth.js";
 export { integrationsCommand } from "./integrations/commands.js";
+export { signingTemplatesQuery } from "./integrations/signing-templates.js";
 export {
   tenantDataCommand,
   tenantExportDownload,

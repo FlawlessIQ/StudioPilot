@@ -494,6 +494,55 @@
 .ds-root .integration-routing-row select:disabled {
   opacity: 0.6;
 }
+/* Agreement template — the studio-wide default contract, chosen by name
+   rather than by pasting a provider GUID into every project. Shares the
+   routing card's chrome; only the interior differs. */
+.ds-root .agreement-template-picker {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: space-between;
+}
+.ds-root .agreement-template-picker label {
+  display: grid;
+  font-size: 12.5px;
+  font-weight: 620;
+  gap: 7px;
+  min-width: 0;
+}
+.ds-root .agreement-template-picker select {
+  font-size: 13px;
+  min-width: 280px;
+}
+.ds-root .agreement-template-picker select:disabled {
+  opacity: 0.6;
+}
+.ds-root .agreement-template-current {
+  align-items: center;
+  color: var(--ds-forest, #0a5c40);
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 600;
+  gap: 7px;
+  padding-bottom: 10px;
+}
+.ds-root .agreement-template-current.is-muted {
+  color: var(--ds-muted);
+  font-weight: 500;
+}
+.ds-root .agreement-template-state {
+  align-items: center;
+  color: var(--ds-muted);
+  display: flex;
+  font-size: 13.5px;
+  gap: 8px;
+  margin: 0;
+}
+.ds-root .agreement-template-state.is-attention {
+  color: var(--ds-ink, #1d2420);
+}
+
 .ds-root .integration-routing-status {
   display: inline-flex;
   align-items: center;

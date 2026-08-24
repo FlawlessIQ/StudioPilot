@@ -96,7 +96,7 @@ async function refreshCredential(reference:string,provider:Provider,current:Cred
   if(!save.ok)throw new Error("CREDENTIAL_REFRESH_SAVE_FAILED");
   return next;
 }
-async function connection(tenantId:string,provider:Provider){
+export async function connection(tenantId:string,provider:Provider){
   const snapshot=await getFirestore().collection("integrationConnections").where("tenantId","==",tenantId).where("provider","==",provider).where("status","==","connected").limit(1).get();
   const document=snapshot.docs[0];
   if(!document)throw new Error(`${provider.toUpperCase()}_NOT_CONNECTED`);

@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { IntegrationManager } from "@/components/integrations/integration-manager";
+import { AgreementTemplate } from "@/components/integrations/agreement-template";
 
 export default function IntegrationsPage() {
   return (
@@ -19,6 +20,7 @@ export default function IntegrationsPage() {
           </span>
         </header>
         <IntegrationManager />
+        <AgreementTemplate />
       </div>
     </AppShell>
   );
