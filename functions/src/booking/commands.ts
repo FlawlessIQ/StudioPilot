@@ -539,15 +539,21 @@ export const bookingCommand = onRequest(
           tenantId: command.tenantId,
           projectId: command.input.projectId,
           proposalId: command.input.proposalId,
-          status: "sent",
+          // "Sent" is the provider's word, not ours. This used to be stamped
+          // here, before the request had been made, so a contract Dropbox
+          // Sign refused with a 402 still read "Sent" with a sentAt time and
+          // the journey showed the booking advancing. createDropboxSignRequest
+          // sets both once the provider accepts; a dead-lettered job marks
+          // this failed.
+          status: mockMode ? "sent" : "queued",
           provider: signingProvider,
           providerEnvelopeId: envelopeId,
           templateId: command.input.templateId,
           signers: command.input.signers.map((signer) => ({
             ...signer,
-            status: "sent",
+            status: mockMode ? "sent" : "queued",
           })),
-          sentAt: timestamp,
+          sentAt: mockMode ? timestamp : null,
           completedAt: null,
           signedDocumentId: null,
           certificateDocumentId: null,

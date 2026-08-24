@@ -11688,6 +11688,27 @@ form:has(> .address-field) > .address-field,
   .crew-profile-created-actions { grid-column: 1 / -1; }
 }
 
+/* Test mode, said where the contract actually goes out. The Integrations
+   toggle is where it is turned on; this is where it matters. */
+.booking-test-mode {
+  align-items: start;
+  background: #fdf6e7;
+  border: 1px solid #e8d3a1;
+  border-radius: 10px;
+  color: #6f4a10;
+  display: flex;
+  font-size: 12.5px;
+  gap: 8px;
+  line-height: 1.55;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.booking-test-mode > svg {
+  flex: none;
+  margin-top: 2px;
+}
+
 /* No agreement chosen yet: say what is missing and where to fix it,
    rather than presenting an unexplained field for a provider GUID. */
 .booking-template-missing {

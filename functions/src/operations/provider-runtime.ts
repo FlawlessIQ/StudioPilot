@@ -576,8 +576,17 @@ export async function createDocusignEnvelope(job:DocumentSnapshot){const db=getF
 // developers.hellosign.com's rendered API docs during this change.
 export async function createDropboxSignRequest(job:DocumentSnapshot){const db=getFirestore();const contractId=String(job.get("contractId"));const reference=db.doc(`contracts/${contractId}`);const contract=await reference.get();if(!contract.exists)throw new Error("CONTRACT_NOT_FOUND");
   if(contract.get("providerState")==="completed")return{contractId,envelopeId:contract.get("providerEnvelopeId")};
-  const provider=await connection(String(job.get("tenantId")),"dropbox_sign");let signatureRequestId:string;if(provider.mock)signatureRequestId=mockId("signature_request",job.id);else{const credential=provider.credential;if(!credential)throw new Error("DROPBOX_SIGN_ACCOUNT_MISSING");const signers=Array.isArray(contract.get("signers"))?contract.get("signers") as Array<Json>:[];const value=await providerJson("https://api.hellosign.com/v3/signature_request/send_with_template",{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/json"},body:JSON.stringify({template_ids:[contract.get("templateId")],subject:"Please sign your StudioCue contract",signers:signers.map(signer=>({role:text(signer.role),name:text(signer.name),email_address:text(signer.email)}))})},"DROPBOX_SIGN_CREATE_FAILED");signatureRequestId=text(asRecord(value.signature_request).signature_request_id)}
-  if(!signatureRequestId)throw new Error("DROPBOX_SIGN_REQUEST_ID_MISSING");await reference.update({providerEnvelopeId:signatureRequestId,status:"sent",sentAt:new Date().toISOString(),providerState:"completed",updatedAt:new Date().toISOString(),updatedBy:"provider-worker"});return{contractId,envelopeId:signatureRequestId}}
+  const provider=await connection(String(job.get("tenantId")),"dropbox_sign");let signatureRequestId:string;if(provider.mock)signatureRequestId=mockId("signature_request",job.id);else{const credential=provider.credential;if(!credential)throw new Error("DROPBOX_SIGN_ACCOUNT_MISSING");const signers=Array.isArray(contract.get("signers"))?contract.get("signers") as Array<Json>:[];
+    // Test mode exists because a Dropbox Sign account without a paid API
+    // plan answers 402 to every live send, so the booking chain cannot be
+    // exercised at all. A test-mode request goes through the real API and
+    // fires the real webhooks, but the document is watermarked and the
+    // signature is NOT legally binding — which is why it is a per-tenant
+    // flag that the UI shouts about rather than an environment variable
+    // nobody would see.
+    const testMode=provider.document.get("testMode")===true;
+    const value=await providerJson("https://api.hellosign.com/v3/signature_request/send_with_template",{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/json"},body:JSON.stringify({template_ids:[contract.get("templateId")],subject:"Please sign your StudioCue contract",...(testMode?{test_mode:1}:{}),signers:signers.map(signer=>({role:text(signer.role),name:text(signer.name),email_address:text(signer.email)}))})},"DROPBOX_SIGN_CREATE_FAILED");signatureRequestId=text(asRecord(value.signature_request).signature_request_id)}
+  if(!signatureRequestId)throw new Error("DROPBOX_SIGN_REQUEST_ID_MISSING");await reference.update({providerEnvelopeId:signatureRequestId,status:"sent",sentAt:new Date().toISOString(),providerState:"completed",testMode:provider.mock?false:provider.document.get("testMode")===true,updatedAt:new Date().toISOString(),updatedBy:"provider-worker"});return{contractId,envelopeId:signatureRequestId}}
 
 async function quickBooksCustomerId(
   tenantId:string,

@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   ArrowRight,
   Check,
+  FlaskConical,
   CircleAlert,
   FileSignature,
   LoaderCircle,
@@ -103,6 +104,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   const [signingProvider, setSigningProvider] = useState<
     "docusign" | "dropbox_sign"
   >("docusign");
+  const [signingTestMode, setSigningTestMode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -292,6 +294,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
       setTemplateId((current) => current || configuredTemplate);
       setTemplateConfigured(Boolean(configuredTemplate));
       setSigningProvider(resolvedSigningProvider);
+      setSigningTestMode(signingConnection?.get("testMode") === true);
     } catch (error: unknown) {
       setNotice(friendlyError(error));
     } finally {
@@ -642,11 +645,15 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                       reuses it for every booking.
                     </small>
                     <details>
-                      <summary>Or paste a {signingProviderLabel} template ID</summary>
+                      <summary>
+                        Or paste a {signingProviderLabel} template ID
+                      </summary>
                       <label>
                         {signingProviderLabel} template ID
                         <input
-                          onChange={(event) => setTemplateId(event.target.value)}
+                          onChange={(event) =>
+                            setTemplateId(event.target.value)
+                          }
                           placeholder="Approved agreement template"
                           value={templateId}
                         />
@@ -664,16 +671,30 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   onClick={() => void createContract()}
                   type="button"
                 >
-                  {busy === "contract" ? "Preparing…" : "Approve sequence & send"}
+                  {busy === "contract"
+                    ? "Preparing…"
+                    : "Approve sequence & send"}
                   <ArrowRight size={15} />
                 </button>
                 {!proposal ? (
-                  <small>The client’s accepted proposal is required first.</small>
+                  <small>
+                    The client’s accepted proposal is required first.
+                  </small>
                 ) : null}
                 {/* This button is where signing actually fires, and the
                     retainer follows it. The workspace names the provider in
                     its copy but never said whether it is connected — it only
                     read the connection to guess a default template. */}
+                {signingTestMode ? (
+                  <p className="booking-test-mode" role="alert">
+                    <FlaskConical aria-hidden="true" size={14} />
+                    <span>
+                      Dropbox Sign is in <strong>test mode</strong>. This
+                      agreement will be watermarked and the signature will not
+                      be legally binding.
+                    </span>
+                  </p>
+                ) : null}
                 <CapabilityNote capability="signing" />
                 <CapabilityNote capability="invoicing" />
               </div>
@@ -696,16 +717,19 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
             <aside className="booking-provider-migration">
               <strong>Your approved agreement stays reusable</strong>
               <small>
-                Import the current agreement once. StudioCue preserves its wording
-                and signer fields, then reuses the approved {signingProviderLabel}{" "}
-                template so you do not place fields for every client.
+                Import the current agreement once. StudioCue preserves its
+                wording and signer fields, then reuses the approved{" "}
+                {signingProviderLabel} template so you do not place fields for
+                every client.
               </small>
             </aside>
           </article>
         ) : null}
         {activeStep === 2 ? (
           <article
-            className={invoicePaid ? "booking-step is-complete" : "booking-step"}
+            className={
+              invoicePaid ? "booking-step is-complete" : "booking-step"
+            }
           >
             <span className="booking-step-number">
               {invoicePaid ? <Check size={17} /> : "2"}
@@ -741,7 +765,11 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   </strong>
                 </span>
                 {typeof invoice.hostedUrl === "string" && invoice.hostedUrl ? (
-                  <Link href={invoice.hostedUrl} rel="noreferrer" target="_blank">
+                  <Link
+                    href={invoice.hostedUrl}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
                     Open QuickBooks invoice <ArrowRight size={13} />
                   </Link>
                 ) : null}
@@ -773,7 +801,9 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   onClick={() => void createRetainer()}
                   type="button"
                 >
-                  {busy === "retainer" ? "Creating…" : "Create retainer invoice"}
+                  {busy === "retainer"
+                    ? "Creating…"
+                    : "Create retainer invoice"}
                   <ArrowRight size={15} />
                 </button>
                 {!contractComplete ? (
@@ -826,8 +856,8 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 <span>
                   <strong>Automatic confirmation is active</strong>
                   <small>
-                    StudioCue will run the evidence check as soon as the connected
-                    provider reports the retainer paid.
+                    StudioCue will run the evidence check as soon as the
+                    connected provider reports the retainer paid.
                   </small>
                 </span>
               </div>
@@ -837,8 +867,8 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 <span>
                   <strong>StudioCue stopped safely</strong>
                   <small>
-                    Resolve the exception shown in your next actions, then run the
-                    booking review again.
+                    Resolve the exception shown in your next actions, then run
+                    the booking review again.
                   </small>
                 </span>
               </div>

@@ -44,6 +44,25 @@ const commandSchema = z.discriminatedUnion("type", [
       templateName: z.string().max(200).nullable().default(null),
     }),
   }),
+  z.object({
+    /**
+     * Whether a provider sends for real.
+     *
+     * A Dropbox Sign account with no paid API plan answers 402 to every
+     * live send, so the booking chain cannot be exercised at all. Test mode
+     * uses the real API and the real webhooks, but the document is
+     * watermarked and the signature is not legally binding — so it is
+     * stored per tenant, on the connection, where the UI can say so
+     * wherever a contract is about to go out.
+     */
+    type: z.literal("setProviderTestMode"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      provider: providerSchema,
+      testMode: z.boolean(),
+    }),
+  }),
 ]);
 
 export const integrationsCommand = onRequest(
@@ -225,6 +244,55 @@ export const integrationsCommand = onRequest(
           });
 
           const output = { templateId, templateName: templateId ? templateName : null };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        if (command.type === "setProviderTestMode") {
+          const { provider, testMode } = command.input;
+          const connectionReference = db.doc(
+            `integrationConnections/${command.tenantId}_${provider}`,
+          );
+          const connection = await transaction.get(connectionReference);
+          if (
+            !connection.exists ||
+            connection.get("tenantId") !== command.tenantId
+          ) {
+            throw new Error("PROVIDER_NOT_CONNECTED");
+          }
+
+          transaction.update(connectionReference, {
+            testMode,
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+
+          const auditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${auditId}`), {
+            id: auditId,
+            tenantId: command.tenantId,
+            projectId: null,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "integration.test_mode_set",
+            entityType: "integrationConnection",
+            entityId: `${command.tenantId}_${provider}`,
+            timestamp,
+            before: { testMode: connection.get("testMode") === true },
+            after: { testMode },
+            ipAddress: request.ip ?? null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
+
+          const output = { provider, testMode };
           transaction.create(commandReference, {
             tenantId: command.tenantId,
             idempotencyKey: command.idempotencyKey,

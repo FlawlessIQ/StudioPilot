@@ -531,6 +531,51 @@
   color: var(--ds-muted);
   font-weight: 500;
 }
+/* Test mode: quiet when off, loud when on. A watermarked signature that
+   nobody noticed is worse than no signature. */
+.ds-root .agreement-test-mode {
+  border-top: 1px solid var(--ds-line);
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+  padding-top: 16px;
+}
+.ds-root .agreement-test-mode label {
+  align-items: start;
+  cursor: pointer;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+.ds-root .agreement-test-mode label > span {
+  display: grid;
+  gap: 3px;
+}
+.ds-root .agreement-test-mode strong {
+  align-items: center;
+  display: inline-flex;
+  font-size: 13.5px;
+  gap: 6px;
+}
+.ds-root .agreement-test-mode small {
+  color: var(--ds-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.ds-root .agreement-test-mode.is-on strong {
+  color: #8a5a12;
+}
+.ds-root .agreement-test-mode [role="alert"] {
+  background: #fdf6e7;
+  border: 1px solid #e8d3a1;
+  border-radius: 10px;
+  color: #6f4a10;
+  font-size: 12.5px;
+  line-height: 1.55;
+  margin: 0;
+  padding: 10px 12px;
+}
+
 .ds-root .agreement-template-state {
   align-items: center;
   color: var(--ds-muted);

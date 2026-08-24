@@ -166,3 +166,48 @@ export async function setContractTemplate(
     result: payload as unknown as ContractTemplateResult,
   };
 }
+
+/**
+ * Turns a provider's test mode on or off.
+ *
+ * Test-mode signatures are watermarked and not legally binding, so this is
+ * stored on the connection and surfaced wherever a contract is about to be
+ * sent — never a silent environment setting.
+ */
+export async function setProviderTestMode(
+  provider: IntegrationProvider,
+  testMode: boolean,
+  tenantId: string,
+): Promise<{
+  persisted: boolean;
+  result: { provider: IntegrationProvider; testMode: boolean };
+}> {
+  const endpoint = process.env.NEXT_PUBLIC_INTEGRATION_FUNCTIONS_URL;
+  if (!endpoint) return { persisted: false, result: { provider, testMode } };
+  const { auth } = getFirebaseClient();
+  const user = auth.currentUser;
+  if (!user) throw new Error("Sign in before changing test mode.");
+  const appCheckToken = await getOptionalAppCheckToken();
+  const response = await fetch(
+    `${endpoint.replace(/\/$/, "")}/integrationsCommand`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${await user.getIdToken()}`,
+        ...(appCheckToken ? { "x-firebase-appcheck": appCheckToken } : {}),
+      },
+      body: JSON.stringify({
+        type: "setProviderTestMode",
+        tenantId,
+        idempotencyKey: crypto.randomUUID(),
+        input: { provider, testMode },
+      }),
+    },
+  );
+  const payload = (await response.json()) as Record<string, unknown>;
+  if (!response.ok) {
+    throw new Error(String(payload.error ?? "Test mode could not be changed."));
+  }
+  return { persisted: true, result: { provider, testMode } };
+}

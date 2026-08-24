@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   CheckCircle2,
   FileSignature,
+  FlaskConical,
   LoaderCircle,
   TriangleAlert,
 } from "lucide-react";
@@ -12,6 +13,7 @@ import { useTenantDocuments } from "@/components/live/tenant-records";
 import {
   listSigningTemplates,
   setContractTemplate,
+  setProviderTestMode,
   type SigningTemplate,
 } from "@/lib/integrations/command-client";
 
@@ -38,6 +40,15 @@ export function AgreementTemplate() {
   const saved =
     (tenant?.defaultContractSettings as
       { templateId?: string; templateName?: string } | undefined) ?? {};
+
+  const { records: connections } = useTenantDocuments("integrationConnections");
+  const signingConnection = connections?.find(
+    (entry) => entry.provider === "dropbox_sign",
+  );
+  const savedTestMode = signingConnection?.testMode === true;
+  const [testModeEdit, setTestModeEdit] = useState<boolean | null>(null);
+  const testMode = testModeEdit ?? savedTestMode;
+  const [switching, setSwitching] = useState(false);
 
   const [templates, setTemplates] = useState<SigningTemplate[] | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "unavailable">(
@@ -181,6 +192,63 @@ export function AgreementTemplate() {
           {notice}
         </p>
       ) : null}
+
+      {/* Test mode is the only way to exercise signing on a Dropbox Sign
+          account with no paid API plan, which answers 402 to every live
+          send. It has to be obvious: a watermarked, non-binding signature
+          that nobody noticed would be worse than no signature at all. */}
+      {signingConnection ? (
+        <div className={`agreement-test-mode${testMode ? " is-on" : ""}`}>
+          <label>
+            <input
+              checked={testMode}
+              disabled={switching}
+              onChange={(event) => void toggleTestMode(event.target.checked)}
+              type="checkbox"
+            />
+            <span>
+              <strong>
+                <FlaskConical aria-hidden="true" size={14} /> Test mode
+              </strong>
+              <small>
+                Sends through Dropbox Sign for real, so you can prove the
+                booking chain works without a paid API plan.
+              </small>
+            </span>
+          </label>
+          {testMode ? (
+            <p role="alert">
+              Signatures sent now are watermarked and{" "}
+              <strong>not legally binding</strong>. Turn this off before a real
+              client signs.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
+
+  async function toggleTestMode(next: boolean) {
+    if (!tenantId) return;
+    setSwitching(true);
+    setNotice(null);
+    try {
+      const response = await setProviderTestMode(
+        "dropbox_sign",
+        next,
+        tenantId,
+      );
+      setTestModeEdit(next);
+      if (!response.persisted)
+        setNotice("Development preview: test mode was not saved.");
+    } catch (caught: unknown) {
+      setNotice(
+        caught instanceof Error
+          ? caught.message
+          : "Test mode could not be changed.",
+      );
+    } finally {
+      setSwitching(false);
+    }
+  }
 }

@@ -196,6 +196,29 @@ async function finish(
         await batch.commit();
       }
     }
+    // A contract whose signature request the provider refused is not
+    // "queued" waiting for something — it is not going to happen without a
+    // person. Say so on the contract, where the studio is looking, rather
+    // than only on a job document nothing reads.
+    if (
+      document.ref.parent.id === "providerJobs" &&
+      document.get("contractId") &&
+      !retryable
+    ) {
+      await getFirestore()
+        .doc(`contracts/${String(document.get("contractId"))}`)
+        .update({
+          status: "failed",
+          providerState: "failed",
+          providerError: { code, message },
+          updatedAt: now,
+          updatedBy: "provider-worker",
+        })
+        .catch(() => {
+          // The contract may have been removed; the job's own error record
+          // is still the authority and must not be lost to this.
+        });
+    }
     if (
       document.ref.parent.id === "pdfJobs" &&
       document.get("proposalId")
