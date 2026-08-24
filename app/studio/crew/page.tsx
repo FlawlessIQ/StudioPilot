@@ -2,10 +2,18 @@ import Link from "next/link";
 import { UserPlus } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { CrewCascadeWorkspace } from "@/components/crew/crew-cascade-workspace";
-import { LiveDomainView, ProjectContextBar } from "@/components/studio/live-domain-view";
+import { CrewPlanProjectPicker } from "@/components/crew/crew-plan-project-picker";
+import {
+  LiveDomainView,
+  ProjectContextBar,
+} from "@/components/studio/live-domain-view";
 import { PeopleSectionNav } from "@/components/layout/people-section-nav";
 
-export default async function StudioCrewPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
+export default async function StudioCrewPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ project?: string }>;
+}) {
   const { project } = await searchParams;
   return (
     <AppShell active="Crew">
@@ -25,7 +33,11 @@ export default async function StudioCrewPage({ searchParams }: { searchParams: P
         </header>
         <PeopleSectionNav />
         {project ? <ProjectContextBar projectId={project} /> : null}
-        {project ? <CrewCascadeWorkspace projectId={project} /> : null}
+        {project ? (
+          <CrewCascadeWorkspace projectId={project} />
+        ) : (
+          <CrewPlanProjectPicker />
+        )}
         <section>
           <div className="section-heading-row">
             <div>

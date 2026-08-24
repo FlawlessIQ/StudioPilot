@@ -11642,10 +11642,11 @@ form:has(> .address-field) > .address-field,
    the form used to end on "you can now assign this collaborator to a
    project" and no route to doing it. */
 .crew-profile-created {
-  align-items: center;
+  align-items: start;
   display: grid;
-  gap: 16px;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 13px 15px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 26px 28px;
 }
 
 .crew-profile-created > svg {
@@ -11664,11 +11665,103 @@ form:has(> .address-field) > .address-field,
   max-width: 60ch;
 }
 
-.crew-profile-created-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.crew-profile-created-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  grid-column: 2;
+  margin-top: 3px;
+}
 
 @media (max-width: 720px) {
-  .crew-profile-created { grid-template-columns: auto minmax(0, 1fr); }
+  .crew-profile-created { padding: 22px; }
   .crew-profile-created-actions { grid-column: 1 / -1; }
+}
+
+/* ── Crew plan picker ─────────────────────────────────────────────────
+   The staffing workspace is per-job, so reaching it needs a job. */
+.crew-plan-picker {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.crew-plan-picker > header {
+  align-items: start;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 13px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 22px 24px;
+}
+
+.crew-plan-picker > header > svg {
+  color: var(--accent, #0ea372);
+  height: 20px;
+  width: 20px;
+}
+
+.crew-plan-picker > header p {
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.6;
+  margin: 4px 0 0;
+  max-width: 62ch;
+}
+
+.crew-plan-picker-list {
+  display: grid;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.crew-plan-picker-list li + li {
+  border-top: 1px solid var(--border);
+}
+
+.crew-plan-picker-list a {
+  align-items: center;
+  color: inherit;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 15px 24px;
+  text-decoration: none;
+}
+
+.crew-plan-picker-list a:hover {
+  background: var(--soft);
+}
+
+.crew-plan-picker-list a > span {
+  display: grid;
+  gap: 4px;
+}
+
+.crew-plan-picker-list small {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  gap: 6px;
+}
+
+.crew-plan-picker-list a > svg {
+  color: var(--muted);
+}
+
+.crew-plan-picker-empty {
+  color: var(--muted);
+  margin: 0;
+  padding: 20px 24px;
+}
+
+/* A single-column form page: the heading rule stops where the card stops,
+   rather than running on past the only thing under it. */
+.crew-ops-page-single > .page-heading,
+.crew-ops-page-single > .panel {
+  max-width: 780px;
 }
 
 /* ── Sheet dialog ─────────────────────────────────────────────────────

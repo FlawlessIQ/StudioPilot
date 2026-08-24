@@ -1,8 +1,176 @@
 "use client";
-import { useState,type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, UserPlus } from "lucide-react";
+import { ArrowRight, CheckCircle2, ShieldCheck, UserPlus } from "lucide-react";
 import { sendCrewCommand } from "@/lib/crew/command-client";
 import { PlaceTagsField } from "@/components/forms/place-tags-field";
-export function CreateCrewProfileForm(){const[created,setCreated]=useState<string|null>(null);const[serviceAreas,setServiceAreas]=useState<string[]>([]);const[notice,setNotice]=useState<string|null>(null);const[busy,setBusy]=useState(false);async function submit(event:FormEvent<HTMLFormElement>){event.preventDefault();setBusy(true);setNotice(null);const element=event.currentTarget;const data=new FormData(element);try{const response=await sendCrewCommand("createCrewProfile",{name:String(data.get("name")),email:String(data.get("email")),phone:String(data.get("phone"))||null,specialties:String(data.get("specialties")).split(",").map(value=>value.trim()).filter(Boolean),serviceAreas,travelRadiusMiles:Number(data.get("travelRadiusMiles")),rateType:String(data.get("rateType")),rateCents:Math.round(Number(data.get("rateDollars"))*100),currency:"USD"});setNotice(response.persisted?null:"Development preview: crew profile validated, but no relationship was created.");if(response.persisted){setCreated(String(data.get("name")));element.reset();setServiceAreas([])}}catch(caught:unknown){setNotice(caught instanceof Error?caught.message:"Crew profile could not be created.")}finally{setBusy(false)}}if(created)return <section className="panel crew-profile-created"><CheckCircle2 aria-hidden="true"/><div><strong>{created} is in your directory</strong><p>{"That is an address-book entry \u2014 it does not put them on a wedding yet. To offer them a job, open the job\u2019s crew plan and StudioCue will rank who to ask."}</p></div><span className="crew-profile-created-actions"><Link className="button button-dark" href="/studio/projects">Choose a job <ArrowRight size={15}/></Link><button className="button button-light" onClick={()=>setCreated(null)} type="button">Add another</button></span></section>;
-return <form onSubmit={event=>void submit(event)}><label>Name<input name="name" required minLength={2} placeholder="Jordan Reid"/></label><label>Email<input name="email" required type="email" placeholder="jordan@example.com"/></label><label>Phone<input name="phone" type="tel" placeholder="212-555-0140"/></label><label>Specialties<input name="specialties" required placeholder="Weddings, documentary"/></label><PlaceTagsField hint="Where this collaborator will travel. Add as many as you need." label="Service areas" onChange={setServiceAreas} placeholder="New York City" required value={serviceAreas}/><label>Travel radius<input name="travelRadiusMiles" required type="number" min="0" max="500" defaultValue="75"/></label><label>Rate type<select name="rateType" defaultValue="event"><option value="event">Event rate</option><option value="hourly">Hourly rate</option></select></label><label>Rate in USD<input name="rateDollars" required type="number" min="0" step="0.01" defaultValue="750"/></label><button className="button button-dark" disabled={busy} type="submit"><UserPlus size={16}/>{busy?"Creating…":"Create crew profile"}</button>{notice?<p className="form-notice" role="status">{notice}</p>:null}</form>}
+
+export function CreateCrewProfileForm() {
+  const [created, setCreated] = useState<string | null>(null);
+  const [serviceAreas, setServiceAreas] = useState<string[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setNotice(null);
+    // Held before the await: React nulls currentTarget once the handler yields.
+    const element = event.currentTarget;
+    const data = new FormData(element);
+    try {
+      const response = await sendCrewCommand("createCrewProfile", {
+        name: String(data.get("name")),
+        email: String(data.get("email")),
+        phone: String(data.get("phone")) || null,
+        specialties: String(data.get("specialties"))
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean),
+        serviceAreas,
+        travelRadiusMiles: Number(data.get("travelRadiusMiles")),
+        rateType: String(data.get("rateType")),
+        rateCents: Math.round(Number(data.get("rateDollars")) * 100),
+        currency: "USD",
+      });
+      setNotice(
+        response.persisted
+          ? null
+          : "Development preview: crew profile validated, but no relationship was created.",
+      );
+      if (response.persisted) {
+        setCreated(String(data.get("name")));
+        element.reset();
+        setServiceAreas([]);
+      }
+    } catch (caught: unknown) {
+      setNotice(
+        caught instanceof Error
+          ? caught.message
+          : "Crew profile could not be created.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * Adding a collaborator makes a directory entry, not a booking — so the
+   * confirmation has to name the next move. "Choose a job" goes to the crew
+   * plan picker, because the plan is where an offer is actually sent.
+   */
+  if (created)
+    return (
+      <section className="panel crew-profile-created">
+        <CheckCircle2 aria-hidden="true" />
+        <div>
+          <strong>{created} is in your directory</strong>
+          <p>
+            That is an address-book entry — it does not put them on a wedding
+            yet. To offer them a job, open that job&rsquo;s crew plan and
+            StudioCue will rank who to ask.
+          </p>
+        </div>
+        <span className="crew-profile-created-actions">
+          <Link className="button button-dark" href="/studio/crew">
+            Choose a job <ArrowRight size={15} />
+          </Link>
+          <button
+            className="button button-light"
+            onClick={() => setCreated(null)}
+            type="button"
+          >
+            Add another
+          </button>
+        </span>
+      </section>
+    );
+
+  return (
+    <section className="panel crew-form-preview">
+      <div className="human-boundary">
+        <ShieldCheck />
+        <span>
+          <strong>Private by default</strong>
+          <small>
+            Rates, tax documents, insurance, and private notes are only shown to
+            authorized studio users.
+          </small>
+        </span>
+      </div>
+      <form onSubmit={(event) => void submit(event)}>
+        <label>
+          Name
+          <input name="name" required minLength={2} placeholder="Jordan Reid" />
+        </label>
+        <label>
+          Email
+          <input
+            name="email"
+            required
+            type="email"
+            placeholder="jordan@example.com"
+          />
+        </label>
+        <label>
+          Phone
+          <input name="phone" type="tel" placeholder="212-555-0140" />
+        </label>
+        <label>
+          Specialties
+          <input
+            name="specialties"
+            required
+            placeholder="Weddings, documentary"
+          />
+        </label>
+        <PlaceTagsField
+          hint="Where this collaborator will travel. Add as many as you need."
+          label="Service areas"
+          onChange={setServiceAreas}
+          placeholder="New York City"
+          required
+          value={serviceAreas}
+        />
+        <label>
+          Travel radius
+          <input
+            name="travelRadiusMiles"
+            required
+            type="number"
+            min="0"
+            max="500"
+            defaultValue="75"
+          />
+        </label>
+        <label>
+          Rate type
+          <select name="rateType" defaultValue="event">
+            <option value="event">Event rate</option>
+            <option value="hourly">Hourly rate</option>
+          </select>
+        </label>
+        <label>
+          Rate in USD
+          <input
+            name="rateDollars"
+            required
+            type="number"
+            min="0"
+            step="0.01"
+            defaultValue="750"
+          />
+        </label>
+        <button className="button button-dark" disabled={busy} type="submit">
+          <UserPlus size={16} />
+          {busy ? "Creating…" : "Create crew profile"}
+        </button>
+        {notice ? (
+          <p className="form-notice" role="status">
+            {notice}
+          </p>
+        ) : null}
+      </form>
+    </section>
+  );
+}
