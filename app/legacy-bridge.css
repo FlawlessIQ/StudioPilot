@@ -564,7 +564,7 @@
    modestly rather than aggressively, since the "dead space" complaint is
    mostly the undersized text above, not oversized padding. */
 .ds-root .panel-heading {
-  padding: 24px 26px 20px;
+  padding: 24px var(--panel-inset, 26px) 20px;
 }
 
 /* Density pass, part 2 — gaps found during browser verification of the

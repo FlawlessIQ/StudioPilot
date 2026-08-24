@@ -7252,6 +7252,16 @@ textarea:focus-visible {
   --workspace-shadow-raised:
     0 2px 4px rgb(19 31 23 / 4%),
     0 24px 58px rgb(28 42 33 / 9%);
+  /* The edge every panel's contents line up on.
+
+     The value is 26px because that is what actually wins: globals.css
+     declares 28px on `.panel-heading`, and `legacy-bridge.css` overrides
+     it to 24px 26px 20px with a higher-specificity `.ds-root` selector
+     loaded afterwards. Reading only globals.css gives the wrong answer,
+     which is one reason panels kept being padded to an edge their own
+     headings did not sit on. That rule now draws from this token too, so
+     the heading and the body cannot disagree again. */
+  --panel-inset: 26px;
 }
 
 .app-frame,
@@ -11676,6 +11686,58 @@ form:has(> .address-field) > .address-field,
 @media (max-width: 720px) {
   .crew-profile-created { padding: 22px; }
   .crew-profile-created-actions { grid-column: 1 / -1; }
+}
+
+/* ── Panel insets ─────────────────────────────────────────────────────
+   `.panel` is deliberately padding-free so that table and list panels can
+   run edge to edge (see the note above `.copilot-result`). The cost is
+   that every content-bearing panel has to remember its own inset, and the
+   ones that forgot have been patched one at a time for months —
+   `.copilot-result`, `.final-invoice-card`, `.timing-rule-list`,
+   `.vendor-create-panel form`, `.crew-form-preview form`. Each patch named
+   one class, so the next panel was a coin flip.
+
+   A layout sweep of 59 routes found the ones still shipping their contents
+   against the border. They are fixed together here, off one token, so the
+   two halves of a panel — a heading that pads itself and a body that does
+   not — can no longer disagree about where the left edge is.
+   `npm run audit:insets` runs the detector in scripts/audit across every
+   workspace route and exits non-zero on anything flush, so the next one
+   does not need a screenshot to be found. */
+
+/* Headless panels: nothing inside supplies the inset, so the panel does. */
+.crew-cascade-form,
+.crew-direct-invite-form,
+.project-plan-empty {
+  padding: 26px var(--panel-inset, 26px) var(--panel-inset, 26px);
+}
+
+/* Heading-led panels: the heading already sits at the inset, and only the
+   body below it was left flush. */
+.team-invite-panel > form,
+.closeout-assistant > :not(.panel-heading),
+.timing-rule-editor > .timing-rule-actions {
+  padding-inline: var(--panel-inset, 26px);
+}
+
+.team-invite-panel > form,
+.closeout-assistant > :not(.panel-heading):last-child,
+.timing-rule-editor > .timing-rule-actions {
+  padding-bottom: var(--panel-inset, 26px);
+}
+
+@media (max-width: 620px) {
+  .crew-cascade-form,
+  .crew-direct-invite-form,
+  .project-plan-empty {
+    padding: 20px;
+  }
+
+  .team-invite-panel > form,
+  .closeout-assistant > :not(.panel-heading),
+  .timing-rule-editor > .timing-rule-actions {
+    padding-inline: 20px;
+  }
 }
 
 /* ── Direct invite ────────────────────────────────────────────────────
