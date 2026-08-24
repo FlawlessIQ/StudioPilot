@@ -330,6 +330,55 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
     orchestration?.status === "active" || orchestration?.status === "completed";
   const automationNeedsAttention = orchestration?.status === "needs_attention";
 
+  /**
+   * Which of the three steps is actually live.
+   *
+   * Each one is gated on the one before it — the retainer cannot be raised
+   * until a signature is verified, and the booking cannot be confirmed until
+   * the retainer clears — so at most one of them is ever actionable. The
+   * page now shows that one.
+   */
+  const activeStep = !contractComplete ? 1 : !invoicePaid ? 2 : 3;
+  const stepState = (step: number) =>
+    step < activeStep ? "done" : step === activeStep ? "current" : "waiting";
+  const steps = [
+    {
+      number: 1,
+      title: "Contract",
+      state: bookingComplete ? "done" : stepState(1),
+      note: contractComplete
+        ? "Signed"
+        : contract
+          ? statusLabel(String(contract.status))
+          : "Not sent",
+    },
+    {
+      number: 2,
+      title: "Retainer",
+      state: bookingComplete ? "done" : stepState(2),
+      // "Waits for the signature" is only true while it is waiting. Once
+      // this becomes the live step that sentence describes the past and
+      // reads as though the step is still blocked.
+      note: invoicePaid
+        ? "Paid"
+        : invoice
+          ? statusLabel(String(invoice.status))
+          : contractComplete
+            ? "Ready to raise"
+            : "Waits for the signature",
+    },
+    {
+      number: 3,
+      title: "Booking",
+      state: bookingComplete ? "done" : stepState(3),
+      note: bookingComplete
+        ? "Confirmed"
+        : invoicePaid
+          ? "Ready to confirm"
+          : "Waits for the retainer",
+    },
+  ];
+
   async function createContract() {
     if (!project || !proposal || !contact || !templateId.trim()) {
       setNotice(
@@ -480,313 +529,342 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           </Link>
         </aside>
       ) : null}
-      <div className="booking-steps" aria-label="Booking workflow">
-        <article
-          className={
-            contractComplete ? "booking-step is-complete" : "booking-step"
-          }
-        >
-          <span className="booking-step-number">
-            {contractComplete ? <Check size={17} /> : "1"}
-          </span>
-          <div className="booking-step-heading">
-            <FileSignature aria-hidden="true" />
-            <span>
-              <small>The agreement</small>
-              <h2>Contract</h2>
+      {/* One step at a time.
+
+          Three equal columns gave the same weight to the step you can act on
+          and the two you cannot, so two thirds of the page was prose about
+          things that were not yet possible — which read as a list of things
+          to do and left a studio arriving from "Send contract" unsure which
+          of them was theirs. The strip keeps the shape of the sequence
+          visible; only the live step gets the room to explain itself. */}
+      <ol className="booking-progress" aria-label="Booking sequence">
+        {steps.map((step) => (
+          <li
+            className={`booking-progress-step is-${step.state}`}
+            key={step.number}
+            aria-current={step.state === "current" ? "step" : undefined}
+          >
+            <span className="booking-progress-mark">
+              {step.state === "done" ? <Check size={14} /> : step.number}
             </span>
-            <StatusBadge
-              tone={
-                contractComplete ? "success" : contract ? "info" : "neutral"
-              }
-            >
-              {contract ? statusLabel(contract.status) : "Not created"}
-            </StatusBadge>
-          </div>
-          <p>
-            The accepted proposal supplies the exact package and price.{" "}
-            {signingProviderLabel} remains the authority for signature
-            completion.
-          </p>
-          {contract ? (
-            <div className="booking-evidence">
-              {/* The provider's envelope id is an internal reference, not a
-                  number the couple would ever quote. Who signed it and when
-                  is what the studio actually needs to see. */}
+            <span className="booking-progress-copy">
+              <strong>{step.title}</strong>
+              <small>{step.note}</small>
+            </span>
+          </li>
+        ))}
+      </ol>
+      <div className="booking-steps" aria-label="Booking workflow">
+        {activeStep === 1 ? (
+          <article
+            className={
+              contractComplete ? "booking-step is-complete" : "booking-step"
+            }
+          >
+            <span className="booking-step-number">
+              {contractComplete ? <Check size={17} /> : "1"}
+            </span>
+            <div className="booking-step-heading">
+              <FileSignature aria-hidden="true" />
               <span>
-                <small>Signed with</small>
-                <strong>
-                  {providerName(
-                    String(contract.provider ?? "the signing provider"),
-                  )}
-                </strong>
+                <small>The agreement</small>
+                <h2>Contract</h2>
               </span>
-              <span>
-                <small>Sent</small>
-                <strong>
-                  {contract.sentAt
-                    ? formatDueDate(String(contract.sentAt))
-                    : "Queued"}
-                </strong>
-              </span>
+              <StatusBadge
+                tone={
+                  contractComplete ? "success" : contract ? "info" : "neutral"
+                }
+              >
+                {contract ? statusLabel(contract.status) : "Not created"}
+              </StatusBadge>
             </div>
-          ) : (
-            <div className="booking-action-form">
-              {templateConfigured ? (
-                // Provider internals stay out of the flow: a configured
-                // template needs no raw ID pasted mid-booking.
-                <details className="booking-template-configured">
-                  <summary>
-                    Using your approved {signingProviderLabel} agreement
-                    template.
-                  </summary>
-                  <label>
-                    Use a different template ID for this client only
-                    <input
-                      onChange={(event) => setTemplateId(event.target.value)}
-                      placeholder="Approved agreement template"
-                      value={templateId}
-                    />
-                  </label>
-                  <small>
-                    Set the studio default in{" "}
-                    <Link href="/studio/integrations">Integrations</Link>.
-                  </small>
-                </details>
-              ) : (
-                // No studio default yet. An empty box labelled with a
-                // provider's internal ID is not an instruction — a studio
-                // arriving here from "Send contract" has no idea a GUID is
-                // wanted, or where to get one. Name the missing thing and
-                // point at the one screen that sets it.
-                <div className="booking-template-missing">
-                  <strong>Choose your agreement first</strong>
-                  <small>
-                    StudioCue sends the agreement you pick once in{" "}
-                    <Link href="/studio/integrations">Integrations</Link>, and
-                    reuses it for every booking.
-                  </small>
-                  <details>
-                    <summary>Or paste a {signingProviderLabel} template ID</summary>
+            <p>
+              The accepted proposal supplies the exact package and price.{" "}
+              {signingProviderLabel} remains the authority for signature
+              completion.
+            </p>
+            {contract ? (
+              <div className="booking-evidence">
+                {/* The provider's envelope id is an internal reference, not a
+                    number the couple would ever quote. Who signed it and when
+                    is what the studio actually needs to see. */}
+                <span>
+                  <small>Signed with</small>
+                  <strong>
+                    {providerName(
+                      String(contract.provider ?? "the signing provider"),
+                    )}
+                  </strong>
+                </span>
+                <span>
+                  <small>Sent</small>
+                  <strong>
+                    {contract.sentAt
+                      ? formatDueDate(String(contract.sentAt))
+                      : "Queued"}
+                  </strong>
+                </span>
+              </div>
+            ) : (
+              <div className="booking-action-form">
+                {templateConfigured ? (
+                  // Provider internals stay out of the flow: a configured
+                  // template needs no raw ID pasted mid-booking.
+                  <details className="booking-template-configured">
+                    <summary>
+                      Using your approved {signingProviderLabel} agreement
+                      template.
+                    </summary>
                     <label>
-                      {signingProviderLabel} template ID
+                      Use a different template ID for this client only
                       <input
                         onChange={(event) => setTemplateId(event.target.value)}
                         placeholder="Approved agreement template"
                         value={templateId}
                       />
                     </label>
+                    <small>
+                      Set the studio default in{" "}
+                      <Link href="/studio/integrations">Integrations</Link>.
+                    </small>
                   </details>
-                </div>
-              )}
-              <button
-                className="button"
-                disabled={
-                  busy !== null ||
-                  !proposal ||
-                  projectState !== "CONTRACT_PENDING"
-                }
-                onClick={() => void createContract()}
-                type="button"
-              >
-                {busy === "contract" ? "Preparing…" : "Approve sequence & send"}
-                <ArrowRight size={15} />
-              </button>
-              {!proposal ? (
-                <small>The client’s accepted proposal is required first.</small>
-              ) : null}
-              {/* This button is where signing actually fires, and the
-                  retainer follows it. The workspace names the provider in
-                  its copy but never said whether it is connected — it only
-                  read the connection to guess a default template. */}
-              <CapabilityNote capability="signing" />
-              <CapabilityNote capability="invoicing" />
-            </div>
-          )}
-          {/* Background, deliberately after the action. This card used to
-              open with two explanatory panels, so the one control on it sat
-              below a screen of prose and a studio arriving from "Send
-              contract" could not see what it was being asked to do. */}
-          {!contract ? (
+                ) : (
+                  // No studio default yet. An empty box labelled with a
+                  // provider's internal ID is not an instruction — a studio
+                  // arriving here from "Send contract" has no idea a GUID is
+                  // wanted, or where to get one. Name the missing thing and
+                  // point at the one screen that sets it.
+                  <div className="booking-template-missing">
+                    <strong>Choose your agreement first</strong>
+                    <small>
+                      StudioCue sends the agreement you pick once in{" "}
+                      <Link href="/studio/integrations">Integrations</Link>, and
+                      reuses it for every booking.
+                    </small>
+                    <details>
+                      <summary>Or paste a {signingProviderLabel} template ID</summary>
+                      <label>
+                        {signingProviderLabel} template ID
+                        <input
+                          onChange={(event) => setTemplateId(event.target.value)}
+                          placeholder="Approved agreement template"
+                          value={templateId}
+                        />
+                      </label>
+                    </details>
+                  </div>
+                )}
+                <button
+                  className="button"
+                  disabled={
+                    busy !== null ||
+                    !proposal ||
+                    projectState !== "CONTRACT_PENDING"
+                  }
+                  onClick={() => void createContract()}
+                  type="button"
+                >
+                  {busy === "contract" ? "Preparing…" : "Approve sequence & send"}
+                  <ArrowRight size={15} />
+                </button>
+                {!proposal ? (
+                  <small>The client’s accepted proposal is required first.</small>
+                ) : null}
+                {/* This button is where signing actually fires, and the
+                    retainer follows it. The workspace names the provider in
+                    its copy but never said whether it is connected — it only
+                    read the connection to guess a default template. */}
+                <CapabilityNote capability="signing" />
+                <CapabilityNote capability="invoicing" />
+              </div>
+            )}
+            {/* Background, deliberately after the action. This card used to
+                open with two explanatory panels, so the one control on it sat
+                below a screen of prose and a studio arriving from "Send
+                contract" could not see what it was being asked to do. */}
+            {!contract ? (
+              <aside className="booking-provider-migration">
+                <strong>One approval completes the routine booking work</strong>
+                <small>
+                  Approve this sequence once. StudioCue will wait for verified
+                  signature evidence, create the retainer, wait for provider
+                  payment evidence, and finish project setup. It stops if an
+                  exception needs you.
+                </small>
+              </aside>
+            ) : null}
             <aside className="booking-provider-migration">
-              <strong>One approval completes the routine booking work</strong>
+              <strong>Your approved agreement stays reusable</strong>
               <small>
-                Approve this sequence once. StudioCue will wait for verified
-                signature evidence, create the retainer, wait for provider
-                payment evidence, and finish project setup. It stops if an
-                exception needs you.
+                Import the current agreement once. StudioCue preserves its wording
+                and signer fields, then reuses the approved {signingProviderLabel}{" "}
+                template so you do not place fields for every client.
               </small>
             </aside>
-          ) : null}
-          <aside className="booking-provider-migration">
-            <strong>Your approved agreement stays reusable</strong>
-            <small>
-              Import the current agreement once. StudioCue preserves its wording
-              and signer fields, then reuses the approved {signingProviderLabel}{" "}
-              template so you do not place fields for every client.
-            </small>
-          </aside>
-        </article>
-
-        <article
-          className={invoicePaid ? "booking-step is-complete" : "booking-step"}
-        >
-          <span className="booking-step-number">
-            {invoicePaid ? <Check size={17} /> : "2"}
-          </span>
-          <div className="booking-step-heading">
-            <ReceiptText aria-hidden="true" />
-            <span>
-              <small>The deposit</small>
-              <h2>Retainer</h2>
+          </article>
+        ) : null}
+        {activeStep === 2 ? (
+          <article
+            className={invoicePaid ? "booking-step is-complete" : "booking-step"}
+          >
+            <span className="booking-step-number">
+              {invoicePaid ? <Check size={17} /> : "2"}
             </span>
-            <StatusBadge
-              tone={invoicePaid ? "success" : invoice ? "warning" : "neutral"}
-            >
-              {invoice ? statusLabel(invoice.status) : "Not created"}
-            </StatusBadge>
-          </div>
-          <p>
-            StudioCue matches or creates the QuickBooks customer, then tracks
-            the provider-hosted invoice without handling card details.
-          </p>
-          {invoice ? (
-            <div className="booking-evidence">
+            <div className="booking-step-heading">
+              <ReceiptText aria-hidden="true" />
               <span>
-                <small>Amount</small>
-                <strong>
-                  {currency(invoice.amountCents, invoice.currency)}
-                </strong>
+                <small>The deposit</small>
+                <h2>Retainer</h2>
               </span>
-              <span>
-                <small>Balance</small>
-                <strong>
-                  {currency(invoice.balanceCents, invoice.currency)}
-                </strong>
-              </span>
-              {typeof invoice.hostedUrl === "string" && invoice.hostedUrl ? (
-                <Link href={invoice.hostedUrl} rel="noreferrer" target="_blank">
-                  Open QuickBooks invoice <ArrowRight size={13} />
-                </Link>
-              ) : null}
+              <StatusBadge
+                tone={invoicePaid ? "success" : invoice ? "warning" : "neutral"}
+              >
+                {invoice ? statusLabel(invoice.status) : "Not created"}
+              </StatusBadge>
             </div>
-          ) : automationActive ? (
-            <div className="booking-complete-message">
-              <LoaderCircle className="spin" size={18} />
+            <p>
+              StudioCue matches or creates the QuickBooks customer, then tracks
+              the provider-hosted invoice without handling card details.
+            </p>
+            {invoice ? (
+              <div className="booking-evidence">
+                <span>
+                  <small>Amount</small>
+                  <strong>
+                    {currency(invoice.amountCents, invoice.currency)}
+                  </strong>
+                </span>
+                <span>
+                  <small>Balance</small>
+                  <strong>
+                    {currency(invoice.balanceCents, invoice.currency)}
+                  </strong>
+                </span>
+                {typeof invoice.hostedUrl === "string" && invoice.hostedUrl ? (
+                  <Link href={invoice.hostedUrl} rel="noreferrer" target="_blank">
+                    Open QuickBooks invoice <ArrowRight size={13} />
+                  </Link>
+                ) : null}
+              </div>
+            ) : automationActive ? (
+              <div className="booking-complete-message">
+                <LoaderCircle className="spin" size={18} />
+                <span>
+                  <strong>Waiting for verified signature</strong>
+                  <small>
+                    StudioCue will create this retainer automatically after{" "}
+                    {signingProviderLabel} confirms completion.
+                  </small>
+                </span>
+              </div>
+            ) : (
+              <div className="booking-action-form">
+                <span>
+                  <small>Retainer due</small>
+                  <strong>{dueDate}</strong>
+                </span>
+                <button
+                  className="button"
+                  disabled={
+                    busy !== null ||
+                    projectState !== "RETAINER_PENDING" ||
+                    !contractComplete
+                  }
+                  onClick={() => void createRetainer()}
+                  type="button"
+                >
+                  {busy === "retainer" ? "Creating…" : "Create retainer invoice"}
+                  <ArrowRight size={15} />
+                </button>
+                {!contractComplete ? (
+                  <small>
+                    {signingProviderLabel} completion unlocks this step.
+                  </small>
+                ) : null}
+              </div>
+            )}
+          </article>
+        ) : null}
+        {activeStep === 3 ? (
+          <article
+            className={
+              bookingComplete ? "booking-step is-complete" : "booking-step"
+            }
+          >
+            <span className="booking-step-number">
+              {bookingComplete ? <Check size={17} /> : "3"}
+            </span>
+            <div className="booking-step-heading">
+              <ShieldCheck aria-hidden="true" />
               <span>
-                <strong>Waiting for verified signature</strong>
-                <small>
-                  StudioCue will create this retainer automatically after{" "}
-                  {signingProviderLabel} confirms completion.
-                </small>
+                <small>The final check</small>
+                <h2>Confirm booking</h2>
               </span>
+              <StatusBadge tone={bookingComplete ? "success" : "neutral"}>
+                {bookingComplete ? "Booked" : "Waiting"}
+              </StatusBadge>
             </div>
-          ) : (
-            <div className="booking-action-form">
-              <span>
-                <small>Retainer due</small>
-                <strong>{dueDate}</strong>
-              </span>
+            <p>
+              StudioCue confirms the booking once the agreement is signed, the
+              retainer has cleared, and the date and client details check out.
+              Nothing here can be talked into skipping a step.
+            </p>
+            {bookingComplete ? (
+              <div className="booking-complete-message">
+                <Check size={18} />
+                <span>
+                  <strong>Booking is confirmed</strong>
+                  <small>
+                    Portal, workflow, calendar, and project folders are being
+                    prepared.
+                  </small>
+                </span>
+              </div>
+            ) : automationActive ? (
+              <div className="booking-complete-message">
+                <LoaderCircle className="spin" size={18} />
+                <span>
+                  <strong>Automatic confirmation is active</strong>
+                  <small>
+                    StudioCue will run the evidence check as soon as the connected
+                    provider reports the retainer paid.
+                  </small>
+                </span>
+              </div>
+            ) : automationNeedsAttention ? (
+              <div className="booking-complete-message">
+                <CircleAlert size={18} />
+                <span>
+                  <strong>StudioCue stopped safely</strong>
+                  <small>
+                    Resolve the exception shown in your next actions, then run the
+                    booking review again.
+                  </small>
+                </span>
+              </div>
+            ) : (
               <button
-                className="button"
-                disabled={
-                  busy !== null ||
-                  projectState !== "RETAINER_PENDING" ||
-                  !contractComplete
-                }
-                onClick={() => void createRetainer()}
+                className="button booking-gate-button"
+                disabled={busy !== null || projectState !== "RETAINER_PENDING"}
+                onClick={() => void reviewBooking()}
                 type="button"
               >
-                {busy === "retainer" ? "Creating…" : "Create retainer invoice"}
-                <ArrowRight size={15} />
+                {busy === "gate" ? "Checking…" : "Check and confirm"}
+                <ShieldCheck size={16} />
               </button>
-              {!contractComplete ? (
-                <small>
-                  {signingProviderLabel} completion unlocks this step.
-                </small>
-              ) : null}
-            </div>
-          )}
-        </article>
-
-        <article
-          className={
-            bookingComplete ? "booking-step is-complete" : "booking-step"
-          }
-        >
-          <span className="booking-step-number">
-            {bookingComplete ? <Check size={17} /> : "3"}
-          </span>
-          <div className="booking-step-heading">
-            <ShieldCheck aria-hidden="true" />
-            <span>
-              <small>The final check</small>
-              <h2>Confirm booking</h2>
-            </span>
-            <StatusBadge tone={bookingComplete ? "success" : "neutral"}>
-              {bookingComplete ? "Booked" : "Waiting"}
-            </StatusBadge>
-          </div>
-          <p>
-            StudioCue confirms the booking once the agreement is signed, the
-            retainer has cleared, and the date and client details check out.
-            Nothing here can be talked into skipping a step.
-          </p>
-          {bookingComplete ? (
-            <div className="booking-complete-message">
-              <Check size={18} />
-              <span>
-                <strong>Booking is confirmed</strong>
-                <small>
-                  Portal, workflow, calendar, and project folders are being
-                  prepared.
-                </small>
-              </span>
-            </div>
-          ) : automationActive ? (
-            <div className="booking-complete-message">
-              <LoaderCircle className="spin" size={18} />
-              <span>
-                <strong>Automatic confirmation is active</strong>
-                <small>
-                  StudioCue will run the evidence check as soon as the connected
-                  provider reports the retainer paid.
-                </small>
-              </span>
-            </div>
-          ) : automationNeedsAttention ? (
-            <div className="booking-complete-message">
-              <CircleAlert size={18} />
-              <span>
-                <strong>StudioCue stopped safely</strong>
-                <small>
-                  Resolve the exception shown in your next actions, then run the
-                  booking review again.
-                </small>
-              </span>
-            </div>
-          ) : (
-            <button
-              className="button booking-gate-button"
-              disabled={busy !== null || projectState !== "RETAINER_PENDING"}
-              onClick={() => void reviewBooking()}
-              type="button"
-            >
-              {busy === "gate" ? "Checking…" : "Check and confirm"}
-              <ShieldCheck size={16} />
-            </button>
-          )}
-          {gateBlockers.length ? (
-            <ul className="booking-blockers">
-              {gateBlockers.map((blocker) => (
-                <li key={blocker}>
-                  <CircleAlert size={14} />
-                  {blocker.replaceAll("_", " ")}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </article>
+            )}
+            {gateBlockers.length ? (
+              <ul className="booking-blockers">
+                {gateBlockers.map((blocker) => (
+                  <li key={blocker}>
+                    <CircleAlert size={14} />
+                    {blocker.replaceAll("_", " ")}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </article>
+        ) : null}
       </div>
       {notice ? (
         <p className="booking-workspace-notice" role="status">
