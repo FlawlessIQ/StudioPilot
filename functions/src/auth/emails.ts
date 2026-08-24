@@ -181,8 +181,32 @@ export const authEmailCommand = onRequest(
           );
           tenantId = await tenantForAccount(user.uid, email);
           recipientName = user.displayName ?? null;
-        } catch {
-          // Do not disclose whether an account exists.
+        } catch (caught: unknown) {
+          // An unknown address must look exactly like a known one, or this
+          // endpoint becomes an account-enumeration oracle. Everything else
+          // must not: this block swallowed an unauthorized-continue-uri
+          // error for weeks — every reset on the production domain returned
+          // "accepted" and sent nothing, and no log said otherwise.
+          const code =
+            typeof caught === "object" && caught && "code" in caught
+              ? String((caught as { code: unknown }).code)
+              : "";
+          if (code !== "auth/user-not-found") {
+            console.error(
+              JSON.stringify({
+                severity: "ERROR",
+                event: "auth.password_reset_failed",
+                code: code || "unknown",
+                // Hashed, not the address: this log line exists to make the
+                // failure visible, not to record who asked.
+                emailHash,
+                detail: (caught instanceof Error
+                  ? caught.message
+                  : String(caught)
+                ).slice(0, 300),
+              }),
+            );
+          }
           response.status(202).json({ accepted: true });
           return;
         }

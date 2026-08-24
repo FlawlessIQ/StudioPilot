@@ -43,7 +43,16 @@ export function AuthBoundary({
       void (async () => {
         try {
           if (!user) {
-            router.replace("/auth/login");
+            // Carry the destination. A client following "Review proposal"
+            // from their email lands here signed out; without `next` they
+            // sign in and arrive nowhere near the proposal, which is what
+            // the emailed button appeared to do.
+            const here = `${window.location.pathname}${window.location.search}`;
+            router.replace(
+              here && here !== "/"
+                ? `/auth/login?next=${encodeURIComponent(here)}`
+                : "/auth/login",
+            );
             return;
           }
           if (area === "platform") {
