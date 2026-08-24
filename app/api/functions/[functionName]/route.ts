@@ -22,6 +22,11 @@ const functionNames = [
   "crmCommand",
   "integrationOAuth",
   "integrationsCommand",
+  // Reached through this relay like every other private Function: in
+  // production NEXT_PUBLIC_INTEGRATION_FUNCTIONS_URL is "/api/functions",
+  // not a Functions origin, so a name missing from this list is a 404 the
+  // browser reports as "your templates could not be loaded".
+  "signingTemplatesQuery",
   "lifecycleSettingsCommand",
   "membershipCommand",
   "planningCommand",
