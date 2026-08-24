@@ -58,6 +58,20 @@ function retryableJobFailure(
       return status === 408 || status === 429 || status >= 500;
     }
   }
+  if (collectionName === "providerJobs") {
+    // Provider failures carry their HTTP status: `CODE:402:PROVIDER_ERROR`.
+    // A 4xx is the provider refusing, not the network faltering, so retrying
+    // only delays the moment anyone finds out — and Today surfaces these
+    // jobs at `dead_letter`, never at `retry_scheduled`. A Dropbox Sign 402
+    // (the account has no paid API plan) was retried five times over an
+    // hour while the contract read "Sent" and nothing had been sent.
+    //
+    // 408 and 429 are the exceptions: both are the provider asking to be
+    // called again later.
+    const status = Number(message.split(":")[1] ?? 0);
+    if (status >= 400 && status < 500) return status === 408 || status === 429;
+    return true;
+  }
   if (collectionName !== "emailJobs") return true;
   const permanentEmailFailures = new Set([
     "EMAIL_RECIPIENT_MISSING",
