@@ -18,12 +18,14 @@ import {
   PenLine,
   Search,
   Send,
+  Sparkles,
   Smartphone,
   X,
 } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendCommunicationsCommand } from "@/lib/communications/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { requestMessageDraft } from "@/lib/ai/message-draft-client";
 import type {
   Conversation,
   MessageChannel,
@@ -106,6 +108,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
   const [search, setSearch] = useState("");
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
+  const [drafting, setDrafting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [composing, setComposing] = useState(false);
   const [projects, setProjects] = useState<
@@ -304,6 +307,34 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
     },
     [activeThread, reply, sending],
   );
+
+  // Ask for a reply draft grounded in this thread. It lands in the AI review
+  // queue rather than the reply box: an AI-written reply is never sent without a
+  // person approving it, and putting it straight in the box would blur that.
+  const draftReply = useCallback(async () => {
+    if (!activeThread || drafting || !tenantId) return;
+    setDrafting(true);
+    setNotice(null);
+    try {
+      const result = await requestMessageDraft({
+        tenantId,
+        trigger: "inbound_reply",
+        projectId: activeThread.projectId,
+        conversationId: activeThread.id,
+      });
+      setNotice(
+        result.mode === "preview"
+          ? "Preview mode — no draft was created."
+          : "Draft ready in AI review for you to approve.",
+      );
+    } catch (caught: unknown) {
+      setNotice(
+        caught instanceof Error ? caught.message : "That draft could not be made.",
+      );
+    } finally {
+      setDrafting(false);
+    }
+  }, [activeThread, drafting, tenantId]);
 
   const submitNewMessage = useCallback(
     async (event: React.FormEvent) => {
@@ -601,6 +632,19 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
               />
               <div className="msg-reply-actions">
                 {notice ? <p className="msg-notice">{notice}</p> : <span />}
+                <button
+                  type="button"
+                  className="msg-draft-button"
+                  onClick={() => void draftReply()}
+                  disabled={drafting}
+                >
+                  {drafting ? (
+                    <Loader2 size={14} className="spin" aria-hidden />
+                  ) : (
+                    <Sparkles size={14} aria-hidden />
+                  )}
+                  Draft a reply
+                </button>
                 <button
                   type="submit"
                   className="ds-btn ds-btn-primary ds-btn-sm"

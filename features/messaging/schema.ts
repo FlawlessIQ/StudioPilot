@@ -20,6 +20,9 @@ export const messageTriggerSchema = z.enum([
   "delivery_note",
   "album_selection_reminder",
   "review_request",
+  // Answers a message a client actually sent. Every other trigger opens a
+  // message; this one replies to one, and needs the thread as context.
+  "inbound_reply",
 ]);
 export type MessageTrigger = z.infer<typeof messageTriggerSchema>;
 
@@ -40,6 +43,10 @@ export const triggerCapability: Record<
   delivery_note: "delivery_message_draft",
   album_selection_reminder: "delivery_message_draft",
   review_request: "review_request_draft",
+  // Deliberately reuses the inquiry capability: answering a client is the same
+  // entitlement as answering an enquiry, and features/ai-actions/schema.ts keeps
+  // a closed set.
+  inbound_reply: "inquiry_reply_draft",
 };
 
 /** Structured output every message draft must satisfy. */

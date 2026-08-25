@@ -42,6 +42,9 @@ const triggerSchema = z.enum([
   "delivery_note",
   "album_selection_reminder",
   "review_request",
+  // Replying to something a client actually wrote. Every other trigger is the
+  // studio starting a message; this one answers one.
+  "inbound_reply",
 ]);
 
 const inputSchema = z.object({
@@ -49,6 +52,11 @@ const inputSchema = z.object({
   trigger: triggerSchema,
   leadId: z.string().min(1).nullable().default(null),
   projectId: z.string().min(1).nullable().default(null),
+  /**
+   * Required for inbound_reply: the thread being answered. Without it the model
+   * has no idea what the client said, which is exactly the gap this closes.
+   */
+  conversationId: z.string().min(1).nullable().default(null),
   instructions: z.string().max(2000).default(""),
 });
 
@@ -69,6 +77,10 @@ const CAPABILITY: Record<z.infer<typeof triggerSchema>, string> = {
   delivery_note: "delivery_message_draft",
   album_selection_reminder: "delivery_message_draft",
   review_request: "review_request_draft",
+  // Reuses the inquiry capability rather than adding one: answering a client is
+  // the same entitlement as answering an enquiry, and the capability enum in
+  // features/ai-actions/schema.ts is closed.
+  inbound_reply: "inquiry_reply_draft",
 };
 
 async function accessToken() {
@@ -144,6 +156,33 @@ function fallbackDraft(input: {
     null;
   const missingInformation: string[] = [];
   const highlights: string[] = [];
+
+  // A model outage must not leave a client's question unanswered on screen. This
+  // deliberately does not attempt an answer — it acknowledges and hands the
+  // studio something to edit, because guessing at what a client asked is worse
+  // than an obviously unfinished draft.
+  if (input.trigger === "inbound_reply") {
+    const conversation = record(input.context.conversation);
+    const history = Array.isArray(conversation.history)
+      ? (conversation.history as unknown[]).map(record)
+      : [];
+    const latest = [...history]
+      .reverse()
+      .find((entry) => text(entry.from) === "client");
+    return {
+      subject: text(conversation.subject) || "Re: your photography",
+      body: [
+        `Hi ${who},`,
+        "Thanks for getting back to me — I'll come back to you on this shortly.",
+      ].join("\n\n"),
+      highlights: latest
+        ? [`Replying to: ${text(latest.body).slice(0, 160)}`]
+        : [],
+      missingInformation: [
+        "Drafted without the model — write the actual answer before sending.",
+      ],
+    };
+  }
 
   if (input.trigger === "inquiry_reply" || input.trigger === "consultation_dates") {
     const packages = Array.isArray(input.context.packages)
@@ -237,7 +276,7 @@ async function generateDraft(input: {
           parts: [
             {
               text:
-                "Draft one client email for a photography studio from only the supplied facts. Write warmly and concisely in the studio's voice. Never invent availability, prices, dates, venues, links, or promises not present in the facts — put anything unknown in missingInformation instead. Never mention AI. The draft requires human review before sending. Output plain text (no markdown headers), short paragraphs.",
+                "Draft one client email for a photography studio from only the supplied facts. When a conversation is supplied, answer the client's most recent message directly and do not restate the whole thread. Write warmly and concisely in the studio's voice. Never invent availability, prices, dates, venues, links, or promises not present in the facts — put anything unknown in missingInformation instead. Never mention AI. The draft requires human review before sending. Output plain text (no markdown headers), short paragraphs.",
             },
           ],
         },
@@ -545,6 +584,56 @@ export const aiMessageDraftCommand = onRequest(
           consumeAiQuota(transaction, db, input.tenantId, now),
         );
         try {
+      // The thread being answered. Without this the model is asked to reply to a
+      // message it has never seen — the reason inbound_reply could not exist
+      // before conversations did.
+      if (input.conversationId) {
+        const conversation = await db
+          .doc(`conversations/${input.conversationId}`)
+          .get();
+        if (
+          !conversation.exists ||
+          conversation.get("tenantId") !== input.tenantId
+        ) {
+          throw new Error("CONVERSATION_NOT_FOUND");
+        }
+        projectId = projectId ?? (conversation.get("projectId") as string | null);
+        recipientEmail =
+          recipientEmail ??
+          ((conversation.get("participant") as Record<string, unknown> | undefined)
+            ?.email as string | null) ??
+          null;
+        recipientName =
+          recipientName ??
+          ((conversation.get("participant") as Record<string, unknown> | undefined)
+            ?.name as string | null) ??
+          null;
+        // Oldest-last so the newest message is closest to the instruction, and
+        // capped: a long thread would otherwise crowd out the project facts that
+        // keep the draft honest.
+        const history = await db
+          .collection("messages")
+          .where("conversationId", "==", input.conversationId)
+          .orderBy("createdAt", "desc")
+          .limit(12)
+          .get();
+        const ordered = history.docs.reverse();
+        context.conversation = {
+          subject: conversation.get("subject") ?? null,
+          channels: conversation.get("channels") ?? [],
+          messageCount: conversation.get("messageCount") ?? ordered.length,
+          history: ordered.map((document) => ({
+            from:
+              document.get("direction") === "inbound" ? "client" : "studio",
+            at: document.get("createdAt") ?? null,
+            subject: document.get("subject") ?? null,
+            body: String(
+              document.get("body") ?? document.get("bodyPreview") ?? "",
+            ).slice(0, 2000),
+          })),
+        };
+      }
+
           draft = await generateDraft({
             trigger: input.trigger,
             instructions: input.instructions,

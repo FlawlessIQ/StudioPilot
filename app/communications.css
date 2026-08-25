@@ -294,3 +294,21 @@
 
 .msg-compose textarea { resize: vertical; min-height: 84px; }
 .msg-compose .ds-btn { justify-self: start; }
+
+.msg-draft-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  border: 1px solid var(--border, var(--line));
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--accent);
+  font: 600 12.5px/1 inherit;
+  padding: 8px 11px;
+  cursor: pointer;
+}
+
+.msg-draft-button:hover:not(:disabled) { background: var(--soft); }
+.msg-draft-button:disabled { opacity: .6; cursor: default; }
+.msg-draft-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
