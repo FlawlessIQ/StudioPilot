@@ -7,7 +7,18 @@ set -uo pipefail
 
 project_id="${1:-studiohub-prod}"
 region="${2:-us-east4}"
-project_number="$(gcloud projects describe "${project_id}" --format='value(projectNumber)')"
+project_number="$(gcloud projects describe "${project_id}" --format='value(projectNumber)' 2>/dev/null)"
+# Hard-fail, not collected. Without `set -e` an empty project number no longer
+# aborts the run, and every scheduler and dispatcher binding is then attempted
+# against "-compute@developer.gserviceaccount.com" — which fails 18 times and
+# leaves the job workers unable to be invoked. One bad prerequisite must not
+# produce a page of downstream noise.
+if [[ ! "${project_number}" =~ ^[0-9]+$ ]]; then
+  echo "Could not read the project number for ${project_id}." >&2
+  echo "gcloud returned: '${project_number}'" >&2
+  echo "Check 'gcloud auth list' and 'gcloud projects describe ${project_id}'." >&2
+  exit 1
+fi
 app_hosting_service_account="firebase-app-hosting-compute@${project_id}.iam.gserviceaccount.com"
 functions_service_account="${project_number}-compute@developer.gserviceaccount.com"
 
