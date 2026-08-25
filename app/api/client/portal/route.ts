@@ -1208,7 +1208,7 @@ export async function POST(request: Request) {
       .doc(`tenants/${parsed.tenantId}`)
       .get();
     const emailBranding = tenantSnapshot.get("emailBranding");
-    const studioNotificationEmail =
+    let studioNotificationEmail =
       safeString(
         typeof emailBranding === "object" && emailBranding !== null
           ? (emailBranding as Record<string, unknown>).replyTo
@@ -1216,6 +1216,45 @@ export async function POST(request: Request) {
       ) ??
       safeString(tenantSnapshot.get("contactEmail")) ??
       safeString(tenantSnapshot.get("email"));
+    // The production tenant has none of those three, so this resolved to nothing
+    // and the notification was skipped in silence — the studio was never told a
+    // client had written. The owner's sign-in address always exists.
+    if (!studioNotificationEmail) {
+      const memberships = await adminFirestore
+        .collection("memberships")
+        .where("tenantId", "==", parsed.tenantId)
+        .limit(50)
+        .get();
+      for (const membership of memberships.docs) {
+        if (
+          String(membership.get("role")) !== "studio_owner" ||
+          String(membership.get("status")) !== "active"
+        ) {
+          continue;
+        }
+        const ownerId = safeString(membership.get("userId"));
+        if (!ownerId) continue;
+        try {
+          const owner = await adminAuth.getUser(ownerId);
+          if (owner.email) {
+            studioNotificationEmail = owner.email;
+            break;
+          }
+        } catch {
+          // A membership pointing at a deleted user should not stop the others.
+        }
+      }
+    }
+    if (!studioNotificationEmail) {
+      console.error(
+        JSON.stringify({
+          severity: "ERROR",
+          event: "portal.notification_address_unresolved",
+          tenantId: parsed.tenantId,
+          messageId,
+        }),
+      );
+    }
     if (studioNotificationEmail) {
       batch.set(adminFirestore.doc(`emailJobs/notify_${messageId}`), {
         id: `notify_${messageId}`,
