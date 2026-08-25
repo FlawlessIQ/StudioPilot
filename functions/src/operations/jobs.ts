@@ -10,6 +10,10 @@ import {
   type EmailTemplateOverride,
 } from "../communications/email-templates.js";
 import { runAiJob, runPdfJob } from "./ai-pdf.js";
+import {
+  applyMessageToConversation,
+  conversationIdFor,
+} from "../communications/conversation.js";
 import { captureOperationalError } from "./observability.js";
 import { productEvent } from "./product-events.js";
 import {
@@ -553,6 +557,7 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
       "mock",
       rendered.text,
       context.recipientIsClient,
+      context.recipientName,
     );
     if (document.get("proposalId")) {
       await getFirestore()
@@ -684,6 +689,7 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
     "live",
     rendered.text,
     context.recipientIsClient,
+    context.recipientName,
   );
   const acceptedAt = new Date().toISOString();
   const acceptedEvent = productEvent({
@@ -748,8 +754,19 @@ async function saveMessage(
   deliveryMode: "live" | "mock",
   body: string,
   recipientIsClient: boolean,
+  recipientName: string | null,
 ) {
   const now = new Date().toISOString();
+  const threadable =
+    recipientIsClient && !AUTH_EMAIL_TYPES.has(String(document.get("type")));
+  const conversationId = threadable
+    ? conversationIdFor({
+        tenantId: String(document.get("tenantId") ?? ""),
+        projectId: (document.get("projectId") as string | null) ?? null,
+        leadId: (document.get("leadId") as string | null) ?? null,
+        participant: { email: recipient },
+      })
+    : null;
   await getFirestore()
     .doc(`messages/${document.id}`)
     .set(
@@ -787,9 +804,32 @@ async function saveMessage(
         createdBy: "email-worker",
         updatedBy: "email-worker",
         archivedAt: null,
+        conversationId,
       },
       { merge: true },
     );
+
+  // Threads are client conversations. Crew, venue, and staff mail is real mail
+  // but it is not a thread the studio replies within, and giving every
+  // assignment email its own conversation would bury the client ones.
+  if (conversationId) {
+    await applyMessageToConversation(getFirestore(), {
+      tenantId: String(document.get("tenantId") ?? ""),
+      projectId: (document.get("projectId") as string | null) ?? null,
+      leadId: (document.get("leadId") as string | null) ?? null,
+      participant: {
+        contactId: (document.get("contactId") as string | null) ?? null,
+        email: recipient,
+        phone: null,
+        name: recipientName,
+      },
+      channel: "email",
+      direction: "outbound",
+      subject,
+      preview: body.slice(0, 240),
+      occurredAt: now,
+    });
+  }
 }
 
 async function due(collectionName: string) {

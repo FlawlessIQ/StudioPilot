@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { AppShell } from "@/components/layout/app-shell";
-import { CommunicationsCenter } from "@/components/communications/communications-center";
+import { MessageInbox } from "@/components/communications/message-inbox";
 
 export const metadata: Metadata = { title: "Client messages" };
 export default async function MessagesPage({
@@ -16,10 +16,10 @@ export default async function MessagesPage({
           <div>
             <p className="eyebrow">Client communication</p>
             <h1>Client messages</h1>
-            <p>Read what clients send from their portal, and reply with a draft you approve before it sends. This is project messaging, not your email inbox.</p>
+            <p>Every conversation with a client, in one place. Replies you send from here are recorded on the project.</p>
           </div>
         </header>
-        <CommunicationsCenter initialProjectId={project} />
+        <MessageInbox initialProjectId={project} />
       </div>
     </AppShell>
   );

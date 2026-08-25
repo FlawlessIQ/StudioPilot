@@ -584,6 +584,18 @@ service cloud.firestore {
         );
       allow write: if false;
     }
+    // Threads are studio-read; the client portal reaches its own conversation
+    // through the portal API route, which filters by project membership. Writes
+    // are server-only: unread counts are folded in a transaction and a client
+    // that could increment them could also hide a message.
+    match /conversations/{conversationId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+        || (
+          isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+          && hasRole(resource.data.tenantId, ["studio_coordinator"])
+        );
+      allow write: if false;
+    }
     match /messages/{messageId} {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (
