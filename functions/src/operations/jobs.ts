@@ -14,6 +14,7 @@ import {
   applyMessageToConversation,
   conversationIdFor,
 } from "../communications/conversation.js";
+import { replyAddressFor } from "../communications/reply-address.js";
 import { captureOperationalError } from "./observability.js";
 import { productEvent } from "./product-events.js";
 import {
@@ -602,7 +603,21 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
     ],
     categories: ["studiocue-transactional", type].slice(0, 10),
   };
+  // A thread's own reply address takes precedence, so the client's reply comes
+  // back into StudioCue instead of the studio's personal inbox. The From line is
+  // untouched — the client still sees the studio's name and address; only where
+  // a reply goes changes. Returns null unless the inbound domain and signing
+  // secret are both configured, so this stays inert until DNS is ready.
+  const sendThreadId = threadIdForSend(
+    document,
+    recipient,
+    context.recipientIsClient,
+  );
+  const threadReplyAddress = sendThreadId
+    ? replyAddressFor(sendThreadId)
+    : null;
   const replyAddress =
+    threadReplyAddress ??
     firstString(document.get("replyAddress"), context.brand.contactEmail);
   if (replyAddress) payload.reply_to = { email: replyAddress };
   if (type === "coi_venue_delivery") {
@@ -746,6 +761,26 @@ const AUTH_EMAIL_TYPES = new Set([
   "authorization_code",
 ]);
 
+/**
+ * The thread this send belongs to, or null when it is not a client conversation.
+ * Both the send path (which needs it to build the reply address) and the record
+ * path (which stores it) derive it the same way rather than passing it around.
+ */
+function threadIdForSend(
+  document: DocumentSnapshot,
+  recipient: string,
+  recipientIsClient: boolean,
+): string | null {
+  if (!recipientIsClient) return null;
+  if (AUTH_EMAIL_TYPES.has(String(document.get("type")))) return null;
+  return conversationIdFor({
+    tenantId: String(document.get("tenantId") ?? ""),
+    projectId: (document.get("projectId") as string | null) ?? null,
+    leadId: (document.get("leadId") as string | null) ?? null,
+    participant: { email: recipient },
+  });
+}
+
 async function saveMessage(
   document: DocumentSnapshot,
   recipient: string,
@@ -757,16 +792,11 @@ async function saveMessage(
   recipientName: string | null,
 ) {
   const now = new Date().toISOString();
-  const threadable =
-    recipientIsClient && !AUTH_EMAIL_TYPES.has(String(document.get("type")));
-  const conversationId = threadable
-    ? conversationIdFor({
-        tenantId: String(document.get("tenantId") ?? ""),
-        projectId: (document.get("projectId") as string | null) ?? null,
-        leadId: (document.get("leadId") as string | null) ?? null,
-        participant: { email: recipient },
-      })
-    : null;
+  const conversationId = threadIdForSend(
+    document,
+    recipient,
+    recipientIsClient,
+  );
   await getFirestore()
     .doc(`messages/${document.id}`)
     .set(
