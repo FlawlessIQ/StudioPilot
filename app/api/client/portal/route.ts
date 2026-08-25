@@ -209,6 +209,10 @@ const clientRecordFields = {
     "balanceCents",
     "dueDate",
     "hostedUrl",
+    // The number on the client's own copy. Without it a client asking
+    // "which invoice?" and a studio answering from QuickBooks are holding
+    // two references that never meet.
+    "providerDocNumber",
     "lastSyncedAt",
   ],
   questionnaireResponses: [

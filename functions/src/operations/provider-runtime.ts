@@ -771,6 +771,43 @@ async function clientEmailFor(
 }
 
 /**
+ * Whether this company numbers its own invoices, or expects us to.
+ *
+ * QuickBooks assigns a sequential DocNumber on create — unless the company
+ * has custom transaction numbers switched on, in which case it assigns
+ * nothing and the caller is expected to supply one. StudioCue never sent
+ * one and never read one back, so on such a company the invoice went out
+ * with no number at all: Intuit's own payment email showed the client
+ * "Invoice no. null".
+ *
+ * Asking first is what keeps this respectful. A studio whose books run
+ * 1001, 1002, 1003 should keep running 1001, 1002, 1003 — StudioCue has no
+ * business injecting its own reference into a numbering sequence that is
+ * working. We only supply a number where QuickBooks has declined to.
+ *
+ * A preferences read we cannot complete returns false, which leaves the
+ * numbering to QuickBooks: the same behaviour as every studio whose books
+ * are already fine.
+ */
+async function quickBooksCustomTxnNumbers(
+  base:string,
+  realmId:string,
+  credential:Credential,
+):Promise<boolean>{
+  try{
+    const prefs=await providerJson(`${base}/v3/company/${encodeURIComponent(realmId)}/preferences?minorversion=75`,{headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json"}},"QUICKBOOKS_PREFERENCES_FAILED");
+    return asRecord(asRecord(prefs.Preferences).SalesFormsPrefs).CustomTxnNumbers===true;
+  }catch{
+    return false;
+  }
+}
+
+/** A short, stable reference for a company that numbers nothing itself. */
+export function studioCueDocNumber(invoiceId:string):string{
+  return `SC-${invoiceId.replace(/^invoice(_attested)?_/,"").slice(0,8).toUpperCase()}`;
+}
+
+/**
  * The shareable link QuickBooks puts behind its own "Review and pay" button.
  *
  * Never fetched before, so hostedUrl was null for every QuickBooks studio
@@ -867,13 +904,13 @@ async function adoptQuickBooksInvoice(
   realmId:string,
   credential:Credential,
   providerInvoiceId:string,
-):Promise<{id:string;balanceCents:number}|null>{
+):Promise<{id:string;balanceCents:number;docNumber:string|null}|null>{
   if(!providerInvoiceId)return null;
   try{
     const found=await providerJson(`${base}/v3/company/${encodeURIComponent(realmId)}/invoice/${encodeURIComponent(providerInvoiceId)}?minorversion=75`,{headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json"}},"QUICKBOOKS_INVOICE_READ_FAILED");
     const record=asRecord(found.Invoice);
     const id=text(record.Id);
-    return id?{id,balanceCents:Math.round(number(record.Balance)*100)}:null;
+    return id?{id,balanceCents:Math.round(number(record.Balance)*100),docNumber:text(record.DocNumber)||null}:null;
   }catch{
     // The id we hold may be stale or from another company file. Falling
     // through to a create is safer than failing the job over a read.
@@ -883,7 +920,7 @@ async function adoptQuickBooksInvoice(
 
 export async function createQuickBooksInvoice(job:DocumentSnapshot){const db=getFirestore();const invoiceId=String(job.get("invoiceId"));const reference=db.doc(`invoiceReferences/${invoiceId}`);const invoice=await reference.get();if(!invoice.exists)throw new Error("INVOICE_NOT_FOUND");
   if(invoice.get("providerState")==="completed")return{invoiceId,providerInvoiceId:invoice.get("providerInvoiceId")};
-  const tenantId=String(job.get("tenantId"));const provider=await connection(tenantId,"quickbooks");let providerInvoiceId:string;let providerCustomerId=text(invoice.get("providerCustomerId"));let balanceCents=Number(invoice.get("balanceCents"));let hostedUrl:string|null=null;if(provider.mock){providerInvoiceId=mockId("qbo_invoice",job.id);providerCustomerId=providerCustomerId.startsWith("pending_")?mockId("qbo_customer",String(invoice.get("projectId"))):providerCustomerId}else{const credential=provider.credential;const realmId=credential?.realmId??String(provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");providerCustomerId=await quickBooksCustomerId(tenantId,String(invoice.get("projectId")),invoice,credential,realmId,String(job.get("idempotencyKey")??job.id));const base=quickBooksApiBaseUrl(credential.baseUrl);const already=await adoptQuickBooksInvoice(base,realmId,credential,text(invoice.get("providerInvoiceId")));if(already){providerInvoiceId=already.id;balanceCents=already.balanceCents}else{const itemRef=await quickBooksItemRef(base,realmId,credential,String(job.get("idempotencyKey")??job.id));const value=await providerJson(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}/invoice?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json","content-type":"application/json","request-id":String(job.get("idempotencyKey")??job.id)},body:JSON.stringify({CustomerRef:{value:providerCustomerId},DueDate:invoice.get("dueDate"),PrivateNote:`StudioCue ${invoiceId}`,Line:[{Amount:Number(invoice.get("amountCents"))/100,DetailType:"SalesItemLineDetail",Description:String(invoice.get("kind")),SalesItemLineDetail:{ItemRef:itemRef,Qty:1,UnitPrice:Number(invoice.get("amountCents"))/100}}]})},"QUICKBOOKS_CREATE_FAILED");const created=asRecord(value.Invoice);providerInvoiceId=text(created.Id);balanceCents=Math.round(number(created.Balance)*100)}
+  const tenantId=String(job.get("tenantId"));const provider=await connection(tenantId,"quickbooks");let providerInvoiceId:string;let providerCustomerId=text(invoice.get("providerCustomerId"));let balanceCents=Number(invoice.get("balanceCents"));let hostedUrl:string|null=null;let docNumber:string|null=null;if(provider.mock){providerInvoiceId=mockId("qbo_invoice",job.id);providerCustomerId=providerCustomerId.startsWith("pending_")?mockId("qbo_customer",String(invoice.get("projectId"))):providerCustomerId}else{const credential=provider.credential;const realmId=credential?.realmId??String(provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");providerCustomerId=await quickBooksCustomerId(tenantId,String(invoice.get("projectId")),invoice,credential,realmId,String(job.get("idempotencyKey")??job.id));const base=quickBooksApiBaseUrl(credential.baseUrl);const already=await adoptQuickBooksInvoice(base,realmId,credential,text(invoice.get("providerInvoiceId")));if(already){providerInvoiceId=already.id;balanceCents=already.balanceCents;docNumber=already.docNumber}else{const itemRef=await quickBooksItemRef(base,realmId,credential,String(job.get("idempotencyKey")??job.id));const supplyNumber=await quickBooksCustomTxnNumbers(base,realmId,credential);const value=await providerJson(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}/invoice?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json","content-type":"application/json","request-id":String(job.get("idempotencyKey")??job.id)},body:JSON.stringify({...(supplyNumber?{DocNumber:studioCueDocNumber(invoiceId)}:{}),CustomerRef:{value:providerCustomerId},DueDate:invoice.get("dueDate"),PrivateNote:`StudioCue ${invoiceId}`,Line:[{Amount:Number(invoice.get("amountCents"))/100,DetailType:"SalesItemLineDetail",Description:String(invoice.get("kind")),SalesItemLineDetail:{ItemRef:itemRef,Qty:1,UnitPrice:Number(invoice.get("amountCents"))/100}}]})},"QUICKBOOKS_CREATE_FAILED");const created=asRecord(value.Invoice);providerInvoiceId=text(created.Id);balanceCents=Math.round(number(created.Balance)*100);docNumber=text(created.DocNumber)||null}
     // One place for both paths: whether the invoice was just made or
     // adopted from an earlier attempt, the client still needs the link and
     // the email.
@@ -896,7 +933,7 @@ export async function createQuickBooksInvoice(job:DocumentSnapshot){const db=get
   // The invoice exists at the provider; the client has not been mailed yet.
   // `awaiting_delivery` until the email job reports otherwise, because
   // "sent" is a claim about what reached the client and nothing has yet.
-  await reference.update({providerInvoiceId,providerCustomerId,balanceCents,status:provider.mock?"sent":"awaiting_delivery",providerState:"completed",...(hostedUrl?{hostedUrl}:{}),lastSyncedAt:now,updatedAt:now,updatedBy:"provider-worker"});
+  await reference.update({providerInvoiceId,providerCustomerId,balanceCents,status:provider.mock?"sent":"awaiting_delivery",providerState:"completed",...(hostedUrl?{hostedUrl}:{}),providerDocNumber:docNumber,lastSyncedAt:now,updatedAt:now,updatedBy:"provider-worker"});
   return{invoiceId,providerInvoiceId,hostedUrl}}
 
 export async function reconcileQuickBooksInvoice(job:DocumentSnapshot){const db=getFirestore();const invoiceId=String(job.get("invoiceId"));const reference=db.doc(`invoiceReferences/${invoiceId}`);const invoice=await reference.get();if(!invoice.exists)throw new Error("INVOICE_NOT_FOUND");const providerInvoiceId=String(job.get("providerInvoiceId")??invoice.get("providerInvoiceId")??"");if(!providerInvoiceId)throw new Error("QUICKBOOKS_INVOICE_ID_MISSING");const operation=String(job.get("operation")??"").toLowerCase();let status:string;let balanceCents:number;

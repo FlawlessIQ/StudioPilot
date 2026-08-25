@@ -880,6 +880,18 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     {currency(invoice.balanceCents, invoice.currency)}
                   </strong>
                 </span>
+                {/*
+                  The number the client sees and the studio reconciles
+                  against. Worth showing precisely because it is the one
+                  identifier shared with QuickBooks and the client's copy.
+                */}
+                {typeof invoice.providerDocNumber === "string" &&
+                invoice.providerDocNumber ? (
+                  <span>
+                    <small>Invoice no.</small>
+                    <strong>{invoice.providerDocNumber}</strong>
+                  </span>
+                ) : null}
                 {typeof invoice.hostedUrl === "string" && invoice.hostedUrl ? (
                   <Link
                     href={invoice.hostedUrl}
