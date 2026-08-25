@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   collection,
   getDocs,
@@ -108,6 +108,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
   const [sending, setSending] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const streamRef = useRef<HTMLDivElement | null>(null);
   const [composing, setComposing] = useState(false);
   const [projects, setProjects] = useState<
     Array<{ id: string; name: string; clientContactIds: string[] }>
@@ -266,6 +267,16 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
       input: { conversationId: activeThread.id },
     }).catch(() => undefined);
   }, [activeThread]);
+
+  // Open a thread at its newest message. Without this the stream sat at the top,
+  // so a client's short reply under a long invoice email was below the fold — the
+  // thread list showed "How do I pay ?" while the panel showed only the studio's
+  // own message, which reads as the reply having vanished.
+  useEffect(() => {
+    const stream = streamRef.current;
+    if (!stream || !messages.length) return;
+    stream.scrollTop = stream.scrollHeight;
+  }, [messages]);
 
   const submitReply = useCallback(
     async (event: React.FormEvent) => {
@@ -581,7 +592,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
               </span>
             </header>
 
-            <div className="msg-stream">
+            <div className="msg-stream" ref={streamRef}>
               {messagesLoading ? (
                 <p className="msg-empty">
                   <Loader2 size={15} className="spin" aria-hidden /> Loading

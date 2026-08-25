@@ -57,7 +57,10 @@ export type RenderedEmail = {
   subject: string;
   preheader: string;
   html: string;
+  /** The email exactly as sent, branded wrapper included. */
   text: string;
+  /** Just the message, for surfaces that are not an inbox. */
+  body: string;
 };
 
 type EmailCopy = {
@@ -759,10 +762,26 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
     `Sent by ${input.brand.studioName} using ${input.brand.productName}.`,
   ].join("\n");
 
+  // What the studio actually said, without the branded wrapper. `text` is the
+  // email as sent and stays the record of that; this is the same content for
+  // places that are not an inbox — a thread bubble reading "FlawlessIQ · Powered
+  // by StudioCue" above every message, and "Sent by FlawlessIQ using StudioCue"
+  // below it, is repeating the letterhead inside the letter.
+  const body = [
+    copy.heading,
+    "",
+    ...copy.paragraphs,
+    ...(copy.action ? ["", `${copy.action.label}: ${copy.action.url}`] : []),
+    ...(copy.note ? ["", copy.note] : []),
+  ]
+    .join("\n")
+    .trim();
+
   return {
     subject: copy.subject,
     preheader: copy.preheader,
     html,
     text,
+    body,
   };
 }

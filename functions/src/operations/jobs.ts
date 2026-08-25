@@ -578,6 +578,7 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
       rendered.text,
       context.recipientIsClient,
       context.recipientName,
+      rendered.body,
     );
     if (document.get("proposalId")) {
       await getFirestore()
@@ -638,7 +639,14 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
   const replyAddress =
     threadReplyAddress ??
     firstString(document.get("replyAddress"), context.brand.contactEmail);
-  if (replyAddress) payload.reply_to = { email: replyAddress };
+  // Carry the studio's name on reply_to, not just the address. A per-thread
+  // address is necessarily a long signed token, and a client hitting reply saw
+  // `reply+Y29udl8wZDhjMj...@inbound.studio-cue.com` sitting in the To field —
+  // which looks like machine spam from the studio they just booked. Mail clients
+  // show the display name instead when one is present, so they see the studio.
+  if (replyAddress) {
+    payload.reply_to = { email: replyAddress, name: fromName };
+  }
   if (type === "coi_venue_delivery") {
     const documentId = String(document.get("documentId") ?? "");
     const fileDocument = await getFirestore()
@@ -724,6 +732,7 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
     rendered.text,
     context.recipientIsClient,
     context.recipientName,
+    rendered.body,
   );
   const acceptedAt = new Date().toISOString();
   const acceptedEvent = productEvent({
@@ -828,6 +837,7 @@ async function saveMessage(
   body: string,
   recipientIsClient: boolean,
   recipientName: string | null,
+  threadBody: string,
 ) {
   const now = new Date().toISOString();
   const conversationId = threadIdForSend(
@@ -847,11 +857,14 @@ async function saveMessage(
         templateKey: document.get("type"),
         recipient,
         subject,
-        // The rendered text, not just a preview of a custom body. Template
-        // emails previously stored nothing of what they said, which left no
-        // archive to show in a thread and nothing to search.
-        body: body.slice(0, 40000),
-        bodyPreview: body.slice(0, 280) || null,
+        // Two fields on purpose. `sentText` is the email exactly as delivered,
+        // branded wrapper included, because that is the record of what the
+        // client received. `body` is the message alone — what a thread bubble
+        // and a search should show, without repeating the letterhead inside
+        // every letter.
+        body: threadBody.slice(0, 40000),
+        sentText: body.slice(0, 40000),
+        bodyPreview: threadBody.slice(0, 280) || null,
         provider: "sendgrid",
         providerMessageId: messageId,
         deliveryMode,
@@ -894,7 +907,7 @@ async function saveMessage(
       channel: "email",
       direction: "outbound",
       subject,
-      preview: body.slice(0, 240),
+      preview: threadBody.slice(0, 240),
       occurredAt: now,
     });
   }
