@@ -19,7 +19,24 @@ import { createHmac, timingSafeEqual } from "node:crypto";
  * deploy before the secret existed.
  */
 
-const SIGNATURE_LENGTH = 16;
+/**
+ * A conversation id is `conv_` plus 16 hex characters — 8 bytes of entropy
+ * carried as 21 characters of text. Encoding those 8 bytes directly, rather than
+ * base64-ing the whole string, is what keeps the address short: 11 characters
+ * instead of 28.
+ */
+const ID_BYTES = 8;
+/** 8 bytes of HMAC, base64url, so 64 bits of signature in 11 characters. */
+const SIGNATURE_BYTES = 8;
+const COMPACT_SIGNATURE_LENGTH = 11;
+
+/**
+ * The first format shipped base64url of the whole id string with a 16-character
+ * hex signature, giving a 45-character token. Addresses in mail already sent
+ * carry it, so verification still accepts it — a client replying to last week's
+ * email must not hit a dead address. Nothing mints it any more.
+ */
+const LEGACY_SIGNATURE_LENGTH = 16;
 
 function secret(): string | null {
   const value = process.env.INBOUND_REPLY_SIGNING_SECRET;
@@ -37,12 +54,30 @@ function inboundDomain(): string | null {
   return value || null;
 }
 
-function sign(conversationId: string, key: string): string {
+function signCompact(conversationId: string, key: string): string {
+  return createHmac("sha256", key)
+    .update(conversationId)
+    .digest()
+    .subarray(0, SIGNATURE_BYTES)
+    .toString("base64url");
+}
+
+function signLegacy(conversationId: string, key: string): string {
   return createHmac("sha256", key)
     .update(conversationId)
     .digest("hex")
-    .slice(0, SIGNATURE_LENGTH);
+    .slice(0, LEGACY_SIGNATURE_LENGTH);
 }
+
+/** Constant time, because this check is all that separates a guessed address
+ *  from writing into someone else's thread. */
+function signatureMatches(expected: string, provided: string): boolean {
+  const left = Buffer.from(expected);
+  const right = Buffer.from(provided);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+const CONVERSATION_ID = /^conv_([0-9a-f]{16})$/;
 
 /**
  * `reply+<base64url(conversationId)>.<signature>@<inbound domain>`, or null when
@@ -51,9 +86,11 @@ function sign(conversationId: string, key: string): string {
 export function replyAddressFor(conversationId: string): string | null {
   const key = secret();
   const domain = inboundDomain();
-  if (!key || !domain || !conversationId) return null;
-  const encoded = Buffer.from(conversationId, "utf8").toString("base64url");
-  return `reply+${encoded}.${sign(conversationId, key)}@${domain}`;
+  if (!key || !domain) return null;
+  const hex = CONVERSATION_ID.exec(conversationId)?.[1];
+  if (!hex) return null;
+  const encoded = Buffer.from(hex, "hex").toString("base64url");
+  return `reply+${encoded}.${signCompact(conversationId, key)}@${domain}`;
 }
 
 /**
@@ -68,20 +105,25 @@ export function conversationIdFromReplyToken(token: string): string | null {
   if (separator <= 0) return null;
   const encoded = token.slice(0, separator);
   const signature = token.slice(separator + 1);
-  if (signature.length !== SIGNATURE_LENGTH) return null;
 
-  let conversationId: string;
-  try {
-    conversationId = Buffer.from(encoded, "base64url").toString("utf8");
-  } catch {
+  let conversationId: string | null = null;
+  let expected: string | null = null;
+
+  if (signature.length === COMPACT_SIGNATURE_LENGTH) {
+    const bytes = Buffer.from(encoded, "base64url");
+    if (bytes.length !== ID_BYTES) return null;
+    conversationId = `conv_${bytes.toString("hex")}`;
+    expected = signCompact(conversationId, key);
+  } else if (signature.length === LEGACY_SIGNATURE_LENGTH) {
+    const decoded = Buffer.from(encoded, "base64url").toString("utf8");
+    if (!CONVERSATION_ID.test(decoded)) return null;
+    conversationId = decoded;
+    expected = signLegacy(conversationId, key);
+  } else {
     return null;
   }
-  if (!conversationId || !/^conv_[0-9a-f]{16}$/.test(conversationId)) return null;
 
-  const expected = Buffer.from(sign(conversationId, key));
-  const provided = Buffer.from(signature);
-  if (expected.length !== provided.length) return null;
-  return timingSafeEqual(expected, provided) ? conversationId : null;
+  return signatureMatches(expected, signature) ? conversationId : null;
 }
 
 /** True when inbound replies are configured end to end. */
