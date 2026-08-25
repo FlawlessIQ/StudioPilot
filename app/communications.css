@@ -194,7 +194,15 @@
 }
 
 .msg-bubble header strong { color: var(--ink); font-size: 13px; }
-.msg-bubble p { margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
+.msg-bubble p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  /* A payment link is one unbreakable 200-character word. Without this it forced
+     the whole stream to scroll sideways. */
+  overflow-wrap: anywhere;
+}
 .msg-bubble footer { font-size: 11px; color: var(--muted); }
 
 .msg-reply {
@@ -220,9 +228,11 @@
   min-height: 168px;
 }
 
-/* Give the composer the room instead of the history when the panel is short. */
-.msg-thread-view { min-height: 0; }
-.msg-stream { min-height: 120px; }
+/* The stream is the thread. It takes the remaining height rather than being
+   squeezed to a sliver between the header and the composer — at 120px it showed
+   about one message, so a reply that had arrived looked like one that had not. */
+.msg-thread-view { min-height: 0; max-height: 80vh; }
+.msg-stream { flex: 1 1 auto; min-height: 220px; }
 
 .msg-reply-actions { flex-wrap: wrap; }
 .msg-notice { flex: 1 1 220px; min-width: 0; }
@@ -367,6 +377,9 @@
 
 .msg-waiting-body {
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 170px;
+  overflow-y: auto;
   font-size: 13px !important;
   font-weight: 400 !important;
   line-height: 1.6;

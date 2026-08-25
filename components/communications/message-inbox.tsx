@@ -369,8 +369,15 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
   useEffect(() => {
     const stream = streamRef.current;
     if (!stream || !messages.length) return;
-    stream.scrollTop = stream.scrollHeight;
-  }, [messages]);
+    // Also re-run when the prepared-reply panel appears, because it changes the
+    // stream's height after the messages render — the first version scrolled to
+    // the bottom and was then pushed back up, which looked exactly like a reply
+    // that had not arrived.
+    const settle = requestAnimationFrame(() => {
+      stream.scrollTop = stream.scrollHeight;
+    });
+    return () => cancelAnimationFrame(settle);
+  }, [messages, waiting]);
 
   const submitReply = useCallback(
     async (event: React.FormEvent) => {
