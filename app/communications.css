@@ -82,7 +82,12 @@
 }
 
 .msg-thread:hover { background: var(--soft); }
-.msg-thread.is-active { background: var(--accent-wash, var(--soft)); }
+/* A left rail as well as a tint: the tint alone was easy to miss, so selecting a
+   thread looked like nothing had happened. */
+.msg-thread.is-active {
+  background: var(--accent-wash, var(--soft));
+  box-shadow: inset 3px 0 0 var(--accent);
+}
 .msg-thread:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 .msg-thread-top {
