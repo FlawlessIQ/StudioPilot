@@ -411,6 +411,7 @@ async function emailContext(
   recipientName: string | null;
   values: Record<string, unknown>;
   template: EmailTemplateOverride | null;
+  recipientIsClient: boolean;
 }> {
   const db = getFirestore();
   const tenantId = String(document.get("tenantId") ?? "");
@@ -431,6 +432,21 @@ async function emailContext(
   const contact = contactId
     ? await db.doc(`contacts/${contactId}`).get()
     : null;
+  const clientContactIds = Array.isArray(projectClientIds)
+    ? projectClientIds.filter(
+        (value): value is string => typeof value === "string" && value !== "",
+      )
+    : [];
+  const clientContacts = clientContactIds.length
+    ? await db.getAll(
+        ...clientContactIds.map((id) => db.doc(`contacts/${id}`)),
+      )
+    : [];
+  const clientContactEmails = new Set(
+    clientContacts
+      .map((snapshot) => String(snapshot.get("email") ?? "").trim().toLowerCase())
+      .filter(Boolean),
+  );
   const studioName =
     firstString(
       document.get("brandName"),
@@ -497,6 +513,10 @@ async function emailContext(
     projectName,
     recipientName,
     template,
+    // Compared against every client contact on the project, not just the first:
+    // a project with two clients would otherwise misfile mail to the second as
+    // studio-only. Falls closed — an unmatched recipient stays studio-visible.
+    recipientIsClient: clientContactEmails.has(recipient.trim().toLowerCase()),
     values: {
       ...objectValue(document.data()),
       recipient,
@@ -531,6 +551,8 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
       rendered.subject,
       messageId,
       "mock",
+      rendered.text,
+      context.recipientIsClient,
     );
     if (document.get("proposalId")) {
       await getFirestore()
@@ -660,6 +682,8 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
     rendered.subject,
     messageId,
     "live",
+    rendered.text,
+    context.recipientIsClient,
   );
   const acceptedAt = new Date().toISOString();
   const acceptedEvent = productEvent({
@@ -708,12 +732,22 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
   return { messageId, templateKey: type, branded: true };
 }
 
+// Auth mail reaches a client's own address but is not part of the conversation
+// they should see replayed in their portal.
+const AUTH_EMAIL_TYPES = new Set([
+  "password_reset",
+  "email_verification",
+  "authorization_code",
+]);
+
 async function saveMessage(
   document: DocumentSnapshot,
   recipient: string,
   subject: string,
   messageId: string,
   deliveryMode: "live" | "mock",
+  body: string,
+  recipientIsClient: boolean,
 ) {
   const now = new Date().toISOString();
   await getFirestore()
@@ -728,15 +762,25 @@ async function saveMessage(
         templateKey: document.get("type"),
         recipient,
         subject,
-        bodyPreview:
-          typeof document.get("customBody") === "string"
-            ? String(document.get("customBody")).slice(0, 280)
-            : null,
+        // The rendered text, not just a preview of a custom body. Template
+        // emails previously stored nothing of what they said, which left no
+        // archive to show in a thread and nothing to search.
+        body: body.slice(0, 40000),
+        bodyPreview: body.slice(0, 280) || null,
         provider: "sendgrid",
         providerMessageId: messageId,
         deliveryMode,
         deliveryStatus: deliveryMode === "live" ? "sent" : "mock",
-        visibility: "studio",
+        // Everything the studio sends a client belongs in that client's portal.
+        // This was flatly "studio", so the portal — which only returns client
+        // and shared — showed the client their own messages and none of the
+        // replies, and the clientReadAt stamp could never fire. Derived from the
+        // recipient rather than a list of template keys so it cannot leak crew,
+        // venue, or staff mail as new templates are added.
+        visibility:
+          recipientIsClient && !AUTH_EMAIL_TYPES.has(String(document.get("type")))
+            ? "shared"
+            : "studio",
         sentAt: now,
         createdAt: now,
         updatedAt: now,

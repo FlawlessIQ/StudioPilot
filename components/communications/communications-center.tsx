@@ -16,9 +16,19 @@ import {
 import {
   collection,
   getDocs,
+  limit,
+  orderBy,
   query,
   where,
 } from "firebase/firestore";
+
+/**
+ * Enough to cover a studio's recent correspondence without loading an archive
+ * that grows without limit. The real fix is a thread list that pages, which
+ * arrives with the mailbox rebuild; this stops the page getting slower every
+ * week in the meantime.
+ */
+const MESSAGE_PAGE_SIZE = 250;
 import { LifecyclePackPanel } from "@/components/communications/lifecycle-pack-panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -210,6 +220,12 @@ export function CommunicationsCenter({
             query(
               collection(firestore, "messages"),
               where("tenantId", "==", workspace.tenantId),
+              // Was the tenant's entire message history, unbounded. Ordered by
+              // createdAt because it is the one timestamp both directions write
+              // — inbound portal messages have no sentAt, and ordering by a
+              // field a document lacks drops that document from the result.
+              orderBy("createdAt", "desc"),
+              limit(MESSAGE_PAGE_SIZE),
             ),
           ),
           getDocs(

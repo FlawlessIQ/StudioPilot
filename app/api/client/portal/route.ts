@@ -1182,6 +1182,43 @@ export async function POST(request: Request) {
       automationRunId: null,
       providerEventId: null,
     });
+    // Tell the studio. Until now this path wrote the message, a task, and an
+    // audit event, then committed — so the only way to discover a client had
+    // written was to open StudioCue and notice. The job id is derived from the
+    // message id, so a retried submission cannot send a second alert.
+    const tenantSnapshot = await adminFirestore
+      .doc(`tenants/${parsed.tenantId}`)
+      .get();
+    const emailBranding = tenantSnapshot.get("emailBranding");
+    const studioNotificationEmail =
+      safeString(
+        typeof emailBranding === "object" && emailBranding !== null
+          ? (emailBranding as Record<string, unknown>).replyTo
+          : null,
+      ) ??
+      safeString(tenantSnapshot.get("contactEmail")) ??
+      safeString(tenantSnapshot.get("email"));
+    if (studioNotificationEmail) {
+      batch.set(adminFirestore.doc(`emailJobs/notify_${messageId}`), {
+        id: `notify_${messageId}`,
+        tenantId: parsed.tenantId,
+        projectId: parsed.projectId,
+        type: "client_message_received",
+        recipient: studioNotificationEmail,
+        // The signed-in portal user is the sender. Contacts are not keyed by
+        // uid, so a contacts/{uid} lookup would always miss.
+        senderName:
+          safeString(identity.name) ?? safeString(identity.email) ?? "A client",
+        messageSubject: parsed.subject,
+        messagePreview: parsed.body.slice(0, 240),
+        projectName,
+        actionUrl: `${(process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com").replace(/\/$/, "")}/studio/messages`,
+        status: "queued",
+        attempts: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
     await batch.commit();
     return Response.json({ id: messageId, status: "received" }, { status: 201 });
   } catch (caught: unknown) {
