@@ -82,6 +82,40 @@ const commandSchema = z.discriminatedUnion("type", [
     }),
   }),
   z.object({
+    /**
+     * A signature that happened outside StudioCue, recorded by the studio.
+     *
+     * Signing providers charge for API access. Without one connected, a
+     * project could not leave CONTRACT_PENDING by any route: createEnvelope
+     * refuses, the journey withholds its manual advance for
+     * evidence-controlled steps, and the generic state command throws
+     * EVIDENCE_CONTROLLED_TRANSITION. Only a provider webhook ever wrote the
+     * next state, so a studio that signs by email was stuck at the proposal
+     * for good.
+     *
+     * This is the signature equivalent of the retainer exception the gate
+     * already accepts: a named human takes responsibility, and the record
+     * says so rather than implying a provider verified anything.
+     */
+    type: z.literal("recordSignedAgreement"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      proposalId: z.string().min(1),
+      /** Who signed, as the studio would name them to the couple. */
+      signerName: z.string().min(1).max(160),
+      signedAt: z.string().date(),
+      /** A stored document holding the signed agreement, when there is one. */
+      signedDocumentId: z.string().min(1).max(200).nullable().default(null),
+      /** How it was signed, in the studio's words. */
+      method: z.string().min(1).max(200),
+      // Deliberately not defaulted: recording a signature has to be an
+      // explicit act, not something a client library can omit its way into.
+      attestation: z.literal(true),
+    }),
+  }),
+  z.object({
     type: z.literal("createRetainerInvoice"),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
@@ -676,6 +710,135 @@ export const bookingCommand = onRequest(
           envelopeId,
           providerState: mockMode ? "completed_mock" : "queued",
         };
+      } else if (command.type === "recordSignedAgreement") {
+        if (
+          !["studio_owner", "studio_admin"].includes(String(membership.role))
+        ) {
+          throw new Error("SIGNATURE_ATTESTATION_PERMISSION_REQUIRED");
+        }
+        const [project, proposal, existingContracts] = await Promise.all([
+          firestore.doc(`projects/${command.input.projectId}`).get(),
+          firestore.doc(`proposals/${command.input.proposalId}`).get(),
+          firestore
+            .collection("contracts")
+            .where("tenantId", "==", command.tenantId)
+            .where("projectId", "==", command.input.projectId)
+            .where("status", "==", "completed")
+            .limit(1)
+            .get(),
+        ]);
+        if (
+          !project.exists ||
+          project.get("tenantId") !== command.tenantId ||
+          project.get("state") !== "CONTRACT_PENDING"
+        ) {
+          throw new Error("CONTRACT_NOT_READY");
+        }
+        if (
+          !proposal.exists ||
+          proposal.get("tenantId") !== command.tenantId ||
+          proposal.get("projectId") !== command.input.projectId ||
+          proposal.get("status") !== "accepted"
+        ) {
+          throw new Error("ACCEPTED_PROPOSAL_REQUIRED");
+        }
+        if (!existingContracts.empty) {
+          throw new Error("CONTRACT_ALREADY_COMPLETED");
+        }
+
+        const contractId = stableId(
+          "contract",
+          command.tenantId,
+          command.idempotencyKey,
+        );
+        const priorStateVersion = Number(project.get("stateVersion") ?? 0);
+        const batch = firestore.batch();
+        batch.create(firestore.doc(`contracts/${contractId}`), {
+          id: contractId,
+          tenantId: command.tenantId,
+          projectId: command.input.projectId,
+          proposalId: command.input.proposalId,
+          status: "completed",
+          // Never a provider name. Everything downstream reads this to
+          // decide whether a provider verified the signature or a person
+          // vouched for it, and the two must stay tellable apart.
+          provider: null,
+          completionAuthority: "manual_attested",
+          providerEnvelopeId: null,
+          templateId: null,
+          signers: [
+            {
+              name: command.input.signerName,
+              email: null,
+              role: "Client",
+              order: 1,
+              status: "completed",
+            },
+          ],
+          sentAt: null,
+          completedAt: `${command.input.signedAt}T00:00:00.000Z`,
+          signedDocumentId: command.input.signedDocumentId,
+          certificateDocumentId: null,
+          completionEvidence: {
+            kind: "manual_attestation",
+            method: command.input.method,
+            signerName: command.input.signerName,
+            signedAt: command.input.signedAt,
+            attestedBy: identity.uid,
+            attestedAt: timestamp,
+          },
+          fileHash: null,
+          lastProviderEventId: null,
+          providerState: "not_applicable",
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          createdBy: identity.uid,
+          updatedBy: identity.uid,
+          archivedAt: null,
+        });
+        batch.update(firestore.doc(`projects/${command.input.projectId}`), {
+          state: "RETAINER_PENDING",
+          stateVersion: priorStateVersion + 1,
+          updatedAt: timestamp,
+          updatedBy: identity.uid,
+        });
+        const auditId = stableId(
+          "audit_attested",
+          command.tenantId,
+          command.idempotencyKey,
+        );
+        batch.create(firestore.doc(`auditEvents/${auditId}`), {
+          id: auditId,
+          tenantId: command.tenantId,
+          projectId: command.input.projectId,
+          actorId: identity.uid,
+          // A person, not a provider. The webhook path writes "provider"
+          // here and the difference is the whole point of this record.
+          actorType: "user",
+          action: "contract.signature_attested",
+          entityType: "contract",
+          entityId: contractId,
+          timestamp,
+          before: {
+            projectState: "CONTRACT_PENDING",
+            stateVersion: priorStateVersion,
+          },
+          after: {
+            projectState: "RETAINER_PENDING",
+            stateVersion: priorStateVersion + 1,
+            signerName: command.input.signerName,
+            signedAt: command.input.signedAt,
+            method: command.input.method,
+            signedDocumentId: command.input.signedDocumentId,
+          },
+          ipAddress: request.ip ?? null,
+          userAgent: request.get("user-agent") ?? null,
+          correlationId: command.idempotencyKey,
+          automationRunId: null,
+          providerEventId: null,
+        });
+        await batch.commit();
+        result = { contractId, completionAuthority: "manual_attested" };
       } else if (command.type === "createRetainerInvoice") {
         const [project, packageSnapshot, existingInvoices] = await Promise.all([
           firestore.doc(`projects/${command.input.projectId}`).get(),
@@ -876,8 +1039,13 @@ export const bookingCommand = onRequest(
               invoice.get("status") === "paid" &&
               invoice.get("balanceCents") === 0,
           );
+          const attestedManually = contracts.docs.some(
+            (contract) =>
+              contract.get("completionAuthority") === "manual_attested",
+          );
           const checks = {
-            contractCompleted: !contracts.empty,
+            contractCompleted: !contracts.empty && !attestedManually,
+            contractAttestedManually: attestedManually,
             retainerInvoiceCreated: invoiceCreated,
             retainerSatisfied: retainerPaid || exceptionApproved,
             eventDateAvailable,

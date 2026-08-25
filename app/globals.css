@@ -11688,6 +11688,72 @@ form:has(> .address-field) > .address-field,
   .crew-profile-created-actions { grid-column: 1 / -1; }
 }
 
+/* Recording a signature made elsewhere. Folded shut: with a provider
+   connected this is the unusual path, but it is always available. */
+.record-signed-agreement {
+  border-top: 1px solid var(--line, #e3e1d8);
+  margin-top: 4px;
+  padding-top: 12px;
+  width: 100%;
+}
+
+.record-signed-agreement > summary {
+  align-items: center;
+  color: var(--muted, #5f6a63);
+  cursor: pointer;
+  display: flex;
+  font-size: 13px;
+  font-weight: 620;
+  gap: 8px;
+  list-style: none;
+  padding: 4px 0;
+}
+
+.record-signed-agreement > summary::marker,
+.record-signed-agreement > summary::-webkit-details-marker {
+  content: "";
+  display: none;
+}
+
+.record-signed-agreement > summary:hover {
+  color: var(--ink, #1d2420);
+}
+
+.record-signed-agreement form {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  max-width: 32rem;
+}
+
+.record-signed-agreement form > p {
+  background: var(--soft, #f4f6f2);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.55;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.record-signed-agreement label {
+  display: grid;
+  font-size: 12.5px;
+  font-weight: 620;
+  gap: 6px;
+}
+
+.record-signed-agreement input {
+  border: 1px solid var(--line, #e3e1d8);
+  border-radius: 10px;
+  font: inherit;
+  padding: 10px 12px;
+}
+
+.record-signed-agreement .button {
+  justify-self: start;
+}
+
 /* A refused contract: what the provider said, and the way forward. */
 .booking-contract-failed {
   display: grid;

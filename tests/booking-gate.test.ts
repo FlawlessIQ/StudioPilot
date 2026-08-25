@@ -4,6 +4,7 @@ import { BookingGateService, evaluateBookingGate, type BookingCompletionStore } 
 
 const completeEvidence = {
   contractCompleted: true,
+  contractAttestedManually: false,
   retainerInvoiceCreated: true,
   retainerSatisfied: true,
   retainerExceptionApproved: false,
@@ -65,4 +66,78 @@ test("booking completion side effects execute exactly once", async () => {
   assert.equal((await service.complete(input)).completed, true);
   assert.equal((await service.complete(input)).completed, true);
   assert.equal(executions, 5);
+});
+
+/**
+ * Signing providers charge for API access, and without one a project could
+ * not leave CONTRACT_PENDING by any route — the transition is
+ * evidence-controlled and only a provider webhook ever wrote it. Payment
+ * already had `retainerExceptionApproved`; signing had nothing.
+ *
+ * A studio owner attesting is a legitimate authority. It is not the same
+ * claim as a provider verifying, so the gate passes on it but never calls
+ * it a provider signature.
+ */
+test("a manually attested signature satisfies the gate", () => {
+  const result = evaluateBookingGate({
+    tenantId: "tenant-a",
+    projectId: "project-a",
+    evidence: {
+      ...completeEvidence,
+      contractCompleted: false,
+      contractAttestedManually: true,
+    },
+    evaluatedAt: "2026-07-26T12:00:00.000Z",
+    signingProvider: "dropbox_sign",
+  });
+  assert.equal(result.passed, true);
+  assert.deepEqual(result.blockers, []);
+});
+
+test("an attested signature is never reported as the provider's", () => {
+  const attested = evaluateBookingGate({
+    tenantId: "tenant-a",
+    projectId: "project-a",
+    evidence: {
+      ...completeEvidence,
+      contractCompleted: false,
+      contractAttestedManually: true,
+    },
+    evaluatedAt: "2026-07-26T12:00:00.000Z",
+    signingProvider: "dropbox_sign",
+  }).requirements.find((item) => item.key === "contractCompleted");
+
+  assert.equal(attested?.source, "manual_attestation");
+  assert.match(attested?.label ?? "", /recorded by the studio/i);
+
+  // And a real provider completion still reports the provider, so the two
+  // can never be confused in the record.
+  const verified = evaluateBookingGate({
+    tenantId: "tenant-a",
+    projectId: "project-a",
+    evidence: { ...completeEvidence, contractAttestedManually: false },
+    evaluatedAt: "2026-07-26T12:00:00.000Z",
+    signingProvider: "dropbox_sign",
+  }).requirements.find((item) => item.key === "contractCompleted");
+
+  assert.equal(verified?.source, "dropbox_sign");
+});
+
+test("an attested signature still cannot excuse an unpaid retainer", () => {
+  // The escape hatch is for the signature only. Nothing about attesting to
+  // a signature says anything about money having moved.
+  const result = evaluateBookingGate({
+    tenantId: "tenant-a",
+    projectId: "project-a",
+    evidence: {
+      ...completeEvidence,
+      contractCompleted: false,
+      contractAttestedManually: true,
+      retainerSatisfied: false,
+      retainerExceptionApproved: false,
+    },
+    evaluatedAt: "2026-07-26T12:00:00.000Z",
+  });
+  assert.equal(result.passed, false);
+  assert.deepEqual(result.blockers, ["Retainer paid"]);
 });

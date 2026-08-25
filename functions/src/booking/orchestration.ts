@@ -205,6 +205,10 @@ export const bookingRetainerPaid = onDocumentUpdated(
     const blockingStates = new Set(["BOOKED", "PLANNING", "READY", "EVENT_COMPLETE"]);
     const checks = {
       contractCompleted: !contracts.empty,
+      // The orchestrator only runs behind a provider signature, so an
+      // attestation never reaches it; declared so the evidence shape stays
+      // one thing rather than two.
+      contractAttestedManually: false,
       retainerInvoiceCreated: true,
       retainerSatisfied: true,
       eventDateAvailable: Boolean(eventDate) && !sameDateProjects.docs.some(

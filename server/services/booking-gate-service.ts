@@ -7,7 +7,11 @@ const signingLabels: Readonly<Record<SigningProvider, string>> = {
   dropbox_sign: "Dropbox Sign contract completed",
 };
 
-const labels: Readonly<Record<Exclude<keyof BookingGateEvidence, "contractCompleted">, { label: string; source: BookingGateResult["requirements"][number]["source"] }>> = {
+// `contractAttestedManually` is excluded alongside `contractCompleted`:
+// both feed the one signature requirement, which is labelled above by
+// whichever authority satisfied it, rather than appearing as a row of its
+// own.
+const labels: Readonly<Record<Exclude<keyof BookingGateEvidence, "contractCompleted" | "contractAttestedManually">, { label: string; source: BookingGateResult["requirements"][number]["source"] }>> = {
   retainerInvoiceCreated: { label: "QuickBooks retainer invoice created", source: "quickbooks" },
   retainerSatisfied: { label: "Retainer paid", source: "quickbooks" },
   retainerExceptionApproved: { label: "Retainer exception approved", source: "approved_exception" },
@@ -26,9 +30,17 @@ export function evaluateBookingGate(input: {
   signingProvider?: SigningProvider;
 }): BookingGateResult {
   const signingProvider = input.signingProvider ?? "docusign";
-  const contractCompletedMeta = { label: signingLabels[signingProvider], source: signingProvider };
+  // Which authority actually satisfied the signature requirement. A
+  // provider-verified completion and a studio owner's attestation both pass
+  // the gate; the result says which one, because the audit record is the
+  // point.
+  const contractCompletedMeta =
+    input.evidence.contractAttestedManually && !input.evidence.contractCompleted
+      ? { label: "Signed agreement recorded by the studio", source: "manual_attestation" as const }
+      : { label: signingLabels[signingProvider], source: signingProvider };
   const effective = {
-    contractCompleted: input.evidence.contractCompleted,
+    contractCompleted:
+      input.evidence.contractCompleted || input.evidence.contractAttestedManually,
     retainerInvoiceCreated: input.evidence.retainerInvoiceCreated,
     retainerSatisfied: input.evidence.retainerSatisfied || input.evidence.retainerExceptionApproved,
     eventDateAvailable: input.evidence.eventDateAvailable,

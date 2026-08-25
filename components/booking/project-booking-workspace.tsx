@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CapabilityNote } from "@/components/integrations/capability-note";
+import { RecordSignedAgreement } from "@/components/booking/record-signed-agreement";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -617,6 +618,13 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   {busy === "contract" ? "Sending…" : "Try again"}
                   <ArrowRight size={15} />
                 </button>
+                {proposal ? (
+                  <RecordSignedAgreement
+                    onRecorded={() => void load()}
+                    projectId={projectId}
+                    proposalId={String(proposal.id)}
+                  />
+                ) : null}
               </div>
             ) : contract ? (
               <div className="booking-evidence">
@@ -729,6 +737,13 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 ) : null}
                 <CapabilityNote capability="signing" />
                 <CapabilityNote capability="invoicing" />
+                {proposal ? (
+                  <RecordSignedAgreement
+                    onRecorded={() => void load()}
+                    projectId={projectId}
+                    proposalId={String(proposal.id)}
+                  />
+                ) : null}
               </div>
             )}
             {/* Background, deliberately after the action. This card used to
