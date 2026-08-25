@@ -198,3 +198,46 @@ test("Zoom summary sections become consultation notes without inventing content"
     "The couple prioritized candid coverage.\n\nTimeline: Ceremony begins at 4 PM.\n\nNext steps: Confirm family photo list.",
   );
 });
+
+test("a cloud event is read whether or not Intuit batches it", () => {
+  // The payload shape is a toggle in Intuit's developer portal, and the
+  // cloud format arrives as a batch array for several changes and as a bare
+  // object for one. Only the array was handled, so a single change parsed
+  // to nothing and the delivery was rejected as INVALID_PAYLOAD — a client's
+  // payment lost to a format nobody chose deliberately.
+  const event = {
+    id: "evt_single",
+    type: "qbo.invoice.update.v1",
+    intuitaccountid: "9341457776990679",
+    intuitentityid: "6",
+    time: "2026-08-25T18:00:00Z",
+  };
+  const batched = normalizeQuickBooksWebhooks([event]);
+  const bare = normalizeQuickBooksWebhooks(event);
+  assert.deepEqual(bare, batched);
+  assert.equal(bare.length, 1);
+  assert.equal(bare[0]?.entityName, "invoice");
+  assert.equal(bare[0]?.entityId, "6");
+  assert.equal(bare[0]?.realmId, "9341457776990679");
+
+  // The classic shape still wins where it applies — an object carrying
+  // eventNotifications is not a cloud event and must not be read as one.
+  const classic = normalizeQuickBooksWebhooks({
+    eventNotifications: [
+      {
+        realmId: "9341457776990679",
+        dataChangeEvent: {
+          entities: [
+            { name: "Invoice", id: "6", operation: "Update", lastUpdated: "2026-08-25T18:00:00-0700" },
+          ],
+        },
+      },
+    ],
+  });
+  assert.equal(classic.length, 1);
+  assert.equal(classic[0]?.entityId, "6");
+
+  // Junk is still junk, and must not become a phantom event.
+  assert.deepEqual(normalizeQuickBooksWebhooks({ hello: "world" }), []);
+  assert.deepEqual(normalizeQuickBooksWebhooks({ type: "qbo.invoice.update.v1" }), []);
+});

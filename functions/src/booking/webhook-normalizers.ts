@@ -210,6 +210,19 @@ function normalizeQuickBooksLegacyPayload(
   return events;
 }
 
+/**
+ * Intuit sends one of three shapes, and the choice is a toggle in their
+ * developer portal that a studio can flip without telling anyone.
+ *
+ * Classic is an object with `eventNotifications`. Cloud events arrive as a
+ * batch array — and, for a single change, as a bare object. Only the first
+ * two were handled, so a lone cloud event parsed to nothing and the
+ * delivery was rejected as INVALID_PAYLOAD: a payment that never reached
+ * the booking, over a payload format nobody had chosen deliberately.
+ *
+ * Recognising a cloud event by its own `type` rather than by whether it
+ * happens to be wrapped in an array is what makes the wrapper irrelevant.
+ */
 export function normalizeQuickBooksWebhooks(
   input: unknown,
 ): QuickBooksWebhookEvent[] {
@@ -220,6 +233,9 @@ export function normalizeQuickBooksWebhooks(
         (event): event is QuickBooksWebhookEvent => event !== null,
       );
   }
+
+  const single = normalizeQuickBooksCloudEvent(input);
+  if (single) return [single];
 
   return normalizeQuickBooksLegacyPayload(input);
 }
