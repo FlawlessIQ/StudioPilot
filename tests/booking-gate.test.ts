@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+import { bookingGateRequirements } from "@/features/booking/gate-requirements";
 import { BookingGateService, evaluateBookingGate, type BookingCompletionStore } from "@/server/services/booking-gate-service";
 
 const completeEvidence = {
@@ -8,6 +10,7 @@ const completeEvidence = {
   retainerInvoiceCreated: true,
   retainerSatisfied: true,
   retainerExceptionApproved: false,
+  retainerAttestedManually: false,
   eventDateAvailable: true,
   requiredContactsComplete: true,
 };
@@ -140,4 +143,141 @@ test("an attested signature still cannot excuse an unpaid retainer", () => {
   });
   assert.equal(result.passed, false);
   assert.deepEqual(result.blockers, ["Retainer paid"]);
+});
+
+test("a retainer taken outside StudioCue books the job", () => {
+  // Without an invoicing provider StudioCue refuses to raise a retainer, so
+  // it can never watch one clear: the gate was short of both a created
+  // retainer and a paid one, and a studio taking bank transfers could not
+  // confirm a booking at all.
+  const result = evaluateBookingGate({
+    tenantId: "tenant-a",
+    projectId: "project-a",
+    evidence: {
+      ...completeEvidence,
+      retainerInvoiceCreated: false,
+      retainerSatisfied: false,
+      retainerAttestedManually: true,
+    },
+    evaluatedAt: "2026-08-25T12:00:00.000Z",
+  });
+  assert.equal(result.passed, true);
+  assert.deepEqual(result.blockers, []);
+});
+
+test("an attested retainer is never reported as the provider's", () => {
+  // The whole reason it is a separate evidence field. Naming QuickBooks on
+  // a payment QuickBooks never saw would put a provider's authority behind
+  // a person's word.
+  const result = evaluateBookingGate({
+    tenantId: "tenant-a",
+    projectId: "project-a",
+    evidence: {
+      ...completeEvidence,
+      retainerInvoiceCreated: false,
+      retainerSatisfied: false,
+      retainerAttestedManually: true,
+    },
+    evaluatedAt: "2026-08-25T12:00:00.000Z",
+  });
+  for (const key of ["retainerInvoiceCreated", "retainerSatisfied"]) {
+    const requirement = result.requirements.find((item) => item.key === key);
+    assert.equal(requirement?.source, "manual_attestation", key);
+    assert.doesNotMatch(String(requirement?.label), /QuickBooks/, key);
+  }
+});
+
+test("attesting a payment and waiving one stay different claims", () => {
+  // An approved exception says the money has not arrived and the studio is
+  // going ahead regardless; an attestation says it has arrived. Both pass
+  // the same requirement and the record has to say which happened.
+  const waived = evaluateBookingGate({
+    tenantId: "tenant-a",
+    projectId: "project-a",
+    evidence: {
+      ...completeEvidence,
+      retainerSatisfied: false,
+      retainerExceptionApproved: true,
+    },
+    evaluatedAt: "2026-08-25T12:00:00.000Z",
+  });
+  assert.equal(
+    waived.requirements.find((item) => item.key === "retainerSatisfied")?.source,
+    "approved_exception",
+  );
+  const received = evaluateBookingGate({
+    tenantId: "tenant-a",
+    projectId: "project-a",
+    evidence: {
+      ...completeEvidence,
+      retainerInvoiceCreated: false,
+      retainerSatisfied: false,
+      retainerAttestedManually: true,
+    },
+    evaluatedAt: "2026-08-25T12:00:00.000Z",
+  });
+  assert.equal(
+    received.requirements.find((item) => item.key === "retainerSatisfied")
+      ?.source,
+    "manual_attestation",
+  );
+});
+
+test("an attested retainer still cannot excuse an unsigned agreement", () => {
+  // Money is not a signature. The escape hatches are per-requirement and
+  // must not start covering for each other.
+  const result = evaluateBookingGate({
+    tenantId: "tenant-a",
+    projectId: "project-a",
+    evidence: {
+      ...completeEvidence,
+      contractCompleted: false,
+      contractAttestedManually: false,
+      retainerAttestedManually: true,
+    },
+    evaluatedAt: "2026-08-25T12:00:00.000Z",
+  });
+  assert.equal(result.passed, false);
+});
+
+test("evidence folds into requirements, and both copies fold it the same way", () => {
+  // The bug this guards: blockers were derived by treating every false
+  // evidence field as a missing requirement. The moment a signature could
+  // be satisfied two ways, no booking could pass at all — a provider-signed
+  // contract blocked for want of an attestation, an attested one for want
+  // of a provider. It shipped, because the gate service gets this right and
+  // the gate service is not what books the job.
+  const provider = bookingGateRequirements({
+    contractCompleted: true,
+    contractAttestedManually: false,
+    retainerInvoiceCreated: true,
+    retainerAttestedManually: false,
+    retainerSatisfied: true,
+    retainerExceptionApproved: false,
+    eventDateAvailable: true,
+    requiredContactsComplete: true,
+  });
+  assert.deepEqual(Object.values(provider).every(Boolean), true);
+  const attested = bookingGateRequirements({
+    contractCompleted: false,
+    contractAttestedManually: true,
+    retainerInvoiceCreated: false,
+    retainerAttestedManually: true,
+    retainerSatisfied: false,
+    retainerExceptionApproved: false,
+    eventDateAvailable: true,
+    requiredContactsComplete: true,
+  });
+  assert.deepEqual(Object.values(attested).every(Boolean), true);
+
+  // functions/ cannot import from features/, so the fold is duplicated. The
+  // two disagreeing means the gate a studio is shown and the gate that
+  // books the job are different gates.
+  const body = (source: string) =>
+    source.slice(source.indexOf("export type BookingGateEvidenceFlags"));
+  assert.equal(
+    body(readFileSync("functions/src/booking/gate-requirements.ts", "utf8")),
+    body(readFileSync("features/booking/gate-requirements.ts", "utf8")),
+    "features/ and functions/ fold gate evidence differently",
+  );
 });

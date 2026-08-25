@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CapabilityNote } from "@/components/integrations/capability-note";
 import { RecordSignedAgreement } from "@/components/booking/record-signed-agreement";
+import { RecordRetainerPayment } from "@/components/booking/record-retainer-payment";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -870,6 +871,24 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   <small>
                     {signingProviderLabel} completion unlocks this step.
                   </small>
+                ) : null}
+                {/*
+                  The way through when no invoicing provider is connected.
+                  The button above refuses in that case rather than invoice
+                  through an account nobody connected, which left the gate
+                  short of both a created retainer and a paid one — a
+                  studio taking bank transfers could not book at all.
+                */}
+                {contractComplete && packageSnapshot ? (
+                  <RecordRetainerPayment
+                    onRecorded={() => void load()}
+                    packageSnapshotId={String(packageSnapshot.id)}
+                    projectId={projectId}
+                    retainerLabel={currency(
+                      packageSnapshot.retainerCents,
+                      packageSnapshot.currency,
+                    )}
+                  />
                 ) : null}
               </div>
             )}

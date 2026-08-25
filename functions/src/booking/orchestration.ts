@@ -1,9 +1,6 @@
 import { createHash } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
-import {
-  onDocumentUpdated,
-  onDocumentWritten,
-} from "firebase-functions/v2/firestore";
+import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { resolveProviderForTenant } from "../integrations/capability-resolution.js";
 import { productEvent } from "../operations/product-events.js";
 
@@ -181,11 +178,26 @@ export const bookingContractCompleted = onDocumentWritten(
   },
 );
 
-export const bookingRetainerPaid = onDocumentUpdated(
+/**
+ * Written, not updated — the same lesson as the contract trigger above.
+ *
+ * A provider retainer is created unpaid and cleared later by the webhook,
+ * so an update trigger saw it. A retainer the studio records by hand is
+ * created already paid, in one write, and this never fired: the plan stayed
+ * on `create_retainer` against a retainer that was already in, and the
+ * booking was never confirmed.
+ *
+ * The guards below already tolerate a create: `before` is a snapshot that
+ * does not exist, so `wasPaid` is false, which is exactly right for a
+ * retainer that has only just appeared.
+ */
+export const bookingRetainerPaid = onDocumentWritten(
   "invoiceReferences/{invoiceId}",
   async (event) => {
     const before = event.data?.before;
     const invoice = event.data?.after;
+    // Also covers deletion, which a write trigger delivers and an update
+    // trigger never did.
     if (!invoice?.exists || invoice.get("kind") !== "retainer") return;
     const isPaid = invoice.get("status") === "paid" && Number(invoice.get("balanceCents")) === 0;
     const wasPaid = before?.get("status") === "paid" && Number(before.get("balanceCents")) === 0;

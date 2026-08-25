@@ -11,6 +11,7 @@ import {
 } from "../integrations/capability-resolution.js";
 import { productEvent } from "../operations/product-events.js";
 import { availabilityWindowSchema } from "./availability.js";
+import { bookingGateRequirements } from "./gate-requirements.js";
 
 const commandSchema = z.discriminatedUnion("type", [
   z.object({
@@ -112,6 +113,40 @@ const commandSchema = z.discriminatedUnion("type", [
       method: z.string().min(1).max(200),
       // Deliberately not defaulted: recording a signature has to be an
       // explicit act, not something a client library can omit its way into.
+      attestation: z.literal(true),
+    }),
+  }),
+  z.object({
+    /**
+     * The retainer arrived outside StudioCue and the studio says so.
+     *
+     * The mirror of recordSignedAgreement, for the same dead end one step
+     * later. With no invoicing provider connected, createRetainerInvoice
+     * refuses rather than raise an invoice against an account nobody
+     * connected — correct, but it left the booking gate permanently short
+     * of both a created retainer and a paid one, so a studio taking bank
+     * transfers could not confirm a booking at all.
+     *
+     * Not the same as the retainer exception the gate already accepts.
+     * That one says the money has not arrived and the studio is going
+     * ahead anyway; this says the money is in and StudioCue was not the
+     * one to collect it. The two stay separate fields all the way to the
+     * audit record.
+     */
+    type: z.literal("recordRetainerPayment"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      packageSnapshotId: z.string().min(1),
+      paidAt: z.string().date(),
+      /** How the money arrived, in the studio's words. */
+      method: z.string().min(1).max(200),
+      /** A bank reference or cheque number, when there is one. */
+      reference: z.string().max(200).nullable().default(null),
+      // The amount is never taken from the client. It is read from the
+      // package snapshot the couple accepted, so "the retainer was paid"
+      // cannot quietly mean a different number than the one quoted.
       attestation: z.literal(true),
     }),
   }),
@@ -859,6 +894,157 @@ export const bookingCommand = onRequest(
         });
         await batch.commit();
         result = { contractId, completionAuthority: "manual_attested" };
+      } else if (command.type === "recordRetainerPayment") {
+        if (
+          !["studio_owner", "studio_admin"].includes(String(membership.role))
+        ) {
+          throw new Error("RETAINER_ATTESTATION_PERMISSION_REQUIRED");
+        }
+        const [project, packageSnapshot, contracts, existingInvoices] =
+          await Promise.all([
+            firestore.doc(`projects/${command.input.projectId}`).get(),
+            firestore
+              .doc(`packageSnapshots/${command.input.packageSnapshotId}`)
+              .get(),
+            firestore
+              .collection("contracts")
+              .where("tenantId", "==", command.tenantId)
+              .where("projectId", "==", command.input.projectId)
+              .where("status", "==", "completed")
+              .limit(1)
+              .get(),
+            firestore
+              .collection("invoiceReferences")
+              .where("tenantId", "==", command.tenantId)
+              .where("projectId", "==", command.input.projectId)
+              .where("kind", "==", "retainer")
+              .limit(1)
+              .get(),
+          ]);
+        if (
+          !project.exists ||
+          project.get("tenantId") !== command.tenantId ||
+          project.get("state") !== "RETAINER_PENDING" ||
+          project.get("packageSnapshotId") !== command.input.packageSnapshotId
+        ) {
+          throw new Error("RETAINER_NOT_READY");
+        }
+        if (
+          !packageSnapshot.exists ||
+          packageSnapshot.get("tenantId") !== command.tenantId
+        ) {
+          throw new Error("PACKAGE_SNAPSHOT_NOT_FOUND");
+        }
+        // The signature is the step before this one, and the gate requires
+        // both. Recording money against a project whose agreement is not
+        // signed would produce a booking with paid evidence and no
+        // contract, which is the wrong order to be permissive in.
+        if (contracts.empty) {
+          throw new Error("SIGNED_CONTRACT_REQUIRED");
+        }
+        if (!existingInvoices.empty) {
+          throw new Error("RETAINER_INVOICE_ALREADY_EXISTS");
+        }
+        const invoiceId = stableId(
+          "invoice_attested",
+          command.tenantId,
+          command.idempotencyKey,
+        );
+        // The amount the couple accepted, not one the browser sent.
+        const amountCents = Number(packageSnapshot.get("retainerCents") ?? 0);
+        if (!Number.isInteger(amountCents) || amountCents <= 0) {
+          throw new Error("RETAINER_AMOUNT_NOT_FOUND");
+        }
+        const paidAtTimestamp = `${command.input.paidAt}T00:00:00.000Z`;
+        const orchestrationReference = firestore.doc(
+          `bookingOrchestrations/${command.input.projectId}`,
+        );
+        const orchestration = await orchestrationReference.get();
+        const batch = firestore.batch();
+        batch.create(firestore.doc(`invoiceReferences/${invoiceId}`), {
+          id: invoiceId,
+          tenantId: command.tenantId,
+          projectId: command.input.projectId,
+          kind: "retainer",
+          // Never a provider name, for the same reason the attested
+          // contract writes null: everything downstream reads this to tell
+          // a payment a provider confirmed from one a person vouched for.
+          provider: null,
+          completionAuthority: "manual_attested",
+          providerInvoiceId: null,
+          providerCustomerId: null,
+          status: "paid",
+          currency: packageSnapshot.get("currency"),
+          amountCents,
+          balanceCents: 0,
+          dueDate: command.input.paidAt,
+          hostedUrl: null,
+          paidAt: paidAtTimestamp,
+          completionEvidence: {
+            kind: "manual_attestation",
+            method: command.input.method,
+            reference: command.input.reference,
+            paidAt: command.input.paidAt,
+            amountCents,
+            attestedBy: identity.uid,
+            attestedAt: timestamp,
+          },
+          lastSyncedAt: null,
+          lastProviderEventId: null,
+          providerState: "not_applicable",
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          createdBy: identity.uid,
+          updatedBy: identity.uid,
+          archivedAt: null,
+        });
+        // An active plan is waiting to be told a retainer exists. Left
+        // pointing at nothing it would sit on `create_retainer` while the
+        // booking was ready to confirm — the same stranding the contract
+        // path had.
+        if (orchestration.exists && orchestration.get("status") === "active") {
+          batch.update(orchestrationReference, {
+            invoiceId,
+            updatedAt: timestamp,
+          });
+        }
+        const retainerAuditId = stableId(
+          "audit_retainer_attested",
+          command.tenantId,
+          command.idempotencyKey,
+        );
+        batch.create(firestore.doc(`auditEvents/${retainerAuditId}`), {
+          id: retainerAuditId,
+          tenantId: command.tenantId,
+          projectId: command.input.projectId,
+          actorId: identity.uid,
+          // A person, not a provider. The webhook path writes "provider".
+          actorType: "user",
+          action: "retainer.payment_attested",
+          entityType: "invoiceReference",
+          entityId: invoiceId,
+          timestamp,
+          before: { retainerRecorded: false },
+          after: {
+            retainerRecorded: true,
+            amountCents,
+            currency: packageSnapshot.get("currency"),
+            paidAt: command.input.paidAt,
+            method: command.input.method,
+            reference: command.input.reference,
+          },
+          ipAddress: request.ip ?? null,
+          userAgent: request.get("user-agent") ?? null,
+          correlationId: command.idempotencyKey,
+          automationRunId: null,
+          providerEventId: null,
+        });
+        await batch.commit();
+        result = {
+          invoiceId,
+          amountCents,
+          completionAuthority: "manual_attested",
+        };
       } else if (command.type === "createRetainerInvoice") {
         const [project, packageSnapshot, existingInvoices] = await Promise.all([
           firestore.doc(`projects/${command.input.projectId}`).get(),
@@ -1063,15 +1249,29 @@ export const bookingCommand = onRequest(
             (contract) =>
               contract.get("completionAuthority") === "manual_attested",
           );
+          // A retainer the studio recorded rather than a provider
+          // confirmed. Read from the record's own authority, so a payment
+          // can never be reported as QuickBooks' when QuickBooks never saw
+          // it.
+          const retainerAttestedManually = invoices.docs.some(
+            (invoice) =>
+              invoice.get("completionAuthority") === "manual_attested",
+          );
           const checks = {
             contractCompleted: !contracts.empty && !attestedManually,
             contractAttestedManually: attestedManually,
-            retainerInvoiceCreated: invoiceCreated,
-            retainerSatisfied: retainerPaid || exceptionApproved,
+            retainerInvoiceCreated: invoiceCreated && !retainerAttestedManually,
+            retainerAttestedManually,
+            retainerSatisfied: retainerPaid && !retainerAttestedManually,
+            retainerExceptionApproved: exceptionApproved,
             eventDateAvailable,
             requiredContactsComplete,
           };
-          const blockers = Object.entries(checks)
+          // Fold the alternatives before asking what is missing: several
+          // evidence fields answer the same requirement by different
+          // authorities. See gate-requirements.ts.
+          const requirements = bookingGateRequirements(checks);
+          const blockers = Object.entries(requirements)
             .filter(([, passed]) => !passed)
             .map(([key]) => key);
           const gateId = stableId(
@@ -1084,6 +1284,7 @@ export const bookingCommand = onRequest(
             tenantId: command.tenantId,
             projectId: command.input.projectId,
             checks,
+            requirements,
             blockers,
             passed: blockers.length === 0,
             rulesVersion: 1,

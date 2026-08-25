@@ -154,3 +154,33 @@ export async function recordSignedAgreement(input: {
     },
   });
 }
+
+/**
+ * Recording a retainer taken outside StudioCue.
+ *
+ * No file upload and no amount: the amount comes from the package snapshot
+ * the couple accepted, server-side, so "the retainer was paid" cannot come
+ * to mean a different number than the one quoted.
+ */
+export async function recordRetainerPayment(input: {
+  projectId: string;
+  packageSnapshotId: string;
+  paidAt: string;
+  method: string;
+  reference: string | null;
+}) {
+  const endpoint = process.env.NEXT_PUBLIC_BOOKING_FUNCTIONS_URL;
+  if (!endpoint) return { mode: "preview" as const };
+  return sendBookingCommand({
+    type: "recordRetainerPayment",
+    idempotencyKey: crypto.randomUUID(),
+    input: {
+      projectId: input.projectId,
+      packageSnapshotId: input.packageSnapshotId,
+      paidAt: input.paidAt,
+      method: input.method,
+      reference: input.reference,
+      attestation: true,
+    },
+  });
+}
