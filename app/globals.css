@@ -12190,3 +12190,30 @@ form:has(> .address-field) > .address-field,
   display: grid;
   gap: 6px;
 }
+
+/* The one-tap approval page, reached from a notification email on a phone. */
+.legal-page .reply-quote,
+.legal-page .reply-body {
+  white-space: pre-wrap;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.legal-page .reply-quote { color: var(--ink-soft); font-style: italic; }
+
+.legal-page .reply-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-top: 30px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+/* Comfortably tappable, because this is reached one-handed at an event. */
+.legal-page .reply-form .ds-btn { min-height: 46px; padding-inline: 22px; }

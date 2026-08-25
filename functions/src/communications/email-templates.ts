@@ -629,6 +629,33 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       const senderName = stringValue(values, "senderName") || "A client";
       const messageSubject = stringValue(values, "messageSubject");
       const messagePreview = stringValue(values, "messagePreview");
+      const preparedReply = stringValue(values, "preparedReplyBody");
+      const approveUrl = safeUrl(stringValue(values, "approveUrl"));
+      const basedOn = Array.isArray(values.preparedReplyBasedOn)
+        ? (values.preparedReplyBasedOn as unknown[]).map(String).filter(Boolean)
+        : [];
+
+      // When StudioCue already holds the answer, the answer belongs in this
+      // email. Making the studio open the app to read a reply the system had
+      // composed from its own records is the step worth removing.
+      if (preparedReply && approveUrl) {
+        return {
+          subject: `${senderName} asked: ${messageSubject || "a question"}`,
+          preheader: "A reply is ready — read it and send in one tap.",
+          eyebrow: "Client message",
+          heading: `${senderName} asked a question`,
+          paragraphs: [
+            greeting,
+            ...(messagePreview ? [`They wrote: “${messagePreview}”`] : []),
+            "StudioCue has a reply ready from your project records:",
+            preparedReply,
+            ...(basedOn.length ? [`Based on: ${basedOn.join("; ")}`] : []),
+          ],
+          action: { label: "Review and send this reply", url: approveUrl },
+          note: "Nothing is sent until you confirm on that page.",
+        };
+      }
+
       return {
         subject: `${senderName} sent you a message${project}`,
         preheader:
@@ -637,7 +664,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: `${senderName} sent you a message`,
         paragraphs: [
           greeting,
-          `${senderName} wrote to you${project} from their client portal.`,
+          `${senderName} wrote to you${project}.`,
           ...(messageSubject ? [`Subject: ${messageSubject}`] : []),
           ...(messagePreview ? [`“${messagePreview}”`] : []),
         ],

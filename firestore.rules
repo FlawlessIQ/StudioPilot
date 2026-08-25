@@ -588,6 +588,13 @@ service cloud.firestore {
     // recognised as automated. Kept rather than dropped so a client's email is
     // never silently lost, and readable by owners and admins so someone can act
     // on it.
+    // Server-only. The token in the studio's email is the capability; the
+    // document behind it holds a client's question and must not be readable by
+    // anyone who guesses a hash.
+    match /replyApprovals/{tokenHash} {
+      allow read: if false;
+      allow write: if false;
+    }
     // Server-only in both directions. An unmatched message has no reliable
     // tenantId — that is why it is here — so there is no tenant to scope a read
     // to, and any broader rule would expose one studio's client mail to
