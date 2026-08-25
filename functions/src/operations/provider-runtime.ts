@@ -858,6 +858,16 @@ async function enqueueRetainerEmail(input:{
   email:string;
 }):Promise<void>{
   if(!input.email)return;
+  // Never mail a client twice for one invoice.
+  //
+  // The job that raises a retainer is retried — by the worker's own backoff,
+  // and by a studio pressing Try again. Each pass reached this function, and
+  // `set` with merge:false would put a delivered email job back to `queued`,
+  // which re-dispatches it. A retry is a StudioCue-side event; the client
+  // has no idea it happened and should not receive a second invoice because
+  // of it.
+  const existing=await input.db.doc(`emailJobs/invoice_${input.invoiceId}`).get();
+  if(existing.exists&&existing.get("status")==="succeeded")return;
   const now=new Date().toISOString();
   const appUrl=process.env.NEXT_PUBLIC_APP_URL??"https://studiohub.app";
   await input.db.doc(`emailJobs/invoice_${input.invoiceId}`).set({
