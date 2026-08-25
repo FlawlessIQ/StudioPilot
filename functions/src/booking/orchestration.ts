@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { agreedRetainerCents } from "./agreed-retainer.js";
 import { resolveProviderForTenant } from "../integrations/capability-resolution.js";
 import { productEvent } from "../operations/product-events.js";
 
@@ -60,7 +61,8 @@ export const bookingContractCompleted = onDocumentWritten(
         .where("tenantId", "==", tenantId)
         .where("projectId", "==", projectId)
         .where("kind", "==", "retainer")
-        .limit(1)
+        // Not limit(1): a stale attempt must not hide a live invoice.
+        .limit(10)
         .get(),
     ]);
     if (
@@ -70,9 +72,17 @@ export const bookingContractCompleted = onDocumentWritten(
       plan.get("policy.createRetainerAfterSignature") !== true
     ) return;
     if (!project.exists || project.get("tenantId") !== tenantId) return;
-    if (!existingInvoices.empty) {
+    // A refused or superseded attempt is not a retainer, and pointing the
+    // plan at one would park it on `wait_for_payment` against an invoice
+    // the client never received.
+    const liveInvoices = existingInvoices.docs.filter(
+      (invoice) =>
+        invoice.get("status") !== "failed" &&
+        invoice.get("status") !== "superseded",
+    );
+    if (liveInvoices.length) {
       await planReference.update({
-        invoiceId: existingInvoices.docs[0]!.id,
+        invoiceId: liveInvoices[0]!.id,
         currentStep: "wait_for_payment",
         updatedAt: new Date().toISOString(),
       });
@@ -89,6 +99,12 @@ export const bookingContractCompleted = onDocumentWritten(
     const providerInvoiceId = provider === "stripe"
       ? `stripe_invoice_${invoiceId}`
       : `qbo_invoice_${invoiceId}`;
+    const agreedRetainer = await agreedRetainerCents(
+      db,
+      tenantId,
+      projectId,
+      packageSnapshot,
+    );
     const days = Math.min(30, Math.max(1, Number(plan.get("policy.retainerDueDays") ?? 7)));
     const eventDocument = productEvent({
       tenantId,
@@ -120,8 +136,11 @@ export const bookingContractCompleted = onDocumentWritten(
           providerCustomerId: `pending_${projectId}`,
           status: "sent",
           currency: packageSnapshot.get("currency") ?? "USD",
-          amountCents: Number(packageSnapshot.get("retainerCents") ?? 0),
-          balanceCents: Number(packageSnapshot.get("retainerCents") ?? 0),
+          // The same figure the command raises. Two paths create a
+          // retainer and they must not disagree about what the couple
+          // agreed to pay.
+          amountCents: agreedRetainer,
+          balanceCents: agreedRetainer,
           dueDate: dueDate(days, now),
           hostedUrl: null,
           lastSyncedAt: now,

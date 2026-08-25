@@ -11,6 +11,7 @@ import {
 } from "../integrations/capability-resolution.js";
 import { productEvent } from "../operations/product-events.js";
 import { availabilityWindowSchema } from "./availability.js";
+import { agreedRetainerCents } from "./agreed-retainer.js";
 import { bookingGateRequirements } from "./gate-requirements.js";
 
 const commandSchema = z.discriminatedUnion("type", [
@@ -918,7 +919,10 @@ export const bookingCommand = onRequest(
               .where("tenantId", "==", command.tenantId)
               .where("projectId", "==", command.input.projectId)
               .where("kind", "==", "retainer")
-              .limit(1)
+              // Not limit(1): a failed or superseded attempt must not hide
+              // the live invoice behind it, which would let a studio attest
+              // a payment against a retainer already out with the client.
+              .limit(10)
               .get(),
           ]);
         if (
@@ -942,7 +946,13 @@ export const bookingCommand = onRequest(
         if (contracts.empty) {
           throw new Error("SIGNED_CONTRACT_REQUIRED");
         }
-        if (!existingInvoices.empty) {
+        if (
+          existingInvoices.docs.some(
+            (document) =>
+              document.get("status") !== "failed" &&
+              document.get("status") !== "superseded",
+          )
+        ) {
           throw new Error("RETAINER_INVOICE_ALREADY_EXISTS");
         }
         const invoiceId = stableId(
@@ -950,8 +960,14 @@ export const bookingCommand = onRequest(
           command.tenantId,
           command.idempotencyKey,
         );
-        // The amount the couple accepted, not one the browser sent.
-        const amountCents = Number(packageSnapshot.get("retainerCents") ?? 0);
+        // The amount the couple accepted, not one the browser sent, and
+        // not the package's if the proposal overrode it.
+        const amountCents = await agreedRetainerCents(
+          firestore,
+          command.tenantId,
+          command.input.projectId,
+          packageSnapshot,
+        );
         if (!Number.isInteger(amountCents) || amountCents <= 0) {
           throw new Error("RETAINER_AMOUNT_NOT_FOUND");
         }
@@ -1056,7 +1072,9 @@ export const bookingCommand = onRequest(
             .where("tenantId", "==", command.tenantId)
             .where("projectId", "==", command.input.projectId)
             .where("kind", "==", "retainer")
-            .limit(1)
+            // Not limit(1): a superseded attempt must not hide the live
+            // invoice sitting behind it.
+            .limit(10)
             .get(),
         ]);
         if (
@@ -1073,9 +1091,21 @@ export const bookingCommand = onRequest(
           packageSnapshot.get("tenantId") !== command.tenantId
         )
           throw new Error("PACKAGE_SNAPSHOT_NOT_FOUND");
-        if (!existingInvoices.empty) {
+        // A refused invoice is not a retainer. Left counting as one it
+        // blocked every retry, so a QuickBooks rejection ended the booking
+        // permanently — the same trap a failed contract used to set.
+        const liveInvoices = existingInvoices.docs.filter(
+          (document) => document.get("status") !== "failed",
+        );
+        if (liveInvoices.length) {
           throw new Error("RETAINER_INVOICE_ALREADY_EXISTS");
         }
+        // Keep the failed attempt as history rather than deleting it: it is
+        // the record of what the provider said, and the next query must not
+        // match it again.
+        const supersededInvoices = existingInvoices.docs.map(
+          (document) => document.ref,
+        );
         // Same reasoning as signing above: refuse rather than raise an
         // invoice against a QuickBooks account nobody connected.
         const invoicingProvider = mockMode
@@ -1090,6 +1120,12 @@ export const bookingCommand = onRequest(
               command.tenantId,
               "invoicing",
             );
+        const agreedRetainer = await agreedRetainerCents(
+          firestore,
+          command.tenantId,
+          command.input.projectId,
+          packageSnapshot,
+        );
         const invoiceId = stableId(
           "invoice",
           command.tenantId,
@@ -1099,6 +1135,15 @@ export const bookingCommand = onRequest(
           ? `stripe_invoice_${command.idempotencyKey}`
           : `qbo_invoice_${command.idempotencyKey}`;
         const batch = firestore.batch();
+        for (const stale of supersededInvoices) {
+          batch.update(stale, {
+            status: "superseded",
+            supersededAt: timestamp,
+            supersededBy: invoiceId,
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+        }
         batch.create(firestore.doc(`invoiceReferences/${invoiceId}`), {
           id: invoiceId,
           tenantId: command.tenantId,
@@ -1108,10 +1153,17 @@ export const bookingCommand = onRequest(
           providerInvoiceId,
           providerCustomerId:
             command.input.customerId ?? `pending_${command.input.projectId}`,
-          status: "sent",
+          // Not "sent" until the provider has actually sent it. Saying so
+          // up front is how a QuickBooks refusal ended up displayed as an
+          // outstanding balance with a "Chase payment" button, for an
+          // invoice that was never created.
+          status: mockMode ? "sent" : "queued",
           currency: packageSnapshot.get("currency"),
-          amountCents: packageSnapshot.get("retainerCents"),
-          balanceCents: packageSnapshot.get("retainerCents"),
+          // What the couple accepted, not what the package lists — the
+          // proposal composer's retainer override leaves the snapshot
+          // alone by design. See agreed-retainer.ts.
+          amountCents: agreedRetainer,
+          balanceCents: agreedRetainer,
           dueDate: command.input.dueDate,
           hostedUrl: mockMode
             ? `https://pay.example.test/${providerInvoiceId}`
@@ -1239,8 +1291,16 @@ export const bookingCommand = onRequest(
             project.get("stateVersion") !== command.input.expectedProjectVersion
           )
             throw new Error("PROJECT_VERSION_CONFLICT");
-          const invoiceCreated = !invoices.empty;
-          const retainerPaid = invoices.docs.some(
+          // A refused or superseded attempt is not a retainer. Counting
+          // one as created would pass half the money requirement on an
+          // invoice the client was never sent.
+          const liveInvoices = invoices.docs.filter(
+            (invoice) =>
+              invoice.get("status") !== "failed" &&
+              invoice.get("status") !== "superseded",
+          );
+          const invoiceCreated = liveInvoices.length > 0;
+          const retainerPaid = liveInvoices.some(
             (invoice) =>
               invoice.get("status") === "paid" &&
               invoice.get("balanceCents") === 0,
@@ -1253,7 +1313,7 @@ export const bookingCommand = onRequest(
           // confirmed. Read from the record's own authority, so a payment
           // can never be reported as QuickBooks' when QuickBooks never saw
           // it.
-          const retainerAttestedManually = invoices.docs.some(
+          const retainerAttestedManually = liveInvoices.some(
             (invoice) =>
               invoice.get("completionAuthority") === "manual_attested",
           );

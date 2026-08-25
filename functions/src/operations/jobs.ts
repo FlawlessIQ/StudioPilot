@@ -219,6 +219,29 @@ async function finish(
           // is still the authority and must not be lost to this.
         });
     }
+    // The same for money. A retainer the accounting provider refused is
+    // not "sent" and waiting to be paid — nothing was ever sent. Left
+    // saying "sent" the workspace showed a balance outstanding and offered
+    // to chase a client for an invoice that does not exist.
+    if (
+      document.ref.parent.id === "providerJobs" &&
+      document.get("invoiceId") &&
+      !retryable
+    ) {
+      await getFirestore()
+        .doc(`invoiceReferences/${String(document.get("invoiceId"))}`)
+        .update({
+          status: "failed",
+          providerState: "failed",
+          providerError: { code, message },
+          updatedAt: now,
+          updatedBy: "provider-worker",
+        })
+        .catch(() => {
+          // As above: the job's own error record is the authority and must
+          // not be lost to a missing invoice.
+        });
+    }
     if (
       document.ref.parent.id === "pdfJobs" &&
       document.get("proposalId")

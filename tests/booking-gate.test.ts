@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { bookingGateRequirements } from "@/features/booking/gate-requirements";
+import { retainerFromSchedule } from "@/features/booking/agreed-retainer";
 import { BookingGateService, evaluateBookingGate, type BookingCompletionStore } from "@/server/services/booking-gate-service";
 
 const completeEvidence = {
@@ -279,5 +280,57 @@ test("evidence folds into requirements, and both copies fold it the same way", (
     body(readFileSync("functions/src/booking/gate-requirements.ts", "utf8")),
     body(readFileSync("features/booking/gate-requirements.ts", "utf8")),
     "features/ and functions/ fold gate evidence differently",
+  );
+});
+
+test("the retainer billed is the one the couple accepted", () => {
+  // The reported case, exactly: a $1,899 package whose proposal set the
+  // retainer to $1. Every path that raised a retainer read the package
+  // snapshot instead of the accepted schedule, so StudioCue billed $569.70
+  // — a number nobody had agreed to, on an invoice going out in the
+  // studio's name.
+  const schedule = [
+    { label: "Retainer", amountCents: 100, dueDate: null },
+    { label: "Final balance", amountCents: 189800, dueDate: "2026-09-30" },
+  ];
+  assert.equal(retainerFromSchedule(schedule, 56970), 100);
+
+  // No override: the package figure stands.
+  assert.equal(
+    retainerFromSchedule(
+      [{ label: "Retainer", amountCents: 56970, dueDate: null }],
+      56970,
+    ),
+    56970,
+  );
+  // Taking nothing up front is a real choice, not a missing value.
+  assert.equal(
+    retainerFromSchedule([{ label: "Retainer", amountCents: 0 }], 56970),
+    0,
+  );
+  // Nonsense falls back rather than billing NaN or a negative.
+  for (const bad of [
+    undefined,
+    null,
+    [],
+    [{ label: "Final balance", amountCents: 100 }],
+    [{ label: "Retainer", amountCents: "lots" }],
+    [{ label: "Retainer", amountCents: -500 }],
+    [{ label: "Retainer" }],
+  ]) {
+    assert.equal(retainerFromSchedule(bad, 56970), 56970, JSON.stringify(bad));
+  }
+
+  // functions/ cannot import from features/, so the rule is duplicated. The
+  // two disagreeing means the figure a studio is shown and the figure the
+  // client is billed are different figures.
+  const body = (source: string) =>
+    source.slice(source.indexOf("export function retainerFromSchedule"));
+  const copy = readFileSync("functions/src/booking/agreed-retainer.ts", "utf8");
+  const root = readFileSync("features/booking/agreed-retainer.ts", "utf8");
+  assert.equal(
+    body(copy).slice(0, body(root).length),
+    body(root),
+    "features/ and functions/ disagree about the agreed retainer",
   );
 });

@@ -211,7 +211,14 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
         .filter(
           (item) =>
             Number(item.balanceCents ?? 0) > 0 &&
-            !["paid", "voided", "refunded"].includes(String(item.status)),
+            // "failed" belongs with the settled states here for the
+            // opposite reason: nothing is owed on an invoice the provider
+            // refused to create, because the client was never asked. It
+            // was counted as outstanding, so a refused retainer showed as
+            // a balance with a button offering to chase the couple for it.
+            !["paid", "voided", "refunded", "failed"].includes(
+              String(item.status),
+            ),
         );
       const todayIso = new Date().toISOString().slice(0, 10);
       setOutstanding(
@@ -315,6 +322,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   const projectState = String(project?.state ?? "");
   const contractComplete = contract?.status === "completed";
   const contractFailed = contract?.status === "failed";
+  const invoiceFailed = invoice?.status === "failed";
   const invoicePaid =
     invoice?.status === "paid" && Number(invoice.balanceCents ?? 0) === 0;
   const bookingComplete = [
@@ -811,7 +819,50 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               StudioCue matches or creates the QuickBooks customer, then tracks
               the provider-hosted invoice without handling card details.
             </p>
-            {invoice ? (
+            {invoiceFailed ? (
+              // A refused invoice is not a retainer waiting to be paid, and
+              // showing it as one left the studio watching for an email
+              // that was never sent. Say what the provider said, and offer
+              // both ways forward.
+              <div className="booking-contract-failed">
+                <p role="alert">
+                  <CircleAlert aria-hidden="true" size={15} />
+                  <span>
+                    <strong>QuickBooks refused this invoice</strong>
+                    <small>
+                      {providerFailureHint(
+                        String(
+                          (invoice?.providerError as { message?: string })
+                            ?.message ?? "",
+                        ),
+                        "QuickBooks",
+                        false,
+                      )}
+                    </small>
+                  </span>
+                </p>
+                <button
+                  className="button"
+                  disabled={busy !== null}
+                  onClick={() => void createRetainer()}
+                  type="button"
+                >
+                  {busy === "retainer" ? "Sending…" : "Try again"}
+                  <ArrowRight size={15} />
+                </button>
+                {packageSnapshot ? (
+                  <RecordRetainerPayment
+                    onRecorded={() => void load()}
+                    packageSnapshotId={String(packageSnapshot.id)}
+                    projectId={projectId}
+                    retainerLabel={currency(
+                      invoice?.amountCents ?? packageSnapshot.retainerCents,
+                      invoice?.currency ?? packageSnapshot.currency,
+                    )}
+                  />
+                ) : null}
+              </div>
+            ) : invoice ? (
               <div className="booking-evidence">
                 <span>
                   <small>Amount</small>

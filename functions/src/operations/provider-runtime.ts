@@ -275,7 +275,18 @@ export async function getCalendarBusyIntervals(
   }
 }
 
-async function providerJson(url:string,init:RequestInit,code:string):Promise<Json>{const response=await fetch(url,init);const body=asRecord(await response.json().catch(()=>({})));if(!response.ok)throw new Error(`${code}:${response.status}:${text(asRecord(body.error).message)||text(body.message)||"PROVIDER_ERROR"}`);return body}
+/**
+ * QuickBooks does not use either error shape this understood.
+ *
+ * It answers a rejected write with `{Fault:{Error:[{Message,Detail,code}]}}`,
+ * which matched neither `body.error.message` nor `body.message`, so every
+ * QuickBooks failure was recorded as the literal string "PROVIDER_ERROR".
+ * A studio whose retainer was refused got `QUICKBOOKS_CREATE_FAILED:400:
+ * PROVIDER_ERROR` — the status and nothing else — and so did whoever had
+ * to work out why. Detail is the field that says what was actually wrong.
+ */
+function providerErrorMessage(body:Record<string,unknown>):string{const fault=asRecord(body.Fault);const errors=Array.isArray(fault.Error)?fault.Error:[];const first=asRecord(errors[0]);const detail=text(first.Detail)||text(first.Message);if(detail)return detail.replace(/\s+/g," ").slice(0,300);return text(asRecord(body.error).message)||text(body.message)||"PROVIDER_ERROR"}
+async function providerJson(url:string,init:RequestInit,code:string):Promise<Json>{const response=await fetch(url,init);const body=asRecord(await response.json().catch(()=>({})));if(!response.ok)throw new Error(`${code}:${response.status}:${providerErrorMessage(body)}`);return body}
 const mockId=(scope:string,id:string)=>`mock_${scope}_${createHash("sha256").update(id).digest("hex").slice(0,16)}`;
 
 // Cancel and reschedule are the write-back half of the calendar integration.
@@ -625,6 +636,48 @@ async function quickBooksCustomerId(
   return customerId;
 }
 
+/**
+ * A QuickBooks sales line needs an item, and StudioCue never sent one.
+ *
+ * The invoice body declared `DetailType:"SalesItemLineDetail"` and then
+ * omitted the `SalesItemLineDetail` object that detail type exists to
+ * carry, so QuickBooks rejected every retainer with a 400 — which the
+ * runtime recorded as "PROVIDER_ERROR", so the studio saw an invoice
+ * marked sent, a balance outstanding, and no email anywhere.
+ *
+ * Preference order is deliberate: an existing service item is reused, and
+ * only a company with none gets one created. Studios reconcile in
+ * QuickBooks, and an integration that quietly grows items in their chart
+ * is a worse neighbour than one that uses what is already there.
+ */
+async function quickBooksItemRef(
+  base:string,
+  realmId:string,
+  credential:Credential,
+  idempotencyKey:string,
+):Promise<{value:string;name?:string}>{
+  const headers={authorization:`Bearer ${credential.accessToken}`,accept:"application/json"};
+  const query=encodeURIComponent("select Id, Name from Item where Type = 'Service' and Active = true maxresults 1");
+  const found=await providerJson(`${base}/v3/company/${encodeURIComponent(realmId)}/query?query=${query}&minorversion=75`,{headers},"QUICKBOOKS_ITEM_SEARCH_FAILED");
+  const items=asRecord(found.QueryResponse).Item;
+  if(Array.isArray(items)&&items.length){
+    const item=asRecord(items[0]);
+    return {value:text(item.Id),name:text(item.Name)||undefined};
+  }
+  // A brand new company file can genuinely have no service item. Creating
+  // one needs an income account to post to, so find that first.
+  const accountQuery=encodeURIComponent("select Id from Account where AccountType = 'Income' and Active = true maxresults 1");
+  const accounts=await providerJson(`${base}/v3/company/${encodeURIComponent(realmId)}/query?query=${accountQuery}&minorversion=75`,{headers},"QUICKBOOKS_ACCOUNT_SEARCH_FAILED");
+  const accountList=asRecord(accounts.QueryResponse).Account;
+  const incomeAccountId=Array.isArray(accountList)?text(asRecord(accountList[0]).Id):"";
+  if(!incomeAccountId)throw new Error("QUICKBOOKS_INCOME_ACCOUNT_MISSING");
+  const created=await providerJson(`${base}/v3/company/${encodeURIComponent(realmId)}/item?minorversion=75`,{method:"POST",headers:{...headers,"content-type":"application/json","request-id":`${idempotencyKey}-item`.slice(0,50)},body:JSON.stringify({Name:"Photography services",Type:"Service",IncomeAccountRef:{value:incomeAccountId}})},"QUICKBOOKS_ITEM_CREATE_FAILED");
+  const item=asRecord(created.Item);
+  const itemId=text(item.Id);
+  if(!itemId)throw new Error("QUICKBOOKS_ITEM_ID_MISSING");
+  return {value:itemId,name:text(item.Name)||undefined};
+}
+
 // Stripe's REST API takes application/x-www-form-urlencoded bodies (not
 // JSON, unlike every other provider in this file) and has no single
 // "create invoice" call — an invoice is an empty shell that draws in
@@ -682,7 +735,7 @@ export async function createStripeInvoice(job:DocumentSnapshot){const db=getFire
 
 export async function createQuickBooksInvoice(job:DocumentSnapshot){const db=getFirestore();const invoiceId=String(job.get("invoiceId"));const reference=db.doc(`invoiceReferences/${invoiceId}`);const invoice=await reference.get();if(!invoice.exists)throw new Error("INVOICE_NOT_FOUND");
   if(invoice.get("providerState")==="completed")return{invoiceId,providerInvoiceId:invoice.get("providerInvoiceId")};
-  const tenantId=String(job.get("tenantId"));const provider=await connection(tenantId,"quickbooks");let providerInvoiceId:string;let providerCustomerId=text(invoice.get("providerCustomerId"));let balanceCents=Number(invoice.get("balanceCents"));if(provider.mock){providerInvoiceId=mockId("qbo_invoice",job.id);providerCustomerId=providerCustomerId.startsWith("pending_")?mockId("qbo_customer",String(invoice.get("projectId"))):providerCustomerId}else{const credential=provider.credential;const realmId=credential?.realmId??String(provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");providerCustomerId=await quickBooksCustomerId(tenantId,String(invoice.get("projectId")),invoice,credential,realmId,String(job.get("idempotencyKey")??job.id));const value=await providerJson(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}/invoice?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/json","request-id":String(job.get("idempotencyKey")??job.id)},body:JSON.stringify({CustomerRef:{value:providerCustomerId},DueDate:invoice.get("dueDate"),PrivateNote:`StudioCue ${invoiceId}`,Line:[{Amount:Number(invoice.get("amountCents"))/100,DetailType:"SalesItemLineDetail",Description:String(invoice.get("kind"))}]})},"QUICKBOOKS_CREATE_FAILED");const created=asRecord(value.Invoice);providerInvoiceId=text(created.Id);balanceCents=Math.round(number(created.Balance)*100)}
+  const tenantId=String(job.get("tenantId"));const provider=await connection(tenantId,"quickbooks");let providerInvoiceId:string;let providerCustomerId=text(invoice.get("providerCustomerId"));let balanceCents=Number(invoice.get("balanceCents"));if(provider.mock){providerInvoiceId=mockId("qbo_invoice",job.id);providerCustomerId=providerCustomerId.startsWith("pending_")?mockId("qbo_customer",String(invoice.get("projectId"))):providerCustomerId}else{const credential=provider.credential;const realmId=credential?.realmId??String(provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");providerCustomerId=await quickBooksCustomerId(tenantId,String(invoice.get("projectId")),invoice,credential,realmId,String(job.get("idempotencyKey")??job.id));const itemRef=await quickBooksItemRef(quickBooksApiBaseUrl(credential.baseUrl),realmId,credential,String(job.get("idempotencyKey")??job.id));const value=await providerJson(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}/invoice?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/json","request-id":String(job.get("idempotencyKey")??job.id)},body:JSON.stringify({CustomerRef:{value:providerCustomerId},DueDate:invoice.get("dueDate"),PrivateNote:`StudioCue ${invoiceId}`,Line:[{Amount:Number(invoice.get("amountCents"))/100,DetailType:"SalesItemLineDetail",Description:String(invoice.get("kind")),SalesItemLineDetail:{ItemRef:itemRef,Qty:1,UnitPrice:Number(invoice.get("amountCents"))/100}}]})},"QUICKBOOKS_CREATE_FAILED");const created=asRecord(value.Invoice);providerInvoiceId=text(created.Id);balanceCents=Math.round(number(created.Balance)*100)}
   if(!providerInvoiceId)throw new Error("QUICKBOOKS_INVOICE_ID_MISSING");const now=new Date().toISOString();await reference.update({providerInvoiceId,providerCustomerId,balanceCents,status:"sent",providerState:"completed",lastSyncedAt:now,updatedAt:now,updatedBy:"provider-worker"});return{invoiceId,providerInvoiceId}}
 
 export async function reconcileQuickBooksInvoice(job:DocumentSnapshot){const db=getFirestore();const invoiceId=String(job.get("invoiceId"));const reference=db.doc(`invoiceReferences/${invoiceId}`);const invoice=await reference.get();if(!invoice.exists)throw new Error("INVOICE_NOT_FOUND");const providerInvoiceId=String(job.get("providerInvoiceId")??invoice.get("providerInvoiceId")??"");if(!providerInvoiceId)throw new Error("QUICKBOOKS_INVOICE_ID_MISSING");const operation=String(job.get("operation")??"").toLowerCase();let status:string;let balanceCents:number;
