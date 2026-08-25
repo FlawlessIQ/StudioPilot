@@ -739,24 +739,23 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
 
             <form className="msg-reply" onSubmit={submitReply}>
               {waiting && !reply ? (
-                <div className="msg-draft-note">
-                  <p>
-                    <Sparkles size={13} aria-hidden />
-                    {waiting.source === "facts"
-                      ? "A reply is ready from your project records"
-                      : "A reply has been drafted for you"}
-                  </p>
-                  <p className="msg-waiting-body">{waiting.body}</p>
-                  {waiting.basedOn.length ? (
-                    <ul>
-                      {waiting.basedOn.map((line) => (
-                        <li key={line}>{line}</li>
-                      ))}
-                    </ul>
-                  ) : null}
+                <div className="msg-suggestion">
+                  <span className="msg-suggestion-icon">
+                    <Sparkles size={14} aria-hidden />
+                  </span>
+                  <span className="msg-suggestion-text">
+                    <strong>
+                      {waiting.source === "facts"
+                        ? "A reply is ready from your project records"
+                        : "A reply has been drafted for you"}
+                    </strong>
+                    {waiting.basedOn.length ? (
+                      <small>{waiting.basedOn.join(" · ")}</small>
+                    ) : null}
+                  </span>
                   <button
                     type="button"
-                    className="msg-draft-button"
+                    className="msg-suggestion-use"
                     onClick={() => {
                       setReply(waiting.body);
                       setDraftIsAi(waiting.source === "draft");
@@ -797,7 +796,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
                   if (draftIsAi) setDraftIsAi(false);
                 }}
                 placeholder={`Reply to ${activeThread.participant.name ?? "your client"}…`}
-                rows={8}
+                rows={3}
               />
               <div className="msg-reply-actions">
                 {notice ? <p className="msg-notice">{notice}</p> : <span />}
