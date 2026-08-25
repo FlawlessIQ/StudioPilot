@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { agreedRetainerCents } from "./agreed-retainer.js";
+import { isStandingInvoice } from "./invoice-standing.js";
 import { resolveProviderForTenant } from "../integrations/capability-resolution.js";
 import { productEvent } from "../operations/product-events.js";
 
@@ -75,10 +76,8 @@ export const bookingContractCompleted = onDocumentWritten(
     // A refused or superseded attempt is not a retainer, and pointing the
     // plan at one would park it on `wait_for_payment` against an invoice
     // the client never received.
-    const liveInvoices = existingInvoices.docs.filter(
-      (invoice) =>
-        invoice.get("status") !== "failed" &&
-        invoice.get("status") !== "superseded",
+    const liveInvoices = existingInvoices.docs.filter((invoice) =>
+      isStandingInvoice(invoice.get("status")),
     );
     if (liveInvoices.length) {
       await planReference.update({

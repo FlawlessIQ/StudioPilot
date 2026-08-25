@@ -30,6 +30,7 @@ import { getFirebaseClient } from "@/lib/firebase/client";
 import { resolveActiveProvider } from "@/features/integrations/routing";
 import { providerFailureHint } from "@/features/booking/provider-failure-hint";
 import { bookingAutomationDrivesContract } from "@/features/booking/orchestration";
+import { isStandingInvoice } from "@/features/booking/invoice-standing";
 import { friendlyError as friendlySharedError } from "@/lib/ai/friendly-error";
 import { formatDueDate } from "@/lib/format/event-date";
 import { providerName } from "@/lib/format/provider-name";
@@ -216,17 +217,12 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
             // refused to create, because the client was never asked. It
             // was counted as outstanding, so a refused retainer showed as
             // a balance with a button offering to chase the couple for it.
-            ![
-              "paid",
-              "voided",
-              "refunded",
-              "failed",
-              // Replaced by a later attempt. Left in, a retry after a
-              // provider refusal showed both invoices' balances added
-              // together — $569.70 owed on the dead one plus $1.00 on the
-              // live one, as $570.70 the client had never been asked for.
-              "superseded",
-            ].includes(String(item.status)),
+            // A refused or replaced attempt is owed by nobody: the
+            // client was never asked. Left in, a retry after a provider
+            // refusal added the dead invoice's $569.70 to the live $1.00
+            // and announced $570.70 outstanding.
+            isStandingInvoice(item.status) &&
+            !["paid", "refunded"].includes(String(item.status)),
         );
       const todayIso = new Date().toISOString().slice(0, 10);
       setOutstanding(
@@ -350,8 +346,8 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   }, []);
   const signingProviderLabel =
     signingProvider === "dropbox_sign" ? "Dropbox Sign" : "Docusign";
-  const automationActive =
-    orchestration?.status === "active" || orchestration?.status === "completed";
+  // Superseded by bookingAutomationDrivesContract, which asks the sharper
+  // question: not "is a plan running" but "is it running on this contract".
   const automationNeedsAttention = orchestration?.status === "needs_attention";
   const automationDriving = bookingAutomationDrivesContract({
     status: typeof orchestration?.status === "string" ? orchestration.status : null,

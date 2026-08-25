@@ -13,6 +13,7 @@ import { productEvent } from "../operations/product-events.js";
 import { availabilityWindowSchema } from "./availability.js";
 import { agreedRetainerCents } from "./agreed-retainer.js";
 import { bookingGateRequirements } from "./gate-requirements.js";
+import { isStandingInvoice } from "./invoice-standing.js";
 
 const commandSchema = z.discriminatedUnion("type", [
   z.object({
@@ -947,10 +948,8 @@ export const bookingCommand = onRequest(
           throw new Error("SIGNED_CONTRACT_REQUIRED");
         }
         if (
-          existingInvoices.docs.some(
-            (document) =>
-              document.get("status") !== "failed" &&
-              document.get("status") !== "superseded",
+          existingInvoices.docs.some((document) =>
+            isStandingInvoice(document.get("status")),
           )
         ) {
           throw new Error("RETAINER_INVOICE_ALREADY_EXISTS");
@@ -1091,112 +1090,189 @@ export const bookingCommand = onRequest(
           packageSnapshot.get("tenantId") !== command.tenantId
         )
           throw new Error("PACKAGE_SNAPSHOT_NOT_FOUND");
-        // A refused invoice is not a retainer. Left counting as one it
-        // blocked every retry, so a QuickBooks rejection ended the booking
-        // permanently — the same trap a failed contract used to set.
-        const liveInvoices = existingInvoices.docs.filter(
-          (document) => document.get("status") !== "failed",
+        // A refused or replaced invoice is not a retainer the client owes.
+        // Counting one as live blocked every retry, which is how a
+        // QuickBooks rejection ended a booking permanently.
+        const liveInvoices = existingInvoices.docs.filter((document) =>
+          isStandingInvoice(document.get("status")),
         );
         if (liveInvoices.length) {
           throw new Error("RETAINER_INVOICE_ALREADY_EXISTS");
         }
-        // Keep the failed attempt as history rather than deleting it: it is
-        // the record of what the provider said, and the next query must not
-        // match it again.
-        const supersededInvoices = existingInvoices.docs.map(
-          (document) => document.ref,
+        /**
+         * Retry the invoice, do not mint a second one.
+         *
+         * The StudioCue invoice id is stamped into the QuickBooks record's
+         * PrivateNote, and the provider job's idempotency key becomes the
+         * Request-Id. Both are what let a retry find and adopt an invoice
+         * the provider may already have created from an earlier attempt
+         * whose response we could not read. Creating a fresh record throws
+         * that away: the new id matches nothing, so the adopt finds
+         * nothing, and any invoice already sitting in the studio's
+         * QuickBooks is orphaned there with no StudioCue record pointing at
+         * it.
+         *
+         * So a failed attempt is re-driven under its own id. Resetting the
+         * job to `queued` with no dispatch key is what the task trigger
+         * watches for, and it carries the original idempotency key with it.
+         */
+        const failedInvoice = existingInvoices.docs.find(
+          (document) => document.get("status") === "failed",
         );
-        // Same reasoning as signing above: refuse rather than raise an
-        // invoice against a QuickBooks account nobody connected.
-        const invoicingProvider = mockMode
-          ? await resolveProviderForTenant(
-              firestore,
-              command.tenantId,
-              "invoicing",
-              "quickbooks",
-            )
-          : await requireProviderForTenant(
-              firestore,
-              command.tenantId,
-              "invoicing",
-            );
-        const agreedRetainer = await agreedRetainerCents(
-          firestore,
-          command.tenantId,
-          command.input.projectId,
-          packageSnapshot,
-        );
-        const invoiceId = stableId(
-          "invoice",
-          command.tenantId,
-          command.idempotencyKey,
-        );
-        const providerInvoiceId = invoicingProvider === "stripe"
-          ? `stripe_invoice_${command.idempotencyKey}`
-          : `qbo_invoice_${command.idempotencyKey}`;
-        const batch = firestore.batch();
-        for (const stale of supersededInvoices) {
-          batch.update(stale, {
-            status: "superseded",
-            supersededAt: timestamp,
-            supersededBy: invoiceId,
+        if (failedInvoice) {
+          const jobReference = firestore.doc(
+            `providerJobs/invoice_${failedInvoice.id}`,
+          );
+          const existingJob = await jobReference.get();
+          const retryBatch = firestore.batch();
+          retryBatch.update(failedInvoice.ref, {
+            status: mockMode ? "sent" : "queued",
+            providerState: mockMode ? "completed_mock" : "queued",
+            providerError: null,
+            deliveryError: null,
             updatedAt: timestamp,
             updatedBy: identity.uid,
           });
-        }
-        batch.create(firestore.doc(`invoiceReferences/${invoiceId}`), {
-          id: invoiceId,
-          tenantId: command.tenantId,
-          projectId: command.input.projectId,
-          kind: "retainer",
-          provider: invoicingProvider,
-          providerInvoiceId,
-          providerCustomerId:
-            command.input.customerId ?? `pending_${command.input.projectId}`,
-          // Not "sent" until the provider has actually sent it. Saying so
-          // up front is how a QuickBooks refusal ended up displayed as an
-          // outstanding balance with a "Chase payment" button, for an
-          // invoice that was never created.
-          status: mockMode ? "sent" : "queued",
-          currency: packageSnapshot.get("currency"),
-          // What the couple accepted, not what the package lists — the
-          // proposal composer's retainer override leaves the snapshot
-          // alone by design. See agreed-retainer.ts.
-          amountCents: agreedRetainer,
-          balanceCents: agreedRetainer,
-          dueDate: command.input.dueDate,
-          hostedUrl: mockMode
-            ? `https://pay.example.test/${providerInvoiceId}`
-            : null,
-          lastSyncedAt: timestamp,
-          lastProviderEventId: null,
-          providerState: mockMode ? "completed_mock" : "queued",
-          createdAt: timestamp,
-          updatedAt: timestamp,
-          createdBy: identity.uid,
-          updatedBy: identity.uid,
-          archivedAt: null,
-        });
-        if (!mockMode)
-          batch.create(firestore.doc(`providerJobs/invoice_${invoiceId}`), {
+          if (existingJob.exists) {
+            // The original job, so the retry carries the original
+            // idempotency key and reaches the provider as the same
+            // Request-Id the first attempt used.
+            retryBatch.update(jobReference, {
+              status: "queued",
+              attempts: 0,
+              error: null,
+              completedAt: null,
+              nextAttemptAt: null,
+              taskDispatchKey: null,
+              taskDispatchError: null,
+              updatedAt: timestamp,
+            });
+          } else if (!mockMode) {
+            // No job to revive — mock mode never made one, and a job can
+            // be pruned. The invoice id is the part that matters for
+            // adopting an invoice the provider already holds, and that is
+            // preserved either way.
+            retryBatch.create(jobReference, {
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              type:
+                failedInvoice.get("provider") === "stripe"
+                  ? "create_stripe_invoice"
+                  : "create_quickbooks_invoice",
+              invoiceId: failedInvoice.id,
+              idempotencyKey: command.idempotencyKey,
+              status: "queued",
+              attempts: 0,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            });
+          }
+          await retryBatch.commit();
+          result = {
+            invoiceId: failedInvoice.id,
+            providerInvoiceId: failedInvoice.get("providerInvoiceId") ?? null,
+            providerState: mockMode ? "completed_mock" : "queued",
+            retried: true,
+          };
+        } else {
+          // Keep a replaced attempt as history rather than deleting it: it is
+          // the record of what the provider said, and the next query must not
+          // match it again.
+          const supersededInvoices = existingInvoices.docs.map(
+            (document) => document.ref,
+          );
+          // Same reasoning as signing above: refuse rather than raise an
+          // invoice against a QuickBooks account nobody connected.
+          const invoicingProvider = mockMode
+            ? await resolveProviderForTenant(
+                firestore,
+                command.tenantId,
+                "invoicing",
+                "quickbooks",
+              )
+            : await requireProviderForTenant(
+                firestore,
+                command.tenantId,
+                "invoicing",
+              );
+          const agreedRetainer = await agreedRetainerCents(
+            firestore,
+            command.tenantId,
+            command.input.projectId,
+            packageSnapshot,
+          );
+          const invoiceId = stableId(
+            "invoice",
+            command.tenantId,
+            command.idempotencyKey,
+          );
+          const providerInvoiceId = invoicingProvider === "stripe"
+            ? `stripe_invoice_${command.idempotencyKey}`
+            : `qbo_invoice_${command.idempotencyKey}`;
+          const batch = firestore.batch();
+          for (const stale of supersededInvoices) {
+            batch.update(stale, {
+              status: "superseded",
+              supersededAt: timestamp,
+              supersededBy: invoiceId,
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            });
+          }
+          batch.create(firestore.doc(`invoiceReferences/${invoiceId}`), {
+            id: invoiceId,
             tenantId: command.tenantId,
             projectId: command.input.projectId,
-            type: invoicingProvider === "stripe"
-              ? "create_stripe_invoice"
-              : "create_quickbooks_invoice",
-            invoiceId,
-            idempotencyKey: command.idempotencyKey,
-            status: "queued",
-            attempts: 0,
+            kind: "retainer",
+            provider: invoicingProvider,
+            providerInvoiceId,
+            providerCustomerId:
+              command.input.customerId ?? `pending_${command.input.projectId}`,
+            // Not "sent" until the provider has actually sent it. Saying so
+            // up front is how a QuickBooks refusal ended up displayed as an
+            // outstanding balance with a "Chase payment" button, for an
+            // invoice that was never created.
+            status: mockMode ? "sent" : "queued",
+            currency: packageSnapshot.get("currency"),
+            // What the couple accepted, not what the package lists — the
+            // proposal composer's retainer override leaves the snapshot
+            // alone by design. See agreed-retainer.ts.
+            amountCents: agreedRetainer,
+            balanceCents: agreedRetainer,
+            dueDate: command.input.dueDate,
+            hostedUrl: mockMode
+              ? `https://pay.example.test/${providerInvoiceId}`
+              : null,
+            lastSyncedAt: timestamp,
+            lastProviderEventId: null,
+            providerState: mockMode ? "completed_mock" : "queued",
             createdAt: timestamp,
             updatedAt: timestamp,
+            createdBy: identity.uid,
+            updatedBy: identity.uid,
+            archivedAt: null,
           });
-        await batch.commit();
-        result = {
-          invoiceId,
-          providerInvoiceId,
-          providerState: mockMode ? "completed_mock" : "queued",
-        };
+          if (!mockMode)
+            batch.create(firestore.doc(`providerJobs/invoice_${invoiceId}`), {
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              type: invoicingProvider === "stripe"
+                ? "create_stripe_invoice"
+                : "create_quickbooks_invoice",
+              invoiceId,
+              idempotencyKey: command.idempotencyKey,
+              status: "queued",
+              attempts: 0,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            });
+          await batch.commit();
+          result = {
+            invoiceId,
+            providerInvoiceId,
+            providerState: mockMode ? "completed_mock" : "queued",
+          };
+        }
       } else if (command.type === "runBookingGate") {
         const projectBeforeGate = await firestore
           .doc(`projects/${command.input.projectId}`)
@@ -1294,10 +1370,8 @@ export const bookingCommand = onRequest(
           // A refused or superseded attempt is not a retainer. Counting
           // one as created would pass half the money requirement on an
           // invoice the client was never sent.
-          const liveInvoices = invoices.docs.filter(
-            (invoice) =>
-              invoice.get("status") !== "failed" &&
-              invoice.get("status") !== "superseded",
+          const liveInvoices = invoices.docs.filter((invoice) =>
+            isStandingInvoice(invoice.get("status")),
           );
           const invoiceCreated = liveInvoices.length > 0;
           const retainerPaid = liveInvoices.some(

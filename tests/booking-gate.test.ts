@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { bookingGateRequirements } from "@/features/booking/gate-requirements";
 import { retainerFromSchedule } from "@/features/booking/agreed-retainer";
+import { isStandingInvoice } from "@/features/booking/invoice-standing";
 import { BookingGateService, evaluateBookingGate, type BookingCompletionStore } from "@/server/services/booking-gate-service";
 
 const completeEvidence = {
@@ -332,5 +333,30 @@ test("the retainer billed is the one the couple accepted", () => {
     body(copy).slice(0, body(root).length),
     body(root),
     "features/ and functions/ disagree about the agreed retainer",
+  );
+});
+
+test("a replaced invoice is not a retainer anyone owes", () => {
+  // The reported case: the first attempt was refused and replaced, and
+  // pressing Try again answered "a retainer invoice already exists for this
+  // project" — from the very command whose job was to replace it. Four
+  // places asked this question and each carried its own list; the create
+  // command's list was the one missing "superseded".
+  assert.equal(isStandingInvoice("superseded"), false);
+  assert.equal(isStandingInvoice("failed"), false);
+  assert.equal(isStandingInvoice("voided"), false);
+  for (const live of ["queued", "sent", "awaiting_delivery", "paid", "partially_paid"]) {
+    assert.equal(isStandingInvoice(live), true, live);
+  }
+  // An unknown status stands rather than silently vanishing from the books.
+  assert.equal(isStandingInvoice("something_new"), true);
+  assert.equal(isStandingInvoice(undefined), true);
+
+  const body = (source: string) =>
+    source.slice(source.indexOf("const NOT_STANDING"));
+  assert.equal(
+    body(readFileSync("functions/src/booking/invoice-standing.ts", "utf8")),
+    body(readFileSync("features/booking/invoice-standing.ts", "utf8")),
+    "features/ and functions/ disagree about which invoices stand",
   );
 });
