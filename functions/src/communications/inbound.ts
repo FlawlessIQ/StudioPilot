@@ -14,6 +14,7 @@ import {
 } from "./inbound-email.js";
 import { conversationIdFromReplyToken } from "./reply-address.js";
 import { gatherAnswerFacts } from "./answer-facts.js";
+import { studioNotificationAddress } from "./notify-address.js";
 import { prepareAnswerFor } from "./prepared-answers.js";
 
 /**
@@ -324,15 +325,21 @@ export const sendgridInboundMessage = onRequest(
 
     // Same alert a portal message raises: an email reply the studio never hears
     // about is no better than one that went to the wrong inbox.
-    const tenant = await db.doc(`tenants/${conversation.tenantId}`).get();
-    const branding = tenant.get("emailBranding");
-    const notify =
-      (typeof branding === "object" && branding !== null
-        ? (branding as Record<string, unknown>).replyTo
-        : null) ??
-      tenant.get("contactEmail") ??
-      tenant.get("email");
-    if (typeof notify === "string" && notify.trim()) {
+    const notify = await studioNotificationAddress(db, conversation.tenantId);
+    if (!notify) {
+      // Loud, because the alternative is a studio never learning a client wrote.
+      console.error(
+        JSON.stringify({
+          severity: "ERROR",
+          event: "integration.notification_address_unresolved",
+          tenantId: conversation.tenantId,
+          messageId,
+          detail:
+            "No tenant reply address and no active owner with a sign-in email; the client message was stored but nobody was told.",
+        }),
+      );
+    }
+    if (notify) {
       await db.doc(`emailJobs/notify_${messageId}`).set(
         {
           id: `notify_${messageId}`,

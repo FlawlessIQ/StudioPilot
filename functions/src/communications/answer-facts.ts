@@ -26,7 +26,15 @@ export async function gatherAnswerFacts(
       : Promise.resolve(null),
   ]);
 
-  const studioName = String(tenant.get("name") ?? "your studio");
+  // brandName first, matching how the email worker resolves it. This read
+  // "name", which this tenant does not have, so a client-facing reply signed
+  // itself "— your studio" instead of the studio's actual name.
+  const studioName = String(
+    tenant.get("brandName") ??
+      tenant.get("businessName") ??
+      tenant.get("name") ??
+      "your studio",
+  );
   const facts: PreparedAnswerFacts = {
     studioName,
     clientFirstName: null,
