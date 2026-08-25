@@ -208,13 +208,24 @@
   width: 100%;
   border: 1px solid var(--border, var(--line));
   border-radius: 11px;
-  padding: 11px 12px;
+  padding: 12px 14px;
   font: inherit;
+  line-height: 1.6;
   color: var(--ink);
   background: var(--background);
   resize: vertical;
-  min-height: 76px;
+  /* A prepared reply is four or five lines with a long payment link in it. At 76px
+     the studio was reading its own message two lines at a time through a scroll
+     bar, which is not a review. */
+  min-height: 168px;
 }
+
+/* Give the composer the room instead of the history when the panel is short. */
+.msg-thread-view { min-height: 0; }
+.msg-stream { min-height: 120px; }
+
+.msg-reply-actions { flex-wrap: wrap; }
+.msg-notice { flex: 1 1 220px; min-width: 0; }
 
 .msg-reply-actions {
   display: flex;
