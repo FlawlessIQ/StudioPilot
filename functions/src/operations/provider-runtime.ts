@@ -856,8 +856,8 @@ async function enqueueRetainerEmail(input:{
   invoiceId:string;
   invoiceUrl:string|null;
   email:string;
-}):Promise<void>{
-  if(!input.email)return;
+}):Promise<{alreadyDelivered:boolean}>{
+  if(!input.email)return {alreadyDelivered:false};
   // Never mail a client twice for one invoice.
   //
   // The job that raises a retainer is retried — by the worker's own backoff,
@@ -867,7 +867,11 @@ async function enqueueRetainerEmail(input:{
   // has no idea it happened and should not receive a second invoice because
   // of it.
   const existing=await input.db.doc(`emailJobs/invoice_${input.invoiceId}`).get();
-  if(existing.exists&&existing.get("status")==="succeeded")return;
+  // Skipping the send does not make the invoice undelivered. Reporting that
+  // it is still awaiting delivery, on a retry, would undo a true "sent" and
+  // leave the workspace claiming a client had not been emailed when they
+  // had.
+  if(existing.exists&&existing.get("status")==="succeeded")return {alreadyDelivered:true};
   const now=new Date().toISOString();
   const appUrl=process.env.NEXT_PUBLIC_APP_URL??"https://studiohub.app";
   await input.db.doc(`emailJobs/invoice_${input.invoiceId}`).set({
@@ -887,6 +891,7 @@ async function enqueueRetainerEmail(input:{
     createdAt:now,
     updatedAt:now,
   },{merge:false});
+  return {alreadyDelivered:false};
 }
 
 /**
@@ -930,20 +935,20 @@ async function adoptQuickBooksInvoice(
 
 export async function createQuickBooksInvoice(job:DocumentSnapshot){const db=getFirestore();const invoiceId=String(job.get("invoiceId"));const reference=db.doc(`invoiceReferences/${invoiceId}`);const invoice=await reference.get();if(!invoice.exists)throw new Error("INVOICE_NOT_FOUND");
   if(invoice.get("providerState")==="completed")return{invoiceId,providerInvoiceId:invoice.get("providerInvoiceId")};
-  const tenantId=String(job.get("tenantId"));const provider=await connection(tenantId,"quickbooks");let providerInvoiceId:string;let providerCustomerId=text(invoice.get("providerCustomerId"));let balanceCents=Number(invoice.get("balanceCents"));let hostedUrl:string|null=null;let docNumber:string|null=null;if(provider.mock){providerInvoiceId=mockId("qbo_invoice",job.id);providerCustomerId=providerCustomerId.startsWith("pending_")?mockId("qbo_customer",String(invoice.get("projectId"))):providerCustomerId}else{const credential=provider.credential;const realmId=credential?.realmId??String(provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");providerCustomerId=await quickBooksCustomerId(tenantId,String(invoice.get("projectId")),invoice,credential,realmId,String(job.get("idempotencyKey")??job.id));const base=quickBooksApiBaseUrl(credential.baseUrl);const already=await adoptQuickBooksInvoice(base,realmId,credential,text(invoice.get("providerInvoiceId")));if(already){providerInvoiceId=already.id;balanceCents=already.balanceCents;docNumber=already.docNumber}else{const itemRef=await quickBooksItemRef(base,realmId,credential,String(job.get("idempotencyKey")??job.id));const supplyNumber=await quickBooksCustomTxnNumbers(base,realmId,credential);const value=await providerJson(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}/invoice?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json","content-type":"application/json","request-id":String(job.get("idempotencyKey")??job.id)},body:JSON.stringify({...(supplyNumber?{DocNumber:studioCueDocNumber(invoiceId)}:{}),CustomerRef:{value:providerCustomerId},DueDate:invoice.get("dueDate"),PrivateNote:`StudioCue ${invoiceId}`,Line:[{Amount:Number(invoice.get("amountCents"))/100,DetailType:"SalesItemLineDetail",Description:String(invoice.get("kind")),SalesItemLineDetail:{ItemRef:itemRef,Qty:1,UnitPrice:Number(invoice.get("amountCents"))/100}}]})},"QUICKBOOKS_CREATE_FAILED");const created=asRecord(value.Invoice);providerInvoiceId=text(created.Id);balanceCents=Math.round(number(created.Balance)*100);docNumber=text(created.DocNumber)||null}
+  const tenantId=String(job.get("tenantId"));const provider=await connection(tenantId,"quickbooks");let providerInvoiceId:string;let providerCustomerId=text(invoice.get("providerCustomerId"));let balanceCents=Number(invoice.get("balanceCents"));let hostedUrl:string|null=null;let docNumber:string|null=null;let alreadyDelivered=false;if(provider.mock){providerInvoiceId=mockId("qbo_invoice",job.id);providerCustomerId=providerCustomerId.startsWith("pending_")?mockId("qbo_customer",String(invoice.get("projectId"))):providerCustomerId}else{const credential=provider.credential;const realmId=credential?.realmId??String(provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");providerCustomerId=await quickBooksCustomerId(tenantId,String(invoice.get("projectId")),invoice,credential,realmId,String(job.get("idempotencyKey")??job.id));const base=quickBooksApiBaseUrl(credential.baseUrl);const already=await adoptQuickBooksInvoice(base,realmId,credential,text(invoice.get("providerInvoiceId")));if(already){providerInvoiceId=already.id;balanceCents=already.balanceCents;docNumber=already.docNumber}else{const itemRef=await quickBooksItemRef(base,realmId,credential,String(job.get("idempotencyKey")??job.id));const supplyNumber=await quickBooksCustomTxnNumbers(base,realmId,credential);const value=await providerJson(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}/invoice?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json","content-type":"application/json","request-id":String(job.get("idempotencyKey")??job.id)},body:JSON.stringify({...(supplyNumber?{DocNumber:studioCueDocNumber(invoiceId)}:{}),CustomerRef:{value:providerCustomerId},DueDate:invoice.get("dueDate"),PrivateNote:`StudioCue ${invoiceId}`,Line:[{Amount:Number(invoice.get("amountCents"))/100,DetailType:"SalesItemLineDetail",Description:String(invoice.get("kind")),SalesItemLineDetail:{ItemRef:itemRef,Qty:1,UnitPrice:Number(invoice.get("amountCents"))/100}}]})},"QUICKBOOKS_CREATE_FAILED");const created=asRecord(value.Invoice);providerInvoiceId=text(created.Id);balanceCents=Math.round(number(created.Balance)*100);docNumber=text(created.DocNumber)||null}
     // One place for both paths: whether the invoice was just made or
     // adopted from an earlier attempt, the client still needs the link and
     // the email.
     if(providerInvoiceId){
       hostedUrl=await quickBooksInvoiceLink(base,realmId,credential,providerInvoiceId);
-      await enqueueRetainerEmail({db,tenantId,projectId:String(invoice.get("projectId")),invoiceId,invoiceUrl:hostedUrl,email:await clientEmailFor(db,tenantId,String(invoice.get("projectId")))});
+      const delivery=await enqueueRetainerEmail({db,tenantId,projectId:String(invoice.get("projectId")),invoiceId,invoiceUrl:hostedUrl,email:await clientEmailFor(db,tenantId,String(invoice.get("projectId")))});alreadyDelivered=delivery.alreadyDelivered;
     }
   }
   if(!providerInvoiceId)throw new Error("QUICKBOOKS_INVOICE_ID_MISSING");const now=new Date().toISOString();
   // The invoice exists at the provider; the client has not been mailed yet.
   // `awaiting_delivery` until the email job reports otherwise, because
   // "sent" is a claim about what reached the client and nothing has yet.
-  await reference.update({providerInvoiceId,providerCustomerId,balanceCents,status:provider.mock?"sent":"awaiting_delivery",providerState:"completed",...(hostedUrl?{hostedUrl}:{}),providerDocNumber:docNumber,lastSyncedAt:now,updatedAt:now,updatedBy:"provider-worker"});
+  await reference.update({providerInvoiceId,providerCustomerId,balanceCents,status:provider.mock||alreadyDelivered?"sent":"awaiting_delivery",providerState:"completed",...(hostedUrl?{hostedUrl}:{}),providerDocNumber:docNumber,lastSyncedAt:now,updatedAt:now,updatedBy:"provider-worker"});
   return{invoiceId,providerInvoiceId,hostedUrl}}
 
 export async function reconcileQuickBooksInvoice(job:DocumentSnapshot){const db=getFirestore();const invoiceId=String(job.get("invoiceId"));const reference=db.doc(`invoiceReferences/${invoiceId}`);const invoice=await reference.get();if(!invoice.exists)throw new Error("INVOICE_NOT_FOUND");const providerInvoiceId=String(job.get("providerInvoiceId")??invoice.get("providerInvoiceId")??"");if(!providerInvoiceId)throw new Error("QUICKBOOKS_INVOICE_ID_MISSING");const operation=String(job.get("operation")??"").toLowerCase();let status:string;let balanceCents:number;
