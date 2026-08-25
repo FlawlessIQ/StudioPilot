@@ -1206,9 +1206,17 @@ export const bookingCommand = onRequest(
             command.tenantId,
             command.idempotencyKey,
           );
-          const providerInvoiceId = invoicingProvider === "stripe"
-            ? `stripe_invoice_${command.idempotencyKey}`
-            : `qbo_invoice_${command.idempotencyKey}`;
+          // Only mock mode gets an id up front. Outside it the provider
+          // has not been called yet, and writing a made-up id was the same
+          // lie as writing status "sent" — it also made the retry's
+          // adopt-by-id guard permanently inert, because the field it
+          // checks always held a placeholder that matches no invoice in
+          // QuickBooks. Null until the provider says otherwise.
+          const providerInvoiceId = mockMode
+            ? invoicingProvider === "stripe"
+              ? `stripe_invoice_${command.idempotencyKey}`
+              : `qbo_invoice_${command.idempotencyKey}`
+            : null;
           const batch = firestore.batch();
           for (const stale of supersededInvoices) {
             batch.update(stale, {

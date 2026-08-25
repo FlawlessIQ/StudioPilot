@@ -41,3 +41,58 @@ test("failed provider jobs create an attention recommendation", () => {
   assert.equal(result.severity, "attention");
   assert.match(result.recommendedAction, /3 provider jobs/);
 });
+
+test("a healthy connection can still be misconfigured, and says so", () => {
+  // A QuickBooks company file with no company name set sends every client an
+  // invoice headed "No company name". Nothing is wrong with the connection,
+  // which is why nothing reported it and a studio found out from a client.
+  const warned = buildIntegrationDiagnostics({
+    provider: "quickbooks",
+    credentialPresent: true,
+    tokenExpiresAt: null,
+    scopes: [],
+    latencyMs: 120,
+    webhookEvents7d: 0,
+    failedJobs7d: 0,
+    lastWebhookAt: null,
+    lastReconciledAt: null,
+    error: null,
+    configurationWarning: "QuickBooks has no company name set.",
+  });
+  assert.equal(warned.severity, "attention");
+  assert.match(warned.recommendedAction, /no company name/i);
+
+  // It must not mask a real fault. A broken credential is the bigger problem
+  // and stays the reported one.
+  const broken = buildIntegrationDiagnostics({
+    provider: "quickbooks",
+    credentialPresent: false,
+    tokenExpiresAt: null,
+    scopes: [],
+    latencyMs: 120,
+    webhookEvents7d: 0,
+    failedJobs7d: 0,
+    lastWebhookAt: null,
+    lastReconciledAt: null,
+    error: null,
+    configurationWarning: "QuickBooks has no company name set.",
+  });
+  assert.equal(broken.severity, "blocked");
+  assert.match(broken.recommendedAction, /Reconnect/);
+
+  // And a connection with nothing to say still says nothing.
+  const clean = buildIntegrationDiagnostics({
+    provider: "quickbooks",
+    credentialPresent: true,
+    tokenExpiresAt: null,
+    scopes: [],
+    latencyMs: 120,
+    webhookEvents7d: 0,
+    failedJobs7d: 0,
+    lastWebhookAt: null,
+    lastReconciledAt: null,
+    error: null,
+    configurationWarning: null,
+  });
+  assert.equal(clean.severity, "healthy");
+});
