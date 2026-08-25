@@ -32,7 +32,7 @@ test("one connected signer needs no choosing", () => {
   assert.equal(readiness.remedy, null);
 });
 
-test("nothing connected says the step stays manual", () => {
+test("nothing connected to sign points at the path that still works", () => {
   // The reported case: a proposal page that never mentioned signing at all,
   // on a studio with nothing connected.
   const readiness = capabilityReadiness({
@@ -43,10 +43,28 @@ test("nothing connected says the step stays manual", () => {
   assert.equal(readiness.ok, false);
   assert.equal(readiness.state, "none_connected");
   assert.match(readiness.summary, /Nothing is connected/);
+  // The point of the sentence. A studio deciding whether it can work
+  // without Dropbox Sign is told yes, and how.
+  assert.match(readiness.summary, /record the signature/);
   // Only apps a studio can actually connect: DocuSign is implemented but
   // not offered, so naming it would point at a settings page that has no
   // DocuSign row.
   assert.equal(readiness.remedy, "Connect Dropbox Sign");
+});
+
+test("nothing connected to invoice does not pretend there is a way round", () => {
+  // Signing has a manual path and invoicing does not: nothing records a
+  // retainer StudioCue did not raise, so the booking gate never sees one
+  // paid. Both used to end "so this step stays manual", which was
+  // reassurance the invoicing case had not earned.
+  const readiness = capabilityReadiness({
+    capability: "invoicing",
+    connections: [],
+    selections: null,
+  });
+  assert.equal(readiness.state, "none_connected");
+  assert.match(readiness.summary, /cannot be confirmed/);
+  assert.doesNotMatch(readiness.summary, /stays manual/);
 });
 
 test("ambiguity is currently unreachable, because each job has one offered app", () => {

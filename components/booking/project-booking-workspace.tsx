@@ -27,6 +27,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendBookingCommand } from "@/lib/booking/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { resolveActiveProvider } from "@/features/integrations/routing";
+import { providerFailureHint } from "@/features/booking/provider-failure-hint";
 import { bookingAutomationDrivesContract } from "@/features/booking/orchestration";
 import { friendlyError as friendlySharedError } from "@/lib/ai/friendly-error";
 import { formatDueDate } from "@/lib/format/event-date";
@@ -616,6 +617,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                             ?.message ?? "",
                         ),
                         signingProviderLabel,
+                        signingTestMode,
                       )}
                     </small>
                   </span>
@@ -963,21 +965,3 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   );
 }
 
-/**
- * A provider's error, in words a photographer can act on.
- *
- * `DROPBOX_SIGN_CREATE_FAILED:402:PROVIDER_ERROR` is precise and useless to
- * the person reading it. The status is the part that says what to do.
- */
-function providerFailureHint(message: string, provider: string): string {
-  const status = Number(message.split(":")[1] ?? 0);
-  if (status === 402)
-    return `${provider} needs a paid API plan to send agreements. Upgrade it, or turn on test mode in Integrations to try the booking without one.`;
-  if (status === 401 || status === 403)
-    return `${provider} rejected the connection. Reconnect it in Integrations and try again.`;
-  if (status === 400)
-    return `${provider} rejected the request — usually the agreement template's signer role does not match. Check the template, then try again.`;
-  if (status === 429)
-    return `${provider} is rate limiting. Wait a moment and try again.`;
-  return `${provider} could not create the request. Check the connection in Integrations, then try again.`;
-}

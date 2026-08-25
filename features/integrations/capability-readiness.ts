@@ -62,6 +62,30 @@ const CAPABILITY_WORK: Record<IntegrationCapability, string> = {
 };
 
 /**
+ * What "nothing is connected" actually means for this capability.
+ *
+ * Every one of these used to end "so this step stays manual", which reads as
+ * reassurance and is not the same claim in each case. For signing it
+ * undersells a path StudioCue has — a studio that sends its own agreement
+ * can record the signature here and the booking proceeds normally — and
+ * nothing on the page said so, so the honest answer to "can I use this
+ * without Dropbox Sign?" looked like no. For invoicing it oversells: there
+ * is no way to record a retainer StudioCue did not raise, so the booking
+ * gate never sees a paid retainer and the job cannot be confirmed at all.
+ * Saying "stays manual" to both hid a working path behind one and a dead
+ * end behind the other.
+ */
+const CAPABILITY_WITHOUT_PROVIDER: Record<IntegrationCapability, string> = {
+  signing:
+    "Send your own agreement and record the signature on the booking — StudioCue books the job either way.",
+  invoicing:
+    "StudioCue cannot track a retainer it did not raise, so the booking cannot be confirmed until one is connected.",
+  calendar: "Events stay in your own calendar and StudioCue will not add them.",
+  meetings: "You will need to paste your own meeting link.",
+  storage: "Files stay wherever you put them and StudioCue will not deliver them.",
+};
+
+/**
  * The providers a studio could actually connect for this.
  *
  * Offered ones only. Naming Stripe in "Connect QuickBooks or Stripe" sends
@@ -150,7 +174,7 @@ export function capabilityReadiness(input: {
     capability,
     provider: null,
     state: "none_connected",
-    summary: `Nothing is connected to ${work}, so this step stays manual.`,
+    summary: `Nothing is connected to ${work}. ${CAPABILITY_WITHOUT_PROVIDER[capability]}`,
     remedy: `Connect ${candidatesFor(capability)}`,
     ok: false,
   };
