@@ -13,7 +13,7 @@
 
 import type { Firestore } from "firebase-admin/firestore";
 
-export type MessageChannel = "email" | "portal" | "sms";
+export type MessageChannel = "email" | "portal";
 export type MessageDirection = "inbound" | "outbound";
 
 export type ConversationParticipant = {

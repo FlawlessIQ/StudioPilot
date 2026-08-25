@@ -127,14 +127,16 @@ test("a retried send landing late cannot rewrite the thread headline", () => {
 });
 
 test("one thread spans channels instead of forking per channel", () => {
+  // A studio emails, the client answers through the portal: one conversation,
+  // both channels recorded on it.
   const emailed = foldMessageIntoConversation(null, base);
-  const texted = foldMessageIntoConversation(emailed, {
+  const viaPortal = foldMessageIntoConversation(emailed, {
     ...base,
-    channel: "sms",
+    channel: "portal",
     direction: "inbound",
     occurredAt: "2026-08-25T13:00:00.000Z",
   });
-  assert.deepEqual(texted.channels, ["email", "sms"]);
+  assert.deepEqual(viaPortal.channels, ["email", "portal"]);
 });
 
 test("later messages fill in participant detail without discarding it", () => {

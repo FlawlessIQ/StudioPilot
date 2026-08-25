@@ -20,7 +20,14 @@ import { z } from "zod";
  * with unit tests and is the source of truth.
  */
 
-export const messageChannelSchema = z.enum(["email", "portal", "sms"]);
+/**
+ * Channels a thread can carry. SMS is deliberately absent: the studio is not set
+ * up for Twilio, and a channel the product cannot deliver has no business being
+ * in the type or on the screen. The fold, the id derivation and the UI are all
+ * channel-agnostic, so adding one back is a union member and a writer — not a
+ * migration.
+ */
+export const messageChannelSchema = z.enum(["email", "portal"]);
 export type MessageChannel = z.infer<typeof messageChannelSchema>;
 
 export const messageDirectionSchema = z.enum(["inbound", "outbound"]);
@@ -45,7 +52,7 @@ export const conversationSchema = z.object({
   projectId: z.string().nullable(),
   leadId: z.string().nullable(),
   participant: conversationParticipantSchema,
-  /** Every channel this thread has carried, so one thread spans email and SMS. */
+  /** Every channel this thread has carried, so one thread spans both. */
   channels: z.array(messageChannelSchema),
   subject: z.string().nullable(),
   lastMessageAt: z.string(),

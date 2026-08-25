@@ -19,7 +19,6 @@ import {
   Search,
   Send,
   Sparkles,
-  Smartphone,
   X,
 } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -58,7 +57,6 @@ type ThreadMessage = {
 const channelIcon: Record<MessageChannel, typeof Mail> = {
   email: Mail,
   portal: MessageSquare,
-  sms: Smartphone,
 };
 
 /**
