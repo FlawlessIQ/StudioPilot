@@ -11688,6 +11688,41 @@ form:has(> .address-field) > .address-field,
   .crew-profile-created-actions { grid-column: 1 / -1; }
 }
 
+/* A refused contract: what the provider said, and the way forward. */
+.booking-contract-failed {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+
+.booking-contract-failed > [role="alert"] {
+  align-items: start;
+  background: #fdf1ee;
+  border: 1px solid #e9c4b9;
+  border-radius: 11px;
+  color: #7a3320;
+  display: flex;
+  gap: 9px;
+  margin: 0;
+  padding: 12px 14px;
+}
+
+.booking-contract-failed > [role="alert"] > svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.booking-contract-failed > [role="alert"] span {
+  display: grid;
+  gap: 3px;
+}
+
+.booking-contract-failed > [role="alert"] small {
+  color: #8a4832;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
 /* Test mode, said where the contract actually goes out. The Integrations
    toggle is where it is turned on; this is where it matters. */
 .booking-test-mode {

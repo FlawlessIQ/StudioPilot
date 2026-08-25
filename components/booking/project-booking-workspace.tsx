@@ -310,6 +310,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
 
   const projectState = String(project?.state ?? "");
   const contractComplete = contract?.status === "completed";
+  const contractFailed = contract?.status === "failed";
   const invoicePaid =
     invoice?.status === "paid" && Number(invoice.balanceCents ?? 0) === 0;
   const bookingComplete = [
@@ -586,7 +587,38 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               {signingProviderLabel} remains the authority for signature
               completion.
             </p>
-            {contract ? (
+            {contractFailed ? (
+              // A refused contract is not evidence of anything, and hiding
+              // the send form behind "a contract exists" left the booking
+              // with nowhere to go. Say what the provider said, and offer
+              // the one thing that helps.
+              <div className="booking-contract-failed">
+                <p role="alert">
+                  <CircleAlert aria-hidden="true" size={15} />
+                  <span>
+                    <strong>{signingProviderLabel} refused this request</strong>
+                    <small>
+                      {providerFailureHint(
+                        String(
+                          (contract?.providerError as { message?: string })
+                            ?.message ?? "",
+                        ),
+                        signingProviderLabel,
+                      )}
+                    </small>
+                  </span>
+                </p>
+                <button
+                  className="button"
+                  disabled={busy !== null}
+                  onClick={() => void createContract()}
+                  type="button"
+                >
+                  {busy === "contract" ? "Sending…" : "Try again"}
+                  <ArrowRight size={15} />
+                </button>
+              </div>
+            ) : contract ? (
               <div className="booking-evidence">
                 {/* The provider's envelope id is an internal reference, not a
                     number the couple would ever quote. Who signed it and when
@@ -903,4 +935,23 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
       ) : null}
     </section>
   );
+}
+
+/**
+ * A provider's error, in words a photographer can act on.
+ *
+ * `DROPBOX_SIGN_CREATE_FAILED:402:PROVIDER_ERROR` is precise and useless to
+ * the person reading it. The status is the part that says what to do.
+ */
+function providerFailureHint(message: string, provider: string): string {
+  const status = Number(message.split(":")[1] ?? 0);
+  if (status === 402)
+    return `${provider} needs a paid API plan to send agreements. Upgrade it, or turn on test mode in Integrations to try the booking without one.`;
+  if (status === 401 || status === 403)
+    return `${provider} rejected the connection. Reconnect it in Integrations and try again.`;
+  if (status === 400)
+    return `${provider} rejected the request — usually the agreement template's signer role does not match. Check the template, then try again.`;
+  if (status === 429)
+    return `${provider} is rate limiting. Wait a moment and try again.`;
+  return `${provider} could not create the request. Check the connection in Integrations, then try again.`;
 }

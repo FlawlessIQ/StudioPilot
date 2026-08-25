@@ -481,6 +481,7 @@ export const bookingCommand = onRequest(
             });
         }
       } else if (command.type === "createEnvelope") {
+        const batchSupersede: FirebaseFirestore.DocumentReference[] = [];
         const [project, proposal, existingContracts] = await Promise.all([
           firestore.doc(`projects/${command.input.projectId}`).get(),
           firestore.doc(`proposals/${command.input.proposalId}`).get(),
@@ -507,8 +508,22 @@ export const bookingCommand = onRequest(
         ) {
           throw new Error("ACCEPTED_PROPOSAL_REQUIRED");
         }
-        if (!existingContracts.empty) {
+        // A contract the provider refused is not a contract in flight. It
+        // used to block every further attempt with CONTRACT_ALREADY_EXISTS,
+        // and the workspace hides the send form once any contract exists —
+        // so a Dropbox Sign 402 left the booking with no way forward at all,
+        // in the UI or through the command.
+        const liveContracts = existingContracts.docs.filter(
+          (document) => document.get("status") !== "failed",
+        );
+        if (liveContracts.length) {
           throw new Error("CONTRACT_ALREADY_EXISTS");
+        }
+        // Keep the failed attempt as history rather than deleting it: it is
+        // the record of what the provider said, and the next query must not
+        // match it again.
+        for (const stale of existingContracts.docs) {
+          batchSupersede.push(stale.ref);
         }
         // Outside mock mode this queues a real signature request, so an
         // unresolved capability must refuse rather than guess DocuSign and
@@ -534,6 +549,15 @@ export const bookingCommand = onRequest(
         );
         const envelopeId = `envelope_${command.idempotencyKey}`;
         const batch = firestore.batch();
+        for (const stale of batchSupersede) {
+          batch.update(stale, {
+            status: "superseded",
+            supersededAt: timestamp,
+            supersededBy: contractId,
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+        }
         batch.create(firestore.doc(`contracts/${contractId}`), {
           id: contractId,
           tenantId: command.tenantId,
