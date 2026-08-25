@@ -39,6 +39,19 @@ const commandSchema = z.discriminatedUnion("type", [
     input: messageInput,
   }),
   z.object({
+    // Replying in a thread, which is what the mailbox actually does. sendMessage
+    // is shaped for (project, contact, category, schedule) — a compose form's
+    // shape — and a thread does not have those to hand. Passing a thread through
+    // it produced a validation failure the studio saw as raw JSON.
+    type: z.literal("replyToConversation"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      conversationId: z.string().min(1).max(160),
+      body: z.string().trim().min(2).max(8_000),
+    }),
+  }),
+  z.object({
     type: z.literal("markConversationRead"),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
@@ -263,6 +276,82 @@ export const communicationsCommand = onRequest(
         batch.create(db.doc(`productEvents/${queuedEvent.id}`), queuedEvent);
         await batch.commit();
         result = { draftId, requiresApproval };
+      } else if (command.type === "replyToConversation") {
+        const conversationReference = db.doc(
+          `conversations/${command.input.conversationId}`,
+        );
+        const conversation = await conversationReference.get();
+        if (!conversation.exists) throw new Error("CONVERSATION_NOT_FOUND");
+        if (conversation.get("tenantId") !== command.tenantId) {
+          throw new Error("FORBIDDEN");
+        }
+        const participant =
+          (conversation.get("participant") as Record<string, unknown>) ?? {};
+        const projectId =
+          (conversation.get("projectId") as string | null) ?? null;
+
+        // The thread usually knows the contact. When it does not — a thread
+        // opened by a job that carried no contactId — fall back to the project's
+        // client so replying still works rather than failing on a field the
+        // studio cannot see or fix.
+        let contactId =
+          typeof participant.contactId === "string" ? participant.contactId : null;
+        let recipient =
+          typeof participant.email === "string" ? participant.email : null;
+        if ((!contactId || !recipient) && projectId) {
+          const project = await db.doc(`projects/${projectId}`).get();
+          const clientIds = Array.isArray(project.get("clientContactIds"))
+            ? (project.get("clientContactIds") as unknown[]).map(String)
+            : [];
+          if (clientIds[0]) {
+            contactId = contactId ?? clientIds[0];
+            if (!recipient) {
+              const contact = await db.doc(`contacts/${clientIds[0]}`).get();
+              const email = contact.get("email");
+              if (typeof email === "string") recipient = email;
+            }
+          }
+        }
+        if (!recipient) throw new Error("RECIPIENT_UNKNOWN");
+
+        const jobId = `reply_${executionId}`;
+        const batch = db.batch();
+        batch.set(db.doc(`emailJobs/${jobId}`), {
+          id: jobId,
+          tenantId: command.tenantId,
+          projectId,
+          type: "manual_message",
+          recipient,
+          contactId,
+          subject:
+            (conversation.get("subject") as string | null) ??
+            "About your photography",
+          customBody: command.input.body,
+          status: "queued",
+          attempts: 0,
+          createdAt: now,
+          updatedAt: now,
+        });
+        batch.set(db.doc(`auditEvents/${jobId}`), {
+          id: jobId,
+          tenantId: command.tenantId,
+          projectId,
+          actorId: identity.uid,
+          actorType: "user",
+          action: "message.replied",
+          entityType: "conversation",
+          entityId: command.input.conversationId,
+          timestamp: now,
+          before: null,
+          after: { emailJobId: jobId },
+          ipAddress: request.ip ?? null,
+          userAgent: request.get("user-agent") ?? null,
+          correlationId: jobId,
+          automationRunId: null,
+          providerEventId: null,
+        });
+        await batch.commit();
+        result = { conversationId: command.input.conversationId, emailJobId: jobId };
       } else if (command.type === "markConversationRead") {
         // Opening a thread is a write, and conversations are server-only for a
         // reason: a client that could set the unread count could also hide a

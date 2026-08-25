@@ -97,6 +97,34 @@ function whenLabel(iso: string): string {
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+/**
+ * Something a studio can act on. A failed command can carry a validation payload,
+ * and putting that on screen — an array of zod issues about contactId and
+ * scheduledFor — tells a photographer nothing and looks broken.
+ */
+function readableFailure(caught: unknown): string {
+  const raw = caught instanceof Error ? caught.message : "";
+  if (raw.includes("RECIPIENT_UNKNOWN")) {
+    return "No email address on file for this client. Add one on the project, then reply.";
+  }
+  if (raw.includes("CONVERSATION_NOT_FOUND")) {
+    return "This conversation is no longer available. Reload the page.";
+  }
+  if (raw.includes("FORBIDDEN")) {
+    return "You do not have permission to reply on this project.";
+  }
+  if (raw.includes("ACTIVE_SUBSCRIPTION_REQUIRED")) {
+    return "Your subscription needs attention before messages can be sent.";
+  }
+  // A schema payload or anything else unrecognised: say what happened, keep the
+  // detail in the console for whoever is debugging.
+  if (raw.trimStart().startsWith("[") || raw.trimStart().startsWith("{")) {
+    console.error("reply failed", raw);
+    return "That reply could not be sent. It has been logged — try again, or send it from your email client.";
+  }
+  return raw || "That reply could not be sent. Try again.";
+}
+
 export function MessageInbox({ initialProjectId }: { initialProjectId?: string }) {
   const workspace = useWorkspace();
   const tenantId = workspace.tenantId;
@@ -352,17 +380,9 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
       setNotice(null);
       try {
         const result = await sendCommunicationsCommand({
-          type: "sendMessage",
+          type: "replyToConversation",
           idempotencyKey: `reply_${activeThread.id}_${Date.now()}`,
-          input: {
-            projectId: activeThread.projectId,
-            contactId: activeThread.participant.contactId,
-            subject: activeThread.subject ?? "Re: your photography project",
-            body: reply.trim(),
-            actionUrl: null,
-            actionLabel: null,
-            note: null,
-          },
+          input: { conversationId: activeThread.id, body: reply.trim() },
         });
         setReply("");
         setDraftIsAi(false);
@@ -373,11 +393,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
             : "Reply queued for delivery.",
         );
       } catch (caught: unknown) {
-        setNotice(
-          caught instanceof Error
-            ? caught.message
-            : "That reply did not send. Try again.",
-        );
+        setNotice(readableFailure(caught));
       } finally {
         setSending(false);
       }
@@ -447,9 +463,13 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
             contactId: draftContactId,
             subject: draftSubject.trim() || "A note about your photography",
             body: draftBody.trim(),
-            actionUrl: null,
+            // Every field the command requires. These were missing, so the first
+            // new message a studio tried to send would have failed the same way
+            // a reply did — on a schema it has no way of knowing about.
+            category: "general",
             actionLabel: null,
-            note: null,
+            actionUrl: null,
+            scheduledFor: null,
           },
         });
         setDraftSubject("");
@@ -463,11 +483,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
             : "Message queued for delivery.",
         );
       } catch (caught: unknown) {
-        setNotice(
-          caught instanceof Error
-            ? caught.message
-            : "That message did not send. Try again.",
-        );
+        setNotice(readableFailure(caught));
       } finally {
         setSending(false);
       }
@@ -774,7 +790,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
                   if (draftIsAi) setDraftIsAi(false);
                 }}
                 placeholder={`Reply to ${activeThread.participant.name ?? "your client"}…`}
-                rows={3}
+                rows={8}
               />
               <div className="msg-reply-actions">
                 {notice ? <p className="msg-notice">{notice}</p> : <span />}
