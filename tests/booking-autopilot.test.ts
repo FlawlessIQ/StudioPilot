@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { groundedBookingDraft } from "../features/booking/autopilot";
-import { nextBookingAutomationStep } from "../features/booking/orchestration";
+import {
+  bookingAutomationDrivesContract,
+  nextBookingAutomationStep,
+} from "../features/booking/orchestration";
 
 const packages = [
   {
@@ -147,5 +150,45 @@ test("booking automation routes deterministic blockers to human attention", () =
       bookingComplete: true,
     }),
     "completed",
+  );
+});
+
+test("a plan waiting on another contract makes no promises about this one", () => {
+  // The studio recorded the signature by hand after the provider send failed,
+  // which creates a second contract. The plan is still active against the
+  // first, so it is not driving this booking and must not claim to be.
+  assert.equal(
+    bookingAutomationDrivesContract({
+      status: "active",
+      planContractId: "contract_failed_send",
+      contractId: "contract_attested",
+    }),
+    false,
+  );
+  assert.equal(
+    bookingAutomationDrivesContract({
+      status: "active",
+      planContractId: "contract_attested",
+      contractId: "contract_attested",
+    }),
+    true,
+  );
+  // A plan raised before its contract exists is still ours.
+  assert.equal(
+    bookingAutomationDrivesContract({
+      status: "active",
+      planContractId: null,
+      contractId: "contract_attested",
+    }),
+    true,
+  );
+  // A stopped plan drives nothing regardless of where it points.
+  assert.equal(
+    bookingAutomationDrivesContract({
+      status: "needs_attention",
+      planContractId: "contract_attested",
+      contractId: "contract_attested",
+    }),
+    false,
   );
 });

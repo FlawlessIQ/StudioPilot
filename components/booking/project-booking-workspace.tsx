@@ -27,6 +27,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendBookingCommand } from "@/lib/booking/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { resolveActiveProvider } from "@/features/integrations/routing";
+import { bookingAutomationDrivesContract } from "@/features/booking/orchestration";
 import { friendlyError as friendlySharedError } from "@/lib/ai/friendly-error";
 import { formatDueDate } from "@/lib/format/event-date";
 import { providerName } from "@/lib/format/provider-name";
@@ -334,6 +335,16 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   const automationActive =
     orchestration?.status === "active" || orchestration?.status === "completed";
   const automationNeedsAttention = orchestration?.status === "needs_attention";
+  const automationDriving = bookingAutomationDrivesContract({
+    status: typeof orchestration?.status === "string" ? orchestration.status : null,
+    planContractId:
+      typeof orchestration?.contractId === "string"
+        ? orchestration.contractId
+        : null,
+    contractId: contract?.id ?? null,
+  });
+  // Only *waiting* for a signature while there isn't one.
+  const automationAwaitingSignature = automationDriving && !contractComplete;
 
   /**
    * Which of the three steps is actually live.
@@ -821,7 +832,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   </Link>
                 ) : null}
               </div>
-            ) : automationActive ? (
+            ) : automationAwaitingSignature ? (
               <div className="booking-complete-message">
                 <LoaderCircle className="spin" size={18} />
                 <span>
@@ -897,7 +908,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   </small>
                 </span>
               </div>
-            ) : automationActive ? (
+            ) : automationDriving ? (
               <div className="booking-complete-message">
                 <LoaderCircle className="spin" size={18} />
                 <span>
