@@ -628,7 +628,7 @@ async function quickBooksCustomerId(
   const customers=asRecord(found.QueryResponse).Customer;
   let customerId=Array.isArray(customers)?text(asRecord(customers[0]).Id):"";
   if(!customerId){
-    const created=await providerJson(`${base}/v3/company/${encodeURIComponent(realmId)}/customer?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/json","request-id":`${idempotencyKey}-customer`.slice(0,50)},body:JSON.stringify({DisplayName:displayName,PrimaryEmailAddr:{Address:email},...(text(contact.get("phone"))?{PrimaryPhone:{FreeFormNumber:text(contact.get("phone"))}}:{})})},"QUICKBOOKS_CUSTOMER_CREATE_FAILED");
+    const created=await providerJson(`${base}/v3/company/${encodeURIComponent(realmId)}/customer?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json","content-type":"application/json","request-id":`${idempotencyKey}-customer`.slice(0,50)},body:JSON.stringify({DisplayName:displayName,PrimaryEmailAddr:{Address:email},...(text(contact.get("phone"))?{PrimaryPhone:{FreeFormNumber:text(contact.get("phone"))}}:{})})},"QUICKBOOKS_CUSTOMER_CREATE_FAILED");
     customerId=text(asRecord(created.Customer).Id);
   }
   if(!customerId)throw new Error("QUICKBOOKS_CUSTOMER_ID_MISSING");
@@ -733,13 +733,93 @@ export async function createStripeInvoice(job:DocumentSnapshot){const db=getFire
   }
   if(!providerInvoiceId)throw new Error("STRIPE_INVOICE_ID_MISSING");const now=new Date().toISOString();await reference.update({providerInvoiceId,providerCustomerId,hostedUrl,status:"sent",providerState:"completed",lastSyncedAt:now,updatedAt:now,updatedBy:"provider-worker"});return{invoiceId,providerInvoiceId}}
 
+/** The client address a provider invoice should be delivered to. */
+async function clientEmailFor(
+  db:FirebaseFirestore.Firestore,
+  tenantId:string,
+  projectId:string,
+):Promise<string>{
+  const project=await db.doc(`projects/${projectId}`).get();
+  const contactIds=Array.isArray(project.get("clientContactIds"))?project.get("clientContactIds") as unknown[]:[];
+  for(const contactId of contactIds){
+    if(typeof contactId!=="string")continue;
+    const contact=await db.doc(`contacts/${contactId}`).get();
+    if(!contact.exists||contact.get("tenantId")!==tenantId)continue;
+    const email=text(contact.get("email"));
+    if(email.includes("@"))return email;
+  }
+  return "";
+}
+
+/**
+ * Creating a QuickBooks invoice does not send it.
+ *
+ * This is why no retainer email has ever arrived: the integration POSTed an
+ * invoice, marked it "sent", and stopped. QuickBooks only emails an invoice
+ * when asked, through a separate endpoint, and nothing here ever asked. The
+ * studio watched for an email that was never going to come, and the
+ * workspace agreed with them that it had been sent.
+ *
+ * Failing to send is not the same as failing to invoice. The invoice exists
+ * and is correct, so this reports the outcome rather than throwing: the
+ * record says whether the client was actually emailed, and the studio can
+ * send it from QuickBooks if not.
+ */
+async function sendQuickBooksInvoice(
+  base:string,
+  realmId:string,
+  credential:Credential,
+  providerInvoiceId:string,
+  email:string,
+):Promise<{sent:boolean;error:string|null}>{
+  if(!email)return {sent:false,error:"NO_CLIENT_EMAIL"};
+  try{
+    await providerJson(`${base}/v3/company/${encodeURIComponent(realmId)}/invoice/${encodeURIComponent(providerInvoiceId)}/send?sendTo=${encodeURIComponent(email)}&minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json","content-type":"application/octet-stream"}},"QUICKBOOKS_SEND_FAILED");
+    return {sent:true,error:null};
+  }catch(caught:unknown){
+    return {sent:false,error:caught instanceof Error?caught.message.slice(0,300):"QUICKBOOKS_SEND_FAILED"};
+  }
+}
+
+/**
+ * An invoice this job already created, found by the note it stamps on it.
+ *
+ * QuickBooks answered the create in XML because the request never asked for
+ * JSON, so the reply was unreadable and the job retried a POST that had
+ * probably already worked. The Request-Id header is supposed to make that
+ * safe, but "supposed to" is thin cover for duplicate invoices in a
+ * studio's books, and a job whose response we could not read is exactly
+ * when the guard is worth having. PrivateNote carries the StudioCue id, so
+ * an invoice this job made is findable no matter what came back.
+ */
+async function existingQuickBooksInvoice(
+  base:string,
+  realmId:string,
+  credential:Credential,
+  invoiceId:string,
+):Promise<{id:string;balanceCents:number}|null>{
+  const query=encodeURIComponent(`select Id, Balance from Invoice where PrivateNote = 'StudioCue ${invoiceId.replaceAll("'","\\'")}' maxresults 1`);
+  const found=await providerJson(`${base}/v3/company/${encodeURIComponent(realmId)}/query?query=${query}&minorversion=75`,{headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json"}},"QUICKBOOKS_INVOICE_SEARCH_FAILED");
+  const invoices=asRecord(found.QueryResponse).Invoice;
+  if(!Array.isArray(invoices)||!invoices.length)return null;
+  const first=asRecord(invoices[0]);
+  const id=text(first.Id);
+  return id?{id,balanceCents:Math.round(number(first.Balance)*100)}:null;
+}
+
 export async function createQuickBooksInvoice(job:DocumentSnapshot){const db=getFirestore();const invoiceId=String(job.get("invoiceId"));const reference=db.doc(`invoiceReferences/${invoiceId}`);const invoice=await reference.get();if(!invoice.exists)throw new Error("INVOICE_NOT_FOUND");
   if(invoice.get("providerState")==="completed")return{invoiceId,providerInvoiceId:invoice.get("providerInvoiceId")};
-  const tenantId=String(job.get("tenantId"));const provider=await connection(tenantId,"quickbooks");let providerInvoiceId:string;let providerCustomerId=text(invoice.get("providerCustomerId"));let balanceCents=Number(invoice.get("balanceCents"));if(provider.mock){providerInvoiceId=mockId("qbo_invoice",job.id);providerCustomerId=providerCustomerId.startsWith("pending_")?mockId("qbo_customer",String(invoice.get("projectId"))):providerCustomerId}else{const credential=provider.credential;const realmId=credential?.realmId??String(provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");providerCustomerId=await quickBooksCustomerId(tenantId,String(invoice.get("projectId")),invoice,credential,realmId,String(job.get("idempotencyKey")??job.id));const itemRef=await quickBooksItemRef(quickBooksApiBaseUrl(credential.baseUrl),realmId,credential,String(job.get("idempotencyKey")??job.id));const value=await providerJson(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}/invoice?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/json","request-id":String(job.get("idempotencyKey")??job.id)},body:JSON.stringify({CustomerRef:{value:providerCustomerId},DueDate:invoice.get("dueDate"),PrivateNote:`StudioCue ${invoiceId}`,Line:[{Amount:Number(invoice.get("amountCents"))/100,DetailType:"SalesItemLineDetail",Description:String(invoice.get("kind")),SalesItemLineDetail:{ItemRef:itemRef,Qty:1,UnitPrice:Number(invoice.get("amountCents"))/100}}]})},"QUICKBOOKS_CREATE_FAILED");const created=asRecord(value.Invoice);providerInvoiceId=text(created.Id);balanceCents=Math.round(number(created.Balance)*100)}
-  if(!providerInvoiceId)throw new Error("QUICKBOOKS_INVOICE_ID_MISSING");const now=new Date().toISOString();await reference.update({providerInvoiceId,providerCustomerId,balanceCents,status:"sent",providerState:"completed",lastSyncedAt:now,updatedAt:now,updatedBy:"provider-worker"});return{invoiceId,providerInvoiceId}}
+  const tenantId=String(job.get("tenantId"));const provider=await connection(tenantId,"quickbooks");let providerInvoiceId:string;let providerCustomerId=text(invoice.get("providerCustomerId"));let balanceCents=Number(invoice.get("balanceCents"));let sendOutcome:{sent:boolean;error:string|null}={sent:false,error:"MOCK_MODE"};if(provider.mock){providerInvoiceId=mockId("qbo_invoice",job.id);providerCustomerId=providerCustomerId.startsWith("pending_")?mockId("qbo_customer",String(invoice.get("projectId"))):providerCustomerId}else{const credential=provider.credential;const realmId=credential?.realmId??String(provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");providerCustomerId=await quickBooksCustomerId(tenantId,String(invoice.get("projectId")),invoice,credential,realmId,String(job.get("idempotencyKey")??job.id));const base=quickBooksApiBaseUrl(credential.baseUrl);const already=await existingQuickBooksInvoice(base,realmId,credential,invoiceId);if(already){providerInvoiceId=already.id;balanceCents=already.balanceCents;sendOutcome=await sendQuickBooksInvoice(base,realmId,credential,already.id,await clientEmailFor(db,tenantId,String(invoice.get("projectId"))))}else{const itemRef=await quickBooksItemRef(base,realmId,credential,String(job.get("idempotencyKey")??job.id));const value=await providerJson(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}/invoice?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json","content-type":"application/json","request-id":String(job.get("idempotencyKey")??job.id)},body:JSON.stringify({CustomerRef:{value:providerCustomerId},DueDate:invoice.get("dueDate"),PrivateNote:`StudioCue ${invoiceId}`,Line:[{Amount:Number(invoice.get("amountCents"))/100,DetailType:"SalesItemLineDetail",Description:String(invoice.get("kind")),SalesItemLineDetail:{ItemRef:itemRef,Qty:1,UnitPrice:Number(invoice.get("amountCents"))/100}}]})},"QUICKBOOKS_CREATE_FAILED");const created=asRecord(value.Invoice);providerInvoiceId=text(created.Id);balanceCents=Math.round(number(created.Balance)*100);if(providerInvoiceId)sendOutcome=await sendQuickBooksInvoice(base,realmId,credential,providerInvoiceId,await clientEmailFor(db,tenantId,String(invoice.get("projectId"))))}}
+  if(!providerInvoiceId)throw new Error("QUICKBOOKS_INVOICE_ID_MISSING");const now=new Date().toISOString();
+  // "sent" now means the client was emailed. An invoice QuickBooks holds but
+  // never delivered is `awaiting_delivery`, not sent — calling that sent is
+  // what had a studio waiting on an email nobody had asked QuickBooks for.
+  const delivered=provider.mock||sendOutcome.sent;
+  await reference.update({providerInvoiceId,providerCustomerId,balanceCents,status:delivered?"sent":"awaiting_delivery",providerState:"completed",emailedAt:sendOutcome.sent?now:null,deliveryError:delivered?null:sendOutcome.error,lastSyncedAt:now,updatedAt:now,updatedBy:"provider-worker"});
+  return{invoiceId,providerInvoiceId,emailed:sendOutcome.sent}}
 
 export async function reconcileQuickBooksInvoice(job:DocumentSnapshot){const db=getFirestore();const invoiceId=String(job.get("invoiceId"));const reference=db.doc(`invoiceReferences/${invoiceId}`);const invoice=await reference.get();if(!invoice.exists)throw new Error("INVOICE_NOT_FOUND");const providerInvoiceId=String(job.get("providerInvoiceId")??invoice.get("providerInvoiceId")??"");if(!providerInvoiceId)throw new Error("QUICKBOOKS_INVOICE_ID_MISSING");const operation=String(job.get("operation")??"").toLowerCase();let status:string;let balanceCents:number;
-  if(["delete","deleted","void","voided"].includes(operation)){status="voided";balanceCents=0}else{const provider=await connection(String(job.get("tenantId")),"quickbooks");if(provider.mock){status=String(invoice.get("status")??"sent");balanceCents=Number(invoice.get("balanceCents")??0)}else{const credential=provider.credential;const realmId=credential?.realmId??String(job.get("realmId")??provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");const value=await providerJson(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}/invoice/${encodeURIComponent(providerInvoiceId)}?minorversion=75`,{headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/json"}},"QUICKBOOKS_INVOICE_READ_FAILED");const current=asRecord(value.Invoice);balanceCents=Math.max(0,Math.round(number(current.Balance)*100));const totalCents=Math.max(0,Math.round(number(current.TotalAmt)*100));status=balanceCents===0?"paid":balanceCents<totalCents?"partially_paid":"sent"}}
+  if(["delete","deleted","void","voided"].includes(operation)){status="voided";balanceCents=0}else{const provider=await connection(String(job.get("tenantId")),"quickbooks");if(provider.mock){status=String(invoice.get("status")??"sent");balanceCents=Number(invoice.get("balanceCents")??0)}else{const credential=provider.credential;const realmId=credential?.realmId??String(job.get("realmId")??provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");const value=await providerJson(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}/invoice/${encodeURIComponent(providerInvoiceId)}?minorversion=75`,{headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json","content-type":"application/json"}},"QUICKBOOKS_INVOICE_READ_FAILED");const current=asRecord(value.Invoice);balanceCents=Math.max(0,Math.round(number(current.Balance)*100));const totalCents=Math.max(0,Math.round(number(current.TotalAmt)*100));status=balanceCents===0?"paid":balanceCents<totalCents?"partially_paid":"sent"}}
   const now=new Date().toISOString();const batch=db.batch();batch.update(reference,{status,balanceCents,lastProviderEventId:String(job.get("idempotencyKey")??job.id),lastSyncedAt:String(job.get("occurredAt")??now),providerState:"completed",updatedAt:now,updatedBy:"quickbooks-reconciliation"});const webhookEventId=String(job.get("webhookEventId")??"");if(webhookEventId)batch.update(db.doc(`webhookEvents/${webhookEventId}`),{status:"processed",processedAt:now});await batch.commit();return{invoiceId,providerInvoiceId,status,balanceCents}}
 
 async function dropboxFolder(accessToken:string,path:string){

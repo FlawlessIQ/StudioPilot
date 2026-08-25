@@ -216,9 +216,17 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
             // refused to create, because the client was never asked. It
             // was counted as outstanding, so a refused retainer showed as
             // a balance with a button offering to chase the couple for it.
-            !["paid", "voided", "refunded", "failed"].includes(
-              String(item.status),
-            ),
+            ![
+              "paid",
+              "voided",
+              "refunded",
+              "failed",
+              // Replaced by a later attempt. Left in, a retry after a
+              // provider refusal showed both invoices' balances added
+              // together — $569.70 owed on the dead one plus $1.00 on the
+              // live one, as $570.70 the client had never been asked for.
+              "superseded",
+            ].includes(String(item.status)),
         );
       const todayIso = new Date().toISOString().slice(0, 10);
       setOutstanding(
@@ -884,6 +892,24 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   >
                     Open QuickBooks invoice <ArrowRight size={13} />
                   </Link>
+                ) : null}
+                {/*
+                  Raised but not delivered. QuickBooks only emails an
+                  invoice when asked, and the difference between an invoice
+                  the client has and one sitting in the studio's books is
+                  the whole question when someone asks why no email came.
+                */}
+                {invoice.status === "awaiting_delivery" ? (
+                  <p className="booking-delivery-warning" role="status">
+                    <CircleAlert aria-hidden="true" size={14} />
+                    <span>
+                      The invoice exists in QuickBooks but the client was not
+                      emailed
+                      {invoice.deliveryError === "NO_CLIENT_EMAIL"
+                        ? " \u2014 this job has no client email address."
+                        : ". Send it from QuickBooks, or fix the connection and try again."}
+                    </span>
+                  </p>
                 ) : null}
               </div>
             ) : automationAwaitingSignature ? (

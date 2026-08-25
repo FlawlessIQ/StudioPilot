@@ -26,8 +26,15 @@ const LABELS: Record<string, string> = {
   paid: "Paid",
   partially_paid: "Part paid",
   sent: "Sent",
+  // Raised with the accounting provider but not delivered to the client.
+  // "Sent" used to cover this case and it is the difference between an
+  // email the client has and one nobody asked the provider to send.
+  awaiting_delivery: "Not emailed yet",
+  queued: "Queued",
   overdue: "Overdue",
   refunded: "Refunded",
+  superseded: "Replaced",
+  failed: "Failed",
 
   // Delivery
   review_required: "Waiting on the studio",

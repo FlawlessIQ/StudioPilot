@@ -11755,6 +11755,29 @@ form:has(> .address-field) > .address-field,
 }
 
 /* A refused contract: what the provider said, and the way forward. */
+/* An invoice QuickBooks holds but never delivered. Warning, not error: the
+   invoice is correct and the money is real, it simply has not reached the
+   client yet. */
+.booking-delivery-warning {
+  align-items: start;
+  background: #fdf6e7;
+  border: 1px solid #e8d5a8;
+  border-radius: 10px;
+  color: #7a5a1c;
+  display: flex;
+  font-size: 12.5px;
+  gap: 8px;
+  grid-column: 1 / -1;
+  line-height: 1.55;
+  margin: 4px 0 0;
+  padding: 10px 12px;
+}
+
+.booking-delivery-warning > svg {
+  flex: none;
+  margin-top: 2px;
+}
+
 .booking-contract-failed {
   display: grid;
   gap: 12px;
