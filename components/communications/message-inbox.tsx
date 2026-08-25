@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   collection,
+  doc,
+  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -107,6 +109,8 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
   const [drafting, setDrafting] = useState(false);
+  const [draftNotes, setDraftNotes] = useState<string[]>([]);
+  const [draftIsAi, setDraftIsAi] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const streamRef = useRef<HTMLDivElement | null>(null);
   const [composing, setComposing] = useState(false);
@@ -299,6 +303,8 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
           },
         });
         setReply("");
+        setDraftIsAi(false);
+        setDraftNotes([]);
         setNotice(
           "mode" in result && result.mode === "preview"
             ? "Preview mode — nothing was sent."
@@ -317,13 +323,15 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
     [activeThread, reply, sending],
   );
 
-  // Ask for a reply draft grounded in this thread. It lands in the AI review
-  // queue rather than the reply box: an AI-written reply is never sent without a
-  // person approving it, and putting it straight in the box would blur that.
+  // The draft lands in the reply box, here, rather than sending the studio to
+  // another screen to find it. The approval boundary is unchanged and arguably
+  // stronger: the draft is read in the thread it answers, edited freely, and only
+  // leaves when a person presses Send. Nothing about this auto-sends.
   const draftReply = useCallback(async () => {
     if (!activeThread || drafting || !tenantId) return;
     setDrafting(true);
     setNotice(null);
+    setDraftNotes([]);
     try {
       const result = await requestMessageDraft({
         tenantId,
@@ -331,11 +339,27 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
         projectId: activeThread.projectId,
         conversationId: activeThread.id,
       });
-      setNotice(
-        result.mode === "preview"
-          ? "Preview mode — no draft was created."
-          : "Draft ready in AI review for you to approve.",
-      );
+      if (result.mode === "preview" || !result.actionId) {
+        setNotice("Preview mode — no draft was created.");
+        return;
+      }
+      // The command writes the action before it answers, so a single read is
+      // enough; no waiting on a subscription.
+      const { firestore } = getFirebaseClient();
+      const action = await getDoc(doc(firestore, "aiActions", result.actionId));
+      const output = action.data()?.structuredOutput as
+        | { body?: string; highlights?: string[] }
+        | undefined;
+      const uncertain = (action.data()?.confidence as
+        | { uncertainFields?: string[] }
+        | undefined)?.uncertainFields;
+      if (!output?.body) {
+        setNotice("The draft was created but could not be read back.");
+        return;
+      }
+      setReply(output.body);
+      setDraftIsAi(true);
+      setDraftNotes([...(uncertain ?? []), ...(output.highlights ?? [])].slice(0, 4));
     } catch (caught: unknown) {
       setNotice(
         caught instanceof Error ? caught.message : "That draft could not be made.",
@@ -629,13 +653,35 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
             </div>
 
             <form className="msg-reply" onSubmit={submitReply}>
+              {draftIsAi || draftNotes.length ? (
+                <div className="msg-draft-note">
+                  <p>
+                    <Sparkles size={13} aria-hidden />
+                    {draftIsAi
+                      ? "Drafted for you — read it before sending."
+                      : "Notes on this draft"}
+                  </p>
+                  {draftNotes.length ? (
+                    <ul>
+                      {draftNotes.map((note) => (
+                        <li key={note}>{note}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : null}
               <label htmlFor="msg-reply-body" className="sr-only">
                 Your reply
               </label>
               <textarea
                 id="msg-reply-body"
                 value={reply}
-                onChange={(event) => setReply(event.target.value)}
+                onChange={(event) => {
+                  setReply(event.target.value);
+                  // Once edited it is the studio's words, not a draft awaiting
+                  // review, and the banner should stop claiming otherwise.
+                  if (draftIsAi) setDraftIsAi(false);
+                }}
                 placeholder={`Reply to ${activeThread.participant.name ?? "your client"}…`}
                 rows={3}
               />
