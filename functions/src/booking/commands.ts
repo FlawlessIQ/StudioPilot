@@ -752,7 +752,27 @@ export const bookingCommand = onRequest(
           command.idempotencyKey,
         );
         const priorStateVersion = Number(project.get("stateVersion") ?? 0);
+        // An approved booking sequence waits for a signature on one named
+        // contract. Attesting creates a different contract, so without this
+        // the orchestrator sits on `wait_for_signature` against a contract
+        // that will never complete — the retainer is never raised and the
+        // workspace shows "Waiting for verified signature" forever.
+        //
+        // The signature the studio just recorded is this booking's
+        // signature, so the plan should be watching this contract.
+        const orchestrationReference = firestore.doc(
+          `bookingOrchestrations/${command.input.projectId}`,
+        );
+        const orchestration = await orchestrationReference.get();
+        const orchestrationActive =
+          orchestration.exists && orchestration.get("status") === "active";
         const batch = firestore.batch();
+        if (orchestrationActive) {
+          batch.update(orchestrationReference, {
+            contractId,
+            updatedAt: timestamp,
+          });
+        }
         batch.create(firestore.doc(`contracts/${contractId}`), {
           id: contractId,
           tenantId: command.tenantId,

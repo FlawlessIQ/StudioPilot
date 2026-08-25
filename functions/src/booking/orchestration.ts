@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
-import { onDocumentUpdated } from "firebase-functions/v2/firestore";
+import {
+  onDocumentUpdated,
+  onDocumentWritten,
+} from "firebase-functions/v2/firestore";
 import { resolveProviderForTenant } from "../integrations/capability-resolution.js";
 import { productEvent } from "../operations/product-events.js";
 
@@ -23,11 +26,27 @@ function strings(value: unknown): string[] {
     : [];
 }
 
-export const bookingContractCompleted = onDocumentUpdated(
+/**
+ * Written, not updated.
+ *
+ * A contract signed through a provider is created first and completed later
+ * by the webhook, so an update trigger saw it. A signature recorded by the
+ * studio is created already complete — one write, no update — and this
+ * never fired: the sequence sat on `wait_for_signature` against a contract
+ * that was finished, the retainer was never raised, and the workspace said
+ * "Waiting for verified signature" indefinitely.
+ *
+ * The guards below already tolerate a create: `before` is a snapshot that
+ * does not exist, so `before?.get(...)` is undefined and reads as "was not
+ * previously complete", which is exactly right.
+ */
+export const bookingContractCompleted = onDocumentWritten(
   "contracts/{contractId}",
   async (event) => {
     const before = event.data?.before;
     const contract = event.data?.after;
+    // Also covers deletion, which onDocumentWritten delivers and an update
+    // trigger never did.
     if (!contract?.exists) return;
     if (before?.get("status") === "completed" || contract.get("status") !== "completed")
       return;
