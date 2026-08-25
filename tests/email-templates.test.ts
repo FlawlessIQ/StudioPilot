@@ -179,3 +179,34 @@ test("manual emails render one greeting, no duplicate sign-off, and a compact pr
   assert.doesNotMatch(rendered.html, />Following Up: Your Smith Wedding Photography Proposal<\/h1>/);
   assert.match(rendered.html, /@media screen and \(max-width:600px\)/);
 });
+
+test("the retainer email is the studio's, and carries a way to pay", () => {
+  // Until now QuickBooks sent this mail: its subject, its branding, and for
+  // a company file with no company name set, "No company name" three times
+  // over. `retainer_invoice` had been written and never enqueued by
+  // anything. StudioCue sends it now, so it has to stand on its own.
+  const rendered = renderEmailTemplate({
+    key: "retainer_invoice",
+    brand,
+    recipientName: "Priya",
+    projectName: "Priya & Sam",
+    values: { ...values, invoiceUrl: "https://quickbooks.example/pay/6" },
+  });
+  assert.match(rendered.subject, /Alder & Muse Photography/);
+  assert.doesNotMatch(rendered.subject, /QuickBooks/i);
+  // The pay link is the point of the email.
+  assert.match(rendered.html, /https:\/\/quickbooks\.example\/pay\/6/);
+  assert.match(rendered.text, /https:\/\/quickbooks\.example\/pay\/6/);
+
+  // A company with no online payment link still gets an actionable email —
+  // the worker falls back to the portal, and an invoice email with nowhere
+  // to pay is a notification, not an invoice.
+  const fallback = renderEmailTemplate({
+    key: "retainer_invoice",
+    brand,
+    recipientName: "Priya",
+    projectName: "Priya & Sam",
+    values: { ...values, invoiceUrl: "https://studio-cue.com/client" },
+  });
+  assert.match(fallback.html, /https:\/\/studio-cue\.com\/client/);
+});

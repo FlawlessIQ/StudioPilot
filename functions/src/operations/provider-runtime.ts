@@ -771,33 +771,75 @@ async function clientEmailFor(
 }
 
 /**
- * Creating a QuickBooks invoice does not send it.
+ * The shareable link QuickBooks puts behind its own "Review and pay" button.
  *
- * This is why no retainer email has ever arrived: the integration POSTed an
- * invoice, marked it "sent", and stopped. QuickBooks only emails an invoice
- * when asked, through a separate endpoint, and nothing here ever asked. The
- * studio watched for an email that was never going to come, and the
- * workspace agreed with them that it had been sent.
+ * Never fetched before, so hostedUrl was null for every QuickBooks studio
+ * while the client portal and the booking page both render a payment link
+ * from it. Clients could only pay from QuickBooks' email; lose the email
+ * and the portal offered nothing. Stripe populated the equivalent field
+ * from day one, which is why this went unnoticed.
  *
- * Failing to send is not the same as failing to invoice. The invoice exists
- * and is correct, so this reports the outcome rather than throwing: the
- * record says whether the client was actually emailed, and the studio can
- * send it from QuickBooks if not.
+ * Absent is not an error — a company without online payments enabled has no
+ * link to give, and the email falls back to the portal.
  */
-async function sendQuickBooksInvoice(
+async function quickBooksInvoiceLink(
   base:string,
   realmId:string,
   credential:Credential,
   providerInvoiceId:string,
-  email:string,
-):Promise<{sent:boolean;error:string|null}>{
-  if(!email)return {sent:false,error:"NO_CLIENT_EMAIL"};
+):Promise<string|null>{
   try{
-    await providerJson(`${base}/v3/company/${encodeURIComponent(realmId)}/invoice/${encodeURIComponent(providerInvoiceId)}/send?sendTo=${encodeURIComponent(email)}&minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json","content-type":"application/octet-stream"}},"QUICKBOOKS_SEND_FAILED");
-    return {sent:true,error:null};
-  }catch(caught:unknown){
-    return {sent:false,error:caught instanceof Error?caught.message.slice(0,300):"QUICKBOOKS_SEND_FAILED"};
+    const found=await providerJson(`${base}/v3/company/${encodeURIComponent(realmId)}/invoice/${encodeURIComponent(providerInvoiceId)}?include=invoiceLink&minorversion=75`,{headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json"}},"QUICKBOOKS_INVOICE_LINK_FAILED");
+    const link=text(asRecord(found.Invoice).InvoiceLink);
+    return link||null;
+  }catch{
+    return null;
   }
+}
+
+/**
+ * The retainer email, sent by StudioCue rather than QuickBooks.
+ *
+ * QuickBooks only emails an invoice when asked, and asking it meant the
+ * client received mail in QuickBooks' voice, headed by whatever the company
+ * file happened to say — for one studio, "No company name", three times.
+ * Nothing about that email was ours: subject, sender, branding and wording
+ * all came from their settings.
+ *
+ * So StudioCue sends it, in the studio's name, through the same branded
+ * template every other client email uses. QuickBooks still creates the
+ * invoice, owns the payment and reports it back over its webhook; it just
+ * no longer speaks to the client. `retainer_invoice` has been written and
+ * unused since it was authored — nothing had ever enqueued it.
+ */
+async function enqueueRetainerEmail(input:{
+  db:FirebaseFirestore.Firestore;
+  tenantId:string;
+  projectId:string;
+  invoiceId:string;
+  invoiceUrl:string|null;
+  email:string;
+}):Promise<void>{
+  if(!input.email)return;
+  const now=new Date().toISOString();
+  const appUrl=process.env.NEXT_PUBLIC_APP_URL??"https://studiohub.app";
+  await input.db.doc(`emailJobs/invoice_${input.invoiceId}`).set({
+    id:`invoice_${input.invoiceId}`,
+    tenantId:input.tenantId,
+    projectId:input.projectId,
+    invoiceId:input.invoiceId,
+    type:"retainer_invoice",
+    recipient:input.email,
+    // The provider's own pay page when there is one, the portal when there
+    // is not. Never nothing: an invoice email with no way to pay is a
+    // notification, not an invoice.
+    invoiceUrl:input.invoiceUrl??`${appUrl}/client`,
+    actionUrl:input.invoiceUrl??`${appUrl}/client`,
+    status:"queued",
+    attempts:0,
+    createdAt:now,
+    updatedAt:now,
+  },{merge:false});
 }
 
 /**
@@ -841,14 +883,21 @@ async function adoptQuickBooksInvoice(
 
 export async function createQuickBooksInvoice(job:DocumentSnapshot){const db=getFirestore();const invoiceId=String(job.get("invoiceId"));const reference=db.doc(`invoiceReferences/${invoiceId}`);const invoice=await reference.get();if(!invoice.exists)throw new Error("INVOICE_NOT_FOUND");
   if(invoice.get("providerState")==="completed")return{invoiceId,providerInvoiceId:invoice.get("providerInvoiceId")};
-  const tenantId=String(job.get("tenantId"));const provider=await connection(tenantId,"quickbooks");let providerInvoiceId:string;let providerCustomerId=text(invoice.get("providerCustomerId"));let balanceCents=Number(invoice.get("balanceCents"));let sendOutcome:{sent:boolean;error:string|null}={sent:false,error:"MOCK_MODE"};if(provider.mock){providerInvoiceId=mockId("qbo_invoice",job.id);providerCustomerId=providerCustomerId.startsWith("pending_")?mockId("qbo_customer",String(invoice.get("projectId"))):providerCustomerId}else{const credential=provider.credential;const realmId=credential?.realmId??String(provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");providerCustomerId=await quickBooksCustomerId(tenantId,String(invoice.get("projectId")),invoice,credential,realmId,String(job.get("idempotencyKey")??job.id));const base=quickBooksApiBaseUrl(credential.baseUrl);const already=await adoptQuickBooksInvoice(base,realmId,credential,text(invoice.get("providerInvoiceId")));if(already){providerInvoiceId=already.id;balanceCents=already.balanceCents;sendOutcome=await sendQuickBooksInvoice(base,realmId,credential,already.id,await clientEmailFor(db,tenantId,String(invoice.get("projectId"))))}else{const itemRef=await quickBooksItemRef(base,realmId,credential,String(job.get("idempotencyKey")??job.id));const value=await providerJson(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}/invoice?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json","content-type":"application/json","request-id":String(job.get("idempotencyKey")??job.id)},body:JSON.stringify({CustomerRef:{value:providerCustomerId},DueDate:invoice.get("dueDate"),PrivateNote:`StudioCue ${invoiceId}`,Line:[{Amount:Number(invoice.get("amountCents"))/100,DetailType:"SalesItemLineDetail",Description:String(invoice.get("kind")),SalesItemLineDetail:{ItemRef:itemRef,Qty:1,UnitPrice:Number(invoice.get("amountCents"))/100}}]})},"QUICKBOOKS_CREATE_FAILED");const created=asRecord(value.Invoice);providerInvoiceId=text(created.Id);balanceCents=Math.round(number(created.Balance)*100);if(providerInvoiceId)sendOutcome=await sendQuickBooksInvoice(base,realmId,credential,providerInvoiceId,await clientEmailFor(db,tenantId,String(invoice.get("projectId"))))}}
+  const tenantId=String(job.get("tenantId"));const provider=await connection(tenantId,"quickbooks");let providerInvoiceId:string;let providerCustomerId=text(invoice.get("providerCustomerId"));let balanceCents=Number(invoice.get("balanceCents"));let hostedUrl:string|null=null;if(provider.mock){providerInvoiceId=mockId("qbo_invoice",job.id);providerCustomerId=providerCustomerId.startsWith("pending_")?mockId("qbo_customer",String(invoice.get("projectId"))):providerCustomerId}else{const credential=provider.credential;const realmId=credential?.realmId??String(provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");providerCustomerId=await quickBooksCustomerId(tenantId,String(invoice.get("projectId")),invoice,credential,realmId,String(job.get("idempotencyKey")??job.id));const base=quickBooksApiBaseUrl(credential.baseUrl);const already=await adoptQuickBooksInvoice(base,realmId,credential,text(invoice.get("providerInvoiceId")));if(already){providerInvoiceId=already.id;balanceCents=already.balanceCents}else{const itemRef=await quickBooksItemRef(base,realmId,credential,String(job.get("idempotencyKey")??job.id));const value=await providerJson(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}/invoice?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json","content-type":"application/json","request-id":String(job.get("idempotencyKey")??job.id)},body:JSON.stringify({CustomerRef:{value:providerCustomerId},DueDate:invoice.get("dueDate"),PrivateNote:`StudioCue ${invoiceId}`,Line:[{Amount:Number(invoice.get("amountCents"))/100,DetailType:"SalesItemLineDetail",Description:String(invoice.get("kind")),SalesItemLineDetail:{ItemRef:itemRef,Qty:1,UnitPrice:Number(invoice.get("amountCents"))/100}}]})},"QUICKBOOKS_CREATE_FAILED");const created=asRecord(value.Invoice);providerInvoiceId=text(created.Id);balanceCents=Math.round(number(created.Balance)*100)}
+    // One place for both paths: whether the invoice was just made or
+    // adopted from an earlier attempt, the client still needs the link and
+    // the email.
+    if(providerInvoiceId){
+      hostedUrl=await quickBooksInvoiceLink(base,realmId,credential,providerInvoiceId);
+      await enqueueRetainerEmail({db,tenantId,projectId:String(invoice.get("projectId")),invoiceId,invoiceUrl:hostedUrl,email:await clientEmailFor(db,tenantId,String(invoice.get("projectId")))});
+    }
+  }
   if(!providerInvoiceId)throw new Error("QUICKBOOKS_INVOICE_ID_MISSING");const now=new Date().toISOString();
-  // "sent" now means the client was emailed. An invoice QuickBooks holds but
-  // never delivered is `awaiting_delivery`, not sent — calling that sent is
-  // what had a studio waiting on an email nobody had asked QuickBooks for.
-  const delivered=provider.mock||sendOutcome.sent;
-  await reference.update({providerInvoiceId,providerCustomerId,balanceCents,status:delivered?"sent":"awaiting_delivery",providerState:"completed",emailedAt:sendOutcome.sent?now:null,deliveryError:delivered?null:sendOutcome.error,lastSyncedAt:now,updatedAt:now,updatedBy:"provider-worker"});
-  return{invoiceId,providerInvoiceId,emailed:sendOutcome.sent}}
+  // The invoice exists at the provider; the client has not been mailed yet.
+  // `awaiting_delivery` until the email job reports otherwise, because
+  // "sent" is a claim about what reached the client and nothing has yet.
+  await reference.update({providerInvoiceId,providerCustomerId,balanceCents,status:provider.mock?"sent":"awaiting_delivery",providerState:"completed",...(hostedUrl?{hostedUrl}:{}),lastSyncedAt:now,updatedAt:now,updatedBy:"provider-worker"});
+  return{invoiceId,providerInvoiceId,hostedUrl}}
 
 export async function reconcileQuickBooksInvoice(job:DocumentSnapshot){const db=getFirestore();const invoiceId=String(job.get("invoiceId"));const reference=db.doc(`invoiceReferences/${invoiceId}`);const invoice=await reference.get();if(!invoice.exists)throw new Error("INVOICE_NOT_FOUND");const providerInvoiceId=String(job.get("providerInvoiceId")??invoice.get("providerInvoiceId")??"");if(!providerInvoiceId)throw new Error("QUICKBOOKS_INVOICE_ID_MISSING");const operation=String(job.get("operation")??"").toLowerCase();let status:string;let balanceCents:number;
   if(["delete","deleted","void","voided"].includes(operation)){status="voided";balanceCents=0}else{const provider=await connection(String(job.get("tenantId")),"quickbooks");if(provider.mock){status=String(invoice.get("status")??"sent");balanceCents=Number(invoice.get("balanceCents")??0)}else{const credential=provider.credential;const realmId=credential?.realmId??String(job.get("realmId")??provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");const value=await providerJson(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}/invoice/${encodeURIComponent(providerInvoiceId)}?minorversion=75`,{headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json","content-type":"application/json"}},"QUICKBOOKS_INVOICE_READ_FAILED");const current=asRecord(value.Invoice);balanceCents=Math.max(0,Math.round(number(current.Balance)*100));const totalCents=Math.max(0,Math.round(number(current.TotalAmt)*100));status=balanceCents===0?"paid":balanceCents<totalCents?"partially_paid":"sent"}}

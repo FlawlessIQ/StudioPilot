@@ -259,6 +259,25 @@ async function finish(
           updatedBy: "pdf-worker",
         });
     }
+    // A retainer whose email never went out is not sent. Saying so on the
+    // invoice is what stops the workspace showing a client as invoiced when
+    // nothing reached them.
+    if (
+      document.ref.parent.id === "emailJobs" &&
+      document.get("invoiceId")
+    ) {
+      await getFirestore()
+        .doc(`invoiceReferences/${String(document.get("invoiceId"))}`)
+        .update({
+          status: "awaiting_delivery",
+          deliveryError: message.slice(0, 300),
+          updatedAt: now,
+          updatedBy: "email-worker",
+        })
+        .catch(() => {
+          // As above: the job's own error record is the authority.
+        });
+    }
     if (
       document.ref.parent.id === "emailJobs" &&
       document.get("proposalId")
@@ -736,6 +755,25 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
         emailMessageId: messageId,
         updatedAt: new Date().toISOString(),
         updatedBy: "email-worker",
+      });
+  }
+  // The retainer email is StudioCue's, not QuickBooks'. The invoice is only
+  // "sent" once a client has actually been mailed it, and this is the moment
+  // that becomes true.
+  if (document.get("invoiceId")) {
+    await getFirestore()
+      .doc(`invoiceReferences/${String(document.get("invoiceId"))}`)
+      .update({
+        status: "sent",
+        emailedAt: new Date().toISOString(),
+        deliveryError: null,
+        updatedAt: new Date().toISOString(),
+        updatedBy: "email-worker",
+      })
+      .catch(() => {
+        // The invoice may have been superseded while the mail was in
+        // flight. The message record is still the authority on what was
+        // sent and must not be lost to this.
       });
   }
   if (type === "review_request" && document.get("reviewRequestId")) {
