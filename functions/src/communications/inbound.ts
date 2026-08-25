@@ -136,14 +136,20 @@ async function quarantine(
 export const sendgridInboundMessage = onRequest(
   {
     cors: false,
-    invoker: "public",
-    // The shared token authenticates SendGrid; the signing secret is what
-    // verifies that a reply address was minted by us and not guessed.
+    // Private, like the COI and gallery parsers. SendGrid does not reach this
+    // function directly — Inbound Parse posts to the app's dispatcher, which
+    // forwards with a Google service identity. Declaring it public also fails
+    // outright: this org's policy refuses an allUsers invoker binding, which is
+    // what "Failed to set the IAM Policy on the Service" means.
+    invoker: "private",
+    // The shared token authenticates the forwarded request; the signing secret
+    // is what verifies that a reply address was minted by us and not guessed.
     secrets: ["SENDGRID_INBOUND_TOKEN", "INBOUND_REPLY_SIGNING_SECRET"],
+    timeoutSeconds: 60,
   },
   async (request, response) => {
-    // Public because SendGrid posts here, so the shared token is the only thing
-    // authenticating the caller — same contract as the COI parser.
+    // The dispatcher's service identity gets the request here; the shared token
+    // proves it originated from SendGrid — same contract as the COI parser.
     const sharedToken = String(
       request.query.token ?? request.header("x-studiohub-inbound-token") ?? "",
     );
