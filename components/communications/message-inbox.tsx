@@ -54,6 +54,7 @@ type ThreadMessage = {
   bodyPreview: string | null;
   createdAt: string;
   deliveryStatus: string | null;
+  preparedReply: { body: string; basedOn?: string[] } | null;
 };
 
 const channelIcon: Record<MessageChannel, typeof Mail> = {
@@ -113,6 +114,11 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
   const [draftIsAi, setDraftIsAi] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const streamRef = useRef<HTMLDivElement | null>(null);
+  // Only the drafted case needs state — it arrives from a subscription. The
+  // prepared-from-facts case is already on the message, so it is derived.
+  const [drafted, setDrafted] = useState<
+    { body: string; basedOn: string[]; threadId: string } | null
+  >(null);
   const [composing, setComposing] = useState(false);
   const [projects, setProjects] = useState<
     Array<{ id: string; name: string; clientContactIds: string[] }>
@@ -251,6 +257,9 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
               bodyPreview: (value.bodyPreview as string | null) ?? null,
               createdAt: String(value.createdAt ?? value.sentAt ?? ""),
               deliveryStatus: (value.deliveryStatus as string | null) ?? null,
+              preparedReply: (value.preparedReply ?? null) as
+                | { body: string; basedOn?: string[] }
+                | null,
             };
           }),
         );
@@ -271,6 +280,59 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
       input: { conversationId: activeThread.id },
     }).catch(() => undefined);
   }, [activeThread]);
+
+  // A reply waiting before the studio asked for one. Either composed from the
+  // project's own records on arrival, or — for questions needing judgement —
+  // drafted in the background. Both still wait for a person.
+  const preparedFromFacts = useMemo(() => {
+    const latest = [...messages]
+      .reverse()
+      .find((message) => message.direction === "inbound");
+    const prepared = latest?.preparedReply;
+    return prepared?.body
+      ? {
+          body: prepared.body,
+          basedOn: prepared.basedOn ?? [],
+          source: "facts" as const,
+        }
+      : null;
+  }, [messages]);
+
+  useEffect(() => {
+    if (!openThreadId || !tenantId || preparedFromFacts) return;
+    const { firestore } = getFirebaseClient();
+    const unsubscribe = onSnapshot(
+      query(
+        collection(firestore, "aiActions"),
+        where("conversationId", "==", openThreadId),
+        where("status", "==", "review_required"),
+        limit(1),
+      ),
+      (snapshot) => {
+        const action = snapshot.docs[0]?.data();
+        const output = action?.structuredOutput as { body?: string } | undefined;
+        const uncertain = (action?.confidence as { uncertainFields?: string[] })
+          ?.uncertainFields;
+        setDrafted(
+          output?.body
+            ? {
+                body: output.body,
+                basedOn: uncertain ?? [],
+                threadId: openThreadId,
+              }
+            : null,
+        );
+      },
+      () => undefined,
+    );
+    return unsubscribe;
+  }, [openThreadId, tenantId, preparedFromFacts]);
+
+  const waiting =
+    preparedFromFacts ??
+    (drafted && drafted.threadId === openThreadId
+      ? { body: drafted.body, basedOn: drafted.basedOn, source: "draft" as const }
+      : null);
 
   // Open a thread at its newest message. Without this the stream sat at the top,
   // so a client's short reply under a long invoice email was below the fold — the
@@ -653,6 +715,35 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
             </div>
 
             <form className="msg-reply" onSubmit={submitReply}>
+              {waiting && !reply ? (
+                <div className="msg-draft-note">
+                  <p>
+                    <Sparkles size={13} aria-hidden />
+                    {waiting.source === "facts"
+                      ? "A reply is ready from your project records"
+                      : "A reply has been drafted for you"}
+                  </p>
+                  <p className="msg-waiting-body">{waiting.body}</p>
+                  {waiting.basedOn.length ? (
+                    <ul>
+                      {waiting.basedOn.map((line) => (
+                        <li key={line}>{line}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="msg-draft-button"
+                    onClick={() => {
+                      setReply(waiting.body);
+                      setDraftIsAi(waiting.source === "draft");
+                      setDraftNotes(waiting.basedOn);
+                    }}
+                  >
+                    Use this reply
+                  </button>
+                </div>
+              ) : null}
               {draftIsAi || draftNotes.length ? (
                 <div className="msg-draft-note">
                   <p>

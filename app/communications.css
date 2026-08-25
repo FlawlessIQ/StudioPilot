@@ -353,3 +353,16 @@
   line-height: 1.5;
   color: var(--ink-soft, var(--muted));
 }
+
+.msg-waiting-body {
+  white-space: pre-wrap;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  line-height: 1.6;
+  color: var(--ink) !important;
+  margin: 0 !important;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border, var(--line));
+}

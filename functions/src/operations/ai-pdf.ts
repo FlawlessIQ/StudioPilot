@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { consumeAiQuota } from "../saas/usage.js";
+import { gatherAnswerFacts } from "../communications/answer-facts.js";
 import { getFirestore,type DocumentSnapshot } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { runStudioImportAnalysis } from "../studio-import/extraction.js";
@@ -478,7 +480,166 @@ async function runQuestionnaireAnalysis(job:DocumentSnapshot){
   return{responseId,actionId,missingCount:missingInformation.length,riskCount:aiReview.planningRisks.length,humanReviewRequired:true};
 }
 
-export async function runAiJob(job:DocumentSnapshot){if(String(job.get("type"))==="studio_import_extraction")return runStudioImportAnalysis(job);if(String(job.get("type"))==="lead_intake_analysis")return runLeadIntakeAnalysis(job);if(String(job.get("type"))==="consultation_analysis")return runConsultationAnalysis(job);if(String(job.get("type"))==="questionnaire_analysis")return runQuestionnaireAnalysis(job);if(String(job.get("type"))!=="coi_extraction")throw new Error("UNSUPPORTED_AI_JOB");const db=getFirestore();const requestId=job.id.replace(/^coi_/,"");const insurance=await db.doc(`insuranceRequests/${requestId}`).get();if(!insurance.exists)throw new Error("INSURANCE_REQUEST_NOT_FOUND");if(job.get("humanApprovalRequired")!==true)throw new Error("AI_HUMAN_REVIEW_GUARD_MISSING");if(insurance.get("scanStatus")!=="clean")throw new Error("COI_FILE_NOT_CLEARED");let extraction:Json;
+
+/**
+ * Draft a reply to a client message, on arrival, with no user present.
+ *
+ * The questions StudioCue can answer from its own records never reach here —
+ * communications/prepared-answers.ts handles those deterministically. This is
+ * for the rest: the ones that need judgement, where a studio owner opening the
+ * thread should find something already written.
+ *
+ * Quota is charged to the tenant, which is how consumeAiQuota already works — it
+ * takes a tenantId and no user. The action is written with a system actor and
+ * still requires human review, so nothing about the approval boundary changes;
+ * only who started the drafting.
+ */
+async function runInboundReplyDraft(job: DocumentSnapshot) {
+  const db = getFirestore();
+  const tenantId = String(job.get("tenantId"));
+  const conversationId = String(job.get("conversationId"));
+  const conversation = await db.doc(`conversations/${conversationId}`).get();
+  if (!conversation.exists) throw new Error("CONVERSATION_NOT_FOUND");
+  if (conversation.get("tenantId") !== tenantId) throw new Error("TENANT_MISMATCH");
+
+  const history = await db
+    .collection("messages")
+    .where("conversationId", "==", conversationId)
+    .orderBy("createdAt", "desc")
+    .limit(10)
+    .get();
+  const ordered = history.docs.reverse().map((document) => ({
+    from: document.get("direction") === "inbound" ? "client" : "studio",
+    at: string(document.get("createdAt")),
+    body: string(document.get("body") ?? document.get("bodyPreview")).slice(0, 1500),
+  }));
+  const facts = await gatherAnswerFacts(db, {
+    tenantId,
+    projectId: (conversation.get("projectId") as string | null) ?? null,
+  });
+
+  const now = new Date().toISOString();
+  const actionId = `ai_inbound_${conversationId}_${job.id}`.slice(0, 200);
+
+  let draft = {
+    subject: string(conversation.get("subject")) || "Re: your photography",
+    body: "",
+    missingInformation: [] as string[],
+  };
+
+  if (process.env.PROVIDER_MOCK_MODE === "true") {
+    draft.body = "Thanks for getting back to me — I'll follow up shortly.";
+    draft.missingInformation = ["Mock mode: no model was called."];
+  } else {
+    const project = process.env.VERTEX_AI_PROJECT_ID;
+    const location = process.env.VERTEX_AI_LOCATION ?? "us-east4";
+    const model =
+      process.env.VERTEX_AI_MESSAGE_MODEL ?? process.env.VERTEX_AI_SCHEDULE_MODEL;
+    if (!project || !model) throw new Error("VERTEX_AI_NOT_CONFIGURED");
+    const token = await cloudAccessToken();
+    const response = await fetch(
+      `https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [
+              {
+                text: "Draft one reply from a photography studio to its client, answering their most recent message. Use only the supplied facts. Never invent prices, dates, times, links or promises — put anything you would need to guess in missingInformation instead. Do not restate the thread. Never mention AI. Plain text, short paragraphs. A person reviews this before it is sent.",
+              },
+            ],
+          },
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: JSON.stringify({ conversation: ordered, facts }) }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.3,
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: "OBJECT",
+              properties: {
+                subject: { type: "STRING" },
+                body: { type: "STRING" },
+                missingInformation: { type: "ARRAY", items: { type: "STRING" } },
+              },
+              required: ["subject", "body", "missingInformation"],
+            },
+          },
+        }),
+      },
+    );
+    if (!response.ok) throw new Error(`VERTEX_AI_FAILED:${response.status}`);
+    const body = record(await response.json());
+    const candidates = Array.isArray(body.candidates) ? body.candidates : [];
+    const content = record(record(candidates[0]).content);
+    const parts = Array.isArray(content.parts) ? content.parts : [];
+    const output = string(record(parts[0]).text);
+    if (!output) throw new Error("VERTEX_AI_EMPTY_OUTPUT");
+    const parsed = record(JSON.parse(output));
+    draft = {
+      subject: string(parsed.subject) || draft.subject,
+      body: string(parsed.body),
+      missingInformation: Array.isArray(parsed.missingInformation)
+        ? parsed.missingInformation.map(String).slice(0, 8)
+        : [],
+    };
+  }
+  if (!draft.body) throw new Error("AI_DRAFT_EMPTY");
+
+  // Quota and the action land together, so a charged action always exists and an
+  // uncharged one never does.
+  await db.runTransaction(async (transaction) => {
+    await consumeAiQuota(transaction, db, tenantId, now);
+    transaction.set(db.doc(`aiActions/${actionId}`), {
+      id: actionId,
+      tenantId,
+      projectId: (conversation.get("projectId") as string | null) ?? null,
+      conversationId,
+      actorId: "system_inbound_draft",
+      actorType: "system",
+      title: "Review reply to client message",
+      capability: "inquiry_reply_draft",
+      authorityBoundary: "draft_requires_review",
+      status: "review_required",
+      modelProvider: process.env.PROVIDER_MOCK_MODE === "true" ? "studiocue" : "vertex_ai",
+      modelVersion:
+        process.env.VERTEX_AI_MESSAGE_MODEL ??
+        process.env.VERTEX_AI_SCHEDULE_MODEL ??
+        "vertex",
+      instructionVersion: "inbound_reply_v1",
+      outputSchemaVersion: "message_draft_output_v1",
+      structuredOutput: {
+        trigger: "inbound_reply",
+        subject: draft.subject,
+        body: draft.body,
+        highlights: [],
+      },
+      confidence: {
+        overall: draft.missingInformation.length ? 0.6 : 0.85,
+        label: draft.missingInformation.length ? "medium" : "high",
+        uncertainFields: draft.missingInformation,
+      },
+      validation: { status: "passed", issues: [] },
+      decision: null,
+      downstreamCommand: null,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: "system_inbound_draft",
+      updatedBy: "system_inbound_draft",
+    }, { merge: true });
+  });
+
+  return { actionId, drafted: true };
+}
+
+export async function runAiJob(job:DocumentSnapshot){if(String(job.get("type"))==="inbound_reply_draft")return runInboundReplyDraft(job);if(String(job.get("type"))==="studio_import_extraction")return runStudioImportAnalysis(job);if(String(job.get("type"))==="lead_intake_analysis")return runLeadIntakeAnalysis(job);if(String(job.get("type"))==="consultation_analysis")return runConsultationAnalysis(job);if(String(job.get("type"))==="questionnaire_analysis")return runQuestionnaireAnalysis(job);if(String(job.get("type"))!=="coi_extraction")throw new Error("UNSUPPORTED_AI_JOB");const db=getFirestore();const requestId=job.id.replace(/^coi_/,"");const insurance=await db.doc(`insuranceRequests/${requestId}`).get();if(!insurance.exists)throw new Error("INSURANCE_REQUEST_NOT_FOUND");if(job.get("humanApprovalRequired")!==true)throw new Error("AI_HUMAN_REVIEW_GUARD_MISSING");if(insurance.get("scanStatus")!=="clean")throw new Error("COI_FILE_NOT_CLEARED");let extraction:Json;
   if(process.env.PROVIDER_MOCK_MODE==="true"){extraction={certificateHolder:"Development extraction",eventDate:null,coverageTypes:[],limits:{},additionalInsuredWording:null,waiverOfSubrogation:null,primaryNoncontributory:null,confidence:0,missingFields:["Live Vertex AI configuration"]}}else{const project=process.env.VERTEX_AI_PROJECT_ID;const location=process.env.VERTEX_AI_LOCATION??"us-central1";const model=process.env.VERTEX_AI_EXTRACTION_MODEL;if(!project||!model)throw new Error("VERTEX_AI_NOT_CONFIGURED");const token=await cloudAccessToken();const object=string(insurance.get("temporaryObject"));const parts:Array<Json>=[{text:"Extract factual certificate-of-insurance fields. Do not decide legal sufficiency or approval. Return JSON only and use null for unknown values."}];if(object.startsWith("gs://"))parts.push({fileData:{mimeType:"application/pdf",fileUri:object}});const response=await fetch(`https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`,{method:"POST",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({contents:[{role:"user",parts}],generationConfig:{temperature:0,responseMimeType:"application/json",responseSchema:{type:"OBJECT",properties:{certificateHolder:{type:"STRING",nullable:true},eventDate:{type:"STRING",nullable:true},coverageTypes:{type:"ARRAY",items:{type:"STRING"}},limits:{type:"OBJECT"},additionalInsuredWording:{type:"STRING",nullable:true},waiverOfSubrogation:{type:"STRING",nullable:true},primaryNoncontributory:{type:"STRING",nullable:true},confidence:{type:"NUMBER"},missingFields:{type:"ARRAY",items:{type:"STRING"}}},required:["coverageTypes","limits","confidence","missingFields"]}}})});if(!response.ok)throw new Error(`VERTEX_AI_FAILED:${response.status}`);const body=record(await response.json());const candidates=Array.isArray(body.candidates)?body.candidates:[];const content=record(record(candidates[0]).content);const responseParts=Array.isArray(content.parts)?content.parts:[];const output=string(record(responseParts[0]).text);if(!output)throw new Error("VERTEX_AI_EMPTY_OUTPUT");extraction=record(JSON.parse(output))}
   const requirement=await db.doc(`insuranceRequirements/${String(insurance.get("requirementId"))}`).get();if(!requirement.exists)throw new Error("INSURANCE_REQUIREMENT_NOT_FOUND");
   const normalize=(value:unknown)=>String(value??"").trim().toLowerCase().replace(/\s+/g," ");

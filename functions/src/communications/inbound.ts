@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import Busboy from "busboy";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest, type Request } from "firebase-functions/v2/https";
@@ -13,6 +13,8 @@ import {
   stripQuotedReply,
 } from "./inbound-email.js";
 import { conversationIdFromReplyToken } from "./reply-address.js";
+import { gatherAnswerFacts } from "./answer-facts.js";
+import { prepareAnswerFor } from "./prepared-answers.js";
 
 /**
  * Inbound client email.
@@ -227,6 +229,18 @@ export const sendgridInboundMessage = onRequest(
       return;
     }
 
+    // Answer it now, if it is a question StudioCue already holds the answer to.
+    // Composed from the project's own records, so there is no model in this path
+    // and nothing that can invent a figure — and it returns nothing at all
+    // unless the facts genuinely cover the question.
+    const preparedAnswer = prepareAnswerFor(
+      body,
+      await gatherAnswerFacts(db, {
+        tenantId: conversation.tenantId,
+        projectId: conversation.projectId,
+      }),
+    );
+
     await db.doc(`messages/${messageId}`).set(
       {
         id: messageId,
@@ -247,6 +261,9 @@ export const sendgridInboundMessage = onRequest(
         // Inbound attachments are not carried across yet; say so on the record
         // rather than letting a studio assume nothing was sent.
         hasUnstoredAttachments: false,
+        // The reply the studio can send as-is. Null when the question needs a
+        // person, which is most of them.
+        preparedReply: preparedAnswer,
         receivedAt: now,
         createdAt: now,
         updatedAt: now,
@@ -274,6 +291,37 @@ export const sendgridInboundMessage = onRequest(
       occurredAt: now,
     });
 
+    // A one-tap approval, so a studio holding a phone at a wedding can send a
+    // known-correct answer without opening anything. The raw token goes in the
+    // email; only its hash is stored, and it is good for one send.
+    //
+    // Deliberately narrow: it authorises sending this exact pre-composed body to
+    // this one client, and nothing else. It does not read data, does not accept
+    // text, and expires. The page it opens requires a POST to send, so a link
+    // scanner or a mail client fetching previews cannot fire it.
+    let approvalToken: string | null = null;
+    if (preparedAnswer) {
+      approvalToken = randomBytes(32).toString("base64url");
+      const tokenHash = createHash("sha256").update(approvalToken).digest("hex");
+      await db.doc(`replyApprovals/${tokenHash}`).set({
+        id: tokenHash,
+        tenantId: conversation.tenantId,
+        projectId: conversation.projectId,
+        conversationId,
+        inboundMessageId: messageId,
+        question: body.slice(0, 1000),
+        subject: preparedAnswer.subject,
+        replyBody: preparedAnswer.body,
+        basedOn: preparedAnswer.basedOn,
+        recipientEmail: parsed.from || conversation.participant.email,
+        recipientName: parsed.fromName ?? conversation.participant.name,
+        contactId: conversation.participant.contactId,
+        createdAt: now,
+        expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+        usedAt: null,
+      });
+    }
+
     // Same alert a portal message raises: an email reply the studio never hears
     // about is no better than one that went to the wrong inbox.
     const tenant = await db.doc(`tenants/${conversation.tenantId}`).get();
@@ -296,7 +344,35 @@ export const sendgridInboundMessage = onRequest(
             parsed.fromName ?? parsed.from ?? conversation.participant.name,
           messageSubject: parsed.subject || conversation.subject,
           messagePreview: body.slice(0, 240),
+          preparedReplyBody: preparedAnswer?.body ?? null,
+          preparedReplyBasedOn: preparedAnswer?.basedOn ?? null,
+          approveUrl: approvalToken
+            ? `${(process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com").replace(/\/$/, "")}/reply/${approvalToken}`
+            : null,
           actionUrl: `${(process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com").replace(/\/$/, "")}/studio/messages`,
+          status: "queued",
+          attempts: 0,
+          createdAt: now,
+          updatedAt: now,
+        },
+        { merge: true },
+      );
+    }
+
+    // Only when StudioCue could not answer from its own records. Charging the
+    // model to paraphrase an invoice was the waste worth removing; drafting a
+    // reply to a question that needs judgement is what it is for.
+    if (!preparedAnswer) {
+      const draftJobId = `inbound_reply_draft_${messageId}`;
+      await db.doc(`aiJobs/${draftJobId}`).set(
+        {
+          id: draftJobId,
+          tenantId: conversation.tenantId,
+          projectId: conversation.projectId,
+          type: "inbound_reply_draft",
+          conversationId,
+          inboundMessageId: messageId,
+          humanApprovalRequired: true,
           status: "queued",
           attempts: 0,
           createdAt: now,
