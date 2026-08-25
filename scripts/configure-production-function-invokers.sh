@@ -1,11 +1,79 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# Deliberately not `set -e`. Aborting on the first failure is how this script
+# used to leave every service after the failing one unbound, and report nothing
+# about either. Failures are collected and summarised at the end instead, and the
+# exit code reflects them.
+set -uo pipefail
 
 project_id="${1:-studiohub-prod}"
 region="${2:-us-east4}"
 project_number="$(gcloud projects describe "${project_id}" --format='value(projectNumber)')"
 app_hosting_service_account="firebase-app-hosting-compute@${project_id}.iam.gserviceaccount.com"
 functions_service_account="${project_number}-compute@developer.gserviceaccount.com"
+
+problems=()
+bound=0
+
+# Bind, then read the policy back and confirm the member is actually there.
+#
+# "The gcloud command exited 0" and "the binding exists" are different claims,
+# and this script only ever made the first one — while printing a success line
+# either way, because every call was `--quiet >/dev/null`. Verifying per service
+# is the point: an invoker binding that is missing produces a 403 with an HTML
+# body, which surfaces in the browser as `Unexpected token '<'` and looks like a
+# bug anywhere but here.
+bind_service() {
+  local service="$1" service_region="$2" member="$3"
+
+  if ! gcloud run services describe "${service}" \
+      --region="${service_region}" --project="${project_id}" \
+      --format='value(metadata.name)' >/dev/null 2>&1; then
+    problems+=("MISSING SERVICE  ${service} (${service_region}) — retired, renamed, or never deployed")
+    printf '  %-30s missing\n' "${service}"
+    return
+  fi
+
+  local output
+  if ! output="$(gcloud run services add-iam-policy-binding "${service}" \
+      --region="${service_region}" --project="${project_id}" \
+      --member="serviceAccount:${member}" \
+      --role=roles/run.invoker --quiet 2>&1)"; then
+    problems+=("BIND FAILED      ${service}: $(printf '%s' "${output}" | tail -1)")
+    printf '  %-30s bind failed\n' "${service}"
+    return
+  fi
+
+  local granted
+  granted="$(gcloud run services get-iam-policy "${service}" \
+    --region="${service_region}" --project="${project_id}" \
+    --flatten='bindings[].members' \
+    --filter='bindings.role:roles/run.invoker' \
+    --format='value(bindings.members)' 2>/dev/null)"
+
+  if [[ -z "${granted}" ]]; then
+    problems+=("UNVERIFIED       ${service}: could not read the policy back")
+    printf '  %-30s unverified\n' "${service}"
+  elif ! printf '%s\n' "${granted}" | grep -Fxq "serviceAccount:${member}"; then
+    problems+=("NOT APPLIED      ${service}: bind reported success but ${member} is not an invoker")
+    printf '  %-30s not applied\n' "${service}"
+  else
+    bound=$((bound + 1))
+    printf '  %-30s ok\n' "${service}"
+  fi
+}
+
+# Same contract for the project- and service-account-level grants.
+bind_iam() {
+  local description="$1"; shift
+  local output
+  if ! output="$("$@" --quiet 2>&1)"; then
+    problems+=("BIND FAILED      ${description}: $(printf '%s' "${output}" | tail -1)")
+    printf '  %-30s bind failed\n' "${description}"
+  else
+    bound=$((bound + 1))
+    printf '  %-30s ok\n' "${description}"
+  fi
+}
 
 app_services=(
   aiactioncommand
@@ -91,76 +159,87 @@ event_services=(
   operationstaskworker
 )
 
-for service_name in "${app_services[@]}"; do
-  gcloud run services add-iam-policy-binding "${service_name}" \
-    --region="${region}" \
-    --project="${project_id}" \
-    --member="serviceAccount:${app_hosting_service_account}" \
-    --role=roles/run.invoker \
-    --quiet >/dev/null
-done
+echo "App Hosting relay -> private Functions (${#app_services[@]} services)"
+# Guarded because this runs under `set -u` and bash 3.2 — the version macOS
+# ships — treats "${app_services[@]}" on an empty list as an unbound variable and
+# dies with that message instead of doing the work.
+if (( ${#app_services[@]} )); then
+  for service_name in "${app_services[@]}"; do
+    bind_service "${service_name}" "${region}" "${app_hosting_service_account}"
+  done
+fi
 
-for service_name in "${scheduler_services[@]}"; do
-  gcloud run services add-iam-policy-binding "${service_name}" \
-    --region="${region}" \
-    --project="${project_id}" \
-    --member="serviceAccount:${functions_service_account}" \
-    --role=roles/run.invoker \
-    --quiet >/dev/null
-done
+echo
+echo "Cloud Scheduler -> schedulers (${#scheduler_services[@]} services)"
+# Guarded because this runs under `set -u` and bash 3.2 — the version macOS
+# ships — treats "${scheduler_services[@]}" on an empty list as an unbound variable and
+# dies with that message instead of doing the work.
+if (( ${#scheduler_services[@]} )); then
+  for service_name in "${scheduler_services[@]}"; do
+    bind_service "${service_name}" "${region}" "${functions_service_account}"
+  done
+fi
 
 # Eventarc delivers queued provider, email, AI, and PDF jobs using the Functions runtime service
 # account. The private Gen 2 dispatcher must allow that identity to invoke its
 # backing Cloud Run service or jobs remain queued indefinitely.
-for service_name in "${event_services[@]}"; do
-  gcloud run services add-iam-policy-binding "${service_name}" \
-    --region="${region}" \
-    --project="${project_id}" \
-    --member="serviceAccount:${functions_service_account}" \
-    --role=roles/run.invoker \
-    --quiet >/dev/null
-done
+echo
+echo "Eventarc and Cloud Tasks -> dispatchers (${#event_services[@]} services)"
+# Guarded because this runs under `set -u` and bash 3.2 — the version macOS
+# ships — treats "${event_services[@]}" on an empty list as an unbound variable and
+# dies with that message instead of doing the work.
+if (( ${#event_services[@]} )); then
+  for service_name in "${event_services[@]}"; do
+    bind_service "${service_name}" "${region}" "${functions_service_account}"
+  done
+fi
 
-gcloud projects add-iam-policy-binding "${project_id}" \
+echo
+echo "Project and service-account grants"
+bind_iam "cloudtasks.enqueuer" \
+  gcloud projects add-iam-policy-binding "${project_id}" \
   --member="serviceAccount:${functions_service_account}" \
   --role=roles/cloudtasks.enqueuer \
-  --condition=None \
-  --quiet >/dev/null
+  --condition=None
 
 # The scheduler creates authenticated Cloud Tasks using the Functions runtime
 # identity. Let that identity attach itself to the task without granting it
 # impersonation rights over any other service account.
-gcloud iam service-accounts add-iam-policy-binding "${functions_service_account}" \
+bind_iam "iam.serviceAccountUser" \
+  gcloud iam service-accounts add-iam-policy-binding "${functions_service_account}" \
   --project="${project_id}" \
   --member="serviceAccount:${functions_service_account}" \
-  --role=roles/iam.serviceAccountUser \
-  --quiet >/dev/null
+  --role=roles/iam.serviceAccountUser
 
-gcloud projects add-iam-policy-binding "${project_id}" \
+bind_iam "pubsub.publisher" \
+  gcloud projects add-iam-policy-binding "${project_id}" \
   --member="serviceAccount:${functions_service_account}" \
   --role=roles/pubsub.publisher \
-  --condition=None \
-  --quiet >/dev/null
+  --condition=None
 
-gcloud run services add-iam-policy-binding studiohub-pdf \
-  --region=us-east4 \
-  --project="${project_id}" \
-  --member="serviceAccount:${functions_service_account}" \
-  --role=roles/run.invoker \
-  --quiet >/dev/null
+bind_service "studiohub-pdf" "us-east4" "${functions_service_account}"
 
-gcloud run services add-iam-policy-binding studiohub-file-safety \
-  --region=us-east1 \
-  --project="${project_id}" \
-  --member="serviceAccount:${functions_service_account}" \
-  --role=roles/run.invoker \
-  --quiet >/dev/null
+bind_service "studiohub-file-safety" "us-east1" "${functions_service_account}"
 
-gcloud run services add-iam-policy-binding filesafetyonfinalize \
-  --region=us-east1 \
-  --project="${project_id}" \
-  --member="serviceAccount:${functions_service_account}" \
-  --role=roles/run.invoker \
-  --quiet >/dev/null
+bind_service "filesafetyonfinalize" "us-east1" "${functions_service_account}"
 
-echo "Configured private Function invokers for ${project_id} in ${region}."
+echo
+if (( ${#problems[@]} == 0 )); then
+  grant_word="grants"; (( bound == 1 )) && grant_word="grant"
+  echo "Configured and verified ${bound} ${grant_word} for ${project_id} in ${region}."
+  exit 0
+fi
+
+# Loud and specific. The previous version printed this same success line whatever
+# happened, so "the script ran" carried no information — a missing binding was
+# only discovered later, from a 403 with an HTML body somewhere else entirely.
+grant_word="grants"; (( bound == 1 )) && grant_word="grant"
+echo "PROBLEMS (${#problems[@]}) — ${bound} ${grant_word} verified, the rest are not in place:"
+for problem in "${problems[@]}"; do
+  echo "  ${problem}"
+done
+echo
+echo "A service listed as MISSING has been retired or renamed: remove it from this"
+echo "script. Anything else means the grant is absent, so that Function answers 403"
+echo "with an HTML body — which surfaces client-side as \`Unexpected token '<'\`."
+exit 1
