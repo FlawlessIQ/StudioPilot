@@ -50,6 +50,7 @@ app_services=(
   sendgridinboundcoi
   sendgridinboundgallery
   sendgridinboundmessage
+  twilioinboundsms
   signingtemplatesquery
   stripeconnectwebhook
   stripewebhook

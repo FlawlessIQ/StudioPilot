@@ -592,6 +592,12 @@ service cloud.firestore {
     // tenantId — that is why it is here — so there is no tenant to scope a read
     // to, and any broader rule would expose one studio's client mail to
     // another's. Inspected through logs and platform tooling, not the app.
+    // Same reasoning as inboundEmailQuarantine: a text from an unrecognised
+    // number has no tenant to scope a read to.
+    match /inboundSmsQuarantine/{entryId} {
+      allow read: if false;
+      allow write: if false;
+    }
     match /inboundEmailQuarantine/{entryId} {
       allow read: if false;
       allow write: if false;
