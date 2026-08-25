@@ -11,6 +11,17 @@ export type IntegrationDiagnosticInput = {
   lastWebhookAt: string | null;
   lastReconciledAt: string | null;
   error: string | null;
+  /**
+   * Something the provider account itself is missing, rather than a fault
+   * in the connection.
+   *
+   * A connection can be perfectly healthy and still produce embarrassing
+   * output: a QuickBooks company file with no company name set sends every
+   * client an invoice headed "No company name". Nothing was wrong with the
+   * integration, so nothing reported it, and the studio found out from a
+   * client.
+   */
+  configurationWarning?: string | null;
 };
 
 export type IntegrationDiagnostics = IntegrationDiagnosticInput & {
@@ -42,6 +53,9 @@ export function buildIntegrationDiagnostics(
     recommendedAction = `${input.failedJobs7d} provider job${
       input.failedJobs7d === 1 ? "" : "s"
     } failed in the last seven days. Review and replay the failed work.`;
+  } else if (input.configurationWarning) {
+    severity = "attention";
+    recommendedAction = input.configurationWarning;
   } else if (input.latencyMs !== null && input.latencyMs > 3_000) {
     severity = "attention";
     recommendedAction =

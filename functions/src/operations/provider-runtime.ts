@@ -213,8 +213,27 @@ export async function checkProviderConnection(tenantId:string,provider:Provider)
     await current.document.ref.update({status:"error",lastHealthCheckAt:now,lastHealthLatencyMs:latencyMs,diagnosticSeverity:diagnostics.severity,diagnosticRecommendation:diagnostics.recommendedAction,diagnosticFailedJobs7d:diagnostics.failedJobs7d,diagnostics,lastError:code,updatedAt:now});
     throw new Error(code);
   }
-  const diagnostics=buildIntegrationDiagnostics({...baseDiagnostic,latencyMs,error:null},now);
-  await current.document.ref.update({status:"connected",lastHealthCheckAt:now,lastHealthLatencyMs:latencyMs,diagnosticSeverity:diagnostics.severity,diagnosticRecommendation:diagnostics.recommendedAction,diagnosticFailedJobs7d:diagnostics.failedJobs7d,diagnostics,lastError:null,updatedAt:now});
+  // The QuickBooks probe reads CompanyInfo, which is the same record that
+  // heads every invoice a client receives. The body was being discarded on
+  // success, so a company file with no company name set kept passing a
+  // clean health check while sending clients invoices from "No company
+  // name". Nothing was wrong with the connection, which is exactly why
+  // nothing reported it.
+  let configurationWarning:string|null=null;
+  if(provider==="quickbooks"){
+    const body=asRecord(await response.json().catch(()=>({})));
+    const companyInfo=asRecord(body.CompanyInfo);
+    const companyName=text(companyInfo.CompanyName);
+    // Only warn on a company record we actually read. A body we could not
+    // parse is a reason to say nothing, not to tell every studio their
+    // company name is missing.
+    if(Object.keys(companyInfo).length>0&&!companyName){
+      configurationWarning="QuickBooks has no company name set, so invoices reach your clients headed \"No company name\". Set it in QuickBooks under Settings \u2192 Account and settings \u2192 Company.";
+    }
+    if(companyName)await current.document.ref.update({providerAccountLabel:companyName}).catch(()=>{});
+  }
+  const diagnostics=buildIntegrationDiagnostics({...baseDiagnostic,latencyMs,error:null,configurationWarning},now);
+  await current.document.ref.update({status:"connected",lastHealthCheckAt:now,lastHealthLatencyMs:latencyMs,diagnosticSeverity:diagnostics.severity,diagnosticRecommendation:diagnostics.recommendedAction,diagnosticFailedJobs7d:diagnostics.failedJobs7d,diagnostics,configurationWarning,lastError:null,updatedAt:now});
   return{provider,status:"connected",mockMode:false,diagnostics};
 }
 export type BusyInterval={start:string;end:string};
