@@ -39,6 +39,12 @@ const commandSchema = z.discriminatedUnion("type", [
     input: messageInput,
   }),
   z.object({
+    type: z.literal("markConversationRead"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ conversationId: z.string().min(1).max(160) }),
+  }),
+  z.object({
     type: z.literal("approveMessage"),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
@@ -257,6 +263,27 @@ export const communicationsCommand = onRequest(
         batch.create(db.doc(`productEvents/${queuedEvent.id}`), queuedEvent);
         await batch.commit();
         result = { draftId, requiresApproval };
+      } else if (command.type === "markConversationRead") {
+        // Opening a thread is a write, and conversations are server-only for a
+        // reason: a client that could set the unread count could also hide a
+        // message from the studio. The tenant is checked against the stored
+        // document rather than trusted from the request.
+        const reference = db.doc(
+          `conversations/${command.input.conversationId}`,
+        );
+        const conversation = await reference.get();
+        if (!conversation.exists) throw new Error("CONVERSATION_NOT_FOUND");
+        if (conversation.get("tenantId") !== command.tenantId) {
+          throw new Error("FORBIDDEN");
+        }
+        await reference.set(
+          { studioUnreadCount: 0, updatedAt: now, updatedBy: identity.uid },
+          { merge: true },
+        );
+        result = {
+          conversationId: command.input.conversationId,
+          studioUnreadCount: 0,
+        };
       } else if (command.type === "approveMessage") {
         if (!canApprove(role)) throw new Error("APPROVAL_PERMISSION_REQUIRED");
         const draftReference = db.doc(

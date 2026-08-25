@@ -13,7 +13,8 @@ export type MessageDraftTrigger =
   | "day_before_checklist"
   | "delivery_note"
   | "album_selection_reminder"
-  | "review_request";
+  | "review_request"
+  | "inbound_reply";
 
 export type MessageDraftResult =
   | { mode: "preview"; actionId: null }
@@ -29,6 +30,8 @@ export async function requestMessageDraft(input: {
   trigger: MessageDraftTrigger;
   leadId?: string | null;
   projectId?: string | null;
+  /** Required for inbound_reply — the thread being answered. */
+  conversationId?: string | null;
   instructions?: string;
 }): Promise<MessageDraftResult> {
   const endpoint = process.env.NEXT_PUBLIC_AI_FUNCTIONS_URL;
@@ -51,6 +54,7 @@ export async function requestMessageDraft(input: {
         trigger: input.trigger,
         leadId: input.leadId ?? null,
         projectId: input.projectId ?? null,
+        conversationId: input.conversationId ?? null,
         instructions: input.instructions ?? "",
       }),
     },

@@ -30,6 +30,8 @@ export const emailTemplateKeys = [
   "delivery",
   "review_request",
   "manual_message",
+  // Studio-facing: a client wrote in and someone needs to know.
+  "client_message_received",
 ] as const;
 
 export type EmailTemplateKey = (typeof emailTemplateKeys)[number];
@@ -615,6 +617,31 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           : `An update from ${brand.studioName}`,
         paragraphs: [greeting, ...clientEmailParagraphs(body)],
         action: actionUrl ? { label, url: actionUrl } : undefined,
+      };
+    }
+    // Studio-facing, unlike almost everything else here. A client writing in
+    // used to produce an in-app task and nothing else, so the studio only found
+    // out by logging in and looking.
+    case "client_message_received": {
+      const senderName = stringValue(values, "senderName") || "A client";
+      const messageSubject = stringValue(values, "messageSubject");
+      const messagePreview = stringValue(values, "messagePreview");
+      return {
+        subject: `${senderName} sent you a message${project}`,
+        preheader:
+          messageSubject || "A new client message is waiting in StudioCue.",
+        eyebrow: "Client message",
+        heading: `${senderName} sent you a message`,
+        paragraphs: [
+          greeting,
+          `${senderName} wrote to you${project} from their client portal.`,
+          ...(messageSubject ? [`Subject: ${messageSubject}`] : []),
+          ...(messagePreview ? [`“${messagePreview}”`] : []),
+        ],
+        action: actionUrl
+          ? { label: "Open the message", url: actionUrl }
+          : undefined,
+        note: "Reply in StudioCue so the exchange stays on the project record.",
       };
     }
     default:

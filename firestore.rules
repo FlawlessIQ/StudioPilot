@@ -584,6 +584,30 @@ service cloud.firestore {
         );
       allow write: if false;
     }
+    // Inbound mail that could not be matched to a thread, or that was
+    // recognised as automated. Kept rather than dropped so a client's email is
+    // never silently lost, and readable by owners and admins so someone can act
+    // on it.
+    // Server-only in both directions. An unmatched message has no reliable
+    // tenantId — that is why it is here — so there is no tenant to scope a read
+    // to, and any broader rule would expose one studio's client mail to
+    // another's. Inspected through logs and platform tooling, not the app.
+    match /inboundEmailQuarantine/{entryId} {
+      allow read: if false;
+      allow write: if false;
+    }
+    // Threads are studio-read; the client portal reaches its own conversation
+    // through the portal API route, which filters by project membership. Writes
+    // are server-only: unread counts are folded in a transaction and a client
+    // that could increment them could also hide a message.
+    match /conversations/{conversationId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+        || (
+          isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+          && hasRole(resource.data.tenantId, ["studio_coordinator"])
+        );
+      allow write: if false;
+    }
     match /messages/{messageId} {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (

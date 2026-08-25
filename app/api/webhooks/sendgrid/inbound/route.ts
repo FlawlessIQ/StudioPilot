@@ -33,8 +33,14 @@ export async function POST(request: Request): Promise<Response> {
     const fields = await inspectionRequest.formData();
     const envelope = String(fields.get("envelope") ?? "");
     const to = String(fields.get("to") ?? "");
-    if (/gallery\+[A-Za-z0-9_-]{20,300}@/i.test(`${envelope}\n${to}`)) {
+    const recipients = `${envelope}\n${to}`;
+    if (/gallery\+[A-Za-z0-9_-]{20,300}@/i.test(recipients)) {
       functionName = "sendgridInboundGallery";
+    } else if (/reply\+[A-Za-z0-9_.-]{16,400}@/i.test(recipients)) {
+      // A client replying to a studio message. Checked after gallery so the
+      // narrower prefixes keep priority, and the COI default stays the fallback
+      // for anything unrecognised.
+      functionName = "sendgridInboundMessage";
     }
   } catch {
     // Preserve the existing COI path when SendGrid sends an unreadable payload.

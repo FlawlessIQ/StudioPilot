@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  conversationIdFor,
+  foldMessageIntoConversation,
+  type Conversation,
+} from "@/features/messaging/conversation";
 import { createHash } from "node:crypto";
 import type { DocumentData } from "firebase-admin/firestore";
 import {
@@ -235,6 +240,7 @@ const clientRecordFields = {
     "updatedAt",
   ],
   messages: [
+    "conversationId",
     "subject",
     "body",
     "bodyPreview",
@@ -1112,6 +1118,13 @@ export async function POST(request: Request) {
     ) {
       return Response.json({ error: "INVALID_ATTACHMENT_REFERENCE" }, { status: 400 });
     }
+    // Same derivation the email worker uses, so a client's reply lands on the
+    // thread the studio's message created rather than starting a new one.
+    const conversationId = conversationIdFor({
+      tenantId: parsed.tenantId,
+      projectId: parsed.projectId,
+      participant: { email: safeString(identity.email) },
+    });
     const batch = adminFirestore.batch();
     batch.set(adminFirestore.doc(`messages/${messageId}`), {
       id: messageId,
@@ -1119,6 +1132,7 @@ export async function POST(request: Request) {
       projectId: parsed.projectId,
       direction: "inbound",
       channel: "portal",
+      conversationId,
       visibility: "shared",
       subject: parsed.subject,
       body: parsed.body,
@@ -1182,7 +1196,77 @@ export async function POST(request: Request) {
       automationRunId: null,
       providerEventId: null,
     });
+    // Tell the studio. Until now this path wrote the message, a task, and an
+    // audit event, then committed — so the only way to discover a client had
+    // written was to open StudioCue and notice. The job id is derived from the
+    // message id, so a retried submission cannot send a second alert.
+    const tenantSnapshot = await adminFirestore
+      .doc(`tenants/${parsed.tenantId}`)
+      .get();
+    const emailBranding = tenantSnapshot.get("emailBranding");
+    const studioNotificationEmail =
+      safeString(
+        typeof emailBranding === "object" && emailBranding !== null
+          ? (emailBranding as Record<string, unknown>).replyTo
+          : null,
+      ) ??
+      safeString(tenantSnapshot.get("contactEmail")) ??
+      safeString(tenantSnapshot.get("email"));
+    if (studioNotificationEmail) {
+      batch.set(adminFirestore.doc(`emailJobs/notify_${messageId}`), {
+        id: `notify_${messageId}`,
+        tenantId: parsed.tenantId,
+        projectId: parsed.projectId,
+        type: "client_message_received",
+        recipient: studioNotificationEmail,
+        // The signed-in portal user is the sender. Contacts are not keyed by
+        // uid, so a contacts/{uid} lookup would always miss.
+        senderName:
+          safeString(identity.name) ?? safeString(identity.email) ?? "A client",
+        messageSubject: parsed.subject,
+        messagePreview: parsed.body.slice(0, 240),
+        projectName,
+        actionUrl: `${(process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com").replace(/\/$/, "")}/studio/messages`,
+        status: "queued",
+        attempts: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
     await batch.commit();
+    // After the commit, and in its own transaction: two messages can land on
+    // one thread at once — a client reply while a lifecycle send completes — and
+    // unread counts folded from a stale read would lose one of them.
+    const conversationReference = adminFirestore.doc(
+      `conversations/${conversationId}`,
+    );
+    await adminFirestore.runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(conversationReference);
+      const next = foldMessageIntoConversation(
+        snapshot.exists ? (snapshot.data() as Conversation) : null,
+        {
+          tenantId: parsed.tenantId,
+          projectId: parsed.projectId,
+          leadId: null,
+          participant: {
+            contactId: null,
+            email: safeString(identity.email),
+            phone: null,
+            name: safeString(identity.name) ?? safeString(identity.email),
+          },
+          channel: "portal",
+          direction: "inbound",
+          subject: parsed.subject,
+          preview: parsed.body.slice(0, 240),
+          occurredAt: now,
+        },
+      );
+      transaction.set(
+        conversationReference,
+        { ...next, updatedAt: now },
+        { merge: true },
+      );
+    });
     return Response.json({ id: messageId, status: "received" }, { status: 201 });
   } catch (caught: unknown) {
     const error = caught instanceof Error ? caught.message : "REQUEST_FAILED";

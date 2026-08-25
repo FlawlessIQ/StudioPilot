@@ -10,6 +10,11 @@ import {
   type EmailTemplateOverride,
 } from "../communications/email-templates.js";
 import { runAiJob, runPdfJob } from "./ai-pdf.js";
+import {
+  applyMessageToConversation,
+  conversationIdFor,
+} from "../communications/conversation.js";
+import { replyAddressFor } from "../communications/reply-address.js";
 import { captureOperationalError } from "./observability.js";
 import { productEvent } from "./product-events.js";
 import {
@@ -411,6 +416,7 @@ async function emailContext(
   recipientName: string | null;
   values: Record<string, unknown>;
   template: EmailTemplateOverride | null;
+  recipientIsClient: boolean;
 }> {
   const db = getFirestore();
   const tenantId = String(document.get("tenantId") ?? "");
@@ -431,6 +437,21 @@ async function emailContext(
   const contact = contactId
     ? await db.doc(`contacts/${contactId}`).get()
     : null;
+  const clientContactIds = Array.isArray(projectClientIds)
+    ? projectClientIds.filter(
+        (value): value is string => typeof value === "string" && value !== "",
+      )
+    : [];
+  const clientContacts = clientContactIds.length
+    ? await db.getAll(
+        ...clientContactIds.map((id) => db.doc(`contacts/${id}`)),
+      )
+    : [];
+  const clientContactEmails = new Set(
+    clientContacts
+      .map((snapshot) => String(snapshot.get("email") ?? "").trim().toLowerCase())
+      .filter(Boolean),
+  );
   const studioName =
     firstString(
       document.get("brandName"),
@@ -497,6 +518,10 @@ async function emailContext(
     projectName,
     recipientName,
     template,
+    // Compared against every client contact on the project, not just the first:
+    // a project with two clients would otherwise misfile mail to the second as
+    // studio-only. Falls closed — an unmatched recipient stays studio-visible.
+    recipientIsClient: clientContactEmails.has(recipient.trim().toLowerCase()),
     values: {
       ...objectValue(document.data()),
       recipient,
@@ -531,6 +556,9 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
       rendered.subject,
       messageId,
       "mock",
+      rendered.text,
+      context.recipientIsClient,
+      context.recipientName,
     );
     if (document.get("proposalId")) {
       await getFirestore()
@@ -575,7 +603,21 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
     ],
     categories: ["studiocue-transactional", type].slice(0, 10),
   };
+  // A thread's own reply address takes precedence, so the client's reply comes
+  // back into StudioCue instead of the studio's personal inbox. The From line is
+  // untouched — the client still sees the studio's name and address; only where
+  // a reply goes changes. Returns null unless the inbound domain and signing
+  // secret are both configured, so this stays inert until DNS is ready.
+  const sendThreadId = threadIdForSend(
+    document,
+    recipient,
+    context.recipientIsClient,
+  );
+  const threadReplyAddress = sendThreadId
+    ? replyAddressFor(sendThreadId)
+    : null;
   const replyAddress =
+    threadReplyAddress ??
     firstString(document.get("replyAddress"), context.brand.contactEmail);
   if (replyAddress) payload.reply_to = { email: replyAddress };
   if (type === "coi_venue_delivery") {
@@ -660,6 +702,9 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
     rendered.subject,
     messageId,
     "live",
+    rendered.text,
+    context.recipientIsClient,
+    context.recipientName,
   );
   const acceptedAt = new Date().toISOString();
   const acceptedEvent = productEvent({
@@ -708,14 +753,50 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
   return { messageId, templateKey: type, branded: true };
 }
 
+// Auth mail reaches a client's own address but is not part of the conversation
+// they should see replayed in their portal.
+const AUTH_EMAIL_TYPES = new Set([
+  "password_reset",
+  "email_verification",
+  "authorization_code",
+]);
+
+/**
+ * The thread this send belongs to, or null when it is not a client conversation.
+ * Both the send path (which needs it to build the reply address) and the record
+ * path (which stores it) derive it the same way rather than passing it around.
+ */
+function threadIdForSend(
+  document: DocumentSnapshot,
+  recipient: string,
+  recipientIsClient: boolean,
+): string | null {
+  if (!recipientIsClient) return null;
+  if (AUTH_EMAIL_TYPES.has(String(document.get("type")))) return null;
+  return conversationIdFor({
+    tenantId: String(document.get("tenantId") ?? ""),
+    projectId: (document.get("projectId") as string | null) ?? null,
+    leadId: (document.get("leadId") as string | null) ?? null,
+    participant: { email: recipient },
+  });
+}
+
 async function saveMessage(
   document: DocumentSnapshot,
   recipient: string,
   subject: string,
   messageId: string,
   deliveryMode: "live" | "mock",
+  body: string,
+  recipientIsClient: boolean,
+  recipientName: string | null,
 ) {
   const now = new Date().toISOString();
+  const conversationId = threadIdForSend(
+    document,
+    recipient,
+    recipientIsClient,
+  );
   await getFirestore()
     .doc(`messages/${document.id}`)
     .set(
@@ -728,24 +809,57 @@ async function saveMessage(
         templateKey: document.get("type"),
         recipient,
         subject,
-        bodyPreview:
-          typeof document.get("customBody") === "string"
-            ? String(document.get("customBody")).slice(0, 280)
-            : null,
+        // The rendered text, not just a preview of a custom body. Template
+        // emails previously stored nothing of what they said, which left no
+        // archive to show in a thread and nothing to search.
+        body: body.slice(0, 40000),
+        bodyPreview: body.slice(0, 280) || null,
         provider: "sendgrid",
         providerMessageId: messageId,
         deliveryMode,
         deliveryStatus: deliveryMode === "live" ? "sent" : "mock",
-        visibility: "studio",
+        // Everything the studio sends a client belongs in that client's portal.
+        // This was flatly "studio", so the portal — which only returns client
+        // and shared — showed the client their own messages and none of the
+        // replies, and the clientReadAt stamp could never fire. Derived from the
+        // recipient rather than a list of template keys so it cannot leak crew,
+        // venue, or staff mail as new templates are added.
+        visibility:
+          recipientIsClient && !AUTH_EMAIL_TYPES.has(String(document.get("type")))
+            ? "shared"
+            : "studio",
         sentAt: now,
         createdAt: now,
         updatedAt: now,
         createdBy: "email-worker",
         updatedBy: "email-worker",
         archivedAt: null,
+        conversationId,
       },
       { merge: true },
     );
+
+  // Threads are client conversations. Crew, venue, and staff mail is real mail
+  // but it is not a thread the studio replies within, and giving every
+  // assignment email its own conversation would bury the client ones.
+  if (conversationId) {
+    await applyMessageToConversation(getFirestore(), {
+      tenantId: String(document.get("tenantId") ?? ""),
+      projectId: (document.get("projectId") as string | null) ?? null,
+      leadId: (document.get("leadId") as string | null) ?? null,
+      participant: {
+        contactId: (document.get("contactId") as string | null) ?? null,
+        email: recipient,
+        phone: null,
+        name: recipientName,
+      },
+      channel: "email",
+      direction: "outbound",
+      subject,
+      preview: body.slice(0, 240),
+      occurredAt: now,
+    });
+  }
 }
 
 async function due(collectionName: string) {
@@ -802,6 +916,8 @@ export const operationsJobScheduler = onSchedule(
       "DROPBOX_SIGN_CLIENT_SECRET",
       "QUICKBOOKS_CLIENT_ID",
       "QUICKBOOKS_CLIENT_SECRET",
+      // Needed to mint each thread's reply address as mail goes out.
+      "INBOUND_REPLY_SIGNING_SECRET",
     ],
   },
   async () => {

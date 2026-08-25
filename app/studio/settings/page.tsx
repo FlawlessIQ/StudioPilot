@@ -3,6 +3,7 @@ import { ConsultationAvailability } from "@/components/settings/consultation-ava
 import { DataControls } from "@/components/settings/data-controls";
 import { EmailBranding } from "@/components/settings/email-branding";
 import { EmailTemplateDesigner } from "@/components/communications/email-template-designer";
+import { LifecyclePackPanel } from "@/components/communications/lifecycle-pack-panel";
 import { SettingsDestinations } from "@/components/settings/settings-destinations";
 
 export default function SettingsPage() {
@@ -22,6 +23,7 @@ export default function SettingsPage() {
         <SettingsDestinations />
         <EmailBranding />
         <EmailTemplateDesigner />
+        <LifecyclePackPanel />
         <ConsultationAvailability />
         <DataControls />
       </div>

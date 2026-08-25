@@ -17,6 +17,7 @@ export { proposalCommand } from "./booking/proposals.js";
 export { docusignWebhook, dropboxSignWebhook, quickbooksWebhook, stripeConnectWebhook } from "./booking/webhooks.js";
 export { planningCommand } from "./planning/commands.js";
 export { sendgridInboundCoi } from "./planning/inbound.js";
+export { sendgridInboundMessage } from "./communications/inbound.js";
 export { coiChaseScheduler } from "./planning/coi-chase-scheduler.js";
 export { sendgridEventWebhook } from "./communications/sendgrid-events.js";
 export {
