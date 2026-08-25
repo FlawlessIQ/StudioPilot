@@ -161,6 +161,8 @@ export const operationsTaskWorker = onTaskDispatched(
       "DROPBOX_SIGN_CLIENT_SECRET",
       "QUICKBOOKS_CLIENT_ID",
       "QUICKBOOKS_CLIENT_SECRET",
+      // Needed to mint each thread's reply address as mail goes out.
+      "INBOUND_REPLY_SIGNING_SECRET",
     ],
     timeoutSeconds: 600,
     memory: "1GiB",

@@ -134,7 +134,13 @@ async function quarantine(
 }
 
 export const sendgridInboundMessage = onRequest(
-  { cors: false, invoker: "public", secrets: ["SENDGRID_INBOUND_TOKEN"] },
+  {
+    cors: false,
+    invoker: "public",
+    // The shared token authenticates SendGrid; the signing secret is what
+    // verifies that a reply address was minted by us and not guessed.
+    secrets: ["SENDGRID_INBOUND_TOKEN", "INBOUND_REPLY_SIGNING_SECRET"],
+  },
   async (request, response) => {
     // Public because SendGrid posts here, so the shared token is the only thing
     // authenticating the caller — same contract as the COI parser.

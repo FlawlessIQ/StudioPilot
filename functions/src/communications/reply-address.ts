@@ -14,9 +14,9 @@ import { createHmac, timingSafeEqual } from "node:crypto";
  * arbitrary thread by editing an address. The same approach as the COI and
  * gallery reply tokens, minus their stored hash.
  *
- * Fails closed. With no signing secret or inbound domain configured, no reply
- * address is produced and the caller keeps the existing behaviour — which is
- * what makes this safe to deploy before DNS is in place.
+ * Fails closed. With no signing secret configured, no reply address is produced
+ * and the caller keeps the existing behaviour — which is what made this safe to
+ * deploy before the secret existed.
  */
 
 const SIGNATURE_LENGTH = 16;
@@ -26,8 +26,14 @@ function secret(): string | null {
   return value && value.length >= 32 ? value : null;
 }
 
+/**
+ * Reuses SENDGRID_INBOUND_DOMAIN rather than introducing a second variable for
+ * the same value. That one is already set on every function that sends mail and
+ * is the domain the COI and gallery reply tokens already arrive on, so a
+ * mismatch between two names could only ever be a bug.
+ */
 function inboundDomain(): string | null {
-  const value = process.env.INBOUND_EMAIL_DOMAIN?.trim().replace(/^@/, "");
+  const value = process.env.SENDGRID_INBOUND_DOMAIN?.trim().replace(/^@/, "");
   return value || null;
 }
 
