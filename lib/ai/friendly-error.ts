@@ -31,6 +31,31 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   GOOGLE_RUNTIME_IDENTITY_UNAVAILABLE: "We couldn't draft this. Try again.",
 
   /**
+   * Booking attestations refusing for a reason worth reading.
+   *
+   * These carry real information and used to reach the user verbatim. The
+   * sweep that routed raw exception messages through this map turned them
+   * into "The payment could not be recorded", which is calm and useless: the
+   * walk of 2026-08-26 hit RETAINER_INVOICE_ALREADY_EXISTS and the screen
+   * gave no hint that a standing invoice was the obstacle. A collapsed
+   * message is only an improvement when the code says nothing.
+   */
+  RETAINER_INVOICE_ALREADY_EXISTS:
+    "A retainer invoice is already out with the client, and it stays the record of that money. Mark it paid where it was raised — recording a second payment here would give the same retainer two answers.",
+  SIGNED_CONTRACT_REQUIRED:
+    "The signed agreement comes first. Record the signature, then the retainer.",
+  RETAINER_NOT_READY:
+    "This job isn't waiting on a retainer yet. Refresh the booking page to see which step it is actually on.",
+  RETAINER_ATTESTATION_PERMISSION_REQUIRED:
+    "Only the studio owner or an admin can record a payment by hand.",
+  PACKAGE_SNAPSHOT_NOT_FOUND:
+    "The locked package for this job could not be found, so there is no price to record against.",
+  CONTRACT_NOT_READY:
+    "The accepted proposal must be ready before a contract can be sent.",
+  ACCEPTED_PROPOSAL_REQUIRED:
+    "The client needs to accept the proposal before the agreement can go out.",
+
+  /**
    * Capability resolution refusing to guess.
    *
    * These used to be silent: with nothing connected, signing fell back to

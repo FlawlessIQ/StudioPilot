@@ -42,3 +42,19 @@ test("dumps and codes collapse to the fallback", () => {
 test("the AI-specific entry point keeps its own default", () => {
   assert.match(friendlyAiError(new Error("SOME_UNMAPPED_CODE")), /couldn't draft this/);
 });
+
+test("a refused booking attestation says what the obstacle is", () => {
+  // The walk of 2026-08-26 hit this and read only "The payment could not be
+  // recorded." The code carries the whole answer, so the map must too.
+  assert.match(
+    friendlyError(
+      new Error("RETAINER_INVOICE_ALREADY_EXISTS"),
+      "The payment could not be recorded.",
+    ),
+    /already out with the client/,
+  );
+  assert.match(
+    friendlyError(new Error("SIGNED_CONTRACT_REQUIRED"), "Nope."),
+    /signed agreement comes first/,
+  );
+});
