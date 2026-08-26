@@ -252,7 +252,20 @@ function show(value: unknown, label: string) {
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (/At$|Created|Updated|Expires|Published|Approved|Arrival|Departure|delivery/i.test(label)) {
     const date = new Date(String(value));
-    if (!Number.isNaN(date.valueOf())) return date.toLocaleString();
+    if (!Number.isNaN(date.valueOf())) {
+      // `toLocaleString()` renders "8/30/2026, 1:00:00 PM" — a fourth date
+      // format in an app that already shows one date three ways, and seconds
+      // nobody needs. A run-of-show row wants the clock; a record timestamp
+      // wants the day.
+      const clockOnly = /Arrival|Departure/i.test(label);
+      return new Intl.DateTimeFormat("en-US", {
+        ...(clockOnly
+          ? {}
+          : { month: "short", day: "numeric", year: "numeric" }),
+        hour: "numeric",
+        minute: "2-digit",
+      }).format(date);
+    }
   }
   return String(value).replaceAll("_", " ");
 }

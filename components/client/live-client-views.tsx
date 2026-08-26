@@ -32,6 +32,10 @@ import { PostEventAction } from "@/components/post-event/post-event-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import {
+  displayableScheduleItems,
+  scheduleItemClock,
+} from "@/features/schedules/item-clock";
+import {
   decideClientProposal,
   getClientAvailablePackages,
   getClientPortalProject,
@@ -81,18 +85,22 @@ function mockClientRecords(
         taxCents: 45600,
         retainerCents: 182650,
         totalCents: 735600,
+        // Canonical field name, matching features/packages/schema.ts. The
+        // fixture previously said `totalCents`, so the component rendered
+        // correctly here and $0.00 against real documents — the mock was
+        // hiding the bug rather than catching it.
         lineItems: [
           {
             description: "Signature wedding collection",
             quantity: 1,
             unitPriceCents: 650000,
-            totalCents: 650000,
+            lineTotalCents: 650000,
           },
           {
             description: "Engagement session",
             quantity: 1,
             unitPriceCents: 65000,
-            totalCents: 65000,
+            lineTotalCents: 65000,
           },
         ],
       },
@@ -1275,7 +1283,19 @@ export function LiveClientProposal() {
                     {money(line.unitPriceCents, pricing.currency)}
                   </small>
                 </span>
-                <strong>{money(line.totalCents, pricing.currency)}</strong>
+                {/*
+                  Two field names reach this component for one number. Package
+                  snapshots store `lineTotalCents` (features/packages/schema.ts),
+                  and the portal route serves those documents unchanged — while
+                  functions/src/booking/proposals.ts and
+                  server/services/proposal-service.ts rename it to `totalCents`
+                  on their way out. Reading only one name renders $0.00 on the
+                  other path, which is what the client portal was doing on a
+                  real $8,950 proposal.
+                */}
+                <strong>
+                  {money(line.lineTotalCents ?? line.totalCents, pricing.currency)}
+                </strong>
               </div>
             ))}
           </div>
@@ -2085,6 +2105,11 @@ export function LiveClientSchedule() {
       setBusy(false);
     }
   }
+  const clientVisibleItems = displayableScheduleItems(
+    items.filter((item) =>
+      ["client", "shared"].includes(text(item.visibility, "shared")),
+    ),
+  );
   return (
     <div className="client-booking-page">
       <p className="eyebrow">
@@ -2100,36 +2125,39 @@ export function LiveClientSchedule() {
           <Clock3 /> Version {number(schedule.version)} is current · {orderedSchedules.length - 1} earlier {orderedSchedules.length === 2 ? "version" : "versions"} preserved
         </p>
       ) : null}
-      <section className="mobile-schedule">
-        {items
-          .filter((item) =>
-            ["client", "shared"].includes(text(item.visibility, "shared")),
-          )
-          .map((item) => (
-            <article key={text(item.id)}>
-              <span>
-                <strong>
-                  {new Date(String(item.startAt)).toLocaleTimeString([], {
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })}
-                </strong>
-                <small>
-                  {new Date(String(item.endAt)).toLocaleTimeString([], {
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })}
-                </small>
-              </span>
-              <div>
-                <h2>{text(item.title)}</h2>
-                <p>
-                  <MapPin /> {text(item.location, "Location pending")}
-                </p>
-              </div>
-            </article>
-          ))}
-      </section>
+      {/* Items with no usable start time are left out rather than rendered as
+          "Invalid Date". A schedule can be marked approved and still hold items
+          the reader cannot understand, and a couple should be told that plainly
+          instead of being handed six broken clocks the night before. */}
+      {clientVisibleItems.length ? (
+        <section className="mobile-schedule">
+          {clientVisibleItems.map((item) => {
+            const clock = scheduleItemClock(item, text(schedule.timezone, "") || undefined);
+            return (
+              <article key={text(item.id)}>
+                <span>
+                  <strong>{clock?.start}</strong>
+                  {clock?.end ? <small>{clock.end}</small> : null}
+                </span>
+                <div>
+                  <h2>{text(item.title, "Detail to be confirmed")}</h2>
+                  <p>
+                    <MapPin /> {text(item.location, "Location pending")}
+                  </p>
+                </div>
+              </article>
+            );
+          })}
+        </section>
+      ) : (
+        <section className="panel client-schedule-empty">
+          <h2>No times are set on this schedule yet</h2>
+          <p>
+            Your studio is still putting the running order together. It will
+            appear here as soon as the times are set.
+          </p>
+        </section>
+      )}
       {actionable ? (
         <section className="panel client-schedule-decision">
           <div>

@@ -47,7 +47,10 @@ import {
   type LifecycleLaneKey,
   type LifecycleRecord,
 } from "@/features/projects/lifecycle-projection";
-import { projectStateLabel } from "@/features/projects/state-label";
+import {
+  projectStateAdvanceAction,
+  projectStateLabel,
+} from "@/features/projects/state-label";
 import { readinessSummary } from "@/features/projects/readiness-summary";
 import { describeEventProximity } from "@/lib/format/event-date";
 import { runCrmCommand } from "@/lib/crm/command-client";
@@ -252,7 +255,7 @@ function ProjectStageControl({
           audit log.
         </p>
         <button className="button button-light-on-dark" disabled={busy} type="submit">
-          {busy ? "Updating…" : `Confirm ${stateLabel(nextStage)}`}
+          {busy ? "Updating…" : projectStateAdvanceAction(nextStage)}
         </button>
         {notice ? <p className="project-stage-notice" role="status">{notice}</p> : null}
       </form>
@@ -362,9 +365,13 @@ function ProjectLifecycleLanes({
               with the next-move card and, on a fully planned wedding, called
               an unpaid balance a blocker for work that was not blocked. It is
               a reference list now; the instruction lives in one place. */}
+          {/* It said "at the end of the thread above", but the next-move card
+              renders above the thread, not after it — measured at y=633 with
+              the thread running 768→3155. On a job with one entry the sentence
+              was pointing past a single line to nothing. */}
           <p>
-            Your next move is at the end of the thread above. This is the rest
-            of what is open on this job.
+            Your next move is at the top of this job. This is the rest of what
+            is open on it.
           </p>
         </div>
       </header>

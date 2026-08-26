@@ -38,3 +38,45 @@ export function projectStateLabel(state: string): string {
       .replace(/^\w/, (letter) => letter.toUpperCase())
   );
 }
+
+/**
+ * The button label for manually advancing a project into a state.
+ *
+ * `projectStateLabel` returns the *name* of a state — "Shot", "Proposal out",
+ * "Awaiting deposit". Those read correctly on a chip beside a couple's name and
+ * badly after a verb: the stage control rendered `Confirm ${label}`, producing
+ * "Confirm Shot" on a wedding that had happened and "Confirm Proposal out" on a
+ * new job. Neither is a sentence a photographer would say.
+ *
+ * So each state also names the *event* that moved the job into it, because that
+ * is what the operator is confirming happened outside StudioCue.
+ *
+ * Pure lookup, no I/O.
+ */
+const ADVANCE_ACTIONS: Record<string, string> = {
+  INQUIRY: "Confirm the inquiry arrived",
+  CONSULTATION: "Confirm we've spoken",
+  PROPOSAL: "Confirm the proposal went out",
+  CONTRACT_PENDING: "Confirm the contract is sent",
+  RETAINER_PENDING: "Confirm the contract is signed",
+  BOOKED: "Confirm the deposit is paid",
+  PLANNING: "Confirm planning has started",
+  READY: "Confirm they're ready for the day",
+  EVENT_COMPLETE: "Confirm the event happened",
+  POST_PRODUCTION: "Confirm editing has started",
+  DELIVERED: "Confirm the gallery is delivered",
+  REVIEW_REQUESTED: "Confirm the review was asked for",
+  CLOSED: "Confirm the job is closed",
+  CANCELLED: "Confirm the job is cancelled",
+  ARCHIVED: "Confirm the job is archived",
+};
+
+/**
+ * What the "move this project forward" button should say.
+ *
+ * Falls back to "Move to <plain name>" rather than "Confirm <name>" so an
+ * unmapped state still reads as an instruction instead of a fragment.
+ */
+export function projectStateAdvanceAction(state: string): string {
+  return ADVANCE_ACTIONS[state] ?? `Move to ${projectStateLabel(state)}`;
+}

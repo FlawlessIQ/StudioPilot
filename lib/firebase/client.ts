@@ -67,8 +67,17 @@ export function getFirebaseClient(): {
     useEmulators &&
     !emulatorConnected
   ) {
-    connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
-    connectFirestoreEmulator(firestore, "127.0.0.1", 8080);
+    // Ports are overridable because the default block collides with any other
+    // Firebase project's emulator suite on the same machine. When that happens
+    // the browser silently authenticates against the *other* project rather
+    // than failing, so sign-in appears broken for reasons nothing reports.
+    const authEmulator =
+      process.env.NEXT_PUBLIC_AUTH_EMULATOR_URL ?? "http://127.0.0.1:9099";
+    const firestorePort = Number(
+      process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT ?? 8080,
+    );
+    connectAuthEmulator(auth, authEmulator, { disableWarnings: true });
+    connectFirestoreEmulator(firestore, "127.0.0.1", firestorePort);
     emulatorConnected = true;
   }
 
