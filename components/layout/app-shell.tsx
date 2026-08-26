@@ -95,11 +95,16 @@ const activeGroups: Record<string, string[]> = {
     "Post-production",
     "Delivery",
     "Reviews",
+    // Tasks are per-job work; without this /studio/tasks highlighted Today.
+    "Tasks",
   ],
   Calendar: ["Calendar"],
   People: ["Clients", "Crew", "Team", "Vendors"],
   Library: ["Library", "Packages", "AI import", "Studio setup"],
-  "Studio settings": ["Settings", "Integrations", "Subscription"],
+  // Workflows covers /studio/workflows, /studio/automations and /studio/audit,
+  // none of which appeared in any group — so all three highlighted Today, which
+  // is the one place they are not.
+  "Studio settings": ["Settings", "Integrations", "Subscription", "Workflows"],
 };
 
 const StudioShellContext = createContext(false);

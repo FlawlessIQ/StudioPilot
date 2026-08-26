@@ -31,6 +31,7 @@ import { ClientQuestionnaireForm } from "@/components/planning/client-questionna
 import { PostEventAction } from "@/components/post-event/post-event-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { daysUntilEvent } from "@/lib/format/event-date";
 import {
   displayableScheduleItems,
   scheduleItemClock,
@@ -486,8 +487,13 @@ export function LiveClientHome() {
     ? new Date(`${value.eventDate}T12:00:00`)
     : new Date(Number.NaN);
   const hasEventDate = !Number.isNaN(eventDate.valueOf());
+  // The couple's countdown and the studio's must be the same number. This
+  // anchored the event at midday and ceil'd from the exact render instant,
+  // while the studio rounds from the start of today — so before noon the
+  // portal read one day higher than the studio for the same wedding, every
+  // day. One shared function, no second opinion.
   const days = hasEventDate
-    ? Math.ceil((eventDate.valueOf() - renderedAt) / 86400000)
+    ? daysUntilEvent(value.eventDate, new Date(renderedAt))
     : null;
   const progress = value.clientProgress;
   const nextAction = value.nextClientAction;
@@ -499,6 +505,17 @@ export function LiveClientHome() {
     (invoice) =>
       invoice.status === "paid" || Number(invoice.balanceCents ?? 1) === 0,
   );
+  // The largest unsettled invoice, and whether it has gone past its date. A
+  // couple needs one number here, not a status word.
+  const today = new Date().toISOString().slice(0, 10);
+  const outstanding = invoices.value
+    .filter((invoice) => Number(invoice.balanceCents ?? 0) > 0)
+    .map((invoice) => ({
+      balanceCents: Number(invoice.balanceCents ?? 0),
+      currency: invoice.currency,
+      overdue: Boolean(invoice.dueDate) && String(invoice.dueDate) < today,
+    }))
+    .sort((left, right) => right.balanceCents - left.balanceCents)[0];
   const currentSchedule = [...schedules.value].sort(
     (left, right) => number(right.version) - number(left.version),
   )[0];
@@ -520,8 +537,19 @@ export function LiveClientHome() {
     },
     {
       label: "Payment",
-      detail: paidInvoice ? "Payment evidence recorded" : "Check provider status",
-      ready: Boolean(paidInvoice),
+      // `paidInvoice` is true when *any* invoice is settled, so a paid retainer
+      // made this read "Payment evidence recorded" while the final balance was
+      // overdue — the couple's reasonable reading was that they had paid. The
+      // tile now reflects what is outstanding, which is the only thing they
+      // need from it.
+      detail: outstanding
+        ? `${money(outstanding.balanceCents, outstanding.currency)} still to pay${
+            outstanding.overdue ? " · overdue" : ""
+          }`
+        : paidInvoice
+          ? "Paid in full"
+          : "Check provider status",
+      ready: Boolean(paidInvoice) && !outstanding,
       href: "/client/payments",
       icon: CreditCard,
     },

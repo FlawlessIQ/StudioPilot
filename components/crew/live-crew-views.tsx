@@ -759,7 +759,27 @@ export function LiveCrewJobs() {
               <span><Clock3/><small>Call and wrap</small><strong>{dateTime(assignment.arrivalAt)} – {dateTime(assignment.departureAt)}</strong></span>
               <span><MapPin/><small>{locations.length > 1 ? `${locations.length} locations` : "Location"}</small><strong>{locations.map((item) => text(item.name)).join(" · ") || assignmentPlace(assignment, project)}</strong></span>
               <span><CircleDollarSign/><small>{text(assignment.compensationType) ? `${text(assignment.compensationType)} rate` : "Fee"}</small><strong>{assignment.compensationVisibleToCrew ? money(assignment.compensationCents, assignment.currency) : "Contact studio"}</strong></span>
-              {pending && text(assignment.inviteExpiresAt) ? <span><CalendarDays/><small>Respond by</small><strong>{dateTime(assignment.inviteExpiresAt)}</strong></span> : null}
+              {pending && text(assignment.inviteExpiresAt) ? (
+                (() => {
+                  // A deadline that has passed was rendered identically to a live
+                  // one: "Respond by Aug 19, 10:00 AM" was still shown with Accept
+                  // and Decline seven days later, and the studio's matching task
+                  // sat in Today's "When you get to it" band for a wedding 22 days
+                  // out. Between the two surfaces a wedding goes unstaffed quietly.
+                  const expired =
+                    new Date(text(assignment.inviteExpiresAt)).valueOf() < Date.now();
+                  return (
+                    <span data-expired={expired ? "true" : undefined}>
+                      <CalendarDays/>
+                      <small>{expired ? "Response was due" : "Respond by"}</small>
+                      <strong>
+                        {dateTime(assignment.inviteExpiresAt)}
+                        {expired ? " · overdue" : ""}
+                      </strong>
+                    </span>
+                  );
+                })()
+              ) : null}
             </div>
             {responsibilities.length ? <section className="crew-responsibilities"><strong>Responsibilities</strong><ul>{responsibilities.map((item) => <li key={item}><CheckCircle2 size={15}/>{item}</li>)}</ul></section> : <p className="crew-missing-detail"><AlertTriangle size={15}/> Responsibilities have not been supplied. Contact the studio before accepting.</p>}
             {pending ? <AssignmentActions assignmentId={assignment.id} projectId={text(assignment.projectId)} initialStatus={assignment.status === "viewed" ? "viewed" : "invited"} startsAt={text(assignment.arrivalAt)} endsAt={text(assignment.departureAt)} projectName={text(project?.name)} role={text(assignment.role)} location={text(locations[0]?.name)} onAssignmentChanged={data.refresh} /> : null}

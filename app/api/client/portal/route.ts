@@ -523,11 +523,42 @@ async function clientProject(tenantId: string, projectId: string) {
       Date.now()
       ? "expired"
       : storedProposalStatus;
+  // What the client still owes. An invoice past its due date changes what the
+  // portal should be telling them to do: the home page was pointing a couple at
+  // "Review the final schedule" while their studio chased $6,265 overdue.
+  const paymentsIndex = Object.keys(availabilityCollections).indexOf("payments");
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const outstandingBalance = availabilitySnapshots[paymentsIndex].docs
+    .map((document) => document.data())
+    .filter((invoice) => Number(invoice.balanceCents ?? 0) > 0)
+    .map((invoice) => {
+      const dueDate = safeString(invoice.dueDate);
+      return {
+        balanceCents: Number(invoice.balanceCents ?? 0),
+        amountLabel: new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency: String(invoice.currency ?? "USD"),
+        }).format(Number(invoice.balanceCents ?? 0) / 100),
+        dueDate,
+        // Formatted here so no raw ISO date can reach client-facing copy.
+        dueDateLabel: dueDate
+          ? new Intl.DateTimeFormat("en-US", {
+              month: "long",
+              day: "numeric",
+              year: "numeric",
+            }).format(new Date(`${dueDate}T12:00:00Z`))
+          : null,
+        overdue: Boolean(dueDate) && String(dueDate) < todayIso,
+      };
+    })
+    .sort((left, right) => right.balanceCents - left.balanceCents)[0] ?? null;
+
   const experience = buildClientPortalExperience({
     state,
     availability,
     checkpoints,
     proposalStatus,
+    outstandingBalance,
   });
   return {
     id: projectId,
