@@ -2028,6 +2028,7 @@
   }
 
   .ds-root .command-search > span,
+  .ds-root .command-search .command-search-ai,
   .ds-root .command-search kbd {
     display: none;
   }
@@ -2228,4 +2229,26 @@
   font-weight: 650;
   letter-spacing: .04em;
   text-transform: uppercase;
+}
+
+/* The search field's first word is "Ask", and it looked like a search box and
+   nothing else. Brass mark, emerald on hover — the same two accents the job
+   page's Ask StudioCue composer uses, so the two entry points to one feature
+   look related. */
+.ds-root .command-search .command-search-ai {
+  color: var(--cue-brass);
+  flex: none;
+}
+
+.ds-root .command-search:hover {
+  border-color: color-mix(in srgb, var(--ds-claret) 38%, var(--ds-line));
+}
+
+.ds-root .command-search:hover .command-search-ai {
+  color: var(--cue-brass-deep);
+}
+
+.ds-root .command-search:focus-visible {
+  outline: 2px solid var(--ds-claret);
+  outline-offset: 2px;
 }

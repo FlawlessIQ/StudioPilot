@@ -202,7 +202,15 @@ export function projectJourney(input: JourneyInput): {
     });
   }
 
-  const consulted = input.hasConsultation || stateRank >= 2;
+  // Reaching CONSULTATION *is* the record that the consultation happened: the
+  // only ways in are a booked meeting (which sets hasConsultation) or the
+  // operator saying it happened outside StudioCue. This required rank >= 2
+  // (PROPOSAL), so the "It already happened — mark done" button moved the
+  // project to CONSULTATION, left the step current, and then removed itself
+  // because it is only offered from LEAD — a dead end on the second step of the
+  // lifecycle, with the only remaining action being "Schedule consultation" for
+  // a consultation that had already happened.
+  const consulted = input.hasConsultation || stateRank >= 1;
   push({
     key: "consultation",
     title: "Consultation",

@@ -12,6 +12,7 @@ import {
   ListTodo,
   Plus,
   Search,
+  Sparkles,
   UserPlus,
   X,
 } from "lucide-react";
@@ -233,6 +234,10 @@ export function GlobalSearch() {
       >
         <Search size={17} />
         <span>Ask StudioCue, search, or create</span>
+        {/* The field's first word is "Ask", and nothing in it looked like it
+            could. The mark is trailing so the collapsed mobile pill keeps a
+            magnifier rather than becoming an unexplained sparkle. */}
+        <Sparkles aria-hidden="true" className="command-search-ai" size={14} />
         <kbd>⌘ K</kbd>
       </button>
       {open ? (

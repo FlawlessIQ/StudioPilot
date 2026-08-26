@@ -22,12 +22,19 @@ export function SheetDialog({
   label,
   onClose,
   open,
+  width = "default",
 }: {
   children: React.ReactNode;
   /** Names the dialog for screen readers and titles the header. */
   label: string;
   onClose: () => void;
   open: boolean;
+  /**
+   * "wide" for content that is a list of cards rather than a short form —
+   * the job history's artifact rows carry chips and a link, and wrap badly
+   * at the two-field width this started out serving.
+   */
+  width?: "default" | "wide";
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const returnFocusTo = useRef<Element | null>(null);
@@ -74,7 +81,7 @@ export function SheetDialog({
       <div
         aria-label={label}
         aria-modal="true"
-        className="sheet-dialog"
+        className={width === "wide" ? "sheet-dialog is-wide" : "sheet-dialog"}
         ref={panel}
         role="dialog"
         tabIndex={-1}

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
   ArrowUpRight,
   Check,
+  History,
   LoaderCircle,
   MessageSquareText,
   Send,
@@ -18,10 +19,15 @@ import { groupJourneyByPhase } from "@/features/journey/phases";
 import { KindGlyph } from "@/components/library/kind-glyph";
 import type { LibraryKind } from "@/features/library/kinds";
 import {
+  filterThreadHistory,
   groupThreadByDay,
+  threadHistoryFacets,
+  threadHistorySummary,
   type ThreadActor,
   type ThreadEntry,
+  type ThreadHistoryFacet,
 } from "@/features/journey/thread";
+import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { askCopilot } from "@/lib/ai/copilot-client";
@@ -35,6 +41,18 @@ const DAY = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
 });
+
+/** For the history row, where the weekday is a word too many. */
+const SHORT_DAY = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+});
+
+function shortDayLabel(at: string): string {
+  const parsed = new Date(at);
+  if (Number.isNaN(parsed.valueOf())) return "";
+  return SHORT_DAY.format(parsed);
+}
 
 function dayLabel(day: string): string {
   const parsed = new Date(`${day}T12:00:00`);
@@ -80,11 +98,53 @@ export function ProjectThread({
   consultationId: string | null;
   onChanged: (state?: string, version?: number) => void;
 }) {
-  const days = groupThreadByDay(entries);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const summary = useMemo(() => threadHistorySummary(entries), [entries]);
 
   return (
-    <section className="job-thread" aria-label="Job history">
-      {days.length === 0 ? (
+    <section className="job-thread" aria-label="This job">
+      <ThreadNextMove
+        current={current}
+        onChanged={onChanged}
+        projectId={projectId}
+        stateVersion={stateVersion}
+      />
+      {summary.latest ? (
+        <>
+          <button
+            aria-expanded={historyOpen}
+            aria-haspopup="dialog"
+            className="job-history-strip"
+            onClick={() => setHistoryOpen(true)}
+            type="button"
+          >
+            <span className="job-history-icon">
+              <History aria-hidden="true" size={16} />
+            </span>
+            <span className="job-history-label">
+              <strong>Job history</strong>
+              <small>
+                {summary.count} {summary.count === 1 ? "entry" : "entries"}
+              </small>
+            </span>
+            <span className="job-history-latest">
+              <em>Latest</em>
+              {summary.latest.title} · {shortDayLabel(summary.latest.at)}
+            </span>
+            <span className="job-history-open">
+              Open <ArrowUpRight aria-hidden="true" size={14} />
+            </span>
+          </button>
+          <SheetDialog
+            label="Job history"
+            onClose={() => setHistoryOpen(false)}
+            open={historyOpen}
+            width="wide"
+          >
+            <ThreadHistory count={summary.count} entries={entries} />
+          </SheetDialog>
+        </>
+      ) : (
         <div className="job-thread-empty">
           <MessageSquareText size={18} />
           <strong>This is where the whole job lives.</strong>
@@ -93,27 +153,85 @@ export function ProjectThread({
             appear here in order — so you can see the story at a glance.
           </p>
         </div>
-      ) : null}
-      <ThreadNextMove
-        current={current}
-        onChanged={onChanged}
-        projectId={projectId}
-        stateVersion={stateVersion}
-      />
-      {days.map((bucket) => (
-        <div className="job-thread-day" key={bucket.day}>
-          <span className="job-thread-daylabel">{dayLabel(bucket.day)}</span>
-          {bucket.entries.map((entry) => (
-            <ThreadEntryCard entry={entry} key={entry.id} />
-          ))}
-        </div>
-      ))}
+      )}
       <ThreadComposer
         consultationId={consultationId}
         onChanged={onChanged}
         projectId={projectId}
       />
     </section>
+  );
+}
+
+/**
+ * The history itself, in the dialog the strip opens.
+ *
+ * This used to render inline, between the next move and the three sections
+ * that follow the thread — the outstanding list, the prepared decisions, the
+ * planning copilot. A job with a few months on it put eight screens of
+ * scroll in front of all three. The flow is unchanged: same day dividers,
+ * same entry cards, same order.
+ */
+function ThreadHistory({
+  count,
+  entries,
+}: {
+  count: number;
+  entries: ThreadEntry[];
+}) {
+  const [facet, setFacet] = useState<ThreadHistoryFacet>("all");
+  const scroller = useRef<HTMLDivElement>(null);
+  const facets = threadHistoryFacets(entries);
+  const shown = filterThreadHistory(entries, facet);
+  const days = groupThreadByDay(shown);
+
+  // Opens at the newest entry, the way a conversation does. Reading order
+  // stays oldest-first — the thread is a story — but "what happened last"
+  // is the question that made someone open this.
+  useEffect(() => {
+    const node = scroller.current;
+    if (node) node.scrollTop = node.scrollHeight;
+  }, [facet]);
+
+  return (
+    <div className="panel job-history-sheet">
+      <header>
+        <p className="eyebrow">Job history</p>
+        <h2>Everything that has happened here</h2>
+        <p>
+          {count} {count === 1 ? "entry" : "entries"} — oldest first, newest at
+          the end.
+        </p>
+        {/* Only rendered when the job has more than one kind of entry to
+            separate; a lone "Everything" chip is a control that does
+            nothing. */}
+        {facets.length > 2 ? (
+          <div className="job-history-facets" role="group" aria-label="Show">
+            {facets.map((option) => (
+              <button
+                aria-pressed={facet === option.facet}
+                className={facet === option.facet ? "is-active" : ""}
+                key={option.facet}
+                onClick={() => setFacet(option.facet)}
+                type="button"
+              >
+                {option.label} <em>{option.count}</em>
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </header>
+      <div className="job-history-scroll" ref={scroller}>
+        {days.map((bucket) => (
+          <div className="job-thread-day" key={bucket.day}>
+            <span className="job-thread-daylabel">{dayLabel(bucket.day)}</span>
+            {bucket.entries.map((entry) => (
+              <ThreadEntryCard entry={entry} key={entry.id} />
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -369,7 +487,7 @@ function ThreadComposer({
   }
 
   return (
-    <div className="thread-composer">
+    <div className={mode === "ask" ? "thread-composer is-ask" : "thread-composer"}>
       <div
         className="thread-composer-modes"
         role="tablist"
@@ -378,7 +496,7 @@ function ThreadComposer({
         {consultationId ? (
           <button
             aria-selected={mode === "note"}
-            className={mode === "note" ? "is-active" : ""}
+            className={mode === "note" ? "mode-note is-active" : "mode-note"}
             onClick={() => setMode("note")}
             role="tab"
             type="button"
@@ -388,7 +506,7 @@ function ThreadComposer({
         ) : null}
         <button
           aria-selected={mode === "ask"}
-          className={mode === "ask" ? "is-active" : ""}
+          className={mode === "ask" ? "mode-ask is-active" : "mode-ask"}
           onClick={() => setMode("ask")}
           role="tab"
           type="button"
@@ -397,7 +515,7 @@ function ThreadComposer({
         </button>
         <button
           aria-selected={mode === "task"}
-          className={mode === "task" ? "is-active" : ""}
+          className={mode === "task" ? "mode-task is-active" : "mode-task"}
           onClick={() => setMode("task")}
           role="tab"
           type="button"
@@ -407,6 +525,23 @@ function ThreadComposer({
       </div>
 
       <div className="thread-composer-input">
+        {mode === "ask" ? (
+          <>
+            {/* Outside the box on purpose, so `clip` and not `hidden` — the
+                same hazard that clipped the next-move card's heading. */}
+            <span className="thread-ask-glow" aria-hidden="true" />
+            <p className="thread-ask-identity">
+              <span className="thread-ask-mark">
+                <Sparkles aria-hidden="true" size={12} />
+              </span>
+              Ask StudioCue
+              <em>
+                <ShieldCheck aria-hidden="true" size={11} /> Reads this
+                job&rsquo;s records · changes nothing
+              </em>
+            </p>
+          </>
+        ) : null}
         <textarea
           onChange={(event) => setValue(event.target.value)}
           placeholder={placeholder}
@@ -428,11 +563,13 @@ function ThreadComposer({
             </div>
           ) : (
             <small className="thread-composer-hint">
-              {mode === "ask"
-                ? "Answered from this job's records — nothing changes."
-                : mode === "note"
-                  ? "Saved to this job, and StudioCue drafts what follows."
-                  : "Added to your tasks for this job."}
+              {mode === "note"
+                ? "Saved to this job, and StudioCue drafts what follows."
+                : mode === "task"
+                  ? "Added to your tasks for this job."
+                  : // Ask mode says this above the box already, where it is
+                    // read before the question rather than after it.
+                    ""}
             </small>
           )}
           <button
@@ -460,13 +597,18 @@ function ThreadComposer({
       {answer ? (
         <div className="thread-answer" role="status">
           <span>
-            <Sparkles size={12} /> StudioCue
+            <Sparkles aria-hidden="true" size={12} /> StudioCue
           </span>
           <p>{answer}</p>
-          <small>
-            <ShieldCheck size={11} /> Answered from this job&rsquo;s records —
-            nothing was changed.
-          </small>
+          <footer>
+            <small>
+              <ShieldCheck aria-hidden="true" size={11} /> Answered from this
+              job&rsquo;s records — nothing was changed.
+            </small>
+            <button onClick={() => setAnswer(null)} type="button">
+              Ask something else
+            </button>
+          </footer>
         </div>
       ) : null}
       {notice ? (

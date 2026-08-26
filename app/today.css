@@ -26,7 +26,11 @@
 
 .today-hero {
   position: relative;
-  overflow: hidden;
+  /* Same hazard as .thread-next: the glow is positioned outside the box, so
+     `hidden` makes this a scroll container whose content can be scrolled out of
+     reach by a focus event and never scrolled back. `clip` clips without
+     scrolling. */
+  overflow: clip;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;

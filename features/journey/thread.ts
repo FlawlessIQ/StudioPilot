@@ -521,6 +521,117 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
   return entries;
 }
 
+export type ThreadHistorySummary = {
+  /** How many entries the history holds. */
+  count: number;
+  /**
+   * The newest entry, when there is one. Its title already names the actor
+   * ("John replied", "You started this job"), so a summary line needs
+   * nothing else to read as a sentence.
+   *
+   * A timestamp, not an age. "3h ago" needs a clock, and reading one while
+   * rendering is impure — two renders would disagree, and the React
+   * compiler rejects it outright. The date is the same information to a
+   * reader who knows what day it is.
+   */
+  latest: { title: string; at: string } | null;
+};
+
+/**
+ * What the history holds, for the row that opens it.
+ *
+ * The thread used to sit open on the job page, which meant every entry for
+ * the life of the job stood between the next move and the sections that
+ * follow it — the outstanding list, the prepared decisions, the planning
+ * copilot. Behind a button, the history stops costing eight screens of
+ * scroll; this summary is what keeps it from also costing the glance. The
+ * count says how much there is, the latest entry says whether anything has
+ * happened, so neither needs the dialog opened to answer.
+ */
+export function threadHistorySummary(
+  entries: readonly ThreadEntry[],
+): ThreadHistorySummary {
+  // Entries are oldest first (see projectThread), so the newest is last.
+  const latest = entries[entries.length - 1];
+  return {
+    count: entries.length,
+    latest: latest ? { title: latest.title, at: latest.at } : null,
+  };
+}
+
+/**
+ * The slices of a history worth asking for on their own.
+ *
+ * Not a partition — an entry can be both the client's and a document — and
+ * deliberately so. "What has the client sent me?" and "where is the
+ * paperwork?" are two different questions about the same job, and a
+ * photographer asks whichever one is on their mind.
+ */
+export type ThreadHistoryFacet =
+  | "all"
+  | "client"
+  | "messages"
+  | "documents"
+  | "money";
+
+const FACET_LABEL: Record<ThreadHistoryFacet, string> = {
+  all: "Everything",
+  client: "From the client",
+  messages: "Messages",
+  documents: "Documents",
+  money: "Money",
+};
+
+const matchesFacet = (entry: ThreadEntry, facet: ThreadHistoryFacet) => {
+  switch (facet) {
+    case "all":
+      return true;
+    case "client":
+      return entry.actor === "client";
+    case "messages":
+      return entry.kind === "message";
+    case "documents":
+      return entry.artifact !== null && entry.artifact.type !== "invoice";
+    case "money":
+      return entry.artifact?.type === "invoice";
+  }
+};
+
+/** Entries matching one facet, in the order they already hold. */
+export function filterThreadHistory(
+  entries: readonly ThreadEntry[],
+  facet: ThreadHistoryFacet,
+): ThreadEntry[] {
+  return entries.filter((entry) => matchesFacet(entry, facet));
+}
+
+/**
+ * Which facets this particular job can actually answer for.
+ *
+ * A job a week old has no documents and no money, and offering to filter by
+ * them is a control that does nothing — the audit of 2026-08-26 found the
+ * same shape half a dozen times over. Empty facets are dropped, and if that
+ * leaves only "Everything" the caller has nothing worth rendering.
+ */
+export function threadHistoryFacets(
+  entries: readonly ThreadEntry[],
+): Array<{ facet: ThreadHistoryFacet; label: string; count: number }> {
+  const facets: ThreadHistoryFacet[] = [
+    "all",
+    "client",
+    "messages",
+    "documents",
+    "money",
+  ];
+  return facets
+    .map((facet) => ({
+      count: entries.filter((entry) => matchesFacet(entry, facet)).length,
+      facet,
+      label: FACET_LABEL[facet],
+    }))
+    .filter((option) => option.count > 0);
+}
+
 /** Entries grouped into day buckets for the thread's date dividers. */
 export function groupThreadByDay(
   entries: readonly ThreadEntry[],

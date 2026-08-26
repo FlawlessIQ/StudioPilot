@@ -12141,6 +12141,13 @@ form:has(> .address-field) > .address-field,
 
 .sheet-dialog:focus-visible { outline: none; }
 
+/* Content that is a list of cards, not a short form. The job history's
+   artifact rows carry status chips and a link on one line. */
+.sheet-dialog.is-wide {
+  max-height: 88vh;
+  max-width: 880px;
+}
+
 /* The panel inside is already a card; a second border around it would read
    as two boxes. */
 .sheet-dialog > .panel {
