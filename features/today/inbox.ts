@@ -23,6 +23,10 @@ import {
 } from "@/features/dashboard/urgency";
 import type { SetupGap } from "@/features/today/setup-gaps";
 import { kindFromValue, type LibraryKind } from "@/features/library/kinds";
+import {
+  describeProviderFailure,
+  groupProviderFailures,
+} from "@/features/today/provider-failure";
 import { countdownPhrase, formatDueDate } from "@/lib/format/event-date";
 import { providerName as readable } from "@/lib/format/provider-name";
 
@@ -610,17 +614,35 @@ export function todayInbox(input: TodayInput): TodayInbox {
       projectName: nameFor(run.projectId),
       updatedAt: changedAt(run),
     });
-  for (const job of rows(input.providerJobs).filter(failed))
+  // Retries of the same step are one problem, not several. Each attempt writes
+  // its own job row, so a step that had failed twice produced two cards with
+  // identical titles — and the title said "A provider step could not finish",
+  // which is true of all of them and useful for none.
+  for (const { job, attempts } of groupProviderFailures(
+    rows(input.providerJobs).filter(failed),
+  )) {
+    const failure = describeProviderFailure(job.type);
     exception({
       id: `provider-${job.id}`,
       kind: null,
-      title: "A provider step could not finish",
-      detail: `${nameFor(job.projectId) ?? "Studio"} · ${readable(job.type) || readable(job.status)}`,
+      title: failure.title,
+      // The project name is already the card's subtitle, so repeating it here
+      // printed it twice on one card. This says who could not do it, and how
+      // many times it has been tried.
+      detail: [
+        // Phrased with the provider last so it reads correctly whether the
+        // name is "QuickBooks" or "your email provider".
+        failure.provider ? `Couldn't be completed by ${failure.provider}` : null,
+        attempts > 1 ? `tried ${attempts} times` : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
       href: "/studio/integrations",
       projectId: text(job.projectId) || null,
       projectName: nameFor(job.projectId),
       updatedAt: changedAt(job),
     });
+  }
   for (const job of rows(input.emailJobs).filter(failed))
     exception({
       id: `email-${job.id}`,

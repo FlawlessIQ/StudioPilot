@@ -269,6 +269,12 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
       query(
         collection(firestore, "messages"),
         where("conversationId", "==", openThreadId),
+        // Every server repository filters `archivedAt == null` — it is this
+        // product's delete semantics — and this reader was the only one of
+        // fifteen that ignored it, so nothing could ever be archived out of a
+        // client thread. All three message writers set the field, so no existing
+        // document disappears by adding the filter.
+        where("archivedAt", "==", null),
         orderBy("createdAt", "asc"),
         limit(MESSAGE_LIMIT),
       ),

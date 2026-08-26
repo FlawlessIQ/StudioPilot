@@ -192,3 +192,66 @@ test("end to end: the real question against the real project shape", () => {
 test("an unrecognised question prepares nothing", () => {
   assert.equal(prepareAnswerFor("Can we move the ceremony?", facts), null);
 });
+
+test("two open invoices decline rather than quote one of them", () => {
+  // Production, 2026-08-26: a job carried a $1.00 invoice and a $571 invoice.
+  // The reply told the client "$1.00 outstanding" and gave them that link.
+  const facts = {
+    studioName: "Alder & Muse",
+    clientFirstName: "John",
+    projectName: "Smith Wedding",
+    eventDate: "2026-10-14",
+    invoice: {
+      balanceCents: 100,
+      currency: "USD",
+      dueDate: "2026-09-01",
+      hostedUrl: "https://pay.example.test/abc",
+    },
+    multipleOutstandingInvoices: true,
+    arrivalTime: null,
+    gallery: null,
+  };
+  assert.equal(composePreparedAnswer("payment", facts), null);
+  assert.equal(composePreparedAnswer("balance", facts), null);
+});
+
+test("a single open invoice still answers, as before", () => {
+  const facts = {
+    studioName: "Alder & Muse",
+    clientFirstName: "John",
+    projectName: "Smith Wedding",
+    eventDate: "2026-10-14",
+    invoice: {
+      balanceCents: 57100,
+      currency: "USD",
+      dueDate: "2026-09-01",
+      hostedUrl: "https://pay.example.test/abc",
+    },
+    multipleOutstandingInvoices: false,
+    arrivalTime: null,
+    gallery: null,
+  };
+  const answer = composePreparedAnswer("payment", facts);
+  assert.ok(answer);
+  assert.match(answer.body, /\$571\.00/);
+});
+
+test("the flag being absent behaves as a single invoice", () => {
+  // Older callers do not set it; they must keep working.
+  const answer = composePreparedAnswer("balance", {
+    studioName: "Alder & Muse",
+    clientFirstName: null,
+    projectName: null,
+    eventDate: null,
+    invoice: {
+      balanceCents: 25000,
+      currency: "USD",
+      dueDate: null,
+      hostedUrl: null,
+    },
+    arrivalTime: null,
+    gallery: null,
+  });
+  assert.ok(answer);
+  assert.match(answer.body, /\$250\.00/);
+});

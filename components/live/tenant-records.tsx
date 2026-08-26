@@ -659,7 +659,13 @@ export function LiveProjectRows({
   );
   const today = new Date().toISOString().slice(0, 10);
   const owed = new Map<string, { cents: number; overdue: boolean }>();
+  // Whether a job has ever been billed at all. "Paid up" needs an invoice
+  // behind it; a value taken from a draft proposal is not a bill.
+  const invoiced = new Set<string>();
   for (const invoice of invoices.records ?? []) {
+    if (String(invoice.projectId ?? "")) {
+      invoiced.add(String(invoice.projectId));
+    }
     const balance = Number(invoice.balanceCents ?? 0);
     if (balance <= 0) continue;
     if (["voided", "refunded", "paid"].includes(String(invoice.status)))
@@ -703,6 +709,7 @@ export function LiveProjectRows({
               snapshotTotals.get(String(item.packageSnapshotId ?? "")) ?? null,
             owedCents: balance?.cents ?? null,
             owedOverdue: balance?.overdue ?? false,
+            invoiced: invoiced.has(item.id),
             // The real outstanding step, not a generic instruction repeated
             // down the column — including on jobs that are already finished.
             nextAction:
@@ -786,12 +793,15 @@ export function LiveProjectRows({
                 {formatCents(project.owedCents)}{" "}
                 {project.owedOverdue ? "overdue" : "outstanding"}
               </small>
-            ) : "valueCents" in project && project.valueCents ? (
+            ) : "invoiced" in project && project.invoiced ? (
               <small>paid up</small>
             ) : (
-              // No package locked yet, so there is nothing to owe. "Paid up"
-              // on a job that was never invoiced is a small lie.
-              <small>not booked yet</small>
+              // The comment below was right and the condition was not: this
+              // tested for a *value*, and a job with a draft proposal has a
+              // value with nothing billed. Production showed "$2,999 · paid up"
+              // on a job whose proposal had never been sent. "Paid up" now needs
+              // an invoice behind it.
+              <small>not invoiced yet</small>
             )}
           </span>
           <span>

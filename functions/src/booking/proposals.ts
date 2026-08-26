@@ -1,3 +1,4 @@
+import { expiryOnSend } from "./proposal-expiry.js";
 import { createHash } from "node:crypto";
 import { getFirestore, type Transaction } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
@@ -742,6 +743,16 @@ export const proposalCommand = onRequest(
               transaction.update(proposalReference, {
                 status: "sent",
                 sentAt: timestamp,
+                // The draft form defaults the expiry to seven days from when it
+                // was opened, so a proposal drafted and left for a week expired
+                // before the client ever saw it — production held a draft for an
+                // Oct 2027 wedding expiring two days out. A validity window means
+                // "this stands for N days from when you receive it", so the clock
+                // starts here. A longer window the studio chose is preserved.
+                expiresAt: expiryOnSend(
+                  proposal.get("expiresAt"),
+                  new Date(timestamp),
+                ),
                 emailJobId,
                 emailDeliveryStatus: "queued",
                 updatedAt: timestamp,
