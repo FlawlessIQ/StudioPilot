@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Images, ScanText, Send, Sparkles } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
+import { splitUpcomingAndPast } from "@/features/ordering/attention";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { requestMessageDraft } from "@/lib/ai/message-draft-client";
 import { sendPostEventCommand } from "@/lib/post-event/command-client";
@@ -25,6 +26,11 @@ const reviewKey = (label: string) =>
 export function DeliveryForm({ projectId }: { projectId?: string }) {
   const workspace = useWorkspace();
   const { records: projects, loading } = useTenantDocuments("projects");
+  // Past events first (most recent first), then anything still ahead.
+  const deliverableFirst = useMemo(() => {
+    const split = splitUpcomingAndPast(projects ?? [], (p) => p.eventDate);
+    return [...split.past, ...split.upcoming];
+  }, [projects]);
   const { records: tenants } = useTenantDocuments("tenants");
   const { records: packageSnapshots } =
     useTenantDocuments("packageSnapshots");
@@ -242,7 +248,11 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
           value={selectedProjectId}
         >
           <option value="">Select a project</option>
-          {projects?.map((project) => (
+          {/* Ordered by what can actually be delivered. The list was
+              alphabetical, so it offered jobs that had not been shot — one still
+              at "Talking" — and put the job Today asks you to deliver 8th of 9.
+              Events already past come first, most recent first. */}
+          {deliverableFirst.map((project) => (
             <option key={project.id} value={project.id}>
               {String(project.name)}
             </option>

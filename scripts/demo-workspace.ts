@@ -647,7 +647,24 @@ for (const job of jobs) {
       assignedAt: at(job.eventDays - 120),
       submittedAt: job.eventDays < 60 ? at(job.eventDays - 90) : null,
       dueDate: day(job.eventDays - 45),
-      answers: {},
+      // Was `{}` on every job, including the submitted ones. A submitted form
+      // holding no answers is the defect, not a fixture: the client portal read
+      // "0% complete" beside "Submitted to your studio", and the readiness
+      // checkpoint counted it done.
+      answers:
+        job.eventDays < 60
+          ? {
+              planner: "Wren Atwood, Atwood Events",
+              ceremonyTime: "4:30pm",
+              familyPhotoList: [
+                `${job.first}'s parents`,
+                `${job.last} grandparents`,
+                "Both families together",
+              ],
+              accessibilityNeeds: "One guest uses a wheelchair — step-free routes please.",
+              firstLook: "Yes, before the ceremony",
+            }
+          : {},
     });
 
     if (job.eventDays < 60) {
@@ -710,9 +727,24 @@ for (const job of jobs) {
         ["insurance", "Certificate of insurance for the venue", "studio", 10],
         ["balance", "Final balance", "client", 7],
       ];
+      // What the records this job actually holds can support. Readiness is
+      // derived from these checkpoints, so marking one complete while its
+      // record says otherwise is how a wedding three days out reported 100%
+      // ready with $6,265 outstanding and an empty details form.
+      const recordSupports: Record<string, boolean> = {
+        questionnaire: job.eventDays < 60,
+        schedule: job.eventDays < 60,
+        crew: true,
+        insurance: true,
+        // The final invoice is only written for jobs inside 40 days, and only
+        // paid once well past the event.
+        balance: job.eventDays < 40 && job.eventDays < -20,
+      };
       checkpoints.forEach(([key, name, ownerType, daysBefore], index) => {
-        // Earlier checkpoints are done on jobs that are further along.
-        const done = job.eventDays < 0 || index < readyDepth;
+        // Progression along the job, AND a record that backs it up.
+        const done =
+          (job.eventDays < 0 || index < readyDepth) &&
+          (recordSupports[key] ?? true);
         put(`checkpoints/checkpoint-${job.id}-${key}`, {
           ...audit,
           id: `checkpoint-${job.id}-${key}`,

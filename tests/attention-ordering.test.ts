@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   byLongestWaiting,
+  splitUpcomingAndPast,
   waitingDays,
   waitingLabel,
 } from "@/features/ordering/attention";
@@ -74,4 +75,46 @@ test("sorting does not mutate the input", () => {
   // comparator itself is stable and side-effect free across repeat calls.
   const compare = byLongestWaiting<{ d: string }>((i) => i.d);
   assert.equal(compare(items[0]!, items[1]!), compare(items[0]!, items[1]!));
+});
+
+test("upcoming work comes first, soonest to furthest; finished work follows", () => {
+  // The crew list sorted everything by arrival descending, so the next wedding
+  // sat below one months out and a job shot 27 days ago sat among live work.
+  const jobs = [
+    { id: "bianchi", arrivalAt: "2026-10-22T13:00:00Z" },
+    { id: "rivera-done", arrivalAt: "2026-07-30T13:00:00Z" },
+    { id: "castillo", arrivalAt: "2026-08-30T13:00:00Z" },
+    { id: "okafor", arrivalAt: "2026-09-17T13:00:00Z" },
+  ];
+  const { upcoming, past } = splitUpcomingAndPast(jobs, (j) => j.arrivalAt, now);
+  assert.deepEqual(upcoming.map((j) => j.id), ["castillo", "okafor", "bianchi"]);
+  assert.deepEqual(past.map((j) => j.id), ["rivera-done"]);
+});
+
+test("the most recently finished job leads the past group", () => {
+  const jobs = [
+    { id: "old", arrivalAt: "2026-01-10T13:00:00Z" },
+    { id: "recent", arrivalAt: "2026-08-01T13:00:00Z" },
+  ];
+  const { past } = splitUpcomingAndPast(jobs, (j) => j.arrivalAt, now);
+  assert.deepEqual(past.map((j) => j.id), ["recent", "old"]);
+});
+
+test("an assignment nobody can date is treated as upcoming, not finished", () => {
+  const jobs = [
+    { id: "undated", arrivalAt: null },
+    { id: "done", arrivalAt: "2026-07-30T13:00:00Z" },
+  ];
+  const { upcoming, past } = splitUpcomingAndPast(jobs, (j) => j.arrivalAt, now);
+  assert.deepEqual(upcoming.map((j) => j.id), ["undated"]);
+  assert.deepEqual(past.map((j) => j.id), ["done"]);
+});
+
+test("splitting does not mutate the input array", () => {
+  const jobs = [
+    { id: "b", arrivalAt: "2026-10-22T13:00:00Z" },
+    { id: "a", arrivalAt: "2026-08-30T13:00:00Z" },
+  ];
+  splitUpcomingAndPast(jobs, (j) => j.arrivalAt, now);
+  assert.deepEqual(jobs.map((j) => j.id), ["b", "a"]);
 });

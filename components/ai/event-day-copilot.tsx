@@ -18,6 +18,7 @@ import { useTenantDocuments } from "@/components/live/tenant-records";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { eventDaySnapshot } from "@/features/crew/cascade";
+import { displayableScheduleItems } from "@/features/schedules/item-clock";
 import { askCopilot, type CopilotResult } from "@/lib/ai/copilot-client";
 
 const text = (value: unknown) => (typeof value === "string" ? value : "");
@@ -106,9 +107,15 @@ export function EventDayCopilot({
     (item) => item.projectId === projectId,
   );
   const items = list(schedule?.items).map(record);
-  const orderedItems = [...items].sort(
-    (left, right) => Date.parse(text(left.startAt)) - Date.parse(text(right.startAt)),
-  );
+  // Only items a person could actually be sent to. An item with no readable
+  // start is not a plan entry, and counting it kept the page reporting a
+  // coverage plan it did not have.
+  const orderedItems = displayableScheduleItems(items);
+  // No usable items at all is a different thing from "the day is done", and
+  // the difference matters most on the morning of a wedding. Distinguished
+  // explicitly, because the fall-through said "Coverage plan complete" for a
+  // job with no run of show whatsoever.
+  const hasPlan = orderedItems.length > 0;
   const snapshot = eventDaySnapshot({
     now: new Date(now).toISOString(),
     scheduleVersion: Number(schedule?.version ?? 0),
@@ -273,13 +280,23 @@ export function EventDayCopilot({
 
           <section className="panel event-day-now">
             <p className="eyebrow">Right now</p>
-            <h2>{currentItem ? text(currentItem.title) : nextItem ? `Next: ${text(nextItem.title)}` : "Coverage plan complete"}</h2>
+            <h2>
+              {currentItem
+                ? text(currentItem.title)
+                : nextItem
+                  ? `Next: ${text(nextItem.title)}`
+                  : hasPlan
+                    ? "Coverage plan complete"
+                    : "No run of show yet"}
+            </h2>
             <p>
               {currentItem
                 ? `${time(currentItem.startAt)}–${time(currentItem.endAt)} · ${text(currentItem.location) || "Location pending"}`
                 : nextItem
                   ? `${time(nextItem.startAt)} · ${text(nextItem.location) || "Location pending"}`
-                  : "No later item is listed in the current published schedule."}
+                  : hasPlan
+                    ? "No later item is listed in the current published schedule."
+                    : "Nothing is scheduled for this event yet. Build the run of show before the day."}
             </p>
           </section>
 
