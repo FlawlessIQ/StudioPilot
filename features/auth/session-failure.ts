@@ -94,13 +94,30 @@ export function classifySessionFailure(raw: unknown): SessionFailure {
  * Signed-in." A greeting with no name is fine; a greeting addressed to a
  * placeholder is not.
  */
-export function greetingName(displayName: unknown): string | null {
+export function greetingName(
+  displayName: unknown,
+  /**
+   * The studio's own name. Production greeted the operator "GOOD MORNING,
+   * FLAWLESSIQ" because the account's display name is the brand, not a person.
+   * A greeting addressed to a company is the same error as one addressed to a
+   * placeholder, so it is caught the same way.
+   */
+  studioName?: unknown,
+): string | null {
   if (typeof displayName !== "string") return null;
   const trimmed = displayName.trim();
   if (!trimmed) return null;
   // Placeholders that must never be read as a person.
   if (/^(signed-in( user)?|unknown|user|guest|member)$/i.test(trimmed)) {
     return null;
+  }
+  // An email address is not a name either — `user.email` is the last fallback
+  // in the chain that produces this value.
+  if (trimmed.includes("@")) return null;
+  if (typeof studioName === "string" && studioName.trim()) {
+    const normalise = (value: string) =>
+      value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (normalise(trimmed) === normalise(studioName)) return null;
   }
   const first = trimmed.split(/\s+/)[0];
   return first && !/^signed-in$/i.test(first) ? first : null;

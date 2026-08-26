@@ -571,8 +571,13 @@ export function todayInbox(input: TodayInput): TodayInbox {
     exception({
       id: `cascade-${cascade.id}`,
       kind: "crew",
-      title: `No one accepted ${text(cascade.role) || "the crew role"}`,
-      detail: `${nameFor(cascade.projectId) ?? "Event"} · every candidate declined or expired`,
+      // Was "No one accepted Second photographer" — a role name used mid
+      // sentence with no article, in the largest type on the page.
+      title: text(cascade.role)
+        ? `Still no ${text(cascade.role).toLowerCase()}`
+        : "Still no crew for this role",
+      // The project name is already the card's subtitle.
+      detail: "Every candidate has declined or let the offer expire",
       href: "/studio/crew",
       projectId: text(cascade.projectId) || null,
       projectName: nameFor(cascade.projectId),

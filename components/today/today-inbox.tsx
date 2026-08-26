@@ -267,8 +267,8 @@ export function TodayInbox() {
                     morning, Signed-in." A greeting with no name is fine; one
                     addressed to a placeholder is not. */}
                 {greetingFor(new Date())}
-                {greetingName(workspace.userName)
-                  ? `, ${greetingName(workspace.userName)}`
+                {greetingName(workspace.userName, workspace.tenantName)
+                  ? `, ${greetingName(workspace.userName, workspace.tenantName)}`
                   : ""}
                 <span>{DATE_LABEL.format(new Date())}</span>
               </p>
