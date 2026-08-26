@@ -19,6 +19,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { eventDaySnapshot } from "@/features/crew/cascade";
 import { displayableScheduleItems } from "@/features/schedules/item-clock";
+import { readinessSummary } from "@/features/projects/readiness-summary";
 import { askCopilot, type CopilotResult } from "@/lib/ai/copilot-client";
 
 const text = (value: unknown) => (typeof value === "string" ? value : "");
@@ -55,7 +56,9 @@ export function EventDayCopilot({
   const { records: projects, loading } = useTenantDocuments("projects");
   const { records: schedules } = useTenantDocuments("schedules");
   const { records: assignments } = useTenantDocuments("crewAssignments");
-  const { records: readiness } = useTenantDocuments("readinessAssessments");
+  // Same source as the job page: readiness is derived from the checkpoints that
+  // explain it, not from a stored score that can drift from them.
+  const { records: checkpoints } = useTenantDocuments("checkpoints");
   const { records: insurance } = useTenantDocuments("insuranceRequests");
   const [chosenProjectId, setChosenProjectId] = useState(initialProjectId);
   const [question, setQuestion] = useState(quickQuestions[0]!);
@@ -95,19 +98,24 @@ export function EventDayCopilot({
    */
   const projectId = chosenProjectId || upcoming[0]?.id || "";
 
+  const readinessView = readinessSummary(
+    (checkpoints ?? []).filter((item) => item.projectId === projectId),
+  );
+
   const project = projects?.find((item) => item.id === projectId);
   const schedule = [...(schedules ?? [])]
     .filter(
       (item) =>
         item.projectId === projectId &&
-        text(item.status) === "published",
+        // Required `published` alone, while features/journey/steps.ts, the client
+        // portal, functions/src/post-event/commands.ts and answer-facts.ts all
+        // accept either. The result was "No run of show yet" on the studio's
+        // event-day brief for a schedule the couple could read in full.
+        ["approved", "published"].includes(text(item.status)),
     )
     .sort((left, right) => Number(right.version) - Number(left.version))[0];
   const projectAssignments = (assignments ?? []).filter(
     (item) => item.projectId === projectId && item.status === "accepted",
-  );
-  const projectReadiness = (readiness ?? []).find(
-    (item) => item.projectId === projectId,
   );
   const projectInsurance = (insurance ?? []).filter(
     (item) => item.projectId === projectId,
@@ -257,7 +265,12 @@ export function EventDayCopilot({
             </article>
             <article>
               <ShieldCheck />
-              <span><small>Readiness</small><strong>{Number(projectReadiness?.score ?? project.readinessScore ?? 0)}%</strong></span>
+              {/* Read a stored `readinessAssessments.score` / `project.readinessScore`
+                  while the job page derives readiness from the checkpoints that
+                  explain it. After the checkpoints were made honest the two
+                  disagreed on the same job — 80% with one blocker there, 100%
+                  here. One source, and say so when nothing is tracked yet. */}
+              <span><small>Readiness</small><strong>{readinessView.tracked ? `${readinessView.percent}%` : "Not tracked yet"}</strong></span>
             </article>
           </section>
 

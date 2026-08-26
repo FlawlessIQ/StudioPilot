@@ -1583,7 +1583,14 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
                       {money(line.unitPriceCents, currency)}
                     </small>
                   </span>
-                  <strong>{money(line.totalCents, currency)}</strong>
+                  {/* Same defect the client portal had, in the same file that
+                      reads the correct name at line 1223: the stored field is
+                      `lineTotalCents`, and reading `totalCents` rendered $0.00
+                      for an $8,950 line. Both names reach this component
+                      depending on which server path served it. */}
+                  <strong>
+                    {money(line.lineTotalCents ?? line.totalCents, currency)}
+                  </strong>
                 </article>
               ))}
               <dl>

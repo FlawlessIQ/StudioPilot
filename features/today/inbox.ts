@@ -105,6 +105,8 @@ export type TodayRecord = Record<string, unknown> & { id: string };
  * this module stays pure. `owner` is who the current step waits on.
  */
 export type TodayJourneyPosition = {
+  /** Which journey step this is, so Today can avoid repeating an obligation. */
+  stepKey?: string | null;
   projectId: string;
   projectName: string;
   eventDate: string | null;
@@ -252,8 +254,23 @@ export function todayHeadline(
   approve: TodayItem[],
 ): TodayItem | null {
   const ranked = [...act, ...approve].sort(byScore);
+  // Client work headlines, studio plumbing does not: a lapsed accounting
+  // connector correctly outranks a proposal in the queue and must not become the
+  // greeting every morning (see "the headline is client work, not studio
+  // plumbing").
+  //
+  // But the test for that was `projectId !== null`, and a setup gap blocking a
+  // named job carries `projectId: null` with the blocked couple in
+  // `projectName` — so on a new studio whose only item was "Add your packages,
+  // blocking Amara & Ben Ito" the hero skipped it and promoted a consultation
+  // twelve months out. Naming a client is what makes an item client work,
+  // whether or not a project record exists yet.
   return (
-    ranked.find((item) => item.projectId !== null) ?? ranked[0] ?? null
+    ranked.find(
+      (item) => item.projectId !== null || item.projectName !== null,
+    ) ??
+    ranked[0] ??
+    null
   );
 }
 
@@ -508,6 +525,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
     });
   }
 
+  // Projects whose overdue balance already has its own card, so the journey's
+  // balance step is not repeated below.
+  const overdueInvoiceProjectIds = new Set<string>();
   for (const invoice of rows(input.invoiceReferences)) {
     // A missing due date is not an overdue date.
     const due = text(invoice.dueDate).slice(0, 10);
@@ -537,6 +557,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
       amountCents: balance,
       label: "Chase payment",
     });
+    if (text(invoice.projectId)) {
+      overdueInvoiceProjectIds.add(text(invoice.projectId));
+    }
   }
 
   for (const cascade of rows(input.crewCascades)) {
@@ -639,6 +662,19 @@ export function todayInbox(input: TodayInput): TodayInbox {
       continue;
     }
     if (blockedProjectNames.has(position.projectName)) continue;
+    // One card per obligation. An overdue balance already produced an exception
+    // card that names the amount ("$6,265 overdue"); the journey's balance step
+    // is the same debt again, and because journey cards are banded by the *event*
+    // date it landed in "This fortnight" while its own copy read "Past its due
+    // date — worth a nudge". The exception card says it better and bands it by
+    // the date that is actually late.
+    if (
+      position.stepKey === "final_balance" &&
+      position.projectId &&
+      overdueInvoiceProjectIds.has(position.projectId)
+    ) {
+      continue;
+    }
     act.push({
       id: `journey-${position.projectId}`,
       lane: "act",
