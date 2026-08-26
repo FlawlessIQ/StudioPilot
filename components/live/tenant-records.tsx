@@ -843,7 +843,6 @@ export function LiveLeadRows({ view, q }: { view: string; q: string }) {
           date: formatEventDate(item.eventDate),
           venue: String(item.venue ?? item.city ?? "Venue pending"),
           source: String(item.referralSource ?? "Direct"),
-          assigned: String(item.assignedUserName ?? "Unassigned"),
           status: String(item.status ?? "new"),
           missing: Array.isArray(item.missingFields)
             ? item.missingFields.length
@@ -899,7 +898,6 @@ export function LiveLeadRows({ view, q }: { view: string; q: string }) {
             <small>{lead.venue}</small>
           </span>
           <span>{lead.source}</span>
-          <span>{lead.assigned}</span>
           <span>
             <StatusBadge tone={stateTone(lead.status)} dot>
               {lead.status}

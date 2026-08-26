@@ -20,6 +20,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { useTodayInbox } from "@/components/today/use-today-inbox";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { greetingFor } from "@/features/dashboard/home-metrics";
+import { greetingName } from "@/features/auth/session-failure";
 import {
   todayHeadline,
   todaySummary,
@@ -28,10 +29,6 @@ import {
 } from "@/features/today/inbox";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { runAiQueueCommand } from "@/lib/ai-actions/command-client";
-
-function firstName(value: string) {
-  return value.trim().split(/\s+/)[0] || "there";
-}
 
 const DATE_LABEL = new Intl.DateTimeFormat("en-US", {
   weekday: "long",
@@ -237,11 +234,19 @@ export function TodayInbox() {
     }
   }
 
-  const headline = loading
-    ? "Catching up…"
-    : waiting === 0
-      ? "You're all clear."
-      : (lead?.title ?? "Here's where things stand.");
+  // A revoked session left `loading` true forever, so the hero sat on
+  // "Catching up… / Reading your studio…" and the screen read as slow rather
+  // than signed out. A failure is not a loading state.
+  const failed = Boolean(workspace.error);
+  const headline = failed
+    ? workspace.failureKind === "session_ended"
+      ? "You have been signed out."
+      : "We could not reach your studio."
+    : loading
+      ? "Catching up…"
+      : waiting === 0
+        ? "You're all clear."
+        : (lead?.title ?? "Here's where things stand.");
 
   const bands: TodayBand[] = ["overdue", "soon", "later"];
   const actBands = bands.filter((band) =>
@@ -258,7 +263,13 @@ export function TodayInbox() {
             <div className="today-hero-glow" aria-hidden="true" />
             <div className="today-hero-copy">
               <p className="today-hero-eyebrow">
-                {greetingFor(new Date())}, {firstName(workspace.userName ?? "there")}
+                {/* `firstName` on the fallback display name produced "Good
+                    morning, Signed-in." A greeting with no name is fine; one
+                    addressed to a placeholder is not. */}
+                {greetingFor(new Date())}
+                {greetingName(workspace.userName)
+                  ? `, ${greetingName(workspace.userName)}`
+                  : ""}
                 <span>{DATE_LABEL.format(new Date())}</span>
               </p>
               {/* "20 things need you" counts what has not been done. The
@@ -273,13 +284,15 @@ export function TodayInbox() {
                   stat directly below already says, and which told a reader
                   looking at a named piece of work nothing about it. */}
               <p className="today-hero-sub">
-                {loading
-                  ? "Reading your studio…"
-                  : waiting === 0
-                    ? summary
-                    : [lead?.detail, lead?.facts[0]]
-                        .filter(Boolean)
-                        .join(" · ") || summary}
+                {failed
+                  ? workspace.error
+                  : loading
+                    ? "Reading your studio…"
+                    : waiting === 0
+                      ? summary
+                      : [lead?.detail, lead?.facts[0]]
+                          .filter(Boolean)
+                          .join(" · ") || summary}
               </p>
               {!loading && lead ? (
                 <Link className="today-hero-go" href={leadHref}>

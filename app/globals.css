@@ -3734,9 +3734,11 @@ textarea:focus-visible {
   padding: 0 18px;
 }
 
+/* Five columns since the Owner column was removed — it read "Unassigned" on
+   every row. Leaving six here left an empty track and pushed Status off. */
 .crm-leads-table .crm-table-head,
 .crm-leads-table article {
-  grid-template-columns: 1.35fr 1.2fr 0.65fr 0.75fr 0.72fr auto;
+  grid-template-columns: 1.35fr 1.2fr 0.8fr 0.8fr auto;
 }
 
 .crm-projects-table .crm-table-head,

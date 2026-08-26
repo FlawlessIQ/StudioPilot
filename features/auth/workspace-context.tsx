@@ -22,6 +22,10 @@ import {
 } from "@/lib/client/portal-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import {
+  classifySessionFailure,
+  type SessionFailureKind,
+} from "@/features/auth/session-failure";
+import {
   invalidateMembershipCache,
   loadMembershipDocuments,
 } from "@/lib/firebase/membership-cache";
@@ -45,6 +49,12 @@ type WorkspaceMembership = {
 type WorkspaceState = {
   loading: boolean;
   error: string | null;
+  /**
+   * Why it failed, so the shell can offer the right action — retry for something
+   * transient, sign-in for a session that has ended. Optional: absent means no
+   * failure, or one nothing has classified.
+   */
+  failureKind?: SessionFailureKind | null;
   userId: string | null;
   userName: string;
   userEmail: string;
@@ -183,6 +193,7 @@ export function WorkspaceProvider({
           ...current,
           loading: false,
           error: "Sign in to load this workspace.",
+          failureKind: "session_ended" as const,
         }));
         return;
       }
@@ -338,10 +349,10 @@ export function WorkspaceProvider({
           setState((current) => ({
             ...current,
             loading: false,
-            error:
-              caught instanceof Error
-                ? caught.message
-                : "The workspace could not be loaded.",
+            // Was `caught.message`, which put "The Firebase ID token has
+            // been revoked." in front of a photographer.
+            error: classifySessionFailure(caught).message,
+            failureKind: classifySessionFailure(caught).kind,
           }));
         }
       })();
@@ -388,10 +399,8 @@ export function WorkspaceProvider({
           current.projectId === projectId
             ? {
                 ...current,
-                error:
-                  caught instanceof Error
-                    ? caught.message
-                    : "The selected project could not be loaded.",
+                error: classifySessionFailure(caught).message,
+                failureKind: classifySessionFailure(caught).kind,
               }
             : current,
         );

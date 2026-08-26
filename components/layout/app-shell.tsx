@@ -222,8 +222,16 @@ function StudioShell({
   const routeSegment = pathname.split("/").filter(Boolean)[1] ?? "";
   const resolvedActive =
     active ?? studioRouteLabels[routeSegment] ?? "Dashboard";
-  const tenantName = workspace.error ? "Workspace unavailable" : workspace.tenantName;
-  const userName = workspace.error ? "Signed-in user" : workspace.userName;
+  // These read "Workspace unavailable" beside "Signed-in user / Member" — two
+  // different accounts of who and where you are, next to each other. When the
+  // session has ended neither is knowable, so neither is asserted.
+  const signedOut = workspace.failureKind === "session_ended";
+  const tenantName = workspace.error
+    ? signedOut
+      ? "Signed out"
+      : "Workspace unavailable"
+    : workspace.tenantName;
+  const userName = workspace.error ? "" : workspace.userName;
   const staffAllowed = new Set([
     "Today",
     "Jobs",
@@ -388,9 +396,24 @@ function StudioShell({
                 <CircleAlert size={18} />
               </span>
               <div className="ds-alert-copy">
-                <strong>Studio data is temporarily unavailable</strong>
+                {/* This said "temporarily unavailable" over a revoked session,
+                    which is neither temporary nor recoverable, beside a Retry
+                    that could never succeed. The heading now matches the cause
+                    and the action matches what would actually help. */}
+                <strong>
+                  {workspace.failureKind === "session_ended"
+                    ? "You have been signed out"
+                    : workspace.failureKind === "not_permitted"
+                      ? "This workspace is not available to you"
+                      : "Studio data is temporarily unavailable"}
+                </strong>
                 <small>{workspace.error}</small>
               </div>
+              {workspace.failureKind === "session_ended" ? (
+                <Link className="ds-btn ds-btn-ghost ds-btn-sm" href="/auth/login">
+                  Sign in again
+                </Link>
+              ) : workspace.failureKind === "not_permitted" ? null : (
               <button
                 className="ds-btn ds-btn-ghost ds-btn-sm"
                 onClick={workspace.retry}
@@ -398,6 +421,7 @@ function StudioShell({
               >
                 Retry
               </button>
+              )}
             </div>
           ) : null}
           <main className="ds-content">{children}</main>

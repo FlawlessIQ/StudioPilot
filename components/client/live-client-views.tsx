@@ -210,6 +210,10 @@ function mockClientRecords(
 }
 
 /** Unpaid and past its due date, from the client's point of view. */
+function sentenceCase(value: string): string {
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+}
+
 function invoiceOverdue(invoice: Record<string, unknown>): boolean {
   if (number(invoice.balanceCents) <= 0) return false;
   const due = text(invoice.dueDate).slice(0, 10);
@@ -838,7 +842,17 @@ export function LiveClientDocuments() {
   const visibleDocuments = documents.value.filter(
     (item) => item.clientVisible !== false,
   );
-  const projectRecords = [
+  type ClientRecordRow = {
+    id: string;
+    label: string;
+    detail: string;
+    status: string;
+    href: string | null;
+    external: boolean;
+    /** Overrides the default "Review" verb — money you owe wants "Pay". */
+    actionLabel?: string;
+  };
+  const projectRecords: ClientRecordRow[] = [
     ...contracts.value
       .filter((record) => ["completed", "signed"].includes(text(record.status)))
       .map((record) => ({
@@ -851,11 +865,21 @@ export function LiveClientDocuments() {
       })),
     ...invoices.value.map((record) => ({
       id: `invoice-${record.id}`,
-      label: `${text(record.kind, "Project")} invoice`,
-      detail: `${money(record.amountCents, record.currency)} · due ${date(record.dueDate)}`,
+      // Was `${record.kind} invoice`, rendering "final invoice" and "retainer
+      // invoice" in lowercase beside "Signed photography agreement". And it
+      // stated the amount and date with no sign the balance was 27 days past
+      // due, while /client/payments correctly said "Overdue".
+      label: `${sentenceCase(text(record.kind, "Project"))} invoice`,
+      detail: invoiceOverdue(record)
+        ? `${money(record.balanceCents, record.currency)} still to pay · overdue since ${date(record.dueDate)}`
+        : number(record.balanceCents) > 0
+          ? `${money(record.balanceCents, record.currency)} due ${date(record.dueDate)}`
+          : `${money(record.amountCents, record.currency)} · paid`,
       status: text(record.status),
       href: "/client/payments",
       external: false,
+      // "Review" is the wrong verb for money you owe.
+      actionLabel: number(record.balanceCents) > 0 ? "Pay" : "Review",
     })),
     ...schedules.value
       .filter((record) => ["approved", "published"].includes(text(record.status)))
@@ -925,7 +949,9 @@ export function LiveClientDocuments() {
                 record.external ? (
                   <a href={record.href} rel="noreferrer" target="_blank">Open <ExternalLink /></a>
                 ) : (
-                  <Link href={record.href}>Review <ArrowRight /></Link>
+                  <Link href={record.href}>
+                    {record.actionLabel ?? "Review"} <ArrowRight />
+                  </Link>
                 )
               ) : (
                 <StatusBadge tone={statusTone(record.status)}>{statusLabel(record.status)}</StatusBadge>

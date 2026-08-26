@@ -42,6 +42,7 @@ import { AssignmentActions } from "@/components/crew/assignment-actions";
 import { CrewDocumentUpload } from "@/components/crew/document-upload";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { splitUpcomingAndPast } from "@/features/ordering/attention";
+import { greetingName } from "@/features/auth/session-failure";
 import {
   initials,
   useWorkspace,
@@ -655,11 +656,38 @@ export function LiveCrewHome() {
       <header className="crew-portal-hero">
         <div>
           <p className="eyebrow">Crew workspace</p>
-          <h1>Welcome, {workspace.userName.split(" ")[0]}.</h1>
+          <h1>
+            Welcome
+            {greetingName(workspace.userName)
+              ? `, ${greetingName(workspace.userName)}`
+              : ""}
+            .
+          </h1>
+          {/* Was "2 invitations and no schedule acknowledgements need
+              attention." — a template that concatenated counts without handling
+              zero, and parsed two ways. Only what actually needs him is named. */}
           <p>
-            {pending.length} invitation{pending.length === 1 ? "" : "s"} and{" "}
-            {acknowledgementDue ? "one schedule acknowledgement" : "no schedule acknowledgements"} need attention.
+            {(() => {
+              const parts: string[] = [];
+              if (pending.length)
+                parts.push(
+                  `${pending.length} invitation${pending.length === 1 ? "" : "s"} to answer`,
+                );
+              if (acknowledgementDue)
+                parts.push("a schedule to acknowledge");
+              return parts.length
+                ? `You have ${parts.join(" and ")}.`
+                : "Nothing needs you right now.";
+            })()}
           </p>
+          {/* The count was stated and then nothing on the page could act on it:
+              "invitation" appeared exactly once, in that sentence, and the only
+              card was an already-accepted job. */}
+          {pending.length || acknowledgementDue ? (
+            <Link className="button button-light" href="/crew/jobs">
+              Open your jobs <ArrowRight size={15} />
+            </Link>
+          ) : null}
         </div>
         <StatusBadge tone={data.profile?.active ? "success" : "warning"}>
           {data.profile?.active ? "Profile active" : "Profile review"}
@@ -756,7 +784,7 @@ export function LiveCrewJobs() {
           <article className="panel crew-job-card-premium" data-status={status}>
             <header><span><p className="eyebrow">{text(assignment.role)}</p><h2>{text(project?.name)}</h2></span><StatusBadge tone={accepted || assignment.status === "completed" ? "success" : pending ? "warning" : "neutral"}>{status}</StatusBadge></header>
             <div className="crew-job-decision-grid">
-              <span><Clock3/><small>Call and wrap</small><strong>{dateTime(assignment.arrivalAt)} – {dateTime(assignment.departureAt)}</strong></span>
+              <span><Clock3/><small>On site</small><strong>{dateTime(assignment.arrivalAt)} – {dateTime(assignment.departureAt)}</strong></span>
               <span><MapPin/><small>{locations.length > 1 ? `${locations.length} locations` : "Location"}</small><strong>{locations.map((item) => text(item.name)).join(" · ") || assignmentPlace(assignment, project)}</strong></span>
               <span><CircleDollarSign/><small>{text(assignment.compensationType) ? `${text(assignment.compensationType)} rate` : "Fee"}</small><strong>{assignment.compensationVisibleToCrew ? money(assignment.compensationCents, assignment.currency) : "Contact studio"}</strong></span>
               {pending && text(assignment.inviteExpiresAt) ? (
@@ -811,7 +839,7 @@ export function LiveCrewPrep() {
       <header className="crew-portal-hero"><div><p className="eyebrow">Schedule & prep</p><h1>{text(project?.name)}</h1><p>{text(assignment.role)} · {dateTime(assignment.arrivalAt)}</p></div><StatusBadge tone={incomplete.length ? "warning" : "success"}>{incomplete.length ? `${incomplete.length} actions due` : "Ready"}</StatusBadge></header>
       <section className="crew-prep-grid">
         <Link className="panel" href={`/crew/schedule${query}`}><CalendarDays/><span><small>Event schedule</small><strong>{number(assignment.currentScheduleVersion) ? `Version ${number(assignment.currentScheduleVersion)}` : "Not published"}</strong><em>{number(assignment.acknowledgedScheduleVersion) === number(assignment.currentScheduleVersion) && number(assignment.currentScheduleVersion) > 0 ? "Acknowledged" : "Review latest version"}</em></span><ArrowRight/></Link>
-        <Link className="panel" href={`/crew/requirements${query}`}><ListChecks/><span><small>Requirements</small><strong>{requirements.length - incomplete.length} of {requirements.length} complete</strong><em>{incomplete.length ? "Finish preparation" : "All clear"}</em></span><ArrowRight/></Link>
+        <Link className="panel" href={`/crew/requirements${query}`}><ListChecks/><span><small>Requirements</small><strong>{requirements.length ? `${requirements.length - incomplete.length} of ${requirements.length} complete` : "None requested"}</strong><em>{!requirements.length ? "Nothing to prepare" : incomplete.length ? "Finish preparation" : "All clear"}</em></span><ArrowRight/></Link>
         <Link className="panel" href={`/crew/documents${query}`}><FileCheck2/><span><small>Secure documents</small><strong>{requirements.filter((item) => ["w9", "insurance", "file"].includes(String(item.kind))).length} requested</strong><em>Upload and track review</em></span><ArrowRight/></Link>
         <Link className="panel" href={`/crew/event-day${query}`}><Camera/><span><small>Event-day brief</small><strong>Timeline, locations & contacts</strong><em>Available offline</em></span><ArrowRight/></Link>
         <Link className="panel" href={`/crew/closeout${query}`}><ReceiptText/><span><small>After the event</small><strong>Hours, expenses & deliverables</strong><em>{text(record(assignment.closeout).status, "Not submitted")}</em></span><ArrowRight/></Link>
