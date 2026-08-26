@@ -70,3 +70,43 @@ export function waitingLabel(since: unknown, now: Date = new Date()): string | n
   if (days === 0) return "arrived today";
   return `waiting ${days} day${days === 1 ? "" : "s"}`;
 }
+
+/**
+ * Split work into what is still ahead and what is behind, each in the order a
+ * person wants to read it: the soonest upcoming job first, and the most
+ * recently finished job at the top of the past.
+ *
+ * `/crew/jobs` sorted everything by arrival descending, so a crew member's next
+ * wedding sat below one nine months out, and a job shot 27 days ago sat among
+ * live assignments with "Open schedule & prep" beside it. Undated items are
+ * treated as upcoming — an assignment nobody can date is not finished.
+ */
+export function splitUpcomingAndPast<T>(
+  items: readonly T[],
+  dateOf: (item: T) => unknown,
+  now: Date = new Date(),
+): { upcoming: T[]; past: T[] } {
+  const cutoff = now.valueOf();
+  const upcoming: T[] = [];
+  const past: T[] = [];
+  for (const item of items) {
+    const at = timestamp(dateOf(item));
+    if (at === null || at >= cutoff) upcoming.push(item);
+    else past.push(item);
+  }
+  // Soonest first among what is ahead; most recent first among what is done.
+  upcoming.sort((left, right) => {
+    const a = timestamp(dateOf(left));
+    const b = timestamp(dateOf(right));
+    if (a === null && b === null) return 0;
+    if (a === null) return 1;
+    if (b === null) return -1;
+    return a - b;
+  });
+  past.sort((left, right) => {
+    const a = timestamp(dateOf(left)) ?? 0;
+    const b = timestamp(dateOf(right)) ?? 0;
+    return b - a;
+  });
+  return { upcoming, past };
+}

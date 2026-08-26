@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -41,6 +41,7 @@ import {
 import { AssignmentActions } from "@/components/crew/assignment-actions";
 import { CrewDocumentUpload } from "@/components/crew/document-upload";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { splitUpcomingAndPast } from "@/features/ordering/attention";
 import {
   initials,
   useWorkspace,
@@ -330,6 +331,14 @@ function projectFor(data: CrewData, assignment: Value) {
 function useSelectedAssignment(
   data: CrewData,
   statuses: string[] = ["accepted", "viewed", "invited", "completed"],
+  /**
+   * Which end of the list to default to. "upcoming" is right for Schedule &
+   * prep — the next job is what you are getting ready for. Closeout is the
+   * opposite: it records work already done, and defaulting to a wedding three
+   * days away meant submitting hours for an event that had not happened, while
+   * the one 27 days overdue needed an extra step to reach.
+   */
+  prefer: "upcoming" | "past" = "upcoming",
 ) {
   const statusKey = statuses.join("|");
   const candidates = useMemo(
@@ -349,9 +358,11 @@ function useSelectedAssignment(
       const past = withArrival
         .filter((item) => String(item.arrivalAt) < now)
         .sort((a, b) => String(b.arrivalAt).localeCompare(String(a.arrivalAt)));
-      return [...upcoming, ...past];
+      return prefer === "past"
+        ? [...past, ...upcoming]
+        : [...upcoming, ...past];
     },
-    [data.assignments, statusKey],
+    [data.assignments, statusKey, prefer],
   );
   const [selectedId, setSelectedId] = useState(() => {
     if (typeof window === "undefined") return "";
@@ -721,7 +732,12 @@ export function LiveCrewJobs() {
   const data = useCrewData();
   if (data.loading || data.error)
     return <CrewPageState eyebrow="Your work" title="Jobs" description="Review offers, prepare accepted work, and keep completed assignments for your records." data={data} />;
-  const assignments = [...data.assignments].sort((a, b) => String(b.arrivalAt).localeCompare(String(a.arrivalAt)));
+  // Was sorted by arrival descending, which put the furthest-future job first
+  // and left a wedding shot 27 days ago sitting among live assignments with
+  // "Open schedule & prep" beside it. Next job first; finished work after it.
+  const split = splitUpcomingAndPast(data.assignments, (a) => a.arrivalAt);
+  const assignments = [...split.upcoming, ...split.past];
+  const firstPastId = split.past[0]?.id ?? null;
   return (
     <div className="crew-mobile-page">
       <header className="crew-portal-hero"><div><p className="eyebrow">Your work</p><h1>Jobs</h1><p>Every offer and assignment, with one clear status and next step.</p></div><StatusBadge tone="neutral">{assignments.length} total</StatusBadge></header>
@@ -733,7 +749,11 @@ export function LiveCrewJobs() {
         const locations = list(assignment.locations).map(record);
         const responsibilities = list(assignment.responsibilities).map(String);
         return (
-          <article className="panel crew-job-card-premium" key={assignment.id} data-status={status}>
+          <Fragment key={assignment.id}>
+          {assignment.id === firstPastId ? (
+            <p className="eyebrow crew-past-divider">Finished work</p>
+          ) : null}
+          <article className="panel crew-job-card-premium" data-status={status}>
             <header><span><p className="eyebrow">{text(assignment.role)}</p><h2>{text(project?.name)}</h2></span><StatusBadge tone={accepted || assignment.status === "completed" ? "success" : pending ? "warning" : "neutral"}>{status}</StatusBadge></header>
             <div className="crew-job-decision-grid">
               <span><Clock3/><small>Call and wrap</small><strong>{dateTime(assignment.arrivalAt)} – {dateTime(assignment.departureAt)}</strong></span>
@@ -746,6 +766,7 @@ export function LiveCrewJobs() {
             {accepted ? <div className="crew-job-card-actions"><Link className="button button-dark" href={`/crew/prep?assignment=${encodeURIComponent(assignment.id)}`}>Open schedule & prep <ArrowRight size={15}/></Link><StudioContactForm assignment={assignment}/></div> : null}
             {assignment.status === "completed" ? <Link className="button button-light" href={`/crew/closeout?assignment=${encodeURIComponent(assignment.id)}`}>View closeout and payment <ArrowRight size={15}/></Link> : null}
           </article>
+          </Fragment>
         );
       }) : <CrewState data={data} empty="New offers from your studio will appear here with the details you need to decide." />}
     </div>
@@ -1324,7 +1345,11 @@ export function LiveCrewDocuments() {
 
 export function LiveCrewCloseout() {
   const data = useCrewData();
-  const selection = useSelectedAssignment(data, ["accepted", "completed"]);
+  const selection = useSelectedAssignment(
+    data,
+    ["accepted", "completed"],
+    "past",
+  );
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   if (data.loading || data.error)
