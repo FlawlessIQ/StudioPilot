@@ -87,7 +87,14 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({
       records: records.map((record) => ({
         ...record,
-        projectName: typeof record.projectId === "string" ? names[record.projectId] ?? record.projectId : record.projectName,
+        // Fell back to the raw `projectId`, so a record whose project has been
+        // deleted rendered "wedding-delivered" as its heading — a document id
+        // used as a couple's name, twice on the same card. Naming the state is
+        // more use than echoing an internal identifier.
+        projectName:
+          typeof record.projectId === "string"
+            ? (names[record.projectId] ?? "Project unavailable")
+            : record.projectName,
       })),
     });
   } catch (caught: unknown) {
