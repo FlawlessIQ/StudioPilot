@@ -44,6 +44,15 @@ export type PreparedAnswerFacts = {
     dueDate: string | null;
     hostedUrl: string | null;
   } | null;
+  /**
+   * True when more than one invoice is still outstanding.
+   *
+   * The gatherer used to take the first standing invoice with a balance, so a
+   * job carrying a $1.00 invoice and a $571 invoice told the client "$1.00
+   * outstanding" and gave them the link for it. One figure and one link cannot
+   * describe two debts, so the composer declines and a person writes it.
+   */
+  multipleOutstandingInvoices?: boolean;
   /** Studio arrival, from an approved or published schedule only. */
   arrivalTime: string | null;
   gallery: { url: string; ready: boolean } | null;
@@ -174,6 +183,9 @@ export function composePreparedAnswer(
   if (intent === "payment" || intent === "balance") {
     const invoice = facts.invoice;
     if (!invoice) return null;
+    // Two open invoices cannot be summarised as one amount with one link, and
+    // understating what a client owes is worse than not answering.
+    if (facts.multipleOutstandingInvoices) return null;
 
     // Nothing outstanding is a real answer, and a better one than a link.
     if (invoice.balanceCents <= 0) {

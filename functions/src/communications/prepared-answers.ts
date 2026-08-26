@@ -32,6 +32,12 @@ export type PreparedAnswerFacts = {
     dueDate: string | null;
     hostedUrl: string | null;
   } | null;
+  /**
+   * True when more than one invoice is still outstanding. One figure and one
+   * link cannot describe two debts, so the composer declines. Mirrors
+   * features/messaging/prepared-answers.ts.
+   */
+  multipleOutstandingInvoices?: boolean;
   /** Studio arrival, from an approved or published schedule only. */
   arrivalTime: string | null;
   gallery: { url: string; ready: boolean } | null;
@@ -162,6 +168,8 @@ export function composePreparedAnswer(
   if (intent === "payment" || intent === "balance") {
     const invoice = facts.invoice;
     if (!invoice) return null;
+    // Understating what a client owes is worse than not answering.
+    if (facts.multipleOutstandingInvoices) return null;
 
     // Nothing outstanding is a real answer, and a better one than a link.
     if (invoice.balanceCents <= 0) {

@@ -87,10 +87,16 @@ export async function gatherAnswerFacts(
     );
   // Prefer something still owed; fall back to the newest so "all paid up" can be
   // answered truthfully rather than not at all.
-  const invoice =
-    standing.find(
-      (document) => Number(document.get("balanceCents") ?? 0) > 0,
-    ) ?? standing[0];
+  //
+  // `find` takes the newest with a balance, which on a job carrying a $1.00
+  // invoice and a $571 invoice quoted the client "$1.00 outstanding" and handed
+  // them that link. Count them, so the composer can decline rather than
+  // understate the debt.
+  const outstanding = standing.filter(
+    (document) => Number(document.get("balanceCents") ?? 0) > 0,
+  );
+  facts.multipleOutstandingInvoices = outstanding.length > 1;
+  const invoice = outstanding[0] ?? standing[0];
   if (invoice) {
     facts.invoice = {
       balanceCents: Number(invoice.get("balanceCents") ?? 0),
