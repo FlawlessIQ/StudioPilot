@@ -534,7 +534,11 @@ export function LiveClientHome() {
   const artifacts = [
     {
       label: "Signed contract",
-      detail: signedContract ? "Signed copy available" : "Awaiting completion",
+      // Said "Signed copy available", and the page it links to offers no copy —
+      // only "Ask your studio about this agreement". The contract record holds a
+      // `signedDocumentId`, but serving the document needs a lookup and a signed
+      // URL, so the tile states what is actually true today.
+      detail: signedContract ? "Signature complete" : "Awaiting completion",
       ready: Boolean(signedContract),
       href: "/client/contract",
       icon: FileText,
@@ -1899,6 +1903,12 @@ export function LiveClientContract() {
       <p className="source-note">
         Only {signingProvider} completion evidence can mark this contract complete.
       </p>
+      {complete ? (
+        <p className="source-note">
+          Your studio holds the signed agreement on file. Ask below if you would
+          like a copy sent to you.
+        </p>
+      ) : null}
       <Link className="client-context-message-link" href="/client/messages?context=Contract%20signing">
         <MessageCircle /> Ask your studio about this agreement
       </Link>
@@ -2007,7 +2017,7 @@ export function LiveClientPayments() {
                   </button>
                 ) : null}
               </div>
-            ) : (
+            ) : number(invoice.balanceCents) > 0 ? (
               <div className="client-provider-unavailable">
                 <Clock3 />
                 <span>
@@ -2018,7 +2028,7 @@ export function LiveClientPayments() {
                   <RotateCw /> Refresh status
                 </button>
               </div>
-            )}
+            ) : null}
             {openedInvoiceId === invoice.id && notice ? (
               <p className="client-provider-notice" role="status">{notice}</p>
             ) : null}

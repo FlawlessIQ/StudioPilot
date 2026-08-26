@@ -377,15 +377,12 @@ export function todayInbox(input: TodayInput): TodayInbox {
     const name =
       text(lead.displayName) ||
       `${text(lead.firstName)} ${text(lead.lastName)}`.trim();
-    const facts = [
-      readable(lead.eventType),
-      // A machine date read straight out of the record — "2027-06-27" — in
-      // a line a photographer reads over their coffee. Still dropped when
-      // absent rather than becoming "Date to confirm": an inquiry with no
-      // date yet is normal, and saying so here adds nothing.
-      text(lead.eventDate) ? formatDueDate(lead.eventDate) : null,
-      text(lead.venue) || text(lead.city),
-    ].filter(Boolean);
+    // The detail line carries only what the fact chips below it do not. It used
+    // to repeat both: the card read "Wedding · Jul 1, 2027 · The Rockleigh" above
+    // chips saying "Jul 1, 2027 · in 10 months" and "Wedding" — the date and the
+    // event type each stated twice in four lines. The chips own the date and the
+    // type; the venue is the one thing only this line says.
+    const facts = [text(lead.venue) || text(lead.city)].filter(Boolean);
     const leadEvent = text(lead.eventDate) || null;
     act.push({
       id: `lead-${lead.id}`,

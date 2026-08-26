@@ -3741,9 +3741,14 @@ textarea:focus-visible {
   grid-template-columns: 1.35fr 1.2fr 0.8fr 0.8fr auto;
 }
 
+/* Date & Venue was 0.95fr — 167px against 188px of content — so venue names
+   and long date strings both clipped at a plain 1280px desktop ("The Estate at
+   Florentine Ga…", "May 20, 2027 · in 9 mo…"). Venue and date are how a
+   photographer identifies a job, so the column takes what it needs from the
+   next-action column, which holds short verbs. */
 .crm-projects-table .crm-table-head,
 .crm-projects-table article {
-  grid-template-columns: 1.25fr 0.95fr 0.7fr 0.62fr 1fr auto;
+  grid-template-columns: 1.15fr 1.25fr 0.68fr 0.62fr 0.82fr auto;
 }
 
 /* The state cell carries the chip and, under it, where the job sits in the
