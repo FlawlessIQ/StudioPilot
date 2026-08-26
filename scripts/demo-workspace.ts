@@ -803,8 +803,18 @@ for (const job of jobs) {
     subject: "Lovely to meet you both",
     preview:
       "Thank you for the call — I've put everything we discussed into a proposal for you.",
+    // The portal reads `bodyPreview ?? body`; `preview` alone left it showing
+    // "Open the email from your studio for full details." for a message whose
+    // text it already had.
+    bodyPreview:
+      "Thank you for the call — I've put everything we discussed into a proposal for you.",
     sentAt: at(job.eventDays - 271),
     status: "sent",
+    // Without this the client portal drops the message entirely — its filter
+    // requires visibility to be "client" or "shared" and does not default. The
+    // studio thread showed a conversation while /client/messages said "No
+    // messages yet", and nothing told the studio the client never saw it.
+    visibility: "shared",
   });
   if (bookedStates.has(job.state)) {
     put(`messages/msg-${job.id}-2`, {
@@ -815,8 +825,11 @@ for (const job of jobs) {
       subject: "Re: Your wedding details form",
       preview:
         "Just sent the form back! One change — my mum's side is bigger than we thought, so family photos might run long.",
+      bodyPreview:
+        "Just sent the form back! One change — my mum's side is bigger than we thought, so family photos might run long.",
       sentAt: at(job.eventDays - 88),
       status: "received",
+      visibility: "shared",
     });
   }
 }

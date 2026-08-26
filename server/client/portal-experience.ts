@@ -337,11 +337,28 @@ export function buildClientPortalExperience({
   availability,
   checkpoints,
   proposalStatus,
+  outstandingBalance,
 }: {
   state: string;
   availability: Availability;
   checkpoints: VisibleCheckpoint[];
   proposalStatus?: string | null;
+  /**
+   * What the client still owes, if anything. Optional so existing callers keep
+   * working, but supplying it changes the priority: money that is past its date
+   * outranks anything derived from the project state.
+   *
+   * Without this a wedding in READY told the couple their next action was
+   * "Review the final schedule" while the studio's own next move on the same job
+   * was "Chase payment" for $6,265 overdue.
+   */
+  outstandingBalance?: {
+    amountLabel: string;
+    dueDate: string | null;
+    /** Already formatted for a client to read — never a raw ISO date. */
+    dueDateLabel: string | null;
+    overdue: boolean;
+  } | null;
 }) {
   const index = stateIndex(state);
   const clientCheckpoint = checkpoints.find(
@@ -404,6 +421,25 @@ export function buildClientPortalExperience({
         actionLabel: destination?.actionLabel ?? "View project",
       }
     : proposalNextAction ?? defaultNextAction(state);
+  // An overdue balance is the one thing that outranks the state-derived action.
+  // Not merely outstanding — an invoice inside its terms is not yet the client's
+  // problem — but past its date, which is when the studio starts chasing.
+  const balanceAction: ClientNextAction | null =
+    outstandingBalance?.overdue
+      ? {
+          name: "Settle your outstanding balance",
+          description: `${outstandingBalance.amountLabel} is past its due date${
+            outstandingBalance.dueDateLabel
+              ? ` of ${outstandingBalance.dueDateLabel}`
+              : ""
+          }. Pay it here, or message your studio if something needs changing.`,
+          dueDate: outstandingBalance.dueDate,
+          ownerType: "client",
+          responsibility: "client",
+          href: "/client/payments",
+          actionLabel: "View payments",
+        }
+      : null;
   const milestones = buildClientMilestones(state);
   const completedMilestones = milestones.filter(
     (milestone) => milestone.status === "complete",
@@ -414,7 +450,7 @@ export function buildClientPortalExperience({
     clientProgress: Math.round(
       (completedMilestones / milestones.length) * 100,
     ),
-    nextClientAction,
+    nextClientAction: balanceAction ?? nextClientAction,
     milestones,
     navigation: {
       proposal: Boolean(availability.proposal || index === 2),
