@@ -651,6 +651,10 @@ export function LiveProjectRows({
   // the shared document cache, so reading them here costs nothing.
   const snapshots = useTenantDocuments("packageSnapshots");
   const invoices = useTenantDocuments("invoiceReferences");
+  // Jobs whose automation has already tried and failed. Production showed a
+  // row reading "Create retainer invoice" as fresh work while a provider job
+  // to create that invoice had failed and been waiting a day.
+  const providerJobs = useTenantDocuments("providerJobs");
   const snapshotTotals = new Map(
     (snapshots.records ?? []).map((row) => [
       row.id,
@@ -658,6 +662,12 @@ export function LiveProjectRows({
     ]),
   );
   const today = new Date().toISOString().slice(0, 10);
+  const stalled = new Set<string>();
+  for (const job of providerJobs.records ?? []) {
+    if (!["failed", "dead_letter"].includes(String(job.status))) continue;
+    const projectId = String(job.projectId ?? "");
+    if (projectId) stalled.add(projectId);
+  }
   const owed = new Map<string, { cents: number; overdue: boolean }>();
   // Whether a job has ever been billed at all. "Paid up" needs an invoice
   // behind it; a value taken from a draft proposal is not a bill.
@@ -716,6 +726,7 @@ export function LiveProjectRows({
               position?.actionLabel ??
               position?.stepTitle ??
               String(item.nextAction ?? "Nothing outstanding"),
+            stalled: stalled.has(item.id),
             owner: position
               ? position.owner === "studio"
                 ? "You"
@@ -806,7 +817,14 @@ export function LiveProjectRows({
           </span>
           <span>
             <strong>{project.nextAction}</strong>
-            <small>{project.owner}</small>
+            {/* An attempt already failed on this job, so the action is a retry
+                rather than fresh work. Saying so is the difference between
+                "do this" and "this broke, and here is what it was trying". */}
+            <small>
+              {"stalled" in project && project.stalled
+                ? "a previous attempt failed"
+                : project.owner}
+            </small>
           </span>
           <Link
             href={`/studio/projects/${project.id}`}

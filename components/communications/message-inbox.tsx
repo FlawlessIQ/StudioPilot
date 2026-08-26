@@ -688,11 +688,20 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
                     activeThread.participant.email ??
                     "Client"}
                 </h2>
+                {/* This showed the last message's subject, which is written
+                    for the client — so the studio's own mailbox read "FlawlessIQ
+                    sent you an update" about their own outgoing message. The
+                    subject is already on each message in the stream; what the
+                    studio needs here is which job this is and how to reach them. */}
                 <p>
-                  {activeThread.subject ?? "No subject"}
-                  {activeThread.participant.email
-                    ? ` · ${activeThread.participant.email}`
-                    : ""}
+                  {[
+                    projects.find(
+                      (entry) => entry.id === activeThread.projectId,
+                    )?.name,
+                    activeThread.participant.email,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || "No project linked"}
                 </p>
               </div>
               <span className="msg-thread-channels">

@@ -146,6 +146,8 @@ function fallbackDraft(input: {
   const who =
     text(lead.name).split(" ")[0] ||
     text(record(input.context.client).firstName) ||
+    // A reply to a conversation knows who it is replying to.
+    text(record(input.context.conversation).recipientName).split(" ")[0] ||
     "there";
   const eventDate = text(lead.eventDate) || text(project.eventDate) || null;
   const venue =
@@ -619,6 +621,10 @@ export const aiMessageDraftCommand = onRequest(
           .get();
         const ordered = history.docs.reverse();
         context.conversation = {
+          // `recipientName` is resolved just above but was never put in the
+          // context, so the fallback draft greeted a known client "Hi there"
+          // while their name sat on the card above it.
+          recipientName,
           subject: conversation.get("subject") ?? null,
           channels: conversation.get("channels") ?? [],
           messageCount: conversation.get("messageCount") ?? ordered.length,
@@ -648,10 +654,19 @@ export const aiMessageDraftCommand = onRequest(
           // decides whether the studio wins the job. Fall back to the
           // grounded template and label it honestly.
           draft = fallbackDraft({ trigger: input.trigger, context });
-          draft.missingInformation = [
-            "Drafted from your records without the model — read it closely.",
-            ...draft.missingInformation,
-          ];
+          // The inbound fallback already labels itself, so prepending here put
+          // two overlapping cautions on one card — "read it closely" above
+          // "write the actual answer before sending". Add the label only when
+          // the fallback has not already said it.
+          const alreadyLabelled = draft.missingInformation.some((message) =>
+            /without the model/i.test(message),
+          );
+          draft.missingInformation = alreadyLabelled
+            ? draft.missingInformation
+            : [
+                "Drafted from your records without the model — read it closely.",
+                ...draft.missingInformation,
+              ];
         }
       }
 

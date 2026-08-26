@@ -669,8 +669,8 @@ export function LiveCrewHome() {
           <p className="eyebrow">Crew workspace</p>
           <h1>
             Welcome
-            {greetingName(workspace.userName)
-              ? `, ${greetingName(workspace.userName)}`
+            {greetingName(workspace.userName, workspace.tenantName)
+              ? `, ${greetingName(workspace.userName, workspace.tenantName)}`
               : ""}
             .
           </h1>

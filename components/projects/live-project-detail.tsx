@@ -639,7 +639,15 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
         <span>
           <UserRound size={17} />
           <small>Lead photographer</small>
-          <strong>{String(project.leadPhotographerName ?? "Unassigned")}</strong>
+          {/* "Unassigned" is noise on a solo studio, which is the shape a pilot
+              ships to — the same reason the leads Owner column was removed. It
+              says who when it knows, and "You" when there is nobody else. */}
+          <strong>
+            {String(
+              project.leadPhotographerName ??
+                (workspace.role === "studio_owner" ? "You" : "Not set"),
+            )}
+          </strong>
         </span>
       </div>
       {/* Phase 2 of "Today & Jobs": the job is one thread, with the next
