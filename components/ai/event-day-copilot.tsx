@@ -57,7 +57,7 @@ export function EventDayCopilot({
   const { records: assignments } = useTenantDocuments("crewAssignments");
   const { records: readiness } = useTenantDocuments("readinessAssessments");
   const { records: insurance } = useTenantDocuments("insuranceRequests");
-  const [projectId, setProjectId] = useState(initialProjectId);
+  const [chosenProjectId, setChosenProjectId] = useState(initialProjectId);
   const [question, setQuestion] = useState(quickQuestions[0]!);
   const [result, setResult] = useState<CopilotResult | null>(null);
   const [busy, setBusy] = useState(false);
@@ -83,11 +83,17 @@ export function EventDayCopilot({
         ),
     [projects],
   );
-  useEffect(() => {
-    if (projectId || !upcoming[0]) return;
-    const frame = requestAnimationFrame(() => setProjectId(upcoming[0]!.id));
-    return () => cancelAnimationFrame(frame);
-  }, [projectId, upcoming]);
+  /**
+   * The nearest event, unless the operator picked another.
+   *
+   * This used to be an effect that set state inside `requestAnimationFrame`.
+   * `upcoming` is memoised on `projects`, which arrives as a fresh array each
+   * render, so the effect re-ran every render and its cleanup cancelled the
+   * frame before it could fire — the selection never happened. On the morning of
+   * a wedding the first interaction on a phone was a dropdown reading "Select an
+   * upcoming project". Deriving it removes the race entirely.
+   */
+  const projectId = chosenProjectId || upcoming[0]?.id || "";
 
   const project = projects?.find((item) => item.id === projectId);
   const schedule = [...(schedules ?? [])]
@@ -199,7 +205,7 @@ export function EventDayCopilot({
         <select
           disabled={loading}
           onChange={(event) => {
-            setProjectId(event.target.value);
+            setChosenProjectId(event.target.value);
             setResult(null);
           }}
           value={projectId}

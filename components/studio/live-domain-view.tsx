@@ -204,7 +204,10 @@ const configurations: Record<Domain, DomainConfig> = {
     facts: [
       { label: "Version", fields: ["version"] },
       { label: "Items", fields: ["items"], kind: "count" },
-      { label: "Published", fields: ["publishedAt"], kind: "date" },
+      // Labelled "Published" while the status beside it read "client review"
+      // or "approved", and the crew surface reported "Not published". The field
+      // records when this version was written, which is what it should say.
+      { label: "Version dated", fields: ["publishedAt"], kind: "date" },
     ],
     href: (record) => `/studio/schedules/${record.id}`,
   },

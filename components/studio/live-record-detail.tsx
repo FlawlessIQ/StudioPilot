@@ -60,8 +60,12 @@ const config: Record<
     facts: [
       ["Version", ["version"]],
       ["Timezone", ["timezone"]],
-      ["Published", ["publishedAt"]],
-      ["Approved", ["approvedAt"]],
+      // Same relabel as the list: this is when the version was written, not a
+      // publication event. "Approved"/"Approved by" render "—" on a schedule
+      // whose status pill says `approved`, which is the field that actually
+      // matters for an evidence-controlled step — so it now says so plainly.
+      ["Version dated", ["publishedAt"]],
+      ["Approval recorded", ["approvedAt"]],
       ["Approved by", ["approvedBy"]],
       ["Items", ["items"]],
     ],
@@ -250,7 +254,14 @@ function show(value: unknown, label: string) {
   if (typeof value === "object")
     return `${Object.keys(value as Record<string, unknown>).length} tracked`;
   if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (/At$|Created|Updated|Expires|Published|Approved|Arrival|Departure|delivery/i.test(label)) {
+  // Matches on the label, so renaming a field can silently stop it being
+  // formatted as a date. "Version dated" and "Approval recorded" are here
+  // because of exactly that.
+  if (
+    /At$|Created|Updated|Expires|Published|Approv|Arrival|Departure|delivery|dated|recorded/i.test(
+      label,
+    )
+  ) {
     const date = new Date(String(value));
     if (!Number.isNaN(date.valueOf())) {
       // `toLocaleString()` renders "8/30/2026, 1:00:00 PM" — a fourth date

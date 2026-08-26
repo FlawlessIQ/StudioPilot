@@ -26,7 +26,9 @@ export default async function LeadsPage({
             <form className="crm-search-form" method="get"><input name="view" type="hidden" value={view} /><Search size={15} /><input aria-label="Search leads" defaultValue={q} name="q" placeholder="Search leads" /><button type="submit"><Filter size={14} /> Apply</button></form>
           </div>
           <div className="crm-table crm-leads-table">
-            <div className="crm-table-head"><span>Lead</span><span>Event</span><span>Source</span><span>Owner</span><span>Status</span><span /></div>
+            {/* "Owner" read "Unassigned" on every row — pure noise in a
+                one-photographer studio, which is the shape a pilot ships to. */}
+            <div className="crm-table-head"><span>Lead</span><span>Event</span><span>Source</span><span>Status</span><span /></div>
             <LiveLeadRows view={view} q={q}/>
           </div>
           <div className="crm-empty-hint"><Inbox size={15} /><span>New inquiries are protected from spam and checked for duplicates.</span></div>
