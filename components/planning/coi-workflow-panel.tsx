@@ -23,6 +23,7 @@ import { dataIsLive } from "@/lib/runtime-mode";
 import { statusLabel } from "@/features/format/status-label";
 import { AddressField } from "@/components/forms/address-field";
 import type { CapturedPlace } from "@/features/places/schema";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 type RequestRecord = Record<string, unknown> & { id: string };
 
@@ -98,7 +99,7 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
         setVenueAddress(null);
       }
     } catch (caught: unknown) {
-      setNotice(caught instanceof Error ? caught.message : "Request failed.");
+      setNotice(friendlyError(caught, "Request failed."));
     } finally {
       setBusy(false);
     }
@@ -123,7 +124,7 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
           : "Rejection recorded and a correction request was queued.",
       );
     } catch (caught: unknown) {
-      setNotice(caught instanceof Error ? caught.message : "Decision failed.");
+      setNotice(friendlyError(caught, "Decision failed."));
     } finally {
       setBusy(false);
     }
@@ -139,7 +140,7 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
       });
       setNotice("Venue delivery was queued and its status was recorded.");
     } catch (caught: unknown) {
-      setNotice(caught instanceof Error ? caught.message : "Delivery failed.");
+      setNotice(friendlyError(caught, "Delivery failed."));
     } finally {
       setBusy(false);
     }

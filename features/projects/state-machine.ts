@@ -59,6 +59,33 @@ export function transitionAuthority(
   );
 }
 
+/**
+ * Where booking a consultation takes a project on its own.
+ *
+ * The walk of 2026-08-26 found the lifecycle stopped dead here. Booking a
+ * consultation on StudioCue's own calendar — with a Zoom link StudioCue
+ * created — ticked the journey's "Consultation" step but left the project at
+ * `LEAD`. The booking workspace then refused the consultation notes with
+ * "This project is still marked as a lead", and the only way forward was the
+ * manual stage control, whose own description says it is for steps that
+ * happened *outside* StudioCue.
+ *
+ * So the booking now carries the transition itself. Deliberately NOT added to
+ * `evidenceControlledProjectTransitions`: that list makes evidence the *only*
+ * authority, and a consultation held over the phone is a real thing a
+ * photographer must still be able to record by hand. This says the evidence is
+ * *sufficient*, not that it is required.
+ *
+ * Returns null for any other state, so a consultation booked later in the job
+ * — a planning call on a booked wedding — never drags the project backwards.
+ */
+export function consultationBookingAdvancesTo(
+  from: ProjectState,
+): ProjectState | null {
+  if (from !== "LEAD") return null;
+  return canTransition(from, "CONSULTATION") ? "CONSULTATION" : null;
+}
+
 export function assertManualProjectTransition(
   from: ProjectState,
   to: ProjectState,

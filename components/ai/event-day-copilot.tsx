@@ -21,6 +21,7 @@ import { eventDaySnapshot } from "@/features/crew/cascade";
 import { displayableScheduleItems } from "@/features/schedules/item-clock";
 import { readinessSummary } from "@/features/projects/readiness-summary";
 import { askCopilot, type CopilotResult } from "@/lib/ai/copilot-client";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 const text = (value: unknown) => (typeof value === "string" ? value : "");
 const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
@@ -169,7 +170,7 @@ export function EventDayCopilot({
       .then(setResult)
       .catch((caught: unknown) => {
         preparedBriefs.current.delete(projectId);
-        setError(caught instanceof Error ? caught.message : "Copilot could not prepare the brief.");
+        setError(friendlyError(caught, "Copilot could not prepare the brief."));
       })
       .finally(() => setBusy(false));
   }, [projectId, schedule, workspace.tenantId]);
@@ -188,7 +189,7 @@ export function EventDayCopilot({
         }),
       );
     } catch (caught: unknown) {
-      setError(caught instanceof Error ? caught.message : "Copilot could not answer.");
+      setError(friendlyError(caught, "Copilot could not answer."));
     } finally {
       setBusy(false);
     }

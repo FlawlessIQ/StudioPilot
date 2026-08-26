@@ -14,6 +14,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { runClientInvitation } from "@/lib/client/invitation-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { formatDueDate } from "@/lib/format/event-date";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 export type ClientInviteProjectOption = {
   id: string;
@@ -149,9 +150,7 @@ export function ClientPortalInvite({
       }
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error
-          ? caught.message
-          : "The project could not be linked.",
+        friendlyError(caught, "The project could not be linked."),
       );
     } finally {
       setBusy(null);
@@ -190,7 +189,7 @@ export function ClientPortalInvite({
       );
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error ? caught.message : "Invitation failed.",
+        friendlyError(caught, "Invitation failed."),
       );
     } finally {
       setBusy(null);
@@ -220,9 +219,7 @@ export function ClientPortalInvite({
       setNotice("Portal invitation revoked. Its secure link no longer works.");
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error
-          ? caught.message
-          : "The invitation could not be revoked.",
+        friendlyError(caught, "The invitation could not be revoked."),
       );
     } finally {
       setBusy(null);

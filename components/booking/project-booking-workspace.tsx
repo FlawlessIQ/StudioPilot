@@ -51,9 +51,7 @@ function nestedString(value: unknown, key: string): string {
 
 function friendlyError(error: unknown): string {
   const message =
-    error instanceof Error
-      ? error.message
-      : "This action could not be completed.";
+    friendlySharedError(error, "This action could not be completed.");
   const known: Record<string, string> = {
     CONTRACT_NOT_READY:
       "The accepted proposal must be ready before a contract can be sent.",

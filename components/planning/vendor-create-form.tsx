@@ -5,6 +5,7 @@ import { Handshake } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 export function VendorCreateForm() {
   const workspace = useWorkspace();
@@ -37,7 +38,7 @@ export function VendorCreateForm() {
       setNotice("Vendor created and associated with the selected project.");
       element.reset();
     } catch (caught: unknown) {
-      setNotice(caught instanceof Error ? caught.message : "Vendor creation failed.");
+      setNotice(friendlyError(caught, "Vendor creation failed."));
     } finally {
       setBusy(false);
     }

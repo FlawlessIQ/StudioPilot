@@ -19,6 +19,7 @@ import {
   requestMessageDraft,
   type MessageDraftTrigger,
 } from "@/lib/ai/message-draft-client";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 const prompts = [
   "What needs my attention today?",
@@ -54,7 +55,7 @@ export function CopilotWorkspace() {
         }),
       );
     } catch (caught: unknown) {
-      setError(caught instanceof Error ? caught.message : "Copilot failed.");
+      setError(friendlyError(caught, "Copilot failed."));
     } finally {
       setBusy(false);
     }
@@ -226,7 +227,7 @@ function PreparedActions({
       );
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error ? caught.message : "The draft could not be prepared.",
+        friendlyError(caught, "The draft could not be prepared."),
       );
     } finally {
       setBusy(null);

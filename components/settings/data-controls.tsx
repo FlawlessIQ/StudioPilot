@@ -14,6 +14,7 @@ import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { activeMembership } from "@/lib/firebase/active-membership";
+import { friendlyError } from "@/lib/ai/friendly-error";
 type Context = { tenantId: string; businessName: string };
 export function DataControls() {
   const [context, setContext] = useState<Context | null>(null);
@@ -114,7 +115,7 @@ export function DataControls() {
       }
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error ? caught.message : "Export request failed.",
+        friendlyError(caught, "Export request failed."),
       );
     }
   }
@@ -133,7 +134,7 @@ export function DataControls() {
         );
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error ? caught.message : "Deletion request failed.",
+        friendlyError(caught, "Deletion request failed."),
       );
     }
   }
@@ -163,7 +164,7 @@ export function DataControls() {
       window.location.assign(result.url);
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error ? caught.message : "Export download failed.",
+        friendlyError(caught, "Export download failed."),
       );
     }
   }

@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { FileCheck2 } from "lucide-react";
 import { recordSignedAgreement } from "@/lib/booking/command-client";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 /**
  * Recording an agreement signed outside StudioCue.
@@ -59,9 +60,7 @@ export function RecordSignedAgreement({
       onRecorded();
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error
-          ? caught.message
-          : "The signature could not be recorded.",
+        friendlyError(caught, "The signature could not be recorded."),
       );
     } finally {
       setBusy(false);

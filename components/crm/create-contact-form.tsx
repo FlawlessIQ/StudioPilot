@@ -6,6 +6,7 @@ import { CheckCircle2, LoaderCircle } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { runCrmCommand } from "@/lib/crm/command-client";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 const schema = z.object({
   firstName: z.string().trim().min(1).max(80),
@@ -38,7 +39,7 @@ export function CreateContactForm() {
         reference: String(command.result.contactId ?? command.result.reference),
       });
     } catch (caught: unknown) {
-      setError(caught instanceof Error ? caught.message : "Contact could not be created.");
+      setError(friendlyError(caught, "Contact could not be created."));
     }
   });
 

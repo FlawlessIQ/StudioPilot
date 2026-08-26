@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { Banknote } from "lucide-react";
 import { recordRetainerPayment } from "@/lib/booking/command-client";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 /**
  * Recording a retainer that arrived outside StudioCue.
@@ -62,9 +63,7 @@ export function RecordRetainerPayment({
       onRecorded();
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error
-          ? caught.message
-          : "The payment could not be recorded.",
+        friendlyError(caught, "The payment could not be recorded."),
       );
     } finally {
       setBusy(false);

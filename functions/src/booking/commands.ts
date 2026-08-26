@@ -13,6 +13,7 @@ import { productEvent } from "../operations/product-events.js";
 import { availabilityWindowSchema } from "./availability.js";
 import { agreedRetainerCents } from "./agreed-retainer.js";
 import { bookingGateRequirements } from "./gate-requirements.js";
+import { consultationBookingAdvancesTo } from "./consultation-advance.js";
 import { isStandingInvoice } from "./invoice-standing.js";
 
 const commandSchema = z.discriminatedUnion("type", [
@@ -446,6 +447,62 @@ export const bookingCommand = onRequest(
               createdAt: timestamp,
             });
         }
+        // Booking the consultation is itself the evidence that the
+        // conversation has started, so the project moves with it. Without this
+        // the journey ticked "Consultation" while the project stayed at LEAD,
+        // the booking workspace refused the notes with "This project is still
+        // marked as a lead", and the only way on was the manual override that
+        // is documented as being for work done outside StudioCue.
+        //
+        // Guarded by the state read inside the transaction, so a retry or a
+        // second consultation on an already-progressed job is a no-op rather
+        // than a backwards step.
+        const projectReference = firestore.doc(
+          `projects/${command.input.projectId}`,
+        );
+        await firestore.runTransaction(async (transaction) => {
+          const project = await transaction.get(projectReference);
+          if (!project.exists || project.get("tenantId") !== command.tenantId)
+            return;
+          const from = String(project.get("state"));
+          const to = consultationBookingAdvancesTo(from);
+          if (!to) return;
+          const priorStateVersion = Number(project.get("stateVersion") ?? 0);
+          transaction.update(projectReference, {
+            state: to,
+            stateVersion: priorStateVersion + 1,
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          const auditId = stableId(
+            "audit_consultation_state",
+            command.tenantId,
+            command.idempotencyKey,
+          );
+          transaction.create(firestore.doc(`auditEvents/${auditId}`), {
+            id: auditId,
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "project.state_changed",
+            entityType: "project",
+            entityId: command.input.projectId,
+            timestamp,
+            before: { state: from, stateVersion: priorStateVersion },
+            after: {
+              state: to,
+              stateVersion: priorStateVersion + 1,
+              consultationId,
+            },
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId:
+              request.header("x-correlation-id") ?? command.idempotencyKey,
+            automationRunId: null,
+            providerEventId: null,
+          });
+        });
         result = {
           consultationId,
           providerState: mockMode ? "completed_mock" : "queued",

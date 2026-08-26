@@ -12,6 +12,7 @@ import {
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 const fieldTypes = [
   ["text", "Short text"],
@@ -138,7 +139,7 @@ export function QuestionnaireBuilder({
       element.reset();
       setFields(startingFields);
     } catch (caught: unknown) {
-      setNotice(caught instanceof Error ? caught.message : "Template could not be saved.");
+      setNotice(friendlyError(caught, "Template could not be saved."));
     } finally {
       setBusy(false);
     }
@@ -158,7 +159,7 @@ export function QuestionnaireBuilder({
       setNotice("Questionnaire assigned. Its due date was calculated from the project date.");
       element.reset();
     } catch (caught: unknown) {
-      setNotice(caught instanceof Error ? caught.message : "Questionnaire could not be assigned.");
+      setNotice(friendlyError(caught, "Questionnaire could not be assigned."));
     } finally {
       setBusy(false);
     }

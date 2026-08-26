@@ -15,6 +15,7 @@ import { isStudioMembership } from "@/features/auth/workspace-routing";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 type StudioMembership = {
   tenantId: string;
@@ -124,9 +125,7 @@ export function PlatformWorkspaceSwitcher() {
       router.push("/studio");
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error
-          ? caught.message
-          : "Owner access could not be recovered.",
+        friendlyError(caught, "Owner access could not be recovered."),
       );
       setBusy(false);
     }

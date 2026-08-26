@@ -22,6 +22,7 @@ import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { uploadClientQuestionnaireFile } from "@/lib/client/questionnaire-upload";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 type Field = {
   id: string;
@@ -299,9 +300,7 @@ export function ClientQuestionnaireForm({
       );
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error
-          ? caught.message
-          : "Questionnaire could not be saved.",
+        friendlyError(caught, "Questionnaire could not be saved."),
       );
     } finally {
       if (quiet) setAutoSaving(false);
@@ -337,7 +336,7 @@ export function ClientQuestionnaireForm({
       update(fieldId, uploaded);
       setNotice(`${file.name} uploaded securely and is being scanned.`);
     } catch (caught: unknown) {
-      setNotice(caught instanceof Error ? caught.message : "Attachment upload failed.");
+      setNotice(friendlyError(caught, "Attachment upload failed."));
     } finally {
       setUploadingField(null);
     }

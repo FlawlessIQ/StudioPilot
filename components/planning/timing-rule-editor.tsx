@@ -9,6 +9,7 @@ import {
   type ProposedTimingRule,
 } from "@/lib/ai/timing-rules-client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 type RuleRecord = Record<string, unknown> & { id: string };
 
@@ -51,9 +52,7 @@ export function TimingRuleEditor() {
         setNotice("Preview mode: example proposal shown without analysis.");
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error
-          ? caught.message
-          : "We couldn't read timing rules from that schedule. Try again.",
+        friendlyError(caught, "We couldn't read timing rules from that schedule. Try again."),
       );
     } finally {
       setLearnBusy(false);
@@ -85,7 +84,7 @@ export function TimingRuleEditor() {
       );
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error ? caught.message : "The rule could not be saved.",
+        friendlyError(caught, "The rule could not be saved."),
       );
     } finally {
       setSavingProposal(null);
@@ -116,7 +115,7 @@ export function TimingRuleEditor() {
       setShowForm(false);
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error ? caught.message : "Timing rule could not be saved.",
+        friendlyError(caught, "Timing rule could not be saved."),
       );
     } finally {
       setBusy(false);

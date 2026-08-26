@@ -14,6 +14,7 @@ import { friendlyAiError } from "@/lib/ai/friendly-error";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 type ScheduleItem = {
   id: string;
@@ -369,7 +370,7 @@ export function AiScheduleGenerator({
           : "Development preview validated the schedule without publishing.",
       );
     } catch (caught: unknown) {
-      setNotice(caught instanceof Error ? caught.message : "Publish failed.");
+      setNotice(friendlyError(caught, "Publish failed."));
     } finally {
       setPublishing(false);
     }

@@ -22,6 +22,10 @@ import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { runAiQueueCommand } from "@/lib/ai-actions/command-client";
 import {
+  approvalConsequenceSentence,
+  dispatchesOnApproval,
+} from "@/features/ai/approval-consequence";
+import {
   StructuredContentFields,
   StructuredContentPreview,
 } from "@/components/ai/structured-content-fields";
@@ -84,6 +88,15 @@ export function AiQueueCard({
   // A draft may cite no source at all (a free-form reply, an imported record).
   // That is not a reason to take the whole job page down.
   const affected = sources[0] ?? {};
+  // What approving will actually do. The edited subject and body are what
+  // would be sent when the editor is open, so the sentence follows the edit.
+  const consequenceInput = {
+    downstreamCommandType: text(downstream.commandType) || null,
+    recipient: text(output.recipientEmail) || null,
+    subject: (editing && isMessageDraft ? subjectDraft : text(output.subject)) || null,
+    body: (editing && isMessageDraft ? bodyDraft : text(output.body)) || null,
+  };
+  const approvingSends = dispatchesOnApproval(consequenceInput);
 
   async function decide(
     decision: "approved" | "rejected" | "dismissed",
@@ -114,8 +127,12 @@ export function AiQueueCard({
         typeof output.recipientEmail === "string" &&
         output.recipientEmail
       ) {
-        // Keep the card visible so the approved reply can be sent in one tap.
+        // Keep the card visible so the reply can be re-sent if needed. When
+        // the draft was complete the server has already dispatched it as part
+        // of the approval, so the button must not still offer to send it —
+        // that is what made the card contradict itself.
         setApprovedReplyDraftId(`ai_reply_${action.id}`);
+        if (approvingSends) setDispatched(true);
       } else {
         onDecision(action.id, decision);
       }
@@ -207,10 +224,11 @@ export function AiQueueCard({
           downstream command and authority boundary are audit metadata, not
           the question being asked of a photographer — they stay available
           under "Why StudioCue prepared this". */}
+      {/* Derived from the same condition the server uses, because this card
+          used to promise "nothing goes to the client until you send it" and
+          then send it one second later. See features/ai/approval-consequence.ts. */}
       <p className="ai-queue-consequence">
-        {text(downstream.commandType)
-          ? `Approving runs ${readable(text(downstream.commandType)).toLowerCase()}.`
-          : "Approving saves the draft. Nothing goes to the client until you send it."}
+        {approvalConsequenceSentence(consequenceInput, readable)}
       </p>
 
       {issues.length ? (
@@ -306,7 +324,7 @@ export function AiQueueCard({
             type="button"
           >
             {busy === "dispatch" ? <LoaderCircle className="spin" /> : <Send />}
-            {dispatched ? "Reply queued" : "Send reply now"}
+            {dispatched ? "Reply sent" : "Send reply now"}
           </button>
           <button
             disabled={Boolean(busy)}
@@ -507,7 +525,7 @@ export function AiApprovalQueue() {
     <div className="ai-queue-page">
       <header className="ai-queue-hero">
         <div>
-          <p className="eyebrow"><Sparkles size={14} /> AI control center</p>
+          <p className="eyebrow"><Sparkles size={14} /> AI review</p>
           <h1>Prepared for you.<br />Never decided for you.</h1>
           <p>
             Review drafts and workflow actions with their source facts,
@@ -522,7 +540,7 @@ export function AiApprovalQueue() {
         </aside>
       </header>
 
-      <nav className="ai-queue-tabs" aria-label="AI control center views">
+      <nav className="ai-queue-tabs" aria-label="AI review views">
         <button className={filter === "review" ? "is-active" : ""} onClick={() => setFilter("review")} type="button">
           <BrainCircuit /> Review queue <span>{aiActions.length + approvals.length}</span>
         </button>

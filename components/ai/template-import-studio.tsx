@@ -38,6 +38,7 @@ import {
 } from "@/lib/studio-import/command-client";
 import { kindTone, type LibraryKind } from "@/features/library/kinds";
 import { kindIcon } from "@/components/library/kind-glyph";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 type SourceMode = "files" | "email" | "website";
 type ImportKind =
@@ -253,9 +254,7 @@ export function TemplateImportStudio({
       .catch((caught: unknown) => {
         if (!active) return;
         setPipelineError(
-          caught instanceof Error
-            ? caught.message
-            : "StudioCue could not restore this import session.",
+          friendlyError(caught, "StudioCue could not restore this import session."),
         );
       })
       .finally(() => {
@@ -399,9 +398,7 @@ export function TemplateImportStudio({
         setPipelineError(
           cancelled
             ? "Import cancelled. No source was activated."
-            : caught instanceof Error
-              ? caught.message
-              : "The secure import could not be completed.",
+            : friendlyError(caught, "The secure import could not be completed."),
         );
         setBusy(false);
         abortRef.current = null;
@@ -469,9 +466,7 @@ export function TemplateImportStudio({
         setPipelineError(
           cancelled
             ? "Import cancelled. No source was activated."
-            : caught instanceof Error
-              ? caught.message
-              : "The source could not be imported.",
+            : friendlyError(caught, "The source could not be imported."),
         );
         return;
       } finally {
@@ -555,9 +550,7 @@ export function TemplateImportStudio({
       }
     } catch (caught: unknown) {
       setPipelineError(
-        caught instanceof Error
-          ? caught.message
-          : "The source could not be retried.",
+        friendlyError(caught, "The source could not be retried."),
       );
     } finally {
       abortRef.current = null;
@@ -609,9 +602,7 @@ export function TemplateImportStudio({
       setComplete(true);
     } catch (caught: unknown) {
       setPipelineError(
-        caught instanceof Error
-          ? caught.message
-          : "StudioCue could not resume this import.",
+        friendlyError(caught, "StudioCue could not resume this import."),
       );
     } finally {
       abortRef.current = null;

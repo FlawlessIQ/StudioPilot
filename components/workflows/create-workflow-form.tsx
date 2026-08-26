@@ -12,6 +12,7 @@ import {
   describePublishEffect,
   publishEffect,
 } from "@/features/workflows/publication";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 const formSchema = z.object({
   name: z.string().trim().min(2).max(160),
@@ -385,7 +386,7 @@ export function CreateWorkflowForm({
         eventType: values.eventType,
       });
     } catch (caught: unknown) {
-      setError(caught instanceof Error ? caught.message : "Workflow could not be created.");
+      setError(friendlyError(caught, "Workflow could not be created."));
     }
   });
 

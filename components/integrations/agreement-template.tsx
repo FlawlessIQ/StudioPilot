@@ -16,6 +16,7 @@ import {
   setProviderTestMode,
   type SigningTemplate,
 } from "@/lib/integrations/command-client";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 /**
  * The studio's default agreement, chosen by name.
@@ -85,7 +86,7 @@ export function AgreementTemplate() {
       } catch (caught: unknown) {
         if (!active) return;
         setState("unavailable");
-        setReason(caught instanceof Error ? caught.message : "LOAD_FAILED");
+        setReason(friendlyError(caught, "LOAD_FAILED"));
       }
     })();
     return () => {
@@ -116,9 +117,7 @@ export function AgreementTemplate() {
       );
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error
-          ? caught.message
-          : "The agreement template could not be saved.",
+        friendlyError(caught, "The agreement template could not be saved."),
       );
     } finally {
       setSaving(false);
@@ -243,9 +242,7 @@ export function AgreementTemplate() {
         setNotice("Development preview: test mode was not saved.");
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error
-          ? caught.message
-          : "Test mode could not be changed.",
+        friendlyError(caught, "Test mode could not be changed."),
       );
     } finally {
       setSwitching(false);

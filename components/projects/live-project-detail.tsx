@@ -61,6 +61,7 @@ import { ProjectWorkspaceNav } from "@/components/projects/project-workspace-nav
 import { ProjectPreparedTray } from "@/components/projects/project-prepared-tray";
 import { ProjectPlanningCopilot } from "@/components/projects/project-planning-copilot";
 import { crmProjects } from "@/config/crm-demo-data";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 type ProjectRecord = Record<string, unknown> & { id: string };
 type CheckpointRecord = Record<string, unknown> & { id: string };
@@ -528,7 +529,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
       .catch((caught: unknown) => {
         if (active)
           setError(
-            caught instanceof Error ? caught.message : "Project could not be loaded.",
+            friendlyError(caught, "Project could not be loaded."),
           );
       });
     return () => {

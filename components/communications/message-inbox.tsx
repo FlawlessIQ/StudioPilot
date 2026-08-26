@@ -31,6 +31,7 @@ import type {
   Conversation,
   MessageChannel,
 } from "@/features/messaging/conversation";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 /**
  * The mailbox. Replaces a screen that put a compose form, an automation
@@ -103,7 +104,7 @@ function whenLabel(iso: string): string {
  * scheduledFor — tells a photographer nothing and looks broken.
  */
 function readableFailure(caught: unknown): string {
-  const raw = caught instanceof Error ? caught.message : "";
+  const raw = friendlyError(caught, "");
   if (raw.includes("RECIPIENT_UNKNOWN")) {
     return "No email address on file for this client. Add one on the project, then reply.";
   }
@@ -453,7 +454,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
       setDraftNotes([...(uncertain ?? []), ...(output.highlights ?? [])].slice(0, 4));
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error ? caught.message : "That draft could not be made.",
+        friendlyError(caught, "That draft could not be made."),
       );
     } finally {
       setDrafting(false);

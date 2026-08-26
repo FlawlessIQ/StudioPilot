@@ -13,6 +13,7 @@ import {
   placeLabel,
   type CapturedPlace,
 } from "@/features/places/schema";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 type PublicLeadIntakeInput = z.input<typeof publicLeadIntakeSchema>;
 
@@ -118,7 +119,7 @@ export function LeadIntakeForm({
       }
       setResult(payload);
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "";
+      const message = friendlyError(error, "");
       setServerError(
         message === "INVALID_INQUIRY"
           ? "Some details didn't look right. Check the highlighted fields and try again."

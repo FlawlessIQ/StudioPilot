@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { runWorkflowCommand } from "@/lib/workflows/command-client";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 const schema = z.object({
   projectId: z.string().trim().min(1),
@@ -54,7 +55,7 @@ export function CreateTaskForm({ initialProjectId = "" }: { initialProjectId?: s
         reference: String(command.result.taskId ?? command.result.reference),
       });
     } catch (caught: unknown) {
-      setError(caught instanceof Error ? caught.message : "Task could not be created.");
+      setError(friendlyError(caught, "Task could not be created."));
     }
   });
   if (outcome) {

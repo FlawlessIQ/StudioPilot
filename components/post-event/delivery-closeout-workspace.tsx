@@ -14,6 +14,7 @@ import { useTenantDocuments } from "@/components/live/tenant-records";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { sendPostEventCommand } from "@/lib/post-event/command-client";
 import { statusLabel } from "@/features/format/status-label";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 const text = (value: unknown) =>
   typeof value === "string" ? value : "";
@@ -71,7 +72,7 @@ export function DeliveryCloseoutWorkspace({
       );
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error ? caught.message : "Album status could not update.",
+        friendlyError(caught, "Album status could not update."),
       );
     } finally {
       setBusy(null);
@@ -104,7 +105,7 @@ export function DeliveryCloseoutWorkspace({
       );
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error ? caught.message : "Closeout action failed.",
+        friendlyError(caught, "Closeout action failed."),
       );
     } finally {
       setBusy(null);

@@ -480,3 +480,49 @@ test("plumbing still headlines when there is no client work at all", () => {
     "connection-conn-1",
   );
 });
+
+test("prepared work from an inquiry names the couple, not 'Studio workflow'", () => {
+  // A draft prepared from an inquiry has no projectId — there is no job until
+  // the lead converts — so the card fell back to a generic label while every
+  // other card on Today named the client. The source reference has the answer,
+  // and the AI review screen was already using it.
+  const inbox = todayInbox({
+    ...base,
+    aiActions: [
+      {
+        id: "ai-1",
+        status: "review_required",
+        title: "Review inquiry reply",
+        capability: "inquiry_reply_draft",
+        projectId: null,
+        sourceReferences: [
+          {
+            entityType: "lead",
+            entityId: "lead-park",
+            label: "Inquiry from Hana Park",
+          },
+          { entityType: "tenant", entityId: "t1", label: "Alder & Muse" },
+        ],
+      },
+    ],
+  });
+  assert.equal(inbox.approve[0]?.detail, "Inquiry from Hana Park");
+});
+
+test("the studio's own name is never used as who the work is for", () => {
+  const inbox = todayInbox({
+    ...base,
+    aiActions: [
+      {
+        id: "ai-2",
+        status: "review_required",
+        title: "Review prepared work",
+        projectId: null,
+        sourceReferences: [
+          { entityType: "tenant", entityId: "t1", label: "Alder & Muse" },
+        ],
+      },
+    ],
+  });
+  assert.equal(inbox.approve[0]?.detail, "Studio workflow");
+});

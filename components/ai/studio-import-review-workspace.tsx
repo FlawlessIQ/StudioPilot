@@ -31,6 +31,7 @@ import {
 } from "@/lib/studio-import/command-client";
 import { StructuredContentFields } from "@/components/ai/structured-content-fields";
 import { statusLabel } from "@/features/format/status-label";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 const labels: Record<string, string> = {
   message_template: "Message",
@@ -160,7 +161,7 @@ export function StudioImportReviewWorkspace({
       await operation();
       await refresh();
     } catch (caught: unknown) {
-      const message = caught instanceof Error ? caught.message : "";
+      const message = friendlyError(caught, "");
       onError(
         message.includes("DUPLICATE_IMPORT_SOURCE_ALREADY_ACTIVATED")
           ? "This exact file was already activated from another import session. No duplicate content was created."

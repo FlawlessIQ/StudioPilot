@@ -32,7 +32,6 @@ import {
   Lock,
   Unlock,
 } from "lucide-react";
-import { friendlyError } from "@/lib/ai/friendly-error";
 import { generateConsultationSlots, type ConsultationSlot } from "@/features/consultations/slots";
 import type { ConsultationSettings, Weekday } from "@/features/consultations/availability-schema";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -44,6 +43,7 @@ import {
 } from "@/lib/booking/command-client";
 import { useTenantDocuments, type TenantDocument } from "@/components/live/tenant-records";
 import { demoTenantDocuments } from "@/features/live/demo-records";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 type SettingsShape = Pick<
   ConsultationSettings,
@@ -305,7 +305,7 @@ export function StudioCalendar() {
             : "Day blocked from booking.",
       );
     } catch (caught: unknown) {
-      setBlockNotice(caught instanceof Error ? caught.message : "Could not update this day.");
+      setBlockNotice(friendlyError(caught, "Could not update this day."));
     } finally {
       setBlocking(false);
     }
@@ -698,7 +698,7 @@ function ConsultationActions({
       setConfirmCancel(false);
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error ? caught.message : "That change could not be applied.",
+        friendlyError(caught, "That change could not be applied."),
       );
     } finally {
       setBusy(false);

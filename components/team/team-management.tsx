@@ -27,6 +27,7 @@ import { getFirebaseClient } from "@/lib/firebase/client";
 import { runMembershipCommand } from "@/lib/memberships/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { formatDueDate } from "@/lib/format/event-date";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 type MemberRow = {
   id: string;
@@ -111,7 +112,7 @@ export function TeamManagement() {
       setNotice(null);
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error ? caught.message : "Team access could not load.",
+        friendlyError(caught, "Team access could not load."),
       );
     } finally {
       setLoading(false);
@@ -157,7 +158,7 @@ export function TeamManagement() {
       await load();
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error ? caught.message : "Invitation failed.",
+        friendlyError(caught, "Invitation failed."),
       );
     } finally {
       setBusy(null);
@@ -177,7 +178,7 @@ export function TeamManagement() {
       await load();
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error ? caught.message : "Revocation failed.",
+        friendlyError(caught, "Revocation failed."),
       );
     } finally {
       setBusy(null);
@@ -204,7 +205,7 @@ export function TeamManagement() {
       await load();
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error ? caught.message : "Member update failed.",
+        friendlyError(caught, "Member update failed."),
       );
     } finally {
       setBusy(null);

@@ -65,6 +65,7 @@ import {
   waitingLabel,
 } from "@/features/ordering/attention";
 import { statusLabel } from "@/features/format/status-label";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 // Re-exported so existing importers of this module keep working.
 export { demoTenantDocuments };
@@ -1008,7 +1009,17 @@ export function LiveLeadDetail({ id }: { id: string }) {
         <div>
           <p className="eyebrow">Client inquiry</p>
           <h1>{fullName}</h1>
-          <p>{String(lead.eventType ?? "Photography")} inquiry for {String(lead.eventDate ?? "a date to be confirmed")}.</p>
+          {/* Was printing the raw `2027-07-02`. Every other surface — Today's
+              own row for this inquiry, the job it converts into, the AI's own
+              draft — writes "Jul 2, 2027". A database value leaking onto the
+              one screen whose job is to make a stranger feel like a person. */}
+          <p>
+            {String(lead.eventType ?? "Photography")} inquiry for{" "}
+            {typeof lead.eventDate === "string" && lead.eventDate
+              ? formatEventDate(lead.eventDate)
+              : "a date to be confirmed"}
+            .
+          </p>
         </div>
         <StatusBadge tone={stateTone(String(lead.status ?? ""))}>
           {statusLabel(lead.status ?? "new")}
@@ -1043,7 +1054,15 @@ export function LiveLeadDetail({ id }: { id: string }) {
         <article className="panel lead-detail-card">
           <div className="panel-heading"><div><h2>Event</h2><p>What they shared</p></div></div>
           <dl>
-            <div><dt>Date</dt><dd><CalendarDays /> {String(lead.eventDate ?? "Not provided")}</dd></div>
+            <div>
+              <dt>Date</dt>
+              <dd>
+                <CalendarDays />{" "}
+                {typeof lead.eventDate === "string" && lead.eventDate
+                  ? formatEventDate(lead.eventDate)
+                  : "Not provided"}
+              </dd>
+            </div>
             <div><dt>Location</dt><dd><MapPin /> {String(lead.venue ?? lead.city ?? "Not provided")}</dd></div>
             <div><dt>Budget</dt><dd>{String(lead.budgetRange ?? "Not provided")}</dd></div>
             <div><dt>Source</dt><dd>{String(lead.referralSource ?? "Direct")}</dd></div>
@@ -1072,7 +1091,14 @@ export function LiveLeadDetail({ id }: { id: string }) {
           <header>
             <span><Sparkles size={16} /></span>
             <div>
-              <p className="eyebrow">AI-prepared · unsent</p>
+              {/* "unsent" was a lie once the draft had been approved: approving
+                  a complete reply dispatches it, and this panel went on
+                  labelling it unsent. It now says which of the two it is. */}
+              <p className="eyebrow">
+                {replyAction.status === "approved"
+                  ? "AI-prepared · sent"
+                  : "AI-prepared · unsent"}
+              </p>
               <h2>Personalized inquiry reply</h2>
             </div>
             <StatusBadge
@@ -1137,14 +1163,12 @@ function DraftReplyButton({ leadId }: { leadId: string }) {
           "Preview: a personalized reply draft would be prepared for review.",
         );
       } else {
-        setNotice("Reply drafted — it's waiting in your review queue.");
+        setNotice("Reply drafted — it's waiting in AI review.");
         router.refresh();
       }
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error
-          ? caught.message
-          : "We couldn't prepare this draft. Try again.",
+        friendlyError(caught, "We couldn't prepare this draft. Try again."),
       );
     } finally {
       setBusy(false);

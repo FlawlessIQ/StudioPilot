@@ -54,6 +54,7 @@ import {
 import { dataIsLive } from "@/lib/runtime-mode";
 import { formatEventDate } from "@/lib/format/event-date";
 import { CapabilityNote } from "@/components/integrations/capability-note";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 type Value = Record<string, unknown> & { id: string };
 
@@ -451,9 +452,7 @@ export function StudioProposalCenter() {
       .catch((caught: unknown) => {
         if (!active) return;
         setError(
-          caught instanceof Error
-            ? caught.message
-            : "Proposals could not be loaded.",
+          friendlyError(caught, "Proposals could not be loaded."),
         );
         setProposals([]);
       });
@@ -795,9 +794,7 @@ export function StudioProposalComposer() {
         if (!active) return;
         setProjects([]);
         setError(
-          caught instanceof Error
-            ? caught.message
-            : "Eligible projects could not be loaded.",
+          friendlyError(caught, "Eligible projects could not be loaded."),
         );
       });
     return () => {
@@ -905,9 +902,7 @@ export function StudioProposalComposer() {
     } catch (caught: unknown) {
       setError(
         commandError(
-          caught instanceof Error
-            ? caught.message
-            : "The proposal draft could not be created.",
+          friendlyError(caught, "The proposal draft could not be created."),
         ),
       );
     } finally {
@@ -1376,9 +1371,7 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
       void load().catch((caught: unknown) => {
         if (!active) return;
         setError(
-          caught instanceof Error
-            ? caught.message
-            : "The proposal could not be loaded.",
+          friendlyError(caught, "The proposal could not be loaded."),
         );
         setProposal(null);
       });
@@ -1447,9 +1440,7 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
     } catch (caught: unknown) {
       setError(
         commandError(
-          caught instanceof Error
-            ? caught.message
-            : "The proposal could not be updated.",
+          friendlyError(caught, "The proposal could not be updated."),
         ),
       );
     } finally {

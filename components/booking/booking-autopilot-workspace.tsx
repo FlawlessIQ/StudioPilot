@@ -31,13 +31,13 @@ import { sendBookingCommand } from "@/lib/booking/command-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { runProposalCommand } from "@/lib/proposals/command-client";
-import { friendlyError } from "@/lib/ai/friendly-error";
 import {
   PanelError,
   PanelLoading,
   useWorkspaceGate,
 } from "@/components/ui/panel-state";
 import { projectStateLabel } from "@/features/projects/state-label";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 type Value = Record<string, unknown> & { id: string };
 
@@ -685,7 +685,7 @@ export function BookingAutopilotWorkspace({
           <CircleAlert />
           <span>
             <strong>AI preparation needs attention.</strong>
-            <small>Open the review queue to inspect the failed or blocked action.</small>
+            <small>Open AI review to inspect the failed or blocked action.</small>
           </span>
           <Link href="/studio/ai-queue">Open AI review <ArrowRight /></Link>
         </section>

@@ -54,6 +54,7 @@ import {
 } from "@/lib/client/message-upload";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { statusLabel } from "@/features/format/status-label";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 type RecordValue = Record<string, unknown> & { id: string };
 type Loadable<T> = {
@@ -265,9 +266,7 @@ function useProject(): Loadable<ClientPortalProject | null> {
             value: null,
             loading: false,
             error:
-              caught instanceof Error
-                ? caught.message
-                : "Project details could not be loaded.",
+              friendlyError(caught, "Project details could not be loaded."),
           });
       });
     return () => {
@@ -1008,7 +1007,7 @@ export function LiveClientMessages() {
       }
       setAttachments((current) => [...current, ...uploaded]);
     } catch (caught: unknown) {
-      setNotice(caught instanceof Error ? caught.message : "The attachment could not be uploaded.");
+      setNotice(friendlyError(caught, "The attachment could not be uploaded."));
     } finally {
       setUploading(false);
     }
@@ -1041,7 +1040,7 @@ export function LiveClientMessages() {
       messages.refresh?.();
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error ? caught.message : "Your message could not be sent.",
+        friendlyError(caught, "Your message could not be sent."),
       );
     } finally {
       setSending(false);
@@ -1277,9 +1276,7 @@ export function LiveClientProposal() {
     } catch (caught: unknown) {
       setNotice(
         proposalErrorMessage(
-          caught instanceof Error
-            ? caught.message
-            : "Your decision could not be saved.",
+          friendlyError(caught, "Your decision could not be saved."),
         ),
       );
     } finally {
@@ -1588,9 +1585,7 @@ export function LiveClientPackage() {
       .catch((caught: unknown) => {
         if (active)
           setNotice(
-            caught instanceof Error
-              ? caught.message
-              : "Packages could not be loaded.",
+            friendlyError(caught, "Packages could not be loaded."),
           );
       })
       .finally(() => {
@@ -2163,7 +2158,7 @@ export function LiveClientSchedule() {
       );
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error ? caught.message : "Schedule response failed.",
+        friendlyError(caught, "Schedule response failed."),
       );
     } finally {
       setBusy(false);
@@ -2354,7 +2349,7 @@ export function LiveClientDelivery() {
           : "Development preview: your revision request was validated but not saved.",
       );
     } catch (caught: unknown) {
-      setAlbumNotice(caught instanceof Error ? caught.message : "Your revision request could not be sent.");
+      setAlbumNotice(friendlyError(caught, "Your revision request could not be sent."));
     } finally {
       setAlbumBusy(false);
     }

@@ -16,6 +16,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendCommunicationsCommand } from "@/lib/communications/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 const templateKeys = [
   "staff_invitation",
@@ -149,9 +150,7 @@ export function EmailTemplateDesigner() {
       queueMicrotask(() => {
         void load().catch((error: unknown) =>
           setNotice(
-            error instanceof Error
-              ? error.message
-              : "Template history could not be loaded.",
+            friendlyError(error, "Template history could not be loaded."),
           ),
         );
       });

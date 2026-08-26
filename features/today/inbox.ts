@@ -773,6 +773,32 @@ export function todayInbox(input: TodayInput): TodayInbox {
     });
   }
 
+  /**
+   * Who a piece of prepared work is for.
+   *
+   * A draft prepared from an inquiry has no `projectId` yet — there is no job
+   * until the lead is converted — so the project lookup returns nothing and
+   * the card fell back to "Studio workflow". Every other card on Today names
+   * the couple, so the one card about a brand-new potential client was the
+   * only one that would not say who it was for. The action's own source
+   * references carry the answer ("Inquiry from Hana Park"), and the AI review
+   * screen was already using it.
+   */
+  const preparedFor = (action: TodayRecord): string => {
+    const named = nameFor(text(action.projectId));
+    if (named) return named;
+    const references = Array.isArray(action.sourceReferences)
+      ? action.sourceReferences
+      : [];
+    for (const reference of references) {
+      if (!reference || typeof reference !== "object") continue;
+      const entry = reference as Record<string, unknown>;
+      const label = text(entry.label);
+      if (label && text(entry.entityType) !== "tenant") return label;
+    }
+    return "Studio workflow";
+  };
+
   // ── Approve · AI-prepared work ─────────────────────────────────────
   for (const action of rows(input.aiActions)) {
     if (text(action.status) !== "review_required") continue;
@@ -786,7 +812,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
         text(action.capability) || text(action.assetType) || text(action.type),
       ),
       title: text(action.title) || "Review prepared work",
-      detail: nameFor(action.projectId) ?? "Studio workflow",
+      detail: preparedFor(action),
       evidence: "StudioCue prepared this — you decide",
       projectId: text(action.projectId) || null,
       projectName: nameFor(action.projectId),

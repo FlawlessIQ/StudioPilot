@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRight, CheckCircle2, ShieldCheck, UserPlus } from "lucide-react";
 import { sendCrewCommand } from "@/lib/crew/command-client";
 import { PlaceTagsField } from "@/components/forms/place-tags-field";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 export function CreateCrewProfileForm() {
   const [created, setCreated] = useState<string | null>(null);
@@ -45,9 +46,7 @@ export function CreateCrewProfileForm() {
       }
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error
-          ? caught.message
-          : "Crew profile could not be created.",
+        friendlyError(caught, "Crew profile could not be created."),
       );
     } finally {
       setBusy(false);

@@ -3,7 +3,7 @@ import { AiApprovalQueue } from "@/components/ai/ai-approval-queue";
 import { AppShell } from "@/components/layout/app-shell";
 
 export const metadata: Metadata = {
-  title: "AI control center",
+  title: "AI review",
   description:
     "Review sourced AI drafts, workflow approvals, and action receipts.",
 };

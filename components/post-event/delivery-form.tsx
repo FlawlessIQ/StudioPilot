@@ -8,6 +8,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { requestMessageDraft } from "@/lib/ai/message-draft-client";
 import { sendPostEventCommand } from "@/lib/post-event/command-client";
 import { parseGalleryAnnouncement } from "@/features/post-event/gallery-announcement";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 const record = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -200,7 +201,7 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
             projectId: String(data.get("projectId")),
           });
           setNotice(
-            "Gallery delivery recorded. A delivery email draft is waiting in your AI review queue.",
+            "Gallery delivery recorded. A delivery email draft is waiting in AI review.",
           );
         } catch {
           setNotice(
@@ -216,7 +217,7 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
       }
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error ? caught.message : "Delivery could not be recorded.",
+        friendlyError(caught, "Delivery could not be recorded."),
       );
     }
   }

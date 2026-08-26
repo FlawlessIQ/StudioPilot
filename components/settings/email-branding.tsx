@@ -7,6 +7,7 @@ import { activeMembership } from "@/lib/firebase/active-membership";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 type Branding = {
   tenantId: string;
@@ -60,9 +61,7 @@ export function EmailBranding() {
       } catch (caught: unknown) {
         if (active) {
           setNotice(
-            caught instanceof Error
-              ? caught.message
-              : "Email branding is unavailable.",
+            friendlyError(caught, "Email branding is unavailable."),
           );
         }
       } finally {
@@ -118,9 +117,7 @@ export function EmailBranding() {
       setNotice("Email branding saved. New messages will use this design.");
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error
-          ? caught.message
-          : "Email branding could not be saved.",
+        friendlyError(caught, "Email branding could not be saved."),
       );
     } finally {
       setSaving(false);

@@ -7,6 +7,7 @@ import { activeMembership } from "@/lib/firebase/active-membership";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { sendBookingCommand } from "@/lib/booking/command-client";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 const weekdays = [
   { key: "sun", label: "Sunday" },
@@ -201,9 +202,7 @@ export function ConsultationAvailability() {
       } catch (caught: unknown) {
         if (active) {
           setNotice(
-            caught instanceof Error
-              ? caught.message
-              : "Consultation availability is unavailable.",
+            friendlyError(caught, "Consultation availability is unavailable."),
           );
         }
       } finally {
@@ -265,9 +264,7 @@ export function ConsultationAvailability() {
       );
     } catch (caught: unknown) {
       setNotice(
-        caught instanceof Error
-          ? caught.message
-          : "Consultation availability could not be saved.",
+        friendlyError(caught, "Consultation availability could not be saved."),
       );
     } finally {
       setSaving(false);

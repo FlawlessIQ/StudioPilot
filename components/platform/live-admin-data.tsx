@@ -23,6 +23,7 @@ import { AdminCommandAction } from "@/components/saas/admin-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 type RecordValue = Record<string, unknown> & { id: string };
 type AdminDomain =
@@ -226,9 +227,7 @@ export function LiveAdminCollection({
         if (!active) return;
         setRecords([]);
         setError(
-          caught instanceof Error
-            ? caught.message
-            : "Platform records could not be loaded.",
+          friendlyError(caught, "Platform records could not be loaded."),
         );
       });
     return () => {

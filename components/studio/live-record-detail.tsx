@@ -10,6 +10,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { sendCrewCommand } from "@/lib/crew/command-client";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 type RecordValue = Record<string, unknown> & { id: string };
 type DetailKind = "proposal" | "schedule" | "crew" | "post-production" | "workflow";
@@ -338,7 +339,7 @@ function CrewStudioOperations({
       onChanged();
       return true;
     } catch (caught: unknown) {
-      setNotice(caught instanceof Error ? caught.message : "Crew record could not be updated.");
+      setNotice(friendlyError(caught, "Crew record could not be updated."));
       return false;
     } finally {
       setBusy("");
@@ -428,7 +429,7 @@ export function LiveRecordDetail({
       .then((value) => active && setRecord(value))
       .catch((caught: unknown) => {
         if (!active) return;
-        setError(caught instanceof Error ? caught.message : "Record could not be loaded.");
+        setError(friendlyError(caught, "Record could not be loaded."));
         setRecord(null);
       });
     return () => {

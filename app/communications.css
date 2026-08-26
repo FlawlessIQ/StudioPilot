@@ -295,7 +295,10 @@
   border-radius: 8px;
   background: var(--surface);
   color: var(--accent);
-  font: 600 12px/1 inherit;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
   padding: 6px 9px;
   cursor: pointer;
 }
@@ -344,7 +347,10 @@
   border-radius: 9px;
   background: var(--surface);
   color: var(--accent);
-  font: 600 12.5px/1 inherit;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1;
   padding: 8px 11px;
   cursor: pointer;
 }
@@ -455,7 +461,10 @@
   border-radius: 8px;
   background: var(--accent);
   color: #fff;
-  font: 600 12.5px/1 inherit;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1;
   padding: 9px 13px;
   cursor: pointer;
   white-space: nowrap;

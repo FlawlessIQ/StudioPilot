@@ -17,8 +17,8 @@ import type {
   JourneyStep,
 } from "@/features/journey/steps";
 import { runCrmCommand } from "@/lib/crm/command-client";
-import { friendlyError } from "@/lib/ai/friendly-error";
 import { requestMessageDraft } from "@/lib/ai/message-draft-client";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 /**
  * The Journey — the project page as the photographer's own mental model.
@@ -245,8 +245,8 @@ function JourneyActionButton({
       setDone(true);
       setNotice(
         result.mode === "preview"
-          ? "Preview: the draft would wait in your review queue."
-          : "Drafted — approve it in your review queue.",
+          ? "Preview: the draft would wait in AI review."
+          : "Drafted — approve it in AI review.",
       );
     } catch (caught: unknown) {
       setNotice(
@@ -261,7 +261,7 @@ function JourneyActionButton({
     <span className="journey-step-draft">
       {done ? (
         <Link className="journey-step-action" href="/studio/ai-queue">
-          Open review queue <ArrowRight size={14} />
+          Open AI review <ArrowRight size={14} />
         </Link>
       ) : (
         <button
