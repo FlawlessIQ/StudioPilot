@@ -43,6 +43,38 @@ const day = (days: number): string => {
   const month = String(value.getMonth() + 1).padStart(2, "0");
   return `${value.getFullYear()}-${month}-${String(value.getDate()).padStart(2, "0")}`;
 };
+/**
+ * Six run-of-show items in the shape the app actually reads.
+ *
+ * Times are built as offsets from the event date in New York so the fixture
+ * stays valid whenever the demo is regenerated.
+ */
+const scheduleItems = (
+  eventDate: string,
+): Array<Record<string, unknown>> => {
+  const moments: Array<[string, string, number, number, string]> = [
+    ["getting-ready", "Getting ready — bridal suite", 13, 90, "Bridal suite"],
+    ["first-look", "First look", 15.5, 30, "Garden path"],
+    ["ceremony", "Ceremony", 16.5, 45, "Ceremony lawn"],
+    ["family", "Family photographs", 17.25, 40, "South terrace"],
+    ["golden-hour", "Golden hour portraits", 18, 45, "Meadow"],
+    ["exit", "Sparkler exit", 22.5, 15, "Front drive"],
+  ];
+  const stamp = (hours: number): string => {
+    const whole = Math.floor(hours);
+    const minutes = Math.round((hours - whole) * 60);
+    return `${eventDate}T${String(whole).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00-04:00`;
+  };
+  return moments.map(([id, title, start, durationMinutes, location]) => ({
+    id,
+    title,
+    startAt: stamp(start),
+    endAt: stamp(start + durationMinutes / 60),
+    location,
+    visibility: "shared",
+  }));
+};
+
 /** A timestamp `days` from now. */
 const at = (days: number, hour = 10): string => {
   const value = new Date(now);
@@ -626,14 +658,13 @@ for (const job of jobs) {
         version: 2,
         status: job.eventDays < 20 ? "approved" : "client_review",
         timezone: "America/New_York",
-        items: [
-          { time: "13:00", label: "Getting ready — bridal suite" },
-          { time: "15:30", label: "First look" },
-          { time: "16:30", label: "Ceremony" },
-          { time: "17:15", label: "Family photographs" },
-          { time: "18:00", label: "Golden hour portraits" },
-          { time: "22:30", label: "Sparkler exit" },
-        ],
+        // These were `{ time, label }`, a shape no reader understands. The
+        // schema is `startAt`/`endAt`/`title`/`location`
+        // (functions/src/planning/commands.ts), so the client portal rendered
+        // "Invalid Date" six times and the studio's own detail page rendered 24
+        // em-dashes — while every summary view reported "Items 6 · approved".
+        // Seeding the canonical shape is what makes those screens auditable.
+        items: scheduleItems(day(job.eventDays)),
         publishedAt: at(job.eventDays - 30),
       });
 
