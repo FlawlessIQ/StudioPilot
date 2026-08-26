@@ -60,6 +60,10 @@ import {
   formatEventDate,
 } from "@/lib/format/event-date";
 import { formatDueDate } from "@/lib/format/event-date";
+import {
+  byLongestWaiting,
+  waitingLabel,
+} from "@/features/ordering/attention";
 import { statusLabel } from "@/features/format/status-label";
 
 // Re-exported so existing importers of this module keep working.
@@ -819,6 +823,10 @@ export function LiveLeadRows({ view, q }: { view: string; q: string }) {
             .toLowerCase()
             .includes(q.toLowerCase()),
         )
+        // Longest-waiting first. This list had no sort at all, so it came back
+        // in Firestore's order and put a 5-day-old inquiry below a 2-day-old
+        // one — the studio's most perishable asset, last.
+        .sort(byLongestWaiting((item) => item.createdAt))
         .map((item) => ({
           id: item.id,
           name: String(
@@ -826,8 +834,13 @@ export function LiveLeadRows({ view, q }: { view: string; q: string }) {
               `${item.firstName ?? ""} ${item.lastName ?? ""}`,
           ),
           age: formatDueDate(String(item.createdAt)),
+          // How long it has been sitting there, which is the reason to open it.
+          // Today computes this and the list that exists to work leads did not.
+          waiting: waitingLabel(item.createdAt),
           event: String(item.eventType ?? "Event"),
-          date: String(item.eventDate ?? "Date pending"),
+          // Was `String(item.eventDate)`, printing a raw `2027-07-01` while
+          // every other surface said "Jul 1, 2027".
+          date: formatEventDate(item.eventDate),
           venue: String(item.venue ?? item.city ?? "Venue pending"),
           source: String(item.referralSource ?? "Direct"),
           assigned: String(item.assignedUserName ?? "Unassigned"),
@@ -874,7 +887,10 @@ export function LiveLeadRows({ view, q }: { view: string; q: string }) {
         <article key={lead.id}>
           <span className="crm-primary">
             <strong>{lead.name}</strong>
-            <small>Received {lead.age}</small>
+            <small>
+              Received {lead.age}
+              {"waiting" in lead && lead.waiting ? ` · ${lead.waiting}` : ""}
+            </small>
           </span>
           <span>
             <strong>

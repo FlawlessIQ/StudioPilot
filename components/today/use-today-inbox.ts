@@ -3,6 +3,8 @@
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { invoiceIsOverdue, projectJourney } from "@/features/journey/steps";
+import { questionnaireHasAnswers } from "@/features/journey/substance";
+import { displayableScheduleItems } from "@/features/schedules/item-clock";
 import { activeProjectStates } from "@/features/dashboard/active-states";
 import { useSetupState } from "@/components/setup/use-setup-state";
 import { homeMetrics, type HomeMetrics } from "@/features/dashboard/home-metrics";
@@ -147,7 +149,16 @@ export function useTodayInbox(): {
         ),
         questionnaireStatus:
           text(forProject(questionnaires.records, projectId)[0]?.status) || null,
+        questionnaireHasAnswers: questionnaireHasAnswers(
+          forProject(questionnaires.records, projectId)[0]?.answers,
+        ),
         scheduleStatus: text(latestSchedule?.status) || null,
+        scheduleHasUsableItems:
+          displayableScheduleItems(
+            Array.isArray(latestSchedule?.items)
+              ? (latestSchedule.items as Array<Record<string, unknown>>)
+              : [],
+          ).length > 0,
         crewAccepted: forProject(crewAssignments.records, projectId).filter(
           (assignment) => assignment.status === "accepted",
         ).length,

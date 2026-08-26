@@ -90,7 +90,21 @@ export type JourneyInput = {
    */
   finalInvoiceOverdue?: boolean;
   questionnaireStatus: string | null;
+  /**
+   * Whether the submitted questionnaire actually carries answers. Required, not
+   * optional: `status: "submitted"` with `answers: {}` was ticking this step in
+   * production, so a caller must not be able to omit the substance check by
+   * forgetting a field. Compute with `questionnaireIsAnswered`.
+   */
+  questionnaireHasAnswers: boolean;
   scheduleStatus: string | null;
+  /**
+   * Whether the settled schedule holds at least one item a person could read.
+   * Same reasoning: "approved" with unreadable items ticked Run of show while
+   * the couple's brief showed "Invalid Date" six times. Compute with
+   * `scheduleIsUsable`.
+   */
+  scheduleHasUsableItems: boolean;
   crewAccepted: number;
   crewCascadeActive: boolean;
   coiStatus: string | null;
@@ -310,9 +324,13 @@ export function projectJourney(input: JourneyInput): {
         },
   });
 
-  const formDone = ["submitted", "locked"].includes(
+  const formSubmitted = ["submitted", "locked"].includes(
     input.questionnaireStatus ?? "",
   );
+  // Submitted and empty is neither done nor not-started: the client thinks they
+  // sent it and the studio has nothing. It stays the studio's to chase.
+  const formEmptyButSubmitted = formSubmitted && !input.questionnaireHasAnswers;
+  const formDone = formSubmitted && input.questionnaireHasAnswers;
   const formWaiting = ["assigned", "not_started", "in_progress"].includes(
     input.questionnaireStatus ?? "",
   );
@@ -321,22 +339,36 @@ export function projectJourney(input: JourneyInput): {
     title: "Wedding details form",
     detail: formDone
       ? "Client completed it"
-      : formWaiting
-        ? "With the client to fill out"
-        : "Prep locations, times, and family names",
-    status: formDone ? "complete" : formWaiting ? "waiting_client" : "current",
+      : formEmptyButSubmitted
+        ? "Marked submitted, but no answers came through"
+        : formWaiting
+          ? "With the client to fill out"
+          : "Prep locations, times, and family names",
+    status: formDone
+      ? "complete"
+      : formWaiting && !formEmptyButSubmitted
+        ? "waiting_client"
+        : "current",
     action: formDone
       ? null
       : {
           kind: "link",
-          label: formWaiting ? "Nudge or review" : "Send the form",
+          label: formEmptyButSubmitted
+            ? "Check the form"
+            : formWaiting
+              ? "Nudge or review"
+              : "Send the form",
           href: project("/studio/questionnaires"),
         },
   });
 
-  const scheduleDone = ["approved", "published"].includes(
+  const scheduleSettled = ["approved", "published"].includes(
     input.scheduleStatus ?? "",
   );
+  // Approved with nothing readable in it. Must not report complete — this is the
+  // state that let a wedding reach 100% readiness with no run of show.
+  const scheduleEmptyButSettled = scheduleSettled && !input.scheduleHasUsableItems;
+  const scheduleDone = scheduleSettled && input.scheduleHasUsableItems;
   const scheduleWaiting = ["client_review", "changes_requested"].includes(
     input.scheduleStatus ?? "",
   );
@@ -345,19 +377,25 @@ export function projectJourney(input: JourneyInput): {
     title: "Run of show",
     detail: scheduleDone
       ? "Approved and shared"
-      : scheduleWaiting
-        ? "With the client to approve"
-        : "Drafted from the form using your timing rules",
+      : scheduleEmptyButSettled
+        ? "Approved, but it has no times in it yet"
+        : scheduleWaiting
+          ? "With the client to approve"
+          : "Drafted from the form using your timing rules",
     status: scheduleDone
       ? "complete"
-      : scheduleWaiting
+      : scheduleWaiting && !scheduleEmptyButSettled
         ? "waiting_client"
         : "current",
     action: scheduleDone
       ? null
       : {
           kind: "link",
-          label: scheduleWaiting ? "Open schedule" : "Draft the schedule",
+          label: scheduleEmptyButSettled
+            ? "Add the times"
+            : scheduleWaiting
+              ? "Open schedule"
+              : "Draft the schedule",
           href: scheduleWaiting
             ? project("/studio/schedules")
             : `/studio/schedules/new?project=${input.projectId}`,

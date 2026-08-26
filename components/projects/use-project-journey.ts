@@ -6,6 +6,10 @@ import {
   projectJourney,
   type JourneyStep,
 } from "@/features/journey/steps";
+import {
+  questionnaireHasAnswers,
+} from "@/features/journey/substance";
+import { displayableScheduleItems } from "@/features/schedules/item-clock";
 
 const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
@@ -96,7 +100,19 @@ export function useProjectJourney({
     ),
     questionnaireStatus:
       text(forProject(questionnaires.records)[0]?.status) || null,
+    // Status alone ticked this step while `answers` was `{}`.
+    questionnaireHasAnswers: questionnaireHasAnswers(
+      forProject(questionnaires.records)[0]?.answers,
+    ),
     scheduleStatus: text(latestSchedule?.status) || null,
+    // And ticked Run of show on an approved schedule whose items no reader
+    // could parse, while the couple's brief showed "Invalid Date" six times.
+    scheduleHasUsableItems:
+      displayableScheduleItems(
+        Array.isArray(latestSchedule?.items)
+          ? (latestSchedule.items as Array<Record<string, unknown>>)
+          : [],
+      ).length > 0,
     crewAccepted: forProject(crewAssignments.records).filter(
       (assignment) => assignment.status === "accepted",
     ).length,

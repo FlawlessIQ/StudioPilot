@@ -14,7 +14,9 @@ const base: JourneyInput = {
   retainerInvoiceStatus: null,
   finalInvoiceStatus: null,
   questionnaireStatus: null,
+  questionnaireHasAnswers: false,
   scheduleStatus: null,
+  scheduleHasUsableItems: false,
   crewAccepted: 0,
   crewCascadeActive: false,
   coiStatus: null,
@@ -65,6 +67,7 @@ test("a booked project with a submitted form points at the run of show", () => {
     contractStatus: "completed",
     retainerInvoiceStatus: "paid",
     questionnaireStatus: "submitted",
+    questionnaireHasAnswers: true,
   });
   assert.equal(current?.key, "run_of_show");
   assert.equal(current?.action?.kind, "link");
@@ -84,7 +87,9 @@ test("the final balance stays upcoming until 45 days out, then activates", () =>
     contractStatus: "completed",
     retainerInvoiceStatus: "paid",
     questionnaireStatus: "locked",
+    questionnaireHasAnswers: true,
     scheduleStatus: "published",
+    scheduleHasUsableItems: true,
     crewAccepted: 2,
     coiStatus: "sent_to_venue",
   };
@@ -108,7 +113,9 @@ test("day-before checklist becomes the action within two days of the event", () 
     retainerInvoiceStatus: "paid",
     finalInvoiceStatus: "paid",
     questionnaireStatus: "locked",
+    questionnaireHasAnswers: true,
     scheduleStatus: "published",
+    scheduleHasUsableItems: true,
     crewAccepted: 3,
     coiStatus: "venue_acknowledged",
     today: "2026-10-13",
@@ -138,7 +145,9 @@ test("after the event the journey flows to delivery, then album & review", () =>
     retainerInvoiceStatus: "paid",
     finalInvoiceStatus: "paid",
     questionnaireStatus: "locked",
+    questionnaireHasAnswers: true,
     scheduleStatus: "published",
+    scheduleHasUsableItems: true,
     crewAccepted: 3,
     coiStatus: "venue_acknowledged",
     dayBeforeDraftStatus: "executed",
