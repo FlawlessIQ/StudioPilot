@@ -3,6 +3,7 @@ import { getFirestore, type DocumentData } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
+import { requireEntitlement } from "../saas/entitlement-guard.js";
 import { productEvent } from "../operations/product-events.js";
 import { studioHubCors } from "../security/cors.js";
 
@@ -320,6 +321,17 @@ export const planningCommand = onRequest(
           !projectIds.includes(projectId))
       )
         throw new Error("FORBIDDEN");
+      // COI is a plan capability, and until now it was one in name only:
+      // published on the pricing page, checked nowhere. This also asks
+      // whether the tenant is still paying, which nothing outside AI quota
+      // did — a cancelled subscription kept chasing certificates for free.
+      if (
+        parsed.type === "createCoiRequest" ||
+        parsed.type === "decideCoi" ||
+        parsed.type === "sendCoiToVenue"
+      ) {
+        await requireEntitlement(db, parsed.tenantId, "coiEnabled");
+      }
       const execution = db.doc(
         `commandExecutions/${stable("planning", parsed.tenantId, parsed.idempotencyKey)}`,
       );
@@ -1118,9 +1130,15 @@ export const planningCommand = onRequest(
     } catch (caught: unknown) {
       const message =
         caught instanceof Error ? caught.message : "PLANNING_COMMAND_FAILED";
-      response
-        .status(message === "FORBIDDEN" ? 403 : 400)
-        .json({ error: message });
+      // A refusal on entitlement or a lapsed subscription is an
+      // authorization answer, not "your request was malformed". A client
+      // that cannot tell those apart shows the wrong thing to a studio whose
+      // card expired.
+      const forbidden =
+        message === "FORBIDDEN" ||
+        message === "ACTIVE_SUBSCRIPTION_REQUIRED" ||
+        message.startsWith("ENTITLEMENT_REQUIRED");
+      response.status(forbidden ? 403 : 400).json({ error: message });
     }
   },
 );

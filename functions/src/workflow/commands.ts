@@ -8,6 +8,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
+import { requireEntitlement } from "../saas/entitlement-guard.js";
 import { studioHubCors } from "../security/cors.js";
 
 type CheckpointStatus =
@@ -484,6 +485,21 @@ export const workflowCommand = onRequest(
     ) {
       response.status(403).json({ error: "WAIVER_PERMISSION_REQUIRED" });
       return;
+    }
+
+    // Authoring a template is the "custom automations" the plan sells.
+    // Running or completing existing work is not gated: a tenant that lapses
+    // should stop building new automation, not have the jobs it already has
+    // seize up mid-season.
+    if (command.type === "createWorkflowTemplate") {
+      try {
+        await requireEntitlement(db, command.tenantId, "customWorkflowsEnabled");
+      } catch (caught: unknown) {
+        response.status(403).json({
+          error: caught instanceof Error ? caught.message : "ENTITLEMENT_REQUIRED",
+        });
+        return;
+      }
     }
 
     const executionReference = db.doc(
