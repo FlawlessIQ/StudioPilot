@@ -316,7 +316,18 @@ function CrewPageState({
       <CrewState data={data} empty={empty} />
       {empty ? (
         <aside className="crew-empty-guide" aria-label="Assignment notifications">
-          <span><CheckCircle2 /><strong>No action is required right now</strong></span>
+          {/* This asserted "No action is required right now" on every empty crew
+              page — including the event-day brief of a second photographer with
+              an accepted job four days out and no run of show. That reads as
+              reassurance when the absence is itself the problem. True only when
+              there is genuinely no accepted work. */}
+          {(data.assignments ?? []).some(
+            (item) => String(item.status) === "accepted",
+          ) ? (
+            <span><CalendarCheck /><strong>If a date is close and this is still empty, ask your studio</strong></span>
+          ) : (
+            <span><CheckCircle2 /><strong>No action is required right now</strong></span>
+          )}
           <span><CalendarCheck /><strong>New work and schedule changes appear here</strong></span>
           <span><ShieldCheck /><strong>You only see jobs assigned to you</strong></span>
         </aside>
@@ -832,11 +843,14 @@ export function LiveCrewPrep() {
   const project = projectFor(data, assignment);
   const requirements = list(assignment.requirements).map(record);
   const incomplete = requirements.filter((item) => item.required === true && !["complete", "waived"].includes(String(item.status)));
+  // The header said "Ready" while the row beneath it said "Not published".
+  // A second photographer with no run of show four days out is not ready.
+  const hasSchedule = number(assignment.currentScheduleVersion) > 0;
   const query = `?assignment=${encodeURIComponent(assignment.id)}`;
   return (
     <div className="crew-mobile-page">
       <AssignmentPicker data={data} assignments={selection.candidates} selected={assignment} onSelect={selection.select}/>
-      <header className="crew-portal-hero"><div><p className="eyebrow">Schedule & prep</p><h1>{text(project?.name)}</h1><p>{text(assignment.role)} · {dateTime(assignment.arrivalAt)}</p></div><StatusBadge tone={incomplete.length ? "warning" : "success"}>{incomplete.length ? `${incomplete.length} actions due` : "Ready"}</StatusBadge></header>
+      <header className="crew-portal-hero"><div><p className="eyebrow">Schedule & prep</p><h1>{text(project?.name)}</h1><p>{text(assignment.role)} · {dateTime(assignment.arrivalAt)}</p></div><StatusBadge tone={incomplete.length || !hasSchedule ? "warning" : "success"}>{incomplete.length ? `${incomplete.length} actions due` : hasSchedule ? "Ready" : "Waiting on the schedule"}</StatusBadge></header>
       <section className="crew-prep-grid">
         <Link className="panel" href={`/crew/schedule${query}`}><CalendarDays/><span><small>Event schedule</small><strong>{number(assignment.currentScheduleVersion) ? `Version ${number(assignment.currentScheduleVersion)}` : "Not published"}</strong><em>{number(assignment.acknowledgedScheduleVersion) === number(assignment.currentScheduleVersion) && number(assignment.currentScheduleVersion) > 0 ? "Acknowledged" : "Review latest version"}</em></span><ArrowRight/></Link>
         <Link className="panel" href={`/crew/requirements${query}`}><ListChecks/><span><small>Requirements</small><strong>{requirements.length ? `${requirements.length - incomplete.length} of ${requirements.length} complete` : "None requested"}</strong><em>{!requirements.length ? "Nothing to prepare" : incomplete.length ? "Finish preparation" : "All clear"}</em></span><ArrowRight/></Link>
@@ -1180,7 +1194,7 @@ export function LiveCrewSchedule({ context = "schedule" }: { context?: "schedule
         title={emptyTitle}
         description="Your assigned timeline and the version you need to acknowledge."
         data={{ ...data, error: scheduleError }}
-        empty="No published schedule is assigned to an accepted job."
+        empty="Your studio has not shared the run of show for this job yet. Ask them for it if the date is close."
       />
     );
   const allowedIds = Array.isArray(assignment.scheduleItemIds)

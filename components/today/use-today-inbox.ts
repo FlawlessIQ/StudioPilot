@@ -177,6 +177,7 @@ export function useTodayInbox(): {
         projectName: text(project.name) || "Photography project",
         eventDate: text(project.eventDate) || null,
         state: text(project.state),
+        stepKey: current?.key ?? null,
         stepTitle: current?.title ?? "In motion",
         stepDetail: current?.detail ?? "Nothing is due from you right now.",
         // No current step means nothing is owed by anyone right now; treat
