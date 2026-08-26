@@ -34,13 +34,13 @@ export function LiveSubscription() {
       unsubscribeUsage();
     };
   }, [workspace.tenantId]);
-  const plan = String(subscription?.plan ?? "solo");
+  const plan = String(subscription?.plan ?? "studio");
   const status = String(subscription?.status ?? (dataIsLive ? "loading" : "trialing"));
   const entitlements =
     typeof subscription?.entitlements === "object" &&
     subscription.entitlements !== null
       ? (subscription.entitlements as Record<string, unknown>)
-      : { ...planEntitlements.solo };
+      : { ...planEntitlements.studio };
   const users = Number(subscription?.internalUserCount ?? (dataIsLive ? 0 : 1));
   const maxUsers = Number(entitlements.maxInternalUsers ?? 0);
   const aiActions = Number(usage.aiActions ?? 0);

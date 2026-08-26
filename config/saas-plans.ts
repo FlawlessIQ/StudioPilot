@@ -1,31 +1,25 @@
+/**
+ * The published plan ladder.
+ *
+ * Solo was removed on 2026-08-25. A single-seat plan taxed the thing that
+ * makes StudioCue worth having — bringing a second shooter or a coordinator
+ * into the job — and the seat cap is a hard refusal, so the first studio to
+ * grow hit a wall rather than a prompt. The entry plan now carries three
+ * seats, which is a small studio rather than one person.
+ *
+ * Two plans, not three, because there are no customers yet and a ladder
+ * nobody has climbed is a guess presented as a structure.
+ */
 export const planCards = [
-  {
-    key: "solo",
-    name: "Solo",
-    monthlyCents: 6_900,
-    yearlyCents: 69_000,
-    monthly: "$69",
-    yearly: "$690",
-    description: "A calm operating system for an established solo photographer.",
-    users: "1 internal user",
-    ai: "500 AI actions",
-    highlight: false,
-    features: [
-      "Unlimited clients and projects",
-      "Core readiness and workflow automation",
-      "Client portal and standard integrations",
-      "Up to 10 active subcontractors",
-    ],
-  },
   {
     key: "studio",
     name: "Studio",
-    monthlyCents: 19_900,
-    yearlyCents: 199_000,
-    monthly: "$199",
-    yearly: "$1,990",
-    description: "Complete event operations for growing photography teams.",
-    users: "5 internal users",
+    monthlyCents: 25_000,
+    yearlyCents: 250_000,
+    monthly: "$250",
+    yearly: "$2,500",
+    description: "Complete event operations for a photographer and their crew.",
+    users: "3 internal users",
     ai: "2,500 AI actions",
     highlight: true,
     features: [
@@ -54,4 +48,3 @@ export const planCards = [
     ],
   },
 ] as const;
-

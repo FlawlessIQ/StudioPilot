@@ -15,17 +15,25 @@ const inputSchema = z.object({
     .length(3)
     .transform((value) => value.toUpperCase()),
 });
-const soloEntitlements = {
-  maxInternalUsers: 1,
+/**
+ * What a brand new tenant gets before it has chosen anything.
+ *
+ * This was Solo's shape: one seat, no COI, no custom workflows. Solo is
+ * gone, and a trial that starts more restricted than the cheapest thing you
+ * can buy teaches a studio the product cannot do what it can. A trial now
+ * starts as the entry plan.
+ */
+const trialEntitlements = {
+  maxInternalUsers: 3,
   maxBrands: 1,
-  maxActiveSubcontractors: 10,
-  aiActionsMonthly: 500,
-  smsEnabled: false,
-  coiEnabled: false,
-  customWorkflowsEnabled: false,
-  advancedReportingEnabled: false,
+  maxActiveSubcontractors: null,
+  aiActionsMonthly: 2500,
+  smsEnabled: true,
+  coiEnabled: true,
+  customWorkflowsEnabled: true,
+  advancedReportingEnabled: true,
   apiAccessEnabled: false,
-  prioritySupportEnabled: false,
+  prioritySupportEnabled: true,
 };
 const slug = (value: string) =>
   value
@@ -108,7 +116,7 @@ export const tenantOnboardingCommand = onRequest(
             albumInstructionsUrl: null,
           },
           status: "trial",
-          subscriptionPlan: "solo",
+          subscriptionPlan: "studio",
           trialEndAt,
           createdAt: now,
           updatedAt: now,
@@ -133,7 +141,7 @@ export const tenantOnboardingCommand = onRequest(
         transaction.create(db.doc(`subscriptions/${tenantId}`), {
           id: tenantId,
           tenantId,
-          plan: "solo",
+          plan: "studio",
           cadence: "monthly",
           status: "trialing",
           stripeCustomerId: null,
@@ -142,7 +150,7 @@ export const tenantOnboardingCommand = onRequest(
           currentPeriodStart: now,
           currentPeriodEnd: trialEndAt,
           cancelAtPeriodEnd: false,
-          entitlements: soloEntitlements,
+          entitlements: trialEntitlements,
           internalUserCount: 1,
           brandCount: 1,
           activeSubcontractorCount: 0,
@@ -207,7 +215,7 @@ export const tenantOnboardingCommand = onRequest(
           before: null,
           after: {
             businessName: input.businessName,
-            plan: "solo",
+            plan: "studio",
             status: "trial",
           },
           ipAddress: request.ip ?? null,

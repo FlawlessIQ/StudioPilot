@@ -17,7 +17,7 @@ export const tenantSchema = auditFieldsSchema.extend({
   currency: z.string().length(3),
   dateFormat: z.string().min(1),
   status: z.enum(["trial", "active", "past_due", "suspended", "cancelled"]),
-  subscriptionPlan: z.enum(["solo", "studio", "multi_brand"]),
+  subscriptionPlan: z.enum(["studio", "multi_brand"]),
   archivedAt: z.string().datetime().nullable(),
 });
 

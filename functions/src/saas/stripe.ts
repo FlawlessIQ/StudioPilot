@@ -9,7 +9,7 @@ import { buildStripeCheckoutParams } from "./stripe-checkout.js";
 const billingCommandSchema = z.object({
   type: z.enum(["createCheckout", "createPortal"]),
   tenantId: z.string(),
-  plan: z.enum(["solo", "studio", "multi_brand"]).optional(),
+  plan: z.enum(["studio", "multi_brand"]).optional(),
   cadence: z.enum(["monthly", "yearly"]).optional(),
 });
 const stripeEventSchema = z.object({
@@ -19,20 +19,8 @@ const stripeEventSchema = z.object({
   data: z.object({ object: z.record(z.string(), z.unknown()) }),
 });
 const entitlements = {
-  solo: {
-    maxInternalUsers: 1,
-    maxBrands: 1,
-    maxActiveSubcontractors: 10,
-    aiActionsMonthly: 500,
-    smsEnabled: false,
-    coiEnabled: false,
-    customWorkflowsEnabled: false,
-    advancedReportingEnabled: false,
-    apiAccessEnabled: false,
-    prioritySupportEnabled: false,
-  },
   studio: {
-    maxInternalUsers: 5,
+    maxInternalUsers: 3,
     maxBrands: 1,
     maxActiveSubcontractors: null,
     aiActionsMonthly: 2500,
@@ -275,10 +263,13 @@ export const stripeWebhook = onRequest(
       const priceId =
         items?.data?.[0]?.price?.id ?? current.get("stripePriceId") ?? null;
       const mappedPlan = priceId ? planForPrice(priceId) : undefined;
+      // The entry plan is the floor for a subscription whose price we
+      // cannot map. It was "solo", which no longer exists — a webhook for an
+      // unrecognised price would have written a plan key nothing can resolve.
       const plan =
         mappedPlan ??
         (current.get("plan") as keyof typeof entitlements | undefined) ??
-        "solo";
+        "studio";
       const status =
         event.type === "customer.subscription.deleted"
           ? "cancelled"

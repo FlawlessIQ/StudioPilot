@@ -14,23 +14,16 @@ export const entitlementSchema = z.object({
 });
 
 export type Entitlements = z.infer<typeof entitlementSchema>;
-export type PlanKey = "solo" | "studio" | "multi_brand";
+/**
+ * Solo is gone. See config/saas-plans.ts for why — briefly, a one-seat plan
+ * charged a studio for growing, and the seat cap refuses rather than
+ * prompts.
+ */
+export type PlanKey = "studio" | "multi_brand";
 
 export const planEntitlements: Readonly<Record<PlanKey, Entitlements>> = {
-  solo: {
-    maxInternalUsers: 1,
-    maxBrands: 1,
-    maxActiveSubcontractors: 10,
-    aiActionsMonthly: 500,
-    smsEnabled: false,
-    coiEnabled: false,
-    customWorkflowsEnabled: false,
-    advancedReportingEnabled: false,
-    apiAccessEnabled: false,
-    prioritySupportEnabled: false,
-  },
   studio: {
-    maxInternalUsers: 5,
+    maxInternalUsers: 3,
     maxBrands: 1,
     maxActiveSubcontractors: null,
     aiActionsMonthly: 2500,
