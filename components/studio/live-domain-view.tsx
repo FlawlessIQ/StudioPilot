@@ -25,6 +25,7 @@ import {
 import { StatusBadge } from "@/components/ui/status-badge";
 import { VendorRecordActions } from "@/components/planning/vendor-record-actions";
 import { CrewRecordActions } from "@/components/crew/crew-record-actions";
+import { TaskRecordActions } from "@/components/tasks/task-record-actions";
 import { stateTone } from "@/lib/status-tone";
 import { KindGlyph } from "@/components/library/kind-glyph";
 import { kindFromValue } from "@/features/library/kinds";
@@ -480,7 +481,7 @@ export function LiveDomainView({
    * and a function prop cannot cross into a client component. The mapping
    * lives here, where the client boundary already is.
    */
-  rowActions?: "vendor" | "crew";
+  rowActions?: "vendor" | "crew" | "task";
 }) {
   const workspace = useWorkspace();
   const recordsGeneration = useTenantRecordsGeneration();
@@ -739,7 +740,10 @@ export function LiveDomainView({
             <StatusBadge tone={tone(status)}>
               {display(status, undefined, record.currency)}
             </StatusBadge>
-            {config.href ? <ArrowRight /> : null}
+            {/* The bare arrow means "this whole row is a link". When the row
+                has its own actions it is not one any more, so the explicit
+                "Open" cell below replaces it rather than sitting beside it. */}
+            {config.href && !rowActions ? <ArrowRight /> : null}
           </>
         );
         /**
@@ -747,25 +751,37 @@ export function LiveDomainView({
           *
           * `LiveDomainView` renders every domain list in the product, and none
           * of them had a way to act on a row — which is why vendors and crew
-          * profiles could be created and then never corrected or removed. A
-          * row that links to a detail page keeps the link and grows the actions
-          * beside it, because wrapping buttons in an anchor would make every
+          * profiles could be created and then never corrected or removed.
+          *
+          * The row element itself has to stay the grid container: the layout
+          * lives on `.live-domain-table > a, .live-domain-table > article`, so
+          * nesting the cells one level deeper collapsed every column into a
+          * stack — which is exactly what it did to the crew directory. The
+          * actions are therefore a *cell* of the same grid, spanning its full
+          * width, and the row's link becomes an explicit "Open" cell rather
+          * than a wrapper, because buttons inside an anchor would make every
           * click navigate.
           */
         const actions = renderRowActions(rowActions, record);
-        const body = config.href ? (
-          <Link href={config.href(record)}>{content}</Link>
+        if (actions) {
+          return (
+            <article className="live-domain-row-has-actions" key={record.id}>
+              {content}
+              {config.href ? (
+                <Link className="live-domain-row-open" href={config.href(record)}>
+                  Open
+                </Link>
+              ) : null}
+              {actions}
+            </article>
+          );
+        }
+        return config.href ? (
+          <Link href={config.href(record)} key={record.id}>
+            {content}
+          </Link>
         ) : (
-          content
-        );
-        return (
-          <article
-            className={actions ? "live-domain-row-has-actions" : undefined}
-            key={record.id}
-          >
-            {body}
-            {actions}
-          </article>
+          <article key={record.id}>{content}</article>
         );
       })}
     </section>
@@ -779,7 +795,7 @@ export function LiveDomainView({
  * server components and React refuses a function prop across that boundary.
  */
 function renderRowActions(
-  kind: "vendor" | "crew" | undefined,
+  kind: "vendor" | "crew" | "task" | undefined,
   record: Record<string, unknown> & { id: string },
 ): ReactNode {
   if (kind === "vendor") {
@@ -796,6 +812,13 @@ function renderRowActions(
           notes: typeof record.notes === "string" ? record.notes : null,
           archived: Boolean(record.archivedAt),
         }}
+      />
+    );
+  }
+  if (kind === "task") {
+    return (
+      <TaskRecordActions
+        task={{ id: record.id, status: String(record.status ?? "") }}
       />
     );
   }
@@ -834,6 +857,7 @@ export function StudioDomainPage({
   action,
   projectId,
   beforeContent,
+  rowActions,
 }: {
   domain: Domain;
   eyebrow: string;
@@ -842,6 +866,8 @@ export function StudioDomainPage({
   action?: { href: string; label: string };
   projectId?: string;
   beforeContent?: ReactNode;
+  /** Passed through to the list — see LiveDomainView's own `rowActions`. */
+  rowActions?: "vendor" | "crew" | "task";
 }) {
   return (
     <div className="live-domain-page">
@@ -859,7 +885,12 @@ export function StudioDomainPage({
       </header>
       {beforeContent}
       {projectId ? <ProjectContextBar projectId={projectId} /> : null}
-      <LiveDomainView domain={domain} emptyAction={action} projectId={projectId} />
+      <LiveDomainView
+        domain={domain}
+        emptyAction={action}
+        projectId={projectId}
+        rowActions={rowActions}
+      />
     </div>
   );
 }

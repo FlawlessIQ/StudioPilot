@@ -3,6 +3,7 @@ import { getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { starterTemplates } from "../features/workflows/starter-templates";
+import { starterQuestionnaires } from "../features/questionnaires/starter-templates";
 
 if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS !== "true") {
   throw new Error("Seed is restricted to Firebase emulator mode.");
@@ -364,7 +365,7 @@ for (const eventType of [
     displayOrder: eventType.category === "wedding" ? 1 : eventType.category === "corporate" ? 2 : 3,
     defaultWorkflowTemplateId: `${eventType.category}-v1`,
     defaultQuestionnaireTemplateId:
-      eventType.category === "wedding" ? "wedding-planning-v1" : null,
+      eventType.category === "wedding" ? "wedding-questionnaire-v1" : null,
     archivedAt: null,
   });
 }
@@ -709,105 +710,32 @@ batch.set(firestore.doc("auditEvents/demo-workflow-instantiated"), {
 });
 
 /**
- * A questionnaire the couple can actually fill in.
+ * The demo studio gets the questionnaires the product ships.
  *
- * This used to be six section *names* — `sections: ["Couple details",
- * "Venue", ...]` — against a schema that wants
- * `{ id, title, fields[] }`, with `eventType` where `eventTypeId` belongs and
- * no `status` at all. The library rendered it honestly as "0 fields · draft",
- * so the one template in the demo could not be sent, and the readiness
- * checkpoint it feeds ("Questionnaire complete") had no way to ever be
- * satisfied. Readiness evidence reads the *answers*, not the status, so an
- * empty form submitted would not have counted either.
+ * This used to be a hand-written wedding template here — twenty fields that
+ * only the demo ever saw, and before that six section *names* against a schema
+ * wanting `{id, title, fields[]}`, which rendered honestly as "0 fields ·
+ * draft" and could not be sent at all.
  *
- * Six sections, twenty fields, in the order a couple thinks about their day.
+ * The definitions moved to `features/questionnaires/starter-templates.ts` so a
+ * real new tenant gets them at signup. Importing rather than restating is what
+ * stops the demo and the product drifting apart, which is exactly what happened
+ * to the workflow checkpoint definitions.
  */
-const questionnaireField = (
-  id: string,
-  label: string,
-  type: string,
-  required = true,
-  options: string[] = [],
-) => ({
-  id,
-  label,
-  type,
-  required,
-  locked: false,
-  internalOnly: false,
-  options,
-  conditionalOn: null,
-});
-
-batch.set(firestore.doc("questionnaireTemplates/wedding-planning-v1"), {
-  ...audit,
-  id: "wedding-planning-v1",
-  tenantId,
-  name: "Wedding Planning Questionnaire",
-  eventTypeId: "wedding",
-  version: 1,
-  status: "active",
-  dueDaysBeforeEvent: 45,
-  reminderDaysBeforeDue: [14, 3],
-  sections: [
-    {
-      id: "couple",
-      title: "Couple details",
-      fields: [
-        questionnaireField("partner-one", "First partner's full name", "text"),
-        questionnaireField("partner-two", "Second partner's full name", "text"),
-        questionnaireField("day-of-contact", "Who should we call on the day?", "contact"),
-        questionnaireField("preferred-email", "Best email for the gallery", "email"),
-      ],
-    },
-    {
-      id: "venue",
-      title: "Venue and getting ready",
-      fields: [
-        questionnaireField("ceremony-address", "Ceremony address", "address"),
-        questionnaireField("reception-address", "Reception address", "address"),
-        questionnaireField("getting-ready", "Where are you getting ready?", "long_text", false),
-        questionnaireField("first-look", "Are you planning a first look?", "radio", true, ["Yes", "No", "Undecided"]),
-      ],
-    },
-    {
-      id: "vendors",
-      title: "Other vendors",
-      fields: [
-        questionnaireField("planner", "Planner or coordinator", "text", false),
-        questionnaireField("videographer", "Videographer", "text", false),
-        questionnaireField("florist", "Florist", "text", false),
-      ],
-    },
-    {
-      id: "family",
-      title: "Family photographs",
-      fields: [
-        questionnaireField("must-have-groups", "Groups we must photograph", "repeating_group"),
-        questionnaireField("sensitivities", "Anything we should handle carefully", "long_text", false),
-      ],
-    },
-    {
-      id: "timeline",
-      title: "Timeline",
-      fields: [
-        questionnaireField("ceremony-time", "Ceremony start time", "time"),
-        questionnaireField("sunset-priority", "How important are sunset portraits?", "dropdown", true, ["Essential", "Nice to have", "Not a priority"]),
-        questionnaireField("end-time", "When does coverage end?", "time"),
-      ],
-    },
-    {
-      id: "access",
-      title: "Access and consent",
-      fields: [
-        questionnaireField("accessibility", "Accessibility needs for our team to know about", "long_text", false),
-        questionnaireField("restrictions", "Any photography restrictions at the venue?", "long_text", false),
-        questionnaireField("social-consent", "May we share images on social media?", "acknowledgement"),
-        questionnaireField("guest-count", "Expected guest count", "text"),
-      ],
-    },
-  ],
-});
+for (const starter of starterQuestionnaires()) {
+  batch.set(firestore.doc(`questionnaireTemplates/${starter.eventTypeId}-questionnaire-v1`), {
+    ...audit,
+    id: `${starter.eventTypeId}-questionnaire-v1`,
+    tenantId,
+    name: starter.name,
+    eventTypeId: starter.eventTypeId,
+    status: "active",
+    version: 1,
+    sections: starter.sections,
+    dueDaysBeforeEvent: starter.dueDaysBeforeEvent,
+    reminderDaysBeforeDue: starter.reminderDaysBeforeDue,
+  });
+}
 
 batch.set(firestore.doc("schedules/wedding-booked-v3"), {
   ...audit,
@@ -1102,7 +1030,7 @@ for (const provider of ["google_calendar", "zoom", "docusign", "quickbooks", "dr
 
 batch.set(firestore.doc("questionnaireResponses/wedding-booked-planning"), {
   ...audit, id: "wedding-booked-planning", tenantId, projectId: "wedding-booked",
-  templateId: "wedding-planning-v1", templateVersion: 1, status: "submitted",
+  templateId: "wedding-questionnaire-v1", templateVersion: 1, status: "submitted",
   answers: { planner: "Gather & Grace", ceremonyTime: "16:30" },
   completionPercent: 100, submittedAt: now, archivedAt: null,
 });

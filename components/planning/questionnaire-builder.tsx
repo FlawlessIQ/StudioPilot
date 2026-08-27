@@ -16,6 +16,7 @@ import {
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { QuestionnaireTemplateEditor } from "@/components/planning/questionnaire-template-editor";
 
 const fieldTypes = [
   ["text", "Short text"],
@@ -208,9 +209,66 @@ export function QuestionnaireBuilder({
                     <strong>{String(template.name ?? "Untitled questionnaire")}</strong>
                     <small>
                       {count} field{count === 1 ? "" : "s"} · {String(template.status ?? "draft")}
+                      {/* The version is how a studio sees that an edit landed:
+                          saving supersedes, so the row is replaced and any
+                          notice inside it goes with it. */}
+                      {Number(template.version ?? 0) > 1
+                        ? ` · v${Number(template.version)}`
+                        : null}
                     </small>
                   </div>
                   {imported ? <em>Imported by AI</em> : null}
+                  {/* Editing a template in place, preserving its sections. The
+                      builder above flattens everything into one, which would
+                      collapse a six-section starter template. See
+                      components/planning/questionnaire-template-editor.tsx. */}
+                  {canBuild ? (
+                    <QuestionnaireTemplateEditor
+                      template={{
+                        id: template.id,
+                        name: String(template.name ?? ""),
+                        status: String(template.status ?? "draft"),
+                        dueDaysBeforeEvent: Number(
+                          template.dueDaysBeforeEvent ?? 0,
+                        ),
+                        reminderDaysBeforeDue: Array.isArray(
+                          template.reminderDaysBeforeDue,
+                        )
+                          ? template.reminderDaysBeforeDue.map(Number)
+                          : [7, 3, 1],
+                        sections: Array.isArray(template.sections)
+                          ? template.sections.map((raw, index) => {
+                              const value =
+                                typeof raw === "object" && raw !== null
+                                  ? (raw as Record<string, unknown>)
+                                  : {};
+                              return {
+                                id: String(value.id ?? `section-${index + 1}`),
+                                title: String(value.title ?? "Details"),
+                                fields: Array.isArray(value.fields)
+                                  ? value.fields.map((rawField) => {
+                                      const f =
+                                        typeof rawField === "object" &&
+                                        rawField !== null
+                                          ? (rawField as Record<string, unknown>)
+                                          : {};
+                                      return {
+                                        id: String(f.id ?? crypto.randomUUID()),
+                                        label: String(f.label ?? ""),
+                                        type: String(f.type ?? "text"),
+                                        required: f.required === true,
+                                        options: Array.isArray(f.options)
+                                          ? f.options.map(String).join(", ")
+                                          : "",
+                                      };
+                                    })
+                                  : [],
+                              };
+                            })
+                          : [],
+                      }}
+                    />
+                  ) : null}
                 </article>
               );
             })}

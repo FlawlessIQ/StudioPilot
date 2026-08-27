@@ -14,6 +14,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         title="Tasks"
         description="See assigned work, deadlines, priorities, and which tasks affect event readiness."
         action={{ href: "/studio/tasks/new", label: "Create task" }}
+        rowActions="task"
         projectId={project}
       />
     </AppShell>

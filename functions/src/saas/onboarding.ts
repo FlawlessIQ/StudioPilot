@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { starterTemplates } from "../workflow/starter-templates.js";
+import { starterQuestionnaires } from "../planning/starter-questionnaires.js";
 
 const inputSchema = z.object({
   businessName: z.string().trim().min(2).max(120),
@@ -196,6 +197,38 @@ export const tenantOnboardingCommand = onRequest(
             updatedBy: identity.uid,
             archivedAt: null,
           });
+        }
+        /**
+         * And the questionnaires.
+         *
+         * "Questionnaire complete" is a blocking readiness checkpoint on the
+         * starter wedding workflow, so a tenant with no questionnaire template
+         * could only ever waive it. Composing twenty questions aimed at a
+         * couple is copywriting, not configuration — nobody should have to do
+         * it before their first client.
+         * See features/questionnaires/starter-templates.ts.
+         */
+        for (const starter of starterQuestionnaires()) {
+          const questionnaireId = randomUUID();
+          transaction.create(
+            db.doc(`questionnaireTemplates/${questionnaireId}`),
+            {
+              id: questionnaireId,
+              tenantId,
+              name: starter.name,
+              eventTypeId: starter.eventTypeId,
+              status: "active",
+              sections: starter.sections,
+              dueDaysBeforeEvent: starter.dueDaysBeforeEvent,
+              reminderDaysBeforeDue: starter.reminderDaysBeforeDue,
+              version: 1,
+              createdAt: now,
+              updatedAt: now,
+              createdBy: identity.uid,
+              updatedBy: identity.uid,
+              archivedAt: null,
+            },
+          );
         }
         transaction.create(onboardingReference, {
           userId: identity.uid,

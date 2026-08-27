@@ -103,6 +103,40 @@ const command = z.discriminatedUnion("type", [
     }),
   }),
   z.object({
+    /**
+     * Correct a questionnaire template.
+     *
+     * Templates could be created and never changed: `questionnaireTemplates` is
+     * `allow write: if false` in the rules and had only a create command. A
+     * typo in a form you send every client was permanent, and the only recourse
+     * was a second template sitting beside the first.
+     *
+     * Editing bumps the version rather than rewriting history in place, for the
+     * same reason proposals and schedules do: a response already collected was
+     * answered against the template as it stood, and `templateVersion` on the
+     * response is what says which.
+     */
+    type: z.literal("updateQuestionnaireTemplate"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      templateId: z.string().min(1),
+      name: z.string().min(2).max(160),
+      status: z.enum(["draft", "active", "archived"]),
+      sections: z
+        .array(
+          z.object({
+            id: z.string().min(1),
+            title: z.string().min(1).max(160),
+            fields: z.array(questionnaireField).min(1),
+          }),
+        )
+        .min(1),
+      dueDaysBeforeEvent: z.number().int().nonnegative().max(365),
+      reminderDaysBeforeDue: z.array(z.number().int().nonnegative().max(365)),
+    }),
+  }),
+  z.object({
     type: z.literal("assignQuestionnaire"),
     tenantId: z.string(),
     idempotencyKey: z.string().min(8),
@@ -500,6 +534,81 @@ export const planningCommand = onRequest(
         });
         await batch.commit();
         result = { templateId: id, version, status: parsed.input.status };
+      } else if (parsed.type === "updateQuestionnaireTemplate") {
+        if (!["studio_owner", "studio_admin"].includes(role))
+          throw new Error("FORBIDDEN");
+        const current = await db
+          .doc(`questionnaireTemplates/${parsed.input.templateId}`)
+          .get();
+        if (
+          !current.exists ||
+          current.get("tenantId") !== parsed.tenantId
+        ) {
+          throw new Error("QUESTIONNAIRE_TEMPLATE_NOT_FOUND");
+        }
+        /**
+         * A new version, not a rewrite.
+         *
+         * `questionnaireResponses` carry `templateVersion`, and a couple who
+         * has already answered answered the template as it stood. Editing the
+         * fields under them would leave their answers describing questions
+         * nobody asked. So this supersedes: the edited template becomes the
+         * next version, and the one it replaces is archived if it was live.
+         */
+        const eventTypeId = String(current.get("eventTypeId"));
+        const siblings = await db
+          .collection("questionnaireTemplates")
+          .where("tenantId", "==", parsed.tenantId)
+          .where("name", "==", current.get("name"))
+          .get();
+        const version =
+          Math.max(
+            0,
+            ...siblings.docs.map((item) => Number(item.get("version") ?? 0)),
+          ) + 1;
+        const id = stable(
+          "questionnaire_template",
+          parsed.tenantId,
+          parsed.idempotencyKey,
+        );
+        const batch = db.batch();
+        if (parsed.input.status === "active") {
+          for (const sibling of siblings.docs) {
+            if (sibling.get("status") === "active") {
+              batch.update(sibling.ref, {
+                status: "archived",
+                archivedAt: now,
+                updatedAt: now,
+                updatedBy: identity.uid,
+              });
+            }
+          }
+        }
+        batch.create(db.doc(`questionnaireTemplates/${id}`), {
+          id,
+          tenantId: parsed.tenantId,
+          name: parsed.input.name,
+          eventTypeId,
+          status: parsed.input.status,
+          sections: parsed.input.sections,
+          dueDaysBeforeEvent: parsed.input.dueDaysBeforeEvent,
+          reminderDaysBeforeDue: parsed.input.reminderDaysBeforeDue,
+          version,
+          // What this version replaced, so the trail is readable.
+          supersedesTemplateId: parsed.input.templateId,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: identity.uid,
+          updatedBy: identity.uid,
+          archivedAt: parsed.input.status === "archived" ? now : null,
+        });
+        await batch.commit();
+        result = {
+          templateId: id,
+          version,
+          status: parsed.input.status,
+          supersedes: parsed.input.templateId,
+        };
       } else if (parsed.type === "assignQuestionnaire") {
         if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
         const [project, template] = await Promise.all([
