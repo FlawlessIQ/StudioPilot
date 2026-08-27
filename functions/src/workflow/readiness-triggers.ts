@@ -65,6 +65,7 @@ export async function reconcileProjectReadiness(
     questionnaires,
     schedules,
     crew,
+    insurance,
   ] = await Promise.all([
     db
       .collection("checkpoints")
@@ -77,6 +78,7 @@ export async function reconcileProjectReadiness(
     forProject("questionnaireResponses"),
     forProject("schedules"),
     forProject("crewAssignments"),
+    forProject("insuranceRequests"),
   ]);
 
   // Nothing required means nothing to say — a job before planning is not a
@@ -118,8 +120,23 @@ export async function reconcileProjectReadiness(
     // The roles this job needs filled: every assignment offered on it. Zero
     // means nobody was asked, which is a solo wedding.
     crewRequired: crew.size,
-    crewAcknowledgedSchedule: false,
-    shotListApproved: false,
+    // Against the current version, not merely "has acknowledged something".
+    crewAcknowledgedCurrent: crew.docs.filter(
+      (document) =>
+        Number(document.get("acknowledgedScheduleVersion") ?? -1) ===
+        Number(latestSchedule?.get("version") ?? 0),
+    ).length,
+    coiStatus:
+      text(
+        insurance.docs
+          .slice()
+          .sort((left, right) =>
+            text(right.get("createdAt")).localeCompare(
+              text(left.get("createdAt")),
+            ),
+          )[0]
+          ?.get("status"),
+      ) || null,
   });
 
   const timestamp = new Date().toISOString();
@@ -204,3 +221,10 @@ export const readinessOnQuestionnaireWritten = readinessTriggerFor(
 export const readinessOnScheduleWritten = readinessTriggerFor("schedules");
 export const readinessOnCrewAssignmentWritten =
   readinessTriggerFor("crewAssignments");
+/**
+ * Added when the COI stopped being a judgement: `sendCoiToVenue` writes the
+ * status readiness now reads, so that write needs to be an occasion to
+ * recompute like every other.
+ */
+export const readinessOnInsuranceRequestWritten =
+  readinessTriggerFor("insuranceRequests");

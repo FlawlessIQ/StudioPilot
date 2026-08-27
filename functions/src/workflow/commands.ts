@@ -1214,12 +1214,14 @@ export const workflowCommand = onRequest(
           questionnairesSnapshot,
           schedulesSnapshot,
           crewSnapshot,
+          insuranceSnapshot,
         ] = await Promise.all([
           forProject("contracts"),
           forProject("invoiceReferences"),
           forProject("questionnaireResponses"),
           forProject("schedules"),
           forProject("crewAssignments"),
+          forProject("insuranceRequests"),
         ]);
         const newestBy = (
           snapshot: typeof contractsSnapshot,
@@ -1268,8 +1270,17 @@ export const workflowCommand = onRequest(
           // The roles this job needs filled: every assignment offered on it.
           // Zero means nobody was asked, which is a solo wedding.
           crewRequired: crewSnapshot.size,
-          crewAcknowledgedSchedule: false,
-          shotListApproved: false,
+          // Against the current version: a crew member who read June's
+          // timeline has not read the one approved in July.
+          crewAcknowledgedCurrent: crewSnapshot.docs.filter(
+            (document) =>
+              Number(document.get("acknowledgedScheduleVersion") ?? -1) ===
+              Number(latestSchedule?.get("version") ?? 0),
+          ).length,
+          coiStatus:
+            (newestBy(insuranceSnapshot, "createdAt")?.get("status") as
+              | string
+              | undefined) ?? null,
         });
         const projection = await writeReadiness(transaction, db, {
           tenantId: command.tenantId,

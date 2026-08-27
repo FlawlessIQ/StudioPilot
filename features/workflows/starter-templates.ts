@@ -39,13 +39,16 @@ export const weddingCheckpointDefinitions: readonly Definition[] = [
   ["questionnaire-complete", "Questionnaire complete", "Planning", "client", -45, "form_submitted"],
   ["venue-confirmed", "Venue confirmed", "Planning", "studio", -30, "manual"],
   ["primary-contacts", "Primary contacts confirmed", "Planning", "studio", -30, "manual"],
-  ["coi-approved", "COI approved and sent", "Insurance", "studio", -21, "manual"],
+  // Derivable, not a judgement: `sendCoiToVenue` writes the very status this
+  // reads, and the closeout reconciler already treats sent_to_venue /
+  // venue_acknowledged as proof. Declaring it manual made a studio tick
+  // something StudioCue had just done itself.
+  ["coi-approved", "COI approved and sent", "Insurance", "studio", -21, "system_rule"],
   ["schedule-approved", "Final run of show approved", "Schedule", "client", -14, "schedule_approved"],
   ["final-balance", "Final balance paid", "Payments", "client", -14, "invoice_paid"],
   ["crew-accepted", "Required crew accepted", "Crew", "subcontractor", -14, "assignment_accepted"],
   ["locations-confirmed", "Locations confirmed", "Logistics", "studio", -14, "manual"],
   ["travel-confirmed", "Travel requirements confirmed", "Logistics", "studio", -14, "manual"],
-  ["shot-list-approved", "Shot list approved", "Planning", "client", -14, "form_submitted"],
   // Last, at one week out: the crew confirm against a schedule that is by
   // then settled. In the inherited demo ordering this sat mid-list at -7
   // with three -14 checkpoints after it, and because each step depends on
@@ -63,7 +66,6 @@ const CORPORATE_KEYS = [
   "schedule-approved",
   "crew-accepted",
   "locations-confirmed",
-  "shot-list-approved",
 ];
 
 /** Sports drops the client questionnaire — the organiser sets the terms. */
@@ -73,7 +75,6 @@ const SPORTS_KEYS = [
   "schedule-approved",
   "crew-accepted",
   "locations-confirmed",
-  "shot-list-approved",
 ];
 
 export function checkpointFrom(

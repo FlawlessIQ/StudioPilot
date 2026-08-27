@@ -81,10 +81,20 @@ export type ReadinessEvidence = {
    * The crew have acknowledged the *current* schedule version. Separate from
    * `crewAccepted` on purpose: a second photographer who accepted the job in
    * March has not thereby read the timeline approved in June.
+   *
+   * The evidence has always existed — `acknowledgeSchedule` writes
+   * `acknowledgedScheduleVersion` on the assignment and the crew portal calls
+   * it — and this field was hardcoded false when the mapping was written, so a
+   * crew member could acknowledge the timeline and readiness never noticed.
    */
   crewAcknowledgedSchedule: boolean;
-  /** A shot list record exists and is approved. Not the details form. */
-  shotListApproved: boolean;
+  /**
+   * The certificate has reached the venue. `sendCoiToVenue` writes
+   * `sent_to_venue`, and the closeout reconciler already treats that and
+   * `venue_acknowledged` as proof, so readiness reading it too is the two
+   * agreeing rather than a new rule.
+   */
+  coiSentToVenue: boolean;
 };
 
 /** Nothing proven yet — the safe default for every field. */
@@ -96,7 +106,7 @@ export const noReadinessEvidence: ReadinessEvidence = {
   scheduleApproved: false,
   crewAccepted: false,
   crewAcknowledgedSchedule: false,
-  shotListApproved: false,
+  coiSentToVenue: false,
 };
 
 const text = (value: unknown): string =>
@@ -123,15 +133,19 @@ export function checkpointSatisfiedByEvidence(
       if (key === "final-balance") return evidence.finalBalancePaid;
       return false;
     case "form_submitted":
-      if (key === "questionnaire-complete") return evidence.questionnaireAnswered;
-      if (key === "shot-list-approved") return evidence.shotListApproved;
-      return false;
+      // Only the details form. "Shot list approved" used to share this method
+      // with no shot list existing anywhere in the product — a permanent
+      // blocker with a label promising an artifact nobody could produce. It was
+      // dropped from the starter templates rather than faked.
+      return key === "questionnaire-complete" && evidence.questionnaireAnswered;
     case "schedule_approved":
       return key === "schedule-approved" && evidence.scheduleApproved;
     case "assignment_accepted":
       if (key === "crew-accepted") return evidence.crewAccepted;
       if (key === "crew-acknowledged") return evidence.crewAcknowledgedSchedule;
       return false;
+    case "system_rule":
+      return key === "coi-approved" && evidence.coiSentToVenue;
     default:
       // "manual", and anything a future template invents.
       return false;
@@ -163,8 +177,15 @@ export function readinessEvidenceFromFacts(input: {
   scheduleItems: readonly Record<string, unknown>[] | null | undefined;
   crewAccepted: number;
   crewRequired: number;
-  crewAcknowledgedSchedule?: boolean;
-  shotListApproved?: boolean;
+  /**
+   * How many of the required assignments have acknowledged the *current*
+   * schedule version. Compare against the version, not merely "has
+   * acknowledged something" — a crew member who read June's timeline has not
+   * read the one approved in July.
+   */
+  crewAcknowledgedCurrent: number;
+  /** The COI request's status, when the job has one. */
+  coiStatus: string | null;
 }): ReadinessEvidence {
   const paid = (status: string | null) => status === "paid";
   return {
@@ -187,7 +208,14 @@ export function readinessEvidenceFromFacts(input: {
       input.crewRequired > 0
         ? input.crewAccepted >= input.crewRequired
         : true,
-    crewAcknowledgedSchedule: input.crewAcknowledgedSchedule ?? false,
-    shotListApproved: input.shotListApproved ?? false,
+    // Every required assignment, not merely one of them: a brief half the crew
+    // has read is not a brief the crew has read.
+    crewAcknowledgedSchedule:
+      input.crewRequired > 0
+        ? input.crewAcknowledgedCurrent >= input.crewRequired
+        : true,
+    coiSentToVenue: ["sent_to_venue", "venue_acknowledged"].includes(
+      input.coiStatus ?? "",
+    ),
   };
 }

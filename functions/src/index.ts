@@ -15,6 +15,7 @@ export {
   readinessOnCheckpointWritten,
   readinessOnContractWritten,
   readinessOnCrewAssignmentWritten,
+  readinessOnInsuranceRequestWritten,
   readinessOnInvoiceWritten,
   readinessOnQuestionnaireWritten,
   readinessOnScheduleWritten,

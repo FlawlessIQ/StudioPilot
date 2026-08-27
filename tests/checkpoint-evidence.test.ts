@@ -30,7 +30,7 @@ const all: ReadinessEvidence = {
   scheduleApproved: true,
   crewAccepted: true,
   crewAcknowledgedSchedule: true,
-  shotListApproved: true,
+  coiSentToVenue: true,
 };
 
 test("each record-backed checkpoint is satisfied by its own evidence", () => {
@@ -42,7 +42,7 @@ test("each record-backed checkpoint is satisfied by its own evidence", () => {
     ["schedule-approved", "schedule_approved", "scheduleApproved"],
     ["crew-accepted", "assignment_accepted", "crewAccepted"],
     ["crew-acknowledged", "assignment_accepted", "crewAcknowledgedSchedule"],
-    ["shot-list-approved", "form_submitted", "shotListApproved"],
+    ["coi-approved", "system_rule", "coiSentToVenue"],
   ];
   for (const [key, method, field] of cases) {
     const only = { ...noReadinessEvidence, [field]: true };
@@ -55,14 +55,6 @@ test("each record-backed checkpoint is satisfied by its own evidence", () => {
 });
 
 test("adjacent evidence never ticks a neighbouring checkpoint", () => {
-  // A shot list is not a details form.
-  assert.equal(
-    checkpointSatisfiedByEvidence(cp("shot-list-approved", "form_submitted"), {
-      ...noReadinessEvidence,
-      questionnaireAnswered: true,
-    }),
-    false,
-  );
   // Accepting the booking is not reading the schedule you will shoot from.
   assert.equal(
     checkpointSatisfiedByEvidence(cp("crew-acknowledged", "assignment_accepted"), {
@@ -82,10 +74,11 @@ test("adjacent evidence never ticks a neighbouring checkpoint", () => {
 });
 
 test("manual checkpoints are never inferred, however much is proven", () => {
+  // coi-approved is deliberately absent: `sendCoiToVenue` writes the status it
+  // reads, so it graduated from a judgement to a derived fact.
   for (const key of [
     "venue-confirmed",
     "primary-contacts",
-    "coi-approved",
     "locations-confirmed",
     "travel-confirmed",
   ]) {
@@ -195,5 +188,74 @@ test("a solo wedding is not held open by a crew role that does not exist", () =>
       crewRequired: 2,
     }).crewAccepted,
     false,
+  );
+});
+
+test("a COI that reached the venue satisfies its checkpoint", () => {
+  const base = {
+    contractStatus: "completed",
+    retainerInvoiceStatus: "paid",
+    finalInvoiceStatus: "paid",
+    questionnaireStatus: "submitted",
+    questionnaireAnswers: { a: "b" },
+    scheduleStatus: "approved",
+    scheduleItems: [{ startAt: "2027-07-03T17:00:00Z", title: "Ceremony" }],
+    crewAccepted: 1,
+    crewRequired: 1,
+    crewAcknowledgedCurrent: 1,
+    coiStatus: null as string | null,
+  };
+  assert.equal(readinessEvidenceFromFacts(base).coiSentToVenue, false);
+  for (const status of ["sent_to_venue", "venue_acknowledged"]) {
+    assert.equal(
+      readinessEvidenceFromFacts({ ...base, coiStatus: status }).coiSentToVenue,
+      true,
+      `${status} should count`,
+    );
+  }
+  // Raised, extracted, under review — none of those has reached the venue.
+  for (const status of ["requested", "received", "under_review", "rejected"]) {
+    assert.equal(
+      readinessEvidenceFromFacts({ ...base, coiStatus: status }).coiSentToVenue,
+      false,
+      `${status} should not count`,
+    );
+  }
+});
+
+test("acknowledgement counts against the current schedule version only", () => {
+  const base = {
+    contractStatus: "completed",
+    retainerInvoiceStatus: "paid",
+    finalInvoiceStatus: "paid",
+    questionnaireStatus: "submitted",
+    questionnaireAnswers: { a: "b" },
+    scheduleStatus: "approved",
+    scheduleItems: [{ startAt: "2027-07-03T17:00:00Z", title: "Ceremony" }],
+    crewAccepted: 2,
+    crewRequired: 2,
+    coiStatus: null,
+  };
+  // Both read it.
+  assert.equal(
+    readinessEvidenceFromFacts({ ...base, crewAcknowledgedCurrent: 2 })
+      .crewAcknowledgedSchedule,
+    true,
+  );
+  // One of two read it. A brief half the crew has read is not read.
+  assert.equal(
+    readinessEvidenceFromFacts({ ...base, crewAcknowledgedCurrent: 1 })
+      .crewAcknowledgedSchedule,
+    false,
+  );
+  // Shooting alone: nothing outstanding.
+  assert.equal(
+    readinessEvidenceFromFacts({
+      ...base,
+      crewAccepted: 0,
+      crewRequired: 0,
+      crewAcknowledgedCurrent: 0,
+    }).crewAcknowledgedSchedule,
+    true,
   );
 });

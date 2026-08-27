@@ -30,6 +30,7 @@ import {
 } from "@/components/projects/project-thread";
 import { useProjectThread } from "@/components/projects/use-project-thread";
 import { useProjectJourney } from "@/components/projects/use-project-journey";
+import { ReadinessCheckpoints } from "@/components/projects/readiness-checkpoints";
 import { ReadinessMeter } from "@/components/ui/readiness-meter";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { stateTone } from "@/lib/status-tone";
@@ -307,13 +308,6 @@ function ConsultationInviteAction({
       {notice ? <small role="status">{notice}</small> : null}
     </div>
   );
-}
-
-function checkpointTone(status: string) {
-  if (["complete", "waived"].includes(status)) return "success" as const;
-  if (["failed"].includes(status)) return "danger" as const;
-  if (["under_review", "in_progress"].includes(status)) return "info" as const;
-  return "warning" as const;
 }
 
 const laneDetails: Record<
@@ -721,46 +715,11 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
             questionnaires={related.questionnaires}
             schedules={related.schedules}
           />
-          <section className="panel project-checkpoints-panel">
-            <div className="panel-heading">
-              <div>
-                <h2>Readiness checkpoints</h2>
-                <p>Requirements that must be completed before the event.</p>
-              </div>
-              {readinessView.tracked ? (
-                <StatusBadge tone={readiness === 100 ? "success" : "warning"}>
-                  {readiness}% ready
-                </StatusBadge>
-              ) : (
-                <StatusBadge tone="neutral">Not tracked yet</StatusBadge>
-              )}
-            </div>
-            <div className="project-checkpoint-list">
-              {checkpoints.map((checkpoint) => {
-                const status = String(checkpoint.status);
-                return (
-                  <article key={checkpoint.id}>
-                    <span className={status === "complete" ? "checkpoint-state complete" : "checkpoint-state"}>
-                      {status === "complete" ? <CheckCircle2 size={15} /> : <i />}
-                    </span>
-                    <span>
-                      <strong>{String(checkpoint.name)}</strong>
-                      <small>{String(checkpoint.ownerType)} · {String(checkpoint.resolvedDueDate ?? "No due date")}</small>
-                    </span>
-                    <StatusBadge tone={checkpoint.blocking ? "warning" : "neutral"}>
-                      {checkpoint.blocking ? "Affects readiness" : "Non-blocking"}
-                    </StatusBadge>
-                    <StatusBadge tone={checkpointTone(status)}>{status.replaceAll("_", " ")}</StatusBadge>
-                  </article>
-                );
-              })}
-              {!checkpoints.length ? (
-                <div className="live-record-state">
-                  <span><strong>No readiness steps yet</strong><small>They will appear when a workflow starts for this project.</small></span>
-                </div>
-              ) : null}
-            </div>
-          </section>
+          {/* Was a read-only copy of this list with its own status badges.
+              One implementation, because two lists of the same checkpoints are
+              two things that can disagree — the fault this whole area has been
+              suffering from. This one can also be acted on. */}
+          <ReadinessCheckpoints projectId={projectId} />
         </div>
       </details>
     </div>

@@ -22,6 +22,7 @@ const text = (value: unknown): string =>
  */
 export function useReadinessEvidence(projectId: string): ReadinessEvidence {
   const contracts = useTenantDocuments("contracts");
+  const insuranceRequests = useTenantDocuments("insuranceRequests");
   const invoices = useTenantDocuments("invoiceReferences");
   const questionnaires = useTenantDocuments("questionnaireResponses");
   const schedules = useTenantDocuments("schedules");
@@ -60,8 +61,17 @@ export function useReadinessEvidence(projectId: string): ReadinessEvidence {
     // The roles this job actually needs filled: every assignment offered on it.
     // Zero means nobody was asked, which is a solo wedding.
     crewRequired: crew.length,
-    // Each needs its own record and neither may be inferred from a neighbour.
-    crewAcknowledgedSchedule: false,
-    shotListApproved: false,
+    // Against the current version, not merely "has acknowledged something".
+    crewAcknowledgedCurrent: crew.filter(
+      (assignment) =>
+        Number(assignment.acknowledgedScheduleVersion ?? -1) ===
+        Number(latestSchedule?.version ?? 0),
+    ).length,
+    coiStatus:
+      text(
+        forProject(insuranceRequests.records).sort((left, right) =>
+          text(right.createdAt).localeCompare(text(left.createdAt)),
+        )[0]?.status,
+      ) || null,
   });
 }
