@@ -564,7 +564,16 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
   // while the sentence beside it was decided by whether checkpoints had
   // loaded, so the same page could read "—" in the header and "68% ready" in
   // the footer. See features/projects/readiness-summary.ts.
-  const readinessView = readinessSummary(checkpoints);
+  // ...and the records those checkpoints are about. A checkpoint waiting on
+  // workflow automation while the contract, retainer, questionnaire, run of
+  // show and crew are all demonstrably done is not a blocker, it is a stale
+  // row — and readiness gates PLANNING → READY, so believing it stopped the
+  // lifecycle. See features/readiness/checkpoint-evidence.ts.
+  const readinessView = readinessSummary(
+    checkpoints,
+    new Date(),
+    journey.readinessEvidence,
+  );
   const readiness = readinessView.percent;
   const outstanding = readinessView.blocking;
   const current = journey.current;

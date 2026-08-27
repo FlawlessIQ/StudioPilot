@@ -9,6 +9,8 @@ import {
 import {
   questionnaireHasAnswers,
 } from "@/features/journey/substance";
+import { useReadinessEvidence } from "@/components/projects/use-readiness-evidence";
+import type { ReadinessEvidence } from "@/features/readiness/checkpoint-evidence";
 import { displayableScheduleItems } from "@/features/schedules/item-clock";
 
 const text = (value: unknown): string =>
@@ -33,7 +35,19 @@ export function useProjectJourney({
   projectState: string;
   eventDate: string | null;
   leadId: string | null;
-}): { steps: JourneyStep[]; current: JourneyStep | null } {
+}): {
+  steps: JourneyStep[];
+  current: JourneyStep | null;
+  /**
+   * What these same records prove, for the readiness meter.
+   *
+   * Returned from here on purpose. Readiness and the journey used to disagree
+   * about the same five facts — a booked wedding read 9/15 on the spine and 0%
+   * on the meter, with the meter listing finished work as blockers — and one
+   * derivation feeding both is what stops that recurring.
+   */
+  readinessEvidence: ReadinessEvidence;
+} {
   const leads = useTenantDocuments("leads");
   const consultations = useTenantDocuments("consultations");
   const proposals = useTenantDocuments("proposals");
@@ -73,7 +87,9 @@ export function useProjectJourney({
     text(right.createdAt).localeCompare(text(left.createdAt)),
   )[0];
 
-  return projectJourney({
+  const readinessEvidence = useReadinessEvidence(projectId);
+
+  const journey = projectJourney({
     projectId,
     state: projectState,
     eventDate,
@@ -124,4 +140,6 @@ export function useProjectJourney({
     hasDelivery: forProject(deliveries.records).length > 0,
     albumOrReviewDone: ["REVIEW_REQUESTED", "CLOSED"].includes(projectState),
   });
+
+  return { ...journey, readinessEvidence };
 }

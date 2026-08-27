@@ -5,6 +5,11 @@ import {
   type readinessItemSchema,
 } from "./schema";
 import type { z } from "zod";
+import {
+  checkpointSatisfiedByEvidence,
+  noReadinessEvidence,
+  type ReadinessEvidence,
+} from "./checkpoint-evidence";
 
 type ReadinessItem = z.infer<typeof readinessItemSchema>;
 
@@ -15,8 +20,29 @@ function activeWaiver(checkpoint: Checkpoint, now: Date): boolean {
     && (!checkpoint.waiverExpiresAt || new Date(checkpoint.waiverExpiresAt) > now);
 }
 
-function isSatisfied(checkpoint: Checkpoint, now: Date): boolean {
-  return checkpoint.status === "complete" || activeWaiver(checkpoint, now);
+/**
+ * Complete, waived, or already proven by the project's own records.
+ *
+ * Without the third clause the score contradicted the job page: a wedding with
+ * a completed contract, a paid retainer, an answered questionnaire, an approved
+ * run of show and an accepted crew scored 0, and because PLANNING → READY is
+ * evidence-controlled by this number the lifecycle could not be completed.
+ * See ./checkpoint-evidence.ts, which reads each checkpoint's own
+ * `completionMethod` and refuses to infer anything declared manual.
+ */
+function isSatisfied(
+  checkpoint: Checkpoint,
+  now: Date,
+  evidence: ReadinessEvidence,
+): boolean {
+  if (checkpoint.status === "complete") return true;
+  if (activeWaiver(checkpoint, now)) return true;
+  // A failed checkpoint is a recorded decision, not a missing record.
+  if (checkpoint.status === "failed") return false;
+  return checkpointSatisfiedByEvidence(
+    checkpoint as unknown as Record<string, unknown>,
+    evidence,
+  );
 }
 
 function toItem(checkpoint: Checkpoint, reason: string): ReadinessItem {
@@ -39,19 +65,22 @@ export function calculateReadiness(input: {
   calculatedAt: string;
   actorId?: string;
   rulesVersion?: number;
+  /** What the project's records already prove. Defaults to nothing proven. */
+  evidence?: ReadinessEvidence;
 }): ReadinessAssessment {
   const now = new Date(input.calculatedAt);
   const today = input.calculatedAt.slice(0, 10);
   const riskDate = new Date(`${today}T12:00:00.000Z`);
   riskDate.setUTCDate(riskDate.getUTCDate() + 7);
   const riskDateValue = riskDate.toISOString().slice(0, 10);
+  const evidence = input.evidence ?? noReadinessEvidence;
   const required = input.checkpoints.filter((checkpoint) => checkpoint.blocking);
   const satisfiedRequired = required.filter((checkpoint) =>
-    isSatisfied(checkpoint, now),
+    isSatisfied(checkpoint, now, evidence),
   );
 
   const blockingItems = required
-    .filter((checkpoint) => !isSatisfied(checkpoint, now))
+    .filter((checkpoint) => !isSatisfied(checkpoint, now, evidence))
     .map((checkpoint) =>
       toItem(
         checkpoint,

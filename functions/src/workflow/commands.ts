@@ -10,6 +10,12 @@ import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { requireEntitlement } from "../saas/entitlement-guard.js";
 import { studioHubCors } from "../security/cors.js";
+import {
+  checkpointSatisfiedByEvidence,
+  noReadinessEvidence,
+  readinessEvidenceFromFacts,
+  type ReadinessEvidence,
+} from "./checkpoint-evidence.js";
 
 type CheckpointStatus =
   | "not_started"
@@ -267,14 +273,32 @@ function resolveDueDate(
   return addUtcDays(anchor, rule.offsetDays);
 }
 
+/**
+ * Complete, waived, or already proven by the project's own records.
+ *
+ * The third clause closes the fault the walk of 2026-08-26 found: checkpoints
+ * are only ever completed by workflow automation, so a wedding whose contract,
+ * retainer, questionnaire, run of show and crew were all done still scored 0
+ * and listed those five as blockers. See ./checkpoint-evidence.ts, which reads
+ * each checkpoint's own `completionMethod` and never infers anything a template
+ * declares manual.
+ */
 function checkpointSatisfied(
   checkpoint: CheckpointDocument,
   timestamp: string,
+  evidence: ReadinessEvidence = noReadinessEvidence,
 ): boolean {
   if (checkpoint.status === "complete") return true;
-  return (
+  if (
     checkpoint.status === "waived" &&
     (!checkpoint.waiverExpiresAt || checkpoint.waiverExpiresAt > timestamp)
+  )
+    return true;
+  // A failed checkpoint is a recorded decision, not a missing record.
+  if (checkpoint.status === "failed") return false;
+  return checkpointSatisfiedByEvidence(
+    checkpoint as unknown as Record<string, unknown>,
+    evidence,
   );
 }
 
@@ -295,15 +319,16 @@ function readinessItem(
 function calculateReadiness(
   checkpoints: readonly CheckpointDocument[],
   timestamp: string,
+  evidence: ReadinessEvidence = noReadinessEvidence,
 ): ReadinessProjection {
   const today = timestamp.slice(0, 10);
   const riskThrough = addUtcDays(today, 7);
   const required = checkpoints.filter((checkpoint) => checkpoint.blocking);
   const satisfied = required.filter((checkpoint) =>
-    checkpointSatisfied(checkpoint, timestamp),
+    checkpointSatisfied(checkpoint, timestamp, evidence),
   );
   const blockingItems = required
-    .filter((checkpoint) => !checkpointSatisfied(checkpoint, timestamp))
+    .filter((checkpoint) => !checkpointSatisfied(checkpoint, timestamp, evidence))
     .map((checkpoint) =>
       readinessItem(
         checkpoint,
@@ -317,7 +342,7 @@ function calculateReadiness(
   const overdueItems = checkpoints
     .filter(
       (checkpoint) =>
-        !checkpointSatisfied(checkpoint, timestamp) &&
+        !checkpointSatisfied(checkpoint, timestamp, evidence) &&
         checkpoint.resolvedDueDate !== null &&
         checkpoint.resolvedDueDate < today,
     )
@@ -327,7 +352,7 @@ function calculateReadiness(
   const atRiskItems = checkpoints
     .filter(
       (checkpoint) =>
-        !checkpointSatisfied(checkpoint, timestamp) &&
+        !checkpointSatisfied(checkpoint, timestamp, evidence) &&
         checkpoint.resolvedDueDate !== null &&
         checkpoint.resolvedDueDate >= today &&
         checkpoint.resolvedDueDate <= riskThrough,
@@ -403,9 +428,21 @@ async function writeReadiness(
     checkpoints: readonly CheckpointDocument[];
     timestamp: string;
     actorId: string;
+    /** What the project's records prove. Read before the transaction. */
+    evidence?: ReadinessEvidence;
+    /**
+     * The project's state and version, read before the transaction, when the
+     * caller wants readiness to be allowed to complete preparation. Omitted by
+     * callers that only recompute the score.
+     */
+    project?: { state: string; stateVersion: number };
   },
 ): Promise<ReadinessProjection> {
-  const projection = calculateReadiness(input.checkpoints, input.timestamp);
+  const projection = calculateReadiness(
+    input.checkpoints,
+    input.timestamp,
+    input.evidence,
+  );
   transaction.set(db.doc(`readinessAssessments/${input.projectId}`), {
     id: input.projectId,
     tenantId: input.tenantId,
@@ -420,12 +457,65 @@ async function writeReadiness(
     updatedBy: input.actorId,
     archivedAt: null,
   });
+  /**
+   * Readiness is the authority for PLANNING → READY — `crm/commands.ts` lists
+   * the transition as evidence-controlled, which stops anyone doing it by hand.
+   * Nothing performed it either, so READY was unreachable by any path and the
+   * lifecycle stopped at preparation. This is the performer that was missing.
+   *
+   * Only ever forward, only from PLANNING, and only when nothing blocking is
+   * outstanding. A project that has already moved on is left alone.
+   */
+  const advancing =
+    input.project?.state === "PLANNING" &&
+    projection.ready &&
+    projection.blockingItems.length === 0;
+
   transaction.update(db.doc(`projects/${input.projectId}`), {
     readinessScore: projection.score,
     nextAction: projection.recommendedNextAction,
+    ...(advancing
+      ? {
+          state: "READY",
+          stateVersion: (input.project?.stateVersion ?? 0) + 1,
+        }
+      : {}),
     updatedAt: input.timestamp,
     updatedBy: input.actorId,
   });
+
+  if (advancing) {
+    const auditId = `audit_readiness_${input.projectId}_${projection.score}_${input.timestamp}`
+      .replace(/[^A-Za-z0-9_-]/g, "_")
+      .slice(0, 400);
+    transaction.set(db.doc(`auditEvents/${auditId}`), {
+      id: auditId,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      actorId: input.actorId,
+      actorType: "system",
+      action: "project.state_changed",
+      entityType: "project",
+      entityId: input.projectId,
+      timestamp: input.timestamp,
+      before: {
+        state: "PLANNING",
+        stateVersion: input.project?.stateVersion ?? 0,
+      },
+      after: {
+        state: "READY",
+        stateVersion: (input.project?.stateVersion ?? 0) + 1,
+        readinessScore: projection.score,
+        authority: "readiness",
+        readinessAssessmentId: input.projectId,
+      },
+      ipAddress: null,
+      userAgent: null,
+      correlationId: `readiness_${input.projectId}`,
+      automationRunId: input.workflowRunId,
+      providerEventId: null,
+    });
+  }
   return projection;
 }
 
@@ -1103,6 +1193,84 @@ export const workflowCommand = onRequest(
             }) as CheckpointDocument,
         );
         const workflowRunId = checkpoints[0]?.workflowRunId ?? null;
+        /**
+         * What the project's records already prove. Read here, inside the
+         * transaction and before any write, because a checkpoint waiting on
+         * workflow automation while the contract, retainer, questionnaire, run
+         * of show and crew are all done is a stale row rather than a blocker —
+         * and readiness gates PLANNING → READY, so believing it stopped the
+         * lifecycle. See ./checkpoint-evidence.ts.
+         */
+        const forProject = (collection: string) =>
+          transaction.get(
+            db
+              .collection(collection)
+              .where("tenantId", "==", command.tenantId)
+              .where("projectId", "==", projectId),
+          );
+        const [
+          contractsSnapshot,
+          invoicesSnapshot,
+          questionnairesSnapshot,
+          schedulesSnapshot,
+          crewSnapshot,
+        ] = await Promise.all([
+          forProject("contracts"),
+          forProject("invoiceReferences"),
+          forProject("questionnaireResponses"),
+          forProject("schedules"),
+          forProject("crewAssignments"),
+        ]);
+        const newestBy = (
+          snapshot: typeof contractsSnapshot,
+          field: string,
+        ) =>
+          snapshot.docs
+            .slice()
+            .sort((left, right) =>
+              String(right.get(field) ?? "").localeCompare(
+                String(left.get(field) ?? ""),
+              ),
+            )[0];
+        const invoiceOfKind = (kind: string) =>
+          invoicesSnapshot.docs.find((document) => document.get("kind") === kind);
+        const latestSchedule = schedulesSnapshot.docs
+          .slice()
+          .sort(
+            (left, right) =>
+              Number(right.get("version") ?? 0) -
+              Number(left.get("version") ?? 0),
+          )[0];
+        const questionnaire = questionnairesSnapshot.docs[0];
+        const acceptedCrew = crewSnapshot.docs.filter(
+          (document) => document.get("status") === "accepted",
+        ).length;
+        const evidence = readinessEvidenceFromFacts({
+          contractStatus:
+            (newestBy(contractsSnapshot, "createdAt")?.get("status") as
+              | string
+              | undefined) ?? null,
+          retainerInvoiceStatus:
+            (invoiceOfKind("retainer")?.get("status") as string | undefined) ??
+            null,
+          finalInvoiceStatus:
+            (invoiceOfKind("final")?.get("status") as string | undefined) ??
+            null,
+          questionnaireStatus:
+            (questionnaire?.get("status") as string | undefined) ?? null,
+          questionnaireAnswers: questionnaire?.get("answers"),
+          scheduleStatus:
+            (latestSchedule?.get("status") as string | undefined) ?? null,
+          scheduleItems: Array.isArray(latestSchedule?.get("items"))
+            ? (latestSchedule.get("items") as Array<Record<string, unknown>>)
+            : [],
+          crewAccepted: acceptedCrew,
+          // The roles this job needs filled: every assignment offered on it.
+          // Zero means nobody was asked, which is a solo wedding.
+          crewRequired: crewSnapshot.size,
+          crewAcknowledgedSchedule: false,
+          shotListApproved: false,
+        });
         const projection = await writeReadiness(transaction, db, {
           tenantId: command.tenantId,
           projectId,
@@ -1110,6 +1278,11 @@ export const workflowCommand = onRequest(
           checkpoints,
           timestamp,
           actorId: identity.uid,
+          evidence,
+          project: {
+            state: String(projectSnapshot.get("state") ?? ""),
+            stateVersion: Number(projectSnapshot.get("stateVersion") ?? 0),
+          },
         });
         const output = {
           projectId,

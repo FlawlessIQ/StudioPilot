@@ -15,6 +15,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
+import { useReadinessEvidence } from "@/components/projects/use-readiness-evidence";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { eventDaySnapshot } from "@/features/crew/cascade";
@@ -99,8 +100,13 @@ export function EventDayCopilot({
    */
   const projectId = chosenProjectId || upcoming[0]?.id || "";
 
+  // Same evidence the job page uses, so the morning-of brief and the job page
+  // can never disagree about whether this wedding is ready.
+  const readinessEvidence = useReadinessEvidence(projectId);
   const readinessView = readinessSummary(
     (checkpoints ?? []).filter((item) => item.projectId === projectId),
+    new Date(),
+    readinessEvidence,
   );
 
   const project = projects?.find((item) => item.id === projectId);
