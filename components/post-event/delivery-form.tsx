@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { type FormEvent, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Images, ScanText, Send, Sparkles } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { splitUpcomingAndPast } from "@/features/ordering/attention";
@@ -37,7 +37,26 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
     useTenantDocuments("packageSnapshots");
   const { records: galleryInboxes } = useTenantDocuments("galleryInboxes");
   const { records: deliveryDrafts } = useTenantDocuments("deliveryDrafts");
-  const [interactive, setInteractive] = useState(false);
+  /**
+   * Whether the client has hydrated, so a submit cannot fire against handlers
+   * that are not attached yet.
+   *
+   * This used to be state set inside a `requestAnimationFrame`. Chrome does not
+   * run animation frames in a background tab, so a delivery page opened in one
+   * — cmd-clicked from Today, or restored with a session — showed a permanently
+   * disabled "Record and release delivery" with nothing saying why, until the
+   * tab was focused. The same rAF pattern was removed from the event-day
+   * copilot for the same reason; this was the other one.
+   *
+   * `useSyncExternalStore` is the hydration flag without the race: false in the
+   * server snapshot, true on the client, no effect and no frame to miss. The
+   * subscribe function is a no-op because the answer never changes again.
+   */
+  const interactive = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
   const [selectedProjectId, setSelectedProjectId] = useState(projectId ?? "");
   const [provider, setProvider] = useState("manual");
   const [galleryUrl, setGalleryUrl] = useState("");
@@ -63,11 +82,20 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
     (item) => item.projectId === selectedProjectId,
   );
 
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => setInteractive(true));
-    return () => cancelAnimationFrame(frame);
-  }, []);
-
+  /**
+   * The form is inert until the client has hydrated, so a submit cannot happen
+   * against handlers that are not attached yet.
+   *
+   * This used to wait for a `requestAnimationFrame`. Chrome does not run
+   * animation frames in a background tab, so a delivery page opened in one —
+   * cmd-clicked from Today, or restored with a session — showed a permanently
+   * disabled "Record and release delivery" with nothing saying why, until the
+   * tab was focused. The same rAF pattern was removed from the event-day
+   * copilot for the same reason; this was the other one.
+   *
+   * An effect with no dependencies runs on mount whether or not the tab is
+   * visible, which is exactly the signal wanted here.
+   */
   useEffect(() => {
     if (!tenant || studioDefaultsHydrated) return;
     const preferredReview = [

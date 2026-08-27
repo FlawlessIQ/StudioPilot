@@ -58,3 +58,17 @@ test("a refused booking attestation says what the obstacle is", () => {
     /signed agreement comes first/,
   );
 });
+
+test("a refused delivery says which step is missing", () => {
+  assert.match(
+    friendlyError(
+      new Error("PROJECT_NOT_IN_POST_PRODUCTION"),
+      "Delivery could not be recorded.",
+    ),
+    /hasn't started post-production/,
+  );
+  assert.match(
+    friendlyError(new Error("DELIVERY_URL_MUST_USE_HTTPS"), "Nope."),
+    /https:\/\//,
+  );
+});

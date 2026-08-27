@@ -40,6 +40,34 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
    * gave no hint that a standing invoice was the obstacle. A collapsed
    * message is only an improvement when the code says nothing.
    */
+  /**
+   * Delivery and closeout refusing for a reason worth reading. Same lesson as
+   * the booking codes below: the walk of 2026-08-26 pressed "Record and release
+   * delivery" on a job at Shot and read only "Delivery could not be recorded",
+   * when the code said exactly what was wrong.
+   */
+  PROJECT_NOT_IN_POST_PRODUCTION:
+    "This job hasn't started post-production yet. Move it on from the job page, then record the gallery.",
+  /**
+   * Named from the code, not from the page. The delivery page says StudioCue
+   * "checks the balance, the contract and the crew before anything reaches the
+   * couple", and the gate checks none of those — it requires the backup,
+   * editing and gallery-ready steps on the post-production record. Copy that
+   * describes the wrong check is worse than no copy.
+   */
+  DELIVERY_GATE_BLOCKED:
+    "The gallery isn't cleared for release yet. Backup, editing and gallery-ready all have to be ticked on this job's post-production checklist first.",
+  DELIVERY_URL_MUST_USE_HTTPS:
+    "The gallery link has to start with https:// so the couple's photographs are not sent over an open connection.",
+  DELIVERY_DRAFT_INVALID:
+    "Some of the gallery details didn't look right. Check the link, the access code and the dates.",
+  PROJECT_NOT_READY_FOR_CLOSEOUT:
+    "This job can't be closed out yet — the gallery, the balance or the album is still open.",
+  ALBUM_STATUS_REGRESSION:
+    "An album can't go backwards. Refresh to see where this one actually is.",
+  ALBUM_CREATIVE_AUTHORITY_REQUIRED:
+    "Only the studio owner or a lead photographer can make this album decision.",
+
   RETAINER_INVOICE_ALREADY_EXISTS:
     "A retainer invoice is already out with the client, and it stays the record of that money. Mark it paid where it was raised — recording a second payment here would give the same retainer two answers.",
   SIGNED_CONTRACT_REQUIRED:

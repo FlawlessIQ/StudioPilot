@@ -94,10 +94,39 @@ export function DeliveryCloseoutWorkspace({
             };
       const result = await sendPostEventCommand(type, input);
       const payload = record(result.result);
+      /**
+       * Name them, do not count them — and read them from the record.
+       *
+       * Two faults here. The message said "Closeout still has 6 authoritative
+       * blockers" while the record it had just written held all eight
+       * requirements with labels written for a human: "Final QuickBooks
+       * balance settled", "Review request sent", "Crew assignments closed".
+       * The reconciler knew exactly what was outstanding and the one screen
+       * whose job is reconciliation printed a number.
+       *
+       * Worse, it read the blockers from the command's response, and a second
+       * run returns none — so reconciling twice reported "complete and ready
+       * for owner approval" on a closeout whose stored status was `blocked`
+       * with six requirements unmet, and the Approve button (which needs
+       * `ready`) stayed hidden with nothing explaining the contradiction.
+       *
+       * The stored requirements are the authority, so they are what is read.
+       */
+      const unmet = list(payload.requirements ?? closeout?.requirements)
+        .map((requirement) => record(requirement))
+        .filter((requirement) => requirement.complete !== true)
+        .map(
+          (requirement) =>
+            text(requirement.label) ||
+            text(requirement.key).replaceAll("_", " "),
+        )
+        .filter(Boolean);
+      const stillBlocked =
+        unmet.length > 0 || text(payload.status) === "blocked";
       setNotice(
         type === "prepareCloseout"
-          ? list(payload.blockers).length
-            ? `Closeout still has ${list(payload.blockers).length} authoritative blockers.`
+          ? stillBlocked
+            ? `Still outstanding: ${unmet.join(", ")}.`
             : "Closeout evidence is complete and ready for owner approval."
           : type === "closeProject"
             ? "Project closed and the summary was queued."
