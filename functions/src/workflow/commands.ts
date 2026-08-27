@@ -16,6 +16,7 @@ import {
   readinessEvidenceFromFacts,
   type ReadinessEvidence,
 } from "./checkpoint-evidence.js";
+import { loadReadinessEvidence } from "./readiness-evidence-loader.js";
 
 type CheckpointStatus =
   | "not_started"
@@ -605,6 +606,30 @@ export const workflowCommand = onRequest(
     const correlationId = request.header("x-correlation-id") ?? randomUUID();
     const userAgent = request.header("user-agent") ?? null;
 
+    /**
+     * What this project's records already prove, read before the transaction.
+     *
+     * `resolveCheckpoint` needs it twice inside — for the dependency gate and
+     * for the score it writes — and a transaction must finish its reads before
+     * its writes, so it is loaded here. One extra read of the checkpoint row to
+     * learn which project this is; the row is read again inside the transaction,
+     * where it is the row being mutated.
+     */
+    let checkpointEvidence: ReadinessEvidence = noReadinessEvidence;
+    if (command.type === "resolveCheckpoint") {
+      const target = await db
+        .doc(`checkpoints/${command.input.checkpointId}`)
+        .get();
+      const projectId = target.get("projectId");
+      if (target.get("tenantId") === command.tenantId && projectId) {
+        checkpointEvidence = await loadReadinessEvidence(
+          db,
+          command.tenantId,
+          String(projectId),
+        );
+      }
+    }
+
     try {
       const result = await db.runTransaction(async (transaction) => {
         const execution = await transaction.get(executionReference);
@@ -980,11 +1005,23 @@ export const workflowCommand = onRequest(
           const dependencies = checkpoint.dependencyIds.map((id) =>
             allCheckpoints.find((candidate) => candidate.id === id),
           );
+          /**
+           * The records count here, exactly as they count when scoring.
+           *
+           * Omitting the evidence made this gate disagree with the meter above
+           * it: readiness counted "Retainer paid" satisfied from the paid
+           * invoice, while this read the checkpoint document — which automation
+           * never writes — saw `not_started`, and refused. On the starter
+           * wedding template every checkpoint depends on the one before it, so
+           * a single record-satisfied step made all the rest unresolvable by
+           * hand. See ./readiness-evidence-loader.ts.
+           */
           if (
             command.input.resolution === "complete" &&
             dependencies.some(
               (dependency) =>
-                !dependency || !checkpointSatisfied(dependency, timestamp),
+                !dependency ||
+                !checkpointSatisfied(dependency, timestamp, checkpointEvidence),
             )
           ) {
             throw new Error("DEPENDENCIES_INCOMPLETE");
@@ -1017,7 +1054,9 @@ export const workflowCommand = onRequest(
           );
           const satisfiedIds = new Set(
             projected
-              .filter((candidate) => checkpointSatisfied(candidate, timestamp))
+              .filter((candidate) =>
+                checkpointSatisfied(candidate, timestamp, checkpointEvidence),
+              )
               .map((candidate) => candidate.id),
           );
           const unlocked = projected.map((candidate) => {
@@ -1052,6 +1091,7 @@ export const workflowCommand = onRequest(
             checkpoints: unlocked,
             timestamp,
             actorId: identity.uid,
+            evidence: checkpointEvidence,
           });
           const auditId = randomUUID();
           transaction.create(

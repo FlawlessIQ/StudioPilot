@@ -12242,3 +12242,10 @@ form:has(> .address-field) > .address-field,
 
 /* Comfortably tappable, because this is reached one-handed at an event. */
 .legal-page .reply-form .ds-btn { min-height: 46px; padding-inline: 22px; }
+
+/* Manual run of show: the path that needs no AI. See
+   features/planning/manual-run-of-show.ts. */
+.schedule-generate-actions{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
+.schedule-generator-form .schedule-generate-actions{grid-column:1/-1;justify-self:start}
+.schedule-add-item{justify-self:start;margin-top:13px}
+.schedule-draft-items article .schedule-item-remove{grid-column:1/-1;justify-self:start;min-height:30px;padding:0 10px;font-size:11.5px}

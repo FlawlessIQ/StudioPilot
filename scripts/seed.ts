@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import { starterTemplates } from "../features/workflows/starter-templates";
 
 if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS !== "true") {
   throw new Error("Seed is restricted to Firebase emulator mode.");
@@ -91,91 +92,32 @@ const audit = {
   archivedAt: null,
 };
 
-const weddingCheckpointTemplates = [
-  ["contract-completed", "Contract completed", "Booking", "client", -120, "contract_completed"],
-  ["retainer-paid", "Retainer paid", "Booking", "client", -120, "invoice_paid"],
-  ["questionnaire-complete", "Questionnaire complete", "Planning", "client", -45, "form_submitted"],
-  ["venue-confirmed", "Venue confirmed", "Planning", "studio", -30, "manual"],
-  ["primary-contacts", "Primary contacts confirmed", "Planning", "studio", -30, "manual"],
-  ["coi-approved", "COI approved and sent", "Insurance", "studio", -21, "manual"],
-  ["schedule-approved", "Final run of show approved", "Schedule", "client", -14, "schedule_approved"],
-  ["final-balance", "Final balance paid", "Payments", "client", -14, "invoice_paid"],
-  ["crew-accepted", "Required crew accepted", "Crew", "subcontractor", -14, "assignment_accepted"],
-  ["crew-acknowledged", "Crew acknowledged current schedule", "Crew", "subcontractor", -7, "assignment_accepted"],
-  ["locations-confirmed", "Locations confirmed", "Logistics", "studio", -14, "manual"],
-  ["travel-confirmed", "Travel requirements confirmed", "Logistics", "studio", -14, "manual"],
-  ["shot-list-approved", "Shot list approved", "Planning", "client", -14, "form_submitted"],
-] as const;
-
-const checkpointTemplate = (
-  definition: (typeof weddingCheckpointTemplates)[number],
-  dependencies: string[] = [],
-) => ({
-  key: definition[0],
-  name: definition[1],
-  description: `${definition[1]} must be verified before event readiness.`,
-  category: definition[2],
-  ownerType: definition[3],
-  assignedUserId: null,
-  assignedContactId: null,
-  dueDateRule: {
-    type: "relative",
-    anchor: "event_date",
-    offsetDays: definition[4],
-  },
-  visibility:
-    definition[3] === "client"
-      ? "shared"
-      : definition[3] === "subcontractor"
-        ? "crew"
-        : "studio",
-  blocking: true,
-  dependencies,
-  completionMethod: definition[5],
-  requiredEvidence:
-    definition[5] === "manual" ? ["studio approval"] : ["provider evidence"],
-  reminderRules: [
-    {
-      daysBeforeDue: 7,
-      channel: "email",
-      recipient: definition[3],
-    },
-  ],
-  escalationRules: [{ daysOverdue: 1, notifyRole: "studio_admin" }],
-  waiverAllowed: true,
-});
-
-const weddingTemplates = weddingCheckpointTemplates.map((definition, index) =>
-  checkpointTemplate(
-    definition,
-    index === 0 ? [] : [weddingCheckpointTemplates[index - 1]?.[0] ?? ""],
-  ),
-);
-const corporateTemplates = weddingTemplates
-  .filter((template) =>
-    [
-      "contract-completed",
-      "questionnaire-complete",
-      "primary-contacts",
-      "schedule-approved",
-      "crew-accepted",
-      "locations-confirmed",
-      "shot-list-approved",
-    ].includes(template.key),
-  )
-  .map((template) => ({ ...template, dependencies: [] }));
-const sportsTemplates = weddingTemplates
-  .filter((template) =>
-    [
-      "contract-completed",
-      "primary-contacts",
-      "schedule-approved",
-      "crew-accepted",
-      "locations-confirmed",
-      "shot-list-approved",
-    ].includes(template.key),
-  )
-  .map((template) => ({ ...template, dependencies: [] }));
+/**
+ * The demo studio gets the templates the product ships, not its own.
+ *
+ * These thirteen definitions used to live here in full, and `features/
+ * workflows/starter-templates.ts` was lifted out of them so that a real new
+ * tenant would get the same thing. Then the two drifted: `shot-list-approved`
+ * was dropped from the shipped templates because no shot list exists anywhere
+ * in the product — `form_submitted` with no form to submit, a blocking
+ * checkpoint no record could satisfy — and this copy kept seeding it. Every
+ * seeded wedding was held below 100% readiness by a row nothing could finish.
+ *
+ * So the seed imports rather than restates. The demo now demonstrates the
+ * product's own defaults, and a change to the starter templates cannot leave
+ * the demo behind.
+ */
+const starters = starterTemplates();
+const templateFor = (eventTypeId: string) => {
+  const template = starters.find(
+    (candidate) => candidate.eventTypeId === eventTypeId,
+  );
+  if (!template) throw new Error(`No starter template for ${eventTypeId}`);
+  return template.checkpointTemplates;
+};
+const weddingTemplates = templateFor("wedding");
+const corporateTemplates = templateFor("corporate");
+const sportsTemplates = templateFor("sports");
 
 const bookingAutomation = {
   key: "booking-completed",
@@ -766,14 +708,105 @@ batch.set(firestore.doc("auditEvents/demo-workflow-instantiated"), {
   providerEventId: null,
 });
 
+/**
+ * A questionnaire the couple can actually fill in.
+ *
+ * This used to be six section *names* — `sections: ["Couple details",
+ * "Venue", ...]` — against a schema that wants
+ * `{ id, title, fields[] }`, with `eventType` where `eventTypeId` belongs and
+ * no `status` at all. The library rendered it honestly as "0 fields · draft",
+ * so the one template in the demo could not be sent, and the readiness
+ * checkpoint it feeds ("Questionnaire complete") had no way to ever be
+ * satisfied. Readiness evidence reads the *answers*, not the status, so an
+ * empty form submitted would not have counted either.
+ *
+ * Six sections, twenty fields, in the order a couple thinks about their day.
+ */
+const questionnaireField = (
+  id: string,
+  label: string,
+  type: string,
+  required = true,
+  options: string[] = [],
+) => ({
+  id,
+  label,
+  type,
+  required,
+  locked: false,
+  internalOnly: false,
+  options,
+  conditionalOn: null,
+});
+
 batch.set(firestore.doc("questionnaireTemplates/wedding-planning-v1"), {
   ...audit,
   id: "wedding-planning-v1",
   tenantId,
   name: "Wedding Planning Questionnaire",
-  eventType: "Wedding",
+  eventTypeId: "wedding",
   version: 1,
-  sections: ["Couple details", "Venue", "Vendors", "Family photos", "Timeline", "Accessibility"],
+  status: "active",
+  dueDaysBeforeEvent: 45,
+  reminderDaysBeforeDue: [14, 3],
+  sections: [
+    {
+      id: "couple",
+      title: "Couple details",
+      fields: [
+        questionnaireField("partner-one", "First partner's full name", "text"),
+        questionnaireField("partner-two", "Second partner's full name", "text"),
+        questionnaireField("day-of-contact", "Who should we call on the day?", "contact"),
+        questionnaireField("preferred-email", "Best email for the gallery", "email"),
+      ],
+    },
+    {
+      id: "venue",
+      title: "Venue and getting ready",
+      fields: [
+        questionnaireField("ceremony-address", "Ceremony address", "address"),
+        questionnaireField("reception-address", "Reception address", "address"),
+        questionnaireField("getting-ready", "Where are you getting ready?", "long_text", false),
+        questionnaireField("first-look", "Are you planning a first look?", "radio", true, ["Yes", "No", "Undecided"]),
+      ],
+    },
+    {
+      id: "vendors",
+      title: "Other vendors",
+      fields: [
+        questionnaireField("planner", "Planner or coordinator", "text", false),
+        questionnaireField("videographer", "Videographer", "text", false),
+        questionnaireField("florist", "Florist", "text", false),
+      ],
+    },
+    {
+      id: "family",
+      title: "Family photographs",
+      fields: [
+        questionnaireField("must-have-groups", "Groups we must photograph", "repeating_group"),
+        questionnaireField("sensitivities", "Anything we should handle carefully", "long_text", false),
+      ],
+    },
+    {
+      id: "timeline",
+      title: "Timeline",
+      fields: [
+        questionnaireField("ceremony-time", "Ceremony start time", "time"),
+        questionnaireField("sunset-priority", "How important are sunset portraits?", "dropdown", true, ["Essential", "Nice to have", "Not a priority"]),
+        questionnaireField("end-time", "When does coverage end?", "time"),
+      ],
+    },
+    {
+      id: "access",
+      title: "Access and consent",
+      fields: [
+        questionnaireField("accessibility", "Accessibility needs for our team to know about", "long_text", false),
+        questionnaireField("restrictions", "Any photography restrictions at the venue?", "long_text", false),
+        questionnaireField("social-consent", "May we share images on social media?", "acknowledgement"),
+        questionnaireField("guest-count", "Expected guest count", "text"),
+      ],
+    },
+  ],
 });
 
 batch.set(firestore.doc("schedules/wedding-booked-v3"), {

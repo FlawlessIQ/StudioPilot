@@ -27,7 +27,7 @@ import {
   writeReadiness,
   type CheckpointDocument,
 } from "./commands.js";
-import { readinessEvidenceFromFacts } from "./checkpoint-evidence.js";
+import { loadReadinessEvidence } from "./readiness-evidence-loader.js";
 
 const REGION = "us-east4";
 
@@ -51,34 +51,14 @@ export async function reconcileProjectReadiness(
 ): Promise<{ changed: boolean; score: number; state: string } | null> {
   if (!tenantId || !projectId) return null;
 
-  const forProject = (collection: string) =>
-    db
-      .collection(collection)
-      .where("tenantId", "==", tenantId)
-      .where("projectId", "==", projectId)
-      .get();
-
-  const [
-    checkpointsSnapshot,
-    contracts,
-    invoices,
-    questionnaires,
-    schedules,
-    crew,
-    insurance,
-  ] = await Promise.all([
+  const [checkpointsSnapshot, evidence] = await Promise.all([
     db
       .collection("checkpoints")
       .where("tenantId", "==", tenantId)
       .where("projectId", "==", projectId)
       .where("archivedAt", "==", null)
       .get(),
-    forProject("contracts"),
-    forProject("invoiceReferences"),
-    forProject("questionnaireResponses"),
-    forProject("schedules"),
-    forProject("crewAssignments"),
-    forProject("insuranceRequests"),
+    loadReadinessEvidence(db, tenantId, projectId),
   ]);
 
   // Nothing required means nothing to say — a job before planning is not a
@@ -88,56 +68,6 @@ export async function reconcileProjectReadiness(
       ({ id: document.id, ...document.data() }) as CheckpointDocument,
   );
   if (!checkpoints.some((checkpoint) => checkpoint.blocking)) return null;
-
-  const newestContract = contracts.docs
-    .slice()
-    .sort((left, right) =>
-      text(right.get("createdAt")).localeCompare(text(left.get("createdAt"))),
-    )[0];
-  const invoiceOfKind = (kind: string) =>
-    invoices.docs.find((document) => document.get("kind") === kind);
-  const latestSchedule = schedules.docs
-    .slice()
-    .sort(
-      (left, right) =>
-        Number(right.get("version") ?? 0) - Number(left.get("version") ?? 0),
-    )[0];
-  const questionnaire = questionnaires.docs[0];
-
-  const evidence = readinessEvidenceFromFacts({
-    contractStatus: text(newestContract?.get("status")) || null,
-    retainerInvoiceStatus: text(invoiceOfKind("retainer")?.get("status")) || null,
-    finalInvoiceStatus: text(invoiceOfKind("final")?.get("status")) || null,
-    questionnaireStatus: text(questionnaire?.get("status")) || null,
-    questionnaireAnswers: questionnaire?.get("answers"),
-    scheduleStatus: text(latestSchedule?.get("status")) || null,
-    scheduleItems: Array.isArray(latestSchedule?.get("items"))
-      ? (latestSchedule.get("items") as Array<Record<string, unknown>>)
-      : [],
-    crewAccepted: crew.docs.filter(
-      (document) => document.get("status") === "accepted",
-    ).length,
-    // The roles this job needs filled: every assignment offered on it. Zero
-    // means nobody was asked, which is a solo wedding.
-    crewRequired: crew.size,
-    // Against the current version, not merely "has acknowledged something".
-    crewAcknowledgedCurrent: crew.docs.filter(
-      (document) =>
-        Number(document.get("acknowledgedScheduleVersion") ?? -1) ===
-        Number(latestSchedule?.get("version") ?? 0),
-    ).length,
-    coiStatus:
-      text(
-        insurance.docs
-          .slice()
-          .sort((left, right) =>
-            text(right.get("createdAt")).localeCompare(
-              text(left.get("createdAt")),
-            ),
-          )[0]
-          ?.get("status"),
-      ) || null,
-  });
 
   const timestamp = new Date().toISOString();
   const projectReference = db.doc(`projects/${projectId}`);
@@ -228,3 +158,39 @@ export const readinessOnCrewAssignmentWritten =
  */
 export const readinessOnInsuranceRequestWritten =
   readinessTriggerFor("insuranceRequests");
+
+/**
+ * The occasion that was missing: the project entering preparation.
+ *
+ * Every other trigger here watches a *record* readiness reads. But a job can
+ * reach 100% while it is still BOOKED — the walk of 2026-08-27 drove one to
+ * 12/12 a year before the wedding — and then move to PLANNING by hand. At that
+ * moment nothing readiness watches changes, so `PLANNING → READY` never fired
+ * and the job sat at "100% · nothing blocking · Planning" indefinitely, with no
+ * button anywhere that could finish it.
+ *
+ * Deliberately narrow, because this is the one trigger that watches the
+ * collection the reconciler writes:
+ *
+ *   - only when the state actually changed, so a readiness-score write cannot
+ *     re-enter, and
+ *   - only when the new state is PLANNING, so the reconciler's own
+ *     `PLANNING → READY` write terminates on the next delivery.
+ */
+export const readinessOnProjectPlanning = onDocumentWritten(
+  { document: "projects/{projectId}", region: REGION },
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!after) return;
+    if (text(before?.state) === text(after.state)) return;
+    if (text(after.state) !== "PLANNING") return;
+    const where = target(after);
+    if (!where) return;
+    await reconcileProjectReadiness(
+      getFirestore(),
+      where.tenantId,
+      where.projectId,
+    );
+  },
+);

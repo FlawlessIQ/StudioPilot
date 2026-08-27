@@ -56,6 +56,7 @@ export function useProjectJourney({
   const questionnaires = useTenantDocuments("questionnaireResponses");
   const schedules = useTenantDocuments("schedules");
   const crewAssignments = useTenantDocuments("crewAssignments");
+  const checkpoints = useTenantDocuments("checkpoints");
   const crewCascades = useTenantDocuments("crewCascades");
   const insuranceRequests = useTenantDocuments("insuranceRequests");
   const deliveries = useTenantDocuments("deliveryRecords");
@@ -132,6 +133,12 @@ export function useProjectJourney({
     crewAccepted: forProject(crewAssignments.records).filter(
       (assignment) => assignment.status === "accepted",
     ).length,
+    // Every role offered on this job. Zero means solo — see JourneyInput.
+    crewRequired: forProject(crewAssignments.records).length,
+    settledCheckpointKeys: forProject(checkpoints.records)
+      .filter((checkpoint) => ["complete", "waived"].includes(text(checkpoint.status)))
+      .map((checkpoint) => text(checkpoint.templateKey))
+      .filter(Boolean),
     crewCascadeActive: forProject(crewCascades.records).some(
       (cascade) => cascade.status === "active",
     ),

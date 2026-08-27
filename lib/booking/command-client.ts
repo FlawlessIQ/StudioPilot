@@ -184,3 +184,35 @@ export async function recordRetainerPayment(input: {
     },
   });
 }
+
+/**
+ * Recording a final balance taken outside StudioCue.
+ *
+ * The same contract as `recordRetainerPayment`, and for the same reason: the
+ * amount is read server-side from the accepted proposal's payment schedule, so
+ * "the balance was paid" cannot come to mean a figure the browser chose. The
+ * difference is when it applies — any time from the booking onward, because a
+ * couple can settle up long before the final invoice would be raised.
+ */
+export async function recordFinalPayment(input: {
+  projectId: string;
+  packageSnapshotId: string;
+  paidAt: string;
+  method: string;
+  reference: string | null;
+}) {
+  const endpoint = process.env.NEXT_PUBLIC_BOOKING_FUNCTIONS_URL;
+  if (!endpoint) return { mode: "preview" as const };
+  return sendBookingCommand({
+    type: "recordFinalPayment",
+    idempotencyKey: crypto.randomUUID(),
+    input: {
+      projectId: input.projectId,
+      packageSnapshotId: input.packageSnapshotId,
+      paidAt: input.paidAt,
+      method: input.method,
+      reference: input.reference,
+      attestation: true,
+    },
+  });
+}

@@ -9,7 +9,10 @@ import {
   Send,
   Trash2,
 } from "lucide-react";
-import { useTenantDocuments } from "@/components/live/tenant-records";
+import {
+  refreshTenantRecords,
+  useTenantDocuments,
+} from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
@@ -70,6 +73,7 @@ export function QuestionnaireBuilder({
   const { records: projects } = useTenantDocuments("projects");
   const { records: templates } = useTenantDocuments("questionnaireTemplates");
   const [mode, setMode] = useState<"create" | "assign">(defaultMode);
+  const [assignProjectId, setAssignProjectId] = useState(defaultProjectId ?? "");
   const [fields, setFields] = useState<FieldRow[]>(startingFields);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -136,6 +140,7 @@ export function QuestionnaireBuilder({
         reminderDaysBeforeDue: [7, 3, 1],
       });
       setNotice("Questionnaire template saved.");
+      refreshTenantRecords("questionnaireTemplates");
       element.reset();
       setFields(startingFields);
     } catch (caught: unknown) {
@@ -158,6 +163,10 @@ export function QuestionnaireBuilder({
       });
       setNotice("Questionnaire assigned. Its due date was calculated from the project date.");
       element.reset();
+      // The panel above this form lists what is assigned, and without this it
+      // kept reading "No questionnaires assigned" directly under a notice
+      // saying the opposite.
+      refreshTenantRecords("questionnaireResponses", "checkpoints");
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "Questionnaire could not be assigned."));
     } finally {
@@ -246,7 +255,17 @@ export function QuestionnaireBuilder({
         </form>
       ) : (
         <form className="questionnaire-assign-form" onSubmit={(event) => void assign(event)}>
-          <label>Project <span className="required-mark">Required</span><select defaultValue={defaultProjectId ?? ""} name="projectId" required><option value="">Select project</option>{projects?.map((project) => <option key={project.id} value={project.id}>{String(project.name)}</option>)}</select></label>
+          {/**
+            * Controlled, not `defaultValue`.
+            *
+            * `defaultValue` applies once, at mount, and the project options
+            * arrive from a live query a moment later — so a photographer who
+            * followed "Send the questionnaire" from their job's readiness list
+            * landed on a form reading "Select project", and had to find their
+            * own wedding again in a list of eleven. A controlled select is
+            * blank until its options load and then shows the right one.
+            */}
+          <label>Project <span className="required-mark">Required</span><select name="projectId" onChange={(event) => setAssignProjectId(event.target.value)} required value={assignProjectId}><option value="">Select project</option>{projects?.map((project) => <option key={project.id} value={project.id}>{String(project.name)}</option>)}</select></label>
           <label>Template <span className="required-mark">Required</span><select name="templateId" required><option value="">Select template</option>{templates?.filter((template) => template.status === "active").map((template) => <option key={template.id} value={template.id}>{String(template.name)}</option>)}</select></label>
           <button className="button button-dark" disabled={busy} type="submit"><Send size={16} /> {busy ? "Assigning…" : "Assign questionnaire"}</button>
         </form>

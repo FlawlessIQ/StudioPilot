@@ -43,6 +43,7 @@ import {
 import {
   demoTenantDocuments,
   useTenantDocuments,
+  useTenantRecordsGeneration,
 } from "@/components/live/tenant-records";
 
 type Value = Record<string, unknown> & { id: string };
@@ -470,6 +471,7 @@ export function LiveDomainView({
   projectId?: string;
 }) {
   const workspace = useWorkspace();
+  const recordsGeneration = useTenantRecordsGeneration();
   const config = configurations[domain];
   const demoRecords = useMemo(
     () => demoTenantDocuments(config.collection).filter((record) => {
@@ -626,6 +628,11 @@ export function LiveDomainView({
     attempt,
     demoRecords,
     projectId,
+    // Re-read when a command says the records changed. This view fetches
+    // independently of the tenant-records cache, so without this it kept
+    // showing "No questionnaires assigned" under a notice saying one had just
+    // been assigned. See useTenantRecordsGeneration.
+    recordsGeneration,
     workspace.loading,
     workspace.projectIds,
     workspace.role,

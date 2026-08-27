@@ -18,6 +18,19 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "Something about this request didn't look right. Refresh and try again.",
   INVALID_COVERAGE_RANGE: "Coverage must end after it starts.",
   FORBIDDEN: "You don't have permission to do this for the selected project.",
+  // The inquiry already became a job. Say which way is forward.
+  BALANCE_ATTESTATION_PERMISSION_REQUIRED:
+    "Only a studio owner or admin can record a payment taken outside StudioCue.",
+  BALANCE_NOT_READY:
+    "This job is not at a stage where a balance can be recorded — it has to be booked first.",
+  BALANCE_AMOUNT_NOT_FOUND:
+    "We couldn't work out the balance from the accepted proposal. Check the payment schedule on it.",
+  FINAL_INVOICE_NOT_FOUND:
+    "The balance invoice we were about to settle has gone. Reconcile the closeout and try again.",
+  LEAD_NOT_CONVERTIBLE:
+    "This inquiry has already been converted — open the job it became.",
+  CLIENT_NOT_FOUND:
+    "We couldn't find the client record for this inquiry. Add the client, then convert.",
   METHOD_NOT_ALLOWED: "Something about this request didn't look right. Refresh and try again.",
   FUNCTION_ACCESS_DENIED:
     "The studio server refused this request — usually a deploy still settling. Try again in a minute; if it keeps happening, contact support.",

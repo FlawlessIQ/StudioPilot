@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, CircleAlert, Clock, LoaderCircle } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, CheckCircle2, CircleAlert, Clock, LoaderCircle } from "lucide-react";
 import {
   refreshTenantRecords,
   useTenantDocuments,
@@ -11,6 +12,8 @@ import { runWorkflowCommand } from "@/lib/workflows/command-client";
 import {
   checkpointIsResolvable,
   checkpointIsSettled,
+  checkpointIsWaivable,
+  checkpointRecordSource,
   checkpointReasonIsUsable,
   checkpointWaitingReason,
   MINIMUM_CHECKPOINT_REASON,
@@ -65,6 +68,7 @@ export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
       status: text(item.status),
       blocking: item.blocking === true,
       completionMethod: text(item.completionMethod),
+      waiverAllowed: item.waiverAllowed === true,
       templateKey: text(item.templateKey),
       ownerType: text(item.ownerType),
       dueDate: text(item.resolvedDueDate) || null,
@@ -151,7 +155,14 @@ export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
         {rows.map((row) => {
           const settled = row.settled;
           const resolvable = !settled && checkpointIsResolvable(row);
-          const waiting = settled ? null : checkpointWaitingReason(row);
+          // Waivable is the wider set: anything the template allows waiving,
+          // including the record-backed rows. Without it a checkpoint whose
+          // evidence never arrives holds the job below 100% with nothing on
+          // the row to do about it.
+          const waivable = !settled && checkpointIsWaivable(row);
+          const waiting = settled || resolvable ? null : checkpointWaitingReason(row);
+          // The sentence says what it waits on; this says where to start it.
+          const source = waiting ? checkpointRecordSource(row.templateKey) : null;
           return (
             <li
               className={
@@ -176,29 +187,49 @@ export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
                   {row.dueDate ? `Due ${formatDueDate(row.dueDate)}` : null}
                   {!row.dueDate && row.status !== "waived" ? "No due date" : null}
                 </small>
-                {waiting ? <em>{waiting}</em> : null}
-              </span>
-              {resolvable ? (
-                <span className="readiness-checkpoint-actions">
-                  <button
-                    className="button"
-                    disabled={busy !== null}
-                    onClick={() => setOpen({ id: row.id, resolution: "complete" })}
-                    type="button"
-                  >
-                    {busy === row.id ? (
-                      <LoaderCircle className="spin" size={14} />
+                {waiting ? (
+                  <em>
+                    {waiting}
+                    {source ? (
+                      <Link href={`${source.path}?project=${projectId}`}>
+                        {source.label} <ArrowRight aria-hidden="true" size={12} />
+                      </Link>
                     ) : null}
-                    Mark done
-                  </button>
-                  <button
-                    className="button button-quiet"
-                    disabled={busy !== null}
-                    onClick={() => setOpen({ id: row.id, resolution: "waived" })}
-                    type="button"
-                  >
-                    Waive
-                  </button>
+                  </em>
+                ) : null}
+              </span>
+              {resolvable || waivable ? (
+                <span className="readiness-checkpoint-actions">
+                  {resolvable ? (
+                    <button
+                      className="button"
+                      disabled={busy !== null}
+                      onClick={() =>
+                        setOpen({ id: row.id, resolution: "complete" })
+                      }
+                      type="button"
+                    >
+                      {busy === row.id ? (
+                        <LoaderCircle className="spin" size={14} />
+                      ) : null}
+                      Mark done
+                    </button>
+                  ) : null}
+                  {waivable ? (
+                    <button
+                      className={resolvable ? "button button-quiet" : "button"}
+                      disabled={busy !== null}
+                      onClick={() =>
+                        setOpen({ id: row.id, resolution: "waived" })
+                      }
+                      type="button"
+                    >
+                      {busy === row.id && !resolvable ? (
+                        <LoaderCircle className="spin" size={14} />
+                      ) : null}
+                      Waive
+                    </button>
+                  ) : null}
                 </span>
               ) : null}
               {open?.id === row.id ? (

@@ -5,8 +5,10 @@ import {
   AlertTriangle,
   CalendarClock,
   CheckCircle2,
+  ListPlus,
   LoaderCircle,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -15,6 +17,11 @@ import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import {
+  manualScheduleBlockers,
+  manualScheduleItem,
+  nextItemStart,
+} from "@/features/planning/manual-run-of-show";
 
 type ScheduleItem = {
   id: string;
@@ -353,6 +360,8 @@ export function AiScheduleGenerator({
     }
   }
 
+  const publishBlockers = draft ? manualScheduleBlockers(draft.items) : [];
+
   async function publish() {
     if (!draft) return;
     setPublishing(true);
@@ -374,6 +383,66 @@ export function AiScheduleGenerator({
     } finally {
       setPublishing(false);
     }
+  }
+
+  /**
+   * An empty draft the studio fills in themselves.
+   *
+   * Shaped exactly like a generated one so the review screen below is reused
+   * as-is. The trace counts are zero and the assumption count is zero because
+   * nothing was inferred — a hand-built schedule has no sources to cite, and
+   * claiming otherwise would be the one thing this product must not do.
+   */
+  function startManualDraft() {
+    const start = nextItemStart([], coverageStartsAt || null);
+    setFailed(false);
+    setNotice(
+      "Empty run of show started. Add each item, then publish it as a version.",
+    );
+    setDraft({
+      items: [manualScheduleItem(crypto.randomUUID(), start) as ScheduleItem],
+      assumptions: [],
+      missingInformation: [],
+      conflicts: [],
+      risks: [],
+      suggestedQuestions: [],
+      interactionId: `manual_${crypto.randomUUID()}`,
+      humanReviewRequired: true,
+      sourceTrace: {
+        questionnaireCount: 0,
+        timingRuleCount: 0,
+        crewFactCount: 0,
+        assumptionItemCount: 0,
+      },
+    });
+  }
+
+  function addItem() {
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            items: [
+              ...current.items,
+              manualScheduleItem(
+                crypto.randomUUID(),
+                nextItemStart(current.items, coverageStartsAt || null),
+              ) as ScheduleItem,
+            ],
+          }
+        : current,
+    );
+  }
+
+  function removeItem(index: number) {
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            items: current.items.filter((_, itemIndex) => itemIndex !== index),
+          }
+        : current,
+    );
   }
 
   function updateItem(index: number, patch: Partial<ScheduleItem>) {
@@ -493,14 +562,36 @@ export function AiScheduleGenerator({
               </span>
             </div>
           ) : null}
-          <button className="button button-dark" disabled={busy} type="submit">
-            {busy ? <LoaderCircle className="spin" /> : <Sparkles />}
-            {busy
-              ? "Generating…"
-              : selectedSchedule
-                ? "Prepare updated draft"
-                : "Generate draft"}
-          </button>
+          <div className="schedule-generate-actions">
+            <button className="button button-dark" disabled={busy} type="submit">
+              {busy ? <LoaderCircle className="spin" /> : <Sparkles />}
+              {busy
+                ? "Generating…"
+                : selectedSchedule
+                  ? "Prepare updated draft"
+                  : "Generate draft"}
+            </button>
+            {/**
+              * The path that does not need AI.
+              *
+              * `publishSchedule` never cared where the items came from, but
+              * generation was their only source — so a workspace with AI off
+              * ("AI drafting isn't switched on for this workspace yet") could
+              * not produce a run of show at all, and "Final run of show
+              * approved" is a blocking readiness checkpoint. This starts an
+              * empty draft and hands it to the same review-and-publish screen.
+              */}
+            {draft ? null : (
+              <button
+                className="button button-light"
+                disabled={busy}
+                onClick={startManualDraft}
+                type="button"
+              >
+                <ListPlus /> Build it myself
+              </button>
+            )}
+          </div>
         </form>
       </section>
       {notice ? (
@@ -558,7 +649,20 @@ export function AiScheduleGenerator({
                 <input aria-label="Start time" type="datetime-local" value={item.startAt.slice(0, 16)} onChange={(event) => updateItem(index, { startAt: new Date(event.target.value).toISOString() })} />
                 <input aria-label="End time" type="datetime-local" value={item.endAt.slice(0, 16)} onChange={(event) => updateItem(index, { endAt: new Date(event.target.value).toISOString() })} />
                 <input aria-label="Location" value={item.location ?? ""} onChange={(event) => updateItem(index, { location: event.target.value || null })} />
-                <small>{item.blockingIssues.join(" · ") || "No model-reported issue"}</small>
+                <small>
+                  {item.blockingIssues.join(" · ") ||
+                    (item.sourceReferences.length
+                      ? "No model-reported issue"
+                      : "Yours, not the model's")}
+                </small>
+                <button
+                  aria-label={`Remove item ${index + 1}`}
+                  className="button button-quiet schedule-item-remove"
+                  onClick={() => removeItem(index)}
+                  type="button"
+                >
+                  <Trash2 size={14} /> Remove
+                </button>
                 <div className="schedule-item-sources">
                   {item.sourceReferences.map((source) => (
                     <span
@@ -573,14 +677,31 @@ export function AiScheduleGenerator({
                 </div>
               </article>
             ))}
+            <button
+              className="button button-light schedule-add-item"
+              onClick={addItem}
+              type="button"
+            >
+              <ListPlus size={15} /> Add an item
+            </button>
           </section>
           <div className="human-boundary">
             <CheckCircle2 />
             <span>
               <strong>Publishing is the human approval boundary.</strong>
-              <small>A new immutable version will reset current crew acknowledgements.</small>
+              <small>
+                {/* Say what is wrong rather than letting the command refuse. */}
+                {publishBlockers.length
+                  ? publishBlockers.join(" ")
+                  : "A new immutable version will reset current crew acknowledgements."}
+              </small>
             </span>
-            <button className="button button-dark" disabled={publishing} type="button" onClick={() => void publish()}>
+            <button
+              className="button button-dark"
+              disabled={publishing || publishBlockers.length > 0}
+              onClick={() => void publish()}
+              type="button"
+            >
               {publishing ? "Publishing…" : "Publish reviewed schedule"}
             </button>
           </div>

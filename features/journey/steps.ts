@@ -106,8 +106,28 @@ export type JourneyInput = {
    */
   scheduleHasUsableItems: boolean;
   crewAccepted: number;
+  /**
+   * How many crew roles this job asked for at all: every assignment offered on
+   * it. Zero means nobody was asked, which is a solo wedding, not an unmet
+   * step — the same reading the readiness engine takes (see
+   * features/readiness/checkpoint-evidence.ts). Without it "Crew confirmed"
+   * could never tick for a photographer shooting alone, and the job page
+   * showed "100% ready — nothing blocking" directly above "Crew confirmed ✗".
+   */
+  crewRequired?: number;
   crewCascadeActive: boolean;
   coiStatus: string | null;
+  /**
+   * Readiness checkpoints the studio has already settled by hand, by template
+   * key — `complete` and `waived` both count.
+   *
+   * A waiver is a recorded decision with a reason in the audit log, and
+   * readiness treats it as satisfied. The journey did not read it at all, so a
+   * job at 12/12 with a waived certificate still showed "Insurance to venue"
+   * outstanding and pointed the photographer at a request they had already
+   * decided not to make.
+   */
+  settledCheckpointKeys?: readonly string[];
   dayBeforeDraftStatus: string | null;
   hasDelivery: boolean;
   albumOrReviewDone: boolean;
@@ -410,12 +430,26 @@ export function projectJourney(input: JourneyInput): {
         },
   });
 
-  const crewDone = input.crewAccepted > 0;
+  // Both optional: a caller that does not know about checkpoints or crew
+  // demand must not have its journey change shape. Absent `crewRequired`
+  // means "no opinion", which is not the same as "solo".
+  const settled = (key: string) =>
+    (input.settledCheckpointKeys ?? []).includes(key);
+  const shootingSolo = input.crewRequired === 0 && input.crewAccepted === 0;
+  const crewDone =
+    input.crewAccepted > 0 ||
+    shootingSolo ||
+    settled("crew-accepted") ||
+    settled("crew-acknowledged");
   push({
     key: "crew",
     title: "Crew confirmed",
     detail: crewDone
-      ? `${input.crewAccepted} accepted`
+      ? input.crewAccepted > 0
+        ? `${input.crewAccepted} accepted`
+        : shootingSolo
+          ? "Shooting this one solo"
+          : "Settled by you"
       : input.crewCascadeActive
         ? "Offer cascading through your ranked list"
         : "Offer each role to one person at a time",
@@ -435,9 +469,10 @@ export function projectJourney(input: JourneyInput): {
         },
   });
 
-  const coiDone = ["approved", "sent_to_venue", "venue_acknowledged", "waived"].includes(
-    input.coiStatus ?? "",
-  );
+  const coiDone =
+    ["approved", "sent_to_venue", "venue_acknowledged", "waived"].includes(
+      input.coiStatus ?? "",
+    ) || settled("coi-approved");
   const coiWaiting = ["requested", "awaiting_response", "received", "under_review", "correction_required"].includes(
     input.coiStatus ?? "",
   );
@@ -445,7 +480,9 @@ export function projectJourney(input: JourneyInput): {
     key: "coi",
     title: "Insurance to venue",
     detail: coiDone
-      ? "Certificate handled"
+      ? input.coiStatus
+        ? "Certificate handled"
+        : "Settled by you"
       : coiWaiting
         ? "Requested — chasing automatically"
         : "Request the certificate for the venue",
@@ -459,7 +496,10 @@ export function projectJourney(input: JourneyInput): {
         },
   });
 
-  const finalDone = input.finalInvoiceStatus === "paid";
+  // A settled `final-balance` checkpoint counts, for the same reason the crew
+  // and certificate steps honour theirs: the studio recorded the decision.
+  const finalDone =
+    input.finalInvoiceStatus === "paid" || settled("final-balance");
   const finalWaiting = ["sent", "viewed", "partially_paid", "overdue"].includes(
     input.finalInvoiceStatus ?? "",
   );

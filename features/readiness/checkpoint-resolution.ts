@@ -39,6 +39,7 @@ export type ResolvableCheckpoint = {
   status: string;
   blocking: boolean;
   completionMethod: string;
+  waiverAllowed: boolean;
   ownerType?: string;
   resolvedDueDate?: string | null;
 };
@@ -97,6 +98,64 @@ export function checkpointWaitingReason(
       return "Completes when the provider confirms it.";
     default:
       return "Completes from its own record.";
+  }
+}
+
+/**
+ * Whether a studio may waive this one.
+ *
+ * Independent of `checkpointIsResolvable`, and deliberately wider: a waiver is
+ * the escape hatch for a checkpoint whose evidence is never going to arrive,
+ * which is precisely the evidence-backed case. Gating Waive on `manual` too
+ * left a seeded wedding permanently short of 100% — `shot-list-approved`
+ * carried `form_submitted` with no form anywhere in the product, so no record
+ * could satisfy it and no button could dismiss it.
+ *
+ * The record decides, not the method: `resolveCheckpoint` refuses a waiver
+ * unless `waiverAllowed` is true, so this asks the same question the server
+ * asks. A template that forbids waiving still forbids it.
+ */
+export function checkpointIsWaivable(
+  checkpoint: Pick<ResolvableCheckpoint, "status" | "waiverAllowed">,
+): boolean {
+  if (checkpointIsSettled(checkpoint)) return false;
+  return checkpoint.waiverAllowed;
+}
+
+/**
+ * Where the record this checkpoint waits on is actually produced.
+ *
+ * `/studio/readiness` told a photographer "Completes when the couple submits
+ * the form with answers" and gave them nowhere to go — not one link on the
+ * page. Three of the thirteen wedding checkpoints are like this: the
+ * questionnaire, the run of show and the final balance all wait on a record
+ * the studio has to start, and the studio had to already know which section of
+ * the product starts it.
+ *
+ * Keyed on the template key rather than the completion method, because the
+ * method says how it finishes and this says where to go. A checkpoint a studio
+ * wrote itself gets null and keeps its sentence.
+ */
+export function checkpointRecordSource(
+  templateKey: string,
+): { label: string; path: string } | null {
+  switch (templateKey) {
+    case "questionnaire-complete":
+      return { label: "Send the questionnaire", path: "/studio/questionnaires" };
+    case "schedule-approved":
+      return { label: "Build the run of show", path: "/studio/schedules" };
+    case "final-balance":
+      return { label: "Invoice the balance", path: "/studio/invoices" };
+    case "retainer-paid":
+    case "contract-completed":
+      return { label: "Open booking", path: "/studio/booking" };
+    case "coi-approved":
+      return { label: "Open insurance", path: "/studio/insurance" };
+    case "crew-accepted":
+    case "crew-acknowledged":
+      return { label: "Open crew", path: "/studio/crew" };
+    default:
+      return null;
   }
 }
 

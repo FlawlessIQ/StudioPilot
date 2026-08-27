@@ -83,6 +83,7 @@ export function useTodayInbox(): {
   const questionnaires = useTenantDocuments("questionnaireResponses");
   const schedules = useTenantDocuments("schedules");
   const crewAssignments = useTenantDocuments("crewAssignments");
+  const checkpoints = useTenantDocuments("checkpoints");
   const insuranceRequests = useTenantDocuments("insuranceRequests");
   const deliveries = useTenantDocuments("deliveryRecords");
 
@@ -162,6 +163,15 @@ export function useTodayInbox(): {
         crewAccepted: forProject(crewAssignments.records, projectId).filter(
           (assignment) => assignment.status === "accepted",
         ).length,
+        // Same two readings the job page uses, so Today and the job cannot
+        // disagree about whether crew and insurance are outstanding.
+        crewRequired: forProject(crewAssignments.records, projectId).length,
+        settledCheckpointKeys: forProject(checkpoints.records, projectId)
+          .filter((checkpoint) =>
+            ["complete", "waived"].includes(text(checkpoint.status)),
+          )
+          .map((checkpoint) => text(checkpoint.templateKey))
+          .filter(Boolean),
         crewCascadeActive: forProject(crewCascades.records, projectId).some(
           (cascade) => cascade.status === "active",
         ),

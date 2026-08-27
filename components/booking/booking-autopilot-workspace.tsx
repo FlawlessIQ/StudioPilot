@@ -496,10 +496,12 @@ export function BookingAutopilotWorkspace({
         </header>
       )}
 
-      {!consultation && laterBookingState ? (
+      {!consultation && laterBookingState && !proposalId ? (
         // The stage moved past consultation without a meeting record (booked
         // by phone, stage advanced by hand). Don't demand a consultation
-        // that will never exist — point at the proposal flow instead.
+        // that will never exist — point at the proposal flow instead. Once a
+        // proposal exists this is stale advice, so it steps aside for the
+        // `laterBookingState` branch below, which links to the real one.
         <section className="booking-autopilot-empty">
           <Check />
           <span>
@@ -522,7 +524,18 @@ export function BookingAutopilotWorkspace({
           </span>
           <Link href={`/studio/projects/${projectId}`}>Open project <ArrowRight /></Link>
         </section>
-      ) : consultation.status !== "completed" ? (
+      ) : consultation.status !== "completed" && !laterBookingState ? (
+        /**
+         * Only while the job is still in the consultation phase.
+         *
+         * A consultation scheduled and never marked complete is the normal
+         * case for a job booked over the phone afterwards — the record stays
+         * `scheduled` forever. Without the state guard this rendered the full
+         * "Capture consultation notes" form directly beneath a hero saying
+         * "Nothing here needs the consultation flow any more", so a booked
+         * wedding opened on a form asking for notes on a meeting that had
+         * already served its purpose.
+         */
         <section className="booking-consultation-capture">
           <div>
             <p className="eyebrow">What they told you</p>

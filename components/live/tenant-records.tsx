@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -66,6 +66,7 @@ import {
 } from "@/features/ordering/attention";
 import { statusLabel } from "@/features/format/status-label";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { leadIntakeGaps } from "@/features/crm/lead-intake";
 
 // Re-exported so existing importers of this module keep working.
 export { demoTenantDocuments };
@@ -245,6 +246,26 @@ async function cachedTenantDocuments(
  */
 let tenantRecordsGeneration = 0;
 const tenantRecordsListeners = new Set<() => void>();
+
+/**
+ * Subscribe to record invalidations without owning any records.
+ *
+ * `LiveDomainView` loads its own documents with `getDocs` rather than through
+ * `useTenantDocuments`, so `refreshTenantRecords` could not reach it: a
+ * photographer assigned a questionnaire, got "Questionnaire assigned", and the
+ * panel above the form went on saying "No questionnaires assigned" until they
+ * reloaded. This lets any independent loader re-run on the same signal.
+ */
+export function useTenantRecordsGeneration(): number {
+  return useSyncExternalStore(
+    (onStoreChange) => {
+      tenantRecordsListeners.add(onStoreChange);
+      return () => tenantRecordsListeners.delete(onStoreChange);
+    },
+    () => tenantRecordsGeneration,
+    () => 0,
+  );
+}
 
 export function refreshTenantRecords(...collectionNames: string[]): void {
   if (collectionNames.length === 0) tenantRecordsCache.clear();
@@ -974,9 +995,18 @@ export function LiveLeadDetail({ id }: { id: string }) {
       `${lead.firstName ?? ""} ${lead.lastName ?? ""}`,
   ).trim() || "New inquiry";
   const missingSource = lead.missingInformation ?? lead.missingFields;
-  const missing = Array.isArray(missingSource)
-    ? missingSource.map(String)
-    : [];
+  /**
+   * The record decides what is missing, not only what the intake declared.
+   * See features/crm/lead-intake.ts.
+   */
+  const missing = leadIntakeGaps({
+    email: typeof lead.email === "string" ? lead.email : null,
+    phone: typeof lead.phone === "string" ? lead.phone : null,
+    eventDate: typeof lead.eventDate === "string" ? lead.eventDate : null,
+    declaredMissing: Array.isArray(missingSource)
+      ? missingSource.map(String)
+      : [],
+  });
   const questions = Array.isArray(lead.suggestedConsultationQuestions)
     ? lead.suggestedConsultationQuestions.map(String)
     : [];
@@ -1002,6 +1032,9 @@ export function LiveLeadDetail({ id }: { id: string }) {
     !Array.isArray(replyAction.structuredOutput)
       ? (replyAction.structuredOutput as Record<string, unknown>)
       : null;
+  // Converted means it has a project, whatever the status string says.
+  const converted =
+    Boolean(lead.projectId) || String(lead.status) === "converted";
   return (
     <div className="live-detail-page lead-detail-page">
       <Link className="back-link" href="/studio/leads"><ArrowLeft /> Back to inquiries</Link>
@@ -1026,10 +1059,20 @@ export function LiveLeadDetail({ id }: { id: string }) {
         </StatusBadge>
       </header>
       <div className="lead-action-row">
-        {!replyAction && String(lead.status) !== "converted" ? (
+        {/**
+          * The project decides, not the status string.
+          *
+          * `convertLead` refuses any lead that already carries a `projectId` —
+          * status is never consulted — so keying this on `status ===
+          * "converted"` showed a "Convert to project" button on a lead that
+          * had a project, and clicking it returned LEAD_NOT_CONVERTIBLE every
+          * time. A lead whose status write did not land, or which was linked
+          * by seeding or import, is exactly the case that got stuck.
+          */}
+        {!replyAction && !converted ? (
           <DraftReplyButton leadId={lead.id} />
         ) : null}
-        {String(lead.status) !== "converted" ? (
+        {!converted ? (
           <ConvertInquiryButton lead={lead} />
         ) : lead.projectId ? (
           <Link
@@ -1128,7 +1171,7 @@ export function LiveLeadDetail({ id }: { id: string }) {
         <article className="panel lead-insight-card">
           <h2>Before the consultation</h2>
           {missing.length ? (
-            <ul>{missing.map((item) => <li key={item}>{item.replaceAll("_", " ")}</li>)}</ul>
+            <ul>{missing.map((item) => <li key={item}>{item}</li>)}</ul>
           ) : <p>The essential intake details are complete.</p>}
         </article>
         <article className="panel lead-insight-card">
@@ -1272,11 +1315,10 @@ function ConvertInquiryButton({ lead }: { lead: TenantDocument }) {
         setNotice("Preview: this inquiry would become a project.");
       }
     } catch (caught: unknown) {
-      setNotice(
-        caught instanceof Error
-          ? caught.message.replaceAll("_", " ")
-          : "The inquiry could not be converted.",
-      );
+      // `replaceAll("_", " ")` printed "LEAD NOT CONVERTIBLE" at a
+      // photographer and left them to guess. friendlyError is what every
+      // other command caller uses.
+      setNotice(friendlyError(caught, "The inquiry could not be converted."));
     } finally {
       setBusy(false);
     }

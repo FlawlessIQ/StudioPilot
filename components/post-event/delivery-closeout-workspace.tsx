@@ -10,11 +10,15 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
-import { useTenantDocuments } from "@/components/live/tenant-records";
+import {
+  refreshTenantRecords,
+  useTenantDocuments,
+} from "@/components/live/tenant-records";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { sendPostEventCommand } from "@/lib/post-event/command-client";
 import { statusLabel } from "@/features/format/status-label";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { RecordFinalPayment } from "@/components/booking/record-final-payment";
 import {
   outstandingCloseoutLabels,
   requirementIsAttestable,
@@ -35,6 +39,7 @@ export function DeliveryCloseoutWorkspace({
 }) {
   const { records: projects } = useTenantDocuments("projects");
   const { records: albums } = useTenantDocuments("albumWorkflows");
+  const { records: invoices } = useTenantDocuments("invoiceReferences");
   const { records: closeouts } = useTenantDocuments("projectCloseouts");
   const [evidenceUrl, setEvidenceUrl] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -52,6 +57,7 @@ export function DeliveryCloseoutWorkspace({
         note,
       });
       setAttesting(null);
+      refreshTenantRecords("projectCloseouts");
       // The reconciler is what decides whether the job can now close, so ask
       // it rather than guessing from here.
       await runCloseout("prepareCloseout");
@@ -64,6 +70,14 @@ export function DeliveryCloseoutWorkspace({
   const [notice, setNotice] = useState<string | null>(null);
   if (!projectId) return null;
   const project = projects?.find((item) => item.id === projectId);
+  const packageSnapshotId = text(project?.packageSnapshotId);
+  const standingFinal = invoices?.find(
+    (invoice) =>
+      invoice.projectId === projectId &&
+      invoice.kind === "final" &&
+      invoice.status !== "paid",
+  );
+  const finalInvoiceProvider = text(standingFinal?.provider) || null;
   const projectAlbums =
     albums?.filter((album) => album.projectId === projectId) ?? [];
   const closeout = closeouts?.find(
@@ -120,6 +134,10 @@ export function DeliveryCloseoutWorkspace({
               closeoutId: closeout?.id ?? `closeout_${projectId}`,
             };
       const result = await sendPostEventCommand(type, input);
+      // The requirements list below reads the stored closeout, so it has to be
+      // re-read: reconciling wrote eight requirements and the panel went on
+      // showing nothing until the page was reloaded by hand.
+      refreshTenantRecords("projectCloseouts", "projects", "deliveryRecords");
       const payload = record(result.result);
       /**
        * Name them, do not count them — and read them from the record.
@@ -310,6 +328,28 @@ export function DeliveryCloseoutWorkspace({
                     >
                       Mark as done
                     </button>
+                  ) : null}
+                  {/**
+                    * Money is not attestable at closeout — it is recorded.
+                    *
+                    * "Final QuickBooks balance settled" is deliberately absent
+                    * from the attestable list: a job should not be closed by
+                    * someone ticking a box next to the money. But the only
+                    * thing that could satisfy it was an invoice a scheduler
+                    * raises 28 days before the event, so a couple who paid
+                    * early left the job permanently unclosable. This records
+                    * the payment properly instead — a real invoice record,
+                    * `manual_attested`, with the amount read from the accepted
+                    * proposal rather than from this screen.
+                    */}
+                  {!met && key === "final_balance" && packageSnapshotId ? (
+                    <RecordFinalPayment
+                      onRecorded={() => void runCloseout("prepareCloseout")}
+                      packageSnapshotId={packageSnapshotId}
+                      projectId={projectId}
+                      providerLabel={finalInvoiceProvider}
+                      standingInvoice={Boolean(finalInvoiceProvider)}
+                    />
                   ) : null}
                   {attesting === key ? (
                     <form

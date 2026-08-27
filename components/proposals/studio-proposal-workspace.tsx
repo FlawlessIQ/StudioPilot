@@ -55,6 +55,11 @@ import { dataIsLive } from "@/lib/runtime-mode";
 import { formatEventDate } from "@/lib/format/event-date";
 import { CapabilityNote } from "@/components/integrations/capability-note";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import {
+  proposalNoticeStillHolds,
+  proposalPdfDetail,
+  proposalPdfNotice,
+} from "@/features/proposals/pdf-notice";
 
 type Value = Record<string, unknown> & { id: string };
 
@@ -1431,12 +1436,27 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
         update_draft: "Draft saved.",
         submit_for_approval: "Proposal sent for internal approval.",
         return_to_draft: "Proposal returned to draft.",
-        approve: "Approved. The branded PDF is being generated.",
-        regenerate_pdf: "A fresh PDF is being generated.",
         send: "Proposal queued for branded email delivery.",
         resend: "Proposal email queued again.",
       };
-      setNotice(messages[type] ?? "Proposal updated.");
+      /**
+       * The two PDF commands read their outcome off the record.
+       *
+       * A static "the branded PDF is being generated" sat above a panel saying
+       * "PDF generation failed" whenever the document worker was unreachable —
+       * the screen contradicting itself about the same fact.
+       * See features/proposals/pdf-notice.ts.
+       */
+      if (type === "approve" || type === "regenerate_pdf") {
+        setNotice(
+          proposalPdfNotice(
+            type === "approve",
+            String(command.result.pdfState ?? "queued"),
+          ),
+        );
+      } else {
+        setNotice(messages[type] ?? "Proposal updated.");
+      }
     } catch (caught: unknown) {
       setError(
         commandError(
@@ -1810,11 +1830,7 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
                           ? "PDF generation failed"
                           : "Generating branded PDF"}
                     </strong>
-                    <small>
-                      {proposal.pdfState === "ready"
-                        ? "Stored privately until this proposal is sent."
-                        : "The document worker usually finishes within a minute."}
-                    </small>
+                    <small>{proposalPdfDetail(String(proposal.pdfState ?? ""))}</small>
                   </span>
                 </div>
                 {pdfUrl ? (
@@ -1968,7 +1984,10 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
                 {error}
               </p>
             ) : null}
-            {notice ? (
+            {proposalNoticeStillHolds(
+              notice,
+              String(proposal.pdfState ?? ""),
+            ) ? (
               <p className="proposal-command-notice" role="status">
                 <CheckCircle2 /> {notice}
               </p>

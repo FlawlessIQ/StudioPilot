@@ -152,3 +152,70 @@ test("an empty schedule cannot be hidden behind a settled status in the count", 
     "the empty schedule must lower the completed count",
   );
 });
+
+/**
+ * The job page showed "EVENT READINESS 100% — NOTHING BLOCKING" directly above
+ * a journey rail reading "Crew confirmed ✗ / Insurance to venue ✗", on a job
+ * whose readiness was genuinely 12/12: crew because nobody was ever asked (a
+ * solo wedding), insurance because the studio had waived the checkpoint with a
+ * reason in the audit log. Two systems, one job, opposite answers.
+ */
+
+test("a photographer shooting solo has confirmed their crew", () => {
+  const solo = { ...booked, crewAccepted: 0, crewRequired: 0 };
+  assert.equal(step(solo, "crew")?.status, "complete");
+  assert.match(step(solo, "crew")?.detail ?? "", /solo/i);
+});
+
+test("crew roles that were offered and not accepted are still outstanding", () => {
+  // The guard that keeps "solo" from swallowing a real gap.
+  const waiting = { ...booked, crewAccepted: 0, crewRequired: 2 };
+  assert.notEqual(step(waiting, "crew")?.status, "complete");
+});
+
+test("no opinion about crew demand is not the same as solo", () => {
+  // A caller that does not pass crewRequired must not have its journey change.
+  const unknown = { ...booked, crewAccepted: 0 };
+  assert.notEqual(step(unknown, "crew")?.status, "complete");
+});
+
+test("a waived readiness checkpoint settles its journey step", () => {
+  const waivedCoi = {
+    ...booked,
+    coiStatus: null,
+    settledCheckpointKeys: ["coi-approved"],
+  };
+  assert.equal(step(waivedCoi, "coi")?.status, "complete");
+  assert.match(step(waivedCoi, "coi")?.detail ?? "", /Settled by you/);
+  // And the step stops pointing at work the studio decided not to do.
+  assert.equal(step(waivedCoi, "coi")?.action, null);
+  // Without the waiver it is still the studio's move.
+  assert.notEqual(
+    step({ ...booked, coiStatus: null }, "coi")?.status,
+    "complete",
+  );
+});
+
+test("a hand-completed crew checkpoint settles the crew step too", () => {
+  const settled = {
+    ...booked,
+    crewAccepted: 0,
+    crewRequired: 3,
+    settledCheckpointKeys: ["crew-accepted"],
+  };
+  assert.equal(step(settled, "crew")?.status, "complete");
+  assert.match(step(settled, "crew")?.detail ?? "", /Settled by you/);
+});
+
+test("a settled final-balance checkpoint settles the money step", () => {
+  const settled = {
+    ...booked,
+    finalInvoiceStatus: null,
+    settledCheckpointKeys: ["final-balance"],
+  };
+  assert.equal(step(settled, "final_balance")?.status, "complete");
+  assert.notEqual(
+    step({ ...booked, finalInvoiceStatus: null }, "final_balance")?.status,
+    "complete",
+  );
+});

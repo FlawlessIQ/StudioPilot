@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   checkpointIsResolvable,
   checkpointIsSettled,
+  checkpointIsWaivable,
   checkpointReasonIsUsable,
   checkpointWaitingReason,
   MINIMUM_CHECKPOINT_REASON,
@@ -95,4 +96,48 @@ test("a reason has to say something, and clear the server's own floor", () => {
   assert.equal(MINIMUM_CHECKPOINT_REASON >= 10, true);
   assert.equal(checkpointReasonIsUsable("confirmed"), false, "9 chars");
   assert.equal(checkpointReasonIsUsable("confirmed."), true, "10 chars");
+});
+
+test("a waiver is offered wherever the template allows one", () => {
+  // The escape hatch, and deliberately wider than `checkpointIsResolvable`:
+  // the checkpoint that most needs waiving is the record-backed one whose
+  // record is never going to arrive.
+  for (const method of [
+    "manual",
+    "form_submitted",
+    "invoice_paid",
+    "schedule_approved",
+    "assignment_accepted",
+    "system_rule",
+    "webhook_event",
+  ]) {
+    assert.equal(
+      checkpointIsWaivable({ status: "not_started", waiverAllowed: true }),
+      true,
+      `${method} should be waivable when the template allows it`,
+    );
+  }
+  // The record decides, matching resolveCheckpoint's own INVALID_WAIVER check.
+  assert.equal(
+    checkpointIsWaivable({ status: "not_started", waiverAllowed: false }),
+    false,
+  );
+  // Nothing settled is waivable twice.
+  for (const status of ["complete", "waived"]) {
+    assert.equal(checkpointIsWaivable({ status, waiverAllowed: true }), false);
+  }
+});
+
+test("no wedding checkpoint can strand a job with nothing to do", () => {
+  // The shipped templates all set waiverAllowed, so every row has either
+  // "Mark done" or "Waive". `shot-list-approved` was the counter-example
+  // that mattered: form_submitted, blocking, and no form in the product.
+  for (const [key, , , , , method] of weddingCheckpointDefinitions) {
+    const entry = { status: "not_started", waiverAllowed: true };
+    assert.equal(
+      checkpointIsResolvable(cp(String(method))) || checkpointIsWaivable(entry),
+      true,
+      `"${String(key)}" would hold a job below 100% with no way out`,
+    );
+  }
 });

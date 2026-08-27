@@ -12,6 +12,11 @@ import {
 import { productEvent } from "../operations/product-events.js";
 import { availabilityWindowSchema } from "./availability.js";
 import { agreedRetainerCents } from "./agreed-retainer.js";
+import {
+  balanceFromTotals,
+  balanceMayBeAttested,
+  finalBalanceFromSchedule,
+} from "./agreed-final-balance.js";
 import { bookingGateRequirements } from "./gate-requirements.js";
 import { consultationBookingAdvancesTo } from "./consultation-advance.js";
 import { isStandingInvoice } from "./invoice-standing.js";
@@ -151,6 +156,31 @@ const commandSchema = z.discriminatedUnion("type", [
       // The amount is never taken from the client. It is read from the
       // package snapshot the couple accepted, so "the retainer was paid"
       // cannot quietly mean a different number than the one quoted.
+      attestation: z.literal(true),
+    }),
+  }),
+  z.object({
+    /**
+     * The balance, paid another way.
+     *
+     * The retainer has had this escape hatch since a photographer hit the wall
+     * where their couple paid by transfer and the only path onward was a
+     * QuickBooks webhook that was never coming. The balance had no equivalent,
+     * and the final invoice is not created until 28 days before the event — so
+     * a couple who settled up early left the job stuck on the last closeout
+     * requirement, "Final QuickBooks balance settled", with nothing in the
+     * product able to satisfy it. Same shape, same authority, same audit trail.
+     */
+    type: z.literal("recordFinalPayment"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      packageSnapshotId: z.string().min(1),
+      paidAt: z.string().date(),
+      method: z.string().min(1).max(200),
+      reference: z.string().max(200).nullable().default(null),
+      // As with the retainer, the amount is never taken from the client.
       attestation: z.literal(true),
     }),
   }),
@@ -1220,6 +1250,253 @@ export const bookingCommand = onRequest(
           completionAuthority: "manual_attested",
           settled: "attested_invoice",
         };
+        }
+      } else if (command.type === "recordFinalPayment") {
+        /**
+         * The balance, vouched for by a person.
+         *
+         * Deliberately the same shape as `recordRetainerPayment` above, down to
+         * the plan/settle/create branches, because it is the same problem one
+         * step later and a studio should not meet two different mechanisms for
+         * "they paid me another way". The differences are all in what counts as
+         * ready: any state from BOOKED onward rather than RETAINER_PENDING, and
+         * the agreed balance rather than the agreed retainer.
+         */
+        if (
+          !["studio_owner", "studio_admin"].includes(String(membership.role))
+        ) {
+          throw new Error("BALANCE_ATTESTATION_PERMISSION_REQUIRED");
+        }
+        const [project, packageSnapshot, retainers, existingFinals] =
+          await Promise.all([
+            firestore.doc(`projects/${command.input.projectId}`).get(),
+            firestore
+              .doc(`packageSnapshots/${command.input.packageSnapshotId}`)
+              .get(),
+            firestore
+              .collection("invoiceReferences")
+              .where("tenantId", "==", command.tenantId)
+              .where("projectId", "==", command.input.projectId)
+              .where("kind", "==", "retainer")
+              .limit(10)
+              .get(),
+            firestore
+              .collection("invoiceReferences")
+              .where("tenantId", "==", command.tenantId)
+              .where("projectId", "==", command.input.projectId)
+              .where("kind", "==", "final")
+              // Not limit(1), for the reason recorded on the retainer path: a
+              // superseded attempt must not hide the live invoice behind it.
+              .limit(10)
+              .get(),
+          ]);
+        if (
+          !project.exists ||
+          project.get("tenantId") !== command.tenantId ||
+          !balanceMayBeAttested(String(project.get("state"))) ||
+          project.get("packageSnapshotId") !== command.input.packageSnapshotId
+        ) {
+          throw new Error("BALANCE_NOT_READY");
+        }
+        if (
+          !packageSnapshot.exists ||
+          packageSnapshot.get("tenantId") !== command.tenantId
+        ) {
+          throw new Error("PACKAGE_SNAPSHOT_NOT_FOUND");
+        }
+        const plan = planRetainerAttestation(
+          existingFinals.docs.map((document) => ({
+            id: document.id,
+            status: String(document.get("status")),
+            balanceCents: Number(document.get("balanceCents") ?? 0),
+          })),
+        );
+        if (plan.action === "already_paid") {
+          result = {
+            invoiceId: plan.invoiceId,
+            completionAuthority: "manual_attested",
+            settled: "already_paid",
+          };
+        } else if (plan.action === "settle") {
+          const standing = existingFinals.docs.find(
+            (document) => document.id === plan.invoiceId,
+          );
+          if (!standing) throw new Error("FINAL_INVOICE_NOT_FOUND");
+          const priorStatus = String(standing.get("status"));
+          const settledAmount = Number(
+            standing.get("amountCents") ?? standing.get("balanceCents") ?? 0,
+          );
+          const settleBatch = firestore.batch();
+          settleBatch.update(standing.ref, {
+            status: "paid",
+            balanceCents: 0,
+            paidAt: `${command.input.paidAt}T00:00:00.000Z`,
+            // Provider fields stay: the invoice really was raised there, and
+            // only the authority for its completion changes.
+            completionAuthority: "manual_attested",
+            completionEvidence: {
+              kind: "manual_attestation",
+              method: command.input.method,
+              reference: command.input.reference,
+              paidAt: command.input.paidAt,
+              amountCents: settledAmount,
+              attestedBy: identity.uid,
+              attestedAt: timestamp,
+              settledStandingInvoice: true,
+              priorStatus,
+              providerInvoiceId: standing.get("providerInvoiceId") ?? null,
+            },
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          const settleAuditId = stableId(
+            "audit_balance_settled",
+            command.tenantId,
+            command.idempotencyKey,
+          );
+          settleBatch.create(firestore.doc(`auditEvents/${settleAuditId}`), {
+            id: settleAuditId,
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "final_balance.payment_attested",
+            entityType: "invoiceReference",
+            entityId: plan.invoiceId,
+            timestamp,
+            before: {
+              status: priorStatus,
+              balanceCents: Number(standing.get("balanceCents") ?? 0),
+            },
+            after: {
+              status: "paid",
+              balanceCents: 0,
+              amountCents: settledAmount,
+              paidAt: command.input.paidAt,
+              method: command.input.method,
+              reference: command.input.reference,
+              settledStandingInvoice: true,
+            },
+            ipAddress: request.ip ?? null,
+            userAgent: request.get("user-agent") ?? null,
+            correlationId: command.idempotencyKey,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          await settleBatch.commit();
+          result = {
+            invoiceId: plan.invoiceId,
+            amountCents: settledAmount,
+            completionAuthority: "manual_attested",
+            settled: "standing_invoice",
+          };
+        } else {
+          const invoiceId = stableId(
+            "invoice_balance_attested",
+            command.tenantId,
+            command.idempotencyKey,
+          );
+          const retainerPaidCents = retainers.docs
+            .filter((document) => document.get("status") === "paid")
+            .reduce(
+              (total, document) =>
+                total + Number(document.get("amountCents") ?? 0),
+              0,
+            );
+          const accepted = await firestore
+            .collection("proposals")
+            .where("tenantId", "==", command.tenantId)
+            .where("projectId", "==", command.input.projectId)
+            .where("status", "==", "accepted")
+            .limit(1)
+            .get();
+          const fallback = balanceFromTotals(
+            Number(packageSnapshot.get("totalCents") ?? 0),
+            retainerPaidCents,
+          );
+          const amountCents = accepted.empty
+            ? fallback
+            : finalBalanceFromSchedule(
+                accepted.docs[0]!.get("paymentSchedule"),
+                fallback,
+              );
+          if (!Number.isInteger(amountCents) || amountCents < 0) {
+            throw new Error("BALANCE_AMOUNT_NOT_FOUND");
+          }
+          const paidAtTimestamp = `${command.input.paidAt}T00:00:00.000Z`;
+          const batch = firestore.batch();
+          batch.create(firestore.doc(`invoiceReferences/${invoiceId}`), {
+            id: invoiceId,
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            kind: "final",
+            // Never a provider name: everything downstream reads this to tell
+            // a payment a provider confirmed from one a person vouched for.
+            provider: null,
+            completionAuthority: "manual_attested",
+            providerInvoiceId: null,
+            providerCustomerId: null,
+            status: "paid",
+            currency: packageSnapshot.get("currency"),
+            amountCents,
+            balanceCents: 0,
+            dueDate: command.input.paidAt,
+            hostedUrl: null,
+            paidAt: paidAtTimestamp,
+            completionEvidence: {
+              kind: "manual_attestation",
+              method: command.input.method,
+              reference: command.input.reference,
+              paidAt: command.input.paidAt,
+              amountCents,
+              attestedBy: identity.uid,
+              attestedAt: timestamp,
+            },
+            lastSyncedAt: null,
+            lastProviderEventId: null,
+            providerState: "not_applicable",
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            createdBy: identity.uid,
+            updatedBy: identity.uid,
+            archivedAt: null,
+          });
+          const balanceAuditId = stableId(
+            "audit_balance_attested",
+            command.tenantId,
+            command.idempotencyKey,
+          );
+          batch.create(firestore.doc(`auditEvents/${balanceAuditId}`), {
+            id: balanceAuditId,
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "final_balance.payment_attested",
+            entityType: "invoiceReference",
+            entityId: invoiceId,
+            timestamp,
+            before: null,
+            after: {
+              status: "paid",
+              amountCents,
+              paidAt: command.input.paidAt,
+              method: command.input.method,
+              reference: command.input.reference,
+            },
+            ipAddress: request.ip ?? null,
+            userAgent: request.get("user-agent") ?? null,
+            correlationId: command.idempotencyKey,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          await batch.commit();
+          result = {
+            invoiceId,
+            amountCents,
+            completionAuthority: "manual_attested",
+            settled: "attested_invoice",
+          };
         }
       } else if (command.type === "createRetainerInvoice") {
         const [project, packageSnapshot, existingInvoices] = await Promise.all([

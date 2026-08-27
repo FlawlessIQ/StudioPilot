@@ -57,6 +57,19 @@ export function RecordSignedAgreement({
         return;
       }
       form.reset();
+      /**
+       * Say what happened.
+       *
+       * This used to reset the form and call `onRecorded()` in silence: the
+       * project moved from "Awaiting signature" to "Awaiting the retainer" and
+       * the only sign of it was a badge changing somewhere further up the page.
+       * Recording a signature by hand is the one step where a photographer is
+       * vouching personally, so it is the last place to leave them guessing
+       * whether it landed.
+       */
+      setNotice(
+        "Signature recorded against your name. The retainer is the next step.",
+      );
       onRecorded();
     } catch (caught: unknown) {
       setNotice(

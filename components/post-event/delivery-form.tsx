@@ -415,7 +415,16 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
           required
           value={reviewDestinationUrl}
         />
-        <small>Filled from your studio review settings; edit only for this project.</small>
+        {/* The empty case is the common one on a studio's first delivery, and
+            the old copy asserted the field had been filled from settings that
+            do not exist yet. Releasing schedules two review asks, so this is
+            genuinely required — say why, rather than implying it is already
+            done. */}
+        <small>
+          {reviewDestinationUrl
+            ? "Filled from your studio review settings; edit only for this project."
+            : "Required: releasing schedules two review asks, and they need somewhere to point. Set a studio default in Settings to stop retyping it."}
+        </small>
       </label>
       <label className="delivery-album-toggle">
         <input

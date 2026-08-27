@@ -2,41 +2,36 @@
 
 import { useState, type FormEvent } from "react";
 import { Banknote } from "lucide-react";
-import { recordRetainerPayment } from "@/lib/booking/command-client";
+import { recordFinalPayment } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 
 /**
- * Recording a retainer that arrived outside StudioCue.
+ * Recording a final balance that arrived outside StudioCue.
  *
- * The mirror of RecordSignedAgreement, one step later and for the same
- * dead end. Without an invoicing provider StudioCue refuses to raise a
- * retainer — correctly, rather than invoice through an account nobody
- * connected — which left the booking gate permanently short of both a
- * created retainer and a paid one. A studio taking bank transfers could
- * not confirm a booking at all.
+ * The mirror of RecordRetainerPayment, one payment later and for a dead end
+ * that was worse. The final invoice is created by a scheduler 28 days before
+ * the event, so a couple who settled up early — or by transfer, or in cash —
+ * left the job on the last closeout requirement, "Final QuickBooks balance
+ * settled", with nothing anywhere in the product able to satisfy it. The job
+ * could be delivered, reviewed and finished, and never closed.
  *
- * No amount field. The retainer is whatever the accepted package snapshot
- * says it is, read server-side, so recording a payment cannot quietly
- * restate the price. A studio that took a different figure has taken a
- * part payment, which is not this — the approved retainer exception is the
- * path for going ahead without the full amount, and it says so in the
- * record.
- *
- * Folded shut, because with a provider connected this is the unusual path.
+ * No amount field, for the same reason as the retainer: the balance is read
+ * server-side from the accepted proposal's payment schedule, so recording a
+ * payment cannot quietly restate the price.
  */
-export function RecordRetainerPayment({
+export function RecordFinalPayment({
   onRecorded,
   packageSnapshotId,
   projectId,
-  retainerLabel,
+  balanceLabel,
   providerLabel,
   standingInvoice,
 }: {
   onRecorded: () => void;
   packageSnapshotId: string;
   projectId: string;
-  /** The retainer as the couple was quoted it, for the confirmation line. */
-  retainerLabel: string;
+  /** The balance as the couple was quoted it, for the confirmation line. */
+  balanceLabel?: string | null;
   /** The provider hosting the invoice, when one is out with the couple. */
   providerLabel?: string | null;
   /** True when an invoice already stands and this settles it. */
@@ -54,7 +49,7 @@ export function RecordRetainerPayment({
     setBusy(true);
     setNotice(null);
     try {
-      const result = await recordRetainerPayment({
+      const result = await recordFinalPayment({
         projectId,
         packageSnapshotId,
         paidAt: String(data.get("paidAt") ?? ""),
@@ -66,17 +61,12 @@ export function RecordRetainerPayment({
         return;
       }
       form.reset();
-      // Silence here left a photographer unsure whether their attestation had
-      // landed — the same gap as record-signed-agreement.tsx. Say it, and say
-      // what is left.
       setNotice(
-        "Retainer recorded against your name. Confirm the booking to finish.",
+        "Balance recorded against your name. Reconcile the closeout to finish.",
       );
       onRecorded();
     } catch (caught: unknown) {
-      setNotice(
-        friendlyError(caught, "The payment could not be recorded."),
-      );
+      setNotice(friendlyError(caught, "The payment could not be recorded."));
     } finally {
       setBusy(false);
     }
@@ -86,22 +76,20 @@ export function RecordRetainerPayment({
     <details className="record-signed-agreement">
       <summary>
         <Banknote aria-hidden="true" size={15} />
-        Retainer paid outside StudioCue? Record it
+        Balance paid outside StudioCue? Record it
       </summary>
       <form onSubmit={(event) => void submit(event)}>
         <p>
           StudioCue records this as your attestation, not a confirmed payment.
-          It books the job on your word, and the audit log will show that you
-          vouched for it. Records {retainerLabel} — the retainer on the package
-          the couple accepted.
+          It closes the job on your word, and the audit log will show that you
+          vouched for it.
+          {balanceLabel
+            ? ` Records ${balanceLabel} — the balance on the package the couple accepted.`
+            : " The amount comes from the proposal they accepted."}
         </p>
-        {/* Said plainly because it is the one thing this action does not do.
-            Marking the invoice paid here settles StudioCue's record of it; the
-            provider's copy is the studio's books and StudioCue will not reach
-            in and change them. */}
         {standingInvoice ? (
           <p className="record-attestation-caveat">
-            This marks the retainer invoice already out with the couple as paid,
+            This marks the balance invoice already out with the couple as paid,
             rather than raising a second one. It does not mark it paid in{" "}
             {providerLabel ?? "your accounting tool"} — do that there too, so the
             two agree.
