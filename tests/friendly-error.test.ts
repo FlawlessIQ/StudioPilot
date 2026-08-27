@@ -51,7 +51,7 @@ test("a refused booking attestation says what the obstacle is", () => {
       new Error("RETAINER_INVOICE_ALREADY_EXISTS"),
       "The payment could not be recorded.",
     ),
-    /already out with the client/,
+    /already settled/,
   );
   assert.match(
     friendlyError(new Error("SIGNED_CONTRACT_REQUIRED"), "Nope."),

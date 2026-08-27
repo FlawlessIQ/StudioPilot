@@ -917,6 +917,33 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     </span>
                   </p>
                 ) : null}
+                {/*
+                  The way through when the couple pays another way. This used to
+                  be absent here, so a studio that raised the invoice and then
+                  took a bank transfer had no path at all: the server refused a
+                  second attestation and the only alternative was a QuickBooks
+                  webhook for money that never went through QuickBooks. It
+                  settles the standing invoice rather than raising a second one.
+                */}
+                {packageSnapshot && Number(invoice.balanceCents ?? 0) > 0 ? (
+                  <RecordRetainerPayment
+                    onRecorded={() => void load()}
+                    packageSnapshotId={String(packageSnapshot.id)}
+                    projectId={projectId}
+                    providerLabel={
+                      typeof invoice.provider === "string" && invoice.provider
+                        ? invoice.provider === "quickbooks"
+                          ? "QuickBooks"
+                          : invoice.provider.replaceAll("_", " ")
+                        : "QuickBooks"
+                    }
+                    retainerLabel={currency(
+                      invoice.amountCents,
+                      invoice.currency,
+                    )}
+                    standingInvoice
+                  />
+                ) : null}
               </div>
             ) : automationAwaitingSignature ? (
               <div className="booking-complete-message">

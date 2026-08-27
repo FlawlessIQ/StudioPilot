@@ -29,12 +29,18 @@ export function RecordRetainerPayment({
   packageSnapshotId,
   projectId,
   retainerLabel,
+  providerLabel,
+  standingInvoice,
 }: {
   onRecorded: () => void;
   packageSnapshotId: string;
   projectId: string;
   /** The retainer as the couple was quoted it, for the confirmation line. */
   retainerLabel: string;
+  /** The provider hosting the invoice, when one is out with the couple. */
+  providerLabel?: string | null;
+  /** True when an invoice already stands and this settles it. */
+  standingInvoice?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -83,6 +89,18 @@ export function RecordRetainerPayment({
           vouched for it. Records {retainerLabel} — the retainer on the package
           the couple accepted.
         </p>
+        {/* Said plainly because it is the one thing this action does not do.
+            Marking the invoice paid here settles StudioCue's record of it; the
+            provider's copy is the studio's books and StudioCue will not reach
+            in and change them. */}
+        {standingInvoice ? (
+          <p className="record-attestation-caveat">
+            This marks the retainer invoice already out with the couple as paid,
+            rather than raising a second one. It does not mark it paid in{" "}
+            {providerLabel ?? "your accounting tool"} — do that there too, so the
+            two agree.
+          </p>
+        ) : null}
         <label>
           Date received
           <input name="paidAt" required type="date" />

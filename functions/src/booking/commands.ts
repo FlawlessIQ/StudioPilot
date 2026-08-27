@@ -15,6 +15,7 @@ import { agreedRetainerCents } from "./agreed-retainer.js";
 import { bookingGateRequirements } from "./gate-requirements.js";
 import { consultationBookingAdvancesTo } from "./consultation-advance.js";
 import { isStandingInvoice } from "./invoice-standing.js";
+import { planRetainerAttestation } from "./retainer-attestation.js";
 
 const commandSchema = z.discriminatedUnion("type", [
   z.object({
@@ -1004,13 +1005,114 @@ export const bookingCommand = onRequest(
         if (contracts.empty) {
           throw new Error("SIGNED_CONTRACT_REQUIRED");
         }
-        if (
-          existingInvoices.docs.some((document) =>
-            isStandingInvoice(document.get("status")),
-          )
-        ) {
-          throw new Error("RETAINER_INVOICE_ALREADY_EXISTS");
-        }
+        /**
+         * What this attestation is actually doing.
+         *
+         * This used to refuse outright when any invoice stood, to avoid the
+         * same retainer having two records. The fear was right and the refusal
+         * was wrong: it stranded every studio whose couple paid by transfer,
+         * cheque or card reader, because the only path onward was a QuickBooks
+         * webhook for money that never went through QuickBooks.
+         *
+         * So the invoice that is out with the client becomes the invoice that
+         * is paid. One retainer, one record — and `completionAuthority` still
+         * distinguishes a payment a person vouched for from one a provider
+         * confirmed. See features/booking/retainer-attestation.ts.
+         */
+        const plan = planRetainerAttestation(
+          existingInvoices.docs.map((document) => ({
+            id: document.id,
+            status: String(document.get("status")),
+            balanceCents: Number(document.get("balanceCents") ?? 0),
+          })),
+        );
+
+        if (plan.action === "already_paid") {
+          // A retried click, or two people recording the same cheque. Return
+          // the prior result rather than failing after the first one worked.
+          result = {
+            invoiceId: plan.invoiceId,
+            completionAuthority: "manual_attested",
+            settled: "already_paid",
+          };
+        } else if (plan.action === "settle") {
+          const standing = existingInvoices.docs.find(
+            (document) => document.id === plan.invoiceId,
+          );
+          if (!standing) throw new Error("RETAINER_INVOICE_NOT_FOUND");
+          const priorStatus = String(standing.get("status"));
+          // The amount out with the client, not the package's — this invoice is
+          // the money the couple was actually asked for.
+          const settledAmount = Number(
+            standing.get("amountCents") ?? standing.get("balanceCents") ?? 0,
+          );
+          const settleBatch = firestore.batch();
+          settleBatch.update(standing.ref, {
+            status: "paid",
+            balanceCents: 0,
+            paidAt: `${command.input.paidAt}T00:00:00.000Z`,
+            // The provider fields stay as they are: the invoice really was
+            // raised there, and nulling them would lose the reconciliation
+            // trail. Only the authority for its *completion* changes.
+            completionAuthority: "manual_attested",
+            completionEvidence: {
+              kind: "manual_attestation",
+              method: command.input.method,
+              reference: command.input.reference,
+              paidAt: command.input.paidAt,
+              amountCents: settledAmount,
+              attestedBy: identity.uid,
+              attestedAt: timestamp,
+              settledStandingInvoice: true,
+              priorStatus,
+              providerInvoiceId: standing.get("providerInvoiceId") ?? null,
+            },
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          const settleAuditId = stableId(
+            "audit_retainer_settled",
+            command.tenantId,
+            command.idempotencyKey,
+          );
+          settleBatch.create(firestore.doc(`auditEvents/${settleAuditId}`), {
+            id: settleAuditId,
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorId: identity.uid,
+            // A person, not a provider. Everything downstream reads this to
+            // tell a vouched-for payment from a confirmed one.
+            actorType: "user",
+            action: "retainer.payment_attested",
+            entityType: "invoiceReference",
+            entityId: plan.invoiceId,
+            timestamp,
+            before: {
+              status: priorStatus,
+              balanceCents: Number(standing.get("balanceCents") ?? 0),
+            },
+            after: {
+              status: "paid",
+              balanceCents: 0,
+              amountCents: settledAmount,
+              paidAt: command.input.paidAt,
+              method: command.input.method,
+              reference: command.input.reference,
+              settledStandingInvoice: true,
+            },
+            ipAddress: request.ip ?? null,
+            userAgent: request.get("user-agent") ?? null,
+            correlationId: command.idempotencyKey,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          await settleBatch.commit();
+          result = {
+            invoiceId: plan.invoiceId,
+            completionAuthority: "manual_attested",
+            settled: "standing_invoice",
+          };
+        } else {
         const invoiceId = stableId(
           "invoice_attested",
           command.tenantId,
@@ -1116,7 +1218,9 @@ export const bookingCommand = onRequest(
           invoiceId,
           amountCents,
           completionAuthority: "manual_attested",
+          settled: "attested_invoice",
         };
+        }
       } else if (command.type === "createRetainerInvoice") {
         const [project, packageSnapshot, existingInvoices] = await Promise.all([
           firestore.doc(`projects/${command.input.projectId}`).get(),

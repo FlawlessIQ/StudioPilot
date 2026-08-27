@@ -68,8 +68,15 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   ALBUM_CREATIVE_AUTHORITY_REQUIRED:
     "Only the studio owner or a lead photographer can make this album decision.",
 
+  /**
+   * Kept for older clients. Recording a payment against a standing invoice now
+   * settles that invoice instead of refusing, so this should not be reached
+   * from the current booking screen.
+   */
   RETAINER_INVOICE_ALREADY_EXISTS:
-    "A retainer invoice is already out with the client, and it stays the record of that money. Mark it paid where it was raised — recording a second payment here would give the same retainer two answers.",
+    "This retainer is already settled. Refresh the booking page to see where the job stands.",
+  RETAINER_INVOICE_NOT_FOUND:
+    "That retainer invoice could not be found. Refresh the booking page and try again.",
   SIGNED_CONTRACT_REQUIRED:
     "The signed agreement comes first. Record the signature, then the retainer.",
   RETAINER_NOT_READY:
