@@ -16,15 +16,31 @@ async function studioForSlug(slug: string): Promise<InquiryStudio | null> {
   if (!dataIsLive && slug === "demo-studio") {
     return { name: "Aperture & Light Studio", slug };
   }
-  const result = await adminFirestore
+  /**
+   * Every address the studio has ever had, not just its current one.
+   *
+   * The slug became editable, and a studio hands this URL out on cards and in
+   * email signatures — an exact match on `publicSlug` would turn all of those
+   * into a 404 the moment they tidied it. `slugAliases` accumulates; the
+   * fallback covers tenants created before that field existed.
+   */
+  const byAlias = await adminFirestore
     .collection("tenants")
-    .where("publicSlug", "==", slug)
-    .limit(1)
+    .where("slugAliases", "array-contains", slug)
+    .limit(2)
     .get();
-  const studio = result.docs[0];
+  const result = byAlias.empty
+    ? await adminFirestore
+        .collection("tenants")
+        .where("publicSlug", "==", slug)
+        .limit(2)
+        .get()
+    : byAlias;
+  const studio = result.docs.find((candidate) => {
+    const status = candidate.get("status");
+    return status === "trial" || status === "active";
+  });
   if (!studio) return null;
-  const status = studio.get("status");
-  if (status !== "trial" && status !== "active") return null;
   return {
     name: String(studio.get("brandName") ?? studio.get("businessName") ?? "Photography studio"),
     slug,

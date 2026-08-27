@@ -51,7 +51,7 @@ export { billingCommand, stripeWebhook } from "./saas/stripe.js";
 export { saasAdminCommand } from "./saas/admin.js";
 export { operationsHealthScheduler } from "./saas/jobs.js";
 export { tenantOnboardingCommand } from "./saas/onboarding.js";
-export { tenantBrandingCommand } from "./saas/branding.js";
+export { tenantBrandingCommand, tenantIdentityCommand } from "./saas/branding.js";
 export { membershipCommand } from "./saas/memberships.js";
 export { operationsJobScheduler } from "./operations/jobs.js";
 export {

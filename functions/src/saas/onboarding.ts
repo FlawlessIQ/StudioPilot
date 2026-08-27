@@ -101,6 +101,10 @@ export const tenantOnboardingCommand = onRequest(
           legalName: input.legalName,
           brandName: input.businessName,
           publicSlug,
+          // Every address this studio has ever had. The inquiry lookup matches
+          // on this so a later slug change does not break links already
+          // shared. See functions/src/crm/tenant-by-slug.ts.
+          slugAliases: [publicSlug],
           timezone: input.timezone,
           currency: input.currency,
           dateFormat: "MMM d, yyyy",

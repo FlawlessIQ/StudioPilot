@@ -5,6 +5,7 @@ import { EmailBranding } from "@/components/settings/email-branding";
 import { EmailTemplateDesigner } from "@/components/communications/email-template-designer";
 import { LifecyclePackPanel } from "@/components/communications/lifecycle-pack-panel";
 import { SettingsDestinations } from "@/components/settings/settings-destinations";
+import { StudioIdentitySettings } from "@/components/settings/studio-identity";
 
 export default function SettingsPage() {
   return (
@@ -21,6 +22,9 @@ export default function SettingsPage() {
           </div>
         </header>
         <SettingsDestinations />
+        {/* The studio's own identity, frozen at signup until now.
+            See features/tenants/identity.ts. */}
+        <StudioIdentitySettings />
         <EmailBranding />
         <EmailTemplateDesigner />
         <LifecyclePackPanel />

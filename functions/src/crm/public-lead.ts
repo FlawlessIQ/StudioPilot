@@ -4,6 +4,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requestFingerprint, requireAppCheck } from "./security.js";
 import { studioHubCors } from "../security/cors.js";
+import { findTenantBySlug } from "./tenant-by-slug.js";
 
 const serviceSchema = z.enum([
   "photography",
@@ -87,13 +88,8 @@ export const publicLeadIntake = onRequest(
 
     const input = parsed.data;
     const db = getFirestore();
-    const tenantResult = await db
-      .collection("tenants")
-      .where("publicSlug", "==", input.tenantSlug)
-      .where("status", "in", ["trial", "active"])
-      .limit(1)
-      .get();
-    const tenantDocument = tenantResult.docs[0];
+    // Old addresses still resolve — see ./tenant-by-slug.ts.
+    const tenantDocument = await findTenantBySlug(db, input.tenantSlug);
     if (!tenantDocument) {
       response.status(404).json({ error: "INQUIRY_FORM_UNAVAILABLE" });
       return;

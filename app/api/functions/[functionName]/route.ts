@@ -38,6 +38,7 @@ const functionNames = [
   "studioImportCommand",
   "supportTenantSummary",
   "tenantBrandingCommand",
+  "tenantIdentityCommand",
   "tenantDataCommand",
   "tenantExportDownload",
   "tenantOnboardingCommand",

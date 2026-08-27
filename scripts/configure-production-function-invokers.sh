@@ -135,6 +135,7 @@ app_services=(
   studioimportcommand
   supporttenantsummary
   tenantbrandingcommand
+  tenantidentitycommand
   tenantdatacommand
   tenantexportdownload
   tenantonboardingcommand

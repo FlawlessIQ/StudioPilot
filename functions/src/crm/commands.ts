@@ -763,10 +763,29 @@ export const crmCommand = onRequest(
 
         if (command.type === "createPackage") {
           const packageId = randomUUID();
+          /**
+           * The studio's currency, not the browser's.
+           *
+           * `create-package-form.tsx` sends a hardcoded "USD", so a studio
+           * outside the US priced everything in dollars regardless of the
+           * currency on their own workspace — and that currency was read
+           * nowhere at all, which is why nobody noticed. The tenant is the
+           * authority; the submitted value is the fallback for a tenant
+           * created before the field existed.
+           */
+          const tenantForCurrency = await transaction.get(
+            db.doc(`tenants/${command.tenantId}`),
+          );
+          const currency =
+            typeof tenantForCurrency.get("currency") === "string" &&
+            String(tenantForCurrency.get("currency")).length === 3
+              ? String(tenantForCurrency.get("currency"))
+              : command.input.currency;
           transaction.create(db.doc(`packages/${packageId}`), {
             id: packageId,
             tenantId: command.tenantId,
             ...command.input,
+            currency,
             version: 1,
             createdAt: timestamp,
             updatedAt: timestamp,

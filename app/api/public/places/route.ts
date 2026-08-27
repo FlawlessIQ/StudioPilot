@@ -86,12 +86,22 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const input = requestSchema.parse(await request.json());
 
-    const tenants = await adminFirestore
+    // Old addresses still resolve, so a slug change does not break the venue
+    // lookup on a form a client already has open. See app/inquiry/page.tsx.
+    const byAlias = await adminFirestore
       .collection("tenants")
-      .where("publicSlug", "==", input.tenantSlug)
+      .where("slugAliases", "array-contains", input.tenantSlug)
       .where("status", "in", ["trial", "active"])
       .limit(1)
       .get();
+    const tenants = byAlias.empty
+      ? await adminFirestore
+          .collection("tenants")
+          .where("publicSlug", "==", input.tenantSlug)
+          .where("status", "in", ["trial", "active"])
+          .limit(1)
+          .get()
+      : byAlias;
     const tenant = tenants.docs[0];
     if (!tenant) {
       return Response.json({ error: "STUDIO_UNAVAILABLE" }, { status: 404 });

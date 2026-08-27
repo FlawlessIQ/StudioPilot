@@ -27,6 +27,15 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "That is not something this proposal can do from its current status.",
   // Archiving a client, vendor or collaborator. Both "has live work" refusals
   // are deliberate — see features/records/archive.ts.
+  // The studio's own identity. The public address is the one with a cost
+  // attached — see features/tenants/identity.ts.
+  PUBLIC_SLUG_TAKEN:
+    "Another studio already uses that inquiry address, or used to. Try a different one.",
+  PUBLIC_SLUG_INVALID:
+    "Use three or more lowercase letters, numbers and hyphens, without a hyphen at either end.",
+  IDENTITY_UPDATE_FAILED:
+    "Your studio details could not be saved. Try again, and contact support if it keeps failing.",
+  TENANT_NOT_FOUND: "This studio workspace could not be found.",
   // A collaborator you already have. Email is the identity, because it is what
   // the invitation is sent to and what they sign in with.
   CREW_EMAIL_ALREADY_IN_DIRECTORY:
