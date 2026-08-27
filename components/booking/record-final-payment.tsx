@@ -27,7 +27,9 @@ export function RecordFinalPayment({
   providerLabel,
   standingInvoice,
 }: {
-  onRecorded: () => void;
+  /** Called with the confirmation to show; the parent owns it, because this
+   * control is often unmounted by the reload that follows. */
+  onRecorded: (message: string) => void;
   packageSnapshotId: string;
   projectId: string;
   /** The balance as the couple was quoted it, for the confirmation line. */
@@ -61,10 +63,9 @@ export function RecordFinalPayment({
         return;
       }
       form.reset();
-      setNotice(
+      onRecorded(
         "Balance recorded against your name. Reconcile the closeout to finish.",
       );
-      onRecorded();
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "The payment could not be recorded."));
     } finally {

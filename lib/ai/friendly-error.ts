@@ -19,6 +19,20 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   INVALID_COVERAGE_RANGE: "Coverage must end after it starts.",
   FORBIDDEN: "You don't have permission to do this for the selected project.",
   // The inquiry already became a job. Say which way is forward.
+  ACCEPTANCE_PERMISSION_REQUIRED:
+    "Only a studio owner or admin can record an acceptance taken outside StudioCue.",
+  PROJECT_NOT_AWAITING_ACCEPTANCE:
+    "This job is not waiting on a proposal decision, so there is nothing to record.",
+  PROPOSAL_ACTION_NOT_ALLOWED:
+    "That is not something this proposal can do from its current status.",
+  INTERRUPTION_REASON_REQUIRED:
+    "Say why the job is on hold or cancelled — at least a short sentence, so it makes sense later.",
+  EVIDENCE_CONTROLLED_TRANSITION:
+    "This step needs the record behind it, not a stage change — the job page links to where to enter it.",
+  VERSION_CONFLICT:
+    "Someone else changed this job while you were looking at it. Refresh and try again.",
+  INVALID_TRANSITION:
+    "That is not a move this job can make from where it is now.",
   BALANCE_ATTESTATION_PERMISSION_REQUIRED:
     "Only a studio owner or admin can record a payment taken outside StudioCue.",
   BALANCE_NOT_READY:

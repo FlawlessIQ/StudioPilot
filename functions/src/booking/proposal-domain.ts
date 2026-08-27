@@ -19,7 +19,13 @@ export type ProposalAction =
   | "approve"
   | "regenerate_pdf"
   | "send"
-  | "resend";
+  | "resend"
+  /**
+   * The couple said yes somewhere else — by email, on the phone, in person.
+   * Only a proposal they have actually been given: recording an acceptance of a
+   * draft nobody has seen would be recording agreement to a price never quoted.
+   */
+  | "record_acceptance";
 
 const actionStatuses: Readonly<Record<ProposalAction, readonly ProposalStatus[]>> = {
   update_draft: ["draft"],
@@ -29,6 +35,17 @@ const actionStatuses: Readonly<Record<ProposalAction, readonly ProposalStatus[]>
   regenerate_pdf: ["approved"],
   send: ["approved"],
   resend: ["sent", "viewed"],
+  /**
+   * `approved` is included deliberately.
+   *
+   * A studio that emailed their own PDF, or whose branded send failed, never
+   * gets the proposal past `approved` — and sending is itself gated on a ready
+   * PDF. Refusing an attestation here would leave a couple's "yes" with no way
+   * into StudioCue at all. `draft` and `internal_review` stay out: nothing has
+   * been priced and approved yet, so there is nothing a client could have
+   * agreed to.
+   */
+  record_acceptance: ["approved", "sent", "viewed"],
 };
 
 export function assertProposalAction(

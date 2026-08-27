@@ -1872,7 +1872,25 @@ export const bookingCommand = onRequest(
             createdBy: identity.uid,
           });
           if (blockers.length === 0) {
-            if (project.get("state") !== "RETAINER_PENDING")
+            /**
+             * POSTPONED belongs here too.
+             *
+             * `POSTPONED → BOOKED` is declared evidence-controlled with
+             * `booking_gate` as its authority, so `transitionProject` refuses
+             * it — and the gate then refused it as well, because it only ever
+             * ran from RETAINER_PENDING. Between them the transition was dead:
+             * a wedding postponed to a new date could never be booked again by
+             * any path in the product. (It could be crept back via
+             * POSTPONED → PLANNING, which is not gated, and that is worse — a
+             * job in planning that was never re-booked.)
+             *
+             * The gate is the right authority and its checks are
+             * state-agnostic: it re-verifies the signature and the retainer on
+             * file. If the studio re-papered the agreement for the new date,
+             * the new contract is what it sees.
+             */
+            const bookableFrom = ["RETAINER_PENDING", "POSTPONED"];
+            if (!bookableFrom.includes(String(project.get("state"))))
               throw new Error("INVALID_BOOKING_STATE");
             const priorStateVersion = Number(project.get("stateVersion"));
             transaction.update(projectReference, {

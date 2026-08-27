@@ -272,7 +272,18 @@ function commandError(error: string): string {
     PROPOSAL_PDF_NOT_READY:
       "The approved PDF is still being generated. Try again when it is ready.",
   };
-  return messages[error] ?? error.replaceAll("_", " ").toLowerCase();
+  if (messages[error]) return messages[error];
+  /**
+   * Anything that already reads as a sentence is left alone.
+   *
+   * This is called as `commandError(friendlyError(caught, ...))`, so the input
+   * is usually already a written message — and the old fallback lowercased the
+   * whole thing, turning "This job is not waiting on a proposal decision." into
+   * "this job is not waiting on a proposal decision." A raw code is all-caps
+   * with underscores; only that gets softened.
+   */
+  const looksLikeRawCode = /^[A-Z0-9_:.]+$/.test(error);
+  return looksLikeRawCode ? error.replaceAll("_", " ").toLowerCase() : error;
 }
 
 async function loadProjectOptions(tenantId: string): Promise<{
@@ -1395,13 +1406,19 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
     return () => window.clearInterval(timer);
   }, [load, proposal?.pdfState]);
 
-  async function run(type: ProposalCommandType) {
+  async function run(
+    type: ProposalCommandType,
+    extra: Record<string, unknown> = {},
+  ) {
     if (!proposal) return;
     setWorking(type);
     setError("");
     setNotice("");
     try {
-      const input: Record<string, unknown> = { proposalId: proposal.id };
+      const input: Record<string, unknown> = {
+        proposalId: proposal.id,
+        ...extra,
+      };
       if (type === "update_draft") {
         input.expectedDraftRevision = Math.max(
           1,
@@ -1438,6 +1455,8 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
         return_to_draft: "Proposal returned to draft.",
         send: "Proposal queued for branded email delivery.",
         resend: "Proposal email queued again.",
+        record_acceptance:
+          "Acceptance recorded against your name. The agreement is the next step.",
       };
       /**
        * The two PDF commands read their outcome off the record.
@@ -1492,6 +1511,75 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
   }
 
   const status = text(proposal.status, "draft");
+
+  /**
+   * "They accepted outside StudioCue" — offered wherever it can be true.
+   *
+   * Rendered at `approved` as well as `sent`/`viewed`, because a studio that
+   * emailed their own PDF (or whose branded send failed — sending is itself
+   * gated on a ready PDF) never gets the proposal past `approved`, and the
+   * couple's "yes" would have no way into StudioCue at all.
+   */
+  const recordAcceptance = ["approved", "sent", "viewed"].includes(status) ? (
+      <details className="record-signed-agreement proposal-record-acceptance">
+        <summary>
+          <CheckCircle2 aria-hidden="true" size={15} />
+          They accepted outside StudioCue? Record it
+        </summary>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            const data = new FormData(event.currentTarget);
+            void run("record_acceptance", {
+              acceptedBy: String(data.get("acceptedBy") ?? "").trim(),
+              acceptedAt: String(data.get("acceptedAt") ?? ""),
+              method: String(data.get("method") ?? "").trim(),
+              attestation: true,
+            });
+          }}
+        >
+          <p>
+            StudioCue records this as your attestation, not the
+            client&rsquo;s decision. It moves the job on to the
+            agreement, and the audit log will show that you vouched
+            for it.
+          </p>
+          <label>
+            Who accepted
+            <input
+              maxLength={160}
+              name="acceptedBy"
+              placeholder="Imani Adeyemi"
+              required
+            />
+          </label>
+          <label>
+            Date they accepted
+            <input name="acceptedAt" required type="date" />
+          </label>
+          <label>
+            How you heard
+            <input
+              maxLength={200}
+              name="method"
+              placeholder="Replied by email"
+              required
+            />
+          </label>
+          <button
+            className="button"
+            disabled={working !== null}
+            type="submit"
+          >
+            {working === "record_acceptance" ? (
+              <LoaderCircle className="spin" />
+            ) : null}
+            Record the acceptance
+          </button>
+        </form>
+      </details>
+  ) : null;
+
   const pricing = objectValue(proposal.pricingSnapshot);
   const event = objectValue(proposal.eventSnapshot);
   const client = objectValue(proposal.clientSnapshot);
@@ -1894,6 +1982,9 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
                 >
                   Return to editing
                 </button>
+                {/* Also here: a studio that emailed their own PDF, or whose
+                    branded send failed, never gets past `approved`. */}
+                {recordAcceptance}
               </div>
             ) : null}
 
@@ -1936,6 +2027,21 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
                 <small>
                   Resending creates a separate audited delivery attempt.
                 </small>
+                {/**
+                  * The couple said yes somewhere else.
+                  *
+                  * `PROPOSAL → CONTRACT_PENDING` is evidence-controlled and the
+                  * only thing that could produce the evidence was the client
+                  * clicking Accept in their portal. A couple who replied by
+                  * email, said yes on the phone, or never opened the portal left
+                  * the job stuck at Proposal — the stage control refuses the
+                  * move and this screen offered only "Resend branded email".
+                  *
+                  * Recorded as the studio's attestation, not the client's
+                  * click: the proposal keeps `acceptanceAuthority:
+                  * "studio_attested"` so the two are never confused.
+                  */}
+                {recordAcceptance}
               </div>
             ) : null}
 

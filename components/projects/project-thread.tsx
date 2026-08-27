@@ -9,6 +9,7 @@ import {
   History,
   LoaderCircle,
   MessageSquareText,
+  PauseCircle,
   Send,
   ShieldCheck,
   Sparkles,
@@ -86,6 +87,7 @@ export function ProjectThread({
   projectId,
   entries,
   current,
+  interruption,
   stateVersion,
   consultationId,
   onChanged,
@@ -93,6 +95,12 @@ export function ProjectThread({
   projectId: string;
   entries: ThreadEntry[];
   current: JourneyStep | null;
+  /**
+   * Set when the job is on hold or cancelled, with the reason the studio gave.
+   * A cancelled job has no next move, and "waiting on someone else" is the
+   * wrong thing to say about it.
+   */
+  interruption: { state: string; reason: string | null } | null;
   stateVersion: number;
   /** An open consultation, when one exists — enables logging notes here. */
   consultationId: string | null;
@@ -105,6 +113,7 @@ export function ProjectThread({
     <section className="job-thread" aria-label="This job">
       <ThreadNextMove
         current={current}
+        interruption={interruption}
         onChanged={onChanged}
         projectId={projectId}
         stateVersion={stateVersion}
@@ -332,15 +341,51 @@ const NOTE_SUGGESTIONS = [
  */
 function ThreadNextMove({
   current,
+  interruption,
   onChanged,
   projectId,
   stateVersion,
 }: {
   current: JourneyStep | null;
+  interruption: { state: string; reason: string | null } | null;
   onChanged: (state?: string, version?: number) => void;
   projectId: string;
   stateVersion: number;
 }) {
+  if (interruption) {
+    /**
+     * On hold or called off, and it says which and why.
+     *
+     * A cancelled sports shoot used to read "YOUR NEXT MOVE — Schedule
+     * consultation · Find a time that works", because the journey read records
+     * that had not changed. The reason the studio typed was recorded and then
+     * shown nowhere.
+     */
+    const held = interruption.state === "POSTPONED";
+    return (
+      <div className="thread-next-slot">
+        <div className="thread-next is-interrupted">
+          <div className="thread-next-copy">
+            <p className="thread-next-eyebrow">
+              <PauseCircle size={12} /> {held ? "On hold" : "Cancelled"}
+            </p>
+            <strong>
+              {held
+                ? "This job is on hold, so nothing is being chased."
+                : "This job was cancelled. Everything on it is still on file."}
+            </strong>
+            <small>
+              {interruption.reason
+                ? `Your reason: ${interruption.reason}`
+                : held
+                  ? "Bring it back from the job rail when the new date is settled."
+                  : "Nothing was deleted."}
+            </small>
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="thread-next-slot">
       {current ? (

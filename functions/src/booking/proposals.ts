@@ -50,6 +50,35 @@ const commandSchema = z.discriminatedUnion("type", [
     }),
   }),
   z.object({
+    /**
+     * The couple said yes somewhere else.
+     *
+     * `PROPOSAL → CONTRACT_PENDING` is evidence-controlled, and the only thing
+     * that could produce that evidence was the client clicking Accept in the
+     * portal. A couple who replied by email, said yes on the phone, or never
+     * opened their portal at all left the job stuck at Proposal with no way
+     * forward: `transitionProject` refuses the move, and the proposal screen
+     * offered only "Resend branded email".
+     *
+     * This records what happened rather than asserting the state — who said
+     * yes, when, and how the studio heard it — and the proposal carries
+     * `acceptanceAuthority: "studio_attested"` so a vouched-for acceptance is
+     * never mistaken for one the client made themselves.
+     */
+    type: z.literal("record_acceptance"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      proposalId: z.string().min(1),
+      /** Who accepted, in the studio's words. */
+      acceptedBy: z.string().min(1).max(160),
+      acceptedAt: z.string().date(),
+      /** How the studio heard it: "Replied by email", "Said yes on the call". */
+      method: z.string().min(1).max(200),
+      attestation: z.literal(true),
+    }),
+  }),
+  z.object({
     type: z.enum([
       "submit_for_approval",
       "return_to_draft",
@@ -477,6 +506,152 @@ export const proposalCommand = onRequest(
             pdfDocumentId: proposal.get("pdfDocumentId") ?? null,
           };
           let output: CommandResult;
+
+          if (command.type === "record_acceptance") {
+            // The same authority that may send a proposal may record that it
+            // was accepted: both are the studio speaking for the client
+            // relationship, and both are audited as such.
+            if (!canSendProposal(membership.role)) {
+              throw new Error("ACCEPTANCE_PERMISSION_REQUIRED");
+            }
+            // `proposal`, `projectId` and the access check come from the
+            // shared read above this branch.
+            const projectReference = db.doc(`projects/${projectId}`);
+            const project = await transaction.get(projectReference);
+            if (
+              !project.exists ||
+              project.get("tenantId") !== command.tenantId
+            ) {
+              throw new Error("PROJECT_NOT_FOUND");
+            }
+            // `assertProposalAction` above has already refused anything but an
+            // approved, sent or viewed proposal — which also covers "already
+            // accepted", and keeps a draft from becoming an agreement.
+            const priorStatus = currentStatus;
+            const projectState = stringValue(project.get("state"));
+            /**
+             * CONSULTATION counts, and it is the case that matters.
+             *
+             * `PROPOSAL` is only ever set by the `send` command. A studio that
+             * emailed their own PDF never sent through StudioCue, so the job
+             * sits at CONSULTATION with an approved proposal on it — exactly
+             * the studio this control exists for. Refusing them was the first
+             * version of this guard being written against the happy path.
+             *
+             * The state machine has no CONSULTATION → CONTRACT_PENDING edge,
+             * and inventing one would be wrong: the job really did pass
+             * through proposal. So both hops are recorded, the version moves
+             * by two, and the audit log shows the sequence that happened
+             * rather than a jump.
+             */
+            if (!["CONSULTATION", "PROPOSAL"].includes(projectState)) {
+              throw new Error("PROJECT_NOT_AWAITING_ACCEPTANCE");
+            }
+            const hops = projectState === "PROPOSAL" ? 1 : 2;
+            transaction.update(proposalReference, {
+              status: "accepted",
+              acceptedAt: `${command.input.acceptedAt}T00:00:00.000Z`,
+              declinedAt: null,
+              declineReason: null,
+              decisionBy: identity.uid,
+              // Never "client": everything downstream reads this to tell an
+              // acceptance the couple made from one the studio vouched for.
+              acceptanceAuthority: "studio_attested",
+              acceptanceEvidence: {
+                kind: "manual_attestation",
+                acceptedBy: command.input.acceptedBy,
+                acceptedAt: command.input.acceptedAt,
+                method: command.input.method,
+                attestedBy: identity.uid,
+                attestedAt: timestamp,
+              },
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            });
+            const priorStateVersion = Number(project.get("stateVersion") ?? 0);
+            transaction.update(projectReference, {
+              state: "CONTRACT_PENDING",
+              stateVersion: priorStateVersion + hops,
+              nextAction: "Prepare and send the photography agreement",
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            });
+            if (hops === 2) {
+              // The intermediate hop, recorded as its own event so the trail
+              // reads CONSULTATION → PROPOSAL → CONTRACT_PENDING.
+              const proposalStageAuditId = stableId(
+                "audit_proposal_stage",
+                command.tenantId,
+                command.idempotencyKey,
+              );
+              transaction.create(db.doc(`auditEvents/${proposalStageAuditId}`), {
+                id: proposalStageAuditId,
+                tenantId: command.tenantId,
+                projectId,
+                actorId: identity.uid,
+                actorType: "user",
+                action: "project.state_changed",
+                entityType: "project",
+                entityId: projectId,
+                timestamp,
+                before: { state: "CONSULTATION", stateVersion: priorStateVersion },
+                after: {
+                  state: "PROPOSAL",
+                  stateVersion: priorStateVersion + 1,
+                  reason:
+                    "Proposal was delivered outside StudioCue and accepted",
+                },
+                ipAddress: request.ip ?? null,
+                userAgent,
+                correlationId,
+                automationRunId: null,
+                providerEventId: null,
+              });
+            }
+            const acceptanceAuditId = stableId(
+              "audit_proposal_attested",
+              command.tenantId,
+              command.idempotencyKey,
+            );
+            transaction.create(db.doc(`auditEvents/${acceptanceAuditId}`), {
+              id: acceptanceAuditId,
+              tenantId: command.tenantId,
+              projectId,
+              actorId: identity.uid,
+              // A person, not the client. The portal path writes "client".
+              actorType: "user",
+              action: "proposal.acceptance_attested",
+              entityType: "proposal",
+              entityId: proposal.id,
+              timestamp,
+              before: { status: priorStatus, projectState },
+              after: {
+                status: "accepted",
+                projectState: "CONTRACT_PENDING",
+                acceptedBy: command.input.acceptedBy,
+                acceptedAt: command.input.acceptedAt,
+                method: command.input.method,
+              },
+              ipAddress: request.ip ?? null,
+              userAgent,
+              correlationId,
+              automationRunId: null,
+              providerEventId: null,
+            });
+            const output = {
+              proposalId: proposal.id,
+              status: "accepted",
+              projectState: "CONTRACT_PENDING",
+              alreadyComplete: false,
+            };
+            transaction.create(executionReference, {
+              tenantId: command.tenantId,
+              idempotencyKey: command.idempotencyKey,
+              result: output,
+              createdAt: timestamp,
+            });
+            return output;
+          }
 
           if (command.type === "update_draft") {
             assertFutureExpiration(command.input.expiresAt);

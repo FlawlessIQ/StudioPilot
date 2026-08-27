@@ -63,6 +63,14 @@ import { ProjectPreparedTray } from "@/components/projects/project-prepared-tray
 import { ProjectPlanningCopilot } from "@/components/projects/project-planning-copilot";
 import { crmProjects } from "@/config/crm-demo-data";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { manualAdvanceFor } from "@/features/projects/manual-advance";
+import {
+  INTERRUPTION_COPY,
+  interruptionReasonIsUsable,
+  interruptionsFor,
+  MINIMUM_INTERRUPTION_REASON,
+  type Interruption,
+} from "@/features/projects/interruptions";
 
 type ProjectRecord = Record<string, unknown> & { id: string };
 type CheckpointRecord = Record<string, unknown> & { id: string };
@@ -96,6 +104,10 @@ const emptyRelatedRecords: RelatedRecords = {
 
 const forwardStage: Partial<Record<ProjectState, ProjectState>> = {
   LEAD: "CONSULTATION",
+  // A held job's way back. The signature and retainer are already on file and
+  // the booking gate re-checks them against the new date. Without this a
+  // postponed project showed no stage card at all.
+  POSTPONED: "BOOKED",
   CONSULTATION: "PROPOSAL",
   PROPOSAL: "CONTRACT_PENDING",
   CONTRACT_PENDING: "RETAINER_PENDING",
@@ -195,13 +207,24 @@ function ProjectStageControl({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
-  if (
-    !target ||
-    !allowedProjectTransitions[state].includes(target) ||
-    transitionAuthority(state, target)
-  ) {
+  if (!target || !allowedProjectTransitions[state].includes(target)) {
     return null;
   }
+  /**
+   * A gated stage used to render nothing at all.
+   *
+   * `transitionProject` refuses the six evidence-controlled transitions, which
+   * is right — a job should not be called booked because somebody picked from a
+   * dropdown. But returning null meant the card a photographer reaches for
+   * simply vanished, with no hint that a way through existed. A couple who
+   * accepted by text, an agreement signed on paper, a retainer taken by
+   * transfer: all of those are ordinary, and all of them looked like a dead
+   * end. The card now stays and says which record is needed.
+   * See features/projects/manual-advance.ts.
+   */
+  const gated = transitionAuthority(state, target)
+    ? manualAdvanceFor(state, target, projectId)
+    : null;
   const nextStage = target;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -224,11 +247,8 @@ function ProjectStageControl({
         );
       }
     } catch (caught: unknown) {
-      setNotice(
-        caught instanceof Error
-          ? caught.message.replaceAll("_", " ")
-          : "The project stage could not be changed.",
-      );
+      // "EVIDENCE CONTROLLED TRANSITION" at a photographer is not a message.
+      setNotice(friendlyError(caught, "The project stage could not be changed."));
     } finally {
       setBusy(false);
     }
@@ -252,16 +272,147 @@ function ProjectStageControl({
           <strong>{stateLabel(nextStage)}</strong>
         </span>
         <p>
-          Use this when the step happened outside StudioCue — for example a
-          consultation handled over the phone. The change is recorded in the
-          audit log.
+          {gated
+            ? gated.detail
+            : "Use this when the step happened outside StudioCue — for example a consultation handled over the phone. The change is recorded in the audit log."}
         </p>
-        <button className="button button-light-on-dark" disabled={busy} type="submit">
-          {busy ? "Updating…" : projectStateAdvanceAction(nextStage)}
-        </button>
+        {gated ? (
+          <Link className="button button-light-on-dark" href={gated.href}>
+            {gated.label} <ArrowRight aria-hidden="true" size={15} />
+          </Link>
+        ) : (
+          <button className="button button-light-on-dark" disabled={busy} type="submit">
+            {busy ? "Updating…" : projectStateAdvanceAction(nextStage)}
+          </button>
+        )}
         {notice ? <p className="project-stage-notice" role="status">{notice}</p> : null}
       </form>
     </details>
+    </aside>
+  );
+}
+
+/**
+ * Putting the job on hold, or calling it off.
+ *
+ * The state machine has allowed both from nearly every live state from the
+ * start and `transitionProject` permits them — nothing in the product could
+ * reach either. A wedding moved to next year sat at "Ready for the day"
+ * indefinitely, counted as live work on every screen.
+ *
+ * Deliberately quieter than the forward card, and it asks why: six months later
+ * "Postponed" on its own tells nobody anything. See
+ * features/projects/interruptions.ts.
+ */
+function ProjectInterruptionControl({
+  projectId,
+  state,
+  stateVersion,
+  onTransition,
+}: {
+  projectId: string;
+  state: ProjectState;
+  stateVersion: number;
+  onTransition: (state: ProjectState, version: number) => void;
+}) {
+  const options = interruptionsFor(state);
+  const [open, setOpen] = useState<Interruption | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  if (options.length === 0) return null;
+
+  async function submit(target: Interruption, reason: string) {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const response = await runCrmCommand("transitionProject", {
+        projectId,
+        expectedVersion: stateVersion,
+        targetState: target,
+        reason,
+      });
+      if (response.persisted) {
+        const version = Number(response.result.stateVersion ?? stateVersion + 1);
+        onTransition(target, version);
+        setOpen(null);
+        setNotice(
+          target === "POSTPONED"
+            ? "The job is on hold. Bring it back when the new date is settled."
+            : "The job is cancelled. Everything on it stays on file.",
+        );
+      } else {
+        setNotice("Development preview: nothing was changed.");
+      }
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "The job could not be updated."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <aside className="job-rail-card">
+      <details className="project-interruption-control">
+        <summary>Something changed with this job</summary>
+        {options.map((option) => (
+          <div key={option}>
+            <p>{INTERRUPTION_COPY[option].detail}</p>
+            {open === option ? (
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const reason = String(
+                    new FormData(event.currentTarget).get("reason") ?? "",
+                  );
+                  if (!interruptionReasonIsUsable(reason)) return;
+                  void submit(option, reason);
+                }}
+              >
+                <label>
+                  {INTERRUPTION_COPY[option].prompt}
+                  <input
+                    maxLength={500}
+                    minLength={MINIMUM_INTERRUPTION_REASON}
+                    name="reason"
+                    placeholder={
+                      option === "POSTPONED"
+                        ? "Moved to next spring after a family illness"
+                        : "The couple called the wedding off"
+                    }
+                    required
+                  />
+                </label>
+                <div>
+                  <button className="button" disabled={busy} type="submit">
+                    {busy ? "Saving…" : INTERRUPTION_COPY[option].label}
+                  </button>
+                  <button
+                    className="button button-quiet"
+                    onClick={() => setOpen(null)}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <button
+                className="button button-quiet"
+                disabled={busy}
+                onClick={() => setOpen(option)}
+                type="button"
+              >
+                {INTERRUPTION_COPY[option].label}
+              </button>
+            )}
+          </div>
+        ))}
+        {notice ? (
+          <p className="project-stage-notice" role="status">
+            {notice}
+          </p>
+        ) : null}
+      </details>
     </aside>
   );
 }
@@ -661,6 +812,17 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           consultationId={thread.openConsultationId}
           current={current}
           entries={thread.entries}
+          interruption={
+            ["POSTPONED", "CANCELLED"].includes(state)
+              ? {
+                  state,
+                  reason:
+                    typeof project.interruptionReason === "string"
+                      ? project.interruptionReason
+                      : null,
+                }
+              : null
+          }
           onChanged={(nextState, version) => {
             if (nextState && typeof version === "number")
               onTransition(nextState, version);
@@ -682,6 +844,12 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
             </aside>
           ) : null}
           <ProjectStageControl
+            onTransition={onTransition}
+            projectId={projectId}
+            state={state}
+            stateVersion={Number(project.stateVersion ?? 0)}
+          />
+          <ProjectInterruptionControl
             onTransition={onTransition}
             projectId={projectId}
             state={state}

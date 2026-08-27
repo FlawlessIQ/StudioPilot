@@ -28,7 +28,9 @@ export function RecordSignedAgreement({
   projectId,
   proposalId,
 }: {
-  onRecorded: () => void;
+  /** Called with the confirmation to show; the parent owns it, because this
+   * control is often unmounted by the reload that follows. */
+  onRecorded: (message: string) => void;
   projectId: string;
   proposalId: string;
 }) {
@@ -67,10 +69,9 @@ export function RecordSignedAgreement({
        * vouching personally, so it is the last place to leave them guessing
        * whether it landed.
        */
-      setNotice(
+      onRecorded(
         "Signature recorded against your name. The retainer is the next step.",
       );
-      onRecorded();
     } catch (caught: unknown) {
       setNotice(
         friendlyError(caught, "The signature could not be recorded."),

@@ -38,6 +38,10 @@ import {
 } from "@/components/ui/panel-state";
 import { projectStateLabel } from "@/features/projects/state-label";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import {
+  pastConsultation,
+  pastProposal,
+} from "@/features/projects/stage-progress";
 
 type Value = Record<string, unknown> & { id: string };
 
@@ -234,14 +238,31 @@ export function BookingAutopilotWorkspace({
     consultation?.status === "completed" &&
     !summaryAction &&
     object(consultation.aiReview).status === "queued";
-  const laterBookingState = [
-    "PROPOSAL",
-    "CONTRACT_PENDING",
-    "RETAINER_PENDING",
-    "BOOKED",
-    "PLANNING",
-    "READY",
-  ].includes(text(project?.state));
+  /**
+   * Derived, not listed.
+   *
+   * This was a hand-kept array, and it drifted twice: it omitted the
+   * post-event states, and it omitted `POSTPONED` — so a wedding moved to next
+   * year, with a signed contract and a paid retainer on file, was shown the
+   * pre-consultation flow and told to "Schedule the consultation first".
+   * See features/projects/stage-progress.ts.
+   */
+  const laterBookingState = pastProposal(text(project?.state));
+  /**
+   * The consultation already happened, whatever this page can see of it.
+   *
+   * The job page offers "It already happened — mark done" for a consultation
+   * handled over the phone. It advances the project to CONSULTATION and
+   * creates no meeting record — there was no meeting to record. This page then
+   * read the *record* and told the studio to "Schedule the consultation
+   * first", for a conversation they had just said they had already had. There
+   * was no notes field and no route to a proposal: the product's own escape
+   * hatch led straight into a wall.
+   *
+   * The state is the authority. Anything from CONSULTATION onward means the
+   * conversation is behind them.
+   */
+  const consultationBehindThem = pastConsultation(text(project?.state));
   const expiry = useMemo(() => futureDate(14), []);
   const retainerDue = useMemo(() => futureDate(7), []);
   const balanceDue = useMemo(() => {
@@ -496,19 +517,19 @@ export function BookingAutopilotWorkspace({
         </header>
       )}
 
-      {!consultation && laterBookingState && !proposalId ? (
-        // The stage moved past consultation without a meeting record (booked
-        // by phone, stage advanced by hand). Don't demand a consultation
-        // that will never exist — point at the proposal flow instead. Once a
-        // proposal exists this is stale advice, so it steps aside for the
-        // `laterBookingState` branch below, which links to the real one.
+      {!consultation && consultationBehindThem && !proposalId ? (
+        // The stage moved past consultation without a meeting record (handled
+        // over the phone, stage advanced by hand). Don't demand a
+        // consultation that will never exist — point at the proposal flow
+        // instead. Once a proposal exists this is stale advice, so it steps
+        // aside for the `laterBookingState` branch below.
         <section className="booking-autopilot-empty">
           <Check />
           <span>
             <strong>No consultation was recorded — that&rsquo;s fine.</strong>
             <small>
-              You can prepare the proposal directly; it will lock a package
-              if one isn&rsquo;t chosen yet.
+              You marked it as handled elsewhere. Prepare the proposal
+              directly; it will lock a package if one isn&rsquo;t chosen yet.
             </small>
           </span>
           <Link href={`/studio/proposals/new?project=${projectId}`}>

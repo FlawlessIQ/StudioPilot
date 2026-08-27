@@ -102,6 +102,14 @@ const commandSchema = z.discriminatedUnion("type", [
       projectId: z.string().min(1),
       expectedVersion: z.number().int().nonnegative(),
       targetState: z.enum(projectStates),
+      /**
+       * Why, for the moves where why is the whole point.
+       *
+       * Required when a job is put on hold or called off — six months later
+       * "POSTPONED" on its own tells nobody anything. Optional elsewhere,
+       * where the move speaks for itself.
+       */
+      reason: z.string().max(500).nullable().default(null),
     }),
   }),
   z.object({
@@ -588,9 +596,23 @@ export const crmCommand = onRequest(
           ) {
             throw new Error("EVIDENCE_CONTROLLED_TRANSITION");
           }
+          if (
+            ["POSTPONED", "CANCELLED"].includes(command.input.targetState) &&
+            (command.input.reason?.trim().length ?? 0) < 10
+          ) {
+            throw new Error("INTERRUPTION_REASON_REQUIRED");
+          }
           transaction.update(projectReference, {
             state: command.input.targetState,
             stateVersion: project.stateVersion + 1,
+            // Kept on the project, not only in the audit log, so the job page
+            // can say why it is on hold without a log query.
+            ...(["POSTPONED", "CANCELLED"].includes(command.input.targetState)
+              ? {
+                  interruptionReason: command.input.reason ?? null,
+                  interruptionAt: timestamp,
+                }
+              : {}),
             updatedAt: timestamp,
             updatedBy: identity.uid,
           });
@@ -612,6 +634,9 @@ export const crmCommand = onRequest(
             after: {
               state: command.input.targetState,
               stateVersion: project.stateVersion + 1,
+              // The whole point of the audit entry when a job is held or
+              // called off.
+              reason: command.input.reason ?? null,
             },
             ipAddress: null,
             userAgent: request.header("user-agent") ?? null,

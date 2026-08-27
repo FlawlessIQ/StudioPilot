@@ -1067,3 +1067,25 @@
 .thread-next.is-clear small {
   color: var(--muted, #6b7570);
 }
+
+/* On hold or cancelled. Muted amber rather than the emerald of live work —
+   the job is real and on file, but nothing is being chased.
+   See features/projects/interruptions.ts. */
+.thread-next.is-interrupted {
+  background: var(--paper, #fdfbf6);
+  border: 1px solid color-mix(in srgb, var(--amber-dark, #a97a1e) 26%, var(--line, #e6eae4));
+  box-shadow: none;
+  color: var(--ink, #1d2420);
+}
+
+.thread-next.is-interrupted .thread-next-eyebrow {
+  color: var(--amber-dark, #8a6417);
+}
+
+.thread-next.is-interrupted strong {
+  color: var(--ink, #1d2420);
+}
+
+.thread-next.is-interrupted small {
+  color: var(--muted, #6b7570);
+}

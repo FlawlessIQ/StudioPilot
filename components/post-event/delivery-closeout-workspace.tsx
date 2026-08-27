@@ -344,7 +344,13 @@ export function DeliveryCloseoutWorkspace({
                     */}
                   {!met && key === "final_balance" && packageSnapshotId ? (
                     <RecordFinalPayment
-                      onRecorded={() => void runCloseout("prepareCloseout")}
+                      onRecorded={(message) => {
+                        // The row this control sits in disappears as soon as
+                        // the requirement is met, so the workspace holds the
+                        // confirmation.
+                        setNotice(message);
+                        void runCloseout("prepareCloseout");
+                      }}
                       packageSnapshotId={packageSnapshotId}
                       projectId={projectId}
                       providerLabel={finalInvoiceProvider}

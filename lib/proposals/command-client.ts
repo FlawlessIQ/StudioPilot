@@ -12,7 +12,8 @@ export type ProposalCommandType =
   | "approve"
   | "regenerate_pdf"
   | "send"
-  | "resend";
+  | "resend"
+  | "record_acceptance";
 
 export type ProposalCommandResult = Record<string, unknown>;
 
@@ -31,16 +32,13 @@ export async function runProposalCommand(
           typeof input.proposalId === "string"
             ? input.proposalId
             : `demo-proposal-${crypto.randomUUID().slice(0, 8)}`,
-        status:
-          type === "submit_for_approval"
-            ? "internal_review"
-            : type === "approve"
-              ? "approved"
-              : type === "send"
-                ? "sent"
-                : type === "return_to_draft"
-                  ? "draft"
-                  : undefined,
+        status: {
+          submit_for_approval: "internal_review",
+          approve: "approved",
+          send: "sent",
+          record_acceptance: "accepted",
+          return_to_draft: "draft",
+        }[type as string],
         pdfState:
           type === "approve" || type === "regenerate_pdf"
             ? "queued"

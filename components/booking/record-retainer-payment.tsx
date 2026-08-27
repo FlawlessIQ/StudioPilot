@@ -32,7 +32,9 @@ export function RecordRetainerPayment({
   providerLabel,
   standingInvoice,
 }: {
-  onRecorded: () => void;
+  /** Called with the confirmation to show; the parent owns it, because this
+   * control is often unmounted by the reload that follows. */
+  onRecorded: (message: string) => void;
   packageSnapshotId: string;
   projectId: string;
   /** The retainer as the couple was quoted it, for the confirmation line. */
@@ -69,10 +71,9 @@ export function RecordRetainerPayment({
       // Silence here left a photographer unsure whether their attestation had
       // landed — the same gap as record-signed-agreement.tsx. Say it, and say
       // what is left.
-      setNotice(
+      onRecorded(
         "Retainer recorded against your name. Confirm the booking to finish.",
       );
-      onRecorded();
     } catch (caught: unknown) {
       setNotice(
         friendlyError(caught, "The payment could not be recorded."),

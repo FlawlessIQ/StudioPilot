@@ -61,13 +61,28 @@ export async function reconcileProjectReadiness(
     loadReadinessEvidence(db, tenantId, projectId),
   ]);
 
-  // Nothing required means nothing to say — a job before planning is not a
-  // job at 0%.
   const checkpoints = checkpointsSnapshot.docs.map(
     (document) =>
       ({ id: document.id, ...document.data() }) as CheckpointDocument,
   );
-  if (!checkpoints.some((checkpoint) => checkpoint.blocking)) return null;
+  /**
+   * Nothing required means nothing to say — a job before planning is not a job
+   * at 0%. But it must not mean nothing to *do*, either.
+   *
+   * `PLANNING → READY` is readiness-controlled, so `transitionProject` refuses
+   * it and this function is the only performer. Returning early on a project
+   * with no blocking checkpoints — a tenant whose event type has no workflow
+   * template, or a studio that archived the starter ones — left that project
+   * stuck at PLANNING for good: no checkpoints to complete, no score to reach,
+   * and no manual override anywhere.
+   *
+   * A job with no readiness requirements is ready by definition. So the early
+   * return still skips the *scoring* (there is no number to write), but a
+   * project already sitting in PLANNING is advanced.
+   */
+  if (!checkpoints.some((checkpoint) => checkpoint.blocking)) {
+    return advanceUnrequiredProject(db, tenantId, projectId);
+  }
 
   const timestamp = new Date().toISOString();
   const projectReference = db.doc(`projects/${projectId}`);
@@ -111,6 +126,62 @@ export async function reconcileProjectReadiness(
       score: projection.score,
       state: advancing ? "READY" : state,
     };
+  });
+}
+
+/**
+ * Advance a project that has nothing to be ready for.
+ *
+ * Only from PLANNING, only forward, and with the same optimistic-concurrency
+ * shape as the scored path. A project with no blocking checkpoints has no
+ * readiness assessment to write, so this writes the state and the audit trail
+ * and nothing else.
+ */
+async function advanceUnrequiredProject(
+  db: Firestore,
+  tenantId: string,
+  projectId: string,
+): Promise<{ changed: boolean; score: number; state: string } | null> {
+  const timestamp = new Date().toISOString();
+  const projectReference = db.doc(`projects/${projectId}`);
+  return db.runTransaction(async (transaction) => {
+    const project = await transaction.get(projectReference);
+    if (!project.exists || project.get("tenantId") !== tenantId) return null;
+    const state = text(project.get("state"));
+    if (state !== "PLANNING") return null;
+    const stateVersion = Number(project.get("stateVersion") ?? 0);
+    transaction.update(projectReference, {
+      state: "READY",
+      stateVersion: stateVersion + 1,
+      updatedAt: timestamp,
+      updatedBy: "readiness-reconciler",
+    });
+    const auditId = `audit_readiness_unrequired_${projectId}_${stateVersion}`;
+    transaction.set(db.doc(`auditEvents/${auditId}`), {
+      id: auditId,
+      tenantId,
+      projectId,
+      actorId: "readiness-reconciler",
+      actorType: "system",
+      action: "project.state_changed",
+      entityType: "project",
+      entityId: projectId,
+      timestamp,
+      before: { state, stateVersion },
+      after: {
+        state: "READY",
+        stateVersion: stateVersion + 1,
+        // Said explicitly, because "ready with no checkpoints" is a claim a
+        // studio may want to question later.
+        reason: "No blocking readiness checkpoints exist for this project",
+      },
+      ipAddress: null,
+      userAgent: null,
+      correlationId: auditId,
+      automationRunId: null,
+      providerEventId: null,
+    });
+    return { changed: true, score: 0, state: "READY" };
   });
 }
 

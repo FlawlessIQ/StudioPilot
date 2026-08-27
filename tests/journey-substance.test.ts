@@ -219,3 +219,16 @@ test("a settled final-balance checkpoint settles the money step", () => {
     "complete",
   );
 });
+
+test("a job on hold or called off has no next move", () => {
+  // A cancelled sports shoot kept showing "YOUR NEXT MOVE — Schedule
+  // consultation", because the journey read records that had not changed.
+  for (const state of ["POSTPONED", "CANCELLED", "ARCHIVED"] as const) {
+    const held = projectJourney({ ...booked, state });
+    assert.equal(held.current, null, state);
+    // The history is still the history — only the demand for work is gone.
+    assert.ok(held.steps.length > 5, `${state} should keep its steps`);
+  }
+  // A live job still has one.
+  assert.ok(projectJourney({ ...booked, state: "PLANNING" }).steps.length > 5);
+});

@@ -678,5 +678,20 @@ export function projectJourney(input: JourneyInput): {
     if (step.status !== "current") step.advance = null;
   }
 
+  /**
+   * A job on hold or called off has no next move.
+   *
+   * Without this, a cancelled sports shoot went on showing "YOUR NEXT MOVE —
+   * Schedule consultation · Find a time that works" and "3 blockers", because
+   * the journey read the records and the records had not changed. Nobody is
+   * going to schedule that consultation.
+   *
+   * The steps are kept exactly as they are — the history of the job is still
+   * the history of the job — and only the *current* step is dropped, so nothing
+   * asks the studio for work on a job that is not live.
+   */
+  if (["POSTPONED", "CANCELLED", "ARCHIVED"].includes(String(input.state))) {
+    return { steps, current: null };
+  }
   return { steps, current: steps.find((step) => step.status === "current") ?? null };
 }

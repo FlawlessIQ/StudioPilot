@@ -644,7 +644,14 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 </button>
                 {proposal ? (
                   <RecordSignedAgreement
-                    onRecorded={() => void load()}
+                    onRecorded={(message) => {
+                      // The branch this control lives in unmounts as soon as
+                      // the contract exists, taking any notice inside it with
+                      // it — which is why recording a signature used to say
+                      // nothing at all. The workspace keeps it.
+                      setNotice(message);
+                      void load();
+                    }}
                     projectId={projectId}
                     proposalId={String(proposal.id)}
                   />
@@ -763,7 +770,14 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 <CapabilityNote capability="invoicing" />
                 {proposal ? (
                   <RecordSignedAgreement
-                    onRecorded={() => void load()}
+                    onRecorded={(message) => {
+                      // The branch this control lives in unmounts as soon as
+                      // the contract exists, taking any notice inside it with
+                      // it — which is why recording a signature used to say
+                      // nothing at all. The workspace keeps it.
+                      setNotice(message);
+                      void load();
+                    }}
                     projectId={projectId}
                     proposalId={String(proposal.id)}
                   />
@@ -854,7 +868,14 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 </button>
                 {packageSnapshot ? (
                   <RecordRetainerPayment
-                    onRecorded={() => void load()}
+                    onRecorded={(message) => {
+                      // The branch this control lives in unmounts as soon as
+                      // the contract exists, taking any notice inside it with
+                      // it — which is why recording a signature used to say
+                      // nothing at all. The workspace keeps it.
+                      setNotice(message);
+                      void load();
+                    }}
                     packageSnapshotId={String(packageSnapshot.id)}
                     projectId={projectId}
                     retainerLabel={currency(
@@ -927,7 +948,14 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 */}
                 {packageSnapshot && Number(invoice.balanceCents ?? 0) > 0 ? (
                   <RecordRetainerPayment
-                    onRecorded={() => void load()}
+                    onRecorded={(message) => {
+                      // The branch this control lives in unmounts as soon as
+                      // the contract exists, taking any notice inside it with
+                      // it — which is why recording a signature used to say
+                      // nothing at all. The workspace keeps it.
+                      setNotice(message);
+                      void load();
+                    }}
                     packageSnapshotId={String(packageSnapshot.id)}
                     projectId={projectId}
                     providerLabel={
@@ -991,7 +1019,14 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 */}
                 {contractComplete && packageSnapshot ? (
                   <RecordRetainerPayment
-                    onRecorded={() => void load()}
+                    onRecorded={(message) => {
+                      // The branch this control lives in unmounts as soon as
+                      // the contract exists, taking any notice inside it with
+                      // it — which is why recording a signature used to say
+                      // nothing at all. The workspace keeps it.
+                      setNotice(message);
+                      void load();
+                    }}
                     packageSnapshotId={String(packageSnapshot.id)}
                     projectId={projectId}
                     retainerLabel={currency(
