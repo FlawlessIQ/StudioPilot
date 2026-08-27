@@ -1,2 +1,151 @@
 .report-performance-section{display:grid;gap:1rem}.report-performance-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1rem}.report-performance-grid>article{display:flex;gap:.8rem;align-items:flex-start;padding:1.2rem}.report-performance-grid>article>svg{flex:0 0 auto;color:var(--green)}.report-performance-grid span{display:grid;gap:.2rem}.report-performance-grid small{color:var(--muted)}.report-performance-grid strong{font-size:1.5rem}.report-performance-grid p{margin:0;color:var(--muted);font-size:.75rem;line-height:1.4}.report-funnel{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));padding:1.15rem}.report-funnel article{position:relative;display:grid;gap:.25rem;padding:.5rem 1rem;border-right:1px solid var(--line)}.report-funnel article:last-child{border:0}.report-funnel article>span{display:grid;width:1.5rem;height:1.5rem;place-items:center;border-radius:999px;background:var(--soft);color:var(--green);font-size:.7rem;font-weight:800}.report-funnel small{color:var(--muted)}.report-funnel strong{font-size:1.4rem}.report-estimate-note{margin:0;color:var(--muted);font-size:.75rem;line-height:1.5}@media(max-width:1050px){.report-performance-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.report-funnel{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:640px){.report-performance-grid,.report-funnel{grid-template-columns:1fr}.report-funnel article{border-right:0;border-bottom:1px solid var(--line)}}
 .dashboard-priority-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));overflow:hidden;border:1px solid var(--line);border-radius:1.1rem;background:var(--paper);box-shadow:var(--shadow-sm)}.dashboard-priority-strip>a{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:.7rem;align-items:center;padding:1rem;border-right:1px solid var(--line)}.dashboard-priority-strip>a:last-child{border:0}.dashboard-priority-strip>a>svg:first-child{color:var(--green)}.dashboard-priority-strip>a>svg:last-child{width:14px;color:var(--muted)}.dashboard-priority-strip span{display:grid}.dashboard-priority-strip small{color:var(--muted);font-size:.7rem}.dashboard-priority-strip strong{font-size:1.2rem}.dashboard-automation-alert{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:.8rem;align-items:center;padding:1rem 1.15rem;border:1px solid color-mix(in srgb,var(--amber-dark) 20%,var(--line));border-radius:1rem;background:var(--amber);color:var(--amber-dark)}.dashboard-automation-alert small{display:block;margin-top:.2rem}.dashboard-automation-alert a{display:flex;gap:.35rem;align-items:center;font-weight:800}@media(max-width:900px){.dashboard-priority-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboard-priority-strip>a:nth-child(2){border-right:0}}@media(max-width:560px){.dashboard-priority-strip{grid-template-columns:1fr}.dashboard-priority-strip>a{border-right:0;border-bottom:1px solid var(--line)}.dashboard-automation-alert{grid-template-columns:auto 1fr}.dashboard-automation-alert a{grid-column:2}}
+
+/* ── Post-production checklist ─────────────────────────────────────────
+   The darkroom, between the wedding and the gallery. Built when the walk of
+   2026-08-26 found `completePostProductionStep` had no caller, so the three
+   steps the delivery gate insists on could never be ticked. */
+
+.post-production-checklist {
+  display: grid;
+  gap: 16px;
+  margin: 18px 0;
+  padding: 22px;
+  border: 1px solid var(--line, #e6eae4);
+  border-radius: 16px;
+  background: var(--panel, #fff);
+}
+
+.post-production-checklist > header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.post-production-checklist h2 {
+  margin: 2px 0 4px;
+  font: 600 23px/1.15 var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+.post-production-checklist > header p:last-child {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--muted, #6b7570);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.post-production-count {
+  flex: none;
+  padding: 5px 12px;
+  border-radius: 99px;
+  background: var(--cue-emerald-soft, #d9f4ea);
+  color: var(--cue-emerald-deep, #0a7a55);
+  font: 700 13px/1 inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.post-production-checklist ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.post-production-checklist li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid var(--line, #e6eae4);
+  border-radius: 13px;
+}
+
+/* The next thing to do, marked so it is findable without reading the list. */
+.post-production-checklist li.is-next {
+  border-color: color-mix(in srgb, var(--cue-emerald, #0ea372) 38%, var(--line, #e6eae4));
+  background: linear-gradient(180deg, rgb(14 163 114 / 4%) 0%, transparent 60%);
+}
+
+.post-production-checklist li.is-waiting {
+  background: var(--canvas, #f6f7f5);
+}
+
+.post-production-checklist li.is-waiting .post-production-copy strong {
+  color: var(--muted, #6b7570);
+}
+
+.post-production-mark {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  color: var(--muted, #9aa39c);
+}
+
+.post-production-checklist li.is-complete .post-production-mark {
+  color: var(--cue-emerald, #0ea372);
+}
+
+.post-production-checklist li.is-next .post-production-mark {
+  color: var(--cue-emerald-deep, #0a7a55);
+}
+
+.post-production-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.post-production-copy strong {
+  font-size: 13.5px;
+}
+
+.post-production-copy small {
+  color: var(--muted, #6b7570);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* Whose step it is, when it is not the studio's. */
+.post-production-copy em {
+  color: var(--cue-brass-deep, #977325);
+  font: 600 11.5px/1.4 inherit;
+  font-style: normal;
+}
+
+.post-production-checklist li > .button {
+  flex: none;
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: 12.5px;
+}
+
+@media (max-width: 640px) {
+  .post-production-checklist li {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .post-production-checklist li > .button {
+    grid-column: 2;
+    justify-self: start;
+    margin-top: 4px;
+  }
+}
+
+.post-production-inbox-warning {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 11px 13px;
+  border-radius: 12px;
+  background: var(--amber, #f2e3c5);
+  color: var(--amber-dark, #8b5b17);
+  font-size: 12.5px;
+  line-height: 1.45;
+}

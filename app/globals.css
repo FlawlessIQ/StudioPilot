@@ -6658,7 +6658,12 @@ textarea:focus-visible {
   gap: 6px;
 }
 
-.project-context-bar svg {
+/* Sizes the little inline icons — a calendar, a pin, a person. It also hit the
+   readiness ring's own SVG, and CSS beats the width/height attributes the ring
+   sets, so a 42px ring drew as a 14px arc in the corner while its centred "100"
+   sat at full size. The two overlapped into an unreadable smudge on every
+   project page. Icons only now. */
+.project-context-bar svg:not(.ds-ring svg) {
   height: 14px;
   width: 14px;
 }

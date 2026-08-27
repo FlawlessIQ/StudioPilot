@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { DeliveryForm } from "@/components/post-event/delivery-form";
 import { DeliveryCloseoutWorkspace } from "@/components/post-event/delivery-closeout-workspace";
+import { PostProductionChecklist } from "@/components/post-event/post-production-checklist";
 import { LiveDomainView, ProjectContextBar } from "@/components/studio/live-domain-view";
 
 export default async function DeliveryPage({
@@ -16,14 +17,22 @@ export default async function DeliveryPage({
           <div>
             <p className="eyebrow">Gallery handoff</p>
             <h1>Delivery</h1>
+            {/* Was "StudioCue checks the balance, the contract and the crew
+                before anything reaches the couple". It checks none of those —
+                the delivery gate requires the backup, the finished edit and a
+                ready gallery, which is what the checklist below tracks. Copy
+                describing the wrong check sent the walk of 2026-08-26 looking
+                for a balance problem that did not exist. */}
             <p>
-              Record the gallery once the edit is finished. StudioCue checks
-              the balance, the contract and the crew before anything reaches
-              the couple.
+              Work through post-production, then record the gallery. StudioCue
+              will not release a delivery until the cards are backed up, the
+              editing is finished and the gallery is ready.
             </p>
           </div>
         </header>
         {project ? <ProjectContextBar projectId={project} /> : null}
+        {/* Before the gallery, because it gates the gallery. */}
+        {project ? <PostProductionChecklist projectId={project} /> : null}
         <section className="panel">
           <div className="panel-heading">
             <div>

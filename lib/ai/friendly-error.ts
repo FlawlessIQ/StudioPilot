@@ -62,6 +62,10 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "This job is already closed out.",
   CLOSEOUT_NOT_FOUND:
     "No closeout has been prepared for this job yet. Reconcile the evidence first.",
+  POST_PRODUCTION_NOT_FOUND:
+    "Post-production hasn't opened for this job yet. It starts when the job moves to editing.",
+  POST_PRODUCTION_DEPENDENCY_INCOMPLETE:
+    "An earlier step has to be done first. The checklist shows which one.",
   PROJECT_NOT_IN_POST_PRODUCTION:
     "This job hasn't started post-production yet. Move it on from the job page, then record the gallery.",
   /**
