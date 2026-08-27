@@ -205,7 +205,7 @@ type Membership = {
   projectIds?: string[];
 };
 
-type CheckpointDocument = {
+export type CheckpointDocument = {
   id: string;
   tenantId: string;
   projectId: string;
@@ -316,7 +316,7 @@ function readinessItem(
   };
 }
 
-function calculateReadiness(
+export function calculateReadiness(
   checkpoints: readonly CheckpointDocument[],
   timestamp: string,
   evidence: ReadinessEvidence = noReadinessEvidence,
@@ -418,7 +418,7 @@ function writeExecution(
   });
 }
 
-async function writeReadiness(
+export async function writeReadiness(
   transaction: Transaction,
   db: Firestore,
   input: {
