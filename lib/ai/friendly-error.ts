@@ -46,6 +46,22 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
    * delivery" on a job at Shot and read only "Delivery could not be recorded",
    * when the code said exactly what was wrong.
    */
+  CLOSEOUT_BLOCKED:
+    "Something on the closeout list is still open. Reconcile the evidence to see which, and vouch for anything that happened off StudioCue.",
+  PROJECT_NOT_CLOSEABLE:
+    "This job isn't at a stage where it can be closed. It needs to be delivered first.",
+  CLOSEOUT_REQUIREMENT_NEEDS_EVIDENCE:
+    "This one can't be vouched for. The signed agreement and the final balance need real evidence — record the signature or the payment on the booking instead.",
+  CLOSEOUT_ATTESTATION_PERMISSION_REQUIRED:
+    "Only the studio owner or an admin can vouch for closeout evidence.",
+  CLOSEOUT_REQUIREMENT_ALREADY_MET:
+    "The records already cover this one, so there is nothing to vouch for.",
+  CLOSEOUT_REQUIREMENT_NOT_FOUND:
+    "That closeout requirement is no longer on this job. Reconcile the evidence again to refresh it.",
+  CLOSEOUT_ALREADY_COMPLETED:
+    "This job is already closed out.",
+  CLOSEOUT_NOT_FOUND:
+    "No closeout has been prepared for this job yet. Reconcile the evidence first.",
   PROJECT_NOT_IN_POST_PRODUCTION:
     "This job hasn't started post-production yet. Move it on from the job page, then record the gallery.",
   /**

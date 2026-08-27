@@ -5,6 +5,12 @@ import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { productEvent } from "../operations/product-events.js";
 import { studioHubCors } from "../security/cors.js";
+import {
+  closeoutStatusFrom,
+  requirementIsAttestable,
+  requirementIsSatisfied,
+  type CloseoutRequirement,
+} from "./closeout-attestation.js";
 
 const step = z.enum([
   "backup_complete",
@@ -102,6 +108,26 @@ const command = z.discriminatedUnion("type", [
     tenantId: z.string(),
     idempotencyKey: z.string().min(8),
     input: z.object({ projectId: z.string() }),
+  }),
+  z.object({
+    /**
+     * A studio vouching for a closeout requirement that was satisfied somewhere
+     * StudioCue cannot see — the couple confirmed the gallery by text, the COI
+     * went to the venue from the photographer's own account, the second
+     * shooter is finished but never filed a closeout.
+     *
+     * The note is required and has a floor, because "done" is not a reason and
+     * this ends up in the audit log.
+     */
+    type: z.literal("attestCloseoutRequirement"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      closeoutId: z.string(),
+      requirementKey: z.string().min(1).max(60),
+      note: z.string().trim().min(8).max(500),
+    }),
   }),
   z.object({
     type: z.literal("archiveProject"),
@@ -894,16 +920,39 @@ export const postEventCommand = onRequest(
         const closeoutId = `closeout_${parsed.input.projectId}`;
         const reference = db.doc(`projectCloseouts/${closeoutId}`);
         const current = await reference.get();
-        const status = requirements.every((item) => item.complete)
-          ? "ready"
-          : "blocked";
+        /**
+         * Carry forward what a studio has already vouched for.
+         *
+         * The requirements above are recomputed from the records on every
+         * reconcile, so without this a studio that vouched for the gallery on
+         * Monday would find it outstanding again on Tuesday, and the job would
+         * never close. An attestation is a decision someone recorded; only a
+         * new decision should remove it.
+         */
+        const priorAttestations = new Map(
+          ((current.get("requirements") as CloseoutRequirement[] | undefined) ??
+            [])
+            .filter((item) => item?.attestation)
+            .map((item) => [item.key, item.attestation ?? null]),
+        );
+        const withAttestations: CloseoutRequirement[] = requirements.map(
+          (item) => {
+            const attestation = priorAttestations.get(item.key) ?? null;
+            // An attestation is redundant once the records prove it, and
+            // keeping it would misreport how the job actually closed.
+            return item.complete || !attestation
+              ? { ...item, attestation: null }
+              : { ...item, attestation };
+          },
+        );
+        const status = closeoutStatusFrom(withAttestations);
         await reference.set(
           {
             id: closeoutId,
             tenantId: parsed.tenantId,
             projectId: parsed.input.projectId,
             status,
-            requirements,
+            requirements: withAttestations,
             completedAt: current.get("completedAt") ?? null,
             completedBy: current.get("completedBy") ?? null,
             summaryDocumentId: current.get("summaryDocumentId") ?? null,
@@ -918,10 +967,93 @@ export const postEventCommand = onRequest(
         result = {
           closeoutId,
           status,
-          blockers: requirements
-            .filter((item) => !item.complete)
+          // Attested requirements are not blockers; that is the point of
+          // attesting them.
+          blockers: withAttestations
+            .filter((item) => !item.complete && !item.attestation)
             .map((item) => item.label),
+          requirements: withAttestations,
         };
+      } else if (parsed.type === "attestCloseoutRequirement") {
+        /**
+         * Closing a job is consequential, so vouching for a piece of its
+         * evidence is owner-or-admin work, the same bar as closeProject below.
+         */
+        if (!["studio_owner", "studio_admin"].includes(role))
+          throw new Error("CLOSEOUT_ATTESTATION_PERMISSION_REQUIRED");
+        if (!requirementIsAttestable(parsed.input.requirementKey))
+          throw new Error("CLOSEOUT_REQUIREMENT_NEEDS_EVIDENCE");
+        const reference = db.doc(`projectCloseouts/${parsed.input.closeoutId}`);
+        result = await db.runTransaction(async (transaction) => {
+          const closeout = await transaction.get(reference);
+          if (
+            !closeout.exists ||
+            closeout.get("tenantId") !== parsed.tenantId ||
+            closeout.get("projectId") !== parsed.input.projectId
+          )
+            throw new Error("CLOSEOUT_NOT_FOUND");
+          if (closeout.get("status") === "completed")
+            throw new Error("CLOSEOUT_ALREADY_COMPLETED");
+          const existing =
+            (closeout.get("requirements") as CloseoutRequirement[] | undefined) ??
+            [];
+          const target = existing.find(
+            (item) => item.key === parsed.input.requirementKey,
+          );
+          if (!target) throw new Error("CLOSEOUT_REQUIREMENT_NOT_FOUND");
+          // Already proven by the records, so there is nothing to vouch for.
+          if (target.complete === true)
+            throw new Error("CLOSEOUT_REQUIREMENT_ALREADY_MET");
+          const attestation = {
+            attestedBy: identity.uid,
+            attestedAt: now,
+            note: parsed.input.note,
+          };
+          const updated = existing.map((item) =>
+            item.key === parsed.input.requirementKey
+              ? { ...item, attestation }
+              : item,
+          );
+          const status = closeoutStatusFrom(updated);
+          transaction.update(reference, {
+            requirements: updated,
+            status,
+            updatedAt: now,
+            updatedBy: identity.uid,
+          });
+          const auditId = `audit_closeout_attested_${parsed.input.closeoutId}_${parsed.input.requirementKey}`;
+          transaction.set(db.doc(`auditEvents/${auditId}`), {
+            id: auditId,
+            tenantId: parsed.tenantId,
+            projectId: parsed.input.projectId,
+            actorId: identity.uid,
+            // A person vouching, never a provider confirming.
+            actorType: "user",
+            action: "closeout.requirement_attested",
+            entityType: "projectCloseout",
+            entityId: parsed.input.closeoutId,
+            timestamp: now,
+            before: { requirementKey: parsed.input.requirementKey, complete: false },
+            after: {
+              requirementKey: parsed.input.requirementKey,
+              label: target.label,
+              attestedBy: identity.uid,
+              note: parsed.input.note,
+              closeoutStatus: status,
+            },
+            ipAddress: null,
+            userAgent: null,
+            correlationId: parsed.idempotencyKey,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          return {
+            closeoutId: parsed.input.closeoutId,
+            requirementKey: parsed.input.requirementKey,
+            status,
+            requirements: updated,
+          };
+        });
       } else if (parsed.type === "closeProject") {
         if (!["studio_owner", "studio_admin"].includes(role))
           throw new Error("FORBIDDEN");
@@ -929,14 +1061,22 @@ export const postEventCommand = onRequest(
           `projectCloseouts/${parsed.input.closeoutId}`,
         );
         const closeout = await closeoutReference.get();
-        const requirements = closeout.get("requirements") as
-          | Array<Record<string, unknown>>
-          | undefined;
+        const requirements =
+          (closeout.get("requirements") as CloseoutRequirement[] | undefined) ??
+          [];
+        /**
+         * The same predicate the reconciler uses.
+         *
+         * This read `item.complete !== true` and so ignored attestations
+         * entirely: the reconciler would mark a closeout `ready` and this would
+         * refuse it as blocked, with the Approve button visible and useless.
+         * One rule, in one place — see ./closeout-attestation.ts.
+         */
         if (
           !closeout.exists ||
           closeout.get("tenantId") !== parsed.tenantId ||
           closeout.get("projectId") !== parsed.input.projectId ||
-          requirements?.some((item) => item.complete !== true)
+          !requirements.every(requirementIsSatisfied)
         )
           throw new Error("CLOSEOUT_BLOCKED");
         const projectReference = db.doc(`projects/${parsed.input.projectId}`);

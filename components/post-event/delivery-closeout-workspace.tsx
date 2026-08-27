@@ -15,6 +15,10 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { sendPostEventCommand } from "@/lib/post-event/command-client";
 import { statusLabel } from "@/features/format/status-label";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import {
+  outstandingCloseoutLabels,
+  requirementIsAttestable,
+} from "@/features/post-event/closeout-attestation";
 
 const text = (value: unknown) =>
   typeof value === "string" ? value : "";
@@ -34,6 +38,29 @@ export function DeliveryCloseoutWorkspace({
   const { records: closeouts } = useTenantDocuments("projectCloseouts");
   const [evidenceUrl, setEvidenceUrl] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  /** Which requirement's "how do you know?" form is open, if any. */
+  const [attesting, setAttesting] = useState<string | null>(null);
+
+  async function attestRequirement(requirementKey: string, note: string) {
+    setBusy("attest");
+    setNotice(null);
+    try {
+      await sendPostEventCommand("attestCloseoutRequirement", {
+        projectId,
+        closeoutId: closeout?.id ?? `closeout_${projectId}`,
+        requirementKey,
+        note,
+      });
+      setAttesting(null);
+      // The reconciler is what decides whether the job can now close, so ask
+      // it rather than guessing from here.
+      await runCloseout("prepareCloseout");
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "That could not be recorded."));
+    } finally {
+      setBusy(null);
+    }
+  }
   const [notice, setNotice] = useState<string | null>(null);
   if (!projectId) return null;
   const project = projects?.find((item) => item.id === projectId);
@@ -112,17 +139,28 @@ export function DeliveryCloseoutWorkspace({
        *
        * The stored requirements are the authority, so they are what is read.
        */
-      const unmet = list(payload.requirements ?? closeout?.requirements)
-        .map((requirement) => record(requirement))
-        .filter((requirement) => requirement.complete !== true)
-        .map(
-          (requirement) =>
-            text(requirement.label) ||
-            text(requirement.key).replaceAll("_", " "),
-        )
-        .filter(Boolean);
-      const stillBlocked =
-        unmet.length > 0 || text(payload.status) === "blocked";
+      const unmet = outstandingCloseoutLabels(
+        list(payload.requirements ?? closeout?.requirements).map(
+          (requirement) => {
+            const entry = record(requirement);
+            const attestation = record(entry.attestation);
+            return {
+              key: text(entry.key),
+              label:
+                text(entry.label) || text(entry.key).replaceAll("_", " "),
+              complete: entry.complete === true,
+              attestation: text(attestation.attestedAt)
+                ? {
+                    attestedBy: text(attestation.attestedBy),
+                    attestedAt: text(attestation.attestedAt),
+                    note: text(attestation.note),
+                  }
+                : null,
+            };
+          },
+        ),
+      );
+      const stillBlocked = unmet.length > 0;
       setNotice(
         type === "prepareCloseout"
           ? stillBlocked
@@ -240,17 +278,79 @@ export function DeliveryCloseoutWorkspace({
           <div className="closeout-requirements">
             {list(closeout.requirements).map((requirementValue) => {
               const requirement = record(requirementValue);
+              const key = text(requirement.key);
+              const attestation = record(requirement.attestation);
+              const vouched = Boolean(text(attestation.attestedAt));
+              const met = requirement.complete === true || vouched;
               return (
-                <span
-                  className={requirement.complete === true ? "is-complete" : ""}
-                  key={text(requirement.key)}
-                >
-                  {requirement.complete === true ? (
-                    <CheckCircle2 />
-                  ) : (
-                    <CircleAlert />
-                  )}
+                <span className={met ? "is-complete" : ""} key={key}>
+                  {met ? <CheckCircle2 /> : <CircleAlert />}
                   <strong>{text(requirement.label)}</strong>
+                  {/* Vouched for, not proven — said on the row rather than
+                      hidden, because how a job closed matters later. */}
+                  {vouched && requirement.complete !== true ? (
+                    <em className="closeout-vouched">
+                      You vouched for this{" "}
+                      {text(attestation.note) ? `— ${text(attestation.note)}` : ""}
+                    </em>
+                  ) : null}
+                  {/*
+                    The way through when the last requirement is not the
+                    studio's to satisfy: a couple who never opens the gallery, a
+                    second shooter who never files a closeout, a COI emailed to
+                    the venue from the photographer's own account. Money and the
+                    signed agreement are absent from this list on purpose.
+                  */}
+                  {!met && requirementIsAttestable(key) ? (
+                    <button
+                      className="closeout-attest"
+                      disabled={busy !== null}
+                      onClick={() => setAttesting(key)}
+                      type="button"
+                    >
+                      Mark as done
+                    </button>
+                  ) : null}
+                  {attesting === key ? (
+                    <form
+                      className="closeout-attest-form"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        const note = String(
+                          new FormData(event.currentTarget).get("note") ?? "",
+                        );
+                        void attestRequirement(key, note);
+                      }}
+                    >
+                      <label>
+                        How do you know?
+                        <input
+                          maxLength={500}
+                          minLength={8}
+                          name="note"
+                          placeholder="Ada confirmed by text that they have the gallery"
+                          required
+                        />
+                      </label>
+                      <small>
+                        Recorded against your name in the audit log, and the job
+                        will show that you vouched for it rather than that
+                        StudioCue saw it.
+                      </small>
+                      <div>
+                        <button className="button" type="submit">
+                          Record it
+                        </button>
+                        <button
+                          className="button button-quiet"
+                          onClick={() => setAttesting(null)}
+                          type="button"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  ) : null}
                 </span>
               );
             })}
