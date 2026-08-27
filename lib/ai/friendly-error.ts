@@ -25,6 +25,30 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "This job is not waiting on a proposal decision, so there is nothing to record.",
   PROPOSAL_ACTION_NOT_ALLOWED:
     "That is not something this proposal can do from its current status.",
+  // Archiving a client, vendor or collaborator. Both "has live work" refusals
+  // are deliberate — see features/records/archive.ts.
+  CONTACT_HAS_LIVE_PROJECT:
+    "This client has a job that is still live. Close, cancel or finish it first.",
+  CREW_HAS_OPEN_ASSIGNMENT:
+    "This collaborator still holds an assignment. Settle or withdraw it first.",
+  CREW_IDENTITY_OWNED_BY_MEMBER:
+    "They have their own account now, so their name and email are theirs to change. You can still update rate, specialties and areas.",
+  CONTACT_NOT_FOUND: "That client record could not be found.",
+  VENDOR_NOT_FOUND: "That vendor record could not be found.",
+  CREW_PROFILE_NOT_FOUND: "That collaborator could not be found.",
+  // Billing. The server names the cause precisely and the client used to drop
+  // it, so every one of these arrived as "Billing could not be opened."
+  STRIPE_CUSTOMER_NOT_FOUND:
+    "Stripe has no customer for this studio yet — choose a plan to set up billing, then the portal will open.",
+  STRIPE_NOT_CONFIGURED:
+    "Billing isn't connected for this workspace yet. Contact support and we'll finish the setup.",
+  STRIPE_PRICE_NOT_CONFIGURED:
+    "That plan has no price configured yet. Contact support before trying again.",
+  STRIPE_REQUEST_FAILED:
+    "Stripe couldn't complete that request. Try again in a moment.",
+  PLAN_REQUIRED: "Choose a plan and a billing period first.",
+  BILLING_COMMAND_FAILED:
+    "Billing couldn't be reached. Try again, and contact support if it keeps failing.",
   INTERRUPTION_REASON_REQUIRED:
     "Say why the job is on hold or cancelled — at least a short sentence, so it makes sense later.",
   EVIDENCE_CONTROLLED_TRANSITION:

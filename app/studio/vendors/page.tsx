@@ -20,7 +20,13 @@ export default async function VendorsPage({ searchParams }: { searchParams: Prom
         </header>
         <PeopleSectionNav />
         {project ? <ProjectContextBar projectId={project} /> : null}
-        <LiveDomainView domain="vendors" projectId={project} />
+        {/* Per-row editing and archiving — the two things this page could
+            never do. See components/planning/vendor-record-actions.tsx. */}
+        <LiveDomainView
+          domain="vendors"
+          projectId={project}
+          rowActions="vendor"
+        />
         <details className="creation-disclosure panel">
           <summary>Add a vendor or venue</summary>
           <VendorCreateForm />

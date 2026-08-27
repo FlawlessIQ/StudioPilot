@@ -67,6 +67,7 @@ import {
 import { statusLabel } from "@/features/format/status-label";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { leadIntakeGaps } from "@/features/crm/lead-intake";
+import { ClientRecordActions } from "@/components/clients/client-record-actions";
 
 // Re-exported so existing importers of this module keep working.
 export { demoTenantDocuments };
@@ -601,6 +602,23 @@ export function LiveClientCards({
             ) : (
               <span />
             )}
+            {/* Correcting and archiving a client — the two things this page
+                could never do. See components/clients/client-record-actions. */}
+            <ClientRecordActions
+              archived={Boolean(client.archivedAt)}
+              client={{
+                id: client.id,
+                firstName: String(client.firstName ?? ""),
+                lastName: String(client.lastName ?? ""),
+                displayName: name,
+                email,
+                phone:
+                  typeof client.phone === "string" ? client.phone : null,
+                company:
+                  typeof client.company === "string" ? client.company : null,
+                notes: typeof client.notes === "string" ? client.notes : null,
+              }}
+            />
             {!client.portalUserId && email ? (
               <details className="ds-people-invite">
                 <summary>Invite to client portal</summary>

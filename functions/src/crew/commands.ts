@@ -172,6 +172,55 @@ const command = z.discriminatedUnion("type", [
     }),
   }),
   z.object({
+    /**
+     * The studio's own corrections to a directory entry.
+     *
+     * `updateCrewProfile` is strictly self-service — it requires
+     * `role === "subcontractor"` and `userId === identity.uid` — so the studio
+     * that typed a collaborator into their directory could never fix a typo in
+     * it. The Crew page had no per-person control at all.
+     *
+     * Split on who the detail belongs to. Name, email, rate and the studio's
+     * operational notes (specialties, service areas, travel radius) are the
+     * directory entry, which the studio owns. Phone and emergency contact stay
+     * out: those are the person's, and `updateCrewProfile` is where they change
+     * them. Once a profile has a linked account, the studio can no longer
+     * change the name or email — that identity is the crew member's, and the
+     * email is how they sign in.
+     */
+    type: z.literal("updateCrewDirectoryEntry"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      crewProfileId: z.string().min(1),
+      name: z.string().trim().min(1).max(160),
+      email: z.string().email(),
+      specialties: z.array(z.string().min(1).max(80)).max(20),
+      serviceAreas: z.array(z.string().min(1).max(120)).max(20),
+      travelRadiusMiles: z.number().int().nonnegative().max(500),
+      rateType: z.enum(["hourly", "event"]),
+      rateCents: z.number().int().nonnegative(),
+      notes: z.string().max(2000).nullable().default(null),
+    }),
+  }),
+  z.object({
+    /**
+     * Take a collaborator out of the directory.
+     *
+     * Archive, never delete: they are named on assignments, schedules and
+     * closeouts that must keep making sense. Refused while they hold an
+     * assignment that has not been settled — removing them from the directory
+     * would hide someone the studio is still counting on.
+     */
+    type: z.literal("archiveCrewProfile"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      crewProfileId: z.string().min(1),
+      restore: z.boolean().default(false),
+    }),
+  }),
+  z.object({
     type: z.literal("acknowledgeCalendar"),
     tenantId: z.string(),
     idempotencyKey: z.string().min(8),
@@ -499,6 +548,81 @@ export const crewCommand = onRequest(
           archivedAt: null,
         });
         result = { crewProfileId: id };
+      } else if (parsed.type === "updateCrewDirectoryEntry") {
+        if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
+        const reference = db.doc(`crewProfiles/${parsed.input.crewProfileId}`);
+        const current = await reference.get();
+        if (
+          !current.exists ||
+          current.get("tenantId") !== parsed.tenantId ||
+          current.get("archivedAt")
+        ) {
+          throw new Error("CREW_PROFILE_NOT_FOUND");
+        }
+        const linkedUserId = current.get("userId");
+        // Their identity, once they have an account. The email is how they
+        // sign in, and a studio must not be able to change it out from under
+        // them.
+        const identityChanged =
+          parsed.input.name !== current.get("name") ||
+          parsed.input.email !== current.get("email");
+        if (linkedUserId && identityChanged) {
+          throw new Error("CREW_IDENTITY_OWNED_BY_MEMBER");
+        }
+        await reference.update({
+          name: parsed.input.name,
+          email: parsed.input.email,
+          specialties: parsed.input.specialties,
+          serviceAreas: parsed.input.serviceAreas,
+          travelRadiusMiles: parsed.input.travelRadiusMiles,
+          rateType: parsed.input.rateType,
+          rateCents: parsed.input.rateCents,
+          notes: parsed.input.notes,
+          updatedAt: now,
+          updatedBy: identity.uid,
+        });
+        result = {
+          crewProfileId: parsed.input.crewProfileId,
+          updated: true,
+        };
+      } else if (parsed.type === "archiveCrewProfile") {
+        if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
+        const reference = db.doc(`crewProfiles/${parsed.input.crewProfileId}`);
+        const current = await reference.get();
+        if (
+          !current.exists ||
+          current.get("tenantId") !== parsed.tenantId
+        ) {
+          throw new Error("CREW_PROFILE_NOT_FOUND");
+        }
+        if (!parsed.input.restore) {
+          const open = await db
+            .collection("crewAssignments")
+            .where("tenantId", "==", parsed.tenantId)
+            .where("crewProfileId", "==", parsed.input.crewProfileId)
+            .where("archivedAt", "==", null)
+            .limit(20)
+            .get();
+          const settled = ["declined", "withdrawn", "completed", "closed"];
+          if (
+            open.docs.some(
+              (assignment) =>
+                !settled.includes(String(assignment.get("status"))),
+            )
+          ) {
+            throw new Error("CREW_HAS_OPEN_ASSIGNMENT");
+          }
+        }
+        await reference.update({
+          archivedAt: parsed.input.restore ? null : now,
+          active: parsed.input.restore,
+          updatedAt: now,
+          updatedBy: identity.uid,
+        });
+        result = {
+          crewProfileId: parsed.input.crewProfileId,
+          archived: !parsed.input.restore,
+        };
       } else if (parsed.type === "createCrewPlan") {
         if (!internalRoles.has(role) || !hasProject(parsed.input.projectId))
           throw new Error("FORBIDDEN");

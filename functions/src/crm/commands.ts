@@ -134,6 +134,64 @@ const commandSchema = z.discriminatedUnion("type", [
       contactTypes: z.array(z.string().min(1)).min(1),
     }),
   }),
+  z.object({
+    /**
+     * Correct a client's details.
+     *
+     * Contacts could be created and never changed: no `updateContact` command
+     * existed, and the People page offered a client three controls — message,
+     * pick a project, send a portal invite. A misspelt name, a new phone
+     * number or an email typed wrong at the inquiry form was permanent, and
+     * the wrong email means no proposal, no portal and no gallery.
+     *
+     * Deliberately the contact's own details. Project links, portal identity
+     * and consent are set by the flows that own them, and a general-purpose
+     * overwrite here would let a form clear them by omission.
+     */
+    type: z.literal("updateContact"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      contactId: z.string().min(1),
+      firstName: z.string().trim().min(1).max(80),
+      lastName: z.string().trim().min(1).max(80),
+      /**
+       * What the studio calls them, when that is not "first last".
+       *
+       * A wedding client is usually a couple held as one contact — "Avery &
+       * Sam" — and rebuilding the display name from the two name fields turned
+       * that into "Avery Sam" the first time anyone edited the record. The
+       * studio types the name they use; the derived form is only the fallback.
+       */
+      displayName: z.string().trim().max(200).nullable().default(null),
+      email: z.string().email().nullable(),
+      phone: z.string().max(30).nullable(),
+      company: z.string().max(160).nullable(),
+      notes: z.string().max(2000).nullable().default(null),
+    }),
+  }),
+  z.object({
+    /**
+     * Take a client out of the working list.
+     *
+     * Archive, not delete: `firestore.rules` refuses a delete on every
+     * collection in this product, because a contact is referenced by projects,
+     * proposals, contracts and messages that must keep making sense. The
+     * People page has always had an "Archived" filter; nothing could put
+     * anything in it.
+     *
+     * A contact attached to a live project is refused — archiving it would
+     * hide the client of a job still in flight.
+     */
+    type: z.literal("archiveContact"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      contactId: z.string().min(1),
+      /** Undo, for the archive filter's own restore control. */
+      restore: z.boolean().default(false),
+    }),
+  }),
   /**
    * Correct a package that already exists.
    *
@@ -911,6 +969,163 @@ export const crmCommand = onRequest(
             providerEventId: null,
           });
           const output = { packageSnapshotId, totalCents, retainerCents };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        if (command.type === "updateContact") {
+          // Editing and archiving a client is an owner/admin decision: a
+          // coordinator works jobs, they do not curate the address book.
+          if (!["studio_owner", "studio_admin"].includes(membershipData.role)) {
+            throw new Error("FORBIDDEN");
+          }
+          const contactReference = db.doc(
+            `contacts/${command.input.contactId}`,
+          );
+          const contact = await transaction.get(contactReference);
+          if (
+            !contact.exists ||
+            contact.get("tenantId") !== command.tenantId ||
+            contact.get("archivedAt")
+          ) {
+            throw new Error("CONTACT_NOT_FOUND");
+          }
+          const before = {
+            firstName: contact.get("firstName") ?? null,
+            lastName: contact.get("lastName") ?? null,
+            email: contact.get("email") ?? null,
+            phone: contact.get("phone") ?? null,
+            company: contact.get("company") ?? null,
+          };
+          const email = command.input.email?.trim() ?? null;
+          transaction.update(contactReference, {
+            firstName: command.input.firstName,
+            lastName: command.input.lastName,
+            displayName:
+              command.input.displayName ||
+              `${command.input.firstName} ${command.input.lastName}`,
+            email,
+            // Kept in step with the create path, which every lookup depends on:
+            // `findContactByEmail` matches on the normalised form, so leaving
+            // it stale would make a corrected email unfindable.
+            normalizedEmail: email?.toLowerCase() ?? null,
+            phone: command.input.phone,
+            normalizedPhone: command.input.phone?.replace(/\D/g, "") ?? null,
+            company: command.input.company,
+            notes: command.input.notes,
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          const contactAuditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${contactAuditId}`), {
+            id: contactAuditId,
+            tenantId: command.tenantId,
+            projectId: null,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "contact.updated",
+            entityType: "contact",
+            entityId: command.input.contactId,
+            timestamp,
+            before,
+            after: {
+              firstName: command.input.firstName,
+              lastName: command.input.lastName,
+              email,
+              phone: command.input.phone,
+              company: command.input.company,
+            },
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          const output = { contactId: command.input.contactId, updated: true };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        if (command.type === "archiveContact") {
+          // Editing and archiving a client is an owner/admin decision: a
+          // coordinator works jobs, they do not curate the address book.
+          if (!["studio_owner", "studio_admin"].includes(membershipData.role)) {
+            throw new Error("FORBIDDEN");
+          }
+          const contactReference = db.doc(
+            `contacts/${command.input.contactId}`,
+          );
+          const contact = await transaction.get(contactReference);
+          if (
+            !contact.exists ||
+            contact.get("tenantId") !== command.tenantId
+          ) {
+            throw new Error("CONTACT_NOT_FOUND");
+          }
+          /**
+           * Not while a job of theirs is live.
+           *
+           * Archiving the client of a wedding in flight would take them out of
+           * the working list while the studio still has to reach them. The
+           * projects they are attached to decide.
+           */
+          if (!command.input.restore) {
+            const projectIds = Array.isArray(contact.get("projectIds"))
+              ? (contact.get("projectIds") as string[])
+              : [];
+            const settled = ["CLOSED", "CANCELLED", "ARCHIVED"];
+            for (const projectId of projectIds.slice(0, 30)) {
+              const project = await transaction.get(
+                db.doc(`projects/${projectId}`),
+              );
+              if (
+                project.exists &&
+                !settled.includes(String(project.get("state")))
+              ) {
+                throw new Error("CONTACT_HAS_LIVE_PROJECT");
+              }
+            }
+          }
+          transaction.update(contactReference, {
+            archivedAt: command.input.restore ? null : timestamp,
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          const archiveAuditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${archiveAuditId}`), {
+            id: archiveAuditId,
+            tenantId: command.tenantId,
+            projectId: null,
+            actorId: identity.uid,
+            actorType: "user",
+            action: command.input.restore
+              ? "contact.restored"
+              : "contact.archived",
+            entityType: "contact",
+            entityId: command.input.contactId,
+            timestamp,
+            before: { archivedAt: contact.get("archivedAt") ?? null },
+            after: { archivedAt: command.input.restore ? null : timestamp },
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          const output = {
+            contactId: command.input.contactId,
+            archived: !command.input.restore,
+          };
           transaction.create(commandReference, {
             tenantId: command.tenantId,
             idempotencyKey: command.idempotencyKey,

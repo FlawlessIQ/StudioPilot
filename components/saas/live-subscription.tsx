@@ -36,6 +36,13 @@ export function LiveSubscription() {
   }, [workspace.tenantId]);
   const plan = String(subscription?.plan ?? "studio");
   const status = String(subscription?.status ?? (dataIsLive ? "loading" : "trialing"));
+  // Whether Stripe has a customer for this studio at all. Without one there is
+  // no portal to open, whatever the plan badge says.
+  const stripeCustomerId =
+    typeof subscription?.stripeCustomerId === "string" &&
+    subscription.stripeCustomerId.length > 0
+      ? subscription.stripeCustomerId
+      : null;
   const entitlements =
     typeof subscription?.entitlements === "object" &&
     subscription.entitlements !== null
@@ -128,7 +135,24 @@ export function LiveSubscription() {
             <small>StudioCue stores customer, subscription, price, status, and period references—never card or bank credentials.</small>
           </span>
         </div>
-        <BillingAction label="Open customer portal" />
+        {/**
+          * Only when there is a Stripe customer to open a portal for.
+          *
+          * A studio on a trial that has never checked out has no
+          * `stripeCustomerId`, so `createPortal` throws
+          * STRIPE_CUSTOMER_NOT_FOUND — every time, for every trialing studio.
+          * The button was offered anyway and the failure surfaced as "Billing
+          * could not be opened", which named neither the cause nor the way out.
+          */}
+        {stripeCustomerId ? (
+          <BillingAction label="Open customer portal" />
+        ) : (
+          <p className="billing-boundary-note">
+            {status === "trialing"
+              ? "You are on a trial, so there is no Stripe billing to manage yet. Choose a plan above and Stripe will set up your customer and card details."
+              : "No Stripe customer is attached to this studio yet. Choose a plan above to set one up."}
+          </p>
+        )}
       </section>
     </div>
   );

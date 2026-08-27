@@ -58,7 +58,13 @@ export default async function StudioCrewPage({
               <h2>Collaborators</h2>
             </div>
           </div>
-          <LiveDomainView domain="crew_profiles" />
+          {/* Per-person editing and removal. The studio owns the directory
+              entry; the person owns their own contact details. See
+              components/crew/crew-record-actions.tsx. */}
+          <LiveDomainView
+            domain="crew_profiles"
+            rowActions="crew"
+          />
         </section>
       </div>
     </AppShell>

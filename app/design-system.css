@@ -2675,6 +2675,102 @@
   margin-top: 10px;
 }
 
+/* Editing and archiving a client, vendor or collaborator. Shares the invite
+   disclosure's shape so a row does not grow two different-looking controls.
+   See components/records/archive-toggle.tsx. */
+.record-edit > div {
+  display: grid;
+  gap: 12px;
+}
+
+.record-edit form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.record-edit form label {
+  display: grid;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ds-ink-soft, #5c665f);
+}
+
+.record-edit form input,
+.record-edit form textarea,
+.record-edit form select {
+  border: 1px solid var(--ds-line, #e0e5df);
+  border-radius: 9px;
+  background: var(--ds-paper, #fff);
+  color: inherit;
+  font: inherit;
+  font-size: 12.5px;
+  min-height: 34px;
+  padding: 7px 10px;
+  width: 100%;
+}
+
+.record-edit form textarea {
+  min-height: 52px;
+  resize: vertical;
+}
+
+.record-edit form label small {
+  color: var(--ds-ink-soft, #6b7570);
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.record-edit .record-edit-span,
+.record-edit form > button {
+  grid-column: 1 / -1;
+}
+
+.record-edit form > button {
+  justify-self: start;
+}
+
+.record-edit-locked {
+  color: var(--ds-ink-soft, #6b7570);
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* A row that grew actions keeps its link and stacks them underneath. */
+.live-domain-row-has-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.record-archive-confirm {
+  display: grid;
+  gap: 7px;
+  border-top: 1px solid var(--ds-line, #e0e5df);
+  padding-top: 11px;
+}
+
+.record-archive-confirm small {
+  color: var(--ds-ink-soft, #5c665f);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.record-archive-confirm > span {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+@media (max-width: 620px) {
+  .record-edit form {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 760px) {
   .ds-people-row {
     grid-template-columns: 36px minmax(0, 1fr);

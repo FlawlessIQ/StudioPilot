@@ -23,6 +23,8 @@ import {
   type QueryConstraint,
 } from "firebase/firestore";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { VendorRecordActions } from "@/components/planning/vendor-record-actions";
+import { CrewRecordActions } from "@/components/crew/crew-record-actions";
 import { stateTone } from "@/lib/status-tone";
 import { KindGlyph } from "@/components/library/kind-glyph";
 import { kindFromValue } from "@/features/library/kinds";
@@ -465,10 +467,20 @@ export function LiveDomainView({
   domain,
   emptyAction,
   projectId,
+  rowActions,
 }: {
   domain: Domain;
   emptyAction?: { href: string; label: string };
   projectId?: string;
+  /**
+   * Which per-row controls to render, when the list is a directory the studio
+   * curates rather than a record of things that happened.
+   *
+   * A name rather than a render function: these pages are server components,
+   * and a function prop cannot cross into a client component. The mapping
+   * lives here, where the client boundary already is.
+   */
+  rowActions?: "vendor" | "crew";
 }) {
   const workspace = useWorkspace();
   const recordsGeneration = useTenantRecordsGeneration();
@@ -730,16 +742,88 @@ export function LiveDomainView({
             {config.href ? <ArrowRight /> : null}
           </>
         );
-        return config.href ? (
-          <Link href={config.href(record)} key={record.id}>
-            {content}
-          </Link>
+        /**
+          * Per-row controls, when the caller has any.
+          *
+          * `LiveDomainView` renders every domain list in the product, and none
+          * of them had a way to act on a row — which is why vendors and crew
+          * profiles could be created and then never corrected or removed. A
+          * row that links to a detail page keeps the link and grows the actions
+          * beside it, because wrapping buttons in an anchor would make every
+          * click navigate.
+          */
+        const actions = renderRowActions(rowActions, record);
+        const body = config.href ? (
+          <Link href={config.href(record)}>{content}</Link>
         ) : (
-          <article key={record.id}>{content}</article>
+          content
+        );
+        return (
+          <article
+            className={actions ? "live-domain-row-has-actions" : undefined}
+            key={record.id}
+          >
+            {body}
+            {actions}
+          </article>
         );
       })}
     </section>
   );
+}
+
+/**
+ * The per-row controls for a curated directory.
+ *
+ * Kept beside the list rather than passed in, because the pages that use it are
+ * server components and React refuses a function prop across that boundary.
+ */
+function renderRowActions(
+  kind: "vendor" | "crew" | undefined,
+  record: Record<string, unknown> & { id: string },
+): ReactNode {
+  if (kind === "vendor") {
+    return (
+      <VendorRecordActions
+        vendor={{
+          id: record.id,
+          company: String(record.company ?? ""),
+          contactName: String(record.contactName ?? ""),
+          email: typeof record.email === "string" ? record.email : null,
+          phone: typeof record.phone === "string" ? record.phone : null,
+          type: String(record.type ?? ""),
+          website: typeof record.website === "string" ? record.website : null,
+          notes: typeof record.notes === "string" ? record.notes : null,
+          archived: Boolean(record.archivedAt),
+        }}
+      />
+    );
+  }
+  if (kind === "crew") {
+    return (
+      <CrewRecordActions
+        crew={{
+          id: record.id,
+          name: String(record.name ?? ""),
+          email: String(record.email ?? ""),
+          specialties: Array.isArray(record.specialties)
+            ? record.specialties.map(String)
+            : [],
+          serviceAreas: Array.isArray(record.serviceAreas)
+            ? record.serviceAreas.map(String)
+            : [],
+          travelRadiusMiles: Number(record.travelRadiusMiles ?? 0),
+          rateType: String(record.rateType ?? "event"),
+          rateCents: Number(record.rateCents ?? 0),
+          notes: typeof record.notes === "string" ? record.notes : null,
+          hasAccount:
+            typeof record.userId === "string" && record.userId.length > 0,
+          archived: Boolean(record.archivedAt),
+        }}
+      />
+    );
+  }
+  return null;
 }
 
 export function StudioDomainPage({

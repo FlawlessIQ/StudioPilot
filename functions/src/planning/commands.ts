@@ -140,6 +140,44 @@ const command = z.discriminatedUnion("type", [
     }),
   }),
   z.object({
+    /**
+     * Correct a vendor or venue.
+     *
+     * `vendors` is `allow write: if false` in the rules and had only a create
+     * command, so the Vendors page offered exactly one control — "Add vendor" —
+     * and nothing else, ever. A venue that changes its contact, a florist who
+     * changes email, a company name typed wrong: all permanent, and the venue
+     * details feed the COI request that goes to the venue's own insurer.
+     */
+    type: z.literal("updateVendor"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      vendorId: z.string().min(1),
+      company: z.string().trim().min(1).max(200),
+      contactName: z.string().trim().max(160),
+      email: z.string().email().nullable(),
+      phone: z.string().max(40).nullable().default(null),
+      type: z.string().min(1).max(80),
+      website: z.string().url().nullable().default(null),
+      notes: z.string().max(2000).nullable().default(null),
+    }),
+  }),
+  z.object({
+    /**
+     * Take a vendor out of the working list. Archive, never delete: a vendor is
+     * named on insurance requirements and project records that must keep
+     * making sense.
+     */
+    type: z.literal("archiveVendor"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      vendorId: z.string().min(1),
+      restore: z.boolean().default(false),
+    }),
+  }),
+  z.object({
     type: z.literal("createCoiRequest"),
     tenantId: z.string(),
     idempotencyKey: z.string().min(8),
@@ -598,6 +636,45 @@ export const planningCommand = onRequest(
             archivedAt: null,
           });
         result = { vendorId: id };
+      } else if (parsed.type === "updateVendor") {
+        if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
+        const reference = db.doc(`vendors/${parsed.input.vendorId}`);
+        const vendor = await reference.get();
+        if (
+          !vendor.exists ||
+          vendor.get("tenantId") !== parsed.tenantId ||
+          vendor.get("archivedAt")
+        ) {
+          throw new Error("VENDOR_NOT_FOUND");
+        }
+        await reference.update({
+          company: parsed.input.company,
+          contactName: parsed.input.contactName,
+          email: parsed.input.email,
+          phone: parsed.input.phone,
+          type: parsed.input.type,
+          website: parsed.input.website,
+          notes: parsed.input.notes,
+          updatedAt: now,
+          updatedBy: identity.uid,
+        });
+        result = { vendorId: parsed.input.vendorId, updated: true };
+      } else if (parsed.type === "archiveVendor") {
+        if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
+        const reference = db.doc(`vendors/${parsed.input.vendorId}`);
+        const vendor = await reference.get();
+        if (!vendor.exists || vendor.get("tenantId") !== parsed.tenantId) {
+          throw new Error("VENDOR_NOT_FOUND");
+        }
+        await reference.update({
+          archivedAt: parsed.input.restore ? null : now,
+          updatedAt: now,
+          updatedBy: identity.uid,
+        });
+        result = {
+          vendorId: parsed.input.vendorId,
+          archived: !parsed.input.restore,
+        };
       } else if (parsed.type === "createCoiRequest") {
         if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
         const requirementId = stable(

@@ -12326,3 +12326,13 @@ form:has(> .address-field) > .address-field,
 .schedule-generator-form .schedule-generate-actions{grid-column:1/-1;justify-self:start}
 .schedule-add-item{justify-self:start;margin-top:13px}
 .schedule-draft-items article .schedule-item-remove{grid-column:1/-1;justify-self:start;min-height:30px;padding:0 10px;font-size:11.5px}
+
+/* Said instead of the portal button when there is no Stripe customer to open a
+   portal for. See components/saas/live-subscription.tsx. */
+.billing-boundary-note {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.55;
+  margin: 0;
+  max-width: 34ch;
+}
