@@ -27,6 +27,12 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "That is not something this proposal can do from its current status.",
   // Archiving a client, vendor or collaborator. Both "has live work" refusals
   // are deliberate — see features/records/archive.ts.
+  // A collaborator you already have. Email is the identity, because it is what
+  // the invitation is sent to and what they sign in with.
+  CREW_EMAIL_ALREADY_IN_DIRECTORY:
+    "Someone with that email is already in your directory. Open their entry instead of adding a second one.",
+  CREW_EMAIL_ARCHIVED_IN_DIRECTORY:
+    "You removed someone with that email from your directory. Show archived collaborators and return them, so their history stays on one record.",
   CONTACT_HAS_LIVE_PROJECT:
     "This client has a job that is still live. Close, cancel or finish it first.",
   CREW_HAS_OPEN_ASSIGNMENT:

@@ -12354,3 +12354,9 @@ form:has(> .address-field) > .address-field,
 .questionnaire-editor-required input{min-height:auto}
 .questionnaire-template-editor fieldset>button,.questionnaire-template-editor>div>.button{justify-self:start}
 @media(max-width:760px){.questionnaire-editor-meta,.questionnaire-editor-field{grid-template-columns:1fr}}
+
+/* Reaching archived records in a curated directory, so archiving is not
+   one-way. See components/studio/live-domain-view.tsx. */
+.live-domain-archived-toggle{padding:11px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:flex-end}
+.live-domain-archived-toggle button{appearance:none;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);font:inherit;font-size:11.5px;font-weight:650;padding:5px 11px;cursor:pointer}
+.live-domain-archived-toggle button:hover{color:var(--ink);border-color:var(--accent)}

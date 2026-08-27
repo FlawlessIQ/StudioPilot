@@ -485,6 +485,7 @@ export function LiveDomainView({
 }) {
   const workspace = useWorkspace();
   const recordsGeneration = useTenantRecordsGeneration();
+  const [showArchived, setShowArchived] = useState(false);
   const config = configurations[domain];
   const demoRecords = useMemo(
     () => demoTenantDocuments(config.collection).filter((record) => {
@@ -705,9 +706,42 @@ export function LiveDomainView({
     );
   }
 
+  /**
+   * Archived records are out of the working list.
+   *
+   * This view never filtered on `archivedAt`, which did not matter while
+   * nothing in the product could archive anything. It matters now: archiving a
+   * vendor or a collaborator marked the record and left the row exactly where
+   * it was, so the control looked like it did nothing at all.
+   *
+   * Filtered here rather than in the query because `archivedAt` is absent on
+   * older documents and a `where` clause would drop them silently. The toggle
+   * exists so a restore is reachable — otherwise archiving would be one-way.
+   */
+  const archivedRecords = rowActions
+    ? records.filter((record) => Boolean(record.archivedAt))
+    : [];
+  const visibleRecords = rowActions
+    ? showArchived
+      ? archivedRecords
+      : records.filter((record) => !record.archivedAt)
+    : records;
+
   return (
     <section className="panel live-domain-table">
-      {records.map((record) => {
+      {archivedRecords.length > 0 ? (
+        <div className="live-domain-archived-toggle">
+          <button
+            onClick={() => setShowArchived((current) => !current)}
+            type="button"
+          >
+            {showArchived
+              ? "Show current"
+              : `Show ${archivedRecords.length} archived`}
+          </button>
+        </div>
+      ) : null}
+      {visibleRecords.map((record) => {
         const primary = display(
           nested(record, config.primary),
           undefined,

@@ -10,6 +10,7 @@ import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { productEvent } from "../operations/product-events.js";
 import { studioHubCors } from "../security/cors.js";
+import { findDuplicateProfile } from "./duplicate-profile.js";
 
 const requirement = z.object({
   id: z.string().min(1),
@@ -524,6 +525,36 @@ export const crewCommand = onRequest(
 
       if (parsed.type === "createCrewProfile") {
         if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
+        /**
+         * Not someone you already have.
+         *
+         * This wrote a new profile every time, with no check on the email, and
+         * the production directory grew two entries on one address differing
+         * only by how the name had been typed. Crew are ranked and offered work
+         * per job, so a duplicate person can be offered the same wedding twice,
+         * acknowledge on one entry and look unresponsive on the other.
+         * See features/crew/duplicate-profile.ts.
+         */
+        const directory = await db
+          .collection("crewProfiles")
+          .where("tenantId", "==", parsed.tenantId)
+          .limit(400)
+          .get();
+        const duplicate = findDuplicateProfile(
+          parsed.input.email,
+          directory.docs.map((document) => ({
+            id: document.id,
+            email: String(document.get("email") ?? ""),
+            name: String(document.get("name") ?? ""),
+            archivedAt: (document.get("archivedAt") as string | null) ?? null,
+          })),
+        );
+        if (duplicate.kind === "active") {
+          throw new Error("CREW_EMAIL_ALREADY_IN_DIRECTORY");
+        }
+        if (duplicate.kind === "archived") {
+          throw new Error("CREW_EMAIL_ARCHIVED_IN_DIRECTORY");
+        }
         const id = stable(
           "crew_profile",
           parsed.tenantId,
@@ -558,6 +589,28 @@ export const crewCommand = onRequest(
           current.get("archivedAt")
         ) {
           throw new Error("CREW_PROFILE_NOT_FOUND");
+        }
+        // Changing an email onto somebody else's is the same collision by
+        // another route.
+        if (parsed.input.email !== current.get("email")) {
+          const directory = await db
+            .collection("crewProfiles")
+            .where("tenantId", "==", parsed.tenantId)
+            .limit(400)
+            .get();
+          const collision = findDuplicateProfile(
+            parsed.input.email,
+            directory.docs.map((document) => ({
+              id: document.id,
+              email: String(document.get("email") ?? ""),
+              name: String(document.get("name") ?? ""),
+              archivedAt: (document.get("archivedAt") as string | null) ?? null,
+            })),
+            parsed.input.crewProfileId,
+          );
+          if (collision.kind !== "unique") {
+            throw new Error("CREW_EMAIL_ALREADY_IN_DIRECTORY");
+          }
         }
         const linkedUserId = current.get("userId");
         // Their identity, once they have an account. The email is how they
