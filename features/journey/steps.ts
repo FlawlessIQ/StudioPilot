@@ -33,6 +33,20 @@ export type JourneyStepStatus =
   | "current"
   | "waiting_client"
   | "waiting_other"
+  /**
+   * The moment for this step has gone.
+   *
+   * A preparation step that never got done does not stop mattering when the
+   * event passes — the rail should still show it was missed — but it stops
+   * being *work*. A wedding shot sixty days ago was showing "YOUR NEXT MOVE —
+   * Send the form · Prep locations, times, and family names", pointing the
+   * studio at the couple's planning questionnaire two months after the day it
+   * was for, while the gallery sat undelivered.
+   *
+   * Never becomes `current`, carries no action, and is drawn as neither done
+   * nor outstanding.
+   */
+  | "passed"
   | "upcoming";
 
 export type JourneyAction =
@@ -183,6 +197,21 @@ export function projectJourney(input: JourneyInput): {
   const stateRank = rank(String(input.state));
   const days = daysUntil(input.eventDate, input.today);
   const afterEvent = days !== null && days < 0;
+  /**
+   * Whether the event is behind this job, by the date or by the state.
+   *
+   * The date alone is not enough: a job moved to EVENT_COMPLETE early, or one
+   * whose date is missing, is still past its preparation. Preparation steps use
+   * this to stop being work — see the `passed` status.
+   */
+  const eventBehindThem = afterEvent || stateRank >= 8;
+  /** A preparation step that never got done and no longer can be. */
+  const prepStatus = (
+    live: JourneyStepStatus,
+  ): JourneyStepStatus => (eventBehindThem ? "passed" : live);
+  /** Its action, dropped once the moment has gone. */
+  const prepAction = <T,>(action: T): T | null =>
+    eventBehindThem ? null : action;
   const project = (suffix: string) => `${suffix}?project=${input.projectId}`;
 
   const steps: JourneyStep[] = [];
@@ -374,12 +403,12 @@ export function projectJourney(input: JourneyInput): {
           : "Prep locations, times, and family names",
     status: formDone
       ? "complete"
-      : formWaiting && !formEmptyButSubmitted
-        ? "waiting_client"
-        : "current",
+      : prepStatus(
+          formWaiting && !formEmptyButSubmitted ? "waiting_client" : "current",
+        ),
     action: formDone
       ? null
-      : {
+      : prepAction({
           kind: "link",
           label: formEmptyButSubmitted
             ? "Check the form"
@@ -387,7 +416,7 @@ export function projectJourney(input: JourneyInput): {
               ? "Nudge or review"
               : "Send the form",
           href: project("/studio/questionnaires"),
-        },
+        }),
   });
 
   const scheduleSettled = ["approved", "published"].includes(
@@ -412,13 +441,15 @@ export function projectJourney(input: JourneyInput): {
           : "Drafted from the form using your timing rules",
     status: scheduleDone
       ? "complete"
-      : scheduleWaiting && !scheduleEmptyButSettled
-        ? "waiting_client"
-        : "current",
+      : prepStatus(
+          scheduleWaiting && !scheduleEmptyButSettled
+            ? "waiting_client"
+            : "current",
+        ),
     action: scheduleDone
       ? null
-      : {
-          kind: "link",
+      : prepAction({
+          kind: "link" as const,
           label: scheduleEmptyButSettled
             ? "Add the times"
             : scheduleWaiting
@@ -427,7 +458,7 @@ export function projectJourney(input: JourneyInput): {
           href: scheduleWaiting
             ? project("/studio/schedules")
             : `/studio/schedules/new?project=${input.projectId}`,
-        },
+        }),
   });
 
   // Both optional: a caller that does not know about checkpoints or crew
@@ -455,18 +486,16 @@ export function projectJourney(input: JourneyInput): {
         : "Offer each role to one person at a time",
     status: crewDone
       ? "complete"
-      : input.crewCascadeActive
-        ? "waiting_other"
-        : "current",
+      : prepStatus(input.crewCascadeActive ? "waiting_other" : "current"),
     action: crewDone
       ? null
-      : {
-          kind: "link",
+      : prepAction({
+          kind: "link" as const,
           label: input.crewCascadeActive
             ? "See who has been asked"
             : "Fill crew roles",
           href: project("/studio/crew"),
-        },
+        }),
   });
 
   const coiDone =
@@ -486,14 +515,16 @@ export function projectJourney(input: JourneyInput): {
       : coiWaiting
         ? "Requested — chasing automatically"
         : "Request the certificate for the venue",
-    status: coiDone ? "complete" : coiWaiting ? "waiting_other" : "current",
+    status: coiDone
+      ? "complete"
+      : prepStatus(coiWaiting ? "waiting_other" : "current"),
     action: coiDone
       ? null
-      : {
-          kind: "link",
+      : prepAction({
+          kind: "link" as const,
           label: coiWaiting ? "Check COI status" : "Request COI",
           href: project("/studio/insurance"),
-        },
+        }),
   });
 
   // A settled `final-balance` checkpoint counts, for the same reason the crew
@@ -553,9 +584,15 @@ export function projectJourney(input: JourneyInput): {
     detail: dayBeforeDone
       ? "Sent — saves 20 minutes on site"
       : "Dress, shoes, flowers, rings, invitations ready",
-    status: dayBeforeDone ? "complete" : dayBeforeDue ? "current" : "upcoming",
+    status: dayBeforeDone
+      ? "complete"
+      : eventBehindThem
+        ? "passed"
+        : dayBeforeDue
+          ? "current"
+          : "upcoming",
     action:
-      dayBeforeDone || !dayBeforeDue
+      dayBeforeDone || !dayBeforeDue || eventBehindThem
         ? null
         : input.dayBeforeDraftStatus === "review_required"
           ? { kind: "link", label: "Approve the checklist", href: "/studio/ai-queue" }
@@ -569,8 +606,8 @@ export function projectJourney(input: JourneyInput): {
   push({
     key: "event_day",
     title: "Event day",
-    detail: afterEvent || stateRank >= 8 ? "Covered" : input.eventDate ?? "Date pending",
-    status: afterEvent || stateRank >= 8 ? "complete" : "upcoming",
+    detail: eventBehindThem ? "Covered" : input.eventDate ?? "Date pending",
+    status: eventBehindThem ? "complete" : "upcoming",
     action: null,
   });
 

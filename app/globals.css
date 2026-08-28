@@ -11019,6 +11019,11 @@ textarea:focus-visible {
 .journey-step-copy{display:grid;gap:2px;min-width:0}
 .journey-step-copy strong{font-size:13px}
 .journey-step.is-upcoming .journey-step-copy strong{color:var(--muted,#8a938d);font-weight:600}
+/* A preparation step the event overtook: shown, because it was missed, but not
+   drawn as work. See the `passed` status in features/journey/steps.ts. */
+.journey-step.is-passed .journey-step-marker{color:var(--muted,#8a938d);background:var(--soft,#eef0ed)}
+.journey-step.is-passed .journey-step-copy strong{color:var(--muted,#8a938d);font-weight:600;text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--muted,#8a938d) 45%,transparent)}
+.journey-step.is-passed .journey-step-copy small{color:var(--muted,#8a938d)}
 .journey-step-copy small{color:var(--muted,#6b7570);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .journey-step.is-current .journey-step-copy strong{font-size:14px}
 .journey-step-action{display:inline-flex;gap:6px;align-items:center;border:0;border-radius:99px;background:var(--ink,#1d2420);color:#fff;padding:9px 16px;font:650 12px/1 inherit;cursor:pointer;text-decoration:none;white-space:nowrap}
@@ -12373,3 +12378,14 @@ form:has(> .address-field) > .address-field,
 .studio-identity form>button{grid-column:1/-1;justify-self:start}
 .studio-identity form>.form-notice{grid-column:1/-1}
 @media(max-width:720px){.studio-identity form{grid-template-columns:1fr}}
+
+/* "Send the form" arrives here, so the send is the first thing on the page.
+   See components/planning/questionnaire-quick-send.tsx. */
+.questionnaire-quick-send{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center;border-color:color-mix(in srgb,var(--accent) 26%,var(--line));background:linear-gradient(135deg,color-mix(in srgb,var(--sage,#e9f4ec) 55%,var(--surface)),var(--surface))}
+.questionnaire-quick-send h2{margin:3px 0 6px;font:600 23px/1.15 var(--font-display)}
+.questionnaire-quick-send p{margin:0;color:var(--muted);line-height:1.55}
+.questionnaire-quick-send strong{color:var(--ink)}
+.questionnaire-quick-send-actions{display:grid;gap:7px;justify-items:end}
+.questionnaire-quick-send-actions small{display:flex;align-items:center;gap:4px;color:var(--muted);font-size:11px}
+.questionnaire-quick-send>.form-notice{grid-column:1/-1;margin:0}
+@media(max-width:760px){.questionnaire-quick-send{grid-template-columns:1fr}.questionnaire-quick-send-actions{justify-items:start}}

@@ -82,7 +82,13 @@ export function groupJourneyByPhase(steps: JourneyStep[]): JourneyPhaseGroup[] {
         label: journeyPhaseLabel[phase],
         steps: inPhase,
         complete: inPhase.filter((step) => step.status === "complete").length,
-        active: inPhase.some((step) => step.status !== "complete" && step.status !== "upcoming"),
+        // `passed` is not activity: a preparation step the event overtook is
+        // neither done nor being worked on, and marking its phase active kept
+        // Preparation lit up on a job that had already been shot.
+        active: inPhase.some(
+          (step) =>
+            !["complete", "upcoming", "passed"].includes(step.status),
+        ),
       };
     })
     .filter((group) => group.steps.length > 0);

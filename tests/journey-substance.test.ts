@@ -232,3 +232,49 @@ test("a job on hold or called off has no next move", () => {
   // A live job still has one.
   assert.ok(projectJourney({ ...booked, state: "PLANNING" }).steps.length > 5);
 });
+
+test("preparation stops being work once the event has happened", () => {
+  /**
+   * A wedding shot sixty days earlier was showing "YOUR NEXT MOVE — Send the
+   * form · Prep locations, times, and family names", pointing the studio at the
+   * couple's planning questionnaire two months after the day it was for, while
+   * the gallery sat undelivered.
+   */
+  const shot: JourneyInput = {
+    ...booked,
+    state: "POST_PRODUCTION",
+    eventDate: "2026-06-28",
+    today: "2026-08-27",
+    questionnaireStatus: null,
+    questionnaireHasAnswers: false,
+    scheduleStatus: null,
+    scheduleHasUsableItems: false,
+    coiStatus: null,
+    crewAccepted: 0,
+    crewRequired: 2,
+  };
+  for (const key of ["schedule_form", "run_of_show", "coi", "crew", "day_before"]) {
+    const found = step(shot, key);
+    assert.equal(found?.status, "passed", `${key} should be passed`);
+    // And it must not still be offering work.
+    assert.equal(found?.action, null, `${key} should offer no action`);
+  }
+  // The next move is not a preparation step any more.
+  const current = projectJourney(shot).current;
+  assert.notEqual(current?.key, "schedule_form");
+  assert.notEqual(current?.status, "passed");
+});
+
+test("before the event those same steps are still the studio's work", () => {
+  const upcoming: JourneyInput = {
+    ...booked,
+    state: "PLANNING",
+    eventDate: "2027-06-28",
+    today: "2026-08-27",
+    questionnaireStatus: null,
+    questionnaireHasAnswers: false,
+  };
+  const form = step(upcoming, "schedule_form");
+  assert.equal(form?.status, "current");
+  assert.ok(form?.action, "the form is still to be sent");
+});

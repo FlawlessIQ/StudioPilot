@@ -950,6 +950,14 @@
   color: #2e7042;
 }
 
+/* A preparation step the event overtook. Struck through rather than ticked:
+   it was not done, and it is no longer work. */
+.thread-minimap li.is-passed > :is(a, em) {
+  color: var(--muted, #8a938d);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--muted, #8a938d) 45%, transparent);
+}
+
 .thread-minimap li.is-current > span {
   background: var(--green, #2e7042);
   box-shadow: 0 0 0 3px #e9f4ec;

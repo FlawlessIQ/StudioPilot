@@ -7,6 +7,7 @@ import {
   ArrowUpRight,
   CheckCircle2,
   Circle,
+  CircleSlash,
   LoaderCircle,
   Sparkles,
   UserRound,
@@ -110,6 +111,9 @@ function JourneyStepRow({
           <CheckCircle2 size={17} />
         ) : step.status === "waiting_client" ? (
           <UserRound size={15} />
+        ) : step.status === "passed" ? (
+          // Not a tick and not an open circle: the moment went by.
+          <CircleSlash size={15} />
         ) : (
           <Circle size={15} />
         )}
@@ -128,9 +132,11 @@ function JourneyStepRow({
             ? `Waiting on the client · ${step.detail}`
             : step.status === "waiting_other"
               ? `In motion · ${step.detail}`
-              : step.status === "upcoming"
-                ? (step.unlock ?? step.detail)
-                : step.detail}
+              : step.status === "passed"
+                ? "Not done before the day"
+                : step.status === "upcoming"
+                  ? (step.unlock ?? step.detail)
+                  : step.detail}
         </small>
         {showRecord && step.record ? (
           <Link className="journey-step-record" href={step.record.href}>
