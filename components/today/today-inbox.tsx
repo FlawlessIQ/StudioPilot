@@ -152,11 +152,17 @@ export function TodayInbox() {
           /**
            * "On the books" reads as work coming, so it must only be said of
            * events that are. On 27 August this tile read "3 events this month ·
-           * on the books" with all three already shot.
+           * on the books" with all three dates behind it.
+           *
+           * "All already shot" was the first correction and it claimed too
+           * much: two of those three were still marked planning and ready for
+           * the day, and Today was asking "did this go ahead?" about both of
+           * them further down the same page. What the metric knows is that the
+           * dates have passed. Whether they were shot is the open question.
            */
           hint:
             metrics.eventsThisMonthRemaining === 0
-              ? "all already shot"
+              ? "all dates passed"
               : metrics.eventsThisMonthRemaining < metrics.eventsThisMonth
                 ? `${metrics.eventsThisMonthRemaining} still ahead`
                 : countdown

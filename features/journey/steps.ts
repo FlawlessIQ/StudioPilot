@@ -300,8 +300,25 @@ export function projectJourney(input: JourneyInput): {
         : null,
   });
 
+  /**
+   * A step the stage says is done and no record here can show.
+   *
+   * The booking gate guarantees a booked job passed through a signature and a
+   * payment, so inferring these from the stage is right — but saying "Fully
+   * signed" when there is no contract document put the journey in flat
+   * contradiction with the Booking tab, which reads the records and said
+   * "Contract · Not created" for the same job. The gate is still the authority
+   * for the transition; the wording now admits where the evidence lives.
+   */
+  const inferred = (recordExists: boolean, byStage: boolean) =>
+    byStage && !recordExists;
+
   const proposalDone =
     input.proposalStatus === "accepted" || stateRank >= 3;
+  const proposalInferred = inferred(
+    Boolean(input.proposalStatus),
+    proposalDone,
+  );
   const proposalWaiting = ["sent", "viewed"].includes(
     input.proposalStatus ?? "",
   );
@@ -309,7 +326,9 @@ export function projectJourney(input: JourneyInput): {
     key: "proposal",
     title: "Proposal",
     detail: proposalDone
-      ? "Accepted"
+      ? proposalInferred
+        ? "Accepted outside StudioCue — no proposal on file here"
+        : "Accepted"
       : proposalWaiting
         ? "With the client to decide"
         : "Packages and pricing, ready to send",
@@ -333,6 +352,10 @@ export function projectJourney(input: JourneyInput): {
   });
 
   const contractDone = input.contractStatus === "completed" || stateRank >= 4;
+  const contractInferred = inferred(
+    Boolean(input.contractStatus),
+    contractDone,
+  );
   const contractWaiting = [
     "sent",
     "delivered",
@@ -343,7 +366,9 @@ export function projectJourney(input: JourneyInput): {
     key: "contract",
     title: "Contract signed",
     detail: contractDone
-      ? "Fully signed"
+      ? contractInferred
+        ? "Signed outside StudioCue — no contract on file here"
+        : "Fully signed"
       : contractWaiting
         ? "Out for signature"
         : "Built from the accepted proposal — no retyping",
@@ -363,6 +388,10 @@ export function projectJourney(input: JourneyInput): {
 
   const retainerDone =
     input.retainerInvoiceStatus === "paid" || stateRank >= 5;
+  const retainerInferred = inferred(
+    Boolean(input.retainerInvoiceStatus),
+    retainerDone,
+  );
   const retainerWaiting = [
     "sent",
     "viewed",
@@ -373,7 +402,9 @@ export function projectJourney(input: JourneyInput): {
     key: "retainer",
     title: "Retainer paid",
     detail: retainerDone
-      ? "Booking locked in"
+      ? retainerInferred
+        ? "Paid outside StudioCue — no invoice on file here"
+        : "Booking locked in"
       : retainerWaiting
         ? "Invoice with the client"
         : "Computed from your retainer rule",
@@ -484,8 +515,27 @@ export function projectJourney(input: JourneyInput): {
   const settled = (key: string) =>
     (input.settledCheckpointKeys ?? []).includes(key);
   const shootingSolo = input.crewRequired === 0 && input.crewAccepted === 0;
+  /**
+   * Every role that was offered, not the first person to say yes.
+   *
+   * `crewAccepted > 0` ticked the whole step, so a wedding with a lead
+   * photographer accepted and a lighting assistant who had never answered read
+   * "Crew confirmed · 1 accepted" — while the reference panel on the same job
+   * listed that unanswered offer as outstanding, and the Plan hub marked Crew
+   * DONE. Three surfaces, one question, two answers.
+   *
+   * `crewRequired` stays optional: absent means the caller has no opinion
+   * about how many roles exist, which is not the same as "solo", so that case
+   * keeps the old any-acceptance reading rather than inventing a denominator.
+   */
+  const crewOutstanding =
+    typeof input.crewRequired === "number"
+      ? Math.max(0, input.crewRequired - input.crewAccepted)
+      : null;
   const crewDone =
-    input.crewAccepted > 0 ||
+    (crewOutstanding === null
+      ? input.crewAccepted > 0
+      : crewOutstanding === 0 && input.crewAccepted > 0) ||
     shootingSolo ||
     settled("crew-accepted") ||
     settled("crew-acknowledged");
@@ -494,23 +544,31 @@ export function projectJourney(input: JourneyInput): {
     title: "Crew confirmed",
     detail: crewDone
       ? input.crewAccepted > 0
-        ? `${input.crewAccepted} accepted`
+        ? `All ${input.crewAccepted} offered ${input.crewAccepted === 1 ? "role" : "roles"} accepted`
         : shootingSolo
           ? "Shooting this one solo"
           : "Settled by you"
-      : input.crewCascadeActive
-        ? "Offer cascading through your ranked list"
-        : "Offer each role to one person at a time",
+      : crewOutstanding
+        ? `${input.crewAccepted} of ${input.crewRequired} accepted · ${crewOutstanding} still to answer`
+        : input.crewCascadeActive
+          ? "Offer cascading through your ranked list"
+          : "Offer each role to one person at a time",
+    // An offer that is out is waiting on a person, not on the studio.
     status: crewDone
       ? "complete"
-      : prepStatus(input.crewCascadeActive ? "waiting_other" : "current"),
+      : prepStatus(
+          input.crewCascadeActive || crewOutstanding
+            ? "waiting_other"
+            : "current",
+        ),
     action: crewDone
       ? null
       : prepAction({
           kind: "link" as const,
-          label: input.crewCascadeActive
-            ? "See who has been asked"
-            : "Fill crew roles",
+          label:
+            input.crewCascadeActive || crewOutstanding
+              ? "See who has been asked"
+              : "Fill crew roles",
           href: project("/studio/crew"),
         }),
   });

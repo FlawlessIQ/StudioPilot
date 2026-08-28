@@ -95,3 +95,80 @@ export const RECONCILE_TARGETS: readonly ProjectState[] = [
   "POSTPONED",
   "CANCELLED",
 ];
+
+/**
+ * The job's event has been recorded as having happened.
+ *
+ * Not the same as over. A wedding that was shot still has a gallery to
+ * deliver, an album to sell and a review to ask for — the job is very much
+ * alive. What is finished is the *preparation*.
+ */
+const EVENT_RECORDED: readonly string[] = [
+  "EVENT_COMPLETE",
+  "POST_PRODUCTION",
+  "DELIVERED",
+  "REVIEW_REQUESTED",
+  "CLOSED",
+];
+
+/**
+ * Whether getting ready for this event is still a live concern.
+ *
+ * `workStillMatters` stops at closed, and that is one whole stage too late.
+ * After a wedding is recorded as shot, Today's single most prominent item was
+ * still *"Confirm Foundry COI wording"* — a certificate of insurance is
+ * insurance **for the event**, and the event is on the record as having
+ * happened. Its schedule comments were in "already late" and its gallery in
+ * "this fortnight": one job, three items, two of them dead.
+ *
+ * POSTPONED is deliberately excluded. A wedding moved to next year has not
+ * happened, and every piece of its preparation matters again on the new date.
+ */
+export function preparationIsMoot(state: string): boolean {
+  return EVENT_RECORDED.includes(state) || jobIsOver(state);
+}
+
+/**
+ * Capabilities whose whole purpose sits before the day.
+ *
+ * Enumerated rather than inferred: `delivery_message_draft` is the one AI
+ * capability that exists precisely *because* the event happened, and getting
+ * that backwards would hide the gallery note instead of the dead COI.
+ */
+const BEFORE_THE_DAY_CAPABILITIES: readonly string[] = [
+  "coi_extraction",
+  "consultation_capture_match",
+  "contract_mapping",
+  "crew_recommendation",
+  "inquiry_reply_draft",
+  "run_of_show_draft",
+  "schedule_draft",
+  "shot_list_request",
+];
+
+/** A prepared draft whose moment went by with the event. */
+export function preparedWorkIsMoot(input: {
+  state: string;
+  capability: string;
+}): boolean {
+  if (!preparationIsMoot(input.state)) return false;
+  return BEFORE_THE_DAY_CAPABILITIES.includes(input.capability);
+}
+
+/**
+ * A task whose moment went by with the event.
+ *
+ * Judged by its own due date rather than by a category, because tasks have no
+ * category: one due on or before the event day was work *for* the event. A
+ * task due afterwards — chase the album, order the print — is post-event work
+ * and stays.
+ */
+export function taskMomentHasGone(input: {
+  state: string;
+  dueDate: string | null | undefined;
+  eventDate: string | null | undefined;
+}): boolean {
+  if (!preparationIsMoot(input.state)) return false;
+  if (!input.dueDate || !input.eventDate) return false;
+  return input.dueDate.slice(0, 10) <= input.eventDate.slice(0, 10);
+}

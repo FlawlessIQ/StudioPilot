@@ -97,8 +97,19 @@ export function PlanAreas({ projectId }: { projectId: string }) {
     if (mine.every((step) => step.status === "complete")) return "done" as const;
     if (mine.some((step) => step.status === "waiting_client"))
       return "waiting" as const;
+    // An offer out with a crew member is "with them", not silence. This card
+    // marked Crew as Done off one acceptance while the job's own reference
+    // panel listed an unanswered offer on the same page.
+    if (mine.some((step) => step.status === "waiting_other"))
+      return "out" as const;
+    // The event overtook these. Saying nothing left the card looking untouched.
+    if (mine.every((step) => step.status === "passed")) return "past" as const;
     return null;
   };
+  // Once the day is behind them, "for the morning of" is the wrong tense.
+  const eventBehindThem = steps.some(
+    (step) => step.key === "event_day" && step.status !== "upcoming",
+  );
 
   return (
     <section className="project-plan-grid" aria-label="Planning areas">
@@ -116,7 +127,11 @@ export function PlanAreas({ projectId }: { projectId: string }) {
             </span>
             <div>
               <strong>{area.label}</strong>
-              <small>{area.detail}</small>
+              <small>
+                {area.label === "Event day" && eventBehindThem
+                  ? "The brief as it stood on the day."
+                  : area.detail}
+              </small>
             </div>
             {status === "now" ? (
               <em className="plan-area-flag is-now">Needs you</em>
@@ -124,10 +139,16 @@ export function PlanAreas({ projectId }: { projectId: string }) {
               <em className="plan-area-flag is-waiting">
                 <Clock3 size={11} /> With the client
               </em>
+            ) : status === "out" ? (
+              <em className="plan-area-flag is-waiting">
+                <Clock3 size={11} /> Waiting on them
+              </em>
             ) : status === "done" ? (
               <em className="plan-area-flag is-done">
                 <Check size={12} /> Done
               </em>
+            ) : status === "past" ? (
+              <em className="plan-area-flag is-past">The day has passed</em>
             ) : (
               <ArrowRight size={15} />
             )}

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { daysUntilEvent } from "@/lib/format/event-date";
+import { daysUntilEvent, todayLocalIso } from "@/lib/format/event-date";
+import { calendarDayDiff } from "@/features/today/inbox";
 
 /**
  * The studio job page and the couple's portal must never disagree about how
@@ -53,4 +54,42 @@ test("the day of the event reads zero, and the day after reads negative", () => 
 test("a missing date yields null rather than a number", () => {
   assert.equal(daysUntilEvent(null, new Date(2026, 7, 26)), null);
   assert.equal(daysUntilEvent("", new Date(2026, 7, 26)), null);
+});
+
+/**
+ * Today used to run its own day arithmetic.
+ *
+ * `dayDiff` anchored a calendar date at noon UTC and measured from the exact
+ * render instant, so on 27 August at 22:44 Eastern Today read "in 36 days" for
+ * an event the job page read "in 37 days", and printed "THURSDAY, AUGUST 27"
+ * above "September 4 · 7 DAYS TO" — which is eight.
+ */
+const oldTodayCount = (iso: string, now: Date) =>
+  Math.round((Date.parse(`${iso}T12:00:00Z`) - now.valueOf()) / 86_400_000);
+
+test("Today and the job page agree, at every hour", () => {
+  const event = "2026-09-04";
+  for (const hour of [0, 8, 13, 19, 20, 21, 22, 23]) {
+    const now = new Date(2026, 7, 27, hour, 30);
+    assert.equal(
+      calendarDayDiff(event, now),
+      daysUntilEvent(event, now),
+      `Today disagreed with the job page at ${hour}:30`,
+    );
+    assert.equal(calendarDayDiff(event, now), 8);
+  }
+});
+
+test("the old arithmetic is what lost the day, so the regression is named", () => {
+  const evening = new Date(2026, 7, 27, 22, 44);
+  assert.equal(oldTodayCount("2026-09-04", evening), 7);
+  assert.equal(daysUntilEvent("2026-09-04", evening), 8);
+});
+
+test("today's own date is the reader's, not Greenwich's", () => {
+  // Late evening Eastern is already tomorrow in UTC; the header is not.
+  const evening = new Date(2026, 7, 27, 22, 44);
+  assert.equal(todayLocalIso(evening), "2026-08-27");
+  assert.equal(todayLocalIso(new Date(2026, 7, 27, 0, 1)), "2026-08-27");
+  assert.equal(todayLocalIso(new Date(2026, 7, 27, 23, 59)), "2026-08-27");
 });

@@ -517,7 +517,33 @@ export function BookingAutopilotWorkspace({
         </header>
       )}
 
-      {!consultation && consultationBehindThem && !proposalId ? (
+      {laterBookingState ? (
+        /**
+         * Past the proposal, so no consultation guidance at all.
+         *
+         * The hero directly above says "Nothing here needs the consultation
+         * flow any more", and the branches below then ran it: a wedding already
+         * shot, with no proposal record, was told "No consultation was recorded
+         * — that's fine. Prepare the proposal directly." A job past this stage
+         * needs to know what StudioCue holds, not to be sold the flow again.
+         */
+        proposalId ? null : (
+          <section className="booking-autopilot-empty">
+            <Check />
+            <span>
+              <strong>No proposal is on file for this job.</strong>
+              <small>
+                It was booked outside StudioCue. The agreement and payments
+                below are what StudioCue holds for it — add a proposal only if
+                you want one on the record.
+              </small>
+            </span>
+            <Link href={`/studio/proposals/new?project=${projectId}`}>
+              Add one for the record <ArrowRight />
+            </Link>
+          </section>
+        )
+      ) : !consultation && consultationBehindThem && !proposalId ? (
         // The stage moved past consultation without a meeting record (handled
         // over the phone, stage advanced by hand). Don't demand a
         // consultation that will never exist — point at the proposal flow

@@ -197,11 +197,21 @@ function ProjectStageControl({
   state,
   stateVersion,
   onTransition,
+  journeyAdvance,
 }: {
   projectId: string;
   state: ProjectState;
   stateVersion: number;
   onTransition: (state: ProjectState, version: number) => void;
+  /**
+   * The move the journey's current step already offers, if any.
+   *
+   * A wedding whose date had passed showed "Did this go ahead? · Yes, we shot
+   * it" at the top of the job and, three hundred pixels below, "Next stage ·
+   * Shot · Confirm the event happened" — one transition, two buttons, four
+   * different names for it. This card steps aside and points up.
+   */
+  journeyAdvance: { targetState: string; label: string } | null;
 }) {
   const target = forwardStage[state];
   const [busy, setBusy] = useState(false);
@@ -276,7 +286,12 @@ function ProjectStageControl({
             ? gated.detail
             : "Use this when the step happened outside StudioCue — for example a consultation handled over the phone. The change is recorded in the audit log."}
         </p>
-        {gated ? (
+        {journeyAdvance && journeyAdvance.targetState === nextStage ? (
+          <p className="project-stage-duplicate">
+            This is the same move as &ldquo;{journeyAdvance.label}&rdquo; at the
+            top of this job.
+          </p>
+        ) : gated ? (
           <Link className="button button-light-on-dark" href={gated.href}>
             {gated.label} <ArrowRight aria-hidden="true" size={15} />
           </Link>
@@ -543,6 +558,12 @@ function ProjectLifecycleLanes({
                       <em>
                         {/* A truncated document id is not evidence to a
                             photographer; the due date or the plain status is. */}
+                        {/* And the heading promises "by who owes it", which
+                            this line never said — so an offer sitting with a
+                            lighting assistant read as the studio's own
+                            outstanding work. */}
+                        {work.owner === "Studio" ? "You" : work.owner}
+                        {" · "}
                         {work.dueAt
                           ? `Due ${displayDate(work.dueAt.slice(0, 10))}`
                           : work.status}
@@ -844,6 +865,14 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
             </aside>
           ) : null}
           <ProjectStageControl
+            journeyAdvance={
+              journey.current?.advance
+                ? {
+                    targetState: journey.current.advance.targetState,
+                    label: journey.current.advance.label,
+                  }
+                : null
+            }
             onTransition={onTransition}
             projectId={projectId}
             state={state}

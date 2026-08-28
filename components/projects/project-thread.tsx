@@ -722,6 +722,9 @@ function MarkDoneButton({
 /** The compact rail: where this job sits, and how far it has come. */
 export function ThreadMinimap({ steps }: { steps: JourneyStep[] }) {
   const complete = steps.filter((step) => step.status === "complete").length;
+  // Steps the event overtook. In the denominator only, they made an already
+  // shot wedding read "8/14" — six things looking open that nobody can do.
+  const missed = steps.filter((step) => step.status === "passed").length;
   // Fifteen identical ticks is an accurate index and a poor map. The arcs
   // are what a photographer thinks in: am I still selling this, or am I
   // shooting it in a fortnight?
@@ -732,6 +735,9 @@ export function ThreadMinimap({ steps }: { steps: JourneyStep[] }) {
         <p className="eyebrow">The journey</p>
         <span>
           {complete}/{steps.length}
+          {missed ? (
+            <em className="thread-phase-missed"> · {missed} missed</em>
+          ) : null}
         </span>
       </div>
       {groups.map((group) => (
@@ -743,6 +749,14 @@ export function ThreadMinimap({ steps }: { steps: JourneyStep[] }) {
             {group.label}
             <em>
               {group.complete}/{group.steps.length}
+              {group.missed ? (
+                // "2/4" alone reads as two still to do. Two of them are behind
+                // the event and undoable; the phase heading has to say so.
+                <span className="thread-phase-missed">
+                  {" "}
+                  · {group.missed} missed
+                </span>
+              ) : null}
             </em>
           </p>
           <ol>

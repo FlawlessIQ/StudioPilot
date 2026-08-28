@@ -12,6 +12,7 @@ import {
 import { useReadinessEvidence } from "@/components/projects/use-readiness-evidence";
 import type { ReadinessEvidence } from "@/features/readiness/checkpoint-evidence";
 import { displayableScheduleItems } from "@/features/schedules/item-clock";
+import { todayLocalIso } from "@/lib/format/event-date";
 
 const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
@@ -97,7 +98,7 @@ export function useProjectJourney({
     projectId,
     state: projectState,
     eventDate,
-    today: new Date().toISOString().slice(0, 10),
+    today: todayLocalIso(),
     lead: lead ? { id: lead.id, status: text(lead.status) || "new" } : null,
     hasConsultation: forProject(consultations.records).length > 0,
     proposalStatus:
@@ -116,7 +117,7 @@ export function useProjectJourney({
     finalInvoiceStatus: text(finalInvoice?.status) || null,
     finalInvoiceOverdue: invoiceIsOverdue(
       finalInvoice,
-      new Date().toISOString().slice(0, 10),
+      todayLocalIso(),
     ),
     questionnaireStatus:
       text(forProject(questionnaires.records)[0]?.status) || null,

@@ -913,6 +913,17 @@
   opacity: 0.75;
 }
 
+/* A step the event overtook. Stated plainly, not coloured like a failure —
+   a missed form on a wedding already shot is history, not an alarm. */
+.thread-minimap-head em {
+  font-style: normal;
+}
+
+.thread-phase-missed {
+  font-weight: 500;
+  opacity: 0.8;
+}
+
 /* The arc the job is actually in is the only one that raises its voice. */
 .thread-phase.is-active .thread-phase-label {
   color: var(--green, #2e7042);

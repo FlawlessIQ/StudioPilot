@@ -626,7 +626,11 @@ for (const task of [
     projectId: "wedding-booked",
     title: "Review Johnson schedule comments",
     priority: "urgent",
-    dueDate: now.slice(0, 10),
+    // Dated against the wedding it is for, not against the day of seeding.
+    // Both of these are run-up work — a schedule review and a certificate of
+    // insurance — and giving them a due date after the event made them look
+    // like live post-production work on a wedding already shot.
+    dueDate: "2026-08-12",
     blocking: true,
   },
   {
@@ -634,7 +638,7 @@ for (const task of [
     projectId: "wedding-booked",
     title: "Confirm Foundry COI wording",
     priority: "high",
-    dueDate: now.slice(0, 10),
+    dueDate: "2026-08-11",
     blocking: true,
   },
   {

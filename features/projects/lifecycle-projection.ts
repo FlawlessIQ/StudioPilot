@@ -1,4 +1,5 @@
 import type { ProjectState } from "@/features/projects/schema";
+import { preparationIsMoot } from "@/features/projects/job-moment";
 
 export type LifecycleRecord = Record<string, unknown> & { id: string };
 
@@ -293,6 +294,31 @@ export function projectLifecycleProjection(input: {
     );
   }
 
+  /**
+   * An offer for an event that has already been shot cannot be answered.
+   *
+   * A wedding six days past its date listed "Respond to lighting assistant
+   * offer · waiting" as outstanding studio work, while the journey and the Plan
+   * hub both — correctly — read the settled crew checkpoint and said crew was
+   * done. Nobody is going to accept a role on a wedding that has happened.
+   */
+  const crewCheckpointSettled = (input.checkpoints ?? []).some(
+    (checkpoint) =>
+      text(checkpoint.templateKey).startsWith("crew") &&
+      ["complete", "waived"].includes(text(checkpoint.status)),
+  );
+  /**
+   * Whether an unanswered crew offer is still the studio's problem.
+   *
+   * Two ways it stops being. The event has been shot — nobody is going to
+   * accept a role on a wedding that has happened. Or the studio settled the
+   * crew readiness checkpoint, which is the attestation that crew is handled;
+   * the journey and the Plan hub both read that and said Crew was done, while
+   * this panel went on listing the offer as outstanding on the same page.
+   */
+  const crewOffersStillOpen =
+    !preparationIsMoot(state) && !crewCheckpointSettled;
+
   for (const assignment of input.crewAssignments ?? []) {
     if (["accepted", "complete", "declined", "cancelled"].includes(
       text(assignment.status),
@@ -317,11 +343,15 @@ export function projectLifecycleProjection(input: {
       }
       continue;
     }
+    if (!crewOffersStillOpen) continue;
     lanes.crew.push(
       item({
         id: `crew-${assignment.id}`,
-        label: `Respond to ${text(assignment.role) || "crew"} offer`,
-        detail: "The next offer waits for accept, decline, or expiration.",
+        // Phrased as the studio's imperative — "Respond to lighting assistant
+        // offer" — on a panel headed "everything outstanding, by who owes it".
+        // The studio cannot answer its own offer; the person it went to can.
+        label: `${text(assignment.role) || "Crew"} has not answered the offer`,
+        detail: "Waiting on them to accept, decline, or let it expire.",
         status: "waiting",
         owner: "Crew",
         dueAt: due(assignment),

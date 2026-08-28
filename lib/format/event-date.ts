@@ -69,6 +69,23 @@ export function formatEventDateLong(value: unknown): string {
   return date ? weekdayMonthDay.format(date) : "Date to confirm";
 }
 
+/**
+ * Today's date as `YYYY-MM-DD`, in the reader's own timezone.
+ *
+ * `new Date().toISOString().slice(0, 10)` is the obvious way to write this and
+ * it is wrong west of Greenwich: after 8pm Eastern it returns tomorrow. Passed
+ * as "today" into the journey engine, that shifted every countdown in the
+ * product by a day each evening while the page header — formatted locally —
+ * went on printing the right date. Today read "Thursday, August 27" above
+ * "September 4 · in 7 days", which is eight.
+ */
+export function todayLocalIso(now: Date = new Date()): string {
+  const local = startOfDay(now);
+  const month = String(local.getMonth() + 1).padStart(2, "0");
+  const day = String(local.getDate()).padStart(2, "0");
+  return `${local.getFullYear()}-${month}-${day}`;
+}
+
 /** Whole days from today. Negative means the date has passed. */
 export function daysUntilEvent(value: unknown, now: Date = new Date()): number | null {
   const date = parseEventDate(value);

@@ -44,6 +44,9 @@ export function ProjectJourney({
   onTransition: (state: string, version: number) => void;
 }) {
   const complete = steps.filter((step) => step.status === "complete").length;
+  // A step the event overtook is neither done nor to-do. Counting it only in
+  // the denominator made a wedding that had already happened read "8/14".
+  const missed = steps.filter((step) => step.status === "passed").length;
 
   return (
     <section className="panel project-journey" aria-label="Project journey">
@@ -59,6 +62,7 @@ export function ProjectJourney({
         </div>
         <span className="project-journey-progress">
           {complete}/{steps.length}
+          {missed ? <em>{missed} missed</em> : null}
         </span>
       </div>
       <ol className="project-journey-steps">

@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  RECONCILE_TARGETS,
   awaitingEventReconciliation,
   daysToEvent,
   jobIsOver,
-  RECONCILE_TARGETS,
+  preparationIsMoot,
+  preparedWorkIsMoot,
+  taskMomentHasGone,
   workStillMatters,
 } from "@/features/projects/job-moment";
 import { allowedProjectTransitions } from "@/features/projects/state-machine";
@@ -136,4 +139,75 @@ test("a past-date job is asked whether it happened, before anything else", () =>
   // Once answered, the job behaves normally again.
   const shot = projectJourney({ ...stranded, state: "EVENT_COMPLETE" });
   assert.notEqual(shot.current?.key, "event_day");
+});
+
+/**
+ * Preparation ends with the event, not with the job.
+ *
+ * `workStillMatters` stops at closed, which is a whole stage too late: after a
+ * wedding is recorded as shot, Today's single most prominent item was still
+ * "Confirm Foundry COI wording" — insurance for an event already on the record
+ * as having happened.
+ */
+test("preparation stops mattering once the event is recorded", () => {
+  for (const state of [
+    "EVENT_COMPLETE",
+    "POST_PRODUCTION",
+    "DELIVERED",
+    "REVIEW_REQUESTED",
+    "CLOSED",
+    "CANCELLED",
+    "ARCHIVED",
+  ]) {
+    assert.equal(preparationIsMoot(state), true, state);
+  }
+});
+
+test("a postponed wedding needs all of its preparation again", () => {
+  // It has not happened. Every certificate and timeline matters on the new date.
+  assert.equal(preparationIsMoot("POSTPONED"), false);
+  assert.equal(preparationIsMoot("READY"), false);
+  assert.equal(preparationIsMoot("PLANNING"), false);
+});
+
+test("a task is judged by whether its due date was for the event", () => {
+  const shot = { state: "EVENT_COMPLETE", eventDate: "2026-08-15" };
+  // Due the day before the wedding: that was work for the wedding.
+  assert.equal(taskMomentHasGone({ ...shot, dueDate: "2026-08-14" }), true);
+  assert.equal(taskMomentHasGone({ ...shot, dueDate: "2026-08-15" }), true);
+  // Due afterwards: chase the album, order the prints. Still live.
+  assert.equal(taskMomentHasGone({ ...shot, dueDate: "2026-08-16" }), false);
+  // Same task, job still ahead of its date: never suppressed.
+  assert.equal(
+    taskMomentHasGone({ state: "READY", eventDate: "2026-08-15", dueDate: "2026-08-14" }),
+    false,
+  );
+  // Nothing to judge by.
+  assert.equal(
+    taskMomentHasGone({ ...shot, dueDate: null, eventDate: null }),
+    false,
+  );
+});
+
+test("the delivery draft survives the event; the run-up drafts do not", () => {
+  const shot = { state: "EVENT_COMPLETE" };
+  assert.equal(
+    preparedWorkIsMoot({ ...shot, capability: "delivery_message_draft" }),
+    false,
+    "the gallery note exists because the event happened",
+  );
+  for (const capability of [
+    "coi_extraction",
+    "run_of_show_draft",
+    "schedule_draft",
+    "crew_recommendation",
+    "shot_list_request",
+  ]) {
+    assert.equal(preparedWorkIsMoot({ ...shot, capability }), true, capability);
+  }
+  // And nothing is suppressed while the event is still ahead.
+  assert.equal(
+    preparedWorkIsMoot({ state: "PLANNING", capability: "coi_extraction" }),
+    false,
+  );
 });

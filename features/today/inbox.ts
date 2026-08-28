@@ -22,7 +22,12 @@ import {
   stalenessWeight,
 } from "@/features/dashboard/urgency";
 import type { SetupGap } from "@/features/today/setup-gaps";
-import { workStillMatters } from "@/features/projects/job-moment";
+import {
+  preparedWorkIsMoot,
+  taskMomentHasGone,
+  workStillMatters,
+} from "@/features/projects/job-moment";
+import { daysUntilEvent } from "@/lib/format/event-date";
 import { kindFromValue, type LibraryKind } from "@/features/library/kinds";
 import {
   describeProviderFailure,
@@ -306,7 +311,26 @@ function previewOf(
   };
 }
 
-const dayDiff = (iso: string | null | undefined, now: Date): number | null => {
+/**
+ * Whole calendar days from today to a date, in the reader's own timezone.
+ *
+ * This used to be one helper for both calendar dates and timestamps, anchoring
+ * the date at noon UTC and measuring from the current instant. Timestamps want
+ * exactly that; calendar dates do not, and the mixture cost a day every
+ * evening. On 27 August at 22:44 local, Today read "in 36 days" for an event
+ * the job page read "in 37 days", and printed "THURSDAY, AUGUST 27" above
+ * "September 4 · 7 DAYS TO". Both ends now sit on local midnight.
+ */
+export const calendarDayDiff = (
+  iso: string | null | undefined,
+  now: Date,
+): number | null => (iso ? daysUntilEvent(iso.slice(0, 10), now) : null);
+
+/** Days elapsed since a timestamp. Negative, because it is in the past. */
+const elapsedDayDiff = (
+  iso: string | null | undefined,
+  now: Date,
+): number | null => {
   if (!iso) return null;
   const parsed = Date.parse(iso.length <= 10 ? `${iso}T12:00:00Z` : iso);
   if (!Number.isFinite(parsed)) return null;
@@ -315,7 +339,7 @@ const dayDiff = (iso: string | null | undefined, now: Date): number | null => {
 
 /** "Oct 9, 2027 · in 14 months" — the date, and what it means. */
 function eventFact(eventDate: string | null | undefined, now: Date): string | null {
-  const days = dayDiff(eventDate, now);
+  const days = calendarDayDiff(eventDate, now);
   if (!eventDate || days === null) return null;
   const when = new Date(`${eventDate.slice(0, 10)}T12:00:00Z`);
   const label = new Intl.DateTimeFormat("en-US", {
@@ -330,9 +354,26 @@ function eventFact(eventDate: string | null | undefined, now: Date): string | nu
   return `${label} · in ${countdownPhrase(days)}`;
 }
 
+/**
+ * "arrived today", "waiting 3 days" — an inquiry's own clock.
+ *
+ * `waitingFact` says nothing below a day, which left a brand-new inquiry
+ * carrying one fact — the wedding date — under a heading reading "THIS
+ * FORTNIGHT" while the chip said "in 36 days". The card was banded by how long
+ * the couple had waited and labelled by a date thirty-six days out, and nothing
+ * on it reconciled the two.
+ */
+const arrivalFact = (receivedAt: string | null, now: Date): string => {
+  const days = elapsedDayDiff(receivedAt, now);
+  const waited = days === null ? 0 : Math.abs(Math.min(0, days));
+  if (waited < 1) return "arrived today";
+  if (waited === 1) return "waiting 1 day";
+  return `waiting ${waited} days`;
+};
+
 /** "waiting 3 days" — silence is the thing that costs money. */
 function waitingFact(updatedAt: string | null | undefined, now: Date): string | null {
-  const days = dayDiff(updatedAt, now);
+  const days = elapsedDayDiff(updatedAt, now);
   if (days === null || days > 0) return null;
   const waited = Math.abs(days);
   if (waited < 1) return null;
@@ -348,9 +389,9 @@ const bandFor = (input: {
   now: Date;
 }): TodayBand => {
   if (input.overdue) return "overdue";
-  const due = dayDiff(input.dueDate, input.now);
+  const due = calendarDayDiff(input.dueDate, input.now);
   if (due !== null && due < 0) return "overdue";
-  const days = dayDiff(input.eventDate, input.now);
+  const days = calendarDayDiff(input.eventDate, input.now);
   if (days === null) return "later";
   // A wedding that already happened and still needs work is late, not
   // upcoming: "this fortnight" must never contain a date two months gone.
@@ -379,7 +420,7 @@ function graceAfterEvent(state: string): number {
  * its event date says.
  */
 const leadBand = (receivedAt: string | null, now: Date): TodayBand => {
-  const days = dayDiff(receivedAt, now);
+  const days = elapsedDayDiff(receivedAt, now);
   if (days === null) return "soon";
   const waited = Math.abs(Math.min(0, days));
   if (waited >= 2) return "overdue";
@@ -432,9 +473,10 @@ export function todayInbox(input: TodayInput): TodayInbox {
       },
       jobHref: null,
       facts: [
+        // How long they have waited comes first: that is what bands this card.
+        arrivalFact(arrivedAt(lead), now),
         eventFact(leadEvent, now),
         readable(lead.eventType) || null,
-        waitingFact(arrivedAt(lead), now),
       ].filter((fact): fact is string => Boolean(fact)),
       // An inquiry is urgent because it is unanswered, never because the
       // wedding is close: couples book 12–18 months out, so banding a fresh
@@ -543,6 +585,12 @@ export function todayInbox(input: TodayInput): TodayInbox {
     return state === null || workStillMatters(state);
   };
   const leadById = new Map(rows(input.leads).map((lead) => [lead.id, lead]));
+  /** The event date of any job, live or settled — see `stateFor`. */
+  const eventDateFor = (projectId: unknown) => {
+    const id = text(projectId);
+    if (!id) return null;
+    return text(projectById.get(id)?.eventDate) || eventFor(id);
+  };
 
   for (const task of rows(input.tasks)) {
     const due = text(task.dueAt ?? task.dueDate).slice(0, 10);
@@ -551,6 +599,23 @@ export function todayInbox(input: TodayInput): TodayInbox {
     );
     if (!due || due >= today || done) continue;
     if (!jobStillOpen(task.projectId)) continue;
+    /**
+     * A task for an event that has since been recorded as shot.
+     *
+     * "Confirm Foundry COI wording", due the day before the wedding, was the
+     * studio's single most prominent item after the wedding was recorded as
+     * having happened. A certificate of insurance is insurance for the event.
+     * See features/projects/job-moment.ts.
+     */
+    if (
+      taskMomentHasGone({
+        state: stateFor(task.projectId) ?? "",
+        dueDate: due,
+        eventDate: eventDateFor(task.projectId),
+      })
+    ) {
+      continue;
+    }
     exception({
       id: `task-${task.id}`,
       kind: "task",
@@ -845,6 +910,16 @@ export function todayInbox(input: TodayInput): TodayInbox {
     const snoozed = text(action.snoozedUntil);
     if (snoozed && snoozed > input.now) continue;
     if (!jobStillOpen(action.projectId)) continue;
+    // A draft whose whole purpose was the run-up, on a job already shot.
+    if (
+      preparedWorkIsMoot({
+        state: stateFor(action.projectId) ?? "",
+        capability:
+          text(action.capability) || text(action.assetType) || text(action.type),
+      })
+    ) {
+      continue;
+    }
     /**
      * A reply to an enquiry that has already become a client.
      *
@@ -1029,7 +1104,8 @@ export function todayInbox(input: TodayInput): TodayInbox {
       projectId: position.projectId,
       name: position.projectName,
       eventDate: position.eventDate ?? "",
-      inDays: dayDiff(position.eventDate, now) ?? Number.MAX_SAFE_INTEGER,
+      inDays:
+        calendarDayDiff(position.eventDate, now) ?? Number.MAX_SAFE_INTEGER,
     }))
     .filter((event) => event.eventDate && event.inDays >= 0)
     .sort((left, right) => left.inDays - right.inDays)

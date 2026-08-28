@@ -94,3 +94,31 @@ test("the balance sits with the week of the wedding, not with planning", () => {
   assert.equal(journeyPhase("final_balance"), "the_day");
   assert.equal(journeyPhase("coi"), "prepare");
 });
+
+/**
+ * A step the event overtook is neither done nor to-do.
+ *
+ * Counting it only in the denominator made a wedding that had already been shot
+ * read "Preparation 2/4" and "8/14" overall — six things looking outstanding
+ * that nobody could ever do again.
+ */
+test("a phase reports what the event overtook, separately from what is done", () => {
+  const groups = groupJourneyByPhase([
+    step("schedule_form", "passed"),
+    step("run_of_show", "passed"),
+    step("crew", "complete"),
+    step("coi", "complete"),
+  ]);
+  const prepare = groups.find((group) => group.phase === "prepare");
+  assert.ok(prepare);
+  assert.equal(prepare.complete, 2);
+  assert.equal(prepare.missed, 2);
+  assert.equal(prepare.steps.length, 4);
+  // And it is not activity, so the phase does not read as in progress.
+  assert.equal(prepare.active, false);
+});
+
+test("nothing missed reports zero, not null", () => {
+  const groups = groupJourneyByPhase([step("crew", "complete")]);
+  assert.equal(groups[0]?.missed, 0);
+});

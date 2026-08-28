@@ -2178,6 +2178,15 @@
   color: var(--ds-muted, #747d77);
 }
 
+/* Not done and not to-do: the event went past it. */
+.ds-root .plan-area-flag.is-past {
+  background: transparent;
+  color: var(--ds-muted, #747d77);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 .ds-root .project-plan-grid > a.is-now {
   border-color: #9dbfa6;
   box-shadow: 0 6px 18px rgb(46 112 66 / 9%);

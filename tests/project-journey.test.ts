@@ -235,3 +235,98 @@ test("record links carry the project context", () => {
   const contract = steps.find((step) => step.key === "contract");
   assert.equal(contract?.record?.href, "/studio/booking?project=project-1");
 });
+
+/**
+ * Crew is confirmed when every offered role is, not when the first person says
+ * yes.
+ *
+ * A wedding with a lead photographer accepted and a lighting assistant who had
+ * never answered read "Crew confirmed · 1 accepted", while the same job's
+ * reference panel listed that unanswered offer as outstanding and the Plan hub
+ * marked Crew DONE.
+ */
+test("one acceptance out of two does not confirm the crew", () => {
+  const { steps } = projectJourney({
+    ...base,
+    state: "PLANNING",
+    eventDate: "2026-09-19",
+    today: "2026-08-27",
+    crewAccepted: 1,
+    crewRequired: 2,
+  });
+  const crew = steps.find((step) => step.key === "crew");
+  assert.notEqual(crew?.status, "complete");
+  assert.match(crew?.detail ?? "", /1 of 2 accepted/);
+  // Waiting on a person, not on the studio.
+  assert.equal(crew?.status, "waiting_other");
+});
+
+test("every offered role accepted does confirm it", () => {
+  const { steps } = projectJourney({
+    ...base,
+    state: "PLANNING",
+    eventDate: "2026-09-19",
+    today: "2026-08-27",
+    crewAccepted: 2,
+    crewRequired: 2,
+  });
+  assert.equal(
+    steps.find((step) => step.key === "crew")?.status,
+    "complete",
+  );
+});
+
+test("a caller with no opinion about crew demand keeps the old reading", () => {
+  // `crewRequired` absent means "no opinion", which is not "solo".
+  const { steps } = projectJourney({
+    ...base,
+    state: "PLANNING",
+    eventDate: "2026-09-19",
+    today: "2026-08-27",
+    crewAccepted: 1,
+  });
+  assert.equal(steps.find((step) => step.key === "crew")?.status, "complete");
+});
+
+/**
+ * The stage is the authority for the transition; it is not evidence of a
+ * record. Saying "Fully signed" with no contract document put the journey in
+ * flat contradiction with the Booking tab, which read the records and said
+ * "Contract · Not created" for the very same job.
+ */
+test("a booking step inferred from the stage says where the evidence is", () => {
+  const { steps } = projectJourney({
+    ...base,
+    state: "READY",
+    eventDate: "2026-09-19",
+    today: "2026-08-27",
+    proposalStatus: null,
+    contractStatus: null,
+    retainerInvoiceStatus: null,
+  });
+  const detail = (key: string) =>
+    steps.find((step) => step.key === key)?.detail ?? "";
+  assert.equal(steps.find((step) => step.key === "contract")?.status, "complete");
+  assert.match(detail("contract"), /outside StudioCue/);
+  assert.match(detail("retainer"), /outside StudioCue/);
+  assert.match(detail("proposal"), /outside StudioCue/);
+});
+
+test("a real record is never described as happening elsewhere", () => {
+  const { steps } = projectJourney({
+    ...base,
+    state: "READY",
+    eventDate: "2026-09-19",
+    today: "2026-08-27",
+    proposalStatus: "accepted",
+    contractStatus: "completed",
+    retainerInvoiceStatus: "paid",
+  });
+  for (const key of ["proposal", "contract", "retainer"]) {
+    assert.doesNotMatch(
+      steps.find((step) => step.key === key)?.detail ?? "",
+      /outside StudioCue/,
+      key,
+    );
+  }
+});

@@ -5,6 +5,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { invoiceIsOverdue, projectJourney } from "@/features/journey/steps";
 import { questionnaireHasAnswers } from "@/features/journey/substance";
 import { displayableScheduleItems } from "@/features/schedules/item-clock";
+import { todayLocalIso } from "@/lib/format/event-date";
 import { activeProjectStates } from "@/features/dashboard/active-states";
 import { useSetupState } from "@/components/setup/use-setup-state";
 import { homeMetrics, type HomeMetrics } from "@/features/dashboard/home-metrics";
@@ -86,8 +87,10 @@ export function useTodayInbox(): {
   const checkpoints = useTenantDocuments("checkpoints");
   const insuranceRequests = useTenantDocuments("insuranceRequests");
   const deliveries = useTenantDocuments("deliveryRecords");
+  const questionnaireTemplates = useTenantDocuments("questionnaireTemplates");
 
-  const today = new Date().toISOString().slice(0, 10);
+  // Local, not UTC — a countdown must not move at 8pm. See todayLocalIso.
+  const today = todayLocalIso();
   const forProject = (rows: Row[] | null, projectId: string) =>
     (rows ?? []).filter((item) => item.projectId === projectId);
 
@@ -154,6 +157,14 @@ export function useTodayInbox(): {
           forProject(questionnaires.records, projectId)[0]?.answers,
         ),
         scheduleStatus: text(latestSchedule?.status) || null,
+        // Whether a form for this job type exists at all. Today used to offer
+        // "Send the form" on a barn session for which no form existed, while
+        // the job page — same engine, second caller — said "Build a form".
+        hasSendableQuestionnaire: (questionnaireTemplates.records ?? []).some(
+          (template) =>
+            template.status === "active" &&
+            String(template.eventTypeId ?? "") === text(project.eventTypeId),
+        ),
         scheduleHasUsableItems:
           displayableScheduleItems(
             Array.isArray(latestSchedule?.items)

@@ -65,6 +65,15 @@ export type JourneyPhaseGroup = {
   steps: JourneyStep[];
   /** Completed out of total, so a group can show its own progress. */
   complete: number;
+  /**
+   * Steps the event overtook — never done, and now undoable.
+   *
+   * Without this the fraction has no way to say "moot". A wedding already shot,
+   * whose form was never sent and whose run of show was never published, read
+   * "Preparation 2/4" and "8/14" overall: six things looking outstanding that
+   * nobody can ever do again.
+   */
+  missed: number;
   /** True when the job's current step lives in this group. */
   active: boolean;
 };
@@ -82,6 +91,7 @@ export function groupJourneyByPhase(steps: JourneyStep[]): JourneyPhaseGroup[] {
         label: journeyPhaseLabel[phase],
         steps: inPhase,
         complete: inPhase.filter((step) => step.status === "complete").length,
+        missed: inPhase.filter((step) => step.status === "passed").length,
         // `passed` is not activity: a preparation step the event overtook is
         // neither done nor being worked on, and marking its phase active kept
         // Preparation lit up on a job that had already been shot.

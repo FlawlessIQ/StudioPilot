@@ -1,5 +1,7 @@
 "use client";
 
+import { todayLocalIso } from "@/lib/format/event-date";
+
 import Link from "next/link";
 import {
   ArrowRight,
@@ -29,7 +31,7 @@ export function DashboardPriorityStrip() {
   const questionnaireState = useTenantDocuments("questionnaireResponses");
   const projectsState = useTenantDocuments("projects");
   const aiActionsState = useTenantDocuments("aiActions");
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocalIso();
   const draftsWaiting = (aiActionsState.records ?? []).filter(
     (action) => String(action.status) === "review_required",
   );
@@ -89,7 +91,7 @@ export function DashboardPriorityStrip() {
 
 export function FinancialPrioritySignal() {
   const invoicesState = useTenantDocuments("invoiceReferences");
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocalIso();
   const overdueInvoices = (invoicesState.records ?? []).filter(
     (invoice) =>
       Number(invoice.balanceCents ?? 0) > 0 &&

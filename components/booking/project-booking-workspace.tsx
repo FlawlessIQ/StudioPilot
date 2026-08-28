@@ -374,11 +374,22 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
       number: 1,
       title: "Contract",
       state: bookingComplete ? "done" : stepState(1),
+      /**
+       * A booked job with no contract document here.
+       *
+       * The step was marked done — the stage says the job is booked — and the
+       * note underneath still said "Not sent", directly contradicting the
+       * journey on the same job, which ticked "Contract signed". The booking
+       * gate is the authority for the transition; what this page knows is
+       * whether the paperwork is in StudioCue.
+       */
       note: contractComplete
         ? "Signed"
         : contract
           ? statusLabel(String(contract.status))
-          : "Not sent",
+          : bookingComplete
+            ? "Not recorded here"
+            : "Not sent",
     },
     {
       number: 2,
@@ -391,9 +402,11 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
         ? "Paid"
         : invoice
           ? statusLabel(String(invoice.status))
-          : contractComplete
-            ? "Ready to raise"
-            : "Waits for the signature",
+          : bookingComplete
+            ? "Not recorded here"
+            : contractComplete
+              ? "Ready to raise"
+              : "Waits for the signature",
     },
     {
       number: 3,
