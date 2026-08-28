@@ -23,6 +23,7 @@ import {
 } from "@/features/dashboard/urgency";
 import type { SetupGap } from "@/features/today/setup-gaps";
 import {
+  inquiryDraftIsOrphaned,
   preparedWorkIsMoot,
   taskMomentHasGone,
   workStillMatters,
@@ -928,17 +929,15 @@ export function todayInbox(input: TodayInput): TodayInbox {
      * offering to reply to the original enquiry of a couple whose wedding had
      * since been booked, shot, delivered and closed.
      */
-    if (!text(action.projectId)) {
-      const leadReference = (
-        Array.isArray(action.sourceReferences) ? action.sourceReferences : []
-      ).find(
-        (reference) =>
-          text((reference as Record<string, unknown>)?.entityType) === "lead",
-      ) as Record<string, unknown> | undefined;
-      const lead = leadReference
-        ? leadById.get(text(leadReference.entityId))
-        : undefined;
-      if (lead && text(lead.projectId)) continue;
+    if (
+      inquiryDraftIsOrphaned({
+        projectId: text(action.projectId),
+        sourceReferences: action.sourceReferences,
+        leadBecameAJob: (leadId) =>
+          Boolean(text(leadById.get(leadId)?.projectId)),
+      })
+    ) {
+      continue;
     }
     approve.push({
       id: `ai-${action.id}`,

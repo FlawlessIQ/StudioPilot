@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  taskMomentHasGone,
+  workStillMatters,
+} from "@/features/projects/job-moment";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -602,6 +606,28 @@ export function LiveDomainView({
             .filter((project) => project.exists())
             .map((project) => [project.id, String(project.get("name"))]),
         );
+        /**
+         * The job each record belongs to, so a list can tell whether the work
+         * still matters.
+         *
+         * These documents are already being fetched for their names; taking the
+         * state and date at the same time costs nothing and is what lets the
+         * Notifications page stop showing work Today has already retired.
+         */
+        const jobs = Object.fromEntries(
+          projects
+            .filter((project) => project.exists())
+            .map((project) => [
+              project.id,
+              {
+                state: String(project.get("state") ?? ""),
+                eventDate:
+                  typeof project.get("eventDate") === "string"
+                    ? String(project.get("eventDate"))
+                    : null,
+              },
+            ]),
+        );
         if (active)
           setRecords(
             values.map((value) => ({
@@ -610,6 +636,14 @@ export function LiveDomainView({
                 typeof value.projectId === "string"
                   ? names[value.projectId] ?? value.projectId
                   : value.projectName,
+              projectState:
+                typeof value.projectId === "string"
+                  ? jobs[value.projectId]?.state ?? null
+                  : null,
+              projectEventDate:
+                typeof value.projectId === "string"
+                  ? jobs[value.projectId]?.eventDate ?? null
+                  : null,
             })),
           );
       })
@@ -721,11 +755,43 @@ export function LiveDomainView({
   const archivedRecords = rowActions
     ? records.filter((record) => Boolean(record.archivedAt))
     : [];
+  /**
+   * A task whose job is over, or whose moment went with the event.
+   *
+   * Notifications is a plain list of every task in the tenant, and it was the
+   * fourth surface to surface work without asking where the job stood. It
+   * showed "Confirm Foundry COI wording" and "Review Johnson schedule
+   * comments" for a wedding recorded as shot on 15 August, and "Book the second
+   * shooter" for a job that had been cancelled — the exact three items Today
+   * stopped showing. Same predicate, fourth caller.
+   * See features/projects/job-moment.ts.
+   */
+  const liveRecords =
+    config.collection === "tasks"
+      ? records.filter((record) => {
+          const state = String(record.projectState ?? "");
+          if (!state) return true;
+          if (!workStillMatters(state)) return false;
+          return !taskMomentHasGone({
+            state,
+            dueDate:
+              typeof record.dueAt === "string"
+                ? record.dueAt
+                : typeof record.dueDate === "string"
+                  ? record.dueDate
+                  : null,
+            eventDate:
+              typeof record.projectEventDate === "string"
+                ? record.projectEventDate
+                : null,
+          });
+        })
+      : records;
   const visibleRecords = rowActions
     ? showArchived
       ? archivedRecords
-      : records.filter((record) => !record.archivedAt)
-    : records;
+      : liveRecords.filter((record) => !record.archivedAt)
+    : liveRecords;
 
   return (
     <section className="panel live-domain-table">

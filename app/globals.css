@@ -10873,6 +10873,14 @@ textarea:focus-visible {
 .crew-message-thread p { line-height: 1.45; white-space: pre-wrap; }
 
 .crew-availability-actions { display: flex !important; flex-direction: row; flex-wrap: wrap; gap: 7px !important; justify-content: flex-end; }
+/* Touch targets in the crew workspace, which is used on a phone at a venue.
+   These two rendered at 15x15 CSS pixels, side by side, one of them the
+   destructive Remove — small enough that the likeliest outcome of aiming at
+   Edit on a phone was deleting the entry instead. WCAG 2.5.5 asks for 44. */
+.crew-availability-actions button { align-items: center; display: inline-flex; justify-content: center; min-height: 44px; min-width: 44px; }
+/* "Directions", tapped by a second photographer standing outside a venue.
+   36px tall before this. */
+.crew-event-location a, .crew-event-contact a { align-items: center; display: inline-flex; gap: 5px; min-height: 44px; }
 .crew-payment-summary { display: grid; gap: 14px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .crew-payment-summary article { display: grid; gap: 6px; }
 .crew-payment-summary strong { font: 550 24px/1.15 var(--font-display); text-transform: capitalize; }

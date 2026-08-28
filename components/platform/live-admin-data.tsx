@@ -75,7 +75,9 @@ const configurations: Record<AdminDomain, Config> = {
     primary: ["tenantId", "id"],
     secondary: ["stripeCustomerId"],
     facts: [
-      { label: "Plan", fields: ["planKey"] },
+      // The record's field is `plan`; `planKey` does not exist on it, so every
+      // subscription read "Plan —" while the tenants page said "studio".
+      { label: "Plan", fields: ["plan", "planKey"] },
       { label: "Period ends", fields: ["currentPeriodEnd"] },
     ],
     status: ["status"],
@@ -159,16 +161,46 @@ function value(record: RecordValue, fields: string[]) {
   return null;
 }
 
-function text(input: unknown) {
+/**
+ * One value, for a page an operator opens when something is broken.
+ *
+ * @param humanise Whether to soften `dead_letter` into "dead letter". True for
+ *   the status chip this was written for, false everywhere else — applied to
+ *   every value it turned `demo_e2e` into "demo e2e", `cus_mock_alder` into
+ *   "cus mock alder" and `America/New_York` into "America/New York", mangling
+ *   the identifiers an operator needs to paste into Stripe or a support ticket.
+ */
+function text(input: unknown, humanise = false) {
   if (input === null || input === undefined || input === "") return "—";
   if (typeof input === "boolean") return input ? "Enabled" : "Disabled";
   if (Array.isArray(input)) return input.length ? input.join(", ") : "All tenants";
+  /**
+   * A structured error, which is what every queue actually stores.
+   *
+   * `String({code, message, retryable})` is "[object Object]", and that is what
+   * the dead-letter console printed under "Last error" — on the one page whose
+   * entire job is to say why something died.
+   */
+  if (typeof input === "object") {
+    const record = input as Record<string, unknown>;
+    const message = typeof record.message === "string" ? record.message : "";
+    const code = typeof record.code === "string" ? record.code : "";
+    if (message || code) {
+      return [code, message].filter(Boolean).join(" · ");
+    }
+    try {
+      const json = JSON.stringify(input);
+      return json && json !== "{}" ? json.slice(0, 300) : "—";
+    } catch {
+      return "Unreadable error payload";
+    }
+  }
   const result = String(input);
   if (/^\d{4}-\d{2}-\d{2}T/.test(result)) {
     const parsed = new Date(result);
     if (!Number.isNaN(parsed.valueOf())) return parsed.toLocaleString();
   }
-  return result.replaceAll("_", " ");
+  return humanise ? result.replaceAll("_", " ") : result;
 }
 
 function tone(input: unknown) {
@@ -285,7 +317,7 @@ export function LiveAdminCollection({
                 <strong>{text(value(record, fact.fields))}</strong>
               </span>
             ))}
-            <StatusBadge tone={tone(status)}>{text(status)}</StatusBadge>
+            <StatusBadge tone={tone(status)}>{text(status, true)}</StatusBadge>
             {domain === "failed_jobs" ? (
               <AdminCommandAction
                 label="Rerun"

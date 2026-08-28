@@ -172,3 +172,32 @@ export function taskMomentHasGone(input: {
   if (!input.dueDate || !input.eventDate) return false;
   return input.dueDate.slice(0, 10) <= input.eventDate.slice(0, 10);
 }
+
+/**
+ * A prepared inquiry reply whose enquiry has already become a job.
+ *
+ * Inquiry drafts carry no `projectId` — they belong to a lead — so nothing
+ * about the job could ever retire them. One sat in Today's approval lane
+ * offering to send a first reply to a couple whose wedding had since been
+ * booked, shot, delivered and closed; the same draft sat in the AI review queue
+ * for the same reason, because that page filtered on the draft's own status and
+ * never looked at the lead either.
+ *
+ * `leadBecameAJob` is passed in rather than looked up here so this stays a pure
+ * predicate: the two callers hold their leads differently.
+ */
+export function inquiryDraftIsOrphaned(input: {
+  projectId: string;
+  sourceReferences: unknown;
+  leadBecameAJob: (leadId: string) => boolean;
+}): boolean {
+  if (input.projectId) return false;
+  const references = Array.isArray(input.sourceReferences)
+    ? (input.sourceReferences as Array<Record<string, unknown>>)
+    : [];
+  const lead = references.find(
+    (reference) => String(reference?.entityType ?? "") === "lead",
+  );
+  const leadId = String(lead?.entityId ?? "");
+  return Boolean(leadId) && input.leadBecameAJob(leadId);
+}

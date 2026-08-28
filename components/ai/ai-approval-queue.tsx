@@ -16,6 +16,11 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import {
+  inquiryDraftIsOrphaned,
+  preparedWorkIsMoot,
+  workStillMatters,
+} from "@/features/projects/job-moment";
 import { useEffect, useMemo, useState } from "react";
 import { Send } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
@@ -492,18 +497,66 @@ export function AiApprovalQueue() {
     const timer = window.setTimeout(() => setNow(Date.now()), 0);
     return () => window.clearTimeout(timer);
   }, []);
+  const projectState = useTenantDocuments("projects");
+  /**
+   * Where each job stands, so the queue can stop asking for approvals on work
+   * that has nowhere to go.
+   *
+   * This filtered on the draft's own status and nothing else, and it was the
+   * fifth surface in the product to do that: it offered "Review delivery note"
+   * for Wren Kowalczyk's wedding, a job already closed out, and a run-up draft
+   * on a wedding recorded as shot. Today stopped showing both this morning.
+   * Same predicates, fifth caller. See features/projects/job-moment.ts.
+   */
+  const jobStateById = useMemo(
+    () =>
+      new Map(
+        (projectState.records ?? []).map((project) => [
+          project.id,
+          text(project.state),
+        ]),
+      ),
+    [projectState.records],
+  );
+  const leadState = useTenantDocuments("leads");
+  const leadById = useMemo(
+    () => new Map((leadState.records ?? []).map((lead) => [lead.id, lead])),
+    [leadState.records],
+  );
   const aiActions = useMemo(
     () =>
       (aiState.records ?? []).filter((action) => {
         const status = overrides[action.id] ?? text(action.status);
         const snoozed = text(action.snoozedUntil);
-        return (
-          ["review_required", "queued", "running"].includes(status) &&
-          (!snoozed || Date.parse(snoozed) <= now) &&
-          status !== "snoozed"
-        );
+        if (
+          !["review_required", "queued", "running"].includes(status) ||
+          (snoozed && Date.parse(snoozed) > now) ||
+          status === "snoozed"
+        ) {
+          return false;
+        }
+        if (
+          inquiryDraftIsOrphaned({
+            projectId: text(action.projectId),
+            sourceReferences: action.sourceReferences,
+            leadBecameAJob: (leadId) =>
+              Boolean(text(leadById.get(leadId)?.projectId)),
+          })
+        ) {
+          return false;
+        }
+        const jobState = jobStateById.get(text(action.projectId)) ?? "";
+        if (!jobState) return true;
+        if (!workStillMatters(jobState)) return false;
+        return !preparedWorkIsMoot({
+          state: jobState,
+          capability:
+            text(action.capability) ||
+            text(action.assetType) ||
+            text(action.type),
+        });
       }),
-    [aiState.records, now, overrides],
+    [aiState.records, jobStateById, leadById, now, overrides],
   );
   const approvals = (approvalState.records ?? []).filter(
     (approval) =>
