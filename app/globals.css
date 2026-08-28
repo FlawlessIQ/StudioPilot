@@ -12348,8 +12348,8 @@ form:has(> .address-field) > .address-field,
 .questionnaire-template-editor :is(input,select){border:1px solid var(--line);border-radius:9px;background:var(--surface);padding:7px 9px;color:var(--ink);font:inherit;font-size:12.5px;min-height:32px}
 .questionnaire-template-editor fieldset{border:1px solid var(--line);border-radius:13px;padding:13px;margin:0;display:grid;gap:9px}
 .questionnaire-template-editor legend{font-size:11.5px;font-weight:800;padding:0 6px}
-.questionnaire-editor-field{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) auto auto;gap:8px;align-items:end}
-.questionnaire-editor-field:has(input[placeholder="Yes, No, Undecided"]){grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) auto auto}
+.questionnaire-editor-field{display:grid;grid-template-columns:minmax(220px,2fr) minmax(130px,1fr) auto auto;gap:10px;align-items:end}
+.questionnaire-editor-field:has(input[placeholder="Yes, No, Undecided"]){grid-template-columns:minmax(200px,2fr) minmax(130px,1fr) minmax(150px,1fr) auto auto}
 .questionnaire-editor-required{display:flex!important;align-items:center;gap:5px;font-size:10.5px;white-space:nowrap}
 .questionnaire-editor-required input{min-height:auto}
 .questionnaire-template-editor fieldset>button,.questionnaire-template-editor>div>.button{justify-self:start}

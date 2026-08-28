@@ -2529,6 +2529,25 @@
   display: grid;
   gap: 8px;
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  /* Cards size to their own content. Without this every card stretched to the
+     height of the tallest, so opening one editor left the other two as tall
+     empty boxes with their titles stranded at the bottom. */
+  align-items: start;
+}
+
+/* An open editor takes the full row.
+   The editor renders a template's real sections — six of them, twenty fields —
+   and it was living inside a 230px grid column, which squeezed every question
+   into an input showing about twelve characters. A card being edited stops
+   being one of three columns and becomes the row.
+   See components/planning/questionnaire-template-editor.tsx. */
+.questionnaire-template-list > article:has(.questionnaire-template-editor[open]) {
+  grid-column: 1 / -1;
+}
+
+.questionnaire-template-list > article:has(.questionnaire-template-editor[open]) > div {
+  /* The heading row keeps its own columns; only the editor below spans. */
+  align-self: center;
 }
 
 .questionnaire-template-list article {
