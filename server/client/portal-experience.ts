@@ -302,21 +302,31 @@ export function buildClientMilestones(state: string): ClientMilestone[] {
       id: "planning",
       label: "Planning",
       description: "Complete details and approve the event plan.",
-      current: () => index >= 5 && index <= 7,
-      complete: () => index >= 8,
+      // READY (7) belongs to the event milestone, not to planning: two
+      // milestones read "current" at once before this.
+      current: () => index >= 5 && index <= 6,
+      complete: () => index >= 7,
     },
     {
+      /**
+       * `EVENT_COMPLETE` is index 8, and this milestone treated 8 as *current*
+       * — so a couple whose wedding had been shot thirteen days earlier opened
+       * their portal to "NOW · Event day · Use the final schedule and shared
+       * details", directly beneath a hero saying the studio was backing up
+       * their photographs. The state is named for the event having happened;
+       * reaching it completes this milestone and starts the next.
+       */
       id: "event",
       label: "Event day",
       description: "Use the final schedule and shared details.",
-      current: () => index === 8,
-      complete: () => index > 8,
+      current: () => index === 7,
+      complete: () => index >= 8,
     },
     {
       id: "delivery",
       label: "Delivery",
       description: "Receive and access your finished photographs.",
-      current: () => index >= 9 && index <= 11,
+      current: () => index >= 8 && index <= 11,
       complete: () => index >= 12,
     },
   ];

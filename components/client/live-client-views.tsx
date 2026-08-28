@@ -31,6 +31,12 @@ import { ClientQuestionnaireForm } from "@/components/planning/client-questionna
 import { PostEventAction } from "@/components/post-event/post-event-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import {
+  portalPastNotice,
+  portalStageIsBehind,
+  type PortalArea,
+} from "@/features/client/portal-stage";
+import type { ClientMilestone } from "@/server/client/portal-experience";
 import { daysUntilEvent } from "@/lib/format/event-date";
 import {
   displayableScheduleItems,
@@ -350,10 +356,12 @@ function PortalState({
   loading,
   error,
   empty,
+  emptyTitle,
 }: {
   loading: boolean;
   error: string | null;
   empty?: string;
+  emptyTitle?: string;
 }) {
   const workspace = useWorkspace();
   if (loading)
@@ -384,7 +392,10 @@ function PortalState({
       <section className="panel portal-live-state">
         <Clock3 />
         <span>
-          <strong>Nothing to complete yet</strong>
+          {/* "Nothing to complete yet" was the headline on six pages, standing
+              in both for "no task for you" and for "no such record exists" —
+              and on a finished project it was wrong on both counts. */}
+          <strong>{emptyTitle ?? "Nothing to complete yet"}</strong>
           <small>{empty}</small>
         </span>
       </section>
@@ -399,6 +410,8 @@ function PortalPageState({
   loading,
   error,
   empty,
+  area,
+  milestones,
 }: {
   eyebrow: string;
   title: string;
@@ -406,14 +419,28 @@ function PortalPageState({
   loading: boolean;
   error: string | null;
   empty?: string;
+  /**
+   * Which part of the project this page is, so an empty state can tell the
+   * difference between "not yet" and "not ever". Without it every page here
+   * promised a future step to a couple whose wedding had already happened.
+   */
+  area?: PortalArea;
+  milestones?: ClientMilestone[] | null;
 }) {
+  const behind = area ? portalStageIsBehind(milestones, area) : false;
+  const past = behind && area ? portalPastNotice(area) : null;
   return (
     <div className="client-booking-page">
       <p className="eyebrow">{eyebrow}</p>
       <h1>{title}</h1>
       <p>{description}</p>
-      <PortalState loading={loading} error={error} empty={empty} />
-      {empty ? (
+      <PortalState
+        emptyTitle={past?.title}
+        empty={empty ? (past ? past.detail : empty) : undefined}
+        error={error}
+        loading={loading}
+      />
+      {empty && !past ? (
         <aside className="portal-empty-guide" aria-label="What happens next">
           <p className="eyebrow">What happens next</p>
           <div>
@@ -561,11 +588,24 @@ export function LiveClientHome() {
       icon: CreditCard,
     },
     {
-      label: "Approved schedule",
-      detail: currentSchedule
-        ? `Version ${number(currentSchedule.version)}`
-        : "Not published yet",
-      ready: Boolean(currentSchedule),
+      /**
+       * Any schedule at all counted as an approved one.
+       *
+       * A run of show still sitting in `client_review` was listed here as
+       * "Approved schedule · Version 4" under the heading "Your approved
+       * records", while the Records page — which filters on approved or
+       * published, correctly — said no records existed at all. Two pages in one
+       * portal, opposite answers about the same document.
+       */
+      label: "Event schedule",
+      detail: !currentSchedule
+        ? "Not published yet"
+        : ["approved", "published"].includes(text(currentSchedule.status))
+          ? `Version ${number(currentSchedule.version)} · approved`
+          : `Version ${number(currentSchedule.version)} · awaiting your review`,
+      ready:
+        Boolean(currentSchedule) &&
+        ["approved", "published"].includes(text(currentSchedule.status)),
       href: "/client/schedule",
       icon: CalendarDays,
     },
@@ -613,13 +653,21 @@ export function LiveClientHome() {
           <p>Everything approved for your project, in one secure place.</p>
         </div>
         <div className="event-countdown">
-          <strong>{days === null ? "—" : Math.max(0, days)}</strong>
+          {/* `Math.max(0, days)` printed a large "0" above "event complete" for
+              every couple whose day had passed — a countdown widget pressed
+              into service as a status. Past the day, the number that means
+              something is how long ago it was. */}
+          <strong>
+            {days === null ? "—" : days < 0 ? Math.abs(days) : days}
+          </strong>
           <span>
             {days === null
               ? "date pending"
               : days < 0
-                ? "event complete"
-                : "days to go"}
+                ? `${Math.abs(days) === 1 ? "day" : "days"} since your day`
+                : days === 0
+                  ? "today"
+                  : "days to go"}
           </span>
         </div>
       </div>
@@ -701,7 +749,10 @@ export function LiveClientHome() {
               <h2>What happens next</h2>
               <p>Your current stage and the next milestones</p>
             </div>
-            <strong>{progress}%</strong>
+            {/* A bare "67%" with nothing saying what it counted. */}
+            <strong title="Project milestones complete">
+              {progress}% <em>done</em>
+            </strong>
           </div>
           <div className="progress-track">
             <i style={{ width: `${progress}%` }} />
@@ -802,7 +853,15 @@ export function LiveClientProjectDetails() {
         </article>
         <article className="panel client-detail-card">
           <UserRound />
-          <span><small>Lead photographer</small><strong>{text(value.leadPhotographerName, "Your studio will confirm this")}</strong></span>
+          {/* "Your studio will confirm this" was shown to a couple whose
+              wedding had already been shot — a promise about a future step on a
+              project that is past it. */}
+          <span><small>Lead photographer</small><strong>{text(
+            value.leadPhotographerName,
+            portalStageIsBehind(value.milestones, "schedule")
+              ? "Ask your studio who covered your day"
+              : "Your studio will confirm this",
+          )}</strong></span>
         </article>
       </section>
       <section className="panel client-help-card">
@@ -1199,6 +1258,7 @@ function proposalErrorMessage(error: string) {
 }
 
 export function LiveClientProposal() {
+  const portalProject = useProject();
   const workspace = useWorkspace();
   const proposals = useProjectRecords("proposals");
   const proposal = useMemo(
@@ -1228,6 +1288,8 @@ export function LiveClientProposal() {
             ? "Your studio is still preparing your proposal. You’ll be notified when it is ready."
             : undefined
         }
+        area="proposal"
+        milestones={portalProject.value?.milestones ?? null}
       />
     );
   }
@@ -1783,6 +1845,7 @@ export function LiveClientPackage() {
 }
 
 export function LiveClientContract() {
+  const portalProject = useProject();
   const contracts = useProjectRecords("contracts");
   const [providerOpened, setProviderOpened] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -1810,7 +1873,7 @@ export function LiveClientContract() {
     };
   }, [providerOpened, refreshContracts]);
   if (contracts.error || !contract)
-    return <PortalPageState eyebrow="Agreement" title="Your contract" description="Review signature progress and open your secure signing request." loading={contracts.loading} error={contracts.error} empty={!contracts.loading && !contracts.error ? "Your agreement will appear after the studio sends it for signature." : undefined} />;
+    return <PortalPageState eyebrow="Agreement" title="Your contract" description="Review signature progress and open your secure signing request." loading={contracts.loading} error={contracts.error} empty={!contracts.loading && !contracts.error ? "Your agreement will appear after the studio sends it for signature." : undefined} area="contract" milestones={portalProject.value?.milestones ?? null} />;
   const signingProvider =
     contract.provider === "dropbox_sign" ? "Dropbox Sign" : "Docusign";
   const signers = Array.isArray(contract.signers)
@@ -2037,6 +2100,7 @@ export function LiveClientPayments() {
 }
 
 export function LiveClientQuestionnaire() {
+  const portalProject = useProject();
   const workspace = useWorkspace();
   const responses = useProjectRecords("questionnaireResponses");
   const ordered = useMemo(
@@ -2058,7 +2122,7 @@ export function LiveClientQuestionnaire() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const current = ordered.find((response) => response.id === selectedId) ?? ordered[0];
   if (responses.loading || responses.error || !current)
-    return <PortalPageState eyebrow="Project planning" title="Your questionnaire" description="Share the details your studio needs to plan your project." loading={responses.loading} error={responses.error} empty={!responses.loading && !responses.error ? "Your studio has not assigned a questionnaire yet." : undefined} />;
+    return <PortalPageState eyebrow="Project planning" title="Your questionnaire" description="Share the details your studio needs to plan your project." loading={responses.loading} error={responses.error} empty={!responses.loading && !responses.error ? "Your studio has not assigned a questionnaire yet." : undefined} area="questionnaire" milestones={portalProject.value?.milestones ?? null} />;
   return (
     <div className="client-booking-page">
       <p className="eyebrow">Project planning</p>
@@ -2112,6 +2176,7 @@ export function LiveClientQuestionnaire() {
 }
 
 export function LiveClientSchedule() {
+  const portalProject = useProject();
   const schedules = useProjectRecords("schedules");
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -2125,12 +2190,24 @@ export function LiveClientSchedule() {
   );
   const schedule = orderedSchedules[0];
   if (schedules.loading || schedules.error || !schedule)
-    return <PortalPageState eyebrow="Event day" title="Your schedule" description="Review the current run of show and respond when your studio requests approval." loading={schedules.loading} error={schedules.error} empty={!schedules.loading && !schedules.error ? "The published run of show will appear here when it is ready for you." : undefined} />;
+    return <PortalPageState eyebrow="Event day" title="Your schedule" description="Review the current run of show and respond when your studio requests approval." loading={schedules.loading} error={schedules.error} empty={!schedules.loading && !schedules.error ? "The published run of show will appear here when it is ready for you." : undefined} area="schedule" milestones={portalProject.value?.milestones ?? null} />;
   const items = Array.isArray(schedule.items)
     ? (schedule.items as Array<Record<string, unknown>>)
     : [];
   const status = localStatus ?? text(schedule.status);
-  const actionable = status === "client_review";
+  /**
+   * Whether the couple can still decide anything about this run of show.
+   *
+   * A schedule left in `client_review` keeps asking "Is this schedule ready?
+   * Approve this exact version or explain what your studio should revise" — and
+   * that question was still being put to a couple thirteen days after their
+   * wedding. There is nothing to revise about a day that has happened.
+   */
+  const eventBehindThem = portalStageIsBehind(
+    portalProject.value?.milestones ?? null,
+    "schedule",
+  );
+  const actionable = status === "client_review" && !eventBehindThem;
   async function decide(decision: "approved" | "changes_requested") {
     if (busy || (decision === "changes_requested" && changeNote.trim().length < 10)) return;
     setBusy(true);
@@ -2176,8 +2253,9 @@ export function LiveClientSchedule() {
       </p>
       <h1>Your event-day schedule</h1>
       <p>
-        Times are shown in {text(schedule.timezone)}. Keep this page available
-        on your phone for the current event brief.
+        {eventBehindThem
+          ? `Times are shown in ${text(schedule.timezone)}. This is the running order your day was built on, kept for your records.`
+          : `Times are shown in ${text(schedule.timezone)}. Keep this page available on your phone for the current event brief.`}
       </p>
       {orderedSchedules.length > 1 ? (
         <p className="client-schedule-history">
@@ -2308,6 +2386,7 @@ export function LiveClientSchedule() {
 }
 
 export function LiveClientDelivery() {
+  const portalProject = useProject();
   const workspace = useWorkspace();
   const deliveries = useProjectRecords("deliveryRecords");
   const albums = useProjectRecords("albumWorkflows");
@@ -2321,7 +2400,7 @@ export function LiveClientDelivery() {
   const delivery = deliveries.value[0];
   const album = albums.value[0];
   if (deliveries.loading || deliveries.error || !delivery)
-    return <PortalPageState eyebrow="Your photographs" title="Delivery" description="Open your gallery and confirm when your download is complete." loading={deliveries.loading} error={deliveries.error} empty={!deliveries.loading && !deliveries.error ? "Your secure gallery details will appear after delivery." : undefined} />;
+    return <PortalPageState eyebrow="Your photographs" title="Delivery" description="Open your gallery and confirm when your download is complete." loading={deliveries.loading} error={deliveries.error} empty={!deliveries.loading && !deliveries.error ? "Your secure gallery details will appear after delivery." : undefined} area="delivery" milestones={portalProject.value?.milestones ?? null} />;
   const expirationAt = new Date(String(delivery.expirationDate)).valueOf();
   const daysUntilExpiration = Number.isNaN(expirationAt)
     ? null
@@ -2585,11 +2664,12 @@ export function LiveClientDelivery() {
 }
 
 export function LiveClientReviews() {
+  const portalProject = useProject();
   const workspace = useWorkspace();
   const reviews = useProjectRecords("reviewRequests");
   const review = reviews.value.find((item) => item.status !== "skipped");
   if (reviews.loading || reviews.error || !review)
-    return <PortalPageState eyebrow="After delivery" title="Reviews" description="Your studio may invite you to share feedback after delivery." loading={reviews.loading} error={reviews.error} empty={!reviews.loading && !reviews.error ? "A review request may appear after your gallery is delivered." : undefined} />;
+    return <PortalPageState eyebrow="After delivery" title="Reviews" description="Your studio may invite you to share feedback after delivery." loading={reviews.loading} error={reviews.error} empty={!reviews.loading && !reviews.error ? "A review request may appear after your gallery is delivered." : undefined} area="reviews" milestones={portalProject.value?.milestones ?? null} />;
   const confirmed = ["client_confirmed", "manually_confirmed"].includes(
     String(review.status),
   );

@@ -195,3 +195,54 @@ test("milestones remain client-safe and progress in lifecycle order", () => {
     false,
   );
 });
+
+/**
+ * Exactly one milestone is current, and the event is behind them once the
+ * studio has recorded it.
+ *
+ * `EVENT_COMPLETE` is the state that means the wedding happened, and the rail
+ * treated it as "NOW · Event day · Use the final schedule and shared details" —
+ * shown to a couple thirteen days after theirs, beneath a hero saying the
+ * studio was backing up their photographs.
+ */
+test("the client rail never says event day is now after the event", () => {
+  const shot = buildClientMilestones("EVENT_COMPLETE");
+  assert.equal(shot.find((m) => m.id === "event")?.status, "complete");
+  assert.equal(shot.find((m) => m.id === "delivery")?.status, "current");
+});
+
+test("exactly one milestone is current at every state", () => {
+  for (const state of [
+    "LEAD",
+    "CONSULTATION",
+    "PROPOSAL",
+    "CONTRACT_PENDING",
+    "RETAINER_PENDING",
+    "BOOKED",
+    "PLANNING",
+    "READY",
+    "EVENT_COMPLETE",
+    "POST_PRODUCTION",
+    "DELIVERED",
+    "REVIEW_REQUESTED",
+  ]) {
+    const current = buildClientMilestones(state).filter(
+      (milestone) => milestone.status === "current",
+    );
+    assert.equal(current.length, 1, `${state} had ${current.length} current`);
+  }
+});
+
+test("ready for the day points at the event, not at planning", () => {
+  const ready = buildClientMilestones("READY");
+  assert.equal(ready.find((m) => m.id === "planning")?.status, "complete");
+  assert.equal(ready.find((m) => m.id === "event")?.status, "current");
+});
+
+test("a closed job has nothing current left", () => {
+  const closed = buildClientMilestones("CLOSED");
+  assert.equal(
+    closed.filter((milestone) => milestone.status !== "complete").length,
+    0,
+  );
+});

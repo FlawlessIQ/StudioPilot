@@ -351,10 +351,21 @@ export function ClientQuestionnaireForm({
     <form className="planning-form-preview" onSubmit={submit}>
       <header className="questionnaire-progress">
         <span>
-          <strong>{completionPercent}% complete</strong>
+          {/* "50% complete" over "Submitted to your studio", with two fields
+              still marked REQUIRED, is three statements that cannot all be
+              true. The studio side already names this case — a questionnaire
+              can be submitted and still be missing answers, and the couple is
+              the one person who can tell it is not finished. */}
+          <strong>
+            {submitted && completionPercent < 100
+              ? `Submitted · ${completionPercent}% answered`
+              : `${completionPercent}% complete`}
+          </strong>
           <small>
             {submitted
-              ? "Submitted to your studio"
+              ? completionPercent < 100
+                ? "Your studio has what you sent. Message them to reopen it if you want to add the rest."
+                : "Submitted to your studio"
               : autoSaving
                 ? "Saving changes…"
                 : dirty
@@ -463,7 +474,10 @@ export function ClientQuestionnaireForm({
       <div className="questionnaire-actions">
         {submitted ? (
           <p className="form-notice">
-            <CheckCircle2 size={16} /> Submitted. Message your studio if an answer needs to be reopened.
+            <CheckCircle2 size={16} />{" "}
+            {completionPercent < 100
+              ? "Submitted with some questions unanswered. The ones marked required are the ones your studio is still missing."
+              : "Submitted. Message your studio if an answer needs to be reopened."}
           </p>
         ) : null}
         <button

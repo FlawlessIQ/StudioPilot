@@ -42,6 +42,11 @@ import { AssignmentActions } from "@/components/crew/assignment-actions";
 import { CrewDocumentUpload } from "@/components/crew/document-upload";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { splitUpcomingAndPast } from "@/features/ordering/attention";
+import {
+  offerCanBeAnswered,
+  offerLapse,
+  offerLapseNotice,
+} from "@/features/crew/offer-moment";
 import { greetingName } from "@/features/auth/session-failure";
 import {
   initials,
@@ -640,17 +645,47 @@ export function LiveCrewHome() {
   const data = useCrewData();
   if (data.loading || data.error)
     return <CrewPageState eyebrow="Crew workspace" title="Your assignments" description="See invitations, accepted work, and anything that needs your attention." data={data} />;
+  const now = new Date();
+  /**
+   * Offers this person can actually take up.
+   *
+   * The count used to include every pending assignment, lapsed ones included,
+   * so the page opened "You have 1 invitation to answer" for an offer whose
+   * deadline had gone 26 days earlier — and then never showed it anywhere.
+   */
   const pending = data.assignments.filter((assignment) =>
-    ["invited", "viewed"].includes(String(assignment.status)),
+    offerCanBeAnswered({
+      status: String(assignment.status),
+      inviteExpiresAt: text(assignment.inviteExpiresAt),
+      arrivalAt: text(assignment.arrivalAt),
+      now,
+    }),
   );
   const accepted = data.assignments.filter(
     (assignment) => assignment.status === "accepted",
   );
+  /**
+   * A schedule acknowledgement only matters before the day.
+   *
+   * "Readiness blocker · Acknowledge Maya & Theo Johnson's current schedule"
+   * led the page thirteen days after that wedding was shot. Acknowledging a
+   * run of show for an event already over is not readiness, and calling it a
+   * blocker says something is at risk when nothing is.
+   */
   const acknowledgementDue = accepted.find(
     (assignment) =>
       number(assignment.currentScheduleVersion) > 0 &&
       number(assignment.acknowledgedScheduleVersion) !==
-        number(assignment.currentScheduleVersion),
+        number(assignment.currentScheduleVersion) &&
+      Date.parse(text(assignment.departureAt) || text(assignment.arrivalAt)) >
+        now.valueOf(),
+  );
+  // Accepted work whose date has gone by. Not "completed" — the studio marks
+  // that — but not upcoming either, which is the only thing Today claimed.
+  const behindThem = accepted.filter(
+    (assignment) =>
+      Date.parse(text(assignment.departureAt) || text(assignment.arrivalAt)) <=
+      now.valueOf(),
   );
   // Sorting every accepted assignment by arrival and taking the first put a
   // wedding from four weeks ago under the heading "Next accepted job".
@@ -695,8 +730,9 @@ export function LiveCrewHome() {
               "invitation" appeared exactly once, in that sentence, and the only
               card was an already-accepted job. */}
           {pending.length || acknowledgementDue ? (
-            <Link className="button button-light" href="/crew/jobs">
-              Open your jobs <ArrowRight size={15} />
+            <Link className="button button-light" href={pending.length ? "/crew/pending" : "/crew/jobs"}>
+              {pending.length ? "Answer your invitations" : "Open your jobs"}{" "}
+              <ArrowRight size={15} />
             </Link>
           ) : null}
         </div>
@@ -704,6 +740,26 @@ export function LiveCrewHome() {
           {data.profile?.active ? "Profile active" : "Profile review"}
         </StatusBadge>
       </header>
+      {pending.map((assignment) => {
+        // The count was stated in the header and the offer appeared nowhere.
+        const invited = projectFor(data, assignment);
+        return (
+          <section className="crew-next-action" key={assignment.id}>
+            <AlertTriangle />
+            <span>
+              <small>Invitation to answer</small>
+              <strong>
+                {text(assignment.role) || "Crew role"} ·{" "}
+                {text(invited?.name) || "Photography assignment"}
+              </strong>
+              <small>{dateTime(assignment.arrivalAt)}</small>
+            </span>
+            <Link className="button button-dark" href="/crew/pending">
+              Accept or decline <ArrowRight />
+            </Link>
+          </section>
+        );
+      })}
       {acknowledgementDue ? (
         <section className="crew-next-action">
           <AlertTriangle />
@@ -728,9 +784,9 @@ export function LiveCrewHome() {
             </span>
           </div>
           <p>
-            You have {accepted.length} completed{" "}
-            {accepted.length === 1 ? "assignment" : "assignments"} on file.
-            New offers appear here.
+            {behindThem.length
+              ? `You have ${behindThem.length} past ${behindThem.length === 1 ? "assignment" : "assignments"} on file. New offers appear here.`
+              : "New offers from your studio appear here."}
           </p>
         </section>
       ) : null}
@@ -760,7 +816,9 @@ export function LiveCrewHome() {
             Open job brief <ArrowRight />
           </Link>
         </section>
-      ) : (
+      ) : accepted.length ? null : (
+        // This rendered directly beneath the "Nothing booked" card, so the page
+        // said "You have 1 assignment on file" and "No records yet" in sequence.
         <CrewState data={data} empty="Accepted assignments will appear here." />
       )}
     </div>
@@ -774,6 +832,7 @@ export function LiveCrewJobs() {
   // Was sorted by arrival descending, which put the furthest-future job first
   // and left a wedding shot 27 days ago sitting among live assignments with
   // "Open schedule & prep" beside it. Next job first; finished work after it.
+  const listedAt = new Date();
   const split = splitUpcomingAndPast(data.assignments, (a) => a.arrivalAt);
   const assignments = [...split.upcoming, ...split.past];
   const firstPastId = split.past[0]?.id ?? null;
@@ -821,7 +880,7 @@ export function LiveCrewJobs() {
               ) : null}
             </div>
             {responsibilities.length ? <section className="crew-responsibilities"><strong>Responsibilities</strong><ul>{responsibilities.map((item) => <li key={item}><CheckCircle2 size={15}/>{item}</li>)}</ul></section> : <p className="crew-missing-detail"><AlertTriangle size={15}/> Responsibilities have not been supplied. Contact the studio before accepting.</p>}
-            {pending ? <AssignmentActions assignmentId={assignment.id} projectId={text(assignment.projectId)} initialStatus={assignment.status === "viewed" ? "viewed" : "invited"} startsAt={text(assignment.arrivalAt)} endsAt={text(assignment.departureAt)} projectName={text(project?.name)} role={text(assignment.role)} location={text(locations[0]?.name)} onAssignmentChanged={data.refresh} /> : null}
+            {pending ? <CrewOfferActions assignment={assignment} locationName={text(locations[0]?.name)} now={listedAt} onChanged={data.refresh} projectName={text(project?.name)} /> : null}
             {accepted ? <div className="crew-job-card-actions"><Link className="button button-dark" href={`/crew/prep?assignment=${encodeURIComponent(assignment.id)}`}>Open schedule & prep <ArrowRight size={15}/></Link><StudioContactForm assignment={assignment}/></div> : null}
             {assignment.status === "completed" ? <Link className="button button-light" href={`/crew/closeout?assignment=${encodeURIComponent(assignment.id)}`}>View closeout and payment <ArrowRight size={15}/></Link> : null}
           </article>
@@ -834,6 +893,7 @@ export function LiveCrewJobs() {
 
 export function LiveCrewPrep() {
   const data = useCrewData();
+  const [prepRenderedAt] = useState(() => Date.now());
   const selection = useSelectedAssignment(data, ["accepted"]);
   if (data.loading || data.error)
     return <CrewPageState eyebrow="Schedule & prep" title="Get ready" description="Everything required for your selected assignment." data={data} />;
@@ -846,15 +906,29 @@ export function LiveCrewPrep() {
   // The header said "Ready" while the row beneath it said "Not published".
   // A second photographer with no run of show four days out is not ready.
   const hasSchedule = number(assignment.currentScheduleVersion) > 0;
+  // "Ready" is a claim about preparation for a day still ahead. It sat on this
+  // header thirteen days after the wedding it was preparing for.
+  const prepIsHistory =
+    Date.parse(
+      text(assignment.departureAt) || text(assignment.arrivalAt) || "",
+    ) <= prepRenderedAt;
   const query = `?assignment=${encodeURIComponent(assignment.id)}`;
   return (
     <div className="crew-mobile-page">
       <AssignmentPicker data={data} assignments={selection.candidates} selected={assignment} onSelect={selection.select}/>
-      <header className="crew-portal-hero"><div><p className="eyebrow">Schedule & prep</p><h1>{text(project?.name)}</h1><p>{text(assignment.role)} · {dateTime(assignment.arrivalAt)}</p></div><StatusBadge tone={incomplete.length || !hasSchedule ? "warning" : "success"}>{incomplete.length ? `${incomplete.length} actions due` : hasSchedule ? "Ready" : "Waiting on the schedule"}</StatusBadge></header>
+      <header className="crew-portal-hero"><div><p className="eyebrow">Schedule & prep</p><h1>{text(project?.name)}</h1><p>{text(assignment.role)} · {dateTime(assignment.arrivalAt)}</p></div><StatusBadge tone={prepIsHistory ? "neutral" : incomplete.length || !hasSchedule ? "warning" : "success"}>{prepIsHistory ? "The day has passed" : incomplete.length ? `${incomplete.length} actions due` : hasSchedule ? "Ready" : "Waiting on the schedule"}</StatusBadge></header>
       <section className="crew-prep-grid">
         <Link className="panel" href={`/crew/schedule${query}`}><CalendarDays/><span><small>Event schedule</small><strong>{number(assignment.currentScheduleVersion) ? `Version ${number(assignment.currentScheduleVersion)}` : "Not published"}</strong><em>{number(assignment.acknowledgedScheduleVersion) === number(assignment.currentScheduleVersion) && number(assignment.currentScheduleVersion) > 0 ? "Acknowledged" : "Review latest version"}</em></span><ArrowRight/></Link>
         <Link className="panel" href={`/crew/requirements${query}`}><ListChecks/><span><small>Requirements</small><strong>{requirements.length ? `${requirements.length - incomplete.length} of ${requirements.length} complete` : "None requested"}</strong><em>{!requirements.length ? "Nothing to prepare" : incomplete.length ? "Finish preparation" : "All clear"}</em></span><ArrowRight/></Link>
-        <Link className="panel" href={`/crew/documents${query}`}><FileCheck2/><span><small>Secure documents</small><strong>{requirements.filter((item) => ["w9", "insurance", "file"].includes(String(item.kind))).length} requested</strong><em>Upload and track review</em></span><ArrowRight/></Link>
+        <Link className="panel" href={`/crew/documents${query}`}><FileCheck2/><span><small>Secure documents</small><strong>{(() => {
+          /* This counted every document requirement, complete ones included, so
+             the hub said "1 requested" while Documents and Requirements both
+             said 2 of 2 complete. Only what is still wanted is "requested". */
+          const documents = requirements.filter((item) => ["w9", "insurance", "file"].includes(String(item.kind)));
+          const outstanding = documents.filter((item) => incomplete.some((row) => row.id === item.id));
+          if (!documents.length) return "None requested";
+          return outstanding.length ? `${outstanding.length} still requested` : `All ${documents.length} on file`;
+        })()}</strong><em>{requirements.filter((item) => ["w9", "insurance", "file"].includes(String(item.kind))).some((item) => incomplete.some((row) => row.id === item.id)) ? "Upload and track review" : "Nothing to upload"}</em></span><ArrowRight/></Link>
         <Link className="panel" href={`/crew/event-day${query}`}><Camera/><span><small>Event-day brief</small><strong>Timeline, locations & contacts</strong><em>Available offline</em></span><ArrowRight/></Link>
         <Link className="panel" href={`/crew/closeout${query}`}><ReceiptText/><span><small>After the event</small><strong>Hours, expenses & deliverables</strong><em>{text(record(assignment.closeout).status, "Not submitted")}</em></span><ArrowRight/></Link>
       </section>
@@ -872,9 +946,63 @@ export function LiveCrewAccount() {
   );
 }
 
+/**
+ * Accept and Decline, or the reason they are gone.
+ *
+ * Both the Jobs list and the invitation queue rendered `AssignmentActions`
+ * for any pending assignment, without asking whether the offer was still
+ * live. See features/crew/offer-moment.ts.
+ */
+function CrewOfferActions({
+  assignment,
+  projectName,
+  locationName,
+  now,
+  onChanged,
+}: {
+  assignment: Record<string, unknown> & { id: string };
+  projectName: string;
+  locationName: string;
+  now: Date;
+  onChanged: () => void;
+}) {
+  const lapse = offerLapse({
+    status: String(assignment.status),
+    inviteExpiresAt: text(assignment.inviteExpiresAt),
+    arrivalAt: text(assignment.arrivalAt),
+    now,
+  });
+  if (lapse) {
+    const notice = offerLapseNotice(lapse);
+    return (
+      <div className="crew-action-result" role="status">
+        <AlertTriangle size={18} />
+        <span>
+          <strong>{notice.title}</strong>
+          <small>{notice.detail}</small>
+        </span>
+      </div>
+    );
+  }
+  return (
+    <AssignmentActions
+      assignmentId={assignment.id}
+      endsAt={text(assignment.departureAt)}
+      initialStatus={assignment.status === "viewed" ? "viewed" : "invited"}
+      location={locationName}
+      onAssignmentChanged={onChanged}
+      projectId={text(assignment.projectId)}
+      projectName={projectName}
+      role={text(assignment.role)}
+      startsAt={text(assignment.arrivalAt)}
+    />
+  );
+}
+
 export function LiveCrewPending() {
   const data = useCrewData();
   if (data.loading || data.error) return <CrewPageState eyebrow="Invitation queue" title="Pending jobs" description="Review the job details before you accept or decline." data={data} />;
+  const now = new Date();
   const pending = data.assignments.filter((assignment) =>
     ["invited", "viewed"].includes(String(assignment.status)),
   );
@@ -898,7 +1026,27 @@ export function LiveCrewPending() {
                   <p className="eyebrow">{text(assignment.role)}</p>
                   <h2>{text(project?.name)}</h2>
                 </span>
-                <StatusBadge tone="warning">Response requested</StatusBadge>
+                <StatusBadge
+                  tone={
+                    offerCanBeAnswered({
+                      status: String(assignment.status),
+                      inviteExpiresAt: text(assignment.inviteExpiresAt),
+                      arrivalAt: text(assignment.arrivalAt),
+                      now,
+                    })
+                      ? "warning"
+                      : "neutral"
+                  }
+                >
+                  {offerCanBeAnswered({
+                    status: String(assignment.status),
+                    inviteExpiresAt: text(assignment.inviteExpiresAt),
+                    arrivalAt: text(assignment.arrivalAt),
+                    now,
+                  })
+                    ? "Response requested"
+                    : "No longer open"}
+                </StatusBadge>
               </div>
               <p>
                 <MapPin /> {assignmentPlace(assignment, project)}
@@ -921,16 +1069,12 @@ export function LiveCrewPending() {
                   </strong>
                 </span>
               </div>
-              <AssignmentActions
-                assignmentId={assignment.id}
-                projectId={text(assignment.projectId)}
-                initialStatus={assignment.status === "viewed" ? "viewed" : "invited"}
-                startsAt={text(assignment.arrivalAt)}
-                endsAt={text(assignment.departureAt)}
+              <CrewOfferActions
+                assignment={assignment}
+                locationName={text(location?.name)}
+                now={now}
+                onChanged={data.refresh}
                 projectName={text(project?.name)}
-                role={text(assignment.role)}
-                location={text(location?.name)}
-                onAssignmentChanged={data.refresh}
               />
             </article>
           );
@@ -1210,6 +1354,17 @@ export function LiveCrewSchedule({ context = "schedule" }: { context?: "schedule
   const project = projectFor(data, assignment);
   const acknowledged =
     number(assignment.acknowledgedScheduleVersion) === number(schedule.version);
+  /**
+   * Whether acknowledging this run of show is still a live obligation.
+   *
+   * "Acknowledgement due" sat on the brief for a wedding shot thirteen days
+   * earlier, next to "Download calendar file again" for a date in the past.
+   * After the day, the brief is a record of what happened.
+   */
+  const dayIsBehindThem =
+    Date.parse(
+      text(assignment.departureAt) || text(assignment.arrivalAt) || "",
+    ) <= renderedAt;
   const locations = list(assignment.locations).map(record);
   const responsibilities = list(assignment.responsibilities).map(String);
   const contacts = list(assignment.contacts).map(record);
@@ -1227,11 +1382,20 @@ export function LiveCrewSchedule({ context = "schedule" }: { context?: "schedule
           <p className="eyebrow">
             Version {number(schedule.version)} · {text(schedule.timezone)}
           </p>
-          <h1>Event-day schedule</h1>
+          {/* Two routes rendered this page identically, and `context` changed
+              only the empty-state title — so /crew/schedule and
+              /crew/event-day produced byte-identical output. */}
+          <h1>{context === "event-day" ? "Event-day brief" : "Event-day schedule"}</h1>
           <p>{text(project?.name)} · Your assigned segments only</p>
         </div>
-        <StatusBadge tone={acknowledged ? "success" : "warning"}>
-          {acknowledged ? "Acknowledged" : "Acknowledgement due"}
+        <StatusBadge
+          tone={acknowledged ? "success" : dayIsBehindThem ? "neutral" : "warning"}
+        >
+          {acknowledged
+            ? "Acknowledged"
+            : dayIsBehindThem
+              ? "The day has passed"
+              : "Acknowledgement due"}
         </StatusBadge>
       </header>
       <section className="crew-event-brief-grid">
@@ -1280,6 +1444,7 @@ export function LiveCrewSchedule({ context = "schedule" }: { context?: "schedule
 
 export function LiveCrewRequirements() {
   const data = useCrewData();
+  const [renderedAt] = useState(() => Date.now());
   const selection = useSelectedAssignment(data, ["accepted", "viewed"]);
   if (data.loading || data.error) return <CrewPageState eyebrow="Assignment checklist" title="Requirements" description="Complete the items your studio needs before event day." data={data} />;
   const assignment = selection.selected;
@@ -1291,6 +1456,11 @@ export function LiveCrewRequirements() {
   const complete = requirements.filter((item) =>
     ["complete", "waived"].includes(String(item.status)),
   ).length;
+  // Once the date has gone, these are a record rather than a checklist.
+  const requirementsAreHistory =
+    Date.parse(
+      text(assignment.departureAt) || text(assignment.arrivalAt) || "",
+    ) <= renderedAt;
   return (
     <div className="crew-mobile-page">
       <AssignmentPicker data={data} assignments={selection.candidates} selected={assignment} onSelect={selection.select} />
@@ -1298,7 +1468,13 @@ export function LiveCrewRequirements() {
         <div>
           <p className="eyebrow">Assignment evidence</p>
           <h1>Requirements</h1>
-          <p>Every one of these must be in place before the assignment is confirmed.</p>
+          <p>
+            {/* Said "before the assignment is confirmed" on an assignment that
+                had been accepted weeks earlier and already shot. */}
+            {requirementsAreHistory
+              ? "What the studio asked for on this job, and where each one landed."
+              : "Every one of these must be in place before the assignment is confirmed."}
+          </p>
         </div>
       </header>
       <div className="crew-requirements-summary">
@@ -1573,6 +1749,7 @@ export function LiveCrewProfile() {
 
 export function LiveCrewAvailability() {
   const data = useCrewData();
+  const [listRenderedAt] = useState(() => Date.now());
   const [notice, setNotice] = useState<string | null>(null);
   const [editing, setEditing] = useState<Value | null>(null);
   const [busy, setBusy] = useState(false);
@@ -1680,16 +1857,23 @@ export function LiveCrewAvailability() {
                   <strong>{dateTime(item.startsAt)}</strong>
                   <small>to {dateTime(item.endsAt)}</small>
                 </time>
+                {/* A window that has already gone by was rendered in the same
+                    green as a live one, so the only entry on the page — a date
+                    two weeks past — read as this person's current availability. */}
                 <StatusBadge
                   tone={
-                    status === "available"
-                      ? "success"
-                      : status === "unavailable"
-                        ? "danger"
-                        : "warning"
+                    Date.parse(text(item.endsAt) || "") <= listRenderedAt
+                      ? "neutral"
+                      : status === "available"
+                        ? "success"
+                        : status === "unavailable"
+                          ? "danger"
+                          : "warning"
                   }
                 >
-                  {status}
+                  {Date.parse(text(item.endsAt) || "") <= listRenderedAt
+                    ? `${status} · past`
+                    : status}
                 </StatusBadge>
                 <span className="crew-availability-actions">
                   <button aria-label="Edit availability" type="button" onClick={() => setEditing(item)} disabled={busy}><Pencil size={15} /></button>

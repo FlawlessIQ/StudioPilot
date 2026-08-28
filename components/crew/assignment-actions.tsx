@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useHydrated } from "@/lib/react/hydrated";
 import { CalendarPlus, CheckCircle2, XCircle } from "lucide-react";
 import { sendCrewCommand } from "@/lib/crew/command-client";
 import { crewPublicError } from "@/lib/crew/public-error";
@@ -52,11 +53,9 @@ export function AssignmentActions({
   );
   const [notice, setNotice] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
-  const [interactive, setInteractive] = useState(false);
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => setInteractive(true));
-    return () => cancelAnimationFrame(frame);
-  }, []);
+  // Every action a subcontractor has lives behind this flag. It used to be a
+  // requestAnimationFrame, which never fires in a background tab.
+  const interactive = useHydrated();
   const run = async (
     action: string,
     type: string,
