@@ -73,7 +73,7 @@ const BAND_LABEL: Record<TodayBand, string> = {
  */
 export function TodayInbox() {
   const workspace = useWorkspace();
-  const { inbox, metrics, booked, handled, journeys, loading } =
+  const { inbox, metrics, booked, handled, journeys, loading, setup } =
     useTodayInbox();
   const [cleared, setCleared] = useState<Set<string>>(new Set());
   const [showHandled, setShowHandled] = useState(false);
@@ -354,6 +354,39 @@ export function TodayInbox() {
             ) : null}
           </header>
 
+          {!loading && waiting === 0 && setup.brandNew && !setup.complete ? (
+            /**
+             * The first screen a new studio ever sees.
+             *
+             * Today replaced the old dashboard and inherited none of its
+             * onboarding: the four-question setup flow — which is good, and
+             * exactly what a new studio needs — was left reachable only from
+             * Studio settings. So a studio with no packages and no consultation
+             * hours, unable to price a proposal or let a client book a call,
+             * opened on "Nothing is waiting on you."
+             *
+             * Deliberately not a blocker and not a nag. `setupGaps` is right
+             * that a studio with no clients is new rather than stuck; this is
+             * an invitation, it shows only while there is genuinely no work on
+             * the books, and it goes away for good once the four are answered.
+             */
+            <section className="today-clear today-getting-started">
+              <span className="today-clear-icon">
+                <Sparkles size={20} />
+              </span>
+              <div>
+                <strong>Let&rsquo;s get your studio ready.</strong>
+                <small>
+                  {setup.answered} of 4 answered — your prices, your agreement,
+                  your details form, and when you take consultations. Your
+                  inquiry form is already live either way.
+                </small>
+              </div>
+              <Link className="button button-dark" href="/studio/setup">
+                Continue setup <ArrowRight size={15} />
+              </Link>
+            </section>
+          ) : null}
           {!loading && waiting === 0 ? (
             <section className="today-clear">
               <span className="today-clear-icon">

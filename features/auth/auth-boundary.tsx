@@ -143,6 +143,32 @@ export function AuthBoundary({
     </main>
   );
 }
+/**
+ * Everything this browser remembered about the person who just left.
+ *
+ * Signing out cleared the Firebase session and nothing else, so a shared or
+ * borrowed laptop kept the previous user's workspace pointer *and* their cached
+ * event brief — `studiocue:crew-event-brief:<uid>:<assignment>:<version>` holds
+ * a subcontractor's call times, venue addresses and contacts so the brief works
+ * with no signal at a venue. Useful on their own phone; not something to leave
+ * behind on someone else's machine.
+ *
+ * Prefix-matched rather than enumerated, so a key added later is covered by
+ * default instead of being remembered forever by omission.
+ */
+const REMEMBERED_PREFIXES = ["studiohub.", "studiocue:"];
+
+export function forgetLocalWorkspaceState(): void {
+  if (typeof window === "undefined") return;
+  for (const store of [window.localStorage, window.sessionStorage]) {
+    for (const key of Object.keys(store)) {
+      if (REMEMBERED_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+        store.removeItem(key);
+      }
+    }
+  }
+}
+
 export function SignOutButton({ className }: { className?: string }) {
   const router = useRouter();
   async function leave() {
@@ -151,6 +177,7 @@ export function SignOutButton({ className }: { className?: string }) {
       if (auth.currentUser) invalidateMembershipCache(auth.currentUser.uid);
       await signOut(auth);
     }
+    forgetLocalWorkspaceState();
     router.push("/auth/login");
   }
   return (

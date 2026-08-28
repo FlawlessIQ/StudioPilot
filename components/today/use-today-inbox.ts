@@ -37,6 +37,8 @@ type Row = Record<string, unknown> & { id: string };
 export function useTodayInbox(): {
   inbox: TodayInbox;
   metrics: HomeMetrics;
+  /** Setup progress, and whether this studio has any work at all yet. */
+  setup: { complete: boolean; answered: number; brandNew: boolean };
   /** Value of work actually won — see bookedValueCents. */
   booked: number;
   handled: number;
@@ -238,6 +240,32 @@ export function useTodayInbox(): {
   return {
     inbox,
     journeys,
+    /**
+     * How far through the four setup questions this studio is, and whether it
+     * has any real work yet.
+     *
+     * Today replaced the old dashboard, and the dashboard was the only place
+     * that linked to the four-question setup flow — so a brand-new studio
+     * landed on "You're all clear" with its onboarding two clicks deep in
+     * Studio settings, under a nav item there is no reason to open on day one.
+     *
+     * `setupGaps` deliberately stays quiet for a new studio: "a studio with no
+     * packages and no clients is not blocked, it is new." That rule is right
+     * and this does not change it. An invitation is not a blocker.
+     */
+    setup: {
+      complete: setup.complete,
+      answered: [
+        setup.state.hasActivePackage,
+        setup.state.hasAgreementTemplate,
+        setup.state.hasQuestionnaireTemplate,
+        setup.state.hasConsultationAvailability,
+      ].filter(Boolean).length,
+      // Genuinely new, as opposed to quiet: no jobs and no inquiries at all.
+      brandNew:
+        (projects.records ?? []).length === 0 &&
+        (leads.records ?? []).length === 0,
+    },
     // The studio's pulse, from the same engine the old dashboard used.
     metrics: homeMetrics({
       now,
