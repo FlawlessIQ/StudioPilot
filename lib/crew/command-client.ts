@@ -58,7 +58,13 @@ export async function uploadCrewRequirement(input: {
   const path = `tenants/${tenantId}/projects/${input.projectId}/crew/${user.uid}/${input.assignmentId}/${crypto.randomUUID()}-${safeName}`;
   await uploadBytes(ref(storage, path), input.file, {
     contentType: input.file.type,
-    customMetadata: { assignmentId: input.assignmentId, requirementId: input.requirementId, scanStatus: "pending" },
+    /**
+     * `visibility` was omitted, so a crew document's exposure was decided by
+     * whatever the rules happened to do with a missing key. It is stated now:
+     * a W-9 or an insurance certificate is crew-visible, readable by the person
+     * who uploaded it and by the studio's operators, and by nobody else.
+     */
+    customMetadata: { assignmentId: input.assignmentId, requirementId: input.requirementId, scanStatus: "pending", visibility: "crew" },
   });
   return sendCrewCommand("submitRequirement", {
     projectId: input.projectId, assignmentId: input.assignmentId,

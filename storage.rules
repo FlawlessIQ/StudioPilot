@@ -89,7 +89,12 @@ service firebase.storage {
         && membership(tenantId).role == "subcontractor"
         && projectId in membership(tenantId).projectIds
         && resource == null
-        && safeUpload();
+        && safeUpload()
+        // safeUpload() constrains size, type and scan status but says nothing
+        // about visibility, so a W-9 or an insurance certificate could be
+        // uploaded as "shared" — which the project-wide rule below then hands
+        // to the couple. A crew document is crew-visible, full stop.
+        && request.resource.metadata.visibility == "crew";
     }
 
     match /tenants/{tenantId}/projects/{projectId}/clients/{userId}/questionnaires/{responseId}/{fileName} {
@@ -161,8 +166,34 @@ service firebase.storage {
       allow update, delete: if false;
     }
 
+    /**
+     * The project's own files — and *only* those.
+     *
+     * Storage grants access when **any** matching rule allows it, so this
+     * catch-all silently re-granted everything the three narrower blocks above
+     * exist to restrict. Two consequences were live:
+     *
+     *   - Every subcontractor on a job could read every other subcontractor's
+     *     folder: W-9s and insurance certificates, which the crew block limits
+     *     to the owner of the folder and the studio's operators.
+     *   - Either partner in a couple could read the other's questionnaire
+     *     upload, which the questionnaire block limits with
+     *     `request.auth.uid == userId`. That upload is *required* to carry
+     *     visibility "client", so this one needed no misconfiguration at all.
+     *
+     * The delegated subtrees are excluded here and authorized only by their own
+     * block, which is what the narrower rules were written to mean.
+     */
+    function notDelegatedSubtree(objectName) {
+      // `{allPaths=**}` binds a Path, not a string, so calling `.matches()` on
+      // it errors and denies everything. The object's own full name is a
+      // string. `matches` is a full match, hence the wildcards on both ends.
+      return !objectName.matches(".*/(crew|clients)/.*");
+    }
+
     match /tenants/{tenantId}/projects/{projectId}/{allPaths=**} {
-      allow read: if resource.metadata.scanStatus == "clean"
+      allow read: if notDelegatedSubtree(resource.name)
+        && resource.metadata.scanStatus == "clean"
         && activeMember(tenantId)
         && (
           membership(tenantId).role in ["studio_owner", "studio_admin", "studio_coordinator"]
@@ -180,7 +211,8 @@ service firebase.storage {
             )
           )
         );
-      allow create, update: if activeMember(tenantId)
+      allow create, update: if notDelegatedSubtree(request.resource.name)
+        && activeMember(tenantId)
         && membership(tenantId).role in ["studio_owner", "studio_admin", "studio_coordinator"]
         && safeUpload();
       allow delete: if false;

@@ -79,6 +79,25 @@ service cloud.firestore {
       return request.resource.data.tenantId == resource.data.tenantId;
     }
 
+    /**
+     * The membership document id is `${tenantId}_${userId}`, and every
+     * authorization decision in this file resolves it that way rather than
+     * running a query. `create` enforced the relation; `update` checked only
+     * that tenantId was unchanged, so an owner could rewrite `userId` and leave
+     * the id and the field disagreeing.
+     *
+     * That is not an escalation — only an owner could do it, and an owner is
+     * already the top of a tenant — but it locks the affected member out of
+     * their own workspace (their membership stops matching
+     * `resource.data.userId == request.auth.uid`, and nothing here can delete
+     * it), it hands the membership's role and project list to whichever uid was
+     * written in, and it defeats two server-side guards that identify the actor
+     * by this field: MEMBER_NOT_EDITABLE and MEMBERSHIP_IDENTITY_MISMATCH.
+     */
+    function membershipIdentityUnchanged() {
+      return request.resource.data.userId == resource.data.userId;
+    }
+
     function canReadCheckpoint(tenantId, projectId, visibility) {
       return hasRole(tenantId, ["studio_owner", "studio_admin"])
         || (
@@ -113,7 +132,9 @@ service cloud.firestore {
         || canManageTenant(resource.data.tenantId);
       allow create: if canManageTenant(request.resource.data.tenantId)
         && membershipDocumentId == request.resource.data.tenantId + "_" + request.resource.data.userId;
-      allow update: if canManageTenant(resource.data.tenantId) && tenantUnchanged();
+      allow update: if canManageTenant(resource.data.tenantId)
+        && tenantUnchanged()
+        && membershipIdentityUnchanged();
       allow delete: if false;
     }
 

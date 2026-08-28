@@ -325,7 +325,33 @@ const commandSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
-const allowedRoles = ["studio_owner", "studio_admin", "studio_coordinator"];
+const managerRoles = ["studio_owner", "studio_admin"];
+const allowedRoles = [...managerRoles, "studio_coordinator"];
+
+/**
+ * Whether this member may act on this particular project.
+ *
+ * Owners and admins are tenant-wide. A coordinator holds a list of permitted
+ * project ids, and `firestore.rules` enforces it for direct writes:
+ * `canManageProject` lets a coordinator update only a project they are assigned
+ * to. This endpoint did not. Of its eight command types, exactly one —
+ * `associateClientProject` — checked assignment, so a coordinator could
+ * transition *any* project in the studio through its entire lifecycle, and lock
+ * a package onto it, regardless of what they were assigned.
+ *
+ * The other five command endpoints all had this gate already
+ * (`hasProjectAccess` in workflow, the equivalent in booking, planning,
+ * post-event and communications). This one was the omission.
+ */
+function hasProjectAccess(
+  membership: { role: string; projectIds?: string[] },
+  projectId: string,
+): boolean {
+  return (
+    managerRoles.includes(membership.role) ||
+    membership.projectIds?.includes(projectId) === true
+  );
+}
 
 export const crmCommand = onRequest(
   {
@@ -542,11 +568,8 @@ export const crmCommand = onRequest(
         }
 
         if (command.type === "associateClientProject") {
-          if (
-            membershipData.role === "studio_coordinator" &&
-            !membershipData.projectIds?.includes(command.input.projectId)
-          ) {
-            throw new Error("FORBIDDEN");
+          if (!hasProjectAccess(membershipData, command.input.projectId)) {
+            throw new Error("PROJECT_NOT_PERMITTED");
           }
           const contactReference = db.doc(
             `contacts/${command.input.contactId}`,
@@ -655,6 +678,9 @@ export const crmCommand = onRequest(
             | undefined;
           if (!project || project.tenantId !== command.tenantId) {
             throw new Error("PROJECT_NOT_FOUND");
+          }
+          if (!hasProjectAccess(membershipData, command.input.projectId)) {
+            throw new Error("PROJECT_NOT_PERMITTED");
           }
           if (project.stateVersion !== command.input.expectedVersion) {
             throw new Error("VERSION_CONFLICT");
@@ -885,6 +911,9 @@ export const crmCommand = onRequest(
             | undefined;
           if (!project || project.tenantId !== command.tenantId) {
             throw new Error("PROJECT_NOT_FOUND");
+          }
+          if (!hasProjectAccess(membershipData, command.input.projectId)) {
+            throw new Error("PROJECT_NOT_PERMITTED");
           }
           if (project.packageSnapshotId) {
             throw new Error("PACKAGE_ALREADY_SELECTED");

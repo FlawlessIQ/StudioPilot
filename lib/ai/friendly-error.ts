@@ -18,6 +18,10 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "Something about this request didn't look right. Refresh and try again.",
   INVALID_COVERAGE_RANGE: "Coverage must end after it starts.",
   FORBIDDEN: "You don't have permission to do this for the selected project.",
+  // A coordinator acting on a project outside their assigned list. Distinct
+  // from FORBIDDEN, which is about the role; this is about the job.
+  PROJECT_NOT_PERMITTED:
+    "This job is not one of yours. Ask an owner or admin to add you to it, or to make the change for you.",
   // The inquiry already became a job. Say which way is forward.
   ACCEPTANCE_PERMISSION_REQUIRED:
     "Only a studio owner or admin can record an acceptance taken outside StudioCue.",
