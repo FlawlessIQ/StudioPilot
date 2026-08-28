@@ -82,6 +82,29 @@ export function QuestionnaireBuilder({
     String(workspace.role),
   );
 
+  /**
+   * Active templates, the ones built for this job's event type first.
+   *
+   * `assignQuestionnaire` accepts any active template, and that is right —
+   * a studio may deliberately send the wedding form to an engagement shoot.
+   * What was wrong was presenting all of them as equally applicable.
+   */
+  const selectedProject = projects?.find(
+    (item) => item.id === assignProjectId,
+  );
+  const projectEventType = String(selectedProject?.eventTypeId ?? "");
+  const orderedTemplates = (templates ?? [])
+    .filter((template) => template.status === "active")
+    .map((template) => ({
+      id: template.id,
+      name: String(template.name ?? "Untitled questionnaire"),
+      eventTypeId: String(template.eventTypeId ?? ""),
+      fitsProject:
+        !projectEventType ||
+        String(template.eventTypeId ?? "") === projectEventType,
+    }))
+    .sort((left, right) => Number(right.fitsProject) - Number(left.fitsProject));
+
   function updateField(id: string, value: Partial<FieldRow>) {
     setFields((current) =>
       current.map((field) => (field.id === id ? { ...field, ...value } : field)),
@@ -324,7 +347,14 @@ export function QuestionnaireBuilder({
             * blank until its options load and then shows the right one.
             */}
           <label>Project <span className="required-mark">Required</span><select name="projectId" onChange={(event) => setAssignProjectId(event.target.value)} required value={assignProjectId}><option value="">Select project</option>{projects?.map((project) => <option key={project.id} value={project.id}>{String(project.name)}</option>)}</select></label>
-          <label>Template <span className="required-mark">Required</span><select name="templateId" required><option value="">Select template</option>{templates?.filter((template) => template.status === "active").map((template) => <option key={template.id} value={template.id}>{String(template.name)}</option>)}</select></label>
+          {/* Labelled by fit, not filtered by it.
+              An "other" job was offered the Wedding Planning Questionnaire, the
+              Corporate Shoot Brief and the Sports Day Brief as equal choices,
+              with nothing saying which suited it. Filtering outright would be
+              wrong — a studio may well send the wedding form to an engagement
+              shoot — so the ones built for this job type come first and the
+              rest say what they are for. */}
+          <label>Template <span className="required-mark">Required</span><select name="templateId" required><option value="">Select template</option>{orderedTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}{template.fitsProject ? "" : ` — for ${template.eventTypeId || "another"} jobs`}</option>)}</select></label>
           <button className="button button-dark" disabled={busy} type="submit"><Send size={16} /> {busy ? "Assigning…" : "Assign questionnaire"}</button>
         </form>
       )}

@@ -32,8 +32,23 @@ const transitions: Readonly<
   PROPOSAL: ["CONTRACT_PENDING", "CANCELLED", "POSTPONED"],
   CONTRACT_PENDING: ["RETAINER_PENDING", "CANCELLED", "POSTPONED"],
   RETAINER_PENDING: ["BOOKED", "CANCELLED", "POSTPONED"],
-  BOOKED: ["PLANNING", "CANCELLED", "POSTPONED"],
-  PLANNING: ["READY", "CANCELLED", "POSTPONED"],
+  /**
+   * `EVENT_COMPLETE` from BOOKED and PLANNING, not only from READY.
+   *
+   * The old shape said a wedding could only have been shot if the studio had
+   * first reached 100% readiness — so a job whose date had passed while it sat
+   * in PLANNING could not be recorded as having happened at all. The studio had
+   * to waive its way to full preparation for a wedding already in the past
+   * before StudioCue would accept that it took place.
+   *
+   * That is backwards. Weddings happen whether or not the checkboxes were
+   * ticked, and READY is a statement about preparation, not about reality.
+   * Nothing is loosened by this: EVENT_COMPLETE was never evidence-controlled,
+   * and the gate that matters — signature and retainer — is behind the job
+   * before BOOKED.
+   */
+  BOOKED: ["PLANNING", "EVENT_COMPLETE", "CANCELLED", "POSTPONED"],
+  PLANNING: ["READY", "EVENT_COMPLETE", "CANCELLED", "POSTPONED"],
   READY: ["EVENT_COMPLETE", "PLANNING", "CANCELLED", "POSTPONED"],
   EVENT_COMPLETE: ["POST_PRODUCTION"],
   POST_PRODUCTION: ["DELIVERED"],

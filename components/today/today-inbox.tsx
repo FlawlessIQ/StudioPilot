@@ -149,11 +149,21 @@ export function TodayInbox() {
           // Same reason as "jobs in flight": the countdown is naming it
           // already, and the name was being ellipsised to fit a quarter
           // column anyway.
-          hint: countdown
-            ? "on the books"
-            : metrics.nextEvent
-              ? `next: ${metrics.nextEvent.name}`
-              : "on the books",
+          /**
+           * "On the books" reads as work coming, so it must only be said of
+           * events that are. On 27 August this tile read "3 events this month ·
+           * on the books" with all three already shot.
+           */
+          hint:
+            metrics.eventsThisMonthRemaining === 0
+              ? "all already shot"
+              : metrics.eventsThisMonthRemaining < metrics.eventsThisMonth
+                ? `${metrics.eventsThisMonthRemaining} still ahead`
+                : countdown
+                  ? "on the books"
+                  : metrics.nextEvent
+                    ? `next: ${metrics.nextEvent.name}`
+                    : "on the books",
         }
       : null,
     booked > 0

@@ -57,6 +57,9 @@ export function useProjectJourney({
   const schedules = useTenantDocuments("schedules");
   const crewAssignments = useTenantDocuments("crewAssignments");
   const checkpoints = useTenantDocuments("checkpoints");
+  const questionnaireTemplates = useTenantDocuments("questionnaireTemplates");
+  // The job's own event type, for deciding whether a form for it exists.
+  const projectRecords = useTenantDocuments("projects");
   const crewCascades = useTenantDocuments("crewCascades");
   const insuranceRequests = useTenantDocuments("insuranceRequests");
   const deliveries = useTenantDocuments("deliveryRecords");
@@ -130,6 +133,17 @@ export function useProjectJourney({
           ? (latestSchedule.items as Array<Record<string, unknown>>)
           : [],
       ).length > 0,
+    // Whether a form for this job type exists at all — see JourneyInput.
+    hasSendableQuestionnaire: (questionnaireTemplates.records ?? []).some(
+      (template) =>
+        template.status === "active" &&
+        String(template.eventTypeId ?? "") ===
+          text(
+            (projectRecords.records ?? []).find(
+              (item) => item.id === projectId,
+            )?.eventTypeId,
+          ),
+    ),
     crewAccepted: forProject(crewAssignments.records).filter(
       (assignment) => assignment.status === "accepted",
     ).length,

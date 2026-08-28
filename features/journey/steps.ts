@@ -1,4 +1,6 @@
 import type { ProjectState } from "@/features/projects/schema";
+import { projectStateLabel } from "@/features/projects/state-label";
+import { awaitingEventReconciliation } from "@/features/projects/job-moment";
 
 /**
  * The Journey — Gabriel's easy flow as a deterministic engine.
@@ -104,6 +106,14 @@ export type JourneyInput = {
    */
   finalInvoiceOverdue?: boolean;
   questionnaireStatus: string | null;
+  /**
+   * Whether the studio has an active questionnaire this job could be sent.
+   *
+   * A job with event type `other` was told "Send the form" when no form for
+   * that type existed — the three starter templates cover wedding, corporate
+   * and sports. Optional so callers that do not know keep today's behaviour.
+   */
+  hasSendableQuestionnaire?: boolean;
   /**
    * Whether the submitted questionnaire actually carries answers. Required, not
    * optional: `status: "submitted"` with `answers: {}` was ticking this step in
@@ -400,7 +410,9 @@ export function projectJourney(input: JourneyInput): {
         ? "Marked submitted, but no answers came through"
         : formWaiting
           ? "With the client to fill out"
-          : "Prep locations, times, and family names",
+          : input.hasSendableQuestionnaire === false
+            ? "No form exists for this job type yet — build one first"
+            : "Prep locations, times, and family names",
     status: formDone
       ? "complete"
       : prepStatus(
@@ -414,8 +426,13 @@ export function projectJourney(input: JourneyInput): {
             ? "Check the form"
             : formWaiting
               ? "Nudge or review"
-              : "Send the form",
-          href: project("/studio/questionnaires"),
+              : input.hasSendableQuestionnaire === false
+                ? "Build a form"
+                : "Send the form",
+          href:
+            input.hasSendableQuestionnaire === false
+              ? "/studio/questionnaires"
+              : project("/studio/questionnaires"),
         }),
   });
 
@@ -603,12 +620,42 @@ export function projectJourney(input: JourneyInput): {
             },
   });
 
+  /**
+   * The date has gone by and the job never moved past preparation.
+   *
+   * Three of eleven demo jobs were sitting like this — Planning or Ready with
+   * the wedding six to twenty days behind them — and nothing anywhere said so.
+   * Once preparation stopped being the next move the journey fell through to
+   * "Record delivery", which skips the only question worth asking: did this
+   * happen? Recording a gallery for a shoot StudioCue has no idea took place is
+   * the wrong end of the problem.
+   *
+   * It is a question rather than an instruction because the studio holds the
+   * answer and all three answers are ordinary: it happened, it moved, it was
+   * called off. See features/projects/job-moment.ts.
+   */
+  const needsReconciling = awaitingEventReconciliation({
+    state: String(input.state),
+    eventDate: input.eventDate,
+    today: input.today,
+  });
   push({
     key: "event_day",
-    title: "Event day",
-    detail: eventBehindThem ? "Covered" : input.eventDate ?? "Date pending",
-    status: eventBehindThem ? "complete" : "upcoming",
+    title: needsReconciling ? "Did this go ahead?" : "Event day",
+    detail: needsReconciling
+      ? `The date passed ${Math.abs(days ?? 0)} days ago and this job is still marked ${projectStateLabel(String(input.state)).toLowerCase()}.`
+      : eventBehindThem
+        ? "Covered"
+        : input.eventDate ?? "Date pending",
+    status: needsReconciling
+      ? "current"
+      : eventBehindThem
+        ? "complete"
+        : "upcoming",
     action: null,
+    advance: needsReconciling
+      ? { targetState: "EVENT_COMPLETE", label: "Yes, we shot it" }
+      : null,
   });
 
   const deliveryDone = input.hasDelivery || stateRank >= 10;
@@ -650,12 +697,29 @@ export function projectJourney(input: JourneyInput): {
           },
   });
 
-  // Exactly one current step: the first one. Later "current" steps stay
-  // visible but wait their turn, so the page always has one primary action.
+  /**
+   * Exactly one current step, so the page always has one primary action.
+   *
+   * Normally the first outstanding step wins. The one exception is a job whose
+   * date has passed while its state never moved: "did this go ahead?" outranks
+   * everything, because the answer changes what every other step means —
+   * chasing a final balance is premature if the wedding was called off, and
+   * recording a gallery is nonsense if it never happened. Without this the
+   * overdue balance claimed the slot and the question was demoted to
+   * "upcoming", which is where I first put the precedence check and why it did
+   * nothing.
+   */
+  const priorityKey: JourneyStepKey | null = needsReconciling
+    ? "event_day"
+    : null;
   let currentFound = false;
+  if (priorityKey) {
+    const priority = steps.find((step) => step.key === priorityKey);
+    if (priority?.status === "current") currentFound = true;
+  }
   for (const step of steps) {
     if (step.status === "current") {
-      if (currentFound) {
+      if (currentFound && step.key !== priorityKey) {
         step.status = "upcoming";
         step.action = null;
       } else {

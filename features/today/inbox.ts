@@ -22,6 +22,7 @@ import {
   stalenessWeight,
 } from "@/features/dashboard/urgency";
 import type { SetupGap } from "@/features/today/setup-gaps";
+import { workStillMatters } from "@/features/projects/job-moment";
 import { kindFromValue, type LibraryKind } from "@/features/library/kinds";
 import {
   describeProviderFailure,
@@ -126,6 +127,14 @@ export type TodayJourneyPosition = {
 
 export type TodayInput = {
   now: string;
+  /**
+   * Every job, settled ones included.
+   *
+   * `journeys` carries only live jobs, so it cannot answer "is this job over?"
+   * — absence there means closed just as often as it means not-yet-loaded.
+   * The raw records are what `jobStillOpen` reads.
+   */
+  projects?: TodayRecord[] | null;
   leads?: TodayRecord[] | null;
   tasks?: TodayRecord[] | null;
   aiActions?: TodayRecord[] | null;
@@ -504,6 +513,36 @@ export function todayInbox(input: TodayInput): TodayInbox {
     journeyById.get(text(projectId))?.projectName ?? null;
   const eventFor = (projectId: unknown) =>
     journeyById.get(text(projectId))?.eventDate ?? null;
+  const projectById = new Map(
+    rows(input.projects).map((project) => [project.id, project]),
+  );
+  const stateFor = (projectId: unknown) => {
+    const id = text(projectId);
+    if (!id) return null;
+    const state = text(projectById.get(id)?.state);
+    if (state) return state;
+    return journeyById.get(id)?.state ?? null;
+  };
+  /**
+   * Whether work about this job still belongs in front of a studio.
+   *
+   * A closed, cancelled or archived job has nothing left to do on it, and both
+   * the task list and the AI-approval queue used to go on demanding attention
+   * for one: a delivery note awaiting approval on a job already closed out, and
+   * an overdue "book the second shooter" on a wedding that had been cancelled —
+   * which the Jobs list had correctly stopped showing, so there was nowhere to
+   * go and stop it. See features/projects/job-moment.ts.
+   *
+   * A job whose date has merely passed is deliberately still live here. Hiding
+   * its work would be a guess: if the wedding was postponed rather than shot,
+   * that certificate wording still matters. The journey asks the question that
+   * settles it instead.
+   */
+  const jobStillOpen = (projectId: unknown) => {
+    const state = stateFor(projectId);
+    return state === null || workStillMatters(state);
+  };
+  const leadById = new Map(rows(input.leads).map((lead) => [lead.id, lead]));
 
   for (const task of rows(input.tasks)) {
     const due = text(task.dueAt ?? task.dueDate).slice(0, 10);
@@ -511,6 +550,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
       text(task.status),
     );
     if (!due || due >= today || done) continue;
+    if (!jobStillOpen(task.projectId)) continue;
     exception({
       id: `task-${task.id}`,
       kind: "task",
@@ -804,6 +844,27 @@ export function todayInbox(input: TodayInput): TodayInbox {
     if (text(action.status) !== "review_required") continue;
     const snoozed = text(action.snoozedUntil);
     if (snoozed && snoozed > input.now) continue;
+    if (!jobStillOpen(action.projectId)) continue;
+    /**
+     * A reply to an enquiry that has already become a client.
+     *
+     * Inquiry drafts carry no `projectId` — they belong to a lead — so nothing
+     * about the job could ever retire them. One sat in "Prepared for you"
+     * offering to reply to the original enquiry of a couple whose wedding had
+     * since been booked, shot, delivered and closed.
+     */
+    if (!text(action.projectId)) {
+      const leadReference = (
+        Array.isArray(action.sourceReferences) ? action.sourceReferences : []
+      ).find(
+        (reference) =>
+          text((reference as Record<string, unknown>)?.entityType) === "lead",
+      ) as Record<string, unknown> | undefined;
+      const lead = leadReference
+        ? leadById.get(text(leadReference.entityId))
+        : undefined;
+      if (lead && text(lead.projectId)) continue;
+    }
     approve.push({
       id: `ai-${action.id}`,
       lane: "approve",

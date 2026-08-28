@@ -15,6 +15,8 @@ export type MetricRecord = Record<string, unknown> & { id: string };
 export type HomeMetrics = {
   /** Events with a date inside the current calendar month. */
   eventsThisMonth: number;
+  /** How many of them are still ahead of today. */
+  eventsThisMonthRemaining: number;
   /** The soonest upcoming event, for the "next up" note. */
   nextEvent: { name: string; eventDate: string; daysAway: number } | null;
   bookedValueCents: number;
@@ -53,13 +55,24 @@ export function homeMetrics(input: {
   const projects = (input.projects ?? []).filter(isActive);
   const invoices = input.invoiceReferences ?? [];
 
-  const eventsThisMonth = projects.filter((project) => {
+  const thisMonth = projects.filter((project) => {
     const date = text(project.eventDate).slice(0, 10);
     return (
       date.slice(0, 4) === String(now.getFullYear()) &&
       date.slice(5, 7) === String(now.getMonth() + 1).padStart(2, "0")
     );
-  }).length;
+  });
+  const eventsThisMonth = thisMonth.length;
+  /**
+   * How many of this month's events are still ahead.
+   *
+   * On 27 August the tile read "3 events this month · on the books" when all
+   * three had already been shot. "On the books" reads as work coming, so the
+   * count described the calendar rather than the studio's position in it.
+   */
+  const eventsThisMonthRemaining = thisMonth.filter(
+    (project) => text(project.eventDate).slice(0, 10) >= today,
+  ).length;
 
   const upcoming = projects
     .map((project) => ({
@@ -94,6 +107,7 @@ export function homeMetrics(input: {
 
   return {
     eventsThisMonth,
+    eventsThisMonthRemaining,
     nextEvent: upcoming[0] ?? null,
     bookedValueCents,
     outstandingCents,

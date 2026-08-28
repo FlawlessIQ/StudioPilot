@@ -203,6 +203,7 @@ export function useTodayInbox(): {
 
   const inbox = todayInbox({
     now: new Date().toISOString(),
+    projects: projects.records,
     leads: leads.records,
     tasks: tasks.records,
     aiActions: aiActions.records,
