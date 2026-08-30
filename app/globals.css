@@ -10835,6 +10835,11 @@ textarea:focus-visible {
 .crew-job-decision-grid small, .crew-responsibilities small, .crew-payment-summary small { color: var(--muted); }
 .crew-responsibilities { display: grid; gap: 8px; }
 .crew-responsibilities ul { display: grid; gap: 7px; margin: 0; padding-left: 20px; }
+.crew-responsibilities ul, .crew-brief-panel ul { list-style: none; padding: 0; }
+/* Icon and label on one line. Without this the check mark is a separate
+   inline box ahead of a disc marker, which is two bullets per row. */
+.crew-responsibilities li, .crew-brief-panel li { align-items: center; display: flex; gap: 8px; }
+.crew-brief-panel ul { display: grid; gap: 7px; margin: 12px 0 0; }
 .crew-missing-detail { color: #9b651e; font-style: italic; }
 .crew-job-card-actions { align-items: flex-start; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 12px; padding-top: 17px; }
 
@@ -12002,7 +12007,15 @@ form:has(> .address-field) > .address-field,
 /* Headless panels: nothing inside supplies the inset, so the panel does. */
 .crew-cascade-form,
 .crew-direct-invite-form,
-.project-plan-empty {
+.project-plan-empty,
+/* The subcontractor workspace was never swept — the sweep only ever walked
+   /studio — so these sat flush from the day they were written. The job card
+   also clips: it sets `overflow: hidden`, so at a 1px inset the eyebrow's
+   first glyph was cut off and "SECOND PHOTOGRAPHER" read as "ECOND
+   PHOTOGRAPHER" on a crew member's own job list. */
+.crew-brief-panel,
+.crew-closeout-receipt,
+.crew-job-card-premium {
   padding: 26px var(--panel-inset, 26px) var(--panel-inset, 26px);
 }
 

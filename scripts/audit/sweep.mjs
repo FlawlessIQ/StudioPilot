@@ -134,13 +134,31 @@ if (!projectId) {
   projectId = await findProject();
 }
 if (!projectId) console.log("No project found — project-scoped views not swept.\n");
+/**
+ * The subcontractor workspace.
+ *
+ * This sweep only ever walked /studio, so every crew panel went unmeasured
+ * from the day it was written — which is how the job card shipped with a 1px
+ * inset and `overflow: hidden`, clipping the first letter of a crew member's
+ * own role, and how two lists kept the browser's disc markers alongside the
+ * icon that was already the bullet. All found by screenshot, months later.
+ *
+ * Crew routes need a crew sign-in: a studio owner has no crew membership and
+ * lands on a picker or a redirect, which measures nothing and reports clean.
+ */
+const CREW_ROUTES = [
+  "/crew", "/crew/jobs", "/crew/schedule", "/crew/prep", "/crew/requirements",
+  "/crew/documents", "/crew/event-day", "/crew/closeout", "/crew/availability",
+  "/crew/profile", "/crew/account", "/crew/accepted", "/crew/pending",
+];
+
 const routes = projectId ? [...ROUTES, ...projectScoped(projectId)] : ROUTES;
 
 let flush = 0;
 let other = 0;
 const skipped = [];
 
-for (const route of routes) {
+async function measure(route) {
   try {
     await page.goto(BASE + route, { waitUntil: "domcontentloaded", timeout: 20000 });
   } catch {
@@ -159,9 +177,9 @@ for (const route of routes) {
   const report = await page.evaluate(detector);
   if (!report) {
     skipped.push(route);
-    continue;
+    return;
   }
-  if (!report.findings.length) continue;
+  if (!report.findings.length) return;
   for (const f of report.findings) {
     if (f.kind === "flush") flush += 1;
     else other += 1;
@@ -175,6 +193,43 @@ for (const route of routes) {
       console.log(`  overflow  ${where} — ${f.child} runs ${-f.gap}px past the ${f.side} edge  "${f.text}"`);
     else
       console.log(`  bleed     ${where} — ${f.rules} full-width rule(s), e.g. ${f.example}`);
+  }
+}
+
+for (const route of routes) await measure(route);
+
+/**
+ * Second pass, as a subcontractor.
+ *
+ * Signing out matters: Firebase keeps the session in IndexedDB, so without
+ * it the crew routes are walked as a studio owner, who has no crew
+ * membership and gets a redirect. That measures nothing and reports clean —
+ * the exact failure this sweep exists to avoid.
+ */
+if (password) {
+  // There is no /auth/logout route, so clear the session where it actually
+  // lives. Firebase keeps it in IndexedDB; localStorage and cookies go too so
+  // nothing re-hydrates the owner on the next navigation.
+  await page.evaluate(async () => {
+    localStorage.clear();
+    sessionStorage.clear();
+    const dbs = (await indexedDB.databases?.()) ?? [];
+    await Promise.all(dbs.map((d) => d.name
+      ? new Promise((done) => {
+          const request = indexedDB.deleteDatabase(d.name);
+          request.onsuccess = request.onerror = request.onblocked = done;
+        })
+      : null));
+  }).catch(() => {});
+  await page.context().clearCookies();
+  await page.goto(`${BASE}/auth/login`, { waitUntil: "domcontentloaded", timeout: 60000 });
+  const crewEmail = page.locator("input[type=email]").first();
+  if (await crewEmail.count()) {
+    await crewEmail.fill(process.env.AUDIT_CREW_EMAIL ?? "crew@studiohub.test");
+    await page.locator("input[type=password]").first().fill(password);
+    await page.locator("button[type=submit]").first().click();
+    await page.waitForTimeout(6000);
+    for (const route of CREW_ROUTES) await measure(route);
   }
 }
 
