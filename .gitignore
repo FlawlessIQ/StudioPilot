@@ -36,6 +36,11 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# Firebase Functions secret overrides for the emulator. `.env*` does not match
+# this name, so a file whose entire purpose is holding secret values was
+# committable. Found while setting up provider certification.
+.secret.local
+functions/.secret.local
 !.env.example
 
 # vercel

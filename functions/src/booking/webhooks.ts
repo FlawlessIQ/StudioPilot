@@ -53,8 +53,33 @@ export const docusignWebhook = onRequest(
       .where("providerEnvelopeId", "==", event.envelopeId)
       .limit(1)
       .get();
+    /**
+     * Every read before every write, which Firestore requires and this did not
+     * do. The completion branch called `transaction.get` on the project *after*
+     * creating the event record, so the transaction threw "Firestore
+     * transactions require all reads to be executed before all writes" and the
+     * handler answered 500.
+     *
+     * That is not a rare edge: it is what happens whenever a completed envelope
+     * matches a contract, which is the only case that matters. Docusign retries
+     * a non-2xx, gets another 500, and eventually gives up — so a signed
+     * agreement never reached `completed`, the project never left
+     * CONTRACT_PENDING, and the booking gate could never open. It went unseen
+     * because the earlier failure modes are all before this point: without a
+     * connected account the handler answers 404 first.
+     *
+     * Found by scripts/certify-providers.ts on 2026-08-30.
+     */
+    const contract = contracts.docs[0];
+    const projectReference = contract
+      ? firestore.doc(`projects/${String(contract.get("projectId"))}`)
+      : null;
     await firestore.runTransaction(async (transaction) => {
-      if ((await transaction.get(eventReference)).exists) return;
+      const [existing, project] = await Promise.all([
+        transaction.get(eventReference),
+        projectReference ? transaction.get(projectReference) : null,
+      ]);
+      if (existing.exists) return;
       transaction.create(eventReference, {
         tenantId,
         provider: "docusign",
@@ -68,13 +93,8 @@ export const docusignWebhook = onRequest(
         status: "processed",
         createdAt: new Date().toISOString(),
       });
-      const contract = contracts.docs[0];
-      if (contract && event.event === "envelope-completed") {
+      if (contract && projectReference && project && event.event === "envelope-completed") {
         const timestamp = new Date().toISOString();
-        const projectReference = firestore.doc(
-          `projects/${String(contract.get("projectId"))}`,
-        );
-        const project = await transaction.get(projectReference);
         transaction.update(contract.ref, {
           status: "completed",
           completedAt: event.occurredAt,
@@ -211,8 +231,17 @@ export const dropboxSignWebhook = onRequest(
       .where("providerEnvelopeId", "==", event.signatureRequestId)
       .limit(1)
       .get();
+    // Same shape, same fault, same consequence as the Docusign handler above.
+    const contract = contracts.docs[0];
+    const projectReference = contract
+      ? firestore.doc(`projects/${String(contract.get("projectId"))}`)
+      : null;
     await firestore.runTransaction(async (transaction) => {
-      if ((await transaction.get(eventReference)).exists) return;
+      const [existing, project] = await Promise.all([
+        transaction.get(eventReference),
+        projectReference ? transaction.get(projectReference) : null,
+      ]);
+      if (existing.exists) return;
       transaction.create(eventReference, {
         tenantId,
         provider: "dropbox_sign",
@@ -226,13 +255,13 @@ export const dropboxSignWebhook = onRequest(
         status: "processed",
         createdAt: new Date().toISOString(),
       });
-      const contract = contracts.docs[0];
-      if (contract && event.eventType === "signature_request_all_signed") {
+      if (
+        contract &&
+        projectReference &&
+        project &&
+        event.eventType === "signature_request_all_signed"
+      ) {
         const timestamp = new Date().toISOString();
-        const projectReference = firestore.doc(
-          `projects/${String(contract.get("projectId"))}`,
-        );
-        const project = await transaction.get(projectReference);
         transaction.update(contract.ref, {
           status: "completed",
           completedAt: timestamp,

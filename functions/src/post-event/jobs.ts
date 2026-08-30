@@ -15,8 +15,27 @@ export const reviewRequestScheduler = onSchedule(
       .limit(100)
       .get();
     for (const request of due.docs) {
+      /**
+       * Every read before every write, which this did not do.
+       *
+       * `transaction.create(productEvents/...)` ran first and both later
+       * branches then called `transaction.get` — for the portal notification
+       * and for the email job. Firestore refuses a read after a write, so the
+       * transaction threw and *every* due review request failed, on both
+       * channels. The scheduler swallowed it as a failed run, which is why the
+       * only visible symptom was review requests that never went out.
+       *
+       * Same class as the two signing webhooks, found by the same sweep.
+       * tests/transaction-read-before-write.test.ts fails on a third.
+       */
+      const notificationReference = db.doc(`notifications/review_${request.id}`);
+      const jobReference = db.doc(`emailJobs/review_${request.id}`);
       await db.runTransaction(async (transaction) => {
-        const current = await transaction.get(request.ref);
+        const [current, prior, existingJob] = await Promise.all([
+          transaction.get(request.ref),
+          transaction.get(notificationReference),
+          transaction.get(jobReference),
+        ]);
         if (!current.exists || current.get("status") !== "scheduled") return;
         const event = productEvent({
           tenantId: String(current.get("tenantId")),
@@ -35,10 +54,6 @@ export const reviewRequestScheduler = onSchedule(
         });
         transaction.create(db.doc(`productEvents/${event.id}`), event);
         if (current.get("channel") === "portal") {
-          const notificationReference = db.doc(
-            `notifications/review_${current.id}`,
-          );
-          const prior = await transaction.get(notificationReference);
           if (!prior.exists) {
             transaction.create(notificationReference, {
               id: notificationReference.id,
@@ -63,8 +78,6 @@ export const reviewRequestScheduler = onSchedule(
           });
           return;
         }
-        const jobReference = db.doc(`emailJobs/review_${current.id}`);
-        const existingJob = await transaction.get(jobReference);
         if (!existingJob.exists) {
           transaction.create(jobReference, {
             id: jobReference.id,
