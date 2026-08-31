@@ -20,6 +20,7 @@ export function MarketingLayout({
         <nav aria-label="Main navigation">
           <Link href="/features">Features</Link>
           <Link href="/integrations">Integrations</Link>
+          <Link href="/studio-preview">Product tour</Link>
           <Link href="/pricing">Pricing</Link>
           <Link href="/wedding-photographers">Industries</Link>
         </nav>
@@ -58,13 +59,21 @@ export function MarketingLayout({
 export function CapabilityGrid({
   items,
 }: {
-  items: Array<{ title: string; text: string; points: string[] }>;
+  /**
+   * `badge` marks a capability that is built but not yet connectable. The
+   * integrations page listed three of those as though a studio could use
+   * them today, which is a promise the product cannot keep at signup.
+   */
+  items: Array<{ title: string; text: string; points: string[]; badge?: string }>;
 }) {
   return (
     <section className="marketing-capability-grid">
       {items.map((item) => (
-        <article key={item.title}>
-          <h2>{item.title}</h2>
+        <article key={item.title} data-pending={item.badge ? "true" : undefined}>
+          <h2>
+            {item.title}
+            {item.badge ? <span className="capability-badge">{item.badge}</span> : null}
+          </h2>
           <p>{item.text}</p>
           <ul>
             {item.points.map((point) => (

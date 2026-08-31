@@ -5268,6 +5268,28 @@ textarea:focus-visible {
 /* Studio shell refinement */
 .app-frame{background:#f5f5f2}.sidebar{background:#161b18;border-right:0;color:#f4f1e8;flex-basis:248px;padding:24px 16px 16px}.sidebar-brand>.brand-logo{color:#fff;margin:0 0 22px}.sidebar .tenant-switcher{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:13px;color:#fff;padding:11px}.sidebar .tenant-switcher:hover{background:rgba(255,255,255,.11)}.sidebar .tenant-switcher .avatar-sand{background:#d9c9a9;color:#423824}.sidebar .tenant-copy small{color:rgba(255,255,255,.52)}.sidebar .nav-item{border-radius:9px;color:rgba(255,255,255,.62);font-size:11px;min-height:34px}.sidebar .nav-item:hover{background:rgba(255,255,255,.07);color:#fff}.sidebar .nav-active{background:#f2eee4;box-shadow:0 8px 24px rgba(0,0,0,.18);color:#18201b}.sidebar .user-card{color:#fff;padding-inline:8px}.sidebar .avatar-ink{background:#d9c9a9;color:#423824}.sidebar .shell-signout{color:rgba(255,255,255,.5);font-size:10px}.sidebar .shell-signout:hover{color:#fff}.command-search{background:#f1f2ef;border:1px solid #e5e7e2;border-radius:10px;max-width:420px;padding:9px 10px}.command-search kbd{border:0;background:#fff}
 
+/* A capability that is built but not yet connectable. Muted on purpose: it
+   should read as an honest roadmap note, not a second call to action. */
+.capability-badge {
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  margin-left: 10px;
+  padding: 5px 9px;
+  text-transform: uppercase;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.marketing-capability-grid article[data-pending="true"] {
+  background: color-mix(in srgb, var(--surface) 92%, var(--soft));
+}
+
 /* Premium integrations control center */
 .integrations-page{display:grid;gap:30px;margin:0 auto;max-width:1320px}.integrations-heading{align-items:end;display:flex;justify-content:space-between;gap:40px}.integrations-heading h1{font:500 clamp(38px,4.5vw,62px)/1.02 var(--font-display);letter-spacing:-.045em;margin:8px 0 14px;max-width:800px}.integrations-heading>div>p:last-child{color:var(--muted);font-size:16px;line-height:1.6;margin:0;max-width:720px}.integrations-heading-note{border-left:1px solid var(--line);color:var(--muted);font-size:11px;line-height:1.55;max-width:250px;padding-left:18px}.integration-center{display:grid;gap:18px}.integration-overview{align-items:end;background:#1a211d;border-radius:22px;color:#fff;display:grid;gap:34px;grid-template-columns:minmax(0,1.3fr) minmax(300px,.7fr);overflow:hidden;padding:34px;position:relative}.integration-overview:after{background:radial-gradient(circle,rgba(191,211,191,.17),transparent 68%);content:"";height:340px;pointer-events:none;position:absolute;right:-100px;top:-170px;width:340px}.integration-overview-copy>span{align-items:center;color:#b8d0bd;display:flex;font-size:10px;font-weight:750;gap:7px;letter-spacing:.09em;text-transform:uppercase}.integration-overview h2{font:500 clamp(28px,3vw,42px)/1.05 var(--font-display);letter-spacing:-.035em;margin:14px 0 9px}.integration-overview p{color:rgba(255,255,255,.64);line-height:1.6;margin:0;max-width:650px}.integration-vault{align-items:flex-start;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:16px;display:flex;gap:13px;padding:17px;position:relative;z-index:1}.integration-vault>svg{color:#b8d0bd;flex:none}.integration-vault>span{display:grid;gap:5px}.integration-vault small{color:rgba(255,255,255,.56);line-height:1.45}.integration-notice{align-items:center;border:1px solid;border-radius:14px;display:grid;font-size:13px;gap:11px;grid-template-columns:auto 1fr auto;padding:14px 16px}.integration-notice svg{height:18px;width:18px}.integration-notice button{background:none;border:0;color:inherit;cursor:pointer;display:grid;padding:3px}.integration-notice-success{background:#edf6ef;border-color:#c7ddcb;color:#285a38}.integration-notice-danger{background:#fbefed;border-color:#e6c7c1;color:#8b3d34}.integration-notice-info{background:#edf3f7;border-color:#c8dae5;color:#315b72}.integration-provider-card.is-connected{border-color:#bcd5c1}.provider-google{background:#eef4ee;color:#39704a}.provider-zoom{background:#eef1fb;color:#405ec5}.provider-dropbox{background:#edf3ff;color:#2863ce}.provider-quickbooks{background:#eef7f0;color:#2f7c45}.provider-docusign{background:#f7f0ec;color:#9b543b}
 

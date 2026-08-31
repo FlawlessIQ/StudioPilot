@@ -88,7 +88,7 @@ export default function MarketingHome() {
               <Link className="button button-dark" href="/auth/register">
                 Start your free trial <ArrowRight size={17} />
               </Link>
-              <Link className="button button-light" href="/studio">
+              <Link className="button button-light" href="/studio-preview">
                 Explore the live product
               </Link>
             </div>
@@ -188,7 +188,7 @@ export default function MarketingHome() {
                   <small>{point.eyebrow}</small>
                   <h3>{point.title}</h3>
                   <p>{point.text}</p>
-                  <Link href="/studio">
+                  <Link href="/studio-preview">
                     See it in StudioCue <ArrowRight size={15} />
                   </Link>
                 </article>
@@ -217,7 +217,7 @@ export default function MarketingHome() {
                 <FileCheck2 size={18} /> Evidence and audit history built in
               </li>
             </ul>
-            <Link className="button button-dark" href="/studio">
+            <Link className="button button-dark" href="/studio-preview">
               Open the readiness dashboard <ArrowRight size={17} />
             </Link>
           </div>
