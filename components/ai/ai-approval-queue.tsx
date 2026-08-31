@@ -89,6 +89,15 @@ export function AiQueueCard({
   const issues = list(validation.issues).map(object);
   const blocking = issues.some((issue) => issue.severity === "blocking");
   const sources = list(action.sourceReferences).map(object);
+  /**
+   * The inbound message this draft answers. Written onto `structuredOutput`
+   * by the draft command so the card needs no join back to `messages`.
+   */
+  const answering = (() => {
+    const value = object(output.answeringMessage);
+    return text(value.body) ? value : null;
+  })();
+  const answeringAt = answering ? relativeTime(answering.at) : "";
   const downstream = object(action.downstreamCommand);
   // A draft may cite no source at all (a free-form reply, an imported record).
   // That is not a reason to take the whole job page down.
@@ -280,6 +289,31 @@ export function AiQueueCard({
           ))}
         </div>
       </details>
+
+      {/*
+        * What the client wrote, above the reply to it.
+        *
+        * A reply draft was shown on its own, so the studio was asked to
+        * approve an answer without being able to read the question. The card
+        * is the whole context on Today — there is no thread beside it — so
+        * the message has to travel on the action.
+        *
+        * Rendered whether or not the editor is open: the question is what you
+        * check the answer against, and hiding it the moment someone starts
+        * editing removes it exactly when it is most wanted.
+        */}
+      {answering ? (
+        <div className="ai-message-answering">
+          <small>
+            Replying to {text(output.recipientName) || "the client"}
+            {answeringAt ? ` · ${answeringAt}` : ""}
+          </small>
+          {text(answering.subject) ? (
+            <strong>{text(answering.subject)}</strong>
+          ) : null}
+          <p>{text(answering.body)}</p>
+        </div>
+      ) : null}
 
       {isMessageDraft && !editing ? (
         <div className="ai-message-preview">

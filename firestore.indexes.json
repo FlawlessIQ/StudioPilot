@@ -1213,6 +1213,20 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "conversationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "messages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
           "fieldPath": "tenantId",
           "order": "ASCENDING"
         },

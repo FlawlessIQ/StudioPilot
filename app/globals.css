@@ -10904,6 +10904,12 @@ textarea:focus-visible {
 .ai-message-preview small{color:var(--muted,#6b7570);font-size:11px}
 .ai-message-preview strong{font-size:14px}
 .ai-message-preview p{margin:0;white-space:pre-wrap;color:var(--ink-soft,#3c443f);font-size:13px;line-height:1.55}
+/* The client's own message, set apart from the reply drafted to it: a left
+   rule and a recessed ground so the two are never read as one block. */
+.ai-message-answering{display:grid;gap:6px;padding:14px 16px;border:1px solid var(--border,#e3e6e2);border-left:3px solid var(--accent,#1f6f4a);border-radius:12px;background:#f4f6f4;margin-bottom:10px}
+.ai-message-answering small{color:var(--muted,#6b7570);font-size:11px}
+.ai-message-answering strong{font-size:13px}
+.ai-message-answering p{margin:0;white-space:pre-wrap;color:var(--ink-soft,#3c443f);font-size:13px;line-height:1.55}
 .ai-message-editor{display:grid;gap:10px}
 .ai-message-editor label{display:grid;gap:6px;font-size:12px;font-weight:650}
 .ai-message-editor input,.ai-message-editor textarea{border:1px solid var(--border,#e3e6e2);border-radius:10px;padding:10px;font:inherit}

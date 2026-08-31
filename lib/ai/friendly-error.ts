@@ -10,6 +10,15 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   AI_OUTPUT_INVALID:
     "The draft didn't pass our checks, so nothing was saved. Try again — a fresh attempt usually works.",
   AI_SCHEDULE_FAILED: "We couldn't draft this schedule. Try again.",
+  /**
+   * Deliberately a refusal rather than a degraded draft.
+   *
+   * Drafting a reply without the message it answers produced a plausible,
+   * finished-looking note that addressed nothing the client had asked. Saying
+   * so is better than handing the studio that to approve.
+   */
+  CONVERSATION_HISTORY_UNAVAILABLE:
+    "We couldn't read this conversation, so there's nothing to base a reply on. Refresh and try again — the draft would have missed what they actually asked.",
   AI_QUOTA_EXCEEDED:
     "Your workspace has used its included AI drafts for this period. Review your plan to add more.",
   ENTITLEMENT_EXCEEDED:

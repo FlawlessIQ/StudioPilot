@@ -402,6 +402,13 @@ export const aiMessageDraftCommand = onRequest(
       }
 
       const sourceReferences: Json[] = [];
+      /** The inbound message an `inbound_reply` draft is answering, if any. */
+      let answeringMessage: {
+        id: string;
+        at: string;
+        subject: string | null;
+        body: string;
+      } | null = null;
       let recipientEmail: string | null = null;
       let recipientName: string | null = null;
       let projectId: string | null = null;
@@ -585,10 +592,28 @@ export const aiMessageDraftCommand = onRequest(
         await db.runTransaction((transaction) =>
           consumeAiQuota(transaction, db, input.tenantId, now),
         );
-        try {
-      // The thread being answered. Without this the model is asked to reply to a
-      // message it has never seen — the reason inbound_reply could not exist
-      // before conversations did.
+        /**
+         * Load the thread *before* the model try, not inside it.
+         *
+         * This block used to sit inside the `try` that wraps `generateDraft`,
+         * whose `catch` exists for one thing — a model outage — and silently
+         * falls back to a template. So any failure reading the thread was
+         * treated as the model being down.
+         *
+         * It was failing, in production, every time. The history query is
+         * `conversationId ==` ordered by `createdAt desc`, and only the
+         * ascending composite index existed, so Firestore answered
+         * FAILED_PRECONDITION. The catch swallowed it and drafted from an
+         * empty context: no history, no participant. The studio was shown
+         * "Hi there — thanks for getting back to me, I'll come back to you on
+         * this shortly" with no trace of what the client had asked, and no
+         * error anywhere to say why.
+         *
+         * Out here, a thread that cannot be read is what it is. For
+         * `inbound_reply` it is fatal by design — the schema already says the
+         * thread is required, and a reply drafted without the message it
+         * answers is worse than no draft, because it looks finished.
+         */
       if (input.conversationId) {
         const conversation = await db
           .doc(`conversations/${input.conversationId}`)
@@ -620,6 +645,35 @@ export const aiMessageDraftCommand = onRequest(
           .limit(12)
           .get();
         const ordered = history.docs.reverse();
+        /**
+         * The message this draft answers, kept so the card can show it.
+         *
+         * The studio was being asked to approve a reply with no way to see
+         * what it replied to — the draft was on screen and the client's own
+         * words were nowhere, on Today or in the thread. The action carried
+         * no pointer to the message either, so nothing downstream could go
+         * and fetch it.
+         */
+        const answering = [...ordered]
+          .reverse()
+          .find((document) => document.get("direction") === "inbound");
+        if (answering) {
+          answeringMessage = {
+            id: answering.id,
+            at: String(answering.get("createdAt") ?? ""),
+            subject: (answering.get("subject") as string | null) ?? null,
+            body: String(
+              answering.get("body") ?? answering.get("bodyPreview") ?? "",
+            ).slice(0, 2000),
+          };
+          sourceReferences.push({
+            entityType: "message",
+            entityId: answering.id,
+            versionId: null,
+            label: `Message from ${recipientName ?? "the client"}`,
+            locator: null,
+          });
+        }
         context.conversation = {
           // `recipientName` is resolved just above but was never put in the
           // context, so the fallback draft greeted a known client "Hi there"
@@ -640,6 +694,11 @@ export const aiMessageDraftCommand = onRequest(
         };
       }
 
+      if (input.trigger === "inbound_reply" && !context.conversation) {
+        throw new Error("CONVERSATION_HISTORY_UNAVAILABLE");
+      }
+
+        try {
           draft = await generateDraft({
             trigger: input.trigger,
             instructions: input.instructions,
@@ -687,6 +746,14 @@ export const aiMessageDraftCommand = onRequest(
 
       const structuredOutput = {
         trigger: input.trigger,
+        /**
+         * What the client wrote, carried on the action itself.
+         *
+         * A reader of this card must be able to see the message without
+         * knowing how to join back to `messages`, because Today renders the
+         * action alone.
+         */
+        answeringMessage,
         subject: draft.subject,
         body: draft.body,
         recipientEmail,
@@ -698,6 +765,16 @@ export const aiMessageDraftCommand = onRequest(
         id: actionId,
         tenantId: input.tenantId,
         projectId,
+        /**
+         * The thread this belongs to.
+         *
+         * Absent until now, and the message inbox subscribes with
+         * `aiActions where conversationId == <open thread>` — so a draft made
+         * by this command could never appear in the thread it was drafted
+         * for. The automatic inbound-reply pipeline in operations/ai-pdf.ts
+         * has always written it; this path just never did.
+         */
+        conversationId: input.conversationId,
         actorId: identity.uid,
         title: `Review ${input.trigger.replaceAll("_", " ")}`,
         capability: CAPABILITY[input.trigger],
