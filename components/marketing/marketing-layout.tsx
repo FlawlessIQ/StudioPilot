@@ -19,8 +19,9 @@ export function MarketingLayout({
         <Link href="/" aria-label="StudioCue home"><Logo /></Link>
         <nav aria-label="Main navigation">
           <Link href="/features">Features</Link>
+          <Link href="/for-crew">For crew</Link>
+          <Link href="/for-clients">For clients</Link>
           <Link href="/integrations">Integrations</Link>
-          <Link href="/studio-preview">Product tour</Link>
           <Link href="/pricing">Pricing</Link>
           <Link href="/wedding-photographers">Industries</Link>
         </nav>
@@ -47,6 +48,13 @@ export function MarketingLayout({
         <Logo />
         <p>Calm operations for remarkable photography teams.</p>
         <div>
+          <Link href="/studio-preview">Product tour</Link>
+          <Link href="/for-crew">For crew</Link>
+          <Link href="/for-clients">For clients</Link>
+          <Link href="/wedding-photographers">Weddings</Link>
+          <Link href="/corporate-photographers">Corporate</Link>
+          <Link href="/sports-photographers">Sports</Link>
+          <Link href="/support">Support</Link>
           <Link href="/privacy">Privacy</Link>
           <Link href="/terms">Terms</Link>
           <span>© 2026 StudioCue</span>

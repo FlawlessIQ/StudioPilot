@@ -129,3 +129,79 @@ test("the exemption list stays honest", () => {
   const gone = [...DEEP_LINK_ONLY.keys()].filter((route) => !routes.has(route));
   assert.deepEqual(gone, [], `Exempted routes that no longer exist: ${gone.join(", ")}`);
 });
+
+/**
+ * The public site.
+ *
+ * AREAS above covers everything behind a login. Nothing ever scanned the
+ * marketing pages, which is how /corporate-photographers and
+ * /sports-photographers came to be written, shipped, and reachable by
+ * nobody — two whole verticals earning nothing — while /studio-preview, a
+ * 289-line public product tour, sat unlinked as the homepage sent visitors
+ * to /studio and a login form instead.
+ */
+const PRIVATE_AREAS = new Set([
+  "studio", "client", "crew", "platform-admin", "auth", "api",
+]);
+
+/**
+ * Public pages that are correctly reached without a link from this site.
+ * Each is a decision on the record, not a silent gap.
+ */
+const PUBLIC_STANDALONE = new Map<string, string>([
+  ["/inquiry", "a studio's own public lead form, shared by them under their tenant — not StudioCue navigation"],
+  ["/offline", "PWA fallback, served by the service worker when the network drops"],
+]);
+
+test("every public page has something linking to it", () => {
+  const routes = readdirSync(APP)
+    .filter((entry) => {
+      const full = join(APP, entry);
+      return (
+        statSync(full).isDirectory() &&
+        !PRIVATE_AREAS.has(entry) &&
+        !entry.startsWith("[") &&
+        !entry.startsWith("_") &&
+        readdirSync(full).includes("page.tsx")
+      );
+    })
+    .map((entry) => `/${entry}`)
+    .sort();
+
+  assert.ok(routes.length > 5, "found no public pages to check — the scan is broken");
+
+  /**
+   * The sitemap does not count as a link.
+   *
+   * app/sitemap.ts enumerates every public route by design, so including it
+   * made this check vacuous for precisely the pages it exists to protect:
+   * both orphaned verticals were "linked" by the file whose job is to list
+   * them. A sitemap entry tells a crawler the page exists; it does not help
+   * a visitor find it, which is the thing being tested.
+   */
+  const sources = [...sourceFiles("components"), ...sourceFiles(APP)]
+    .filter((path) => !/(sitemap|robots)\.tsx?$/.test(path))
+    .map((path) => readFileSync(path, "utf8"));
+
+  const stranded: string[] = [];
+  for (const route of routes) {
+    if (PUBLIC_STANDALONE.has(route)) continue;
+    const page = readFileSync(join(APP, `${route.slice(1)}/page.tsx`), "utf8");
+    // A redirect alias exists so a typed or stale URL does not 404; having
+    // nothing link to it is the point.
+    if (/\bredirect\(/.test(page) && !/export const metadata/.test(page)) continue;
+    const linked = sources.some((source) =>
+      new RegExp(`["\`]${route.replaceAll("/", "\\/")}(["\`?#]|\\$\\{)`).test(source),
+    );
+    if (!linked) stranded.push(route);
+  }
+
+  assert.deepEqual(
+    stranded,
+    [],
+    stranded.length
+      ? `Public but unreachable — nothing links to:\n  ${stranded.join("\n  ")}\n` +
+        "Add a link, or add an entry to PUBLIC_STANDALONE explaining how it is reached."
+      : "",
+  );
+});
