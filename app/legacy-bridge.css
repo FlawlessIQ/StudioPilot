@@ -2261,3 +2261,86 @@
   outline: 2px solid var(--ds-claret);
   outline-offset: 2px;
 }
+
+/* =========================================================================
+   Panel insets
+   =========================================================================
+   These live here, not in globals.css, because globals.css is split across CSS
+   chunks and the chunk that held them is not loaded on the studio or crew
+   routes. Measured on a production build: /studio/settings and /crew/schedule
+   each fetch three stylesheets, that chunk is not among them, and no padding
+   rule matching `.studio-identity` or `.crew-brief-panel` was reachable from
+   the page at all. Every round of inset fixes that got consolidated into that
+   block therefore shipped to a chunk the affected pages skip — which is why the
+   same panels kept coming back after each one.
+   legacy-bridge.css is loaded on those routes: it is what gives
+   `.panel-heading` its 24px 26px 20px, the inset the bodies below it have to
+   match. Keep panel insets here.
+   ========================================================================= */
+
+/* The edge every panel's contents line up on. Declared here as well as in
+   globals.css's :root for the same reason: the token has to reach the same
+   stylesheet as the rules that use it, or `var()` resolves to nothing. */
+:root {
+  --panel-inset: 26px;
+}
+
+/* Headless panels: nothing inside supplies the inset, so the panel does. */
+.crew-cascade-form,
+.crew-direct-invite-form,
+.project-plan-empty,
+/* The subcontractor workspace was never swept — the sweep only ever walked
+   /studio — so these sat flush from the day they were written. The job card
+   also clips: it sets `overflow: hidden`, so at a 1px inset the eyebrow's
+   first glyph was cut off and "SECOND PHOTOGRAPHER" read as "ECOND
+   PHOTOGRAPHER" on a crew member's own job list. */
+.crew-brief-panel,
+.crew-closeout-receipt,
+.crew-job-card-premium,
+/* Found on the run after the sweep stopped reporting a page it had never
+   rendered as clean. The crew pass above fixed what its sweep surfaced;
+   /crew/closeout and /crew/availability were among the routes silently
+   passing on a fixed 2.1s wait, so these three stayed flush through it. */
+.crew-availability-form,
+.crew-closeout-form,
+.crew-payment-summary > .panel {
+  padding: 26px var(--panel-inset, 26px) var(--panel-inset, 26px);
+}
+
+/* Heading-led panels: the heading already sits at the inset, and only the
+   body below it was left flush. */
+.team-invite-panel > form,
+.closeout-assistant > :not(.panel-heading),
+.timing-rule-editor > .timing-rule-actions,
+/* Studio details: the panel-heading brings its own inset and the form below it
+   had none, so every field and control sat 1px from the border. This is the
+   page in the report that prompted the review. */
+.studio-identity > form,
+.studio-identity > .form-notice {
+  padding-inline: var(--panel-inset, 26px);
+}
+
+.team-invite-panel > form,
+.closeout-assistant > :not(.panel-heading):last-child,
+.timing-rule-editor > .timing-rule-actions,
+.studio-identity > form,
+.studio-identity > .form-notice {
+  padding-bottom: var(--panel-inset, 26px);
+}
+
+@media (max-width: 620px) {
+  .crew-cascade-form,
+  .crew-direct-invite-form,
+  .project-plan-empty,
+  .crew-availability-form,
+  .crew-closeout-form,
+  .crew-payment-summary > .panel {
+    padding: 20px;
+  }
+
+  .team-invite-panel > form,
+  .closeout-assistant > :not(.panel-heading),
+  .timing-rule-editor > .timing-rule-actions {
+    padding-inline: 20px;
+  }
+}

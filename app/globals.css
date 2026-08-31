@@ -5217,7 +5217,13 @@ textarea:focus-visible {
 .live-domain-state.is-empty>span{justify-items:center;max-width:44ch}
 .live-domain-state.is-empty strong{font:600 19px/1.3 var(--font-display)}
 .live-domain-state.is-empty small{font-size:13.5px;line-height:1.6}
-.live-domain-state.is-empty .kind-glyph{border-radius:16px}.live-domain-state>span{display:grid;gap:4px}.live-domain-state small{color:var(--muted)}.live-domain-error svg{color:var(--danger)}.live-domain-table{display:grid;padding:0;overflow:hidden}.live-domain-table>a,.live-domain-table>article{display:grid;grid-template-columns:minmax(190px,1.5fr) repeat(3,minmax(110px,.75fr)) auto auto;align-items:center;gap:16px;padding:16px 20px;border-bottom:1px solid var(--line);color:inherit;text-decoration:none}.live-domain-table>a:last-child,.live-domain-table>article:last-child{border-bottom:0}.live-domain-table>a:hover{background:color-mix(in srgb,var(--surface) 70%,var(--background))}.live-domain-table span{display:grid;gap:3px;min-width:0}.live-domain-table small{color:var(--muted);overflow:hidden;text-overflow:ellipsis}.live-domain-primary strong,.live-domain-primary small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.live-domain-table svg{width:16px;height:16px}@media(max-width:900px){.live-domain-table>a,.live-domain-table>article{grid-template-columns:1fr 1fr}.live-domain-primary{grid-column:1/-1}.live-domain-table .status-badge{justify-self:start}.live-domain-table>a>svg{justify-self:end}}@media(max-width:560px){.live-domain-table>a,.live-domain-table>article{grid-template-columns:1fr}.live-domain-primary{grid-column:auto}}
+.live-domain-state.is-empty .kind-glyph{border-radius:16px}.live-domain-state>span{display:grid;gap:4px}.live-domain-state small{color:var(--muted)}.live-domain-error svg{color:var(--danger)}.live-domain-table{display:grid;padding:0;overflow:hidden}.live-domain-table>a,.live-domain-table>article{display:grid;grid-template-columns:minmax(190px,1.5fr) repeat(3,minmax(110px,.75fr)) auto auto;align-items:center;gap:16px;padding:16px 20px;border-bottom:1px solid var(--line);color:inherit;text-decoration:none}.live-domain-table>a:last-child,.live-domain-table>article:last-child{border-bottom:0}.live-domain-table>a:hover{background:color-mix(in srgb,var(--surface) 70%,var(--background))}.live-domain-table span{display:grid;gap:3px;min-width:0}.live-domain-table small{color:var(--muted);overflow:hidden;text-overflow:ellipsis}.live-domain-primary strong,.live-domain-primary small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Fact cells truncate the same way the primary one already did. A correlation
+   id is a 36-character uuid with nothing to break on, so without nowrap the
+   text cannot wrap, cannot ellipsis, and pushes its own box past the table's
+   edge — /studio/audit had the label 5px from the right border and the value
+   12px beyond it. */
+.live-domain-table span>strong,.live-domain-table span>small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}.live-domain-table svg{width:16px;height:16px}@media(max-width:900px){.live-domain-table>a,.live-domain-table>article{grid-template-columns:1fr 1fr}.live-domain-primary{grid-column:1/-1}.live-domain-table .status-badge{justify-self:start}.live-domain-table>a>svg{justify-self:end}}@media(max-width:560px){.live-domain-table>a,.live-domain-table>article{grid-template-columns:1fr}.live-domain-primary{grid-column:auto}}
 .support-summary{max-height:320px;overflow:auto;padding:12px;border-radius:10px;background:var(--ink);color:#e8eee9;font:12px/1.55 var(--font-geist-mono);white-space:pre-wrap}
 .admin-live-row{grid-template-columns:minmax(220px,1.5fr) minmax(120px,1fr) minmax(120px,1fr) auto auto}.admin-live-row>span{display:grid;gap:3px}.admin-live-row>span:first-child{display:flex;gap:10px;align-items:center}.admin-live-row>span:first-child>span{display:grid}.admin-live-row small{color:var(--muted)}
 .copilot-workspace{display:grid;gap:20px;max-width:1050px;margin:auto}.copilot-boundary,.copilot-error{display:flex;gap:13px;align-items:center;padding:16px;border-radius:14px;background:color-mix(in srgb,var(--success) 8%,var(--surface));border:1px solid color-mix(in srgb,var(--success) 32%,var(--line))}.copilot-boundary>svg{color:var(--success)}.copilot-boundary span,.copilot-error span{display:grid;gap:4px}.copilot-boundary small,.copilot-error small{color:var(--muted)}.copilot-compose{display:grid;gap:18px}.copilot-prompts{display:flex;gap:8px;flex-wrap:wrap}.copilot-prompts button{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:8px 11px;color:var(--ink);cursor:pointer}.copilot-compose form{display:grid;gap:13px}.copilot-compose form>label:first-child{display:grid;gap:8px;font-size:13px;font-weight:650}.copilot-compose textarea{min-height:130px;border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--background);color:var(--ink);font:inherit;resize:vertical}.copilot-scope{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:13px}.copilot-compose .button{justify-self:start}.copilot-error{background:color-mix(in srgb,var(--danger) 8%,var(--surface));border-color:color-mix(in srgb,var(--danger) 32%,var(--line))}.copilot-error>svg{color:var(--danger)}.copilot-result{display:grid;gap:20px}.copilot-result>header{display:flex;gap:12px;align-items:center}.copilot-result>header>svg{color:var(--accent)}.copilot-result>header span{display:grid;gap:3px}.copilot-result h2{font:500 28px/1.25 var(--font-display);margin:0}.copilot-result h3{font-size:13px;margin:0 0 8px}.copilot-result ul{display:grid;gap:8px;margin:0;padding-left:20px;color:var(--muted)}.copilot-result footer{display:flex;flex-wrap:wrap;gap:8px;padding-top:14px;border-top:1px solid var(--line)}.copilot-result footer a{border:1px solid var(--line);border-radius:9px;padding:8px 10px;color:var(--ink);text-decoration:none}
@@ -12004,48 +12010,17 @@ form:has(> .address-field) > .address-field,
    workspace route and exits non-zero on anything flush, so the next one
    does not need a screenshot to be found. */
 
-/* Headless panels: nothing inside supplies the inset, so the panel does. */
-.crew-cascade-form,
-.crew-direct-invite-form,
-.project-plan-empty,
-/* The subcontractor workspace was never swept — the sweep only ever walked
-   /studio — so these sat flush from the day they were written. The job card
-   also clips: it sets `overflow: hidden`, so at a 1px inset the eyebrow's
-   first glyph was cut off and "SECOND PHOTOGRAPHER" read as "ECOND
-   PHOTOGRAPHER" on a crew member's own job list. */
-.crew-brief-panel,
-.crew-closeout-receipt,
-.crew-job-card-premium {
-  padding: 26px var(--panel-inset, 26px) var(--panel-inset, 26px);
-}
+/* The panel-inset block moved to legacy-bridge.css.
+   It lived here and did not reach the pages it targeted: `app/globals.css` is
+   split across CSS chunks, and the chunk holding this block plus the
+   `--panel-inset` token is not loaded on the studio or crew routes. Measured on
+   a production build: /studio/settings and /crew/schedule fetch three
+   stylesheets, none of them that chunk, and `getComputedStyle` finds no padding
+   rule matching `.studio-identity` or `.crew-brief-panel` at all.
+   That is why each round of inset fixes kept appearing to do nothing —
+   consolidating them here shipped them to a chunk the affected routes skip,
+   while a rule written next to its component's own styles worked. */
 
-/* Heading-led panels: the heading already sits at the inset, and only the
-   body below it was left flush. */
-.team-invite-panel > form,
-.closeout-assistant > :not(.panel-heading),
-.timing-rule-editor > .timing-rule-actions {
-  padding-inline: var(--panel-inset, 26px);
-}
-
-.team-invite-panel > form,
-.closeout-assistant > :not(.panel-heading):last-child,
-.timing-rule-editor > .timing-rule-actions {
-  padding-bottom: var(--panel-inset, 26px);
-}
-
-@media (max-width: 620px) {
-  .crew-cascade-form,
-  .crew-direct-invite-form,
-  .project-plan-empty {
-    padding: 20px;
-  }
-
-  .team-invite-panel > form,
-  .closeout-assistant > :not(.panel-heading),
-  .timing-rule-editor > .timing-rule-actions {
-    padding-inline: 20px;
-  }
-}
 
 /* ── Direct invite ────────────────────────────────────────────────────
    The secondary staffing path: one named person, no ranking. Folded shut

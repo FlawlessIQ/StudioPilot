@@ -158,13 +158,98 @@ let flush = 0;
 let other = 0;
 const skipped = [];
 
+/**
+ * Routes the sweep could not confirm it had actually looked at.
+ *
+ * Distinct from `skipped`, which is a detector that returned nothing. This is
+ * a page that never finished rendering inside the budget, so "no findings"
+ * means "no measurement" — and reporting that as clean is how a fault survives
+ * a sweep that claims to cover it.
+ */
+const unverified = [];
+
+/** Routes whose two readings disagreed, so neither is trustworthy. */
+const unstable = [];
+
 async function measure(route) {
   try {
     await page.goto(BASE + route, { waitUntil: "domcontentloaded", timeout: 20000 });
   } catch {
     // Slow data pages settle after load; measure what rendered anyway.
   }
-  await page.waitForTimeout(1200);
+
+  /**
+   * Wait for the page to exist before measuring it.
+   *
+   * This was `waitForTimeout(1200)`. The auth boundary renders "Opening your
+   * workspace / Checking your secure studio access…" until the membership
+   * resolves, and on a cold dev server that routinely takes twenty to thirty
+   * seconds — /studio/settings among them. At 1.2s the shell holds no audited
+   * container at all, the detector found nothing, and `measure` returned
+   * without recording anything: the route was reported clean having never been
+   * looked at. That is why the same pages kept coming back after each fix.
+   *
+   * The `findProject` helper above already learned this lesson — "a fixed
+   * timeout silently skipped every project-scoped route on a slow run" — and
+   * the fix was never carried into the measuring path.
+   */
+  const rendered = await page
+    .waitForFunction(
+      () => {
+        const body = document.body?.innerText ?? "";
+        if (/Checking your secure studio access|Opening your workspace/.test(body)) {
+          return false;
+        }
+        /**
+         * Substantive content, judged without naming a class.
+         *
+         * The first version listed container classes — `.panel`, `.ds-card` and
+         * friends — and three routes have none of them: /studio/import,
+         * /studio/messages and /studio/proposals build their own containers. All
+         * three render perfectly and all three were reported NEVER RENDERED,
+         * which is the same false negative as the silent pass, wearing the
+         * opposite label. A rendered page has prose in its main region; a
+         * loading shell has one sentence, and it is matched above.
+         */
+        const main = document.querySelector("main") ?? document.body;
+        return (main.innerText ?? "").trim().length > 120;
+      },
+      { timeout: 45000 },
+    )
+    .then(() => true)
+    .catch(() => false);
+
+  if (!rendered) {
+    unverified.push(route);
+    return;
+  }
+
+  /**
+   * Wait for the CSS to have arrived, not for a guess at how long it takes.
+   *
+   * 658 of the padding rules live in legacy-bridge.css under `.ds-root`, in a
+   * stylesheet chunk that loads separately from the markup. Measure before it
+   * lands and every panel in the app reports zero inset: the first run of this
+   * gate used a 400ms settle and produced 129 findings where a 2100ms one
+   * produced 6 — the same pages, the same CSS, a different moment.
+   *
+   * A fixed delay cannot be right, because it is either too short on a slow
+   * load or wasted on a fast one. This waits for the actual precondition: every
+   * stylesheet parsed, fonts resolved, and then two identical measurements in a
+   * row, so a sweep whose answer still depended on timing would say so by
+   * disagreeing with itself rather than by reporting a number.
+   */
+  await page
+    .waitForFunction(
+      () =>
+        [...document.querySelectorAll('link[rel="stylesheet"]')].every(
+          (link) => link.sheet !== null,
+        ),
+      { timeout: 20000 },
+    )
+    .catch(() => {});
+  await page.evaluate(() => document.fonts?.ready).catch(() => {});
+  await page.waitForTimeout(500);
   // Open every disclosure before measuring. The detector skips the contents
   // of a closed <details>, because Chromium lays them out and reports them
   // as visible even though the disclosure clips them — but a panel folded
@@ -174,11 +259,24 @@ async function measure(route) {
     for (const d of document.querySelectorAll("details")) d.open = true;
   });
   await page.waitForTimeout(900);
-  const report = await page.evaluate(detector);
+  let report = await page.evaluate(detector);
   if (!report) {
     skipped.push(route);
     return;
   }
+  /**
+   * The same measurement twice. If the second disagrees, the page was still
+   * settling and the first reading was fiction — say so rather than print it.
+   */
+  await page.waitForTimeout(700);
+  const confirm = await page.evaluate(detector);
+  if (!confirm || confirm.findings.length !== report.findings.length) {
+    unstable.push(
+      `${route} (${report.findings.length} then ${confirm ? confirm.findings.length : "none"})`,
+    );
+    return;
+  }
+  report = confirm;
   if (!report.findings.length) return;
   for (const f of report.findings) {
     if (f.kind === "flush") flush += 1;
@@ -235,9 +333,28 @@ if (password) {
 
 await browser.close();
 
-const audited = routes.length - skipped.length;
+const audited = routes.length - skipped.length - unverified.length - unstable.length;
 if (skipped.length) {
   console.log(`\nSkipped ${skipped.length} route(s) that rendered nothing to measure.`);
+}
+/**
+ * A route that never rendered is louder than a clean one, and it fails.
+ *
+ * The whole point: "no findings" on a page the sweep never saw is the same
+ * output as "no findings" on a page it checked, and that ambiguity is what let
+ * the settings page keep its flush form through several rounds of fixes.
+ */
+if (unstable.length) {
+  console.log(
+    `\nUNSTABLE — measured twice and disagreed, so not reported either way (${unstable.length}):`,
+  );
+  for (const route of unstable) console.log(`  ${route}`);
+}
+if (unverified.length) {
+  console.log(
+    `\nNEVER RENDERED — not measured, not clean (${unverified.length}):`,
+  );
+  for (const route of unverified) console.log(`  ${route}`);
 }
 console.log(
   flush || other
@@ -252,4 +369,4 @@ if (!audited) {
 // or it does not. Overflow and bleed depend on what happens to be expanded
 // or loaded when the sweep arrives, so they are worth reading and wrong to
 // fail a build on.
-process.exit(flush ? 1 : 0);
+process.exit(flush || unverified.length || unstable.length ? 1 : 0);
