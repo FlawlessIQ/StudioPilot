@@ -152,6 +152,22 @@ const CREW_ROUTES = [
   "/crew/profile", "/crew/account", "/crew/accepted", "/crew/pending",
 ];
 
+/**
+ * The couple's portal, which needs a third sign-in for the same reason the
+ * crew routes need a second: a studio owner has no client membership and is
+ * redirected, so a pass as the owner measures nothing and reports clean.
+ *
+ * Never swept before. The crew workspace was in exactly this position until
+ * three days ago and had sat flush since the day it was written; there is no
+ * reason to expect the portal to be different, and every reason to look.
+ */
+const CLIENT_ROUTES = [
+  "/client", "/client/project", "/client/proposal", "/client/package",
+  "/client/contract", "/client/payments", "/client/questionnaire",
+  "/client/schedule", "/client/documents", "/client/messages",
+  "/client/delivery", "/client/reviews",
+];
+
 const routes = projectId ? [...ROUTES, ...projectScoped(projectId)] : ROUTES;
 
 let flush = 0;
@@ -170,6 +186,19 @@ const unverified = [];
 
 /** Routes whose two readings disagreed, so neither is trustworthy. */
 const unstable = [];
+
+/** A workspace the sweep could not sign in to, so none of it was measured. */
+const misdirected = [];
+
+/**
+ * Routes actually measured, counted rather than inferred.
+ *
+ * This was `routes.length - skipped - unverified`, and `routes` is only the
+ * studio list — so the crew pass never counted toward it and the summary
+ * under-reported its own coverage by thirteen routes. With the portal added it
+ * would have been twenty-five.
+ */
+let measured = 0;
 
 async function measure(route) {
   try {
@@ -277,6 +306,7 @@ async function measure(route) {
     return;
   }
   report = confirm;
+  measured += 1;
   if (!report.findings.length) return;
   for (const f of report.findings) {
     if (f.kind === "flush") flush += 1;
@@ -304,10 +334,14 @@ for (const route of routes) await measure(route);
  * membership and gets a redirect. That measures nothing and reports clean —
  * the exact failure this sweep exists to avoid.
  */
-if (password) {
-  // There is no /auth/logout route, so clear the session where it actually
-  // lives. Firebase keeps it in IndexedDB; localStorage and cookies go too so
-  // nothing re-hydrates the owner on the next navigation.
+/**
+ * Swap identity, then walk that workspace's routes.
+ *
+ * There is no /auth/logout route, so the session is cleared where it actually
+ * lives. Firebase keeps it in IndexedDB; localStorage and cookies go too so
+ * nothing re-hydrates the previous user on the next navigation.
+ */
+async function walkAs(email, workspaceRoutes, label) {
   await page.evaluate(async () => {
     localStorage.clear();
     sessionStorage.clear();
@@ -321,19 +355,41 @@ if (password) {
   }).catch(() => {});
   await page.context().clearCookies();
   await page.goto(`${BASE}/auth/login`, { waitUntil: "domcontentloaded", timeout: 60000 });
-  const crewEmail = page.locator("input[type=email]").first();
-  if (await crewEmail.count()) {
-    await crewEmail.fill(process.env.AUDIT_CREW_EMAIL ?? "crew@studiohub.test");
-    await page.locator("input[type=password]").first().fill(password);
-    await page.locator("button[type=submit]").first().click();
-    await page.waitForTimeout(6000);
-    for (const route of CREW_ROUTES) await measure(route);
+  const field = page.locator("input[type=email]").first();
+  if (!(await field.count())) return;
+  await field.fill(email);
+  await page.locator("input[type=password]").first().fill(password);
+  await page.locator("button[type=submit]").first().click();
+  await page.waitForTimeout(6000);
+  /**
+   * Confirm the sign-in landed in the right workspace before measuring.
+   *
+   * Signing in as somebody with no membership for these routes redirects, and
+   * a pass that measures the redirect target reports the wrong workspace as
+   * clean — which is the whole failure this sweep exists to catch, and it
+   * would now be silent in a *second* way.
+   */
+  const prefix = workspaceRoutes[0];
+  await page.goto(BASE + prefix, { waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => {});
+  await page.waitForTimeout(3000);
+  const landed = await page.evaluate((want) => location.pathname.startsWith(want), prefix);
+  if (!landed) {
+    const at = await page.evaluate(() => location.pathname);
+    console.log(`\nCould not enter the ${label} workspace as ${email} — landed on ${at}. Not measured.`);
+    misdirected.push(`${label} (${email} -> ${at})`);
+    return;
   }
+  for (const route of workspaceRoutes) await measure(route);
+}
+
+if (password) {
+  await walkAs(process.env.AUDIT_CREW_EMAIL ?? "crew@studiohub.test", CREW_ROUTES, "crew");
+  await walkAs(process.env.AUDIT_CLIENT_EMAIL ?? "client@studiohub.test", CLIENT_ROUTES, "client portal");
 }
 
 await browser.close();
 
-const audited = routes.length - skipped.length - unverified.length - unstable.length;
+const audited = measured;
 if (skipped.length) {
   console.log(`\nSkipped ${skipped.length} route(s) that rendered nothing to measure.`);
 }
@@ -344,6 +400,10 @@ if (skipped.length) {
  * output as "no findings" on a page it checked, and that ambiguity is what let
  * the settings page keep its flush form through several rounds of fixes.
  */
+if (misdirected.length) {
+  console.log(`\nWORKSPACE NOT ENTERED — none of its routes measured (${misdirected.length}):`);
+  for (const entry of misdirected) console.log(`  ${entry}`);
+}
 if (unstable.length) {
   console.log(
     `\nUNSTABLE — measured twice and disagreed, so not reported either way (${unstable.length}):`,
@@ -369,4 +429,6 @@ if (!audited) {
 // or it does not. Overflow and bleed depend on what happens to be expanded
 // or loaded when the sweep arrives, so they are worth reading and wrong to
 // fail a build on.
-process.exit(flush || unverified.length || unstable.length ? 1 : 0);
+process.exit(
+  flush || unverified.length || unstable.length || misdirected.length ? 1 : 0,
+);

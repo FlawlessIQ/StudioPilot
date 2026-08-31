@@ -2157,7 +2157,9 @@ export function LiveClientQuestionnaire() {
           ))}
         </section>
       ) : null}
-      <section className="panel">
+      {/* A bare `.panel` supplies no inset, so the form sat against the border.
+          Named so the panel-inset block in legacy-bridge.css can reach it. */}
+      <section className="panel client-questionnaire-panel">
         <ClientQuestionnaireForm
           key={current.id}
           tenantId={workspace.tenantId ?? undefined}
