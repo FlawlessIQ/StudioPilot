@@ -57,4 +57,53 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   fi
 done
 
+# ---------------------------------------------------------------------------
+# Container insets: the fast half of the check.
+#
+# scripts/audit/sweep.mjs is the authority — it measures the rendered geometry
+# of 94 routes across the studio, crew, client and platform-admin workspaces.
+# It cannot gate a push: it needs a production build, a running emulator with
+# seed data and four sign-ins, and it takes about five minutes. Run it with
+# `npm run sweep <base-url>` against a built server, and before a release.
+#
+# What runs here is the static half, in milliseconds and with no emulator. It
+# asserts the two ways an inset rule was found to be correct-but-unreachable in
+# one week: living in a CSS chunk the page never loads, and naming a class no
+# component renders. Both shipped looking like fixes and changed nothing.
+#
+# Set STUDIOCUE_SWEEP=1 to also run the full sweep, if a built server is up.
+# ---------------------------------------------------------------------------
+if [ "$status" -eq 0 ] && [ -f tests/panel-inset-reachability.test.ts ]; then
+  if ! npx tsx --test tests/panel-inset-reachability.test.ts >/tmp/studiocue-inset.log 2>&1; then
+    echo "" >&2
+    echo "pre-push: BLOCKED — an inset rule cannot reach what it names." >&2
+    echo "" >&2
+    # node:test writes a single-line error as `error: '…'` and a deepEqual
+    # difference as a `|-` block with the offending entries on `+` lines.
+    # Printing only the first form gave "|-" and nothing useful.
+    sed -n "s/^  error: '\(.*\)'$/  \1/p" /tmp/studiocue-inset.log | head -3 >&2
+    sed -n "s/^ *+ *'\(.*\)',*$/  unreachable: \1/p" /tmp/studiocue-inset.log | head -6 >&2
+    grep -m1 "must define --panel-inset\|must live in" /tmp/studiocue-inset.log >&2 || true
+    echo "" >&2
+    echo "  Panel insets live in app/legacy-bridge.css, with --panel-inset" >&2
+    echo "  defined in the same file. globals.css is split across CSS chunks" >&2
+    echo "  and its chunk is not loaded on the workspace routes." >&2
+    echo "" >&2
+    echo "  Full detail:  npx tsx --test tests/panel-inset-reachability.test.ts" >&2
+    echo "  Measure it:   npm run sweep http://localhost:3000" >&2
+    echo "" >&2
+    status=1
+  fi
+fi
+
+if [ "$status" -eq 0 ] && [ -n "$STUDIOCUE_SWEEP" ]; then
+  base=${STUDIOCUE_SWEEP_URL:-http://localhost:3000}
+  echo "pre-push: sweeping container insets against $base (a few minutes)…" >&2
+  if ! npm run --silent sweep "$base" >&2; then
+    echo "" >&2
+    echo "pre-push: BLOCKED — the inset sweep did not pass." >&2
+    status=1
+  fi
+fi
+
 exit $status
