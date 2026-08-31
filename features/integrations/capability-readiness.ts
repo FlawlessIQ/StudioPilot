@@ -93,15 +93,30 @@ const CAPABILITY_WITHOUT_PROVIDER: Record<IntegrationCapability, string> = {
  * Connect is not offered yet — a remedy pointing at something that is not
  * there is worse than a shorter one.
  */
-function candidatesFor(capability: IntegrationCapability): string {
-  const names = (Object.keys(providerCapabilities) as IntegrationProvider[])
+function offeredNamesFor(capability: IntegrationCapability): string[] {
+  return (Object.keys(providerCapabilities) as IntegrationProvider[])
     .filter(
       (provider) =>
         isOfferedProvider(provider) &&
         providerCapabilities[provider].includes(capability),
     )
     .map(providerName);
-  if (names.length <= 1) return names[0] ?? "a provider";
+}
+
+function candidatesFor(capability: IntegrationCapability): string | null {
+  const names = offeredNamesFor(capability);
+  /**
+   * No offered provider does this work, so there is nothing to send anyone to.
+   *
+   * This returned "a provider" when the list was empty, which produced the
+   * remedy "Connect a provider" pointing at a settings page with no such card
+   * on it — the same fault the note above describes, one layer down. It became
+   * reachable the moment signing had no offered provider at all: both signing
+   * apps are deferred on subscription cost, so the honest answer is the summary
+   * ("send your own agreement and record the signature"), not a remedy.
+   */
+  if (names.length === 0) return null;
+  if (names.length === 1) return names[0]!;
   return `${names.slice(0, -1).join(", ")} or ${names.at(-1)}`;
 }
 
@@ -175,7 +190,10 @@ export function capabilityReadiness(input: {
     provider: null,
     state: "none_connected",
     summary: `Nothing is connected to ${work}. ${CAPABILITY_WITHOUT_PROVIDER[capability]}`,
-    remedy: `Connect ${candidatesFor(capability)}`,
+    remedy: (() => {
+      const candidates = candidatesFor(capability);
+      return candidates ? `Connect ${candidates}` : null;
+    })(),
     ok: false,
   };
 }

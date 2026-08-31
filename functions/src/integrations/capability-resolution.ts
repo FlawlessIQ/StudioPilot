@@ -30,15 +30,14 @@ export type Provider = z.infer<typeof providerSchema>;
 
 /**
  * Providers StudioCue offers today. Mirrors offeredProviders in
- * features/integrations/schema.ts — see the reasoning there. DocuSign and
- * Stripe Connect are implemented but not offered, so a leftover connection
- * for either must not decide which provider signs a contract or raises an
- * invoice.
+ * features/integrations/schema.ts — see the reasoning there. Neither signing
+ * app is offered: both cost money that waits on revenue. Stripe Connect is
+ * absent for a different reason. A leftover connection for any of them must
+ * not decide which provider signs a contract or raises an invoice.
  */
 export const offeredProviders: ReadonlySet<Provider> = new Set<Provider>([
   "google_calendar",
   "zoom",
-  "dropbox_sign",
   "quickbooks",
   "dropbox",
 ]);

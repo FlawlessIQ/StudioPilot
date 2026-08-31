@@ -6,6 +6,7 @@ import {
   offeredProviders,
   offeredSigningProvider,
 } from "@/features/integrations/schema";
+import { capabilityReadiness } from "@/features/integrations/capability-readiness";
 
 /**
  * What the product offers, said once.
@@ -31,18 +32,48 @@ import {
 
 const REPO = process.cwd();
 
-test("DocuSign is not offered, and that is a deliberate cost decision", () => {
-  // Deferred until revenue covers a live DocuSign API subscription. The server
-  // code stays; restoring it is one apphosting.yaml entry plus a client id.
+test("neither signing app is offered, and that is a cost decision", () => {
+  // Both cost real money and both wait on revenue. Neither is a readiness
+  // problem: both are implemented and both webhooks are certified. Restoring
+  // either is one entry in offeredProviders plus one in apphosting.yaml.
   assert.equal(isOfferedProvider("docusign"), false);
+  assert.equal(isOfferedProvider("dropbox_sign"), false);
   assert.equal(isOfferedProvider("stripe"), false);
 });
 
-test("exactly one signing app is offered, and it is derived", () => {
-  const signing = offeredSigningProvider();
-  assert.equal(signing, "dropbox_sign");
-  assert.ok(signing !== null, "no signing app is offered at all");
-  assert.equal(isOfferedProvider(signing!), true);
+test("with no signing app offered, nothing pretends there is one", () => {
+  /**
+   * The state the product is actually in. A studio sends its own agreement and
+   * records the signature on the booking; `RecordSignedAgreement` renders on any
+   * proposal, independent of providers, and the walk of 2026-08-27 drove a job
+   * from inquiry to CLOSED that way.
+   */
+  assert.equal(offeredSigningProvider(), null);
+});
+
+test("a capability with no offered provider offers no remedy", () => {
+  /**
+   * "Connect a provider" pointing at a settings page with no such card is worse
+   * than saying nothing — the summary already gives the honest path. This became
+   * reachable the moment signing had no offered provider at all.
+   */
+  const signing = capabilityReadiness({
+    capability: "signing",
+    connections: [],
+    selections: null,
+  });
+  assert.equal(signing.state, "none_connected");
+  assert.equal(signing.remedy, null, "signing offers a remedy with nothing to connect");
+  assert.match(signing.summary, /record the signature/);
+
+  // Invoicing still has QuickBooks, so it must still point somewhere.
+  const invoicing = capabilityReadiness({
+    capability: "invoicing",
+    connections: [],
+    selections: null,
+  });
+  assert.equal(invoicing.state, "none_connected");
+  assert.match(invoicing.remedy ?? "", /Connect QuickBooks/);
 });
 
 test("the OAuth list never offers a provider the product hides", () => {

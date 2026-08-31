@@ -146,7 +146,22 @@ DocuSign agreement", and sent looking for an account the product does not offer.
 Nothing was ever *sent* through DocuSign: `createEnvelope` carries no provider
 and the server resolves it. The cost was a studio's afternoon.
 
-**Dropbox Sign is the offered signing app**, and it is fully configured — both
-client id and secret. Until it is connected, the signature and retainer steps
-run on the studio-attestation paths, which the walk of 2026-08-27 drove from
-inquiry to CLOSED without touching a provider.
+**Neither signing app is offered.** Dropbox Sign is deferred on the same
+grounds as DocuSign — its paid plan costs money that waits on revenue — and is
+expected back within weeks rather than months. Both are fully implemented and
+both webhooks are certified above, so restoring either is one entry in
+`offeredProviders` and one in `NEXT_PUBLIC_ENABLED_OAUTH_PROVIDERS`.
+
+With no signing app offered, a studio sends its own agreement and records the
+signature on the booking. `RecordSignedAgreement` renders on any proposal,
+independent of providers, and the walk of 2026-08-27 drove a job from inquiry to
+CLOSED entirely that way. What the product must not do is name an app the
+settings page cannot show: four places did, and each was a different shape —
+a state seed, a resolution fallback, a capability remedy, and the
+agreement-template copy telling the reader to "connect Dropbox Sign above" when
+no such card was on the page.
+
+A contract's *recorded* provider is different and stays. "Signed with DocuSign"
+on an agreement genuinely sent through DocuSign is the audit trail; an unoffered
+provider must not decide routing, and must still be labelled truthfully where it
+already happened.

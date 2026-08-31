@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { offeredSigningProvider } from "@/features/integrations/schema";
 import {
   CheckCircle2,
   FileSignature,
@@ -33,7 +34,15 @@ import { friendlyError } from "@/lib/ai/friendly-error";
  * The setup checklist reads the same field, so its "agreement" step could
  * never be completed either.
  */
+/** "Dropbox Sign", or nothing — never a name the settings page cannot show. */
+const SIGNING_APP_LABEL: Record<string, string> = {
+  dropbox_sign: "Dropbox Sign",
+  docusign: "Docusign",
+};
+
 export function AgreementTemplate() {
+  const offered = offeredSigningProvider();
+  const signingApp = offered ? SIGNING_APP_LABEL[offered] ?? null : null;
   const workspace = useWorkspace();
   const tenantId = workspace.tenantId;
   const { records: tenants } = useTenantDocuments("tenants");
@@ -141,17 +150,24 @@ export function AgreementTemplate() {
       ) : state === "unavailable" ? (
         <p className="agreement-template-state is-attention">
           <TriangleAlert size={15} />
-          {reason === "PREVIEW_MODE"
-            ? "Connect a signing provider to choose an agreement."
-            : reason?.startsWith("SIGNING_")
-              ? "Nothing is connected to send agreements for signature yet. Connect Dropbox Sign above."
-              : "Your templates could not be loaded. Check the Dropbox Sign connection above."}
+          {/* These named Dropbox Sign outright and told the reader to
+              "connect it above" — pointing at a card that is no longer on the
+              page, because neither signing app is offered while their
+              subscriptions wait on revenue. Named only when one is actually
+              offered. See features/integrations/schema.ts. */}
+          {!signingApp
+            ? "No signing app is connected, so StudioCue does not send agreements for you. Send your own and record the signature on each booking."
+            : reason === "PREVIEW_MODE"
+              ? "Connect a signing provider to choose an agreement."
+              : reason?.startsWith("SIGNING_")
+                ? `Nothing is connected to send agreements for signature yet. Connect ${signingApp} above.`
+                : `Your templates could not be loaded. Check the ${signingApp} connection above.`}
         </p>
       ) : templates && templates.length === 0 ? (
         <p className="agreement-template-state is-attention">
           <TriangleAlert size={15} />
-          Dropbox Sign has no templates yet. Create one there, then reload this
-          page.
+          {signingApp ?? "Your signing app"} has no templates yet. Create one
+          there, then reload this page.
         </p>
       ) : (
         <div className="agreement-template-picker">

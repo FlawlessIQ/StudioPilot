@@ -17,19 +17,39 @@ const connected = (provider: string): RoutableConnection =>
 const degraded = (provider: string): RoutableConnection =>
   ({ provider, status: "degraded", archivedAt: null }) as RoutableConnection;
 
-test("one connected signer needs no choosing", () => {
+test("one connected provider needs no choosing", () => {
+  // Was written with Dropbox Sign, which is no longer offered — both signing
+  // apps are deferred on subscription cost. QuickBooks carries the same
+  // sole-connected-provider case.
+  const readiness = capabilityReadiness({
+    capability: "invoicing",
+    connections: [connected("quickbooks")],
+    selections: null,
+  });
+  assert.equal(readiness.ok, true);
+  assert.equal(readiness.provider, "quickbooks");
+  assert.equal(
+    readiness.summary,
+    "StudioCue will raise and track invoices through QuickBooks.",
+  );
+  assert.equal(readiness.remedy, null);
+});
+
+test("a connected signing app that is not offered still does not resolve", () => {
+  /**
+   * The semantics `offeredProviders` exists for: not offered means not routed
+   * to, even when a connection is sitting there. A studio that connected
+   * Dropbox Sign while it was offered must not have contracts quietly continue
+   * through a plan nobody is paying for.
+   */
   const readiness = capabilityReadiness({
     capability: "signing",
     connections: [connected("dropbox_sign")],
     selections: null,
   });
-  assert.equal(readiness.ok, true);
-  assert.equal(readiness.provider, "dropbox_sign");
-  assert.equal(
-    readiness.summary,
-    "StudioCue will send the agreement for signature through Dropbox Sign.",
-  );
-  assert.equal(readiness.remedy, null);
+  assert.equal(readiness.ok, false);
+  assert.equal(readiness.state, "none_connected");
+  assert.match(readiness.summary, /record the signature/);
 });
 
 test("nothing connected to sign points at the path that still works", () => {
@@ -46,10 +66,10 @@ test("nothing connected to sign points at the path that still works", () => {
   // The point of the sentence. A studio deciding whether it can work
   // without Dropbox Sign is told yes, and how.
   assert.match(readiness.summary, /record the signature/);
-  // Only apps a studio can actually connect: DocuSign is implemented but
-  // not offered, so naming it would point at a settings page that has no
-  // DocuSign row.
-  assert.equal(readiness.remedy, "Connect Dropbox Sign");
+  // And no remedy at all now: with neither signing app offered there is
+  // nothing to send anyone to, and "Connect a provider" would point at a
+  // settings page with no signing row on it. The summary is the answer.
+  assert.equal(readiness.remedy, null);
 });
 
 test("nothing connected to invoice does not pretend there is a way round", () => {
@@ -92,13 +112,25 @@ test("ambiguity is currently unreachable, because each job has one offered app",
 });
 
 test("an explicit choice is honoured", () => {
+  // Re-pointed at storage, which still has two offered providers; signing has
+  // none, so an explicit signing choice can no longer be honoured by design.
+  const readiness = capabilityReadiness({
+    capability: "invoicing",
+    connections: [connected("quickbooks")],
+    selections: { invoicing: "quickbooks" },
+  });
+  assert.equal(readiness.ok, true);
+  assert.equal(readiness.provider, "quickbooks");
+});
+
+test("an explicit choice cannot revive an unoffered app", () => {
+  // Choosing it in settings is not a licence either.
   const readiness = capabilityReadiness({
     capability: "signing",
     connections: [connected("dropbox_sign")],
     selections: { signing: "dropbox_sign" },
   });
-  assert.equal(readiness.ok, true);
-  assert.equal(readiness.provider, "dropbox_sign");
+  assert.equal(readiness.ok, false);
 });
 
 test("a choice pointing at a disconnected app names that app", () => {
@@ -175,13 +207,17 @@ test("a provider StudioCue does not offer cannot win the routing", () => {
   // list; the resolver was not — and neither was the server, which fell
   // back to DocuSign and queued a signature request through a provider the
   // studio cannot see, has not chosen, and could not have connected.
+  //
+  // Both signing apps are now unoffered, so the case has gone from "the
+  // offered one wins" to "neither does" — which is the same rule, applied to a
+  // set that has since emptied.
   const readiness = capabilityReadiness({
     capability: "signing",
     connections: [connected("docusign"), connected("dropbox_sign")],
     selections: null,
   });
-  assert.equal(readiness.state, "ready");
-  assert.equal(readiness.provider, "dropbox_sign");
+  assert.equal(readiness.state, "none_connected");
+  assert.equal(readiness.provider, null);
 });
 
 test("with only an unoffered provider connected, nothing is connected", () => {
@@ -197,17 +233,23 @@ test("the offered set is the same in features/ and functions/", () => {
   // Two copies of this list is how the divergence happened in the first
   // place. functions/ cannot import from features/, so the copies stay —
   // but they may not disagree.
-  const read = (path: string) =>
-    [
-      ...readFileSync(path, "utf8")
-        .slice(
-          readFileSync(path, "utf8").indexOf("offeredProviders"),
-        )
-        .matchAll(/"([a-z_]+)"/g),
-    ]
+  /**
+   * The contents of the `new Set([...])`, not "the first five quoted strings
+   * after the word offeredProviders" — which is what this did, and which broke
+   * the moment the set held four rather than five: it read the fifth name out
+   * of whatever followed and compared garbage.
+   */
+  const read = (path: string) => {
+    const source = readFileSync(path, "utf8");
+    const declaration = source.indexOf("export const offeredProviders");
+    assert.notEqual(declaration, -1, `${path} has no offeredProviders`);
+    const open = source.indexOf("[", declaration);
+    const close = source.indexOf("]", open);
+    assert.ok(open !== -1 && close > open, `${path} offeredProviders is not a list`);
+    return [...source.slice(open, close).matchAll(/"([a-z_]+)"/g)]
       .map((match) => match[1])
-      .slice(0, 5)
       .sort();
+  };
   assert.deepEqual(
     read("functions/src/integrations/capability-resolution.ts"),
     read("features/integrations/schema.ts"),

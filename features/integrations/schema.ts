@@ -44,11 +44,23 @@ export const providerCapabilities: Readonly<
 /**
  * Providers StudioCue actually offers a studio today.
  *
- * DocuSign stays implemented server-side so an approved production
- * integration can be restored later, and Stripe Connect needs platform
- * onboarding that has not happened — so neither is shown, connectable, or
- * choosable. That was a filter inside the settings component, which meant
- * only that screen knew about it.
+ * Both signing apps are absent, and both for the same reason: a live DocuSign
+ * API subscription and a paid Dropbox Sign plan each cost real money, and that
+ * spend waits on revenue. Neither is a readiness problem — both are implemented
+ * server-side, both webhooks are certified
+ * (docs/provider-certification.md), and restoring either is one entry here plus
+ * one in NEXT_PUBLIC_ENABLED_OAUTH_PROVIDERS. Stripe Connect is absent for a
+ * different reason: platform onboarding on the FlawlessIQ account, which is a
+ * business-model decision rather than a configuration step.
+ *
+ * With no signing app offered, a studio sends its own agreement and records the
+ * signature on the booking. That path is not a degraded mode — the walk of
+ * 2026-08-27 drove a job from inquiry to CLOSED entirely on attestation — and
+ * `capabilityReadiness` states it rather than offering a remedy that points at
+ * an empty settings page.
+ *
+ * This was a filter inside the settings component, which meant only that
+ * screen knew about it.
  *
  * Everything else — the capability note on the proposal page, and
  * critically the server resolving which provider signs a contract — worked
@@ -63,7 +75,6 @@ export const providerCapabilities: Readonly<
 export const offeredProviders: ReadonlySet<IntegrationProvider> = new Set([
   "google_calendar",
   "zoom",
-  "dropbox_sign",
   "quickbooks",
   "dropbox",
 ]);
