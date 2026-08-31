@@ -38,7 +38,46 @@ trackers, or support messages.
 - keep non-production environments in mock mode; production live mode still
   requires the controlled acceptance tests above before inviting pilot clients
 
-## 3. OAuth integrations
+## 3. Provider endpoint URLs to paste into each console
+
+Every provider posts to the **web app**, not to a Cloud Function. The functions
+are private Cloud Run services with `invoker: "private"` — a provider cannot
+mint a Google ID token — so each one is fronted by a route under
+`app/api/webhooks/` that forwards the raw body upstream with a service
+identity attached. Giving a provider a `*.run.app` URL will 403 every delivery.
+
+Until the custom domain in section 6 is connected, the origin is the App
+Hosting URL:
+
+```
+https://studiohub--studiohub-prod.us-east4.hosted.app
+```
+
+| Provider console setting | Path |
+|---|---|
+| Docusign Connect | `/api/webhooks/docusign` |
+| Dropbox Sign callback | `/api/webhooks/dropbox-sign` |
+| QuickBooks change notifications | `/api/webhooks/quickbooks` |
+| Stripe (platform billing) | `/api/webhooks/stripe` |
+| Stripe Connect (connected accounts) | `/api/webhooks/stripe-connect` |
+| Zoom event subscription | `/api/webhooks/zoom` |
+| SendGrid Event Webhook | `/api/webhooks/sendgrid/events` |
+| SendGrid Inbound Parse | `/api/webhooks/sendgrid/inbound?token=…` |
+
+Two things about these that are easy to get wrong:
+
+- **Dropbox Sign's endpoint must answer `GET`.** Its console verifies the URL
+  with a GET and expects the literal body `Hello API Event Received`. Every
+  other route answers 405 to GET on purpose.
+- **Re-paste all of them when the custom domain is connected.** The origin is
+  the only part that changes, but a provider left pointing at the App Hosting
+  URL keeps working, so nothing will fail loudly to remind you.
+
+`npm run certify:providers` posts directly at the functions, so it proves each
+signature scheme but not this hop. `tests/webhook-relay-headers.test.ts` covers
+the hop by asserting every header a handler reads is one its route forwards.
+
+## 4. OAuth integrations
 
 Connect and test each provider from **Studio → Integrations** with a non-critical
 pilot account:
@@ -68,7 +107,7 @@ After successful provider acceptance testing, explicitly change
 `PROVIDER_MOCK_MODE` to `false`. Do not change this flag merely because OAuth
 completed.
 
-## 4. Stripe commercial launch
+## 5. Stripe commercial launch
 
 - confirm the Stripe account legal entity, bank payout, support contact,
   statement descriptor, tax posture, and customer emails
@@ -82,7 +121,7 @@ completed.
 - confirm new Checkout sessions receive the application-enforced 14-day trial;
   the immutable Stripe Price objects intentionally do not carry a default trial
 
-## 5. Twilio and SMS
+## 6. Twilio and SMS
 
 - create the production Twilio account, compliant sender, and messaging service
 - supply credentials through Secret Manager
@@ -93,7 +132,7 @@ completed.
 
 SMS should remain disabled until this section is complete.
 
-## 6. Brand, domain, legal, and policy
+## 7. Brand, domain, legal, and policy
 
 - connect and verify the production custom domain
 - provide final logo, favicons, email logo, brand colors, legal business name,
@@ -105,7 +144,7 @@ SMS should remain disabled until this section is complete.
   does not certify COPPA, FERPA, insurance, tax, or employment compliance
 - choose retention periods and run one tenant export and deletion rehearsal
 
-## 7. Security and operations
+## 8. Security and operations
 
 - enforce MFA for Google Cloud, Firebase, GitHub, Stripe, SendGrid, and every
   provider administrator
@@ -115,14 +154,59 @@ SMS should remain disabled until this section is complete.
   verify no ordinary user has it
 - provide and configure Sentry projects/DSNs for web, Functions, and Cloud Run
 - configure alert destinations, uptime checks, budget alerts, error-rate alerts,
-  dead-letter alerts, and an incident owner
-- configure backup/restore retention and execute a restore drill
+  dead-letter alerts, and an incident owner — **done, see below**
+- configure backup/restore retention and execute a restore drill — **schedules
+  and drill done, see below**
 - review App Check enforcement after confirming all supported browsers and PWA
   clients obtain valid tokens
 - document credential rotation, breach response, customer support access, and
   tenant suspension procedures
 
-## 8. Pilot acceptance
+### What is configured in `studiohub-prod`
+
+**Alerting.** One email notification channel (`StudioCue operations (owner)`)
+and three policies, all enabled:
+
+| Policy | Fires on |
+|---|---|
+| operational error or dead-lettered job | any occurrence in 5 minutes |
+| server errors (Cloud Run 5xx) | more than 5 in 5 minutes, grouped by service |
+| app unreachable | uptime check below 50% for 5 minutes |
+
+The first depends on a code change worth knowing about.
+`captureOperationalError` began with `if (!dsn) return`, and the production
+`SENTRY_DSN` secret exists with **no versions** — so it returned on its first
+line every time. A job that exhausted its retries and went to `dead_letter`
+produced no signal anywhere: no log line, no alert, nothing to notice it by
+except reading Firestore. It now writes a structured Cloud Logging entry
+unconditionally, and the log-based metric `studiocue_operational_errors` counts
+entries carrying `jsonPayload.studiocueOperationalError`. **Renaming that field
+silently breaks the alert.** Sentry remains the richer destination if a DSN is
+ever supplied.
+
+Drilled on 2026-08-31 by writing a synthetic entry with `code: ALERT_DRILL`
+and confirming the metric counted it. Whether the email arrives is the one part
+that has to be confirmed from the inbox.
+
+**Backups.** Two schedules on `(default)`: daily with 14-day retention, weekly
+with 84-day retention. Restore drilled on 2026-08-31 from the 2026-08-30
+backup into a separate `restore-drill` database, which was deleted afterwards
+— production was never the restore target.
+
+Point-in-time recovery is **disabled**. It is the difference between losing up
+to a day and losing up to a minute, and it costs extra storage, so it is a
+deliberate decision rather than an oversight — worth revisiting before real
+customer data lands.
+
+**App Check is UNENFORCED for every service.** The client is configured with a
+real reCAPTCHA Enterprise site key and `getFirebaseClient` throws without one,
+so browsers do attest — but enforcement was deliberately left off. Turning it
+on when any supported client fails to attest locks that client out of a live
+app, the App Check verified/unverified split is only visible in the Firebase
+console, and the PWA and service-worker paths have not been observed. Enable it
+from the console after watching that split, not before.
+
+## 9. Pilot acceptance
 
 Run a real pilot from a clean account:
 
