@@ -731,10 +731,6 @@ service cloud.firestore {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"]);
       allow write: if false;
     }
-    match /reportJobs/{jobId} {
-      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"]);
-      allow write: if false;
-    }
     match /subscriptions/{subscriptionId} {
       allow read: if isPlatformAdmin()
         || hasRole(resource.data.tenantId, ["studio_owner"]);

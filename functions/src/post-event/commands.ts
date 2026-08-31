@@ -135,17 +135,6 @@ const command = z.discriminatedUnion("type", [
     idempotencyKey: z.string().min(8),
     input: z.object({ projectId: z.string(), closeoutId: z.string() }),
   }),
-  z.object({
-    type: z.literal("exportReport"),
-    tenantId: z.string(),
-    idempotencyKey: z.string().min(8),
-    input: z.object({
-      dateFrom: z.string().date(),
-      dateTo: z.string().date(),
-      projectType: z.string().nullable(),
-      userId: z.string().nullable(),
-    }),
-  }),
 ]);
 const internalRoles = new Set([
   "studio_owner",
@@ -1197,26 +1186,22 @@ export const postEventCommand = onRequest(
           retentionReviewRequired: true,
         };
       } else {
-        if (!["studio_owner", "studio_admin"].includes(role))
-          throw new Error("FORBIDDEN");
-        const jobId = stable(
-          "report_export",
-          parsed.tenantId,
-          parsed.idempotencyKey,
+        /**
+         * Unreachable, and typed so it stays that way.
+         *
+         * This chain used to end in a bare `else` that handled `exportReport`.
+         * That command queued a `reportJobs` document and nothing anywhere
+         * consumed the collection, so a caller would have got `status:
+         * "queued"` and waited forever; the reports page builds its CSV in the
+         * browser from live data instead. Removing it left the chain with no
+         * final branch, which is the right shape — a command added to the union
+         * without a handler should fail the build here rather than fall into
+         * whatever the last branch happened to be.
+         */
+        const unhandled: never = parsed;
+        throw new Error(
+          `POST_EVENT_COMMAND_UNHANDLED:${(unhandled as { type: string }).type}`,
         );
-        await db
-          .doc(`reportJobs/${jobId}`)
-          .create({
-            id: jobId,
-            tenantId: parsed.tenantId,
-            ...parsed.input,
-            format: "csv",
-            status: "queued",
-            attempts: 0,
-            createdAt: now,
-            createdBy: identity.uid,
-          });
-        result = { reportJobId: jobId, status: "queued" };
       }
       const auditId = stable("audit", parsed.tenantId, parsed.idempotencyKey);
       await db
@@ -1228,8 +1213,8 @@ export const postEventCommand = onRequest(
           actorId: identity.uid,
           actorType: "user",
           action: `post_event.${parsed.type}`,
-          entityType: parsed.type === "exportReport" ? "report" : "project",
-          entityId: String(projectId ?? result.reportJobId ?? ""),
+          entityType: "project",
+          entityId: String(projectId ?? ""),
           timestamp: now,
           before: null,
           after: result,

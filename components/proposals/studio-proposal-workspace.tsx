@@ -1808,7 +1808,9 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
                       : status === "approved"
                         ? proposal.pdfState === "ready"
                           ? "Send to client"
-                          : "Generate the PDF"
+                          : proposal.pdfState === "failed"
+                            ? "Retry the PDF, or send without it"
+                            : "Generate the PDF"
                         : ["sent", "viewed"].includes(status)
                           ? "Track the decision"
                           : "Review the outcome"}
@@ -1941,7 +1943,23 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
                     <RefreshCw /> Regenerate PDF
                   </button>
                 ) : null}
-                {proposal.pdfState === "ready" && canApprove ? (
+                {/*
+                  * `failed` sends too, and says what the client will get.
+                  *
+                  * Offering Send only on `ready` meant one dead-lettered PDF
+                  * job left the proposal permanently unsendable: regenerate
+                  * hit the same failing worker, and there was no other way
+                  * out. The couple heard nothing and the studio had no
+                  * control that could change that.
+                  *
+                  * The server allows it now, and the confirmation says
+                  * plainly that the email carries a link and no attachment —
+                  * the couple still reviews and accepts in the portal, which
+                  * renders the proposal itself rather than the document.
+                  */}
+                {["ready", "failed"].includes(
+                  text(proposal.pdfState, "not_requested"),
+                ) && canApprove ? (
                   <>
                     <label className="proposal-send-confirm">
                       <input
@@ -1954,8 +1972,19 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
                       <span>
                         <strong>Ready to share with the client</strong>
                         <small>
-                          Send the branded email and attached PDF to{" "}
-                          {text(client.email, "the primary client")}.
+                          {proposal.pdfState === "failed" ? (
+                            <>
+                              The PDF could not be built, so this sends the
+                              branded email with a link to the proposal and no
+                              attachment. {text(client.email, "The primary client")}{" "}
+                              can still review and accept it in the portal.
+                            </>
+                          ) : (
+                            <>
+                              Send the branded email and attached PDF to{" "}
+                              {text(client.email, "the primary client")}.
+                            </>
+                          )}
                         </small>
                       </span>
                     </label>

@@ -203,11 +203,17 @@ const PUBLIC_ROUTES = [
   "/for-crew",
   // No `?studio=`, which is what a stale link on a business card renders.
   "/inquiry",
-  // The form itself, when the slug resolves. Needs a real tenant, so it is
-  // opt-in: `AUDIT_INQUIRY_SLUG=<publicSlug>`.
-  ...(process.env.AUDIT_INQUIRY_SLUG
-    ? [`/inquiry?studio=${process.env.AUDIT_INQUIRY_SLUG}`]
-    : []),
+  /**
+   * The form itself, which only renders when the slug resolves to a tenant.
+   *
+   * `demo-studio` is the default because `app/inquiry/page.tsx` short-circuits
+   * it to a fixture whenever the server is in mock data mode — which is the
+   * local default — so an ordinary run measures the form rather than only the
+   * error branch above. A live-data server has no such tenant and falls back
+   * to that same branch, so point it at a real one with
+   * `AUDIT_INQUIRY_SLUG=<publicSlug>` when sweeping live.
+   */
+  `/inquiry?studio=${process.env.AUDIT_INQUIRY_SLUG ?? "demo-studio"}`,
   "/integrations",
   "/offline",
   "/pricing",

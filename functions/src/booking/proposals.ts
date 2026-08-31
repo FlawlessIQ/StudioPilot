@@ -764,19 +764,62 @@ export const proposalCommand = onRequest(
             const pdfDocumentId = stringValue(
               proposal.get("pdfDocumentId"),
             );
-            if (!pdfDocumentId) throw new Error("PROPOSAL_PDF_NOT_READY");
-            const pdfDocumentReference = db.doc(
-              `documents/${pdfDocumentId}`,
-            );
-            const pdfDocument = await transaction.get(pdfDocumentReference);
+            /**
+             * A dead-lettered PDF must not freeze the proposal forever.
+             *
+             * Requiring the document unconditionally meant one exhausted PDF
+             * job made a proposal permanently unsendable, with no override
+             * anywhere — the studio could not send it, could not withdraw it,
+             * and regenerating hit the same failing worker. The couple never
+             * heard anything.
+             *
+             * The gate stays shut while there is still a reason to wait:
+             * `not_requested` and `queued` both mean the document is coming,
+             * and sending then would drop an attachment that was about to
+             * exist. `failed` is the terminal state the runner writes after
+             * retries are exhausted, and past that point waiting is not a
+             * plan.
+             *
+             * Sending without it is sound because the PDF is an attachment,
+             * not the proposal. The couple reviews pricing and terms in the
+             * portal, rendered from the proposal record itself — no client
+             * surface reads `pdfDocumentId`. They can accept normally; the
+             * studio loses the attachment, not the agreement, and the
+             * proposal records that so the audit trail does not imply a
+             * document that was never sent.
+             */
+            const pdfFailed =
+              stringValue(proposal.get("pdfState")) === "failed";
+            if (!pdfDocumentId && !pdfFailed) {
+              throw new Error("PROPOSAL_PDF_NOT_READY");
+            }
+            /**
+             * A failed PDF never attaches, even if an identifier survives.
+             *
+             * `regenerate_pdf` leaves the previous `pdfDocumentId` in place
+             * while the retry runs, so a proposal can hold a stale identifier
+             * and a `failed` state at once. Validating that document would
+             * throw `PROPOSAL_PDF_INVALID` and put the proposal straight back
+             * in the trap this guard exists to open.
+             */
+            const pdfDocumentReference =
+              pdfDocumentId && !pdfFailed
+                ? db.doc(`documents/${pdfDocumentId}`)
+                : null;
+            const pdfDocument = pdfDocumentReference
+              ? await transaction.get(pdfDocumentReference)
+              : null;
             if (
-              !pdfDocument.exists ||
-              pdfDocument.get("tenantId") !== command.tenantId ||
-              pdfDocument.get("projectId") !== projectId ||
-              pdfDocument.get("contentType") !== "application/pdf"
+              pdfDocument &&
+              (!pdfDocument.exists ||
+                pdfDocument.get("tenantId") !== command.tenantId ||
+                pdfDocument.get("projectId") !== projectId ||
+                pdfDocument.get("contentType") !== "application/pdf")
             ) {
               throw new Error("PROPOSAL_PDF_INVALID");
             }
+            // Only a document that passed the checks above may be attached.
+            const attachableDocumentId = pdfDocument ? pdfDocumentId : null;
 
             const emailJobId = stableId(
               "proposal_email",
@@ -834,7 +877,7 @@ export const proposalCommand = onRequest(
               actionUrl: invitation
                 ? invitation.inviteUrl
                 : `${appUrl}${proposalPath}`,
-              attachmentDocumentId: pdfDocumentId,
+              attachmentDocumentId: attachableDocumentId,
               status: "queued",
               attempts: 0,
               createdAt: timestamp,
@@ -941,19 +984,32 @@ export const proposalCommand = onRequest(
                   updatedBy: identity.uid,
                 });
               }
-              transaction.update(pdfDocumentReference, {
-                visibility: "client",
-                updatedAt: timestamp,
-                updatedBy: identity.uid,
-              });
+              // Nothing to reveal to the client when the PDF dead-lettered.
+              if (pdfDocumentReference) {
+                transaction.update(pdfDocumentReference, {
+                  visibility: "client",
+                  updatedAt: timestamp,
+                  updatedBy: identity.uid,
+                });
+              }
               output = {
                 proposalId: proposal.id,
                 status: "sent",
                 emailJobId,
-                storagePath: stringValue(
-                  pdfDocument.get("providerFileId"),
-                  stringValue(pdfDocument.get("canonicalPath")),
-                ),
+                storagePath: pdfDocument
+                  ? stringValue(
+                      pdfDocument.get("providerFileId"),
+                      stringValue(pdfDocument.get("canonicalPath")),
+                    )
+                  : null,
+                /**
+                 * Sent with no attachment, said plainly.
+                 *
+                 * The studio needs to know the couple got a link and not a
+                 * document, so the workspace can tell them and offer the
+                 * regenerate they will want once the worker is healthy.
+                 */
+                sentWithoutDocument: !pdfDocument,
               };
             } else {
               writeInvitation();
@@ -968,10 +1024,20 @@ export const proposalCommand = onRequest(
                 proposalId: proposal.id,
                 status: currentStatus,
                 emailJobId,
-                storagePath: stringValue(
-                  pdfDocument.get("providerFileId"),
-                  stringValue(pdfDocument.get("canonicalPath")),
-                ),
+                storagePath: pdfDocument
+                  ? stringValue(
+                      pdfDocument.get("providerFileId"),
+                      stringValue(pdfDocument.get("canonicalPath")),
+                    )
+                  : null,
+                /**
+                 * Sent with no attachment, said plainly.
+                 *
+                 * The studio needs to know the couple got a link and not a
+                 * document, so the workspace can tell them and offer the
+                 * regenerate they will want once the worker is healthy.
+                 */
+                sentWithoutDocument: !pdfDocument,
               };
             }
           }
