@@ -20,7 +20,15 @@ export function PlatformReturnLink() {
 
   if (!visible) return null;
   return (
-    <Link href="/platform-admin" className="nav-item">
+    /**
+     * No class: `.ds-user-pop a` styles every link in this popover, and this
+     * one carried `nav-item` from the pre-`ds-` shell. That rule still sets a
+     * font size, weight, colour and radius of its own, so the one link a
+     * platform admin sees here rendered a shade off from "Switch workspace"
+     * directly above it. It is also the only thing still rendering `.nav-item`,
+     * which is why the rest of that shell's CSS could not be removed.
+     */
+    <Link href="/platform-admin">
       <ShieldCheck size={18} />
       <span>Platform admin</span>
     </Link>

@@ -26,50 +26,6 @@
     var(--cue-canvas);
 }
 
-.sidebar {
-  background:
-    radial-gradient(circle at -20% 8%, rgb(255 111 97 / 24%), transparent 13rem),
-    radial-gradient(circle at 120% 58%, rgb(143 114 255 / 22%), transparent 16rem),
-    var(--cue-plum);
-  flex-basis: 224px;
-  padding: 22px 14px 14px;
-}
-
-.sidebar-brand > .brand-logo {
-  margin-bottom: 18px;
-}
-
-.sidebar .tenant-switcher {
-  background: rgb(255 255 255 / 7%);
-  border-color: rgb(255 255 255 / 10%);
-  border-radius: 12px;
-  padding: 10px;
-}
-
-.sidebar .tenant-switcher .avatar-sand,
-.sidebar .avatar-ink {
-  background: linear-gradient(145deg, #f7cd71, #f2a960);
-  color: #402a1c;
-}
-
-.sidebar .nav-item {
-  border-radius: 10px;
-  color: rgb(255 255 255 / 66%);
-  font-size: 12px;
-  min-height: 38px;
-  padding-inline: 10px;
-}
-
-.sidebar .nav-active {
-  background: linear-gradient(110deg, #fff 0%, #f5edff 100%);
-  box-shadow: 0 10px 26px rgb(10 3 17 / 24%);
-  color: #392448;
-}
-
-.sidebar .nav-active svg {
-  color: #8a61de;
-}
-
 .command-search {
   background: #f6f3f8;
   border-color: #ebe5ef;
@@ -183,9 +139,6 @@
 .daily-command-lane.is-working > header > span {
   background: var(--cue-mint-soft);
   color: #218c6c;
-}
-
-@media (max-width: 1050px) {
 }
 
 @media (max-width: 560px) {
