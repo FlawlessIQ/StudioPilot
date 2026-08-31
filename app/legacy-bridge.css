@@ -2306,7 +2306,12 @@
    workspace was in until three days ago: never measured, so flush since the
    day it was written. */
 .client-help-card,
-.client-questionnaire-panel {
+.client-questionnaire-panel,
+/* The public inquiry page: the first thing anyone outside the business ever
+   sees, and the last surface the sweep did not walk. Only the "form
+   unavailable" branch is bare `.panel` — the form itself supplies its own
+   inset — but that branch is what a stale link on a business card renders. */
+.inquiry-unavailable > .panel {
   padding: 26px var(--panel-inset, 26px) var(--panel-inset, 26px);
 }
 

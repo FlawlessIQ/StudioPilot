@@ -183,6 +183,43 @@ const PLATFORM_ROUTES = [
   "/platform-admin/support",
 ];
 
+/**
+ * Every public route, measured signed out.
+ *
+ * The whole list, not the pages I could see a `.panel` in. Grepping the page
+ * files said only `/inquiry` and `/studio-preview` held an audited container —
+ * which is true today and is exactly the reasoning that left the crew
+ * workspace, the couple's portal and this surface unmeasured for months. A
+ * route with no audited container costs one page load and lands in `skipped`;
+ * a marketing page that grows a `.panel` next week gets caught for free.
+ *
+ * Swept last but signed out, because that is the state a visitor is in.
+ */
+const PUBLIC_ROUTES = [
+  "/",
+  "/corporate-photographers",
+  "/features",
+  "/for-clients",
+  "/for-crew",
+  // No `?studio=`, which is what a stale link on a business card renders.
+  "/inquiry",
+  // The form itself, when the slug resolves. Needs a real tenant, so it is
+  // opt-in: `AUDIT_INQUIRY_SLUG=<publicSlug>`.
+  ...(process.env.AUDIT_INQUIRY_SLUG
+    ? [`/inquiry?studio=${process.env.AUDIT_INQUIRY_SLUG}`]
+    : []),
+  "/integrations",
+  "/offline",
+  "/pricing",
+  "/privacy",
+  "/sports-photographers",
+  "/start-trial",
+  "/studio-preview",
+  "/support",
+  "/terms",
+  "/wedding-photographers",
+];
+
 const routes = projectId ? [...ROUTES, ...projectScoped(projectId)] : ROUTES;
 
 let flush = 0;
@@ -356,7 +393,7 @@ for (const route of routes) await measure(route);
  * lives. Firebase keeps it in IndexedDB; localStorage and cookies go too so
  * nothing re-hydrates the previous user on the next navigation.
  */
-async function walkAs(email, workspaceRoutes, label) {
+async function clearSession() {
   await page.evaluate(async () => {
     localStorage.clear();
     sessionStorage.clear();
@@ -369,6 +406,10 @@ async function walkAs(email, workspaceRoutes, label) {
       : null));
   }).catch(() => {});
   await page.context().clearCookies();
+}
+
+async function walkAs(email, workspaceRoutes, label) {
+  await clearSession();
   await page.goto(`${BASE}/auth/login`, { waitUntil: "domcontentloaded", timeout: 60000 });
   const field = page.locator("input[type=email]").first();
   if (!(await field.count())) return;
@@ -406,6 +447,14 @@ if (password) {
     "platform admin",
   );
 }
+
+/**
+ * Public pages, signed out — the state a visitor is actually in. Last, because
+ * it is the one pass that must not carry a session, and clearing one is easier
+ * than avoiding it.
+ */
+await clearSession();
+for (const route of PUBLIC_ROUTES) await measure(route);
 
 await browser.close();
 
