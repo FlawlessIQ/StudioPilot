@@ -168,6 +168,21 @@ const CLIENT_ROUTES = [
   "/client/delivery", "/client/reviews",
 ];
 
+/**
+ * The platform-admin console, which needs a fourth sign-in.
+ *
+ * Access is the `platformAdmin` custom claim, not a tenant role, so neither a
+ * studio owner nor a subcontractor can reach these — a pass as any of them
+ * measures a redirect and reports clean. Ten routes, never swept.
+ */
+const PLATFORM_ROUTES = [
+  "/platform-admin", "/platform-admin/tenants", "/platform-admin/users",
+  "/platform-admin/subscriptions", "/platform-admin/integrations",
+  "/platform-admin/system-health", "/platform-admin/failed-jobs",
+  "/platform-admin/feature-flags", "/platform-admin/audit-logs",
+  "/platform-admin/support",
+];
+
 const routes = projectId ? [...ROUTES, ...projectScoped(projectId)] : ROUTES;
 
 let flush = 0;
@@ -385,6 +400,11 @@ async function walkAs(email, workspaceRoutes, label) {
 if (password) {
   await walkAs(process.env.AUDIT_CREW_EMAIL ?? "crew@studiohub.test", CREW_ROUTES, "crew");
   await walkAs(process.env.AUDIT_CLIENT_EMAIL ?? "client@studiohub.test", CLIENT_ROUTES, "client portal");
+  await walkAs(
+    process.env.AUDIT_PLATFORM_EMAIL ?? "platform@studiohub.test",
+    PLATFORM_ROUTES,
+    "platform admin",
+  );
 }
 
 await browser.close();

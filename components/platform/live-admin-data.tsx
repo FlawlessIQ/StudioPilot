@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { type CSSProperties, useEffect, useState } from "react";
 import {
   Activity,
   Building2,
@@ -303,7 +303,20 @@ export function LiveAdminCollection({
       {records.map((record) => {
         const status = value(record, config.status);
         return (
-          <article className="ops-row admin-live-row" key={record.id}>
+          <article
+            className="ops-row admin-live-row"
+            key={record.id}
+            /**
+             * The row is primary + one cell per fact + a status badge, and the
+             * grid declared four tracks for all of it. Most domains have three
+             * facts, so the badge already had no track of its own; the
+             * integrations domain has four facts, which put two cells into
+             * implicit columns and pushed "Recommendation" past the panel's
+             * right edge. The count is a fact about the data, so the data
+             * supplies it.
+             */
+            style={{ "--ops-facts": config.facts.length } as CSSProperties}
+          >
             <span>
               <Icon size={17} />
               <span>

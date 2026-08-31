@@ -4,7 +4,7 @@ const BASE=process.argv[2], ROUTE=process.argv[3], SEL=process.argv[4], WHO=proc
 const env=Object.fromEntries(readFileSync(".env.local","utf8").split("\n").map(l=>l.split("=")).filter(p=>p.length>=2).map(([k,...v])=>[k.trim(),v.join("=").trim()]));
 const b=await chromium.launch(); const page=await b.newPage({viewport:{width:1440,height:1200}});
 await page.goto(`${BASE}/auth/login`,{waitUntil:"domcontentloaded"});
-await page.locator("input[type=email]").first().fill(WHO==="crew"?"crew@studiohub.test":"owner@studiohub.test");
+await page.locator("input[type=email]").first().fill(WHO.includes("@")?WHO:WHO+"@studiohub.test");
 await page.locator("input[type=password]").first().fill(env.SEED_DEMO_PASSWORD);
 await page.locator("button[type=submit]").first().click();
 await page.waitForTimeout(9000);
