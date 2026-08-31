@@ -634,10 +634,22 @@ textarea:focus-visible {
   margin: 0;
 }
 
+/* Six columns so five cards fill two rows: three at a third each, then two at
+   a half. A plain three-column grid leaves the last row two-thirds full with a
+   hole where a fourth card would be. */
 .feature-grid {
   display: grid;
   gap: 15px;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(6, 1fr);
+}
+
+.feature-grid > * {
+  grid-column: span 2;
+}
+
+.feature-grid > :nth-child(4):nth-last-child(2),
+.feature-grid > :nth-child(5):nth-last-child(1) {
+  grid-column: span 3;
 }
 
 .feature-card {

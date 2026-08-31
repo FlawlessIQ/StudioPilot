@@ -26,21 +26,33 @@ const readinessItems = [
 const productPoints = [
   {
     icon: Gauge,
-    eyebrow: "Know what’s ready",
-    title: "One clear readiness score",
-    text: "Every contract, payment, document, assignment, and approval in one view of the job.",
+    eyebrow: "Never wonder what is next",
+    title: "Your week, already sequenced",
+    text: "Every job shows its one live next action, ordered by what is actually urgent. No hunting through tabs to work out which wedding needs you today.",
+  },
+  {
+    icon: MessageSquareText,
+    eyebrow: "Stop writing it again",
+    title: "The message is already written",
+    text: "Enquiry replies, reminders, chasers and updates arrive drafted in your voice, with the client's details already in them. Read it, change a word, send.",
   },
   {
     icon: CalendarCheck2,
-    eyebrow: "Run the day",
-    title: "Schedules everyone follows",
-    text: "Build, approve, publish, and acknowledge a precise run of show across clients, venues, and crew.",
+    eyebrow: "Stop the back and forth",
+    title: "Clients book you, around you",
+    text: "Share one link. They pick a consultation from slots checked against your real calendar, so nothing lands on a day you are already shooting.",
+  },
+  {
+    icon: FileCheck2,
+    eyebrow: "Stop rebuilding from scratch",
+    title: "Packages and questionnaires, ready to go",
+    text: "Your collections, pricing and question sets are set up once. Sending a proposal or a questionnaire to a new couple is one click, not an afternoon.",
   },
   {
     icon: Sparkles,
-    eyebrow: "Operate with AI",
-    title: "Useful help, firm guardrails",
-    text: "Draft messages and schedules, surface missing information, and explain risks without inventing business facts.",
+    eyebrow: "Know what you are missing",
+    title: "AI that tells you what needs doing",
+    text: "It reads the certificate, drafts the run of show, and says plainly what is not ready and why. It never records a payment or a signature — you stay the one deciding.",
   },
 ];
 
@@ -73,17 +85,18 @@ export default function MarketingHome() {
           <div className="hero-glow" aria-hidden="true" />
           <div className="hero-copy">
             <StatusBadge tone="info" dot>
-              Built for professional photography teams
+              It prepares. You approve.
             </StatusBadge>
             <h1>
-              Every project,
+              The next step is
               <br />
-              genuinely ready.
+              already drafted.
             </h1>
             <p>
-              StudioCue brings your clients, contracts, payments, schedules, crew, and
-              documents into one calm operations system—so event day never runs on
-              crossed fingers.
+              StudioCue turns a booking into a run of prepared steps: the consultation
+              a client picked from slots that genuinely suit you, the proposal built
+              from your own package, the follow-up already written. You read it and
+              press send.
             </p>
             <div className="hero-actions">
               <Link className="button button-dark" href="/auth/register">
@@ -163,19 +176,19 @@ export default function MarketingHome() {
         </section>
 
         <section className="trust-strip" aria-label="Workflow capabilities">
-          <span>INQUIRY TO DELIVERY</span>
-          <span>READY BEFORE THE DAY</span>
+          <span>DRAFTED, NOT BLANK</span>
+          <span>BOOKED AROUND YOUR DIARY</span>
+          <span>ONE CLICK TO SEND</span>
           <span>AI THAT ASKS FIRST</span>
-          <span>EVERY ACTION ON RECORD</span>
         </section>
 
         <section className="platform-section" id="platform">
           <div className="section-kicker">A photography operations OS</div>
           <div className="section-intro">
-            <h2>Less chasing. More certainty.</h2>
+            <h2>The admin stops being your evening.</h2>
             <p>
-              Replace the scattered tabs, spreadsheets and status messages with
-              one place that always knows where every wedding stands.
+              A wedding is booked a year out and takes a hundred small actions to
+              get to. StudioCue prepares each one and waits for you to say yes.
             </p>
           </div>
           <div className="feature-grid">
