@@ -23,6 +23,11 @@ test("booking gate cannot pass while a deterministic requirement is missing", ()
     projectId: "project-a",
     evidence: { ...completeEvidence, contractCompleted: false },
     evaluatedAt: "2026-07-26T12:00:00.000Z",
+    // Stated, not defaulted. This case is about a missing requirement, and it
+    // used to assert "Docusign contract completed" — depending on a fallback
+    // that named a provider the product does not offer. The next test is the
+    // one that owns provider labelling.
+    signingProvider: "docusign",
   });
   assert.equal(result.passed, false);
   assert.deepEqual(result.blockers, ["Docusign contract completed"]);

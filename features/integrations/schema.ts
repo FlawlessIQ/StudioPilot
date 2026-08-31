@@ -72,6 +72,32 @@ export function isOfferedProvider(provider: IntegrationProvider): boolean {
   return offeredProviders.has(provider);
 }
 
+/**
+ * The signing app this product actually offers, if any.
+ *
+ * Removing DocuSign from `offeredProviders` hid its card and stopped the server
+ * resolving to it — but the booking workspace kept a private fallback of its
+ * own: `resolvedSigningProvider` ended `: "docusign"` and the state it seeded
+ * began there too. So a studio with no signing connection, which is every
+ * studio, was told "DocuSign remains the authority for signature", "choose a
+ * DocuSign template", "using your approved DocuSign agreement" — sent looking
+ * for an account the product does not offer and cannot use. Harmless to the
+ * data, since `createEnvelope` sends no provider and the server resolves it,
+ * and expensive to the reader: a live DocuSign integration is $600 a year.
+ *
+ * Derived rather than named, so it follows `offeredProviders` instead of
+ * drifting from it. Returns null when no signing app is offered at all, which
+ * callers must render as an absence rather than guessing one.
+ */
+const SIGNING_PROVIDERS: readonly IntegrationProvider[] = [
+  "dropbox_sign",
+  "docusign",
+];
+
+export function offeredSigningProvider(): IntegrationProvider | null {
+  return SIGNING_PROVIDERS.find(isOfferedProvider) ?? null;
+}
+
 export const integrationConnectionSchema = auditFieldsSchema.extend({
   id: z.string().min(1),
   tenantId: z.string().min(1),

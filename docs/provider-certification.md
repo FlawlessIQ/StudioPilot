@@ -121,9 +121,32 @@ person with each dashboard open:
 The destinations are listed in [webhooks.md](./webhooks.md). Every secret above
 already exists in Secret Manager for `studiohub-prod`.
 
-One configuration gap remains, and it is not a webhook: production enables
-`dropbox,google_calendar,quickbooks,zoom` in
-`NEXT_PUBLIC_ENABLED_OAUTH_PROVIDERS`. **Neither signing provider is enabled**,
-so no studio can connect Docusign or Dropbox Sign, and the booking gate has no
-way to receive the evidence it requires. Enabling one of them is the gating
-decision for a live booking.
+## DocuSign is deferred on cost, not on readiness
+
+A live DocuSign API integration is roughly **$600 a year**, and that spend is
+deferred until revenue covers it. Everything else about DocuSign is finished —
+its webhook is certified above, its OAuth strategy is implemented, its client
+secret and integration key are configured — so restoring it is two entries:
+`docusign` in `NEXT_PUBLIC_ENABLED_OAUTH_PROVIDERS`, and `docusign` in
+`offeredProviders` in `features/integrations/schema.ts`.
+
+`offeredProviders` is the authority on what the product offers. It gates the
+settings card, the proposal capability note and the server resolving which app
+signs a contract. `NEXT_PUBLIC_ENABLED_OAUTH_PROVIDERS` only controls what can
+*start* an OAuth flow, and the two disagreeing is how a hidden provider gets
+named at a studio anyway — `tests/offered-providers-agree.test.ts` now fails if
+the OAuth list offers something `offeredProviders` hides.
+
+That test also fails on the two shapes that leaked DocuSign into the UI after it
+was hidden: a state seed and a fallback. The booking workspace seeded
+`useState("docusign")` and closed its resolution `: "docusign"`, so a studio with
+no signing connection — which is every studio — was told "DocuSign remains the
+authority for signature", "choose a DocuSign template" and "using your approved
+DocuSign agreement", and sent looking for an account the product does not offer.
+Nothing was ever *sent* through DocuSign: `createEnvelope` carries no provider
+and the server resolves it. The cost was a studio's afternoon.
+
+**Dropbox Sign is the offered signing app**, and it is fully configured — both
+client id and secret. Until it is connected, the signature and retainer steps
+run on the studio-attestation paths, which the walk of 2026-08-27 drove from
+inquiry to CLOSED without touching a provider.

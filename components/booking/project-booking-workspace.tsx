@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { offeredSigningProvider } from "@/features/integrations/schema";
 import { CapabilityNote } from "@/components/integrations/capability-note";
 import { RecordSignedAgreement } from "@/components/booking/record-signed-agreement";
 import { RecordRetainerPayment } from "@/components/booking/record-retainer-payment";
@@ -104,9 +105,16 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   const [contact, setContact] = useState<RecordValue | null>(null);
   const [templateId, setTemplateId] = useState("");
   const [templateConfigured, setTemplateConfigured] = useState(false);
+  /**
+   * Seeded from what the product offers, not from a name.
+   *
+   * This began at "docusign" — a provider StudioCue does not offer, whose card
+   * is hidden and which the server will not resolve to. See
+   * features/integrations/schema.ts.
+   */
   const [signingProvider, setSigningProvider] = useState<
-    "docusign" | "dropbox_sign"
-  >("docusign");
+    "docusign" | "dropbox_sign" | null
+  >(() => (offeredSigningProvider() as "docusign" | "dropbox_sign" | null));
   const [signingTestMode, setSigningTestMode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -274,11 +282,13 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           archivedAt: item.get("archivedAt") ?? null,
         })),
       });
+      // Unresolved means unresolved. Falling back to a fixed provider is how
+      // the workspace came to name DocuSign at a studio that has none.
       const resolvedSigningProvider =
         signingResolution.outcome === "resolved" &&
         ["docusign", "dropbox_sign"].includes(signingResolution.provider)
           ? (signingResolution.provider as "docusign" | "dropbox_sign")
-          : "docusign";
+          : (offeredSigningProvider() as "docusign" | "dropbox_sign" | null);
       const signingConnection = connections.docs.find(
         (item) => item.get("provider") === resolvedSigningProvider,
       );
@@ -343,7 +353,13 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
     return date.toISOString().slice(0, 10);
   }, []);
   const signingProviderLabel =
-    signingProvider === "dropbox_sign" ? "Dropbox Sign" : "Docusign";
+    signingProvider === "dropbox_sign"
+      ? "Dropbox Sign"
+      : signingProvider === "docusign"
+        ? "Docusign"
+        : // No signing app is offered or connected. Naming one would send the
+          // studio looking for an account they do not have.
+          "your signing app";
   // Superseded by bookingAutomationDrivesContract, which asks the sharper
   // question: not "is a plan running" but "is it running on this contract".
   const automationNeedsAttention = orchestration?.status === "needs_attention";

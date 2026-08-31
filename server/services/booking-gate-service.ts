@@ -1,4 +1,5 @@
 import { bookingGateResultSchema, type BookingGateEvidence, type BookingGateResult } from "@/features/booking/schema";
+import { offeredSigningProvider } from "@/features/integrations/schema";
 import { bookingGateRequirements } from "@/features/booking/gate-requirements";
 
 type SigningProvider = "docusign" | "dropbox_sign";
@@ -25,11 +26,22 @@ export function evaluateBookingGate(input: {
   evidence: BookingGateEvidence;
   evaluatedAt: string;
   // Which signing provider the contract was (or would be) completed
-  // through — determines the requirement's label/source. Defaults to
-  // "docusign" for callers that predate multi-provider signing.
+  // through — determines the requirement's label and, more importantly, the
+  // `source` recorded on the result, which is audit evidence.
   signingProvider?: SigningProvider;
 }): BookingGateResult {
-  const signingProvider = input.signingProvider ?? "docusign";
+  /**
+   * The default followed a name, and the name was DocuSign.
+   *
+   * Only tests reach it today — the Cloud Function that books a job passes the
+   * resolved provider — so nothing has recorded a false source. It is still the
+   * wrong shape: the first real caller that omits the argument would have the
+   * gate attribute a signature to a provider StudioCue does not offer, in the
+   * one field that exists to say who verified it.
+   */
+  const signingProvider =
+    input.signingProvider ??
+    ((offeredSigningProvider() as SigningProvider | null) ?? "docusign");
   // Which authority actually satisfied the signature requirement. A
   // provider-verified completion and a studio owner's attestation both pass
   // the gate; the result says which one, because the audit record is the

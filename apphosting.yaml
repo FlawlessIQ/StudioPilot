@@ -151,7 +151,13 @@ env:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_ENABLED_OAUTH_PROVIDERS
-    value: docusign,dropbox,google_calendar,quickbooks,zoom
+    # DocuSign is deliberately absent. A live DocuSign API integration costs
+    # ~$600/year and is deferred until revenue covers it; the server code stays
+    # in place so it is one entry here plus DOCUSIGN_CLIENT_ID to restore.
+    # features/integrations/schema.ts is the authority on what is *offered* —
+    # this list only controls what can start an OAuth flow, and the two
+    # disagreeing is how a hidden provider gets named at a studio anyway.
+    value: dropbox,google_calendar,quickbooks,zoom
     availability:
       - BUILD
       - RUNTIME
