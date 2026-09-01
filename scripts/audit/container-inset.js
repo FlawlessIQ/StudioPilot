@@ -169,6 +169,76 @@
       }
     }
 
+    /* ── Doubled inset ──────────────────────────────────────────────
+     * The opposite fault, and the one that actually shipped: the container
+     * pads itself and a direct child pads itself again by the same amount,
+     * so the child's contents sit at twice the inset while a sibling
+     * heading sits at one. `.vendor-create-panel`, `.questionnaire-builder`
+     * and `.report-chart-card` were live like that for hours at 41px under
+     * a 21px heading, through two clean sweeps and a click-through of every
+     * route — because every other check here asks whether content is too
+     * *close* to the edge, and this is the reverse.
+     *
+     * A child that is its own surface — it has a border, a shadow, or a
+     * background of its own — keeps its padding: a card nested inside a
+     * padded panel is a correct pattern, not a doubled inset. The fault is
+     * a plain wrapper repeating an inset the container already supplied.
+     */
+    const doubled = [];
+    if (pad.left >= 8) {
+      for (const child of container.children) {
+        if (!isVisible(child)) continue;
+        const ds = getComputedStyle(child);
+        const ownSurface =
+          (parseFloat(ds.borderLeftWidth) || 0) > 0 ||
+          (ds.boxShadow && ds.boxShadow !== "none") ||
+          (ds.backgroundColor &&
+            ds.backgroundColor !== "rgba(0, 0, 0, 0)" &&
+            ds.backgroundColor !== cs.backgroundColor);
+        if (ownSurface) continue;
+        // A list's `padding-left` is the marker gutter, not an inset it is
+        // repeating: `.support-boundary ul` sits at 19px inside a 29px panel
+        // and is correct.
+        if (child.tagName === "UL" || child.tagName === "OL") continue;
+        // Where the child's content actually lands, measured from the
+        // container's border box — not the sum of two padding values.
+        // A heading that pads itself and is pulled back out with a negative
+        // margin nets to exactly the container's inset and is correct; the
+        // arithmetic version flagged every one of them.
+        const dr = child.getBoundingClientRect();
+        const contentLeft =
+          dr.left +
+          (parseFloat(ds.borderLeftWidth) || 0) +
+          (parseFloat(ds.paddingLeft) || 0) -
+          box.left;
+        // Both conditions, because each covers the other's blind spot.
+        // Geometry alone flags a centred or right-aligned child, whose
+        // content is far from the edge while supplying no inset at all
+        // (`SPAN adds 0px ... sits at 64px`). Padding alone flags a heading
+        // that pads itself and is pulled back out with a negative margin,
+        // which nets to one inset. A doubled inset is a child that both
+        // declares an inset of its own *and* lands at roughly twice it.
+        const childPad = parseFloat(ds.paddingLeft) || 0;
+        if (childPad < Math.max(8, pad.left * 0.66)) continue;
+        if (contentLeft < pad.left * 1.6 || contentLeft < pad.left + 8) continue;
+        doubled.push({
+          child: String(child.className || child.tagName).slice(0, 44),
+          childPad: Math.round(childPad),
+          total: Math.round(contentLeft),
+        });
+      }
+    }
+    if (doubled.length) {
+      findings.push({
+        kind: "doubled",
+        container: label,
+        pad: `${pad.top}/${pad.right}/${pad.bottom}/${pad.left}`,
+        inset: Math.round(pad.left),
+        ...doubled[0],
+        count: doubled.length,
+      });
+    }
+
     if (worst) {
       findings.push({
         kind: "flush",

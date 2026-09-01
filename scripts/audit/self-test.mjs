@@ -39,9 +39,33 @@ const env = (() => {
 
 /** Insets these deliberately remove, and the panels that should then report. */
 const BREAK = `
-  .team-invite-panel > form { padding-inline: 0 !important; }
+  .team-invite-panel, .team-invite-panel > form { padding: 0 !important; }
   .crew-cascade-form { padding: 0 !important; }
   .crew-direct-invite-form { padding: 0 !important; }
+`;
+// The panel's own padding has to go too. This used to zero only the form's
+// inset, which was the whole fault back when `.panel` shipped no padding —
+// now the panel supplies it, so zeroing the child alone breaks nothing and
+// the self-test reported "broken: 0" against a detector that was working
+// perfectly. A test that cannot break the thing it tests is the same false
+// assurance as a sweep that measures nothing.
+
+/**
+ * The other direction: an inset applied twice.
+ *
+ * A panel supplies the inset for everything under its heading, so a child
+ * that also supplies one puts its contents at double. That shipped — three
+ * panel families sat at 41px under a 21px heading for hours, and every
+ * check at the time asked only whether content was too *close* to an edge,
+ * so two clean sweeps and a click-through of every route all passed it.
+ *
+ * `.panel-heading` must stay silent under this: it pads itself and is
+ * pulled back out with a negative margin, which nets to exactly one inset.
+ * An arithmetic check that summed the two paddings flagged every heading in
+ * the app, which is why the detector measures where content actually lands.
+ */
+const DOUBLE = `
+  .team-invite-panel > form { padding-inline: 26px !important; }
 `;
 
 const browser = await chromium.launch();
@@ -75,11 +99,30 @@ async function measure(route, expectSelector) {
   return { clean: clean.findings.length, broken: broken.findings.length };
 }
 
+/** Same shape, for the doubled-inset direction. */
+async function measureDoubled(route, expectSelector) {
+  await page.goto(BASE + route, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector(expectSelector, { timeout: 30000 });
+  await page.waitForTimeout(900);
+  const clean = await page.evaluate(detector);
+  await page.addStyleTag({ content: DOUBLE });
+  await page.waitForTimeout(400);
+  const after = await page.evaluate(detector);
+  return {
+    cleanDoubled: clean.findings.filter((f) => f.kind === "doubled").length,
+    doubled: after.findings.filter((f) => f.kind === "doubled").length,
+  };
+}
+
 let ok = true;
 
 const team = await measure("/studio/team", ".team-invite-panel > form");
 console.log(`team  — fixed: ${team.clean}, broken: ${team.broken}`);
 if (team.clean !== 0 || team.broken === 0) ok = false;
+
+const dbl = await measureDoubled("/studio/team", ".team-invite-panel > form");
+console.log(`team  — doubled findings before: ${dbl.cleanDoubled}, after doubling: ${dbl.doubled}`);
+if (dbl.cleanDoubled !== 0 || dbl.doubled === 0) ok = false;
 
 await page.goto(`${BASE}/studio/projects`, { waitUntil: "domcontentloaded" });
 await page

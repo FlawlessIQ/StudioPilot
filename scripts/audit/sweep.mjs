@@ -505,6 +505,11 @@ async function measure(route) {
       console.log(`  flush     ${where} — ${f.child} ${f.gap}px from the ${f.side} edge  "${f.text}"`);
     else if (f.kind === "overflow")
       console.log(`  overflow  ${where} — ${f.child} runs ${-f.gap}px past the ${f.side} edge  "${f.text}"`);
+    else if (f.kind === "doubled")
+      console.log(
+        `  doubled   ${where} — ${f.child} adds ${f.childPad}px inside the container's own ${f.inset}px, so its contents sit at ${f.total}px` +
+          (f.count > 1 ? ` (+${f.count - 1} more)` : ""),
+      );
     else
       console.log(`  bleed     ${where} — ${f.rules} full-width rule(s), e.g. ${f.example}`);
   }
