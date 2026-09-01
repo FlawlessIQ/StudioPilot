@@ -60,7 +60,13 @@ async function markEmailVerified(identity: {
 }
 
 export const crewInvitationPreview = onRequest(
-  { cors: studioHubCors, invoker: "public" },
+  // Private like everything else here, despite serving people who are not
+  // signed in: the browser reaches it through the Next relay, which mints the
+  // service identity and forwards a user token only when there is one. A
+  // public invoker is not an option regardless — the org policy that resets
+  // Cloud Run IAM on every revision refuses to set one, which is how this was
+  // found.
+  { cors: studioHubCors, invoker: "private" },
   async (request, response) => {
     if (request.method !== "POST") {
       response.status(405).json({ error: "METHOD_NOT_ALLOWED" });
