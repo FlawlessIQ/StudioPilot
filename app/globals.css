@@ -5412,10 +5412,9 @@ textarea:focus-visible {
   overflow: hidden;
 }
 
-.vendor-create-panel form,
-.questionnaire-builder form {
-  padding: 2px var(--panel-inset, 26px) var(--panel-inset, 26px);
-}
+/* No padding here: `.vendor-create-panel` and `.questionnaire-builder` are
+   heading-led panels, and the panel supplies the inset for everything below
+   its heading. A child carrying its own inset gets it twice. */
 
 .vendor-create-panel {
   gap: 0;
@@ -5686,7 +5685,6 @@ textarea:focus-visible {
   .vendor-create-panel form,
   .questionnaire-builder form {
     grid-template-columns: 1fr;
-    padding: 0 20px 22px;
   }
 
   .questionnaire-builder .form-span {
@@ -7218,6 +7216,17 @@ textarea:focus-visible {
   --panel-inset: 26px;
 }
 
+/* The inset narrows on a phone. Declared here as well as in
+   legacy-bridge.css because the token has to reach the same stylesheet as
+   the rules that read it — globals.css is split across chunks and not every
+   route loads both. Without this, a rule here resolved 26px on a 390px
+   screen. */
+@media (max-width: 620px) {
+  :root {
+    --panel-inset: 20px;
+  }
+}
+
 .app-frame,
 .portal-frame,
 .crew-portal-frame,
@@ -7529,9 +7538,7 @@ textarea:focus-visible {
   overflow: hidden;
 }
 
-.report-chart-card .report-bars {
-  padding: 2px var(--panel-inset, 26px) var(--panel-inset, 26px);
-}
+/* Likewise: the chart card is heading-led and pads its own body. */
 
 .report-empty-chart {
   align-items: center;
@@ -8401,10 +8408,6 @@ textarea:focus-visible {
     grid-template-columns: 1fr;
   }
 
-  .report-chart-card .report-bars {
-    padding: 0 21px 22px;
-  }
-
   .report-source-note {
     align-items: start;
     grid-template-columns: auto 1fr;
@@ -8445,12 +8448,6 @@ textarea:focus-visible {
   .portal-empty-guide > div,
   .crew-empty-guide {
     grid-template-columns: 1fr;
-  }
-
-  .schedule-generator > .panel > .schedule-generator-form,
-  .coi-workflow-panel > .panel > .coi-request-form,
-  .live-domain-page > .panel > .delivery-form {
-    padding: 0 21px 22px;
   }
 
   .admin-content > header .button {
