@@ -39,7 +39,10 @@ export {
   crewCascadeExpiryScheduler,
   crewCommand,
 } from "./crew/commands.js";
-export { crewInvitationCommand } from "./crew/invitations.js";
+export {
+  crewInvitationCommand,
+  crewInvitationPreview,
+} from "./crew/invitations.js";
 export { clientInvitationCommand } from "./client/invitations.js";
 export { postEventCommand } from "./post-event/commands.js";
 export { sendgridInboundGallery } from "./post-event/inbound.js";

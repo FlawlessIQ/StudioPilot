@@ -102,6 +102,7 @@ app_services=(
   createsession
   crewcommand
   crewinvitationcommand
+  crewinvitationpreview
   crmcommand
   dropboxsignwebhook
   docusignwebhook

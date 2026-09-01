@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
+import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
@@ -18,6 +19,115 @@ const equalHash = (left: string, right: string) => {
 };
 const normalizedEmail = (value: string) => value.trim().toLowerCase();
 
+
+/**
+ * What this token is for, before anyone has signed in.
+ *
+ * The accept page could not say anything about the invitation it was holding,
+ * because the token is opaque to the browser and every other endpoint needs an
+ * identity first. So it offered "Sign in" and "Create an account" pointing at
+ * the generic auth pages, which do not know which address was invited — and
+ * the accept then rejects any address but that one. A crew member with no
+ * account had to guess that they were meant to register, then retype the exact
+ * address the studio typed for them, with a mismatch rejected after the fact.
+ *
+ * Returning the invited address to whoever holds the token is not a leak: the
+ * token is 32 random bytes and was delivered to that address and nowhere else.
+ * It returns nothing beyond what the invitation email already said — no
+ * project, no fee, no ids — so a stolen token reveals nothing the thief did
+ * not already have by reading the mail it came in.
+ */
+/**
+ * The token is the verification.
+ *
+ * Accepting used to require an already-verified email, which meant a crew
+ * member creating an account from an invitation had to break off, wait for a
+ * second email, click that, come back and refresh — to prove control of the
+ * mailbox that the invitation itself had just been delivered to. The token is
+ * 32 random bytes and went to that address alone, so possession of it is the
+ * stronger proof of the two.
+ *
+ * Only ever called after a transaction has matched the token to a profile and
+ * that profile's address to this identity. Never on the strength of the
+ * address a browser claims.
+ */
+async function markEmailVerified(identity: {
+  uid: string;
+  email_verified?: boolean;
+}) {
+  if (identity.email_verified === true) return;
+  await getAuth().updateUser(identity.uid, { emailVerified: true });
+}
+
+export const crewInvitationPreview = onRequest(
+  { cors: studioHubCors, invoker: "public" },
+  async (request, response) => {
+    if (request.method !== "POST") {
+      response.status(405).json({ error: "METHOD_NOT_ALLOWED" });
+      return;
+    }
+    try {
+      await requireAppCheck(request);
+      const parsed = z
+        .object({ token: z.string().min(32).max(200) })
+        .parse(request.body);
+      const tokenHash = hash(parsed.token);
+      const db = getFirestore();
+      const [assignments, profiles] = await Promise.all([
+        db
+          .collection("crewAssignments")
+          .where("inviteTokenHash", "==", tokenHash)
+          .limit(1)
+          .get(),
+        db
+          .collection("crewProfiles")
+          .where("inviteTokenHash", "==", tokenHash)
+          .limit(1)
+          .get(),
+      ]);
+      const assignment = assignments.docs[0];
+      const roster = profiles.docs[0];
+      const source = assignment ?? roster;
+      if (!source) throw new Error("INVITATION_NOT_FOUND");
+      const tenantId = String(source.get("tenantId"));
+      const profile = assignment
+        ? await db
+            .doc(`crewProfiles/${String(assignment.get("crewProfileId"))}`)
+            .get()
+        : roster;
+      const email = normalizedEmail(String(profile?.get("email") ?? ""));
+      if (!email) throw new Error("INVITATION_NOT_FOUND");
+      const tenant = await db.doc(`tenants/${tenantId}`).get();
+      // Whether they need a password or already have one. Checked here rather
+      // than guessed in the browser, which cannot ask.
+      let hasAccount = false;
+      try {
+        await getAuth().getUserByEmail(email);
+        hasAccount = true;
+      } catch {
+        hasAccount = false;
+      }
+      const expiresAt = String(source.get("inviteExpiresAt") ?? "");
+      response.status(200).json({
+        kind: assignment ? "assignment" : "roster",
+        studioName:
+          String(tenant.get("brandName") ?? "") ||
+          String(tenant.get("businessName") ?? "") ||
+          "A photography studio",
+        email,
+        name: String(profile?.get("name") ?? ""),
+        hasAccount,
+        expiresAt,
+        expired: Boolean(expiresAt) && Date.parse(expiresAt) <= Date.now(),
+      });
+    } catch (caught: unknown) {
+      const message =
+        caught instanceof Error ? caught.message : "INVITATION_NOT_FOUND";
+      response.status(400).json({ error: message });
+    }
+  },
+);
+
 export const crewInvitationCommand = onRequest(
   {
     cors: studioHubCors,
@@ -31,10 +141,7 @@ export const crewInvitationCommand = onRequest(
     try {
       await requireAppCheck(request);
       const identity = await requireIdentity(request);
-      if (
-        identity.email_verified !== true ||
-        typeof identity.email !== "string"
-      ) {
+      if (typeof identity.email !== "string") {
         throw new Error("VERIFIED_EMAIL_REQUIRED");
       }
       const parsed = input.parse(request.body);
@@ -206,6 +313,7 @@ export const crewInvitationCommand = onRequest(
             status: "accepted",
           };
         });
+        await markEmailVerified(identity);
         response.status(200).json(rosterResult);
         return;
       }
@@ -379,6 +487,7 @@ export const crewInvitationCommand = onRequest(
           status: "viewed",
         };
       });
+      await markEmailVerified(identity);
       response.status(200).json(result);
     } catch (caught: unknown) {
       const message =

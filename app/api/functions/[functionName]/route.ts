@@ -19,6 +19,7 @@ const functionNames = [
   "createSession",
   "crewCommand",
   "crewInvitationCommand",
+  "crewInvitationPreview",
   "crmCommand",
   "integrationOAuth",
   "integrationsCommand",
