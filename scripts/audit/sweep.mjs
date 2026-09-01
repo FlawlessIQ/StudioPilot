@@ -275,6 +275,26 @@ let measured = 0;
  * Reported with the widest offending element, because "the page scrolls" on
  * its own sends you hunting.
  */
+/**
+ * Evaluate in the page, tolerating a navigation landing mid-call.
+ *
+ * Firestore hydrates after paint and some routes redirect once they know who
+ * you are, so an evaluate issued a fixed delay after goto can be destroyed by
+ * a navigation it did not cause. One retry after a settle turns that from a
+ * crashed run into a measured one.
+ */
+async function evaluateSettled(fn, arg) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return await page.evaluate(fn, arg);
+    } catch (error) {
+      if (!String(error).includes("Execution context was destroyed")) throw error;
+      await page.waitForTimeout(1500);
+    }
+  }
+  return null;
+}
+
 async function measureNarrow(routes, label) {
   await page.setViewportSize({ width: 390, height: 844 });
   for (const route of routes) {
@@ -284,7 +304,7 @@ async function measureNarrow(routes, label) {
       // Measure whatever rendered, as above.
     }
     await page.waitForTimeout(1200);
-    const finding = await page.evaluate(() => {
+    const finding = await evaluateSettled(() => {
       const limit = document.documentElement.clientWidth;
       if (document.documentElement.scrollWidth <= limit + 1) return null;
       let worst = null;
@@ -403,7 +423,7 @@ async function measure(route) {
     for (const d of document.querySelectorAll("details")) d.open = true;
   });
   await page.waitForTimeout(900);
-  let report = await page.evaluate(detector);
+  let report = await evaluateSettled(detector);
   if (!report) {
     skipped.push(route);
     return;
@@ -413,7 +433,7 @@ async function measure(route) {
    * settling and the first reading was fiction — say so rather than print it.
    */
   await page.waitForTimeout(700);
-  const confirm = await page.evaluate(detector);
+  const confirm = await evaluateSettled(detector);
   if (!confirm || confirm.findings.length !== report.findings.length) {
     unstable.push(
       `${route} (${report.findings.length} then ${confirm ? confirm.findings.length : "none"})`,
@@ -491,9 +511,20 @@ async function walkAs(email, workspaceRoutes, label) {
   const prefix = workspaceRoutes[0];
   await page.goto(BASE + prefix, { waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => {});
   await page.waitForTimeout(3000);
-  const landed = await page.evaluate((want) => location.pathname.startsWith(want), prefix);
+  // page.url() rather than page.evaluate(): a client-side redirect can fire
+  // at exactly this moment and destroy the execution context, which took the
+  // whole sweep down with it — a run that crashes reports nothing at all,
+  // which is worse than the silent pass this check exists to prevent.
+  const pathOf = () => {
+    try {
+      return new URL(page.url()).pathname;
+    } catch {
+      return "";
+    }
+  };
+  const landed = pathOf().startsWith(prefix);
   if (!landed) {
-    const at = await page.evaluate(() => location.pathname);
+    const at = pathOf();
     console.log(`\nCould not enter the ${label} workspace as ${email} — landed on ${at}. Not measured.`);
     misdirected.push(`${label} (${email} -> ${at})`);
     return;

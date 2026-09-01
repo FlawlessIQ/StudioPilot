@@ -2307,6 +2307,11 @@
    day it was written. */
 .client-help-card,
 .client-questionnaire-panel,
+/* And this one, which the earlier client pass missed because the sweep
+   crashed before it finished a full run. /client/schedule is where a couple
+   accepts or asks about their run of show — the decision panel had its
+   eyebrow hard against the border. */
+.client-schedule-decision,
 /* The public inquiry page: the first thing anyone outside the business ever
    sees, and the last surface the sweep did not walk. Only the "form
    unavailable" branch is bare `.panel` — the form itself supplies its own
