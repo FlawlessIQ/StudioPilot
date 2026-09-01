@@ -4,6 +4,7 @@ import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { logger } from "firebase-functions/v2";
 import { agreedRetainerCents } from "./agreed-retainer.js";
 import { isStandingInvoice } from "./invoice-standing.js";
+import { bookingGateRequirements } from "./gate-requirements.js";
 import { resolveProviderForTenant } from "../integrations/capability-resolution.js";
 import { productEvent } from "../operations/product-events.js";
 
@@ -284,14 +285,41 @@ export const bookingRetainerPaid = onDocumentWritten(
       Promise.all(contactIds.map((contactId) => db.doc(`contacts/${contactId}`).get())),
     ]);
     const blockingStates = new Set(["BOOKED", "PLANNING", "READY", "EVENT_COMPLETE"]);
+    /**
+     * Evidence, then requirements — not evidence treated as requirements.
+     *
+     * `blockers` was derived straight from this object by "anything not
+     * true", and `contractAttestedManually` was hardcoded `false` on the
+     * reasoning that the orchestrator only ever runs behind a provider
+     * signature. So it was permanently in the blocker list and the automatic
+     * gate could never pass. Not "rarely" — never, for any booking, however
+     * complete: the run this was found on had contractCompleted,
+     * eventDateAvailable, requiredContactsComplete, retainerInvoiceCreated
+     * and retainerSatisfied all true, and still stopped with a single
+     * blocker naming a flag that is not a requirement.
+     *
+     * Several of these fields answer the same requirement by different
+     * authorities, which is exactly what `bookingGateRequirements` folds —
+     * `runBookingGate` has always called it. The orchestrator built its own
+     * shape and skipped it.
+     *
+     * The premise was wrong too. This trigger fires on a retainer invoice
+     * reaching paid, by any authority, and the retainer that got here was
+     * `manual_attested`. Both authorities are now read from the records
+     * rather than assumed.
+     */
+    const contractAttestedManually = contracts.docs.some(
+      (contract) => contract.get("completionAuthority") === "manual_attested",
+    );
+    const retainerAttestedManually =
+      invoice.get("completionAuthority") === "manual_attested";
     const checks = {
-      contractCompleted: !contracts.empty,
-      // The orchestrator only runs behind a provider signature, so an
-      // attestation never reaches it; declared so the evidence shape stays
-      // one thing rather than two.
-      contractAttestedManually: false,
+      contractCompleted: !contracts.empty && !contractAttestedManually,
+      contractAttestedManually,
       retainerInvoiceCreated: true,
-      retainerSatisfied: true,
+      retainerAttestedManually,
+      retainerSatisfied: !retainerAttestedManually,
+      retainerExceptionApproved: false,
       eventDateAvailable: Boolean(eventDate) && !sameDateProjects.docs.some(
         (candidate) => candidate.id !== projectId && blockingStates.has(String(candidate.get("state"))),
       ),
@@ -302,7 +330,12 @@ export const bookingRetainerPaid = onDocumentWritten(
           String(contact.get("displayName") ?? "").trim().length > 0,
       ),
     };
-    const blockers = Object.entries(checks).filter(([, passed]) => !passed).map(([key]) => key);
+    // Fold the alternatives before asking what is missing. See
+    // gate-requirements.ts.
+    const requirements = bookingGateRequirements(checks);
+    const blockers = Object.entries(requirements)
+      .filter(([, passed]) => !passed)
+      .map(([key]) => key);
     const now = new Date().toISOString();
     const gateId = stableId("gate_auto", tenantId, projectId, invoice.id);
     const correlationId = stableId("booking_paid", tenantId, projectId, invoice.id);
@@ -334,6 +367,7 @@ export const bookingRetainerPaid = onDocumentWritten(
         tenantId,
         projectId,
         checks,
+        requirements,
         blockers,
         passed: blockers.length === 0,
         rulesVersion: 2,

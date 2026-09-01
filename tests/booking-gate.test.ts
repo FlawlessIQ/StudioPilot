@@ -365,3 +365,54 @@ test("a replaced invoice is not a retainer anyone owes", () => {
     "features/ and functions/ disagree about which invoices stand",
   );
 });
+
+/**
+ * The automatic gate must be able to pass.
+ *
+ * `bookingRetainerPaid` derived its blockers straight from its evidence
+ * object by "anything not true", with `contractAttestedManually` hardcoded
+ * `false`. That flag is evidence, not a requirement, so it sat in the blocker
+ * list permanently and no booking could ever be confirmed automatically — the
+ * run this was found on had every genuine check passing and stopped anyway.
+ *
+ * The fold is what separates the two, so assert on the fold: no requirement
+ * may be named after an authority, and a booking whose evidence is complete by
+ * either authority has nothing missing.
+ */
+test("no requirement is an authority flag, and either authority satisfies it", () => {
+  const complete = {
+    contractCompleted: true,
+    contractAttestedManually: false,
+    retainerInvoiceCreated: true,
+    retainerAttestedManually: false,
+    retainerSatisfied: true,
+    retainerExceptionApproved: false,
+    eventDateAvailable: true,
+    requiredContactsComplete: true,
+  };
+
+  const provider = bookingGateRequirements(complete);
+  assert.deepEqual(
+    Object.entries(provider).filter(([, passed]) => !passed).map(([key]) => key),
+    [],
+    "a provider-signed, provider-paid booking has nothing missing",
+  );
+
+  // The same booking, both steps vouched for by a person instead. This is the
+  // shape that was permanently blocked.
+  const attested = bookingGateRequirements({
+    ...complete,
+    contractCompleted: false,
+    contractAttestedManually: true,
+    retainerSatisfied: false,
+    retainerAttestedManually: true,
+  });
+  assert.deepEqual(
+    Object.entries(attested).filter(([, passed]) => !passed).map(([key]) => key),
+    [],
+    "a manually attested booking has nothing missing either",
+  );
+
+  // The requirements are the five real ones — never an authority flag.
+  assert.deepEqual(Object.keys(provider).filter((key) => /Manually|Approved/.test(key)), []);
+});
