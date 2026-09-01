@@ -28,13 +28,25 @@ export default async function NewSchedulePage({
         </Link>
         <header className="page-heading">
           <div>
-            <p className="eyebrow">AI-assisted planning</p>
-            <h1>Schedule draft</h1>
-            <p>Generate a first draft, review every assumption, then save it for your team to refine.</p>
+            <p className="eyebrow">Run of show</p>
+            <h1>Plan the day</h1>
+            <p>
+              Start from what you know, adjust anything, then publish it for
+              your crew.
+            </p>
           </div>
         </header>
-        <TimingRuleEditor />
         <AiScheduleGenerator initialProjectId={project} />
+        {/*
+          * Timing rules moved below the draft.
+          *
+          * This panel was the first thing on the page, so a photographer
+          * opening "Plan the day" was met by an empty configuration form
+          * reading "No rules yet" before anything they came for. Rules are
+          * how a studio makes the *next* draft better, which is a second
+          * visit, not a precondition for the first.
+          */}
+        <TimingRuleEditor />
       </div>
     </AppShell>
   );

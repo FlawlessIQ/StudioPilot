@@ -206,14 +206,16 @@ const PUBLIC_ROUTES = [
   /**
    * The form itself, which only renders when the slug resolves to a tenant.
    *
-   * `demo-studio` is the default because `app/inquiry/page.tsx` short-circuits
-   * it to a fixture whenever the server is in mock data mode — which is the
-   * local default — so an ordinary run measures the form rather than only the
-   * error branch above. A live-data server has no such tenant and falls back
-   * to that same branch, so point it at a real one with
-   * `AUDIT_INQUIRY_SLUG=<publicSlug>` when sweeping live.
+   * Opt-in, because resolving a slug is a live Firestore read through the
+   * Admin SDK. Defaulting this to `demo-studio` looked harmless — the page
+   * short-circuits that slug in mock data mode — but any server without Admin
+   * credentials answers 500, and the sweep then failed the whole run on an
+   * environment problem. Point it at a real tenant to measure the form:
+   * `AUDIT_INQUIRY_SLUG=<publicSlug>`.
    */
-  `/inquiry?studio=${process.env.AUDIT_INQUIRY_SLUG ?? "demo-studio"}`,
+  ...(process.env.AUDIT_INQUIRY_SLUG
+    ? [`/inquiry?studio=${process.env.AUDIT_INQUIRY_SLUG}`]
+    : []),
   "/integrations",
   "/offline",
   "/pricing",

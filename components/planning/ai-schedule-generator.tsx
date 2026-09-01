@@ -16,6 +16,7 @@ import { friendlyAiError } from "@/lib/ai/friendly-error";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
+import { sendCommunicationsCommand } from "@/lib/communications/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import {
   manualScheduleBlockers,
@@ -152,6 +153,8 @@ export function AiScheduleGenerator({
   const { records: packageSnapshots } =
     useTenantDocuments("packageSnapshots");
   const { records: schedules } = useTenantDocuments("schedules");
+  // For naming the recipient of the suggested questions.
+  const { records: contacts } = useTenantDocuments("contacts");
   const [draft, setDraft] = useState<Draft | null>(null);
   const [coverageMinutes, setCoverageMinutes] = useState(480);
   const [projectId, setProjectId] = useState(initialProjectId);
@@ -178,11 +181,33 @@ export function AiScheduleGenerator({
   const [publishing, setPublishing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  /**
+   * The questions, on their way to the couple.
+   *
+   * "Suggested questions" was the most useful thing the draft produced — it is
+   * the pre-wedding conversation, written out — and it was read-only text that
+   * dead-ended. Every answer it collects is grounding the next draft does not
+   * have to assume, so this is the loop that makes the feature worth having.
+   *
+   * Editable before it goes, and never sent without a second click: the studio
+   * writes to their own client, so the draft belongs to them.
+   */
+  const [askDraft, setAskDraft] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
 
   const selectedProject = useMemo(
     () => projects?.find((project) => project.id === projectId),
     [projectId, projects],
   );
+  /** Who the questions would go to, and whether there is anyone to send to. */
+  const clientContactId = useMemo(() => {
+    const ids = selectedProject?.clientContactIds;
+    return Array.isArray(ids) && typeof ids[0] === "string" ? ids[0] : null;
+  }, [selectedProject]);
+  const clientName = useMemo(() => {
+    const match = contacts?.find((contact) => contact.id === clientContactId);
+    return String(match?.displayName ?? "").trim() || "the couple";
+  }, [contacts, clientContactId]);
   const selectedQuestionnaire = useMemo(
     () =>
       questionnaires
@@ -375,7 +400,7 @@ export function AiScheduleGenerator({
           body: JSON.stringify({
             tenantId: workspace.tenantId,
             projectId,
-            coverageMinutes,
+            coverageMinutes: derivedCoverageMinutes,
             photographerIds: [],
             coverageStartsAt: startsAt,
             coverageEndsAt: endsAt,
@@ -403,6 +428,93 @@ export function AiScheduleGenerator({
 
   const publishBlockers = draft ? manualScheduleBlockers(draft.items) : [];
 
+  /**
+   * Whether this draft rests on anything real, in the studio's words.
+   *
+   * The panel used to read "0 questionnaire · 0 timing rules · 0 crew facts",
+   * which is the shape of the trace rather than an answer to the only question
+   * a photographer has: is this my day, or a generic one? With nothing to work
+   * from, the AI adds nothing over a template, and saying so plainly is more
+   * use than a row of zeroes.
+   */
+  const grounding = draft
+    ? [
+        draft.sourceTrace.questionnaireCount > 0
+          ? `${draft.sourceTrace.questionnaireCount} answer${draft.sourceTrace.questionnaireCount === 1 ? "" : "s"} from your couple`
+          : null,
+        draft.sourceTrace.timingRuleCount > 0
+          ? `${draft.sourceTrace.timingRuleCount} of your timing rule${draft.sourceTrace.timingRuleCount === 1 ? "" : "s"}`
+          : null,
+        draft.sourceTrace.crewFactCount > 0
+          ? `${draft.sourceTrace.crewFactCount} crew detail${draft.sourceTrace.crewFactCount === 1 ? "" : "s"}`
+          : null,
+      ].filter(Boolean)
+    : [];
+  const ungrounded = grounding.length === 0;
+  /**
+   * Coverage length, read off the window rather than typed beside it.
+   *
+   * Falls back to the package's figure only while the window is incomplete,
+   * so there is exactly one answer at any moment.
+   */
+  // Two Date.parse calls and a subtraction — not worth a hook, and the React
+  // Compiler could not preserve one here anyway.
+  const derivedCoverageMinutes = (() => {
+    const start = Date.parse(coverageStartsAt);
+    const end = Date.parse(coverageEndsAt);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+      return coverageMinutes;
+    }
+    return Math.round((end - start) / 60_000);
+  })();
+  const derivedCoverageLabel = (() => {
+    const hours = Math.floor(derivedCoverageMinutes / 60);
+    const minutes = derivedCoverageMinutes % 60;
+    if (!hours) return `${minutes} min`;
+    return minutes ? `${hours} hr ${minutes} min` : `${hours} hr`;
+  })();
+  const groundingSummary = ungrounded
+    ? "Nothing from this job yet — every time is a typical wedding"
+    : grounding.join(", ");
+
+  /** Send the edited questions to the client on this job. */
+  async function askTheCouple() {
+    if (!askDraft || !clientContactId || !selectedProject) return;
+    setAsking(true);
+    setNotice(null);
+    setFailed(false);
+    try {
+      const result = await sendCommunicationsCommand({
+        type: "sendMessage",
+        tenantId: workspace.tenantId,
+        idempotencyKey: `ask_${projectId}_${Date.now()}`,
+        input: {
+          projectId,
+          contactId: clientContactId,
+          subject: `A few questions about your ${String(
+            selectedProject.eventType ?? "event",
+          ).toLowerCase()} day`,
+          body: askDraft,
+          category: "general",
+          actionLabel: null,
+          actionUrl: null,
+          scheduledFor: null,
+        },
+      });
+      if (result.mode === "preview") {
+        setNotice("Preview mode — nothing was sent.");
+        return;
+      }
+      setAskDraft(null);
+      setNotice(`Sent to ${clientName}. Their answers will ground the next draft.`);
+    } catch (caught: unknown) {
+      setFailed(true);
+      setNotice(friendlyError(caught, "The questions could not be sent."));
+    } finally {
+      setAsking(false);
+    }
+  }
+
   async function publish() {
     if (!draft) return;
     setPublishing(true);
@@ -411,12 +523,12 @@ export function AiScheduleGenerator({
       const response = await sendPlanningCommand("publishSchedule", {
         projectId,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        coverageMinutes,
+        coverageMinutes: derivedCoverageMinutes,
         items: draft.items,
       });
       setNotice(
         response.persisted
-          ? "The reviewed schedule was published as a new immutable version."
+          ? "Published. Your crew can see it now."
           : "Development preview validated the schedule without publishing.",
       );
     } catch (caught: unknown) {
@@ -504,9 +616,9 @@ export function AiScheduleGenerator({
       <section className="panel">
         <div className="panel-heading">
           <div>
-            <p className="eyebrow">Unapproved draft</p>
+            <p className="eyebrow">Draft · nothing is sent yet</p>
             <h2>Generate a run of show</h2>
-            <p>Structured model output is validated before it reaches this review screen.</p>
+            <p>Fill in what you know. Anything you leave blank is guessed and labelled as a guess.</p>
           </div>
           <Sparkles />
         </div>
@@ -543,9 +655,20 @@ export function AiScheduleGenerator({
               value={coverageEndsAt}
             />
           </label>
+          {/*
+            * Derived, not a third field to disagree with the other two.
+            *
+            * Coverage starts, coverage ends and coverage minutes all described
+            * the same fact and nothing said which won if they differed — a
+            * studio could set 12:00–18:00 and 300 minutes and get no warning.
+            * The window is the input a photographer actually holds; the length
+            * follows from it.
+            */}
           <label>
-            Coverage minutes
-            <input min={30} max={1440} type="number" value={coverageMinutes} onChange={(event) => setCoverageMinutes(Number(event.target.value))} />
+            How long that is
+            <output className="schedule-derived-field">
+              {derivedCoverageLabel}
+            </output>
           </label>
           {/*
             * Bounded to the event day.
@@ -659,41 +782,11 @@ export function AiScheduleGenerator({
       ) : null}
       {draft ? (
         <>
-          <section className="schedule-review-summary">
-            <article className="panel schedule-source-summary">
-              <strong>Grounded inputs</strong>
-              <p>
-                {draft.sourceTrace.questionnaireCount} questionnaire ·{" "}
-                {draft.sourceTrace.timingRuleCount} timing rules ·{" "}
-                {draft.sourceTrace.crewFactCount} crew facts
-              </p>
-              <small>
-                {draft.sourceTrace.assumptionItemCount} schedule items still
-                include a labeled assumption.
-              </small>
-            </article>
-            {[
-              ["Assumptions", draft.assumptions],
-              ["Missing information", draft.missingInformation],
-              ["Conflicts", draft.conflicts],
-              ["Risks", draft.risks],
-              ["Suggested questions", draft.suggestedQuestions],
-            ].map(([label, values]) => (
-              <article className="panel" key={label as string}>
-                <strong>{label as string}</strong>
-                {(values as string[]).length ? (
-                  <ul>{(values as string[]).map((value) => <li key={value}>{value}</li>)}</ul>
-                ) : (
-                  <small>None reported</small>
-                )}
-              </article>
-            ))}
-          </section>
           <section className="panel schedule-draft-items">
             <div className="panel-heading">
               <div>
-                <h2>Human review</h2>
-                <p>Edit titles, times, and locations before creating a published version.</p>
+                <h2>The day</h2>
+                <p>Change anything. Your crew sees this once you publish it.</p>
               </div>
               <AlertTriangle />
             </div>
@@ -748,15 +841,151 @@ export function AiScheduleGenerator({
               <ListPlus size={15} /> Add an item
             </button>
           </section>
+          {/*
+            * Everything the model has to say about itself, folded away.
+            *
+            * These six panels used to sit *above* the run of show, so a
+            * photographer scrolled five screens of "Grounded inputs",
+            * "0 crew facts" and "Risks" before reaching the timeline they
+            * came for. The order now matches the job: the schedule first,
+            * then — if they want it — what it was built from.
+            */}
+          <details className="panel schedule-basis">
+            <summary>
+              <strong>What this schedule is based on</strong>
+              <small>{groundingSummary}</small>
+            </summary>
+            {ungrounded ? (
+              <p className="schedule-basis-empty">
+                Nothing yet — every time below is a typical wedding day, not
+                yours. Ask {clientName} the questions below, or add your own
+                timing rules, and the next draft will be built from real
+                answers instead.
+              </p>
+            ) : (
+              <p className="schedule-basis-empty">
+                Built from {groundingSummary}.
+                {draft.sourceTrace.assumptionItemCount > 0
+                  ? ` ${draft.sourceTrace.assumptionItemCount} of the items below still rest on an assumption — each one is labelled.`
+                  : ""}
+              </p>
+            )}
+            <div className="schedule-basis-grid">
+              {[
+                ["What we assumed", draft.assumptions],
+                ["What we still need", draft.missingInformation],
+                ["Times that do not fit", draft.conflicts],
+                ["What could go wrong", draft.risks],
+              ].map(([label, values]) => (
+                <article key={label as string}>
+                  <strong>{label as string}</strong>
+                  {(values as string[]).length ? (
+                    <ul>
+                      {(values as string[]).map((value) => (
+                        <li key={value}>{value}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <small>Nothing to flag</small>
+                  )}
+                </article>
+              ))}
+            </div>
+          </details>
+          {/*
+            * The questions, with somewhere to go.
+            *
+            * Read-only before this: the one panel that told the studio exactly
+            * what to ask their couple, and no way to ask it. Every answer it
+            * collects becomes grounding the next draft does not have to guess.
+            */}
+          {draft.suggestedQuestions.length ? (
+            <section className="panel schedule-questions">
+              <div className="panel-heading">
+                <div>
+                  <h2>Ask {clientName}</h2>
+                  <p>
+                    Their answers replace the assumptions above. This is the
+                    fastest way to make the next draft real.
+                  </p>
+                </div>
+                <Sparkles />
+              </div>
+              <ul>
+                {draft.suggestedQuestions.map((question) => (
+                  <li key={question}>{question}</li>
+                ))}
+              </ul>
+              {askDraft === null ? (
+                <button
+                  className="button button-dark"
+                  disabled={!clientContactId}
+                  onClick={() =>
+                    setAskDraft(
+                      [
+                        `Hi ${clientName},`,
+                        "",
+                        "A few questions so we can plan your day properly:",
+                        "",
+                        ...draft.suggestedQuestions.map(
+                          (question) => `- ${question}`,
+                        ),
+                        "",
+                        "No rush — whatever you know so far helps.",
+                      ].join("\n"),
+                    )
+                  }
+                  type="button"
+                >
+                  <Sparkles size={16} /> Put these in a message
+                </button>
+              ) : (
+                <div className="schedule-ask-editor">
+                  <label>
+                    Message to {clientName}
+                    <textarea
+                      onChange={(event) => setAskDraft(event.target.value)}
+                      rows={12}
+                      value={askDraft}
+                    />
+                  </label>
+                  <div className="schedule-ask-actions">
+                    <button
+                      className="button button-dark"
+                      disabled={asking}
+                      onClick={() => void askTheCouple()}
+                      type="button"
+                    >
+                      {asking ? "Sending…" : `Send to ${clientName}`}
+                    </button>
+                    <button
+                      className="button button-quiet"
+                      disabled={asking}
+                      onClick={() => setAskDraft(null)}
+                      type="button"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+              {!clientContactId ? (
+                <small>
+                  No client is linked to this job yet, so there is nobody to
+                  send to. Add one on the job first.
+                </small>
+              ) : null}
+            </section>
+          ) : null}
           <div className="human-boundary">
             <CheckCircle2 />
             <span>
-              <strong>Publishing is the human approval boundary.</strong>
+              <strong>Nothing reaches your crew until you publish.</strong>
               <small>
                 {/* Say what is wrong rather than letting the command refuse. */}
                 {publishBlockers.length
                   ? publishBlockers.join(" ")
-                  : "A new immutable version will reset current crew acknowledgements."}
+                  : "Publishing replaces the current version, so anyone who already confirmed will be asked again."}
               </small>
             </span>
             <button

@@ -24,18 +24,32 @@ async function studioForSlug(slug: string): Promise<InquiryStudio | null> {
    * into a 404 the moment they tidied it. `slugAliases` accumulates; the
    * fallback covers tenants created before that field existed.
    */
-  const byAlias = await adminFirestore
-    .collection("tenants")
-    .where("slugAliases", "array-contains", slug)
-    .limit(2)
-    .get();
-  const result = byAlias.empty
-    ? await adminFirestore
-        .collection("tenants")
-        .where("publicSlug", "==", slug)
-        .limit(2)
-        .get()
-    : byAlias;
+  /**
+   * A backend that cannot answer means "unavailable", never a 500.
+   *
+   * This is the first page anyone outside the business ever sees, reached from
+   * a link on a card or in an email signature. An unhandled read left a couple
+   * looking at a server error; the branch below already says the right thing
+   * — ask the studio for its current link — and says it in the studio's own
+   * shell.
+   */
+  let result;
+  try {
+    const byAlias = await adminFirestore
+      .collection("tenants")
+      .where("slugAliases", "array-contains", slug)
+      .limit(2)
+      .get();
+    result = byAlias.empty
+      ? await adminFirestore
+          .collection("tenants")
+          .where("publicSlug", "==", slug)
+          .limit(2)
+          .get()
+      : byAlias;
+  } catch {
+    return null;
+  }
   const studio = result.docs.find((candidate) => {
     const status = candidate.get("status");
     return status === "trial" || status === "active";
