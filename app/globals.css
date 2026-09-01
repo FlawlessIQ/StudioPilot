@@ -5414,7 +5414,7 @@ textarea:focus-visible {
 
 .vendor-create-panel form,
 .questionnaire-builder form {
-  padding: 2px 28px 28px;
+  padding: 2px var(--panel-inset, 26px) var(--panel-inset, 26px);
 }
 
 .vendor-create-panel {
@@ -7530,7 +7530,7 @@ textarea:focus-visible {
 }
 
 .report-chart-card .report-bars {
-  padding: 2px 28px 28px;
+  padding: 2px var(--panel-inset, 26px) var(--panel-inset, 26px);
 }
 
 .report-empty-chart {
@@ -8239,11 +8239,14 @@ textarea:focus-visible {
   overflow: hidden;
 }
 
+/* The inset comes from the token, not a number typed next to it. At a
+   hardcoded 28px these forms sat 2px right of the heading directly above
+   them, which is `--panel-inset`. Measured on production. */
 .schedule-generator > .panel > .schedule-generator-form,
 .coi-workflow-panel > .panel > .coi-request-form,
 .live-domain-page > .panel > .delivery-form {
   margin: 0;
-  padding: 2px 28px 28px;
+  padding: 2px var(--panel-inset, 26px) var(--panel-inset, 26px);
 }
 
 .schedule-review-summary > .panel,
