@@ -410,8 +410,25 @@ export function LiveRecordDetail({
     let active = true;
     const load = async () => {
       const { firestore } = getFirebaseClient();
+      // A kind can live in more than one collection ("crew" is an assignment
+      // or a profile), so this probes each in turn. Probing costs nothing on
+      // a hit and everything on a miss: every rule here reads
+      // `resource.data.tenantId`, and on a document that does not exist there
+      // is no `resource` to read, so Firestore denies rather than returning
+      // empty. A miss is therefore indistinguishable from a real denial, and
+      // an uncaught one ended the loop before the later collection was ever
+      // tried — which is why opening any crew profile said the owner had no
+      // access to their own directory. Remember the denial, keep looking, and
+      // only surface it if nothing anywhere matched.
+      let denial: unknown = null;
       for (const collectionName of selected.collections) {
-        const snapshot = await getDoc(doc(firestore, collectionName, id));
+        let snapshot;
+        try {
+          snapshot = await getDoc(doc(firestore, collectionName, id));
+        } catch (caught: unknown) {
+          denial = denial ?? caught;
+          continue;
+        }
         if (snapshot.exists()) {
           const value = { id: snapshot.id, ...snapshot.data() } as RecordValue;
           if (value.tenantId !== workspace.tenantId)
@@ -423,6 +440,7 @@ export function LiveRecordDetail({
           return value;
         }
       }
+      if (denial) throw denial;
       return null;
     };
     void load()

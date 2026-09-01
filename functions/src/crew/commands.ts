@@ -206,6 +206,39 @@ const command = z.discriminatedUnion("type", [
   }),
   z.object({
     /**
+     * What the studio has actually collected from a collaborator.
+     *
+     * These three statuses were written once, at profile creation, hardcoded
+     * to "missing", and no command could ever change them: the two update
+     * commands carry the person's description, never their paperwork. Every
+     * collaborator a studio added therefore read "missing" on all three
+     * forever. It never blocked an offer — `rankCrewCandidates` scores
+     * paperwork rather than gating on it — but it cost 15 points of ranking
+     * and listed three permanent profile gaps the studio had no way to close.
+     *
+     * The studio attests to paperwork it holds elsewhere (a W-9 emailed over,
+     * a COI on file), which is why this records a status rather than
+     * accepting a document. It is an internal readiness record, not evidence:
+     * nothing here signs, pays, or completes anything on the client's side.
+     */
+    type: z.literal("setCrewCompliance"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      crewProfileId: z.string().min(1),
+      w9Status: z.enum(["missing", "requested", "received", "verified"]),
+      insuranceStatus: z.enum([
+        "missing",
+        "requested",
+        "received",
+        "verified",
+        "expired",
+      ]),
+      contractStatus: z.enum(["missing", "sent", "completed", "expired"]),
+    }),
+  }),
+  z.object({
+    /**
      * Take a collaborator out of the directory.
      *
      * Archive, never delete: they are named on assignments, schedules and
@@ -637,6 +670,30 @@ export const crewCommand = onRequest(
         result = {
           crewProfileId: parsed.input.crewProfileId,
           updated: true,
+        };
+      } else if (parsed.type === "setCrewCompliance") {
+        if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
+        const reference = db.doc(`crewProfiles/${parsed.input.crewProfileId}`);
+        const current = await reference.get();
+        if (
+          !current.exists ||
+          current.get("tenantId") !== parsed.tenantId ||
+          current.get("archivedAt")
+        ) {
+          throw new Error("CREW_PROFILE_NOT_FOUND");
+        }
+        await reference.update({
+          w9Status: parsed.input.w9Status,
+          insuranceStatus: parsed.input.insuranceStatus,
+          contractStatus: parsed.input.contractStatus,
+          updatedAt: now,
+          updatedBy: identity.uid,
+        });
+        result = {
+          crewProfileId: parsed.input.crewProfileId,
+          w9Status: parsed.input.w9Status,
+          insuranceStatus: parsed.input.insuranceStatus,
+          contractStatus: parsed.input.contractStatus,
         };
       } else if (parsed.type === "archiveCrewProfile") {
         if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
@@ -1758,10 +1815,19 @@ export const crewCommand = onRequest(
         actorId: identity.uid,
         actorType: "user",
         action: `crew.${parsed.type}`,
-        entityType:
-          parsed.type === "createCrewProfile"
-            ? "crewProfile"
-            : "crewAssignment",
+        // Was `createCrewProfile ? profile : assignment`, so every other
+        // profile-scoped command audited itself as an assignment.
+        entityType: (
+          [
+            "createCrewProfile",
+            "updateCrewProfile",
+            "updateCrewDirectoryEntry",
+            "setCrewCompliance",
+            "archiveCrewProfile",
+          ] as string[]
+        ).includes(parsed.type)
+          ? "crewProfile"
+          : "crewAssignment",
         entityId: String(result.crewProfileId ?? result.assignmentId ?? ""),
         timestamp: now,
         before: null,

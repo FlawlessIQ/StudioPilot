@@ -32,12 +32,34 @@ export function CrewRecordActions({
     rateType: string;
     rateCents: number;
     notes: string | null;
+    w9Status: string;
+    insuranceStatus: string;
+    contractStatus: string;
     hasAccount: boolean;
     archived: boolean;
   };
 }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+
+  async function saveCompliance(values: FormData) {
+    setBusy(true);
+    setNotice(null);
+    try {
+      await sendCrewCommand("setCrewCompliance", {
+        crewProfileId: crew.id,
+        w9Status: String(values.get("w9Status") ?? "missing"),
+        insuranceStatus: String(values.get("insuranceStatus") ?? "missing"),
+        contractStatus: String(values.get("contractStatus") ?? "missing"),
+      });
+      setNotice("Paperwork updated.");
+      refreshTenantRecords("crewProfiles");
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "That paperwork could not be updated."));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function save(values: FormData) {
     setBusy(true);
@@ -163,6 +185,57 @@ export function CrewRecordActions({
           <button className="button" disabled={busy} type="submit">
             {busy ? <LoaderCircle className="spin" size={14} /> : null}
             Save entry
+          </button>
+        </form>
+        {/*
+          Separate from the entry form on purpose. Everything above is a
+          description of the person; this is a record of what the studio holds
+          on file for them, and until it is set the cascade will not put them
+          forward for any job.
+        */}
+        <form
+          className="record-edit-compliance"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void saveCompliance(new FormData(event.currentTarget));
+          }}
+        >
+          <p className="record-edit-span record-edit-locked">
+            Paperwork you hold for them. A W-9 that is received, insurance
+            verified and the agreement completed clears their profile gaps and
+            ranks them higher when you fill a role.
+          </p>
+          <label>
+            W-9
+            <select defaultValue={crew.w9Status} name="w9Status">
+              <option value="missing">Missing</option>
+              <option value="requested">Requested</option>
+              <option value="received">Received</option>
+              <option value="verified">Verified</option>
+            </select>
+          </label>
+          <label>
+            Insurance
+            <select defaultValue={crew.insuranceStatus} name="insuranceStatus">
+              <option value="missing">Missing</option>
+              <option value="requested">Requested</option>
+              <option value="received">Received</option>
+              <option value="verified">Verified</option>
+              <option value="expired">Expired</option>
+            </select>
+          </label>
+          <label>
+            Crew agreement
+            <select defaultValue={crew.contractStatus} name="contractStatus">
+              <option value="missing">Missing</option>
+              <option value="sent">Sent</option>
+              <option value="completed">Completed</option>
+              <option value="expired">Expired</option>
+            </select>
+          </label>
+          <button className="button" disabled={busy} type="submit">
+            {busy ? <LoaderCircle className="spin" size={14} /> : null}
+            Save paperwork
           </button>
         </form>
         <ArchiveToggle

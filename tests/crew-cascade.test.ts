@@ -170,3 +170,72 @@ test("a candidate is described by what is known, not by what is missing", () => 
   // What is unknown is still reported, as unknown.
   assert.deepEqual(candidate?.unknowns, ["availability", "travel area"]);
 });
+
+/**
+ * The gap between what `createCrewProfile` writes and what ranking reads.
+ *
+ * A new directory entry is created with `w9Status`, `insuranceStatus` and
+ * `contractStatus` all hardcoded to "missing", and for a long time no command
+ * could change any of them — the two update commands carry the person's
+ * description, never their paperwork. So every collaborator a studio added
+ * stayed "missing" on all three forever, with nothing in the product to
+ * change it.
+ *
+ * Worth being exact about the cost, because it is easy to overstate: paperwork
+ * does NOT make someone ineligible. Eligibility turns on being active, the
+ * specialty matching, not being marked unavailable and not colliding with
+ * accepted work. Missing paperwork costs 5 points each of ranking score and
+ * lists the person as having profile gaps — so a stranded collaborator was
+ * offerable all along, just permanently mislabelled and ranked 15 points below
+ * where they belonged.
+ *
+ * `setCrewCompliance` is the missing writer. This pins both halves: what the
+ * creation defaults actually cost, and that the statuses that command sets are
+ * the ones that clear them.
+ */
+const asCreated = {
+  ...base,
+  w9Status: "missing",
+  insuranceStatus: "missing",
+  contractStatus: "missing",
+};
+
+test("paperwork a studio cannot record costs ranking, not eligibility", () => {
+  const query = {
+    roleSpecialty: "weddings",
+    serviceArea: "New York",
+    startsAt: "2027-06-12T14:00:00.000Z",
+    endsAt: "2027-06-13T00:00:00.000Z",
+  };
+
+  const [created] = rankCrewCandidates({
+    ...query,
+    candidates: [{ ...asCreated, id: "new-hire", name: "Dana" }],
+  });
+  assert.equal(created.eligible, true);
+  assert.deepEqual(created.incompleteProfile, [
+    "W-9",
+    "insurance",
+    "crew agreement",
+  ]);
+
+  // Exactly the values setCrewCompliance can set, and the weakest of them:
+  // "received" satisfies the W-9, where insurance and the agreement each
+  // demand their strongest status.
+  const [recorded] = rankCrewCandidates({
+    ...query,
+    candidates: [
+      {
+        ...asCreated,
+        id: "new-hire",
+        name: "Dana",
+        w9Status: "received",
+        insuranceStatus: "verified",
+        contractStatus: "completed",
+      },
+    ],
+  });
+  assert.equal(recorded.eligible, true);
+  assert.deepEqual(recorded.incompleteProfile, []);
+  assert.equal(recorded.score - created.score, 15);
+});

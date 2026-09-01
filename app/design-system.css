@@ -2733,6 +2733,13 @@
   justify-self: start;
 }
 
+/* The paperwork form is a second, separate record inside the same drawer —
+   the rule above lays it out, this only marks the seam. */
+.record-edit-compliance {
+  border-top: 1px solid var(--ds-line, #e0e5df);
+  padding-top: 12px;
+}
+
 .record-edit-locked {
   color: var(--ds-ink-soft, #6b7570);
   font-size: 11px;

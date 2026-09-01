@@ -939,6 +939,9 @@ function renderRowActions(
           rateType: String(record.rateType ?? "event"),
           rateCents: Number(record.rateCents ?? 0),
           notes: typeof record.notes === "string" ? record.notes : null,
+          w9Status: String(record.w9Status ?? "missing"),
+          insuranceStatus: String(record.insuranceStatus ?? "missing"),
+          contractStatus: String(record.contractStatus ?? "missing"),
           hasAccount:
             typeof record.userId === "string" && record.userId.length > 0,
           archived: Boolean(record.archivedAt),
