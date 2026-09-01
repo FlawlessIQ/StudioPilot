@@ -89,14 +89,10 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 1200 } });
 const env = envFile();
 const password = process.env.AUDIT_PASSWORD ?? env.SEED_DEMO_PASSWORD;
 if (password) {
-  await page.goto(`${BASE}/auth/login`, { waitUntil: "domcontentloaded", timeout: 60000 });
-  const emailField = page.locator("input[type=email]").first();
-  if (await emailField.count()) {
-    await emailField.fill(process.env.AUDIT_EMAIL ?? "owner@studiohub.test");
-    await page.locator("input[type=password]").first().fill(password);
-    await page.locator("button[type=submit]").first().click();
-    await page.waitForTimeout(6000);
-  }
+  // Same helper the workspace passes use, for the same reason: a fixed wait
+  // here drops the studio workspace on a slow sign-in exactly as it dropped
+  // crew and platform admin.
+  await signIn(process.env.AUDIT_EMAIL ?? "owner@studiohub.test");
 }
 
 // domcontentloaded, not networkidle: Firestore holds a live listener socket
@@ -514,6 +510,7 @@ async function measure(route) {
   }
 }
 
+await warm(routes);
 for (const route of routes) await measure(route);
 
 /**
@@ -546,15 +543,73 @@ async function clearSession() {
   await page.context().clearCookies();
 }
 
-async function walkAs(email, workspaceRoutes, label) {
+/**
+ * Sign in, waiting for the sign-in page to actually go away.
+ *
+ * This was `waitForTimeout(6000)`. Establishing the session is a round trip
+ * to Auth plus a membership read, and when it ran long the sweep navigated
+ * away mid-flight and landed back on /auth/login — reported as "could not
+ * enter the workspace", which reads like a bad account rather than a slow
+ * one. Observed on crew one run and platform admin the next, so it is timing,
+ * not credentials: a whole workspace dropping out of the audit at random.
+ */
+async function signIn(email) {
   await clearSession();
   await page.goto(`${BASE}/auth/login`, { waitUntil: "domcontentloaded", timeout: 60000 });
   const field = page.locator("input[type=email]").first();
-  if (!(await field.count())) return;
+  if (!(await field.count())) return false;
   await field.fill(email);
   await page.locator("input[type=password]").first().fill(password);
   await page.locator("button[type=submit]").first().click();
-  await page.waitForTimeout(6000);
+  await page
+    .waitForFunction(() => !location.pathname.startsWith("/auth/login"), {
+      timeout: 45000,
+    })
+    .catch(() => {});
+  return true;
+}
+
+const pathOf = () => {
+  try {
+    return new URL(page.url()).pathname;
+  } catch {
+    return "";
+  }
+};
+
+/**
+ * Compile the routes before measuring them.
+ *
+ * The dev server builds a route the first time it is asked for one, and the
+ * render gate in `measure` gives a page 45s to produce content. On a cold walk
+ * the pages late in the run pay compilation on top of hydration, blow that
+ * budget, and are recorded NEVER RENDERED — nine of them on one run, all of
+ * which measured clean the moment the routes were warm. That is a property of
+ * the harness, not of the pages, and it is the difference between a coverage
+ * gap and a finding.
+ *
+ * `waitUntil: "commit"` is deliberate: it returns as soon as the response
+ * begins, which is exactly when the server-side compile has finished, and
+ * costs nothing waiting for a render this pass is going to throw away.
+ */
+async function warm(routes) {
+  for (const route of routes) {
+    await page.goto(BASE + route, { waitUntil: "commit", timeout: 60000 }).catch(() => {});
+  }
+}
+
+async function walkAs(email, workspaceRoutes, label) {
+  const prefix = workspaceRoutes[0];
+  let entered = false;
+  for (let attempt = 1; attempt <= 3 && !entered; attempt += 1) {
+    if (!(await signIn(email))) return;
+    await page.goto(BASE + prefix, { waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => {});
+    await page.waitForTimeout(3000);
+    entered = pathOf().startsWith(prefix);
+    if (!entered && attempt < 3) {
+      console.log(`  retrying ${label} sign-in as ${email} (landed on ${pathOf()})`);
+    }
+  }
   /**
    * Confirm the sign-in landed in the right workspace before measuring.
    *
@@ -563,27 +618,13 @@ async function walkAs(email, workspaceRoutes, label) {
    * clean — which is the whole failure this sweep exists to catch, and it
    * would now be silent in a *second* way.
    */
-  const prefix = workspaceRoutes[0];
-  await page.goto(BASE + prefix, { waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => {});
-  await page.waitForTimeout(3000);
-  // page.url() rather than page.evaluate(): a client-side redirect can fire
-  // at exactly this moment and destroy the execution context, which took the
-  // whole sweep down with it — a run that crashes reports nothing at all,
-  // which is worse than the silent pass this check exists to prevent.
-  const pathOf = () => {
-    try {
-      return new URL(page.url()).pathname;
-    } catch {
-      return "";
-    }
-  };
-  const landed = pathOf().startsWith(prefix);
-  if (!landed) {
+  if (!entered) {
     const at = pathOf();
-    console.log(`\nCould not enter the ${label} workspace as ${email} — landed on ${at}. Not measured.`);
+    console.log(`\nCould not enter the ${label} workspace as ${email} after 3 attempts — landed on ${at}. Not measured.`);
     misdirected.push(`${label} (${email} -> ${at})`);
     return;
   }
+  await warm(workspaceRoutes);
   for (const route of workspaceRoutes) await measure(route);
   await measureNarrow(workspaceRoutes);
 }
@@ -604,6 +645,7 @@ if (password) {
  * than avoiding it.
  */
 await clearSession();
+await warm(PUBLIC_ROUTES);
 for (const route of PUBLIC_ROUTES) await measure(route);
 
 await browser.close();
