@@ -61,6 +61,7 @@ import {
 import { dataIsLive } from "@/lib/runtime-mode";
 import { statusLabel } from "@/features/format/status-label";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { isStandingInvoice } from "@/features/booking/invoice-standing";
 
 type RecordValue = Record<string, unknown> & { id: string };
 type Loadable<T> = {
@@ -539,7 +540,11 @@ export function LiveClientHome() {
   // couple needs one number here, not a status word.
   const today = new Date().toISOString().slice(0, 10);
   const outstanding = invoices.value
-    .filter((invoice) => Number(invoice.balanceCents ?? 0) > 0)
+    .filter(
+      (invoice) =>
+        isStandingInvoice(invoice.status) &&
+        Number(invoice.balanceCents ?? 0) > 0,
+    )
     .map((invoice) => ({
       balanceCents: Number(invoice.balanceCents ?? 0),
       currency: invoice.currency,
@@ -925,7 +930,9 @@ export function LiveClientDocuments() {
         href: "/client/contract",
         external: false,
       })),
-    ...invoices.value.map((record) => ({
+    ...invoices.value
+      .filter((record) => isStandingInvoice(record.status))
+      .map((record) => ({
       id: `invoice-${record.id}`,
       // Was `${record.kind} invoice`, rendering "final invoice" and "retainer
       // invoice" in lowercase beside "Signed photography agreement". And it
@@ -1874,8 +1881,22 @@ export function LiveClientContract() {
   }, [providerOpened, refreshContracts]);
   if (contracts.error || !contract)
     return <PortalPageState eyebrow="Agreement" title="Your contract" description="Review signature progress and open your secure signing request." loading={contracts.loading} error={contracts.error} empty={!contracts.loading && !contracts.error ? "Your agreement will appear after the studio sends it for signature." : undefined} area="contract" milestones={portalProject.value?.milestones ?? null} />;
+  /**
+   * Who actually witnessed this signature.
+   *
+   * This was `provider === "dropbox_sign" ? "Dropbox Sign" : "Docusign"`, so
+   * a contract the studio recorded by hand — provider null — told the couple
+   * their signature status came "from Docusign", a product their studio has
+   * not connected. The whole point of recording an attestation separately is
+   * that it is never presented as a provider's word.
+   */
+  const attested = contract.completionAuthority === "manual_attested";
   const signingProvider =
-    contract.provider === "dropbox_sign" ? "Dropbox Sign" : "Docusign";
+    contract.provider === "dropbox_sign"
+      ? "Dropbox Sign"
+      : contract.provider === "docusign"
+        ? "Docusign"
+        : null;
   const signers = Array.isArray(contract.signers)
     ? (contract.signers as Array<Record<string, unknown>>)
     : [];
@@ -1886,7 +1907,13 @@ export function LiveClientContract() {
     <div className="client-booking-page">
       <p className="eyebrow">Agreement</p>
       <h1>Photography services agreement</h1>
-      <p>Your secure signature status from {signingProvider}.</p>
+      <p>
+        {attested
+          ? "Your studio recorded this signature and holds the signed copy."
+          : signingProvider
+            ? `Your secure signature status from ${signingProvider}.`
+            : "Your signature status for this agreement."}
+      </p>
       <section className="panel client-contract-card">
         <ShieldCheck />
         <div>
@@ -1896,7 +1923,9 @@ export function LiveClientContract() {
           <h2>
             {complete
               ? "Every required signature is complete."
-              : `${signingProvider} is collecting required signatures.`}
+              : signingProvider
+                ? `${signingProvider} is collecting required signatures.`
+                : "Signatures are still being collected."}
           </h2>
           {signers.map((signer) => (
             <div
@@ -1915,7 +1944,7 @@ export function LiveClientContract() {
               <div>
                 <LockKeyhole />
                 <span>
-                  <strong>You’re opening {signingProvider}</strong>
+                  <strong>You’re opening {signingProvider ?? "the signing page"}</strong>
                   <small>Sign there, then return to this page. StudioCue will check for the provider’s completion evidence.</small>
                 </span>
               </div>
@@ -1933,12 +1962,12 @@ export function LiveClientContract() {
               </a>
             </div>
           ) : (
-            !complete ? <p>{signingProvider} sends each signer their secure signing link directly.</p> : null
+            !complete && signingProvider ? <p>{signingProvider} sends each signer their secure signing link directly.</p> : null
           )}
           {providerOpened && !complete ? (
             <div className="client-provider-return">
               <span>
-                <strong>Back from {signingProvider}?</strong>
+                <strong>Back from {signingProvider ?? "signing"}?</strong>
                 <small>Check whether the completed signature has synchronized.</small>
               </span>
               <button
@@ -1959,7 +1988,11 @@ export function LiveClientContract() {
         </div>
       </section>
       <p className="source-note">
-        Only {signingProvider} completion evidence can mark this contract complete.
+        {attested
+          ? "Your studio recorded this signature, and the record names who confirmed it."
+          : signingProvider
+            ? `Only ${signingProvider} completion evidence can mark this contract complete.`
+            : "Only verified completion evidence can mark this contract complete."}
       </p>
       {complete ? (
         <p className="source-note">
@@ -1983,7 +2016,7 @@ export function LiveClientPayments() {
     if (!openedInvoiceId) return;
     const checkOnReturn = () => {
       if (document.visibilityState !== "visible") return;
-      setNotice("Checking QuickBooks for your latest payment status…");
+      setNotice("Checking for your latest payment status…");
       refreshInvoices?.();
     };
     window.addEventListener("focus", checkOnReturn);
@@ -1994,7 +2027,7 @@ export function LiveClientPayments() {
     };
   }, [openedInvoiceId, refreshInvoices]);
   if (invoices.error || invoices.value.length === 0)
-    return <PortalPageState eyebrow="Payments" title="Your payment schedule" description="Review amounts, due dates, and secure QuickBooks payment links." loading={invoices.loading} error={invoices.error} empty={!invoices.loading && !invoices.error ? "QuickBooks invoice links will appear when created by the studio." : undefined} />;
+    return <PortalPageState eyebrow="Payments" title="Your payment schedule" description="Review amounts, due dates, and secure payment links." loading={invoices.loading} error={invoices.error} empty={!invoices.loading && !invoices.error ? "Invoices will appear here when your studio creates them." : undefined} />;
   return (
     <div className="client-booking-page">
       <p className="eyebrow">Payments</p>
@@ -2004,6 +2037,10 @@ export function LiveClientPayments() {
         <MessageCircle /> Ask your studio a payment question
       </Link>
       {invoices.value
+        // A replaced or refused invoice is not the client's to see. One was
+        // being listed above the real one, badged "Replaced", saying $569.70
+        // still to pay on a deposit that had been paid in full.
+        .filter((invoice) => isStandingInvoice(invoice.status))
         .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)))
         .map((invoice) => (
           <section className="panel client-payment-card" key={invoice.id}>
@@ -2044,7 +2081,10 @@ export function LiveClientPayments() {
                 <div>
                   <LockKeyhole />
                   <span>
-                    <strong>Secure payment opens in QuickBooks</strong>
+                    <strong>
+                      Secure payment opens in{" "}
+                      {text(invoice.provider) === "stripe" ? "Stripe" : "QuickBooks"}
+                    </strong>
                     <small>StudioCue never sees your card or bank details. Return here after paying to confirm the updated status.</small>
                   </span>
                 </div>
@@ -2065,7 +2105,7 @@ export function LiveClientPayments() {
                     className="button button-light"
                     disabled={invoices.loading}
                     onClick={() => {
-                      setNotice("Checking QuickBooks for your latest payment status…");
+                      setNotice("Checking for your latest payment status…");
                       refreshInvoices?.();
                     }}
                     type="button"

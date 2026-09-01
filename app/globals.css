@@ -6419,9 +6419,26 @@ textarea:focus-visible {
   white-space: nowrap;
 }
 
+/* A message preview is the rendered email, and email carries URLs. A payment
+   link has no space to break at, so on a phone it ran straight out of the card
+   and off the screen. Break anywhere rather than overflow, and hold the preview
+   to three lines so one long mail does not become the whole page. */
 .client-message-list p {
   color: var(--muted);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
   margin: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.client-message-list .client-message-title,
+.client-message-list .client-message-title strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .client-message-list article.is-client {

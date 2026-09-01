@@ -229,6 +229,7 @@ const PUBLIC_ROUTES = [
 const routes = projectId ? [...ROUTES, ...projectScoped(projectId)] : ROUTES;
 
 let flush = 0;
+let narrow = 0;
 let other = 0;
 const skipped = [];
 
@@ -257,6 +258,60 @@ const misdirected = [];
  * would have been twenty-five.
  */
 let measured = 0;
+
+/**
+ * The same routes at phone width, checking one thing: does the page scroll
+ * sideways.
+ *
+ * The sweep measured every route at 1440px and passed, while the client
+ * portal was unusable on a phone — a payment link in a message preview has
+ * no space to break at, so it ran 828px wide inside a 390px screen and took
+ * the whole document with it. Nothing above catches that, because the
+ * element is inset correctly; it is the viewport it overflows, not its
+ * container.
+ *
+ * Reported with the widest offending element, because "the page scrolls" on
+ * its own sends you hunting.
+ */
+async function measureNarrow(routes, label) {
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const route of routes) {
+    try {
+      await page.goto(BASE + route, { waitUntil: "domcontentloaded", timeout: 20000 });
+    } catch {
+      // Measure whatever rendered, as above.
+    }
+    await page.waitForTimeout(1200);
+    const finding = await page.evaluate(() => {
+      const limit = document.documentElement.clientWidth;
+      if (document.documentElement.scrollWidth <= limit + 1) return null;
+      let worst = null;
+      for (const element of document.querySelectorAll("body *")) {
+        const box = element.getBoundingClientRect();
+        if (box.width === 0 || box.right <= limit + 1) continue;
+        if (!worst || box.right > worst.right) {
+          worst = {
+            right: Math.round(box.right),
+            tag: element.tagName.toLowerCase(),
+            cls: (element.className || "").toString().slice(0, 60),
+            text: (element.textContent || "").trim().slice(0, 50),
+          };
+        }
+      }
+      return { scrollWidth: document.documentElement.scrollWidth, limit, worst };
+    });
+    if (!finding) continue;
+    narrow += 1;
+    console.log(`${route}  [390px]`);
+    console.log(
+      `  overflow  page is ${finding.scrollWidth}px wide in a ${finding.limit}px viewport` +
+        (finding.worst
+          ? ` — widest is <${finding.worst.tag} class="${finding.worst.cls}"> at ${finding.worst.right}px  "${finding.worst.text}"`
+          : ""),
+    );
+  }
+  await page.setViewportSize({ width: 1440, height: 1200 });
+}
 
 async function measure(route) {
   try {
@@ -442,6 +497,7 @@ async function walkAs(email, workspaceRoutes, label) {
     return;
   }
   for (const route of workspaceRoutes) await measure(route);
+  await measureNarrow(workspaceRoutes, label);
 }
 
 if (password) {
@@ -496,14 +552,21 @@ console.log(
     ? `\n${flush} flush, ${other} overflow/bleed across ${audited} audited route(s).`
     : `\nNo inset faults across ${audited} audited route(s).`,
 );
+console.log(
+  narrow
+    ? `${narrow} route(s) scroll sideways at 390px.`
+    : "No page overflows a phone viewport.",
+);
 if (!audited) {
   console.error("Measured nothing — treating as a failure rather than a pass.");
   process.exit(2);
 }
-// Only `flush` gates. It is deterministic: a panel either supplies an inset
-// or it does not. Overflow and bleed depend on what happens to be expanded
-// or loaded when the sweep arrives, so they are worth reading and wrong to
-// fail a build on.
+// `flush` and `narrow` gate. Both are deterministic: a panel either supplies
+// an inset or it does not, and a page either fits a 390px viewport or it does
+// not. Overflow and bleed depend on what happens to be expanded or loaded
+// when the sweep arrives, so they are worth reading and wrong to fail on.
 process.exit(
-  flush || unverified.length || unstable.length || misdirected.length ? 1 : 0,
+  flush || narrow || unverified.length || unstable.length || misdirected.length
+    ? 1
+    : 0,
 );

@@ -13,6 +13,7 @@ import {
 } from "@/server/firebase/admin";
 import { buildClientPortalExperience } from "@/server/client/portal-experience";
 import { planClientProposalDecision } from "@/server/client/proposal-decision";
+import { isStandingInvoice } from "@/features/booking/invoice-standing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -195,6 +196,7 @@ const clientRecordFields = {
   ],
   contracts: [
     "provider",
+    "completionAuthority",
     "status",
     "updatedAt",
     "completedAt",
@@ -203,6 +205,11 @@ const clientRecordFields = {
   ],
   invoiceReferences: [
     "kind",
+    // Which accounting system this invoice actually lives in. Without it the
+    // portal said "Secure payment opens in QuickBooks" to every client,
+    // including a studio on Stripe and one whose retainer the studio
+    // recorded by hand.
+    "provider",
     "status",
     "currency",
     "amountCents",
@@ -530,7 +537,14 @@ async function clientProject(tenantId: string, projectId: string) {
   const todayIso = new Date().toISOString().slice(0, 10);
   const outstandingBalance = availabilitySnapshots[paymentsIndex].docs
     .map((document) => document.data())
-    .filter((invoice) => Number(invoice.balanceCents ?? 0) > 0)
+    .filter(
+      (invoice) =>
+        // A replaced or refused invoice still has a balance on it. Counting
+        // one told a couple who had paid in full that they owed $569.70, and
+        // pointed "Your next step" at a payment that was never theirs.
+        isStandingInvoice(invoice.status) &&
+        Number(invoice.balanceCents ?? 0) > 0,
+    )
     .map((invoice) => {
       const dueDate = safeString(invoice.dueDate);
       return {
