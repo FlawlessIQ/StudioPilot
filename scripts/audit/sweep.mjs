@@ -299,8 +299,20 @@ async function evaluateSettled(fn, arg) {
   return null;
 }
 
-async function measureNarrow(routes, label) {
+async function measureNarrow(routes) {
   await page.setViewportSize({ width: 390, height: 844 });
+  try {
+    await measureNarrowRoutes(routes);
+  } finally {
+    // Always, not just on the happy path. `evaluateSettled` rethrows anything
+    // that is not a destroyed execution context, and the restore below used to
+    // sit after that call: one throw here and every later workspace was
+    // measured at 390px while reporting itself as a desktop pass.
+    await page.setViewportSize({ width: 1440, height: 1200 });
+  }
+}
+
+async function measureNarrowRoutes(routes) {
   for (const route of routes) {
     try {
       await page.goto(BASE + route, { waitUntil: "domcontentloaded", timeout: 20000 });
@@ -336,7 +348,6 @@ async function measureNarrow(routes, label) {
           : ""),
     );
   }
-  await page.setViewportSize({ width: 1440, height: 1200 });
 }
 
 /**
@@ -574,7 +585,7 @@ async function walkAs(email, workspaceRoutes, label) {
     return;
   }
   for (const route of workspaceRoutes) await measure(route);
-  await measureNarrow(workspaceRoutes, label);
+  await measureNarrow(workspaceRoutes);
 }
 
 if (password) {
