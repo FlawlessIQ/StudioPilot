@@ -3,6 +3,7 @@ import {
   randomBytes,
   timingSafeEqual,
 } from "node:crypto";
+import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
@@ -41,6 +42,16 @@ const command = z.discriminatedUnion("type", [
       status: z.enum(["active", "suspended", "revoked"]).optional(),
       reason: z.string().trim().min(10).max(1000),
     }),
+  }),
+  z.object({
+    /**
+     * What this token is for, before anyone has signed in.
+     *
+     * Answered without an identity — see the handler for why the invited
+     * address is safe to return to whoever holds the token.
+     */
+    type: z.literal("previewInvitation"),
+    input: z.object({ token: z.string().min(32).max(200) }),
   }),
   z.object({
     type: z.literal("acceptInvitation"),
@@ -90,16 +101,73 @@ export const membershipCommand = onRequest(
     }
     try {
       await requireAppCheck(request);
-      const identity = await requireIdentity(request);
       const parsed = command.parse(request.body);
       const db = getFirestore();
       const now = new Date().toISOString();
 
-      if (parsed.type === "acceptInvitation") {
+      /**
+       * Resolved before sign-in, because the page that holds this token has to
+       * say who invited whom before it can ask for anything.
+       *
+       * Returning the invited address to a token holder is not a leak: the
+       * token is random, was delivered to that address alone, and this returns
+       * nothing the invitation email did not already say. Deliberately does
+       * not reveal whether the tenant exists for a token that does not match —
+       * every failure is INVITATION_NOT_FOUND.
+       */
+      if (parsed.type === "previewInvitation") {
+        const tokenHash = hash(parsed.input.token);
+        const invitations = await db
+          .collection("tenantInvitations")
+          .where("tokenHash", "==", tokenHash)
+          .limit(1)
+          .get();
+        const invitation = invitations.docs[0];
         if (
-          identity.email_verified !== true ||
-          typeof identity.email !== "string"
+          !invitation ||
+          !equalHash(String(invitation.get("tokenHash")), tokenHash)
         ) {
+          throw new Error("INVITATION_NOT_FOUND");
+        }
+        const email = normalizedEmail(
+          String(invitation.get("normalizedEmail") ?? ""),
+        );
+        const tenant = await db
+          .doc(`tenants/${String(invitation.get("tenantId"))}`)
+          .get();
+        let hasAccount = false;
+        try {
+          await getAuth().getUserByEmail(email);
+          hasAccount = true;
+        } catch {
+          hasAccount = false;
+        }
+        const expiresAt = String(invitation.get("expiresAt") ?? "");
+        response.status(200).json({
+          studioName:
+            String(tenant.get("brandName") ?? "") ||
+            String(tenant.get("businessName") ?? "") ||
+            "A photography studio",
+          email,
+          role: String(invitation.get("role") ?? ""),
+          hasAccount,
+          expiresAt,
+          expired:
+            String(invitation.get("status")) !== "pending" ||
+            (Boolean(expiresAt) && Date.parse(expiresAt) <= Date.now()),
+        });
+        return;
+      }
+
+      const identity = await requireIdentity(request);
+
+      if (parsed.type === "acceptInvitation") {
+        // The token is the verification: it was delivered to this address and
+        // nowhere else, which is stronger proof of the mailbox than a second
+        // email asking them to prove it again. Promoted only after the
+        // transaction below has matched token to invitation and invitation to
+        // this identity.
+        if (typeof identity.email !== "string") {
           throw new Error("VERIFIED_EMAIL_REQUIRED");
         }
         const identityEmail = identity.email;
@@ -231,6 +299,10 @@ export const membershipCommand = onRequest(
           );
           return { tenantId, role, status: "active" };
         });
+        // Proven: the token matched this invitation and this invitation names
+        // this identity's address.
+        if (identity.email_verified !== true)
+          await getAuth().updateUser(identity.uid, { emailVerified: true });
         response.status(200).json(result);
         return;
       }

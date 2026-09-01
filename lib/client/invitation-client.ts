@@ -12,6 +12,9 @@ export type ClientInvitationPreview = {
   brandAccentColor: string;
   brandLogoUrl: string | null;
   maskedEmail: string;
+  /** The address in full, so the page can create an account against it. */
+  email: string;
+  hasAccount: boolean;
 };
 
 export async function runClientInvitation(

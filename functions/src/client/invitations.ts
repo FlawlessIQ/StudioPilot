@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
+import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
@@ -83,6 +84,16 @@ const maskedEmail = (value: string) => {
 };
 
 
+async function accountExists(email: string): Promise<boolean> {
+  if (!email) return false;
+  try {
+    await getAuth().getUserByEmail(email);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const clientInvitationCommand = onRequest(
   { cors: studioHubCors, invoker: "private" },
   async (request, response) => {
@@ -147,6 +158,26 @@ export const clientInvitationCommand = onRequest(
           ),
           brandLogoUrl: safeLogoUrl(tenant.get("logoUrl")),
           maskedEmail: maskedEmail(String(invitation.get("normalizedEmail") ?? "")),
+          /**
+           * The address in full, and whether it already has an account.
+           *
+           * `maskedEmail` was the only address this returned, and the page
+           * could do nothing with it but send people to a generic sign-up that
+           * did not know it — where they had to retype the address the studio
+           * had entered for them, exactly, or be refused after the fact. The
+           * page sets a password inline now, and the browser cannot create an
+           * account against an address it has not been given.
+           *
+           * Masking stopped being a protection the moment the value had to
+           * reach the browser at all: whoever holds the token can read it from
+           * the response either way. It was never much of one — the token was
+           * delivered to that address and nowhere else, so a holder already
+           * knows it. `maskedEmail` stays for surfaces that only display.
+           */
+          email: normalizeEmail(String(invitation.get("normalizedEmail") ?? "")),
+          hasAccount: await accountExists(
+            String(invitation.get("normalizedEmail") ?? ""),
+          ),
         });
         return;
       }
@@ -154,10 +185,10 @@ export const clientInvitationCommand = onRequest(
       const identity = await requireIdentity(request);
 
       if (parsed.type === "accept") {
-        if (
-          identity.email_verified !== true ||
-          typeof identity.email !== "string"
-        ) {
+        // The token is the verification — delivered to this address alone,
+        // which beats a second email asking them to prove the same mailbox.
+        // Promoted only after the match below.
+        if (typeof identity.email !== "string") {
           throw new Error("VERIFIED_EMAIL_REQUIRED");
         }
         const tokenHash = hash(parsed.input.token);
@@ -313,6 +344,10 @@ export const clientInvitationCommand = onRequest(
           );
           return { tenantId, projectId, status: "active" };
         });
+        // Proven: the token matched this invitation and this invitation names
+        // this identity's address.
+        if (identity.email_verified !== true)
+          await getAuth().updateUser(identity.uid, { emailVerified: true });
         response.status(200).json(result);
         return;
       }

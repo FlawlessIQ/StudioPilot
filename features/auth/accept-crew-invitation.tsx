@@ -1,22 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  createUserWithEmailAndPassword,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut,
-} from "firebase/auth";
 import Link from "next/link";
-import {
-  Camera,
-  CheckCircle2,
-  LoaderCircle,
-  ShieldCheck,
-} from "lucide-react";
+import { Camera, CheckCircle2, LoaderCircle } from "lucide-react";
+import { InvitationJoin } from "@/features/auth/invitation-join";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
-import { authIsLive } from "@/lib/runtime-mode";
 
 /**
  * Joining a studio from an invitation, in one page.
@@ -45,21 +34,8 @@ type Preview = {
 export function AcceptCrewInvitation({ token }: { token: string }) {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [previewError, setPreviewError] = useState("");
-  const [identity, setIdentity] = useState<string | null | undefined>(
-    authIsLive ? undefined : null,
-  );
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
   const [accepted, setAccepted] = useState<Preview["kind"] | null>(null);
   const [assignmentId, setAssignmentId] = useState("");
-
-  useEffect(() => {
-    if (!authIsLive) return;
-    const { auth } = getFirebaseClient();
-    return onAuthStateChanged(auth, (user) =>
-      setIdentity(user?.email ? user.email.toLowerCase() : null),
-    );
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -79,37 +55,6 @@ export function AcceptCrewInvitation({ token }: { token: string }) {
     };
   }, [token]);
 
-  async function accept() {
-    const result = (await call("crewInvitationCommand", {
-      token,
-      idempotencyKey: crypto.randomUUID(),
-    })) as { assignmentId?: string; kind?: string };
-    setAssignmentId(result.assignmentId ?? "");
-    setAccepted(result.kind === "roster" ? "roster" : "assignment");
-  }
-
-  async function join(values: FormData) {
-    if (!preview) return;
-    setBusy(true);
-    setMessage("");
-    try {
-      const { auth } = getFirebaseClient();
-      const password = String(values.get("password") ?? "");
-      if (!auth.currentUser) {
-        // The address comes from the invitation, never from the form, so the
-        // account is created against exactly the one the accept will demand.
-        if (preview.hasAccount)
-          await signInWithEmailAndPassword(auth, preview.email, password);
-        else await createUserWithEmailAndPassword(auth, preview.email, password);
-      }
-      await accept();
-    } catch (caught: unknown) {
-      setMessage(authMessage(caught));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   if (previewError)
     return (
       <div className="invite-actions">
@@ -119,7 +64,7 @@ export function AcceptCrewInvitation({ token }: { token: string }) {
       </div>
     );
 
-  if (!preview || identity === undefined)
+  if (!preview)
     return (
       <div className="invite-actions">
         <LoaderCircle className="spin" />
@@ -158,80 +103,28 @@ export function AcceptCrewInvitation({ token }: { token: string }) {
       </div>
     );
 
-  // Signed in as somebody else. The accept would refuse this, so say why here
-  // rather than after they have committed to it.
-  if (identity && identity !== preview.email)
-    return (
-      <div className="invite-actions">
-        <ShieldCheck />
-        <p>
-          This invitation is for <strong>{preview.email}</strong>, but
-          you&rsquo;re signed in as <strong>{identity}</strong>.
-        </p>
-        <button
-          className="button button-dark"
-          disabled={busy}
-          onClick={() => {
-            setBusy(true);
-            void signOut(getFirebaseClient().auth).finally(() =>
-              setBusy(false),
-            );
-          }}
-          type="button"
-        >
-          Sign out and continue as {preview.email}
-        </button>
-      </div>
-    );
-
   return (
-    <form
-      className="invite-actions"
-      onSubmit={(event) => {
-        event.preventDefault();
-        void join(new FormData(event.currentTarget));
-      }}
-    >
-      <Camera />
-      <p>
-        <strong>{preview.studioName}</strong>
-        {preview.kind === "roster"
-          ? " added you to their crew."
-          : " has an assignment for you."}{" "}
-        Joining as <strong>{preview.email}</strong>.
-      </p>
-      {identity ? null : (
-        <label>
-          {preview.hasAccount ? "Your password" : "Choose a password"}
-          <input
-            autoComplete={preview.hasAccount ? "current-password" : "new-password"}
-            minLength={preview.hasAccount ? undefined : 12}
-            name="password"
-            required
-            type="password"
-          />
-          {preview.hasAccount ? null : <small>At least 12 characters.</small>}
-        </label>
-      )}
-      <button className="button button-dark" disabled={busy} type="submit">
-        {busy ? <LoaderCircle className="spin" /> : <ShieldCheck />}
-        {identity
-          ? "Accept invitation"
-          : preview.hasAccount
-            ? "Sign in and accept"
-            : "Create account and accept"}
-      </button>
-      {preview.hasAccount && !identity ? (
-        <Link href={`/auth/forgot-password?email=${encodeURIComponent(preview.email)}`}>
-          Forgot your password?
-        </Link>
-      ) : null}
-      {message ? (
-        <p className="form-error" role="status">
-          {message}
+    <InvitationJoin
+      intro={
+        <p>
+          <Camera />
+          <strong>{preview.studioName}</strong>
+          {preview.kind === "roster"
+            ? " added you to their crew."
+            : " has an assignment for you."}
         </p>
-      ) : null}
-    </form>
+      }
+      onAccept={async () => {
+        const result = (await call("crewInvitationCommand", {
+          token,
+          idempotencyKey: crypto.randomUUID(),
+        })) as { assignmentId?: string; kind?: string };
+        setAssignmentId(result.assignmentId ?? "");
+        setAccepted(result.kind === "roster" ? "roster" : "assignment");
+      }}
+      preview={preview}
+      translateError={invitationErrorMessage}
+    />
   );
 }
 
@@ -255,28 +148,6 @@ async function call(functionName: string, body: Record<string, unknown>) {
   const result = (await response.json()) as { error?: string };
   if (!response.ok) throw new Error(invitationErrorMessage(result.error));
   return result;
-}
-
-function authMessage(caught: unknown) {
-  const code =
-    typeof caught === "object" && caught && "code" in caught
-      ? String((caught as { code: unknown }).code)
-      : "";
-  switch (code) {
-    case "auth/wrong-password":
-    case "auth/invalid-credential":
-      return "That password is not right. Try again, or reset it below.";
-    case "auth/weak-password":
-      return "Choose a longer password — at least 12 characters.";
-    case "auth/email-already-in-use":
-      return "An account already exists for this address. Reload the page and sign in instead.";
-    case "auth/too-many-requests":
-      return "Too many attempts. Wait a few minutes and try again.";
-    default:
-      return caught instanceof Error
-        ? caught.message
-        : "This invitation could not be accepted.";
-  }
 }
 
 function invitationErrorMessage(code?: string) {

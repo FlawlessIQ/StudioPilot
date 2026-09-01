@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -18,6 +19,7 @@ import {
 } from "lucide-react";
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
 import { Logo } from "@/components/brand/logo";
+import { InvitationJoin } from "@/features/auth/invitation-join";
 import { requestBrandedAuthEmail } from "@/lib/auth/email-client";
 import {
   runClientInvitation,
@@ -41,6 +43,8 @@ const previewFallback: ClientInvitationPreview = {
   brandAccentColor: "#345c46",
   brandLogoUrl: null,
   maskedEmail: "yo••••@example.com",
+  email: "you@example.com",
+  hasAccount: false,
 };
 
 function formatDate(value: string | null) {
@@ -53,19 +57,30 @@ function formatDate(value: string | null) {
 }
 
 function friendlyError(message: string) {
-  if (message.includes("INVITED_EMAIL_MISMATCH")) {
-    return "This invitation belongs to a different email address. Sign out and use the email shown on this invitation.";
+  // A switch on the exact code, like the staff and crew pages, so the test
+  // that checks every refusal has words can see which are covered. The
+  // substring matching this replaced quietly covered nothing it was not
+  // written for, and three codes had slipped past it.
+  switch (message.trim()) {
+    case "INVITED_EMAIL_MISMATCH":
+      return "This invitation belongs to a different email address. Sign out and use the email shown on this invitation.";
+    case "INVITATION_EXPIRED":
+      return "This invitation has expired. Ask the studio to send a fresh link.";
+    case "INVITATION_ALREADY_USED":
+      return "This invitation has already been activated by another account. Contact the studio if you need help.";
+    case "INVITATION_NOT_FOUND":
+      return "This link is no longer valid. Ask the studio to send a fresh one.";
+    case "CLIENT_ALREADY_LINKED":
+      return "This client profile is already connected to another account. Contact the studio for help.";
+    case "MEMBERSHIP_ROLE_CONFLICT":
+      return "This address already works at the studio in another role, so it cannot also be the client here. Ask them to invite a different address.";
+    case "FORBIDDEN":
+      return "This invitation cannot be opened with this account. Sign out and use the address the studio invited.";
+    case "VERIFIED_EMAIL_REQUIRED":
+      return "Your account has no email address on it, so it cannot be matched to this invitation.";
+    default:
+      return "We couldn’t connect your project just yet. Please try again or ask the studio to resend the invitation.";
   }
-  if (message.includes("INVITATION_EXPIRED")) {
-    return "This invitation has expired. Ask the studio to send a fresh link.";
-  }
-  if (message.includes("INVITATION_ALREADY_USED")) {
-    return "This invitation has already been activated by another account. Contact the studio if you need help.";
-  }
-  if (message.includes("CLIENT_ALREADY_LINKED")) {
-    return "This client profile is already connected to another account. Contact the studio for help.";
-  }
-  return "We couldn’t connect your project just yet. Please try again or ask the studio to resend the invitation.";
 }
 
 export function AcceptClientInvitation({
@@ -148,41 +163,46 @@ export function AcceptClientInvitation({
     };
   }, [token]);
 
+  const acceptInvitation = useCallback(async () => {
+    acceptStarted.current = true;
+    setActivation("connecting");
+    const result = await runClientInvitation({
+      type: "accept",
+      idempotencyKey: crypto.randomUUID(),
+      input: { token },
+    });
+    const tenantId =
+      typeof result.tenantId === "string" ? result.tenantId : null;
+    if (tenantId) {
+      window.localStorage.setItem("studiohub.activeTenantId", tenantId);
+    }
+    setActivation("accepted");
+    setMessage("Your secure project portal is ready.");
+    router.replace(destination);
+  }, [destination, router, token]);
+
   useEffect(() => {
+    // No longer waits on `emailVerified`. A couple arriving by invitation has
+    // just proved the mailbox by holding a token that was delivered to it, and
+    // the accept marks the address verified once it has matched the two — so
+    // requiring it here only stranded every new account behind a second email.
     if (
-      !user?.emailVerified ||
+      !user ||
       !preview ||
       !["pending", "accepted"].includes(preview.status) ||
       acceptStarted.current
     ) {
       return;
     }
-    acceptStarted.current = true;
-    queueMicrotask(() => setActivation("connecting"));
-    void runClientInvitation({
-      type: "accept",
-      idempotencyKey: crypto.randomUUID(),
-      input: { token },
-    })
-      .then((result) => {
-        const tenantId =
-          typeof result.tenantId === "string" ? result.tenantId : null;
-        if (tenantId) {
-          window.localStorage.setItem("studiohub.activeTenantId", tenantId);
-        }
-        setActivation("accepted");
-        setMessage("Your secure project portal is ready.");
-        router.replace(destination);
-      })
-      .catch((caught: unknown) => {
-        setActivation("error");
-        setMessage(
-          friendlyError(
-            caught instanceof Error ? caught.message : "ACTIVATION_FAILED",
-          ),
-        );
-      });
-  }, [destination, preview, router, token, user]);
+    void acceptInvitation().catch((caught: unknown) => {
+      setActivation("error");
+      setMessage(
+        friendlyError(
+          caught instanceof Error ? caught.message : "ACTIVATION_FAILED",
+        ),
+      );
+    });
+  }, [acceptInvitation, preview, user]);
 
   async function resendVerification() {
     if (!user?.email) return;
@@ -339,20 +359,29 @@ export function AcceptClientInvitation({
           ) : !user ? (
             <div className="client-invite-state">
               <p className="eyebrow">Your project portal</p>
-              <h2>Continue with your invited email</h2>
-              <p>
-                Sign in or create a free client account using{" "}
-                <strong>{preview.maskedEmail}</strong>. You will return here
-                automatically to finish connecting.
-              </p>
-              <div className="client-invite-actions">
-                <Link className="button button-dark" href={loginHref}>
-                  Sign in to continue
-                </Link>
-                <Link className="button button-secondary" href={registerHref}>
-                  Create client access
-                </Link>
-              </div>
+              <h2>Set a password to open your portal</h2>
+              {/*
+                Was two links to the generic auth pages, which do not know
+                which address was invited — so a couple had to retype the one
+                their photographer had typed for them, exactly, then verify it
+                by a second email. Both are gone: the address comes from the
+                invitation and the token is the verification.
+              */}
+              <InvitationJoin
+                intro={
+                  <p>
+                    <strong>{preview.studioName}</strong> invited you to the
+                    portal for {preview.projectName}.
+                  </p>
+                }
+                onAccept={acceptInvitation}
+                preview={{
+                  studioName: preview.studioName,
+                  email: preview.email,
+                  hasAccount: preview.hasAccount,
+                }}
+                translateError={friendlyError}
+              />
               <small className="client-invite-footnote">
                 No subscription or studio setup is required.
               </small>
