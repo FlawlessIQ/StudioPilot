@@ -138,7 +138,23 @@ risked reverting the other clone's work.
    on every function revision, and any new function must also be added to the
    script's allowlist in the same change or it 403s with an HTML body (which
    surfaces client-side as `Unexpected token '<'`). See `docs/deployment.md`.
-6. **Create the App Hosting rollout explicitly and verify it.** Auto-rollout on
+6. **A selective function deploy must cover every function that imports what
+   you changed.** `--only functions:foo` is the norm here for speed, and it is
+   safe only when you know the full set. Shared modules break that: adding an
+   email template under `functions/src/communications/` changed nothing in the
+   function that *queues* mail and everything in the one that *renders* it, and
+   only the queueing side got deployed. The render worker
+   (`operationsTaskWorker`, dispatched by `emailJobTaskDispatch` — not the
+   `operationsJobScheduler` that merely sweeps retries) stayed a day behind, so
+   a crew invitation whose whole point is a link went out as a contentless
+   "There's an update from your studio" with no link. Nothing detected it: the
+   job recorded `succeeded`, because sending worked and only the copy was wrong.
+   When you touch anything shared, grep for its importers and deploy all of
+   them, or just deploy all functions:
+   ```bash
+   grep -rl "communications/email-templates" functions/src
+   ```
+7. **Create the App Hosting rollout explicitly and verify it.** Auto-rollout on
    push is **unreliable** — observed both firing and silently not firing on
    merges to `main` (2026-08-20 and 2026-08-21). Never assume a push deployed:
    ```bash

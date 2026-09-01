@@ -210,3 +210,37 @@ test("the retainer email is the studio's, and carries a way to pay", () => {
   });
   assert.match(fallback.html, /https:\/\/studio-cue\.com\/client/);
 });
+
+/**
+ * A key that renders is not a key that is handled.
+ *
+ * `copyFor` ends in a `default:` that returns "There's an update from your
+ * studio" with no action button — deliberately, for a type nobody wrote copy
+ * for. The loop above proves every key renders valid HTML, and a key falling
+ * into that default renders valid HTML too, so it passed while producing an
+ * email that says nothing and links nowhere.
+ *
+ * That is exactly what a crew member received: a roster invitation whose whole
+ * purpose is a link, delivered as a contentless notice with no link in it. The
+ * cause there was a stale deploy rather than missing code, but the failure mode
+ * is the same either way and nothing detected it — the job recorded "succeeded".
+ */
+test("no published template key falls through to the generic update", () => {
+  // The subject is not the tell: `manual_message` legitimately falls back to
+  // "<studio> sent you an update" when the studio writes no subject of its
+  // own, while having a full case and its own heading. The eyebrow is — only
+  // the default branch says "Project update".
+  const generic = renderEmailTemplate({
+    key: "not_a_real_template_key" as (typeof emailTemplateKeys)[number],
+    brand,
+    values,
+  });
+  assert.ok(generic.html.includes("Project update"), "the tell moved");
+  for (const key of emailTemplateKeys) {
+    const rendered = renderEmailTemplate({ key, brand, values });
+    assert.ok(
+      !rendered.html.includes("Project update"),
+      `${key} has no copy of its own and sends the generic update instead`,
+    );
+  }
+});
