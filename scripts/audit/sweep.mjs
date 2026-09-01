@@ -57,7 +57,11 @@ const ROUTES = [
 const projectScoped = (id) =>
   [
     "/studio/crew", "/studio/planning", "/studio/booking", "/studio/delivery",
-    "/studio/event-day", "/studio/schedules", "/studio/readiness",
+    // `/studio/schedules/new` without a project renders a picker and no
+    // generator, so the REVEAL step below has nothing to click and the draft
+    // panels are never measured. It only does real work project-scoped.
+    "/studio/event-day", "/studio/schedules", "/studio/schedules/new",
+    "/studio/readiness",
     "/studio/insurance", "/studio/documents", "/studio/contracts", "/studio/invoices",
   ]
     .map((route) => `${route}?project=${id}`)
@@ -335,6 +339,45 @@ async function measureNarrow(routes, label) {
   await page.setViewportSize({ width: 1440, height: 1200 });
 }
 
+/**
+ * Panels that do not exist until someone acts.
+ *
+ * /studio/schedules/new was in the route list from the start and was reported
+ * clean every run, because on first paint it is a form and nothing else. The
+ * draft — the run of show, what it was based on, the questions to ask, the
+ * publish boundary — is four panels that mount only after Generate, so the
+ * detector had never once looked at them. They shipped flush against the
+ * border and the sweep said the route was fine.
+ *
+ * A route whose real content is behind a click has to be clicked. Anything
+ * added here is measured in the state the studio actually reads.
+ */
+const REVEAL = [
+  {
+    match: (route) => route.startsWith("/studio/schedules/new"),
+    // The generator can take a while: it is an AI call in mock mode but still
+    // a round trip. Wait for the draft panels themselves, not a fixed delay.
+    async run(page) {
+      const button = page.locator("button[type=submit]").first();
+      if (!(await button.count()) || !(await button.isEnabled().catch(() => false))) return;
+      await button.click().catch(() => {});
+      await page
+        .waitForSelector(".schedule-draft-items, .schedule-basis", { timeout: 45000 })
+        .catch(() => {});
+    },
+  },
+];
+
+async function reveal(route) {
+  const step = REVEAL.find((r) => r.match(route));
+  if (!step) return;
+  await step.run(page).catch(() => {});
+  await page.evaluate(() => {
+    for (const d of document.querySelectorAll("details")) d.open = true;
+  });
+  await page.waitForTimeout(900);
+}
+
 async function measure(route) {
   try {
     await page.goto(BASE + route, { waitUntil: "domcontentloaded", timeout: 20000 });
@@ -423,6 +466,7 @@ async function measure(route) {
     for (const d of document.querySelectorAll("details")) d.open = true;
   });
   await page.waitForTimeout(900);
+  await reveal(route);
   let report = await evaluateSettled(detector);
   if (!report) {
     skipped.push(route);

@@ -10937,7 +10937,7 @@ textarea:focus-visible {
 .schedule-basis-grid strong{font-size:13px}
 .schedule-basis-grid ul{margin:0;padding-left:18px;display:grid;gap:6px}
 .schedule-basis-grid li,.schedule-basis-grid small{color:var(--ink-soft,#3c443f);font-size:13px;line-height:1.55}
-.schedule-questions ul{margin:0 0 16px;padding-left:18px;display:grid;gap:8px}
+.schedule-questions ul{margin:0 0 16px;display:grid;gap:8px;list-style:none}
 .schedule-questions li{color:var(--ink-soft,#3c443f);font-size:13px;line-height:1.55}
 .schedule-ask-editor{display:grid;gap:12px}
 .schedule-ask-editor textarea{width:100%;font:inherit;font-size:13px;line-height:1.6}

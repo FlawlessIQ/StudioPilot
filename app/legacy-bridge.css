@@ -2283,6 +2283,77 @@
   --panel-inset: 26px;
 }
 
+/* ── The inset, inverted ───────────────────────────────────────────────
+   Everything below this block names panels that were *wrong* and fixes
+   them one class at a time. That list only ever grew, because `.panel`
+   itself ships no padding: a new panel starts flush against its own
+   border and stays flush until a person sees it and adds its name here.
+   Eight rounds of that, and the run of show still shipped with its
+   heading on the border — and the audit could not catch that one either,
+   because those panels only exist after you click Generate and the sweep
+   only ever measures first paint.
+
+   So the default is now the other way round: a panel insets its own
+   contents, and a panel written tomorrow is right without being named.
+
+   Every rule here is wrapped in `:where()`, which has zero specificity.
+   That is the whole safety argument — any existing rule, down to a single
+   class, still beats these. A component that already handles its own
+   inset keeps winning silently; these only fill the gap where nothing
+   else has an opinion.
+
+   The narrow-screen value rides on the token rather than a second copy of
+   these rules in a media query. Two copies at zero specificity would let
+   the later one clobber the opt-out below, which is exactly how the
+   heading-led panels ended up double-padded on the first pass. */
+@media (max-width: 620px) {
+  :root {
+    --panel-inset: 20px;
+  }
+}
+
+:where(.panel) {
+  padding: var(--panel-inset, 26px);
+}
+
+/* Heading-led panels. The inset goes on the panel, same as every other
+   panel, and the heading is pulled back out to the edge so it still
+   renders exactly where it did. That is the part that matters: the inset
+   now lives on the *panel*, so it reaches every child — a list, a button,
+   a notice — without a rule naming each one.
+
+   Padding the children instead was the first attempt and it does not
+   work. These rules are zero-specificity by design, so a list that sets
+   `margin: 0` or a button carrying its own padding beats them and lands
+   back on the border. Only the panel has no such competition. */
+:where(.panel:has(> .panel-heading)) {
+  padding-top: 0;
+}
+
+:where(.panel:has(> .panel-heading) > .panel-heading) {
+  margin-inline: calc(var(--panel-inset, 26px) * -1);
+}
+
+/* Opt-outs: a direct child already supplies the inset, so the panel must
+   not add a second one. Declared after the rules above so they win. */
+:where(
+  .panel:has(> .schedule-generator-form),
+  .panel:has(> .coi-request-form),
+  .panel:has(> .delivery-form),
+  .ops-table
+) {
+  padding: 0;
+}
+
+:where(
+  .panel:has(> .schedule-generator-form) > .panel-heading,
+  .panel:has(> .coi-request-form) > .panel-heading,
+  .panel:has(> .delivery-form) > .panel-heading,
+  .ops-table > .panel-heading
+) {
+  margin-inline: 0;
+}
+
 /* Headless panels: nothing inside supplies the inset, so the panel does. */
 .crew-cascade-form,
 .crew-direct-invite-form,
@@ -2322,25 +2393,6 @@
 
 /* Heading-led panels: the heading already sits at the inset, and only the
    body below it was left flush. */
-.team-invite-panel > form,
-.closeout-assistant > :not(.panel-heading),
-.timing-rule-editor > .timing-rule-actions,
-/* Studio details: the panel-heading brings its own inset and the form below it
-   had none, so every field and control sat 1px from the border. This is the
-   page in the report that prompted the review. */
-.studio-identity > form,
-.studio-identity > .form-notice {
-  padding-inline: var(--panel-inset, 26px);
-}
-
-.team-invite-panel > form,
-.closeout-assistant > :not(.panel-heading):last-child,
-.timing-rule-editor > .timing-rule-actions,
-.studio-identity > form,
-.studio-identity > .form-notice {
-  padding-bottom: var(--panel-inset, 26px);
-}
-
 @media (max-width: 620px) {
   .crew-cascade-form,
   .crew-direct-invite-form,
@@ -2353,9 +2405,4 @@
     padding: 20px;
   }
 
-  .team-invite-panel > form,
-  .closeout-assistant > :not(.panel-heading),
-  .timing-rule-editor > .timing-rule-actions {
-    padding-inline: 20px;
-  }
 }
