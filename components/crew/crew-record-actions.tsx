@@ -5,6 +5,7 @@ import { LoaderCircle, PencilLine } from "lucide-react";
 import { ArchiveToggle } from "@/components/records/archive-toggle";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { CrewProfileDocumentUpload } from "@/components/crew/profile-document-upload";
 import { sendCrewCommand } from "@/lib/crew/command-client";
 
 /**
@@ -242,6 +243,27 @@ export function CrewRecordActions({
             verified and the agreement completed clears their profile gaps and
             ranks them higher when you fill a role.
           </p>
+          {/*
+            A studio is usually emailed a W-9 long before the person ever signs
+            in, so it can file one here rather than wait for them to. Uploading
+            moves the status to "received" — never past it. Whether it has
+            actually been checked is the studio saying so, in the selects
+            below, which is the whole point of them.
+          */}
+          <div className="record-edit-span record-edit-documents">
+            <CrewProfileDocumentUpload
+              crewProfileId={crew.id}
+              kind="w9"
+              onUploaded={() => refreshTenantRecords("crewProfiles")}
+              status={crew.w9Status}
+            />
+            <CrewProfileDocumentUpload
+              crewProfileId={crew.id}
+              kind="insurance"
+              onUploaded={() => refreshTenantRecords("crewProfiles")}
+              status={crew.insuranceStatus}
+            />
+          </div>
           <label>
             W-9
             <select defaultValue={crew.w9Status} name="w9Status">

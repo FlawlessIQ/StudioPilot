@@ -97,6 +97,52 @@ service firebase.storage {
         && request.resource.metadata.visibility == "crew";
     }
 
+    /**
+     * A crew member's own paperwork: W-9 and proof of insurance.
+     *
+     * The crew block above is project-scoped, so these could only be uploaded
+     * against an assignment — and a collaborator with no job yet had none.
+     * Their profile said "W-9 missing · Insurance missing" with nowhere to
+     * send either, and the studio had no way to file one it already held.
+     * These belong to the person, not to any one wedding, so they live beside
+     * the profile.
+     *
+     * Both parties write here: the crew member whose profile it is, and the
+     * studio's operators, who are often handed a W-9 by email long before the
+     * person ever signs in. Neither can overwrite — `resource == null` — so a
+     * replacement is a new object and the old one stays as it was filed.
+     */
+    match /tenants/{tenantId}/crewProfiles/{crewProfileId}/{allPaths=**} {
+      function profile() {
+        return firestore.get(
+          /databases/(default)/documents/crewProfiles/$(crewProfileId)
+        ).data;
+      }
+      function ownsProfile() {
+        return membership(tenantId).role == "subcontractor"
+          && profile().userId == request.auth.uid;
+      }
+      allow read: if resource.metadata.scanStatus == "clean"
+        && activeMember(tenantId)
+        && profile().tenantId == tenantId
+        && (
+          membership(tenantId).role in ["studio_owner", "studio_admin", "studio_coordinator"]
+          || ownsProfile()
+        );
+      allow write: if activeMember(tenantId)
+        && profile().tenantId == tenantId
+        && (
+          membership(tenantId).role in ["studio_owner", "studio_admin", "studio_coordinator"]
+          || ownsProfile()
+        )
+        && resource == null
+        && safeUpload()
+        // Same reason as the project-scoped crew block: without this a W-9
+        // could be filed as "shared", which the project-wide rule hands to the
+        // couple. Nobody's tax identification number goes to a client.
+        && request.resource.metadata.visibility == "crew";
+    }
+
     match /tenants/{tenantId}/projects/{projectId}/clients/{userId}/questionnaires/{responseId}/{fileName} {
       allow read: if resource.metadata.scanStatus == "clean"
         && activeMember(tenantId)

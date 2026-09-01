@@ -220,6 +220,29 @@ const command = z.discriminatedUnion("type", [
   }),
   z.object({
     /**
+     * File a W-9 or a certificate of insurance against a profile.
+     *
+     * Uploads were assignment-scoped, so a collaborator with no job yet could
+     * not send either — their profile listed both as missing with nowhere to
+     * put them — and a studio handed a W-9 by email had no way to file it.
+     *
+     * Both parties can: the crew member whose profile it is, and the studio's
+     * operators. Either way this records the file and moves the status to
+     * "received", never to "verified". A file arriving is not the same as
+     * somebody having looked at it, and "verified" stays what it was: the
+     * studio saying so, deliberately, in setCrewCompliance.
+     */
+    type: z.literal("submitCrewProfileDocument"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      crewProfileId: z.string().min(1),
+      kind: z.enum(["w9", "insurance"]),
+      documentPath: z.string().min(1).max(1024),
+    }),
+  }),
+  z.object({
+    /**
      * What the studio has actually collected from a collaborator.
      *
      * These three statuses were written once, at profile creation, hardcoded
@@ -830,6 +853,47 @@ export const crewCommand = onRequest(
           crewProfileId: reference.id,
           invited: true,
           inviteExpiresAt: invitation.inviteExpiresAt,
+        };
+      } else if (parsed.type === "submitCrewProfileDocument") {
+        const reference = db.doc(`crewProfiles/${parsed.input.crewProfileId}`);
+        const current = await reference.get();
+        if (
+          !current.exists ||
+          current.get("tenantId") !== parsed.tenantId ||
+          current.get("archivedAt")
+        ) {
+          throw new Error("CREW_PROFILE_NOT_FOUND");
+        }
+        // The studio, or the person themselves. A subcontractor may file
+        // against their own profile and no other.
+        const own =
+          role === "subcontractor" &&
+          current.get("userId") === identity.uid;
+        if (!internalRoles.has(role) && !own) throw new Error("FORBIDDEN");
+        // The path must sit under this profile's own folder, so a valid
+        // request cannot point the record at somebody else's file.
+        const prefix = `tenants/${parsed.tenantId}/crewProfiles/${parsed.input.crewProfileId}/`;
+        if (!parsed.input.documentPath.startsWith(prefix))
+          throw new Error("DOCUMENT_PATH_MISMATCH");
+        const statusField =
+          parsed.input.kind === "w9" ? "w9Status" : "insuranceStatus";
+        const pathField =
+          parsed.input.kind === "w9"
+            ? "w9DocumentPath"
+            : "insuranceDocumentPath";
+        await reference.update({
+          [pathField]: parsed.input.documentPath,
+          // Received, not verified — see the command's note.
+          [statusField]: "received",
+          [`${parsed.input.kind}SubmittedAt`]: now,
+          [`${parsed.input.kind}SubmittedBy`]: identity.uid,
+          updatedAt: now,
+          updatedBy: identity.uid,
+        });
+        result = {
+          crewProfileId: parsed.input.crewProfileId,
+          kind: parsed.input.kind,
+          status: "received",
         };
       } else if (parsed.type === "setCrewCompliance") {
         if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
@@ -2026,6 +2090,7 @@ export const crewCommand = onRequest(
             "updateCrewProfile",
             "updateCrewDirectoryEntry",
             "setCrewCompliance",
+            "submitCrewProfileDocument",
             "inviteCrewProfile",
             "archiveCrewProfile",
           ] as string[]

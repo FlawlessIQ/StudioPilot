@@ -40,6 +40,7 @@ import {
 } from "firebase/firestore";
 import { AssignmentActions } from "@/components/crew/assignment-actions";
 import { CrewDocumentUpload } from "@/components/crew/document-upload";
+import { CrewProfileDocumentUpload } from "@/components/crew/profile-document-upload";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { splitUpcomingAndPast } from "@/features/ordering/attention";
 import {
@@ -1730,6 +1731,28 @@ export function LiveCrewProfile() {
                 {text(profile.insuranceStatus)} · Contract{" "}
                 {text(profile.contractStatus)}
               </dd>
+              {/*
+                This row named three missing things and offered nothing to do
+                about any of them, while /crew/documents said requirements
+                arrive with an assignment — so a collaborator with no job yet
+                read it as their homework and had no way to do it. Two of the
+                three are theirs to send. The crew agreement is not: the studio
+                issues that one, so it stays a status.
+              */}
+              <div className="crew-profile-documents">
+                <CrewProfileDocumentUpload
+                  crewProfileId={String(profile.id)}
+                  kind="w9"
+                  onUploaded={data.refresh}
+                  status={text(profile.w9Status)}
+                />
+                <CrewProfileDocumentUpload
+                  crewProfileId={String(profile.id)}
+                  kind="insurance"
+                  onUploaded={data.refresh}
+                  status={text(profile.insuranceStatus)}
+                />
+              </div>
             </div>
           </dl>
         </article>

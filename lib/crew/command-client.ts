@@ -71,3 +71,51 @@ export async function uploadCrewRequirement(input: {
     requirementId: input.requirementId, documentId: path,
   });
 }
+
+/**
+ * A W-9 or certificate of insurance filed against a profile rather than a job.
+ *
+ * `uploadCrewRequirement` is project-scoped and needs an assignment, so a
+ * collaborator with no job yet could not send either of these and a studio
+ * could not file one it had already been handed. Same storage constraints as
+ * that path — crew-visible, scanned before anyone can read it, never
+ * overwriting — under the profile instead of a project.
+ */
+export async function uploadCrewProfileDocument(input: {
+  crewProfileId: string;
+  kind: "w9" | "insurance";
+  file: File;
+}) {
+  if (!process.env.NEXT_PUBLIC_CREW_FUNCTIONS_URL) {
+    return { persisted: false, result: { preview: true } };
+  }
+  const client = getFirebaseClient();
+  const user = client.auth.currentUser;
+  if (!user) throw new Error("Sign in before uploading crew documents.");
+  const membership = await activeMembership(client.firestore, user.uid);
+  const tenantId = membership.data().tenantId as string;
+  const storage = getStorage(client.app);
+  if (
+    process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true" &&
+    !storageEmulatorConnected
+  ) {
+    connectStorageEmulator(storage, "127.0.0.1", 9199);
+    storageEmulatorConnected = true;
+  }
+  const safeName = input.file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const path = `tenants/${tenantId}/crewProfiles/${input.crewProfileId}/${input.kind}/${crypto.randomUUID()}-${safeName}`;
+  await uploadBytes(ref(storage, path), input.file, {
+    contentType: input.file.type,
+    customMetadata: {
+      crewProfileId: input.crewProfileId,
+      kind: input.kind,
+      scanStatus: "pending",
+      visibility: "crew",
+    },
+  });
+  return sendCrewCommand("submitCrewProfileDocument", {
+    crewProfileId: input.crewProfileId,
+    kind: input.kind,
+    documentPath: path,
+  });
+}
