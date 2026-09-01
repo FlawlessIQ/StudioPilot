@@ -23,7 +23,7 @@ export const planCards = [
     ai: "2,500 AI actions",
     highlight: true,
     features: [
-      "Unlimited clients, projects, and subcontractors",
+      "Unlimited clients and projects, up to 25 crew",
       "COI workflows and custom automations",
       "AI schedule generation and crew acknowledgement",
       "Advanced readiness reporting and priority support",
@@ -41,7 +41,7 @@ export const planCards = [
     ai: "7,500 AI actions",
     highlight: false,
     features: [
-      "Everything in Studio",
+      "Everything in Studio, up to 100 crew",
       "3 separately branded businesses",
       "Advanced permissions and portfolio reporting",
       "API access and priority onboarding",

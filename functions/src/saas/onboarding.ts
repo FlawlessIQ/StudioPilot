@@ -27,7 +27,7 @@ const inputSchema = z.object({
 const trialEntitlements = {
   maxInternalUsers: 3,
   maxBrands: 1,
-  maxActiveSubcontractors: null,
+  maxActiveSubcontractors: 25,
   aiActionsMonthly: 2500,
   smsEnabled: true,
   coiEnabled: true,

@@ -53,6 +53,47 @@ test("every published plan is sellable, and nothing sellable is unpublished", ()
   assert.equal(Object.hasOwn(planEntitlements, "solo"), false);
 });
 
+test("every copy of the entitlement table carries the same numbers", () => {
+  /**
+   * The keys agreeing is not the same as the values agreeing.
+   *
+   * This table exists four times: the source of truth in features/, the copy
+   * inside the Stripe webhook that provisions a paying subscription, the trial
+   * copy in onboarding, and the seed. The check above proved only that the
+   * same plan names appear in each. Every number could differ, and the one
+   * that governs what a studio is allowed to do is whichever copy happened to
+   * write their subscription document — so a studio could be sold one thing
+   * and provisioned another, with nothing failing.
+   */
+  const functionsCopy = readFileSync("functions/src/saas/stripe.ts", "utf8");
+  for (const [plan, entitlements] of Object.entries(planEntitlements)) {
+    const start = functionsCopy.search(new RegExp(`\\b${plan}:\\s*\\{`));
+    assert.ok(start >= 0, `functions/ has no ${plan} block`);
+    const block = functionsCopy.slice(start, functionsCopy.indexOf("\n  },", start));
+    for (const [key, value] of Object.entries(entitlements)) {
+      assert.match(
+        block,
+        new RegExp(`${key}:\\s*${String(value)}\\b`),
+        `functions/ ${plan}.${key} is not ${String(value)}`,
+      );
+    }
+  }
+
+  // The trial provisions the entry plan, so it must be the entry plan.
+  const onboarding = readFileSync("functions/src/saas/onboarding.ts", "utf8");
+  const trial = onboarding.slice(
+    onboarding.indexOf("const trialEntitlements"),
+  );
+  const trialBlock = trial.slice(0, trial.indexOf("\n};"));
+  for (const [key, value] of Object.entries(planEntitlements.studio)) {
+    assert.match(
+      trialBlock,
+      new RegExp(`${key}:\\s*${String(value)}\\b`),
+      `the trial does not provision studio.${key}`,
+    );
+  }
+});
+
 test("the entry plan carries a crew, not one person", () => {
   // The point of dropping Solo. A one-seat plan charged a studio for the
   // thing that makes StudioCue worth having, and maxInternalUsers is a hard

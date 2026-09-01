@@ -22,7 +22,7 @@ const entitlements = {
   studio: {
     maxInternalUsers: 3,
     maxBrands: 1,
-    maxActiveSubcontractors: null,
+    maxActiveSubcontractors: 25,
     aiActionsMonthly: 2500,
     smsEnabled: true,
     coiEnabled: true,
@@ -34,7 +34,7 @@ const entitlements = {
   multi_brand: {
     maxInternalUsers: 15,
     maxBrands: 3,
-    maxActiveSubcontractors: null,
+    maxActiveSubcontractors: 100,
     aiActionsMonthly: 7500,
     smsEnabled: true,
     coiEnabled: true,

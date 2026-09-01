@@ -1153,7 +1153,7 @@ batch.set(firestore.doc("projectCloseouts/wedding-delivered"), {
   completedAt: null, completedBy: null, summaryDocumentId: null, archivedAt: null,
 });
 const studioEntitlements = {
-  maxInternalUsers: 5, maxBrands: 1, maxActiveSubcontractors: null,
+  maxInternalUsers: 5, maxBrands: 1, maxActiveSubcontractors: 25,
   aiActionsMonthly: 2500, smsEnabled: true, coiEnabled: true,
   customWorkflowsEnabled: true, advancedReportingEnabled: true,
   apiAccessEnabled: false, prioritySupportEnabled: true,

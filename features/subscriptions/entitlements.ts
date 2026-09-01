@@ -25,7 +25,7 @@ export const planEntitlements: Readonly<Record<PlanKey, Entitlements>> = {
   studio: {
     maxInternalUsers: 3,
     maxBrands: 1,
-    maxActiveSubcontractors: null,
+    maxActiveSubcontractors: 25,
     aiActionsMonthly: 2500,
     smsEnabled: true,
     coiEnabled: true,
@@ -37,7 +37,7 @@ export const planEntitlements: Readonly<Record<PlanKey, Entitlements>> = {
   multi_brand: {
     maxInternalUsers: 15,
     maxBrands: 3,
-    maxActiveSubcontractors: null,
+    maxActiveSubcontractors: 100,
     aiActionsMonthly: 7500,
     smsEnabled: true,
     coiEnabled: true,

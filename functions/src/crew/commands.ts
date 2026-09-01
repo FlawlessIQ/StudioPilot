@@ -883,6 +883,49 @@ export const crewCommand = onRequest(
             throw new Error("CREW_HAS_OPEN_ASSIGNMENT");
           }
         }
+        /**
+         * Give the seat back.
+         *
+         * `activeSubcontractorCount` was incremented when they accepted an
+         * invitation and decremented nowhere, so it counted everyone who had
+         * ever joined rather than everyone currently on the roster. With
+         * `maxActiveSubcontractors` null on every plan that was invisible;
+         * the moment any plan carries a number it becomes a ratchet, and a
+         * studio is refused new crew because of people who left years ago.
+         *
+         * Only a linked profile ever took a seat — an invited-but-never-
+         * accepted row was never counted, so archiving one must not refund
+         * what it did not spend. Clamped at zero because the count predates
+         * this and may already be wrong in either direction.
+         */
+        if (current.get("userId")) {
+          const subscriptionReference = db.doc(
+            `subscriptions/${parsed.tenantId}`,
+          );
+          const subscription = await subscriptionReference.get();
+          if (subscription.exists) {
+            const seats = Number(
+              subscription.get("activeSubcontractorCount") ?? 0,
+            );
+            const alreadyArchived = Boolean(current.get("archivedAt"));
+            // Archiving twice must not refund twice, and restoring something
+            // already active must not charge twice.
+            const change = parsed.input.restore
+              ? alreadyArchived
+                ? 1
+                : 0
+              : alreadyArchived
+                ? 0
+                : -1;
+            if (change !== 0) {
+              await subscriptionReference.update({
+                activeSubcontractorCount: Math.max(0, seats + change),
+                updatedAt: now,
+                updatedBy: identity.uid,
+              });
+            }
+          }
+        }
         await reference.update({
           archivedAt: parsed.input.restore ? null : now,
           active: parsed.input.restore,
