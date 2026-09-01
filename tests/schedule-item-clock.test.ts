@@ -80,3 +80,51 @@ test("the input array is not mutated", () => {
   displayableScheduleItems(items);
   assert.deepEqual(items.map((i) => i.id), ["b", "a"]);
 });
+
+/**
+ * A UTC instant must survive a round trip through a datetime-local input.
+ *
+ * The review list read `item.startAt.slice(0, 16)` — the UTC wall clock — into
+ * an input the browser renders as local time, while the onChange beside it
+ * read the field as local and wrote back UTC. Read and write used opposite
+ * conventions, so a noon-to-six wedding drafted a run of show starting at 8pm
+ * with the ceremony at midnight the following day, and simply confirming a
+ * time field shifted the item again.
+ *
+ * This is the property that was missing: display then parse is identity.
+ */
+test("displaying a time and parsing it back does not move it", () => {
+  const toLocalInput = (iso: string) => {
+    const parsed = new Date(iso);
+    const offset = parsed.getTimezoneOffset() * 60_000;
+    return new Date(parsed.valueOf() - offset).toISOString().slice(0, 16);
+  };
+
+  for (const iso of [
+    "2026-10-14T16:00:00.000Z",
+    "2026-10-14T22:00:00.000Z",
+    "2026-10-15T04:30:00.000Z",
+    "2026-01-14T16:00:00.000Z", // standard time, not daylight
+  ]) {
+    const shown = toLocalInput(iso);
+    const parsedBack = new Date(shown).toISOString();
+    assert.equal(
+      parsedBack,
+      iso,
+      `${iso} rendered as "${shown}" parsed back to ${parsedBack}`,
+    );
+  }
+
+  // And the old behaviour is what it must not be: slicing the UTC string is
+  // only identity when the runner sits at UTC, so assert the difference the
+  // offset makes rather than a fixed wrong value.
+  const iso = "2026-10-14T16:00:00.000Z";
+  const offsetMinutes = new Date(iso).getTimezoneOffset();
+  if (offsetMinutes !== 0) {
+    assert.notEqual(
+      iso.slice(0, 16),
+      toLocalInput(iso),
+      "outside UTC, slicing the UTC string is not the local wall clock",
+    );
+  }
+});

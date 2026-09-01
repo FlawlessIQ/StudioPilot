@@ -101,6 +101,35 @@ const eventDateTime = (eventDate: string, time: string) =>
     ? `${eventDate}T${time}`
     : "";
 
+/**
+ * A UTC instant, as the wall clock a datetime-local input expects.
+ *
+ * The review list rendered `item.startAt.slice(0, 16)`. Item times are
+ * normalised to UTC by the command's schema, so slicing hands the input the
+ * *UTC* wall clock and the browser shows it as if it were local — a four-hour
+ * lie in New York, and the reason a noon wedding's ceremony read 12:00 AM the
+ * next day.
+ *
+ * Worse than being wrong, it was wrong in one direction only: the onChange
+ * beside it does `new Date(value).toISOString()`, which reads the field as
+ * local and converts to UTC. Read and write used opposite conventions, so
+ * merely opening a time field and confirming it shifted the item by the
+ * offset. This is the inverse of that write, so a value that is not edited
+ * round-trips unchanged.
+ *
+ * Browser-local on purpose: the coverage inputs above already work this way —
+ * naive local strings, converted on submit by `isoOrNull` — so the whole
+ * screen now speaks one convention. A studio shooting outside its own
+ * timezone is a separate question and needs `project.timezone` threaded
+ * through both halves, not just this one.
+ */
+const toLocalInput = (iso: string) => {
+  const parsed = new Date(iso);
+  if (!Number.isFinite(parsed.valueOf())) return "";
+  const offset = parsed.getTimezoneOffset() * 60_000;
+  return new Date(parsed.valueOf() - offset).toISOString().slice(0, 16);
+};
+
 const shiftLocalMinutes = (value: string, minutes: number) => {
   if (!value) return "";
   const parsed = new Date(value);
@@ -127,6 +156,18 @@ export function AiScheduleGenerator({
   const [coverageMinutes, setCoverageMinutes] = useState(480);
   const [projectId, setProjectId] = useState(initialProjectId);
   const [coverageStartsAt, setCoverageStartsAt] = useState("");
+  /**
+   * The day the ceremony and reception pickers are allowed to land on.
+   *
+   * Taken from the coverage window, which is prefilled from the project, so
+   * it is the event's own day rather than whatever today happens to be.
+   */
+  const eventDayBounds = useMemo(() => {
+    const day = coverageStartsAt.slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(day)
+      ? { min: `${day}T00:00`, max: `${day}T23:59` }
+      : { min: undefined, max: undefined };
+  }, [coverageStartsAt]);
   const [coverageEndsAt, setCoverageEndsAt] = useState("");
   const [ceremonyTime, setCeremonyTime] = useState("");
   const [receptionTime, setReceptionTime] = useState("");
@@ -506,9 +547,20 @@ export function AiScheduleGenerator({
             Coverage minutes
             <input min={30} max={1440} type="number" value={coverageMinutes} onChange={(event) => setCoverageMinutes(Number(event.target.value))} />
           </label>
+          {/*
+            * Bounded to the event day.
+            *
+            * An empty datetime-local shows *today* in the picker, so on a
+            * wedding four months out the ceremony field offered today's date
+            * and a studio filling it in without reading the day would set the
+            * ceremony six weeks before the wedding. The field knows which day
+            * it belongs to — coverage is already on it — so it says so.
+            */}
           <label>
             Ceremony time
             <input
+              max={eventDayBounds.max}
+              min={eventDayBounds.min}
               name="ceremonyTime"
               onChange={(event) => setCeremonyTime(event.target.value)}
               type="datetime-local"
@@ -518,6 +570,8 @@ export function AiScheduleGenerator({
           <label>
             Reception time
             <input
+              max={eventDayBounds.max}
+              min={eventDayBounds.min}
               name="receptionTime"
               onChange={(event) => setReceptionTime(event.target.value)}
               type="datetime-local"
@@ -646,15 +700,24 @@ export function AiScheduleGenerator({
             {draft.items.map((item, index) => (
               <article key={item.id}>
                 <input aria-label="Item title" value={item.title} onChange={(event) => updateItem(index, { title: event.target.value })} />
-                <input aria-label="Start time" type="datetime-local" value={item.startAt.slice(0, 16)} onChange={(event) => updateItem(index, { startAt: new Date(event.target.value).toISOString() })} />
-                <input aria-label="End time" type="datetime-local" value={item.endAt.slice(0, 16)} onChange={(event) => updateItem(index, { endAt: new Date(event.target.value).toISOString() })} />
+                <input aria-label="Start time" type="datetime-local" value={toLocalInput(item.startAt)} onChange={(event) => updateItem(index, { startAt: new Date(event.target.value).toISOString() })} />
+                <input aria-label="End time" type="datetime-local" value={toLocalInput(item.endAt)} onChange={(event) => updateItem(index, { endAt: new Date(event.target.value).toISOString() })} />
                 <input aria-label="Location" value={item.location ?? ""} onChange={(event) => updateItem(index, { location: event.target.value || null })} />
-                <small>
-                  {item.blockingIssues.join(" · ") ||
-                    (item.sourceReferences.length
-                      ? "No model-reported issue"
-                      : "Yours, not the model's")}
-                </small>
+                {/*
+                  * Only when there is something to say.
+                  *
+                  * "No model-reported issue" appeared under every item — nine
+                  * repetitions of a double negative that told the studio
+                  * nothing, on a screen already dense with the model talking
+                  * about itself. The source chips below already carry
+                  * provenance.
+                  */}
+                {item.blockingIssues.length || !item.sourceReferences.length ? (
+                  <small>
+                    {item.blockingIssues.join(" · ") ||
+                      "Yours, not the model's"}
+                  </small>
+                ) : null}
                 <button
                   aria-label={`Remove item ${index + 1}`}
                   className="button button-quiet schedule-item-remove"

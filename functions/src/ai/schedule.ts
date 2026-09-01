@@ -196,7 +196,7 @@ async function generate(input: z.infer<typeof inputSchema>, context: Json) {
           parts: [
             {
               text:
-                "Draft a photography run-of-show from only the supplied facts. Never invent a confirmed venue, person, vendor, travel time, approval, or provider status. Put unknowns in missingInformation and assumptions. Use ISO 8601 timestamps with offsets. All items must fit within coverage start and end unless a conflict is explicitly reported. Every item must cite at least one sourceReferences entry from a project_fact, questionnaire_answer, timing_rule, package_fact, or crew_fact. If no verified source supports an item, cite an assumption and label it plainly. This is an unapproved draft requiring human review.",
+                "Draft a photography run-of-show from only the supplied facts. Never invent a confirmed venue, person, vendor, travel time, approval, or provider status. Put unknowns in missingInformation and assumptions. Use ISO 8601 timestamps with offsets. coverageStartsAt and coverageEndsAt are absolute UTC instants that already account for the venue's local offset — never add that offset to them again, and never treat them as local wall-clock times. All items must fit within coverage start and end unless a conflict is explicitly reported, and a conflict on every item is never correct: it means the timestamps are offset. Every item must cite at least one sourceReferences entry from a project_fact, questionnaire_answer, timing_rule, package_fact, or crew_fact. If no verified source supports an item, cite an assumption and label it plainly. This is an unapproved draft requiring human review.",
             },
           ],
         },
@@ -307,7 +307,46 @@ async function generate(input: z.infer<typeof inputSchema>, context: Json) {
       return { success: false, issues: "The response was not valid JSON." };
     }
     const result = outputSchema.safeParse(parsed);
-    if (result.success) return { success: true, data: result.data };
+    if (result.success) {
+      /**
+       * Every item outside the window is a shifted clock, not a conflict.
+       *
+       * The schema only checks shape, so a draft whose times were uniformly
+       * offset passed and reached the studio as seven separate "outside the
+       * configured coverage window" conflicts. On a noon-to-six wedding that
+       * meant a run of show starting at 8pm with the ceremony at midnight the
+       * following day — and the screen blamed the items rather than saying the
+       * clock was wrong.
+       *
+       * The system instruction says items must fit the window "unless a
+       * conflict is explicitly reported", and reporting one for every item
+       * satisfied the letter of that while making the draft useless.
+       *
+       * One or two items outside is legitimate — travel or setup ahead of
+       * paid coverage. All of them never is, so that is the signal, and it is
+       * worth a repair pass rather than a confusing draft.
+       */
+      const windowStart = Date.parse(input.coverageStartsAt);
+      const windowEnd = Date.parse(input.coverageEndsAt);
+      const items = result.data.items;
+      const outside = items.filter((item) => {
+        const itemStart = Date.parse(item.startAt);
+        const itemEnd = Date.parse(item.endAt);
+        return itemEnd <= windowStart || itemStart >= windowEnd;
+      });
+      if (items.length > 1 && outside.length === items.length) {
+        return {
+          success: false,
+          issues:
+            `Every one of the ${items.length} items falls entirely outside the coverage window ` +
+            `${input.coverageStartsAt} to ${input.coverageEndsAt}. That is a timezone or ` +
+            `offset error in the timestamps, not a scheduling conflict. The window is given as ` +
+            `UTC instants — do not re-apply the venue's offset to them. Re-emit the same plan ` +
+            `positioned inside the window.`,
+        };
+      }
+      return { success: true, data: result.data };
+    }
     const issues = result.error.issues
       .slice(0, 12)
       .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
