@@ -2733,6 +2733,24 @@
   justify-self: start;
 }
 
+/* Both actions on one row, Save first. Wraps to a stack on a narrow phone
+   rather than pushing Cancel above the form. */
+.crew-profile-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+/* The availability link belongs to the page, not to the equipment card it
+   used to live inside. */
+.crew-profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
 .record-edit-invite {
   display: grid;
   gap: 8px;

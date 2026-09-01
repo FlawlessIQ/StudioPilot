@@ -534,7 +534,14 @@ function CrewProfileEditor({ data, profile }: { data: CrewData; profile: Value }
     );
   return (
     <form className="panel crew-profile-form" onSubmit={(event) => void submit(event)}>
-      <header><span><p className="eyebrow">Self-service profile</p><h2>Update your working details</h2></span><button className="button button-light button-sm" type="button" onClick={() => setEditing(false)}>Cancel</button></header>
+      {/*
+        Cancel used to sit in this header, beside the heading. On a phone that
+        row wraps, so the first and only control above the fold was Cancel,
+        looking like the thing to press — with Save seven fields below it. Both
+        actions live together at the end now, in the order they rank, matching
+        the availability form.
+      */}
+      <header><span><p className="eyebrow">Self-service profile</p><h2>Update your working details</h2></span></header>
       <label>Phone<input name="phone" defaultValue={text(profile.phone, "")} /></label>
       <label>Travel radius (miles)<input name="travelRadiusMiles" type="number" min="0" max="500" defaultValue={number(profile.travelRadiusMiles)} /></label>
       <label className="form-span">Specialties, separated by commas<input name="specialties" defaultValue={csv(profile.specialties)} /></label>
@@ -543,7 +550,10 @@ function CrewProfileEditor({ data, profile }: { data: CrewData; profile: Value }
       <label>Emergency contact name<input name="emergencyName" defaultValue={text(emergency.name, "")} /></label>
       <label>Emergency contact phone<input name="emergencyPhone" defaultValue={text(emergency.phone, "")} /></label>
       <label>Relationship<input name="emergencyRelationship" defaultValue={text(emergency.relationship, "")} /></label>
-      <button className="button button-dark" disabled={busy} type="submit">{busy ? "Saving…" : "Save profile"}</button>
+      <div className="form-span crew-profile-editor-actions">
+        <button className="button button-dark" disabled={busy} type="submit">{busy ? "Saving…" : "Save profile"}</button>
+        <button className="button button-light" disabled={busy} type="button" onClick={() => setEditing(false)}>Cancel</button>
+      </div>
       {notice ? <p className="form-notice" role="status">{notice}</p> : null}
     </form>
   );
@@ -1737,11 +1747,18 @@ export function LiveCrewProfile() {
           ) : (
             <p>No equipment has been recorded.</p>
           )}
-          <Link className="button button-light" href="/crew/availability">
-            <CalendarDays /> Manage availability
-          </Link>
         </article>
       </section>
+      {/*
+        Page-level, not equipment-level. It sat inside the equipment card,
+        under "No equipment has been recorded", where it read as though it
+        managed the availability of a camera bag.
+      */}
+      <div className="crew-profile-actions">
+        <Link className="button button-light" href="/crew/availability">
+          <CalendarDays /> Manage availability
+        </Link>
+      </div>
       <CrewProfileEditor data={data} profile={profile} />
     </div>
   );

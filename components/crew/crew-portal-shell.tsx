@@ -34,6 +34,35 @@ const navSections = [
 
 const CrewShellContext = createContext(false);
 
+/**
+ * Which nav item lights up, and what the page is called. Two questions, two
+ * answers — they were one, and the page lost.
+ *
+ * Availability and Profile both sit under Account in the nav, so highlighting
+ * Account on those routes is right. The header read from the same table, so it
+ * announced "Crew · Account" while the page underneath was titled Availability
+ * — and Documents highlighted Schedule & prep, a section the reader was not in.
+ *
+ * Every page also passed its own `active`, which looked like the fix and was
+ * not: app/crew/layout.tsx already mounts the shell, the nested one each page
+ * mounted returned its children untouched, and thirteen labels went nowhere.
+ * Those wrappers are gone; the route is the single source for both answers.
+ */
+const crewPageTitles: Record<string, string> = {
+  accepted: "Accepted jobs",
+  account: "Account",
+  availability: "Availability",
+  closeout: "Closeout",
+  documents: "Documents",
+  "event-day": "Event day",
+  jobs: "Jobs",
+  pending: "Pending jobs",
+  prep: "Prep",
+  profile: "Profile",
+  requirements: "Requirements",
+  schedule: "Schedule",
+};
+
 const crewRouteLabels: Record<string, string> = {
   accepted: "Jobs",
   account: "Account",
@@ -80,7 +109,10 @@ function CrewShell({
   const [navigationOpen, setNavigationOpen] = useState(false);
   const workspace = useWorkspace();
   const routeSegment = pathname.split("/").filter(Boolean)[1] ?? "";
+  // The nav section, which several routes share.
   const resolvedActive = active ?? crewRouteLabels[routeSegment] ?? "Today";
+  // The page itself, which is what the header is asking.
+  const pageTitle = crewPageTitles[routeSegment] ?? resolvedActive;
   return (
     <div className="ds-root" data-ds-theme="emerald">
       <div className={navigationOpen ? "ds-shell ds-nav-open" : "ds-shell"}>
@@ -164,7 +196,7 @@ function CrewShell({
               <Menu size={20} />
             </button>
             <span className="ds-crumb">
-              <b>Crew ·</b> {resolvedActive}
+              <b>Crew ·</b> {pageTitle}
             </span>
             <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--ds-muted)" }}>
               {workspace.tenantName}
