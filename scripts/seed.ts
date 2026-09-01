@@ -5,6 +5,11 @@ import { getFirestore } from "firebase-admin/firestore";
 import { starterTemplates } from "../features/workflows/starter-templates";
 import { starterQuestionnaires } from "../features/questionnaires/starter-templates";
 
+function configuredEnv(name: string): string | undefined {
+  const value = process.env[name]?.trim();
+  return value ? value : undefined;
+}
+
 if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS !== "true") {
   throw new Error("Seed is restricted to Firebase emulator mode.");
 }
@@ -14,11 +19,13 @@ if (!demoPassword || demoPassword.length < 12) {
   throw new Error("Set SEED_DEMO_PASSWORD to at least 12 characters before seeding.");
 }
 
-process.env.FIREBASE_AUTH_EMULATOR_HOST ??= "127.0.0.1:9099";
-process.env.FIRESTORE_EMULATOR_HOST ??= "127.0.0.1:8080";
+process.env.FIREBASE_AUTH_EMULATOR_HOST =
+  configuredEnv("FIREBASE_AUTH_EMULATOR_HOST") ?? "127.0.0.1:9099";
+process.env.FIRESTORE_EMULATOR_HOST =
+  configuredEnv("FIRESTORE_EMULATOR_HOST") ?? "127.0.0.1:8080";
 
-const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "studiohub-dev";
-const tenantId = process.env.SEED_TENANT_ID ?? `demo_${randomUUID()}`;
+const projectId = configuredEnv("NEXT_PUBLIC_FIREBASE_PROJECT_ID") ?? "studiohub-dev";
+const tenantId = configuredEnv("SEED_TENANT_ID") ?? `demo_${randomUUID()}`;
 const packagePriceCents = Number(process.env.SEED_WEDDING_PACKAGE_CENTS);
 
 if (!Number.isSafeInteger(packagePriceCents) || packagePriceCents <= 0) {

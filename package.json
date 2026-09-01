@@ -20,7 +20,7 @@
     "test:e2e": "playwright test",
     "test:load": "node load-tests/run.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "seed": "tsx scripts/seed.ts",
+    "seed": "tsx --env-file-if-exists=.env.local scripts/seed.ts",
     "backfill:message-visibility": "tsx scripts/backfill-message-visibility.ts",
     "backfill:message-letterhead": "tsx scripts/backfill-message-letterhead.ts",
     "secrets:provision": "bash scripts/configure-production-secrets.sh studiohub-prod provision",
