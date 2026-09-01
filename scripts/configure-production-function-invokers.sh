@@ -159,17 +159,46 @@ scheduler_services=(
   tenantexportscheduler
 )
 
+# Cloud Tasks and Pub/Sub workers that are HTTP services, so they carry no
+# `eventTrigger` and the discovery below cannot find them.
+#
+# Cloud Tasks invokes the worker itself with the same runtime identity that
+# enqueued the task. Its binding existed but was never listed here, so nothing
+# would restore it after this org's next invoker-IAM reset — every queued job
+# would then fall back to the hourly scheduler.
 event_services=(
-  aijobtaskdispatch
-  emailjobtaskdispatch
-  pdfjobtaskdispatch
-  providerjobtaskdispatch
-  # Cloud Tasks invokes the worker itself with the same runtime identity that
-  # enqueued the task. Its binding existed but was never listed here, so
-  # nothing would restore it after this org's next invoker-IAM reset — every
-  # queued job would then fall back to the hourly scheduler.
   operationstaskworker
 )
+
+# Every event-driven function, discovered rather than listed.
+#
+# This list used to be four names — the job dispatchers — and nothing else.
+# Fourteen of the eighteen event-driven functions in production therefore had
+# no invoker binding at all, so Eventarc was answered with
+# "403 ... lacks {run.routes.invoke}" on every single delivery and the
+# functions never ran once. Not the booking automation, not one of the eight
+# `readinessOn*` triggers, not the domain-event pipeline. Nothing surfaced,
+# because a rejected delivery is logged against the *service* that refused it
+# and looks like an unauthenticated caller rather than a broken product.
+#
+# A hardcoded list is what made that possible and would make it possible
+# again: this org resets invoker IAM on every revision, so a name absent here
+# is a feature that silently stops working. Discovery means a newly added
+# trigger is bound the first time this runs after its deploy, with no one
+# needing to remember.
+discovered_event_services=()
+while IFS= read -r discovered; do
+  [[ -n "${discovered}" ]] && discovered_event_services+=("${discovered}")
+done < <(gcloud functions list \
+  --project="${project_id}" --regions="${region}" \
+  --filter='eventTrigger.eventType:*' \
+  --format='value(name)' 2>/dev/null | tr '[:upper:]' '[:lower:]' | sort -u)
+
+if (( ${#discovered_event_services[@]} )); then
+  event_services+=("${discovered_event_services[@]}")
+else
+  problems+=("DISCOVERY FAILED  no event-driven functions found — every Eventarc trigger may be left unbound")
+fi
 
 echo "App Hosting relay -> private Functions (${#app_services[@]} services)"
 # Guarded because this runs under `set -u` and bash 3.2 — the version macOS
