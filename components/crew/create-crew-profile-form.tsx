@@ -65,9 +65,13 @@ export function CreateCrewProfileForm() {
         <div>
           <strong>{created} is in your directory</strong>
           <p>
-            That is an address-book entry — it does not put them on a wedding
-            yet. To offer them a job, open that job&rsquo;s crew plan and
-            StudioCue will rank who to ask.
+            We&rsquo;ve emailed them an invitation to set up their profile, mark
+            the dates they&rsquo;re free, and send you their W-9 and insurance.
+            The link expires in seven days and you can resend it from their row.
+          </p>
+          <p>
+            It does not put them on a wedding yet. To offer them a job, open
+            that job&rsquo;s crew plan and StudioCue will rank who to ask.
           </p>
         </div>
         <span className="crew-profile-created-actions">

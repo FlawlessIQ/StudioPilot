@@ -206,6 +206,20 @@ const command = z.discriminatedUnion("type", [
   }),
   z.object({
     /**
+     * Send, or re-send, a roster invite to somebody already in the directory.
+     *
+     * Every collaborator added before roster invites existed has no account
+     * and no token, so without this they would stay inert forever.
+     */
+    type: z.literal("inviteCrewProfile"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      crewProfileId: z.string().min(1),
+    }),
+  }),
+  z.object({
+    /**
      * What the studio has actually collected from a collaborator.
      *
      * These three statuses were written once, at profile creation, hardcoded
@@ -382,6 +396,63 @@ const stable = (scope: string, tenantId: string, key: string) =>
   `${scope}_${hash(`${tenantId}:${key}`).slice(0, 32)}`;
 const appUrl = () =>
   process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app";
+
+/**
+ * The roster invite: an account, with no job attached.
+ *
+ * The only invite that existed was minted on a `crewAssignment`, so a
+ * collaborator could not be given access until they were offered specific
+ * work. Adding someone to the directory therefore sent nothing and left
+ * `userId: null` — an inert row the studio had to maintain by hand, including
+ * paperwork the person could have supplied themselves.
+ *
+ * This mints the same shape of token against the profile instead, so the two
+ * accept paths can share one URL, one page and one command. Returned rather
+ * than committed so the caller can batch it with whatever else it is writing.
+ */
+function crewRosterInvitation(input: {
+  db: FirebaseFirestore.Firestore;
+  profileId: string;
+  tenantId: string;
+  email: unknown;
+  name: unknown;
+  now: string;
+  actorId: string;
+}) {
+  const inviteToken = randomBytes(32).toString("base64url");
+  const inviteExpiresAt = new Date(Date.now() + 7 * 86400000).toISOString();
+  const inviteUrl = `${appUrl()}/auth/crew-invite?token=${encodeURIComponent(inviteToken)}`;
+  return {
+    inviteUrl,
+    inviteExpiresAt,
+    profileFields: {
+      inviteTokenHash: hash(inviteToken),
+      inviteExpiresAt,
+      inviteStatus: "invited",
+      invitedAt: input.now,
+    },
+    emailJob: {
+      reference: input.db.doc(
+        `emailJobs/crew_roster_invite_${input.profileId}_${hash(inviteToken).slice(0, 12)}`,
+      ),
+      value: {
+        tenantId: input.tenantId,
+        projectId: null,
+        type: "crew_directory_invitation",
+        crewProfileId: input.profileId,
+        recipient: input.email,
+        recipientName: input.name,
+        inviteToken,
+        inviteUrl,
+        respondBy: inviteExpiresAt,
+        status: "queued",
+        attempts: 0,
+        createdAt: input.now,
+        updatedAt: input.now,
+      },
+    },
+  };
+}
 
 function crewInvitationEmailFields(input: {
   role: unknown;
@@ -593,7 +664,20 @@ export const crewCommand = onRequest(
           parsed.tenantId,
           parsed.idempotencyKey,
         );
-        await db.doc(`crewProfiles/${id}`).create({
+        // Adding somebody invites them. It used to write `userId: null` and
+        // stop, which is why a studio could add a collaborator and watch
+        // nothing at all happen.
+        const invitation = crewRosterInvitation({
+          db,
+          profileId: id,
+          tenantId: parsed.tenantId,
+          email: parsed.input.email,
+          name: parsed.input.name,
+          now,
+          actorId: identity.uid,
+        });
+        const created = db.batch();
+        created.create(db.doc(`crewProfiles/${id}`), {
           id,
           tenantId: parsed.tenantId,
           userId: null,
@@ -605,13 +689,23 @@ export const crewCommand = onRequest(
           emergencyContact: null,
           notes: null,
           active: true,
+          ...invitation.profileFields,
           createdAt: now,
           updatedAt: now,
           createdBy: identity.uid,
           updatedBy: identity.uid,
           archivedAt: null,
         });
-        result = { crewProfileId: id };
+        created.create(
+          invitation.emailJob.reference,
+          invitation.emailJob.value,
+        );
+        await created.commit();
+        result = {
+          crewProfileId: id,
+          invited: true,
+          inviteExpiresAt: invitation.inviteExpiresAt,
+        };
       } else if (parsed.type === "updateCrewDirectoryEntry") {
         if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
         const reference = db.doc(`crewProfiles/${parsed.input.crewProfileId}`);
@@ -670,6 +764,42 @@ export const crewCommand = onRequest(
         result = {
           crewProfileId: parsed.input.crewProfileId,
           updated: true,
+        };
+      } else if (parsed.type === "inviteCrewProfile") {
+        if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
+        const reference = db.doc(`crewProfiles/${parsed.input.crewProfileId}`);
+        const current = await reference.get();
+        if (
+          !current.exists ||
+          current.get("tenantId") !== parsed.tenantId ||
+          current.get("archivedAt")
+        ) {
+          throw new Error("CREW_PROFILE_NOT_FOUND");
+        }
+        // Already theirs. Re-inviting would mint a token that can only fail
+        // the "already used" check on the way back in.
+        if (current.get("userId")) throw new Error("CREW_ALREADY_HAS_ACCOUNT");
+        const invitation = crewRosterInvitation({
+          db,
+          profileId: reference.id,
+          tenantId: parsed.tenantId,
+          email: current.get("email"),
+          name: current.get("name"),
+          now,
+          actorId: identity.uid,
+        });
+        const resent = db.batch();
+        resent.update(reference, {
+          ...invitation.profileFields,
+          updatedAt: now,
+          updatedBy: identity.uid,
+        });
+        resent.create(invitation.emailJob.reference, invitation.emailJob.value);
+        await resent.commit();
+        result = {
+          crewProfileId: reference.id,
+          invited: true,
+          inviteExpiresAt: invitation.inviteExpiresAt,
         };
       } else if (parsed.type === "setCrewCompliance") {
         if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
@@ -1823,6 +1953,7 @@ export const crewCommand = onRequest(
             "updateCrewProfile",
             "updateCrewDirectoryEntry",
             "setCrewCompliance",
+            "inviteCrewProfile",
             "archiveCrewProfile",
           ] as string[]
         ).includes(parsed.type)

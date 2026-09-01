@@ -4,6 +4,7 @@ export const emailTemplateKeys = [
   "staff_invitation",
   "client_invitation",
   "crew_invitation",
+  "crew_directory_invitation",
   "email_verification",
   "password_reset",
   "inquiry_acknowledgement",
@@ -279,6 +280,33 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         note: "The secure brief is the source of truth if the studio updates this offer.",
       };
       }
+    case "crew_directory_invitation":
+      /**
+       * Joining the roster, which is not the same as being offered a job.
+       *
+       * `crew_invitation` is an offer: it names a role, a date, a location and
+       * a fee, and asks for a yes or a no. This one has no job attached — the
+       * studio has added someone to their directory and wants them set up
+       * before any work exists, so the ask is to create an account and fill in
+       * the paperwork that would otherwise sit "missing" forever.
+       */
+      return {
+        subject: `${brand.studioName} added you to their crew roster`,
+        preheader: "Set up your profile so you're ready for the next job.",
+        eyebrow: "Crew roster",
+        heading: "You've been added to the crew",
+        paragraphs: [
+          greeting,
+          `${brand.studioName} added you to their crew roster on StudioCue. There's no job attached to this yet — it means they'd like you ready for one.`,
+          "Setting up your profile takes a few minutes: confirm your specialties and the areas you travel to, mark the dates you're free, and send over your W-9 and proof of insurance.",
+          "Once that's done you'll see any assignment they offer you, with the schedule and the brief, in the same place.",
+        ],
+        action: inviteUrl
+          ? { label: "Set up your crew profile", url: inviteUrl }
+          : undefined,
+        note:
+          "For your security, this link expires after seven days and can be revoked by the studio.",
+      };
     case "email_verification":
       return {
         subject: "Verify your StudioCue email",

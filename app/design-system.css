@@ -2733,6 +2733,14 @@
   justify-self: start;
 }
 
+.record-edit-invite {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  border-bottom: 1px solid var(--ds-line, #e0e5df);
+  padding-bottom: 12px;
+}
+
 /* The paperwork form is a second, separate record inside the same drawer —
    the rule above lays it out, this only marks the seam. */
 .record-edit-compliance {

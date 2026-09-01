@@ -5,8 +5,8 @@ import { Logo } from "@/components/brand/logo";
 import { AcceptCrewInvitation } from "@/features/auth/accept-crew-invitation";
 
 export const metadata: Metadata = {
-  title: "Crew assignment",
-  description: "Open a secure, project-scoped photography assignment.",
+  title: "Crew invitation",
+  description: "Accept a secure invitation from a photography studio.",
 };
 
 export default async function CrewInvitationPage({
@@ -24,8 +24,8 @@ export default async function CrewInvitationPage({
         <div className="auth-quote">
           <Logo />
           <blockquote>
-            Review the role, logistics, compensation visibility, and required
-            documents before accepting a photography assignment.
+            Join a studio&rsquo;s crew, or review the role, logistics and
+            required documents of a specific assignment.
           </blockquote>
         </div>
       </section>
@@ -33,16 +33,16 @@ export default async function CrewInvitationPage({
         <div className="auth-form-wrap">
           <span className="eyebrow">Secure crew access</span>
           <h1>
-            <Camera size={24} /> Open your assignment
+            <Camera size={24} /> Open your invitation
           </h1>
           <p>
-            Access is limited to the invited job and can be revoked by the
-            studio.
+            Access stays limited to what the studio invites you to, and can be
+            revoked by them at any time.
           </p>
           {token.length >= 32 ? (
             <AcceptCrewInvitation token={token} />
           ) : (
-            <p className="form-error">This assignment link is incomplete.</p>
+            <p className="form-error">This invitation link is incomplete.</p>
           )}
         </div>
       </section>

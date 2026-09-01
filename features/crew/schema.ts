@@ -34,6 +34,14 @@ export const crewProfileSchema = auditFieldsSchema.extend({
     relationship: z.string().min(1),
   }).nullable(),
   notes: z.string().max(4000).nullable(),
+  // The roster invitation: an account with no job attached. Optional because
+  // every profile created before roster invites existed has none, and those
+  // rows are still valid — they are exactly the ones that need re-inviting.
+  inviteTokenHash: z.string().optional(),
+  inviteExpiresAt: z.string().datetime().optional(),
+  inviteStatus: z.enum(["invited", "accepted"]).optional(),
+  invitedAt: z.string().datetime().optional(),
+  acceptedAt: z.string().datetime().optional(),
   active: z.boolean(),
   archivedAt: z.string().datetime().nullable(),
 });

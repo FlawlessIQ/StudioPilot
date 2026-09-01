@@ -939,6 +939,7 @@ function renderRowActions(
           rateType: String(record.rateType ?? "event"),
           rateCents: Number(record.rateCents ?? 0),
           notes: typeof record.notes === "string" ? record.notes : null,
+          inviteStatus: String(record.inviteStatus ?? "not_invited"),
           w9Status: String(record.w9Status ?? "missing"),
           insuranceStatus: String(record.insuranceStatus ?? "missing"),
           contractStatus: String(record.contractStatus ?? "missing"),

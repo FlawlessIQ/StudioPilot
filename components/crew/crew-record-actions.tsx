@@ -32,6 +32,7 @@ export function CrewRecordActions({
     rateType: string;
     rateCents: number;
     notes: string | null;
+    inviteStatus: string;
     w9Status: string;
     insuranceStatus: string;
     contractStatus: string;
@@ -41,6 +42,20 @@ export function CrewRecordActions({
 }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+
+  async function invite() {
+    setBusy(true);
+    setNotice(null);
+    try {
+      await sendCrewCommand("inviteCrewProfile", { crewProfileId: crew.id });
+      setNotice("Invitation sent. The link expires in seven days.");
+      refreshTenantRecords("crewProfiles");
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "That invitation could not be sent."));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function saveCompliance(values: FormData) {
     setBusy(true);
@@ -99,6 +114,28 @@ export function CrewRecordActions({
         <PencilLine aria-hidden="true" size={14} /> Edit or remove
       </summary>
       <div>
+        {/*
+          Anyone added before roster invites existed has no account and no
+          token, so this is the only way they ever get one.
+        */}
+        {crew.hasAccount ? null : (
+          <div className="record-edit-invite">
+            <p className="record-edit-locked">
+              {crew.inviteStatus === "invited"
+                ? "Invited. They haven't set up their account yet."
+                : "No invitation sent yet — they can't add their own availability or documents until they have one."}
+            </p>
+            <button
+              className="button button-light button-sm"
+              disabled={busy}
+              onClick={() => void invite()}
+              type="button"
+            >
+              {busy ? <LoaderCircle className="spin" size={14} /> : null}
+              {crew.inviteStatus === "invited" ? "Resend invite" : "Send invite"}
+            </button>
+          </div>
+        )}
         <form
           onSubmit={(event) => {
             event.preventDefault();

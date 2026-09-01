@@ -16,6 +16,9 @@ export function AcceptCrewInvitation({ token }: { token: string }) {
   >("idle");
   const [message, setMessage] = useState("");
   const [assignmentId, setAssignmentId] = useState("");
+  // A roster invitation carries no job. Same token, same page, different
+  // destination: the assignment brief, or the profile they now need to fill in.
+  const [isRoster, setIsRoster] = useState(false);
   const [verificationSent, setVerificationSent] = useState(false);
 
   useEffect(() => {
@@ -57,12 +60,19 @@ export function AcceptCrewInvitation({ token }: { token: string }) {
       const result = (await response.json()) as {
         error?: string;
         assignmentId?: string;
+        kind?: string;
       };
       if (!response.ok)
         throw new Error(invitationErrorMessage(result.error));
+      const roster = result.kind === "roster";
+      setIsRoster(roster);
       setAssignmentId(result.assignmentId ?? "");
       setState("accepted");
-      setMessage("The assignment is now available in your crew workspace.");
+      setMessage(
+        roster
+          ? "You're set up. Add your specialties, availability and documents so you're ready when a job is offered."
+          : "The assignment is now available in your crew workspace.",
+      );
     } catch (caught: unknown) {
       setState("error");
       setMessage(
@@ -96,7 +106,7 @@ export function AcceptCrewInvitation({ token }: { token: string }) {
     return (
       <div className="invite-actions">
         <ShieldCheck />
-        <p>Verify your email before opening assignment details. Then return to this tab and refresh.</p>
+        <p>Verify your email before continuing. Then return to this tab and refresh.</p>
         <button
           className="button button-dark"
           disabled={verificationSent}
@@ -117,8 +127,15 @@ export function AcceptCrewInvitation({ token }: { token: string }) {
       <div className="invite-actions">
         <CheckCircle2 />
         <p>{message}</p>
-        <Link className="button button-dark" href={`/crew/jobs${assignmentId ? `?assignment=${encodeURIComponent(assignmentId)}` : ""}`}>
-          Review assignment
+        <Link
+          className="button button-dark"
+          href={
+            isRoster
+              ? "/crew/profile"
+              : `/crew/jobs${assignmentId ? `?assignment=${encodeURIComponent(assignmentId)}` : ""}`
+          }
+        >
+          {isRoster ? "Set up your profile" : "Review assignment"}
         </Link>
       </div>
     );
@@ -127,8 +144,9 @@ export function AcceptCrewInvitation({ token }: { token: string }) {
     <div className="invite-actions">
       <Camera />
       <p>
-        This links only the invited assignment and its project-scoped brief to
-        your verified account. You can accept or decline after reviewing it.
+        This links the studio&rsquo;s invitation to your verified account.
+        Access stays scoped to what they invite you to, and the studio can
+        revoke it at any time.
       </p>
       <button
         className="button button-dark"
@@ -141,7 +159,7 @@ export function AcceptCrewInvitation({ token }: { token: string }) {
         ) : (
           <ShieldCheck />
         )}
-        Open secure assignment
+        Continue securely
       </button>
       {message ? (
         <p className="form-error" role="status">
@@ -155,18 +173,18 @@ export function AcceptCrewInvitation({ token }: { token: string }) {
 function invitationErrorMessage(code?: string) {
   switch (code) {
     case "INVITATION_EXPIRED":
-      return "This invitation has expired. Ask the studio to resend the assignment so you receive a new secure link.";
+      return "This invitation has expired. Ask the studio to resend it so you receive a new secure link.";
     case "INVITED_EMAIL_MISMATCH":
-      return "This link belongs to a different email address. Sign out and use the exact address that received the assignment.";
+      return "This link belongs to a different email address. Sign out and use the exact address the studio invited.";
     case "INVITATION_ALREADY_USED":
-      return "This invitation is already linked to another account. Ask the studio to verify the crew email or resend the offer.";
+      return "This invitation is already linked to another account. Ask the studio to check the email on file, then resend.";
     case "INVITATION_NOT_FOUND":
-      return "This assignment link is no longer valid. Ask the studio to resend it.";
+      return "This link is no longer valid. Ask the studio to resend it.";
     case "SUBCONTRACTOR_LIMIT_REACHED":
-      return "The studio needs to update its crew access before this assignment can be opened. Contact the studio.";
+      return "The studio has no crew seats left on its plan. Contact the studio.";
     default:
       return code && !code.includes("_")
         ? code
-        : "The assignment could not be opened. Retry once, then ask the studio to resend the invitation.";
+        : "This could not be opened. Retry once, then ask the studio to resend the invitation.";
   }
 }
