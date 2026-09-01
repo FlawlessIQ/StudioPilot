@@ -410,6 +410,56 @@ const appUrl = () =>
  * accept paths can share one URL, one page and one command. Returned rather
  * than committed so the caller can batch it with whatever else it is writing.
  */
+/**
+ * Every profile in the tenant, for the duplicate check.
+ *
+ * Both call sites used to read `.limit(400)` with no ordering, so Firestore
+ * returned an arbitrary 400 documents and anyone outside that window was
+ * invisible to the check — which then returned "unique" and created the
+ * duplicate it exists to prevent. It failed open, and which 400 you got was
+ * not stable between calls. Archived entries count toward the cap too, so a
+ * studio that takes on seasonal crew and archives them reaches it on history
+ * alone, long before it has 400 people.
+ *
+ * The scan cannot become an equality query on email: addresses are stored as
+ * the studio typed them, and `findDuplicateProfile` normalises both sides so
+ * "Sam@Studio.com" collides with "sam@studio.com". Comparing raw values in
+ * Firestore would miss exactly the case-typo duplicates this is for. So it
+ * pages instead, and reads only the three fields the verdict needs.
+ */
+async function tenantCrewDirectory(
+  db: FirebaseFirestore.Firestore,
+  tenantId: string,
+) {
+  const profiles: Array<{
+    id: string;
+    email: string;
+    name: string;
+    archivedAt: string | null;
+  }> = [];
+  let cursor: FirebaseFirestore.QueryDocumentSnapshot | undefined;
+  for (;;) {
+    let query = db
+      .collection("crewProfiles")
+      .where("tenantId", "==", tenantId)
+      .orderBy("__name__")
+      .select("email", "name", "archivedAt")
+      .limit(500);
+    if (cursor) query = query.startAfter(cursor);
+    const page = await query.get();
+    for (const document of page.docs) {
+      profiles.push({
+        id: document.id,
+        email: String(document.get("email") ?? ""),
+        name: String(document.get("name") ?? ""),
+        archivedAt: (document.get("archivedAt") as string | null) ?? null,
+      });
+    }
+    if (page.size < 500) return profiles;
+    cursor = page.docs[page.size - 1];
+  }
+}
+
 function crewRosterInvitation(input: {
   db: FirebaseFirestore.Firestore;
   profileId: string;
@@ -639,19 +689,9 @@ export const crewCommand = onRequest(
          * acknowledge on one entry and look unresponsive on the other.
          * See features/crew/duplicate-profile.ts.
          */
-        const directory = await db
-          .collection("crewProfiles")
-          .where("tenantId", "==", parsed.tenantId)
-          .limit(400)
-          .get();
         const duplicate = findDuplicateProfile(
           parsed.input.email,
-          directory.docs.map((document) => ({
-            id: document.id,
-            email: String(document.get("email") ?? ""),
-            name: String(document.get("name") ?? ""),
-            archivedAt: (document.get("archivedAt") as string | null) ?? null,
-          })),
+          await tenantCrewDirectory(db, parsed.tenantId),
         );
         if (duplicate.kind === "active") {
           throw new Error("CREW_EMAIL_ALREADY_IN_DIRECTORY");
@@ -720,19 +760,9 @@ export const crewCommand = onRequest(
         // Changing an email onto somebody else's is the same collision by
         // another route.
         if (parsed.input.email !== current.get("email")) {
-          const directory = await db
-            .collection("crewProfiles")
-            .where("tenantId", "==", parsed.tenantId)
-            .limit(400)
-            .get();
           const collision = findDuplicateProfile(
             parsed.input.email,
-            directory.docs.map((document) => ({
-              id: document.id,
-              email: String(document.get("email") ?? ""),
-              name: String(document.get("name") ?? ""),
-              archivedAt: (document.get("archivedAt") as string | null) ?? null,
-            })),
+            await tenantCrewDirectory(db, parsed.tenantId),
             parsed.input.crewProfileId,
           );
           if (collision.kind !== "unique") {

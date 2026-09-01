@@ -86,3 +86,44 @@ test("the functions copy has not drifted", () => {
     strip(readFileSync("functions/src/crew/duplicate-profile.ts", "utf8")),
   );
 });
+
+/**
+ * The guard is only as good as the set it is shown.
+ *
+ * `findDuplicateProfile` is a pure verdict over a list, and every case above
+ * proves it correct. None of that mattered at the two places it is actually
+ * called, which read the directory with `.limit(400)` and no ordering:
+ * Firestore returned an arbitrary 400 documents, anyone outside that window
+ * was invisible, and the verdict came back "unique" — so the check failed
+ * open and created the duplicate it exists to prevent. Archived entries count
+ * toward the cap, so a studio reaches it on history rather than headcount.
+ *
+ * A bound on this particular read is always a silent correctness bug, never a
+ * safeguard, and it reads as prudent — which is why it wants a test rather
+ * than a comment.
+ */
+test("nothing bounds the directory the duplicate check is shown", () => {
+  const commands = readFileSync(
+    `${process.cwd()}/functions/src/crew/commands.ts`,
+    "utf8",
+  );
+  const scan = commands.slice(
+    commands.indexOf("async function tenantCrewDirectory"),
+  );
+  const body = scan.slice(0, scan.indexOf("\n}\n"));
+  // Paging needs a page size, so a bare limit is expected — what must not
+  // exist is a limit with no cursor to continue past it.
+  assert.ok(body.includes("startAfter"), "the scan does not page");
+  assert.ok(body.includes("orderBy"), "paging without an order is not stable");
+
+  // And both callers must go through it rather than querying for themselves.
+  const callers = [...commands.matchAll(/findDuplicateProfile\(/g)];
+  assert.equal(callers.length, 2);
+  for (const caller of callers) {
+    const argument = commands.slice(caller.index, caller.index + 260);
+    assert.ok(
+      argument.includes("tenantCrewDirectory"),
+      "a duplicate check is reading the directory its own way",
+    );
+  }
+});
