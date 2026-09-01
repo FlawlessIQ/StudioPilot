@@ -30,7 +30,10 @@ import { sendBookingCommand } from "@/lib/booking/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { resolveActiveProvider } from "@/features/integrations/routing";
 import { providerFailureHint } from "@/features/booking/provider-failure-hint";
-import { bookingAutomationDrivesContract } from "@/features/booking/orchestration";
+import {
+  bookingAutomationAwaitsProvider,
+  bookingAutomationDrivesContract,
+} from "@/features/booking/orchestration";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
 import { friendlyError as friendlySharedError } from "@/lib/ai/friendly-error";
 import { formatDueDate } from "@/lib/format/event-date";
@@ -373,6 +376,11 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   });
   // Only *waiting* for a signature while there isn't one.
   const automationAwaitingSignature = automationDriving && !contractComplete;
+  const automationHasOutstandingWork = bookingAutomationAwaitsProvider({
+    driving: automationDriving,
+    contractComplete,
+    retainerPaid: invoicePaid,
+  });
 
   /**
    * Which of the three steps is actually live.
@@ -1103,7 +1111,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   </small>
                 </span>
               </div>
-            ) : automationDriving ? (
+            ) : automationHasOutstandingWork ? (
               <div className="booking-complete-message">
                 <LoaderCircle className="spin" size={18} />
                 <span>
@@ -1114,27 +1122,39 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   </small>
                 </span>
               </div>
-            ) : automationNeedsAttention ? (
-              <div className="booking-complete-message">
-                <CircleAlert size={18} />
-                <span>
-                  <strong>StudioCue stopped safely</strong>
-                  <small>
-                    Resolve the exception shown in your next actions, then run
-                    the booking review again.
-                  </small>
-                </span>
-              </div>
             ) : (
-              <button
-                className="button booking-gate-button"
-                disabled={busy !== null || projectState !== "RETAINER_PENDING"}
-                onClick={() => void reviewBooking()}
-                type="button"
-              >
-                {busy === "gate" ? "Checking…" : "Check and confirm"}
-                <ShieldCheck size={16} />
-              </button>
+              <>
+                {/*
+                  * The message and the control together.
+                  *
+                  * This branch used to render the notice *instead* of the
+                  * button, while telling the studio to "run the booking review
+                  * again" — the one thing the screen then gave them no way to
+                  * do. A stopped plan is exactly when a person needs the
+                  * control most.
+                  */}
+                {automationNeedsAttention ? (
+                  <div className="booking-complete-message">
+                    <CircleAlert size={18} />
+                    <span>
+                      <strong>StudioCue stopped safely</strong>
+                      <small>
+                        Resolve anything listed below, then run the booking
+                        review again.
+                      </small>
+                    </span>
+                  </div>
+                ) : null}
+                <button
+                  className="button booking-gate-button"
+                  disabled={busy !== null || projectState !== "RETAINER_PENDING"}
+                  onClick={() => void reviewBooking()}
+                  type="button"
+                >
+                  {busy === "gate" ? "Checking…" : "Check and confirm"}
+                  <ShieldCheck size={16} />
+                </button>
+              </>
             )}
             {gateBlockers.length ? (
               <ul className="booking-blockers">

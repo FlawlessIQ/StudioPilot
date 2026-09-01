@@ -58,3 +58,31 @@ export function bookingAutomationDrivesContract(input: {
   if (!input.planContractId) return true;
   return input.planContractId === input.contractId;
 }
+
+/**
+ * Is the plan still owed an event that has not happened?
+ *
+ * The booking workspace replaced its only forward control — "Check and
+ * confirm" — with "StudioCue will run the evidence check as soon as the
+ * connected provider reports the retainer paid" for as long as a plan was
+ * driving. When the retainer is recorded by hand (a transfer, a cheque, a card
+ * reader) no provider reports anything, so that described a wait that could
+ * not end, and the studio was left on a screen that said "Confirm the booking
+ * to finish" with nothing to press.
+ *
+ * A plan is only owed a provider event while a step is genuinely outstanding.
+ * Once the agreement is complete and the retainer is settled there is nothing
+ * left to report, and the person takes over.
+ *
+ * Revealing the control weakens no guarantee: it runs the same booking gate
+ * the automation would, which refuses on its own evidence. Hiding it never
+ * protected the gate, it only removed the human's ability to ask for it.
+ */
+export function bookingAutomationAwaitsProvider(input: {
+  driving: boolean;
+  contractComplete: boolean;
+  retainerPaid: boolean;
+}): boolean {
+  if (!input.driving) return false;
+  return !input.contractComplete || !input.retainerPaid;
+}

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { groundedBookingDraft } from "../features/booking/autopilot";
 import {
+  bookingAutomationAwaitsProvider,
   bookingAutomationDrivesContract,
   nextBookingAutomationStep,
 } from "../features/booking/orchestration";
@@ -188,6 +189,57 @@ test("a plan waiting on another contract makes no promises about this one", () =
       status: "needs_attention",
       planContractId: "contract_attested",
       contractId: "contract_attested",
+    }),
+    false,
+  );
+});
+
+/**
+ * The manual escape from an automated booking.
+ *
+ * A studio whose couple paid by transfer, cheque or card reader has no
+ * provider to report anything. The workspace hid "Check and confirm" behind
+ * "as soon as the connected provider reports the retainer paid" for as long as
+ * a plan was driving, so that sentence described a wait that could not end and
+ * the only forward control was gone. The screen said "Retainer recorded
+ * against your name. Confirm the booking to finish." with nothing to press.
+ */
+test("a plan with nothing outstanding hands control back to the studio", () => {
+  // The dead end: signed, paid by hand, plan still active.
+  assert.equal(
+    bookingAutomationAwaitsProvider({
+      driving: true,
+      contractComplete: true,
+      retainerPaid: true,
+    }),
+    false,
+    "a settled retainer leaves the provider nothing to report",
+  );
+
+  // Still genuinely waiting — the promise is honest here.
+  assert.equal(
+    bookingAutomationAwaitsProvider({
+      driving: true,
+      contractComplete: true,
+      retainerPaid: false,
+    }),
+    true,
+  );
+  assert.equal(
+    bookingAutomationAwaitsProvider({
+      driving: true,
+      contractComplete: false,
+      retainerPaid: false,
+    }),
+    true,
+  );
+
+  // No plan on this contract: the manual controls were always in charge.
+  assert.equal(
+    bookingAutomationAwaitsProvider({
+      driving: false,
+      contractComplete: false,
+      retainerPaid: false,
     }),
     false,
   );

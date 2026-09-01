@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { logger } from "firebase-functions/v2";
 import { agreedRetainerCents } from "./agreed-retainer.js";
 import { isStandingInvoice } from "./invoice-standing.js";
 import { resolveProviderForTenant } from "../integrations/capability-resolution.js";
@@ -237,13 +238,44 @@ export const bookingRetainerPaid = onDocumentWritten(
         .limit(1)
         .get(),
     ]);
-    if (
-      !plan.exists ||
-      plan.get("status") !== "active" ||
-      plan.get("policy.completeBookingAfterPayment") !== true ||
-      !project.exists ||
-      project.get("tenantId") !== tenantId
-    ) return;
+    /**
+     * Say why, when this declines to act.
+     *
+     * Each of these used to be a bare `return`. The booking workspace shows
+     * "Automatic confirmation is active — StudioCue will run the evidence
+     * check as soon as the connected provider reports the retainer paid" for
+     * as long as the plan is active, so a decline here left that sentence on
+     * screen permanently with nothing anywhere to say the trigger had looked
+     * and walked away. The retainer was paid; the promise was not kept; the
+     * studio had no way to find out why.
+     *
+     * Declining is often correct — this is a write trigger and fires on
+     * invoices with no plan at all. What was wrong was doing it silently
+     * while a plan was open and waiting on precisely this event.
+     */
+    const declineReason = !plan.exists
+      ? "no_plan"
+      : plan.get("status") !== "active"
+        ? `plan_${String(plan.get("status"))}`
+        : plan.get("policy.completeBookingAfterPayment") !== true
+          ? "policy_does_not_complete_after_payment"
+          : !project.exists || project.get("tenantId") !== tenantId
+            ? "project_mismatch"
+            : null;
+    if (declineReason) {
+      // Only worth a line when a plan was actually waiting on this.
+      if (plan.exists && plan.get("status") === "active") {
+        logger.error("bookingRetainerPaidDeclined", {
+          studiocueOperationalError: true,
+          code: "BOOKING_AUTOMATION_STALLED",
+          reason: declineReason,
+          tenantId,
+          projectId,
+          invoiceId: invoice.id,
+        });
+      }
+      return;
+    }
 
     const eventDate = String(project.get("eventDate") ?? "");
     const contactIds = strings(project.get("clientContactIds"));
