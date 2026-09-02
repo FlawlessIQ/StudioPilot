@@ -31,6 +31,7 @@ export { sendgridInboundCoi } from "./planning/inbound.js";
 export { sendgridInboundMessage } from "./communications/inbound.js";
 export { coiChaseScheduler } from "./planning/coi-chase-scheduler.js";
 export { sendgridEventWebhook } from "./communications/sendgrid-events.js";
+export { emailDeliveryReconciler } from "./communications/delivery-reconciler.js";
 export {
   communicationsCommand,
   scheduledEmailRelease,
