@@ -7,6 +7,7 @@ import { splitUpcomingAndPast } from "@/features/ordering/attention";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { requestMessageDraft } from "@/lib/ai/message-draft-client";
 import { sendPostEventCommand } from "@/lib/post-event/command-client";
+import { useReturnToJob } from "@/lib/projects/return-to-job";
 import { parseGalleryAnnouncement } from "@/features/post-event/gallery-announcement";
 import { friendlyError } from "@/lib/ai/friendly-error";
 
@@ -26,6 +27,7 @@ const reviewKey = (label: string) =>
 
 export function DeliveryForm({ projectId }: { projectId?: string }) {
   const workspace = useWorkspace();
+  const returnToJob = useReturnToJob(projectId ?? null);
   const { records: projects, loading } = useTenantDocuments("projects");
   // Past events first (most recent first), then anything still ahead.
   const deliverableFirst = useMemo(() => {
@@ -219,6 +221,9 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
         saveStudioDefaults: data.get("saveStudioDefaults") === "on",
         deliveryDraftId: activeDraftId,
       });
+      // Delivery is the step; whichever notice below lands, the job page is
+      // where the studio finds out what is next.
+      if (response.persisted) returnToJob({ delayMs: 1400 });
       if (response.persisted && workspace.tenantId) {
         // Chain the delivery email draft automatically — it waits in the AI
         // review queue; nothing sends without approval.

@@ -5,6 +5,7 @@ import { CheckCircle2, Send, UserRoundCheck } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { sendCrewCommand } from "@/lib/crew/command-client";
 import { crewPublicError } from "@/lib/crew/public-error";
+import { useReturnToJob } from "@/lib/projects/return-to-job";
 
 const text = (value: unknown) => (typeof value === "string" ? value : "");
 const localDateTime = (value: Date) => {
@@ -55,6 +56,7 @@ const REQUIREMENTS = [
  * caller. This is the caller.
  */
 export function DirectInviteForm({ projectId }: { projectId: string }) {
+  const returnToJob = useReturnToJob(projectId);
   const { records: projects } = useTenantDocuments("projects");
   const { records: profiles } = useTenantDocuments("crewProfiles");
   const { records: assignments } = useTenantDocuments("crewAssignments");
@@ -146,6 +148,7 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
         requirements: REQUIREMENTS,
       });
       if (response.persisted) {
+        returnToJob({ delayMs: 1600 });
         setSent(text(chosen.name) || "They");
         setCrewProfileId("");
         setRateOverride(null);

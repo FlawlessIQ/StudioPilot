@@ -16,6 +16,7 @@ import { friendlyAiError } from "@/lib/ai/friendly-error";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
+import { useReturnToJob } from "@/lib/projects/return-to-job";
 import { sendCommunicationsCommand } from "@/lib/communications/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import {
@@ -179,6 +180,7 @@ export function AiScheduleGenerator({
   const [prefillSummary, setPrefillSummary] = useState("");
   const [busy, setBusy] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const returnToJob = useReturnToJob(projectId);
   const [notice, setNotice] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   /**
@@ -528,9 +530,13 @@ export function AiScheduleGenerator({
       });
       setNotice(
         response.persisted
-          ? "Published. Your crew can see it now."
+          ? "Published. Your crew can see it now — taking you back to the job."
           : "Development preview validated the schedule without publishing.",
       );
+      // Say it, then show it. The job page lists this step as complete and
+      // names the next move, which is the confirmation the notice alone
+      // could not give from the bottom of a long page.
+      if (response.persisted) returnToJob();
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "Publish failed."));
     } finally {

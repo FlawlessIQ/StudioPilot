@@ -7,6 +7,7 @@ import {
   useTenantDocuments,
 } from "@/components/live/tenant-records";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { useReturnToJob } from "@/lib/projects/return-to-job";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 
 /**
@@ -31,6 +32,7 @@ export function QuestionnaireQuickSend({ projectId }: { projectId: string }) {
   const { records: responses } = useTenantDocuments("questionnaireResponses");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const returnToJob = useReturnToJob(projectId);
 
   const project = projects?.find((item) => item.id === projectId);
   const alreadyAssigned = (responses ?? []).some(
@@ -60,8 +62,9 @@ export function QuestionnaireQuickSend({ projectId }: { projectId: string }) {
       });
       refreshTenantRecords("questionnaireResponses", "checkpoints");
       setNotice(
-        "Sent. The couple can fill it in from their portal, and readiness updates when they do.",
+        "Sent. The couple can fill it in from their portal — taking you back to the job.",
       );
+      returnToJob();
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "That form could not be sent."));
     } finally {

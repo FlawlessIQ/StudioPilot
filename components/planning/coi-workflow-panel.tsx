@@ -24,6 +24,7 @@ import { statusLabel } from "@/features/format/status-label";
 import { AddressField } from "@/components/forms/address-field";
 import type { CapturedPlace } from "@/features/places/schema";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { useReturnToJob } from "@/lib/projects/return-to-job";
 
 type RequestRecord = Record<string, unknown> & { id: string };
 
@@ -36,6 +37,7 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [reason, setReason] = useState<Record<string, string>>({});
+  const returnToJob = useReturnToJob(projectId ?? null);
 
   useEffect(() => {
     if (!dataIsLive) return;
@@ -97,6 +99,9 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
       if (result.persisted) {
         element.reset();
         setVenueAddress(null);
+        // The step now waits on the agent, which the job page says better
+        // than this form can.
+        if (projectId) returnToJob();
       }
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "Request failed."));

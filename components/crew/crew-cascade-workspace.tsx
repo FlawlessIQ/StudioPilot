@@ -12,6 +12,7 @@ import {
   UserRoundSearch,
 } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
+import { useReturnToJob } from "@/lib/projects/return-to-job";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   rankCrewCandidates,
@@ -40,6 +41,7 @@ const safeIso = (value: string) => {
 };
 
 export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
+  const returnToJob = useReturnToJob(projectId);
   const { records: projects } = useTenantDocuments("projects");
   const { records: profiles, loading } = useTenantDocuments("crewProfiles");
   const { records: availability } = useTenantDocuments("crewAvailability");
@@ -351,6 +353,9 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
             : "Cascade started. Only the first approved candidate received an offer."
           : "Development preview validated the candidate order without sending an offer.",
       );
+      // The step now waits on the crew member's answer, which the job page
+      // states plainly.
+      if (result.persisted) returnToJob({ delayMs: 1400 });
     } catch (caught: unknown) {
       setNotice(
         crewPublicError(caught, "The crew offer sequence could not be started.", "CREW_CASCADE_START_FAILED"),
