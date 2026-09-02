@@ -36,6 +36,7 @@ import { askCopilot } from "@/lib/ai/copilot-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { sendBookingCommand } from "@/lib/booking/command-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
+import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { runWorkflowCommand } from "@/lib/workflows/command-client";
 
 const DAY = new Intl.DateTimeFormat("en-US", {
@@ -420,6 +421,13 @@ function ThreadNextMove({
                 stateVersion={stateVersion}
               />
             ) : null}
+            {/* The nag appears here, so the answer to it belongs here. A
+                venue that never asks for a certificate left this card
+                reading "Request COI" for the life of the job, and the only
+                way to say otherwise was to find the insurance page. */}
+            {current.key === "coi" ? (
+              <CoiNotRequiredButton projectId={projectId} />
+            ) : null}
           </div>
         </div>
       ) : (
@@ -714,6 +722,58 @@ function MarkDoneButton({
       >
         {busy ? <LoaderCircle className="spin" size={13} /> : null}
         {advance.label}
+      </button>
+      {notice ? <small role="status">{notice}</small> : null}
+    </>
+  );
+}
+
+/**
+ * "This venue does not need one", said where the asking happens.
+ *
+ * `setInsuranceRequirement` is the same command the insurance page calls;
+ * this is the second place it is reachable from, because the next-move card
+ * is where a studio actually meets the question.
+ */
+function CoiNotRequiredButton({ projectId }: { projectId: string }) {
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  async function run() {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const response = await sendPlanningCommand("setInsuranceRequirement", {
+        projectId,
+        insuranceRequired: "not_required",
+      });
+      if (response.persisted) {
+        // No state transition here, so `onChanged` has nothing to report —
+        // the parent ignores it unless both a state and a version are given.
+        // The journey is computed from the cached `projects` records, and the
+        // store is a cache rather than a live subscription, so evicting it is
+        // what actually moves this card on.
+        refreshTenantRecords("projects");
+      } else {
+        setNotice("Preview: this job would be marked as needing no certificate.");
+      }
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "That could not be saved."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <button
+        className="button button-light thread-mark-done"
+        disabled={busy}
+        onClick={() => void run()}
+        type="button"
+      >
+        {busy ? <LoaderCircle className="spin" size={13} /> : null}
+        Not required
       </button>
       {notice ? <small role="status">{notice}</small> : null}
     </>
