@@ -9,6 +9,7 @@ import {
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { sendPostEventCommand } from "@/lib/post-event/command-client";
 import {
+  DELIVERY_GATE_STEPS,
   deliveryGateCleared,
   postProductionRows,
   type PostProductionStepKey,
@@ -139,6 +140,15 @@ export function PostProductionChecklist({
             </span>
             <span className="post-production-copy">
               <strong>{row.label}</strong>
+              {/* Which of the nine actually stop a release. Three do, and the
+                  header said so in prose while the rows themselves gave no
+                  clue — so ticking "Cull finished" or "Editing started" felt
+                  like progress towards a gate it has no bearing on. */}
+              {DELIVERY_GATE_STEPS.includes(row.key) ? (
+                <span className="post-production-gates">
+                  Required for release
+                </span>
+              ) : null}
               <small>{row.detail}</small>
               {/* Whose step it is, when it is not the studio's. Saying it
                   outright is what stops "why can I not tick this?". */}

@@ -9,6 +9,11 @@ import { requestMessageDraft } from "@/lib/ai/message-draft-client";
 import { sendPostEventCommand } from "@/lib/post-event/command-client";
 import { useReturnToJob } from "@/lib/projects/return-to-job";
 import { parseGalleryAnnouncement } from "@/features/post-event/gallery-announcement";
+import {
+  DELIVERY_GATE_STEPS,
+  POST_PRODUCTION_META,
+} from "@/features/post-production/checklist";
+import { todayLocalIso } from "@/lib/format/event-date";
 import { friendlyError } from "@/lib/ai/friendly-error";
 
 const record = (value: unknown): Record<string, unknown> =>
@@ -39,6 +44,9 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
     useTenantDocuments("packageSnapshots");
   const { records: galleryInboxes } = useTenantDocuments("galleryInboxes");
   const { records: deliveryDrafts } = useTenantDocuments("deliveryDrafts");
+  const { records: productionRecords } = useTenantDocuments(
+    "postProductionRecords",
+  );
   /**
    * Whether the client has hydrated, so a submit cannot fire against handlers
    * that are not attached yet.
@@ -60,6 +68,26 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
     () => false,
   );
   const [selectedProjectId, setSelectedProjectId] = useState(projectId ?? "");
+  /**
+   * What the delivery gate will say, before the form is filled in.
+   *
+   * The gate is enforced server-side and was only ever announced *after*
+   * submitting: ten fields, a click, then "backup, editing and gallery-ready
+   * all have to be ticked". `deliveryGateCleared` already existed and was
+   * already used by the checklist on this very page — the form simply never
+   * asked it.
+   */
+  const outstandingGateSteps = (() => {
+    const production = (productionRecords ?? []).find(
+      (item) => item.projectId === selectedProjectId,
+    );
+    if (!selectedProjectId || !production) return [];
+    const steps = (production.steps ?? {}) as Record<
+      string,
+      { complete?: boolean } | undefined
+    >;
+    return DELIVERY_GATE_STEPS.filter((key) => steps[key]?.complete !== true);
+  })();
   const [provider, setProvider] = useState("manual");
   const [galleryUrl, setGalleryUrl] = useState("");
   const [accessCode, setAccessCode] = useState("");
@@ -375,10 +403,16 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
           value={accessCode}
         />
       </label>
+      {/* `toISOString()` is UTC: west of Greenwich the delivery date
+          defaulted to *tomorrow* after about 8pm Eastern — exactly when a
+          photographer sits down to send a gallery. The recorded date was a
+          day out, and the 3-day and 10-day follow-ups are computed from it,
+          so they slipped with it. `todayLocalIso` exists for this and says
+          so in its own comment. */}
       <label>
         Delivery date
         <input
-          defaultValue={new Date().toISOString().slice(0, 10)}
+          defaultValue={todayLocalIso()}
           name="deliveryDate"
           type="date"
           required
@@ -463,7 +497,21 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
       </label>
         </div>
       </details>
-      <button className="button button-dark" disabled={!interactive} type="submit">
+      {outstandingGateSteps.length ? (
+        <p className="delivery-gate-notice form-span" role="status">
+          <strong>Not cleared for release yet.</strong> Tick{" "}
+          {outstandingGateSteps
+            .map((key) => POST_PRODUCTION_META[key].label)
+            .join(", ")}{" "}
+          on the post-production checklist above — StudioCue will refuse the
+          release until then.
+        </p>
+      ) : null}
+      <button
+        className="button button-dark"
+        disabled={!interactive || outstandingGateSteps.length > 0}
+        type="submit"
+      >
         <Send size={16} /> Record and release delivery
       </button>
       <p className="form-notice form-span">

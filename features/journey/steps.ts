@@ -742,7 +742,16 @@ export function projectJourney(input: JourneyInput): {
     action:
       deliveryDone || !(afterEvent || stateRank >= 8)
         ? null
-        : { kind: "link", label: "Record delivery", href: "/studio/delivery" },
+        : {
+            kind: "link",
+            label: "Record delivery",
+            // Scoped, like every other step's action. Unscoped, the page
+            // dropped the context bar *and* the post-production checklist —
+            // both rendered only when a project is present — so clicking
+            // this from a job landed somewhere that hid the gate stopping
+            // the delivery, and asked you to pick the job again.
+            href: project("/studio/delivery"),
+          },
   });
 
   push({
