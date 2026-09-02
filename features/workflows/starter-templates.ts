@@ -130,21 +130,60 @@ export type StarterTemplate = {
  * type, so three templates across three types is the correct shape and
  * none of them shadows another.
  */
+/**
+ * Real prerequisites. Emphatically not array order.
+ *
+ * Every wedding checkpoint used to depend on whichever one preceded it in
+ * `weddingCheckpointDefinitions`, on the reasoning that "each step waits on
+ * the one before it, so a studio can see the order rather than thirteen
+ * independent obligations". Ordering is a display concern and this was a gate:
+ * all twelve are `blocking`, and `resolveCheckpoint` refuses any completion
+ * whose dependency is unsatisfied. So the chain read
+ *
+ *   contract → retainer → questionnaire → venue → contacts → coi → schedule
+ *   → final-balance → crew-accepted → locations → travel → crew-acknowledged
+ *
+ * and a studio could not confirm the venue until the couple returned their
+ * details form, or record their second shooter accepting until the final
+ * balance was paid a fortnight before the day. Four studio-owned judgements
+ * sat behind client actions, in the order the array happened to be written.
+ * The walk of 2026-09-02 hit it on "Venue confirmed" and got
+ * DEPENDENCIES_INCOMPLETE for a phone call to a church.
+ *
+ * It had bitten before: the note on `crew-acknowledged` below records moving
+ * that entry last because three -14 checkpoints depended on something not due
+ * until -7. That fixed one symptom of the chain and kept the chain.
+ *
+ * So: declare only what genuinely cannot precede its prerequisite. There is
+ * one. Everything else is independent, and a studio may settle its own
+ * judgements in whatever order the job actually happens in.
+ */
+const CHECKPOINT_DEPENDENCIES: Readonly<Record<string, readonly string[]>> = {
+  // Acknowledging the schedule requires a schedule to acknowledge. The crew
+  // are confirming they have read the timeline they will shoot from, so an
+  // approved run of show is a real precondition rather than a tidy order.
+  "crew-acknowledged": ["schedule-approved"],
+};
+
 export function starterTemplates(): StarterTemplate[] {
-  // Each step waits on the one before it, so a studio can see the order
-  // rather than thirteen independent obligations.
-  const wedding = weddingCheckpointDefinitions.map((definition, index) =>
-    checkpointFrom(
-      definition,
-      // The functions package builds with noUncheckedIndexedAccess, so the
-      // previous entry is narrowed rather than asserted.
-      index === 0 ? [] : [weddingCheckpointDefinitions[index - 1]?.[0] ?? ""],
-    ),
+  const wedding = weddingCheckpointDefinitions.map((definition) =>
+    checkpointFrom(definition, [
+      ...(CHECKPOINT_DEPENDENCIES[definition[0]] ?? []),
+    ]),
   );
   const subset = (keys: string[]) =>
     wedding
       .filter((checkpoint) => keys.includes(checkpoint.key))
-      .map((checkpoint) => ({ ...checkpoint, dependencies: [] }));
+      .map((checkpoint) => ({
+        ...checkpoint,
+        // A dependency on a checkpoint this template leaves out would be
+        // unsatisfiable, and `instantiateWorkflow` throws
+        // INVALID_CHECKPOINT_DEPENDENCY on a key it cannot resolve. Keep the
+        // real ones the subset still carries; drop the rest.
+        dependencies: checkpoint.dependencies.filter((key) =>
+          keys.includes(key),
+        ),
+      }));
 
   return [
     {

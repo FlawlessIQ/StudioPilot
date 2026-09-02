@@ -8,6 +8,7 @@ import {
 } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { capabilitySchema, providerSchema, providerCapabilities, type Provider } from "./capability-resolution.js";
+import { invalidCommandResponse } from "../security/invalid-command.js";
 
 const allowedRoles = ["studio_owner", "studio_admin"];
 
@@ -87,7 +88,7 @@ export const integrationsCommand = onRequest(
 
     const parsed = commandSchema.safeParse(request.body);
     if (!parsed.success) {
-      response.status(400).json({ error: "INVALID_COMMAND" });
+      response.status(400).json(invalidCommandResponse(parsed.error));
       return;
     }
     const command = parsed.data;

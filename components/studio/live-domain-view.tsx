@@ -42,6 +42,8 @@ import { withTimeout } from "@/lib/async/with-timeout";
 import { getStudioRecords } from "@/lib/studio/records-client";
 import { ProjectWorkspaceNav } from "@/components/projects/project-workspace-nav";
 import { ReadinessRing } from "@/components/ds/readiness-ring";
+import { readinessSummary } from "@/features/projects/readiness-summary";
+import { useReadinessEvidence } from "@/components/projects/use-readiness-evidence";
 import {
   describeEventProximity,
   eventDateHasPassed,
@@ -1019,12 +1021,35 @@ export function StudioDomainPage({
  */
 export function ProjectContextBar({ projectId }: { projectId: string }) {
   const { records, loading } = useTenantDocuments("projects");
+  const { records: checkpoints } = useTenantDocuments("checkpoints");
   const project = records?.find((entry) => entry.id === projectId);
   const name = loading
     ? "Loading project…"
     : String(project?.name ?? "Selected project");
   const state = String(project?.state ?? "");
-  const readiness = Number(project?.readinessScore ?? 0);
+  /**
+   * Derived, not the stored score.
+   *
+   * `project.readinessScore` is whatever the reconciler last wrote, and every
+   * other surface computes readiness from the checkpoints plus the evidence
+   * that explains them. So this bar — which is on every project route,
+   * including the ones that also show a derived figure — disagreed with the
+   * page it sat on top of: the Overview read 50% while this read 42%, and the
+   * event-day brief printed both in one viewport, eight points apart, because
+   * the bar and the summary tile were answering from different places.
+   *
+   * The gap was the certificate marked not required: evidence knows, a stored
+   * number written before the decision does not.
+   */
+  const readinessEvidence = useReadinessEvidence(projectId);
+  const readinessView = readinessSummary(
+    (checkpoints ?? []).filter((entry) => entry.projectId === projectId),
+    new Date(),
+    readinessEvidence,
+  );
+  const readiness = readinessView.tracked
+    ? readinessView.percent
+    : Number(project?.readinessScore ?? 0);
   const eventDate = project?.eventDate;
   const proximity = describeEventProximity(eventDate);
   const passed = eventDateHasPassed(eventDate);

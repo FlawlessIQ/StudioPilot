@@ -20,17 +20,22 @@ import { friendlyError } from "@/lib/ai/friendly-error";
  * how, and the gate reports `manual_attestation` rather than implying a
  * provider checked anything.
  *
- * Folded shut, because when a provider is connected this is the unusual
- * path — but always present, because paper happens.
+ * Folded shut when a provider is connected, because then this is the unusual
+ * path — but always present, because paper happens. When no signing app is
+ * offered at all it is the *only* path, and `primary` opens it: see the note
+ * on `signingOffered` in project-booking-workspace.tsx.
  */
 export function RecordSignedAgreement({
   onRecorded,
+  primary = false,
   projectId,
   proposalId,
 }: {
   /** Called with the confirmation to show; the parent owns it, because this
    * control is often unmounted by the reload that follows. */
   onRecorded: (message: string) => void;
+  /** Open, and titled as the way this gets done rather than an exception. */
+  primary?: boolean;
   projectId: string;
   proposalId: string;
 }) {
@@ -82,10 +87,12 @@ export function RecordSignedAgreement({
   }
 
   return (
-    <details className="record-signed-agreement">
+    <details className="record-signed-agreement" open={primary}>
       <summary>
         <FileCheck2 aria-hidden="true" size={15} />
-        Already signed outside StudioCue? Record it
+        {primary
+          ? "Record the signed agreement"
+          : "Already signed outside StudioCue? Record it"}
       </summary>
       <form onSubmit={(event) => void submit(event)}>
         <p>

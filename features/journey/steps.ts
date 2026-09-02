@@ -85,6 +85,21 @@ export type JourneyStep = {
    * StudioCue — mark it done."
    */
   advance: { targetState: string; label: string } | null;
+  /**
+   * True when this step's `detail` is the answer to "why does that say
+   * that?", and the rail must show it rather than the title alone.
+   *
+   * The rail rendered a tick and a title and nothing else, so "Crew confirmed"
+   * carried a check mark on a job with no crew, no booking, and a crew page
+   * the studio had never opened. The reason was correct and already written —
+   * `detail` read "Shooting this one solo" — and thrown away at the markup. A
+   * tick with no explanation on work nobody did reads as a bug in the product.
+   *
+   * Set, not derived from copy, and set only where completion is vacuous or
+   * happened outside StudioCue. Fourteen second lines in a narrow rail would
+   * be its own defect; these are the ones that need a sentence.
+   */
+  explain: boolean;
 };
 
 export type JourneyInput = {
@@ -224,18 +239,49 @@ export function projectJourney(input: JourneyInput): {
   /** Its action, dropped once the moment has gone. */
   const prepAction = <T,>(action: T): T | null =>
     eventBehindThem ? null : action;
+  /**
+   * A step that cannot start yet is upcoming, not current.
+   *
+   * The next move is `steps.find((step) => step.status === "current")`, and a
+   * step waiting on the client is `waiting_client` — so the finder walked
+   * straight past it and landed on the *following* step, which claimed
+   * `current` with no reference to whether its own input had arrived. A job
+   * whose proposal had been sent ninety seconds earlier and never opened led
+   * with "Send contract — built from the accepted proposal"; the contracts page
+   * it linked to then refused, saying "The client's accepted proposal is
+   * required first." One stage later the same thing happened with "Draft the
+   * schedule — drafted from the form" against a form at 0%.
+   *
+   * It is not a copy problem. Gating each step on its own precondition lets the
+   * card fall through to the waiting state it already has — "Nothing for you
+   * right now. This job is waiting on someone else." — which is both true and
+   * already built.
+   */
+  const gate = (
+    ready: boolean,
+    live: JourneyStepStatus,
+  ): JourneyStepStatus => (ready ? live : "upcoming");
   const project = (suffix: string) => `${suffix}?project=${input.projectId}`;
 
   const steps: JourneyStep[] = [];
   const push = (
-    step: Omit<JourneyStep, "record" | "owner" | "unlock" | "advance"> &
-      Partial<Pick<JourneyStep, "record" | "owner" | "unlock" | "advance">>,
+    step: Omit<
+      JourneyStep,
+      "record" | "owner" | "unlock" | "advance" | "explain"
+    > &
+      Partial<
+        Pick<
+          JourneyStep,
+          "record" | "owner" | "unlock" | "advance" | "explain"
+        >
+      >,
   ) =>
     steps.push({
       record: null,
       owner: null,
       unlock: null,
       advance: null,
+      explain: false,
       ...step,
     });
 
@@ -327,6 +373,7 @@ export function projectJourney(input: JourneyInput): {
   push({
     key: "proposal",
     title: "Proposal",
+    explain: proposalInferred,
     detail: proposalDone
       ? proposalInferred
         ? "Accepted outside StudioCue — no proposal on file here"
@@ -367,25 +414,29 @@ export function projectJourney(input: JourneyInput): {
   push({
     key: "contract",
     title: "Contract signed",
+    explain: contractInferred,
     detail: contractDone
       ? contractInferred
         ? "Signed outside StudioCue — no contract on file here"
         : "Fully signed"
       : contractWaiting
         ? "Out for signature"
-        : "Built from the accepted proposal — no retyping",
+        : proposalDone
+          ? "Built from the accepted proposal — no retyping"
+          : "Starts once the client accepts the proposal",
     status: contractDone
       ? "complete"
       : contractWaiting
         ? "waiting_client"
-        : "current",
-    action: contractDone
-      ? null
-      : {
-          kind: "link",
-          label: contractWaiting ? "Check signature status" : "Send contract",
-          href: project("/studio/contracts"),
-        },
+        : gate(proposalDone, "current"),
+    action:
+      contractDone || !(proposalDone || contractWaiting)
+        ? null
+        : {
+            kind: "link",
+            label: contractWaiting ? "Check signature status" : "Send contract",
+            href: project("/studio/contracts"),
+          },
   });
 
   const retainerDone =
@@ -403,25 +454,31 @@ export function projectJourney(input: JourneyInput): {
   push({
     key: "retainer",
     title: "Retainer paid",
+    explain: retainerInferred,
     detail: retainerDone
       ? retainerInferred
         ? "Paid outside StudioCue — no invoice on file here"
         : "Booking locked in"
       : retainerWaiting
         ? "Invoice with the client"
-        : "Computed from your retainer rule",
+        : contractDone
+          ? "Computed from your retainer rule"
+          : "Starts once the agreement is signed",
     status: retainerDone
       ? "complete"
       : retainerWaiting
         ? "waiting_client"
-        : "current",
-    action: retainerDone
-      ? null
-      : {
-          kind: "link",
-          label: retainerWaiting ? "Check payment status" : "Create retainer invoice",
-          href: project("/studio/contracts"),
-        },
+        : gate(contractDone, "current"),
+    action:
+      retainerDone || !(contractDone || retainerWaiting)
+        ? null
+        : {
+            kind: "link",
+            label: retainerWaiting
+              ? "Check payment status"
+              : "Create retainer invoice",
+            href: project("/studio/contracts"),
+          },
   });
 
   const formSubmitted = ["submitted", "locked"].includes(
@@ -488,7 +545,16 @@ export function projectJourney(input: JourneyInput): {
         ? "Approved, but it has no times in it yet"
         : scheduleWaiting
           ? "With the client to approve"
-          : "Drafted from the form using your timing rules",
+          : formDone
+            ? "Drafted from the form using your timing rules"
+            : "Starts once the couple return their details form",
+    // Deliberately *not* gated on the form, unlike the contract and the
+    // retainer. Their destinations refuse without their input; this one does
+    // not — the generator asks for coverage and ceremony times directly and
+    // says so ("Fill in what you know. Anything you leave blank is guessed"),
+    // and "Build it myself" needs nothing at all. Drafting early is a
+    // legitimate thing to do, so only the claim that it came from the form was
+    // wrong, and that is in `detail` above.
     status: scheduleDone
       ? "complete"
       : prepStatus(
@@ -544,6 +610,13 @@ export function projectJourney(input: JourneyInput): {
   push({
     key: "crew",
     title: "Crew confirmed",
+    // A tick on a job with no crew. Either it is solo or the studio settled
+    // the checkpoint by hand; both need the sentence.
+    explain:
+      crewDone &&
+      (shootingSolo ||
+        settled("crew-accepted") ||
+        settled("crew-acknowledged")),
     detail: crewDone
       ? input.crewAccepted > 0
         ? `All ${input.crewAccepted} offered ${input.crewAccepted === 1 ? "role" : "roles"} accepted`
@@ -592,6 +665,9 @@ export function projectJourney(input: JourneyInput): {
   push({
     key: "coi",
     title: "Insurance to venue",
+    // "This venue does not require one" and "Settled by you" are decisions the
+    // studio made; a bare tick claims StudioCue saw a certificate.
+    explain: coiDone && (coiNotRequired || !input.coiStatus),
     detail: coiDone
       ? coiNotRequired
         ? "This venue does not require one"

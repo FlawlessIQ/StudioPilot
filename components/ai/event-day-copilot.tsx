@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { formatDueDate, todayLocalIso } from "@/lib/format/event-date";
+import {
+  describeEventProximity,
+  formatDueDate,
+  todayLocalIso,
+} from "@/lib/format/event-date";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -121,12 +125,24 @@ export function EventDayCopilot({
         ["approved", "published"].includes(text(item.status)),
     )
     .sort((left, right) => Number(right.version) - Number(left.version))[0];
-  const projectAssignments = (assignments ?? []).filter(
-    (item) => item.projectId === projectId && item.status === "accepted",
+  const allProjectAssignments = (assignments ?? []).filter(
+    (item) => item.projectId === projectId,
+  );
+  const projectAssignments = allProjectAssignments.filter(
+    (item) => item.status === "accepted",
   );
   const projectInsurance = (insurance ?? []).filter(
     (item) => item.projectId === projectId,
   );
+  const insuranceRequired = text(project?.insuranceRequired);
+  /**
+   * Whether the day this panel is written for is today.
+   *
+   * `todayLocalIso` rather than a UTC slice, and compared against the stored
+   * event date, which is already a plain calendar date in the job's own terms.
+   */
+  const eventIsToday = text(project?.eventDate) === todayLocalIso();
+  const proximity = describeEventProximity(project?.eventDate);
   const items = list(schedule?.items).map(record);
   // Only items a person could actually be sent to. An item with no readable
   // start is not a plan entry, and counting it kept the page reporting a
@@ -260,7 +276,18 @@ export function EventDayCopilot({
           <section className="event-day-facts">
             <article>
               <MapPin />
-              <span><small>Venue</small><strong>{text(project.venueName) || "Pending"}</strong></span>
+              {/* Project creation never asks for a venue, so the morning-of
+                  brief printed "Pending" for the one fact it exists to
+                  answer — while the run of show below listed three real
+                  locations. Use the first one rather than publishing the gap. */}
+              <span>
+                <small>Venue</small>
+                <strong>
+                  {text(project.venueName) ||
+                    text(orderedItems[0]?.location) ||
+                    "Pending"}
+                </strong>
+              </span>
             </article>
             <article>
               <CalendarClock />
@@ -268,7 +295,17 @@ export function EventDayCopilot({
             </article>
             <article>
               <UsersRound />
-              <span><small>Accepted crew</small><strong>{projectAssignments.length}</strong></span>
+              {/* A bare 0 beside "Accepted crew" on the morning of a wedding
+                  reads as a failure. On a solo job it is the answer. */}
+              <span>
+                <small>Accepted crew</small>
+                <strong>
+                  {projectAssignments.length ||
+                    (allProjectAssignments.length
+                      ? 0
+                      : "Shooting solo")}
+                </strong>
+              </span>
             </article>
             <article>
               <ShieldCheck />
@@ -281,8 +318,24 @@ export function EventDayCopilot({
             </article>
           </section>
 
-          {!projectInsurance.length ||
-          projectInsurance.some((item) => item.status !== "sent_to_venue") ? (
+          {/* A certificate this venue never asked for is not an outstanding
+              certificate. Marking it not required ticked the journey step,
+              moved readiness and set the Plan hub to DONE, and this warning
+              went on telling the studio to go and check — on the one screen
+              whose promise is that they do not have to. A warning that cannot
+              be cleared teaches them to ignore the panel that will matter when
+              insurance really is missing.
+
+              `venue_acknowledged` counts too: the venue confirming receipt is
+              stronger evidence than our having sent it, and requiring exactly
+              `sent_to_venue` flagged the better outcome as the worse one. */}
+          {insuranceRequired !== "not_required" &&
+          (!projectInsurance.length ||
+            !projectInsurance.some((item) =>
+              ["sent_to_venue", "venue_acknowledged"].includes(
+                text(item.status),
+              ),
+            )) ? (
             <div className="event-day-warning">
               <AlertTriangle />
               <span>
@@ -304,25 +357,38 @@ export function EventDayCopilot({
             </div>
           ) : null}
 
+          {/* "Right now · Next: Getting ready · 1:00 PM" on a wedding nine
+              months away. The panel is built for the morning of and nothing
+              checked that the morning was today, so it asserted the first item
+              of 2027 was what came next. Before the day it is a countdown; on
+              the day it is the live panel it was written to be. */}
           <section className="panel event-day-now">
-            <p className="eyebrow">Right now</p>
+            <p className="eyebrow">{eventIsToday ? "Right now" : "On the day"}</p>
             <h2>
-              {currentItem
-                ? text(currentItem.title)
-                : nextItem
-                  ? `Next: ${text(nextItem.title)}`
-                  : hasPlan
-                    ? "Coverage plan complete"
-                    : "No run of show yet"}
+              {!eventIsToday
+                ? hasPlan
+                  ? `First up: ${text(orderedItems[0]?.title) || "Coverage"}`
+                  : "No run of show yet"
+                : currentItem
+                  ? text(currentItem.title)
+                  : nextItem
+                    ? `Next: ${text(nextItem.title)}`
+                    : hasPlan
+                      ? "Coverage plan complete"
+                      : "No run of show yet"}
             </h2>
             <p>
-              {currentItem
-                ? `${time(currentItem.startAt)}–${time(currentItem.endAt)} · ${text(currentItem.location) || "Location pending"}`
-                : nextItem
-                  ? `${time(nextItem.startAt)} · ${text(nextItem.location) || "Location pending"}`
-                  : hasPlan
-                    ? "No later item is listed in the current published schedule."
-                    : "Nothing is scheduled for this event yet. Build the run of show before the day."}
+              {!eventIsToday
+                ? hasPlan
+                  ? `${time(orderedItems[0]?.startAt)} · ${text(orderedItems[0]?.location) || "Location pending"}${proximity ? ` · ${proximity}` : ""}`
+                  : "Nothing is scheduled for this event yet. Build the run of show before the day."
+                : currentItem
+                  ? `${time(currentItem.startAt)}–${time(currentItem.endAt)} · ${text(currentItem.location) || "Location pending"}`
+                  : nextItem
+                    ? `${time(nextItem.startAt)} · ${text(nextItem.location) || "Location pending"}`
+                    : hasPlan
+                      ? "No later item is listed in the current published schedule."
+                      : "Nothing is scheduled for this event yet. Build the run of show before the day."}
             </p>
           </section>
 

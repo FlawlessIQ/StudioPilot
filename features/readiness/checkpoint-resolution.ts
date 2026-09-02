@@ -102,6 +102,39 @@ export function checkpointWaitingReason(
 }
 
 /**
+ * The prerequisite standing in this one's way, by name, or null if none is.
+ *
+ * `resolveCheckpoint` refuses a completion whose dependency is unsatisfied and
+ * the UI did not ask, so **Mark done** was offered on blocked rows, took a
+ * written reason, and then failed. The studio wrote "Confirmed St Stephen
+ * Church and The Dorrance with both venues by phone" and was told "That
+ * checkpoint could not be updated."
+ *
+ * The dependency graph is known before the button renders. Ask first.
+ *
+ * Only the first unmet one is named: a chain reports its nearest link, which
+ * is the one worth acting on, and the wedding template now declares a single
+ * genuine dependency anyway (see features/workflows/starter-templates.ts).
+ *
+ * Waiving is deliberately **not** gated on this — the server refuses only
+ * `complete`, because accepting a risk on a step whose prerequisite is
+ * outstanding is a decision a studio is allowed to make.
+ */
+export function checkpointBlockedBy(
+  checkpoint: { dependencyIds?: readonly string[] },
+  dependency: (id: string) => { name: string; settled: boolean } | undefined,
+): string | null {
+  for (const id of checkpoint.dependencyIds ?? []) {
+    const found = dependency(id);
+    // An unresolvable id is treated as blocking, matching the server, which
+    // refuses when a dependency document cannot be found.
+    if (!found) return "another step";
+    if (!found.settled) return found.name;
+  }
+  return null;
+}
+
+/**
  * Whether a studio may waive this one.
  *
  * Independent of `checkpointIsResolvable`, and deliberately wider: a waiver is

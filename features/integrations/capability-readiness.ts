@@ -66,20 +66,33 @@ const CAPABILITY_WORK: Record<IntegrationCapability, string> = {
  *
  * Every one of these used to end "so this step stays manual", which reads as
  * reassurance and is not the same claim in each case. For signing it
- * undersells a path StudioCue has — a studio that sends its own agreement
- * can record the signature here and the booking proceeds normally — and
- * nothing on the page said so, so the honest answer to "can I use this
- * without Dropbox Sign?" looked like no. For invoicing it oversells: there
- * is no way to record a retainer StudioCue did not raise, so the booking
- * gate never sees a paid retainer and the job cannot be confirmed at all.
- * Saying "stays manual" to both hid a working path behind one and a dead
- * end behind the other.
+ * undersells a path StudioCue has — a studio that sends its own agreement can
+ * record the signature here and the booking proceeds normally — and nothing on
+ * the page said so, so the honest answer to "can I use this without Dropbox
+ * Sign?" looked like no.
+ *
+ * The invoicing line then said the opposite and was wrong. It claimed the
+ * booking could not be confirmed without a connected accounting provider, and
+ * `recordRetainerPayment` and `recordFinalPayment`
+ * (functions/src/booking/commands.ts) had already been added for exactly that
+ * studio — their own comment says "since a photographer hit the wall where
+ * their couple paid by transfer and the only path onward was a QuickBooks
+ * webhook that was never coming". The walk of 2026-09-02 took a job from
+ * inquiry to "Booking is confirmed" with nothing connected at all, reading
+ * that sentence at every step.
+ *
+ * Worse, it was read at the moment it did most damage: the proposal page, one
+ * click before a new studio sends its first proposal. A studio that takes bank
+ * transfers — most of them — was told to go and connect a product they do not
+ * use, or to conclude StudioCue could not run their business.
+ *
+ * Both now describe the manual path, because both have one.
  */
 const CAPABILITY_WITHOUT_PROVIDER: Record<IntegrationCapability, string> = {
   signing:
     "Send your own agreement and record the signature on the booking — StudioCue books the job either way.",
   invoicing:
-    "StudioCue cannot track a retainer it did not raise, so the booking cannot be confirmed until one is connected.",
+    "Raise your own invoice and record the payment on the booking — StudioCue books the job either way.",
   calendar: "Events stay in your own calendar and StudioCue will not add them.",
   meetings: "You will need to paste your own meeting link.",
   storage: "Files stay wherever you put them and StudioCue will not deliver them.",

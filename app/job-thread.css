@@ -946,6 +946,26 @@
   font-size: 12.5px;
 }
 
+/* The reason line under a step title.
+   The row is a 16px/1fr grid, so a third child would otherwise drop into the
+   icon column. Column 2 puts it under the title where it reads as a caption,
+   and the row switches to top alignment so the dot stays level with the first
+   line rather than centring against two. */
+.thread-minimap li:has(> small) {
+  align-items: start;
+}
+
+.thread-minimap li > small {
+  grid-column: 2;
+  color: var(--muted, #8a938d);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.thread-minimap li.is-current > small {
+  color: color-mix(in srgb, var(--green, #2e7042) 75%, #4a544c);
+}
+
 .thread-minimap li > span {
   display: grid;
   place-items: center;

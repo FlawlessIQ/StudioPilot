@@ -835,6 +835,14 @@ export function ThreadMinimap({ steps }: { steps: JourneyStep[] }) {
                 ) : (
                   <em>{step.title}</em>
                 )}
+                {/* The reason, where the title alone would mislead: a tick on
+                    a step nobody did ("Shooting this one solo", "Signed
+                    outside StudioCue"), or the step in play. The engine writes
+                    a `detail` for all fourteen; showing every one would double
+                    the rail. */}
+                {step.explain || step.status === "current" ? (
+                  <small>{step.detail}</small>
+                ) : null}
               </li>
             ))}
           </ol>

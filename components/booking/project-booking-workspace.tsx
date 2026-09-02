@@ -355,14 +355,43 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
     date.setDate(date.getDate() + 7);
     return date.toISOString().slice(0, 10);
   }, []);
+  /**
+   * Whether there is a signing app to send through at all.
+   *
+   * `offeredProviders` carries no signing app — both are deferred on
+   * subscription cost — so this is false for every studio today, and the whole
+   * choose-a-template / paste-an-ID / approve-and-send block below was inert
+   * UI leading the page. A new studio arriving from "Send contract" was told to
+   * pick an agreement in Integrations, where there is nothing to pick, while
+   * the one working path sat underneath as a grey note and a folded
+   * `<details>`.
+   *
+   * When it is false, recording the signature the studio took themselves *is*
+   * the workflow, and gets the primary treatment. Restore the send path the day
+   * a signing app is offered — nothing here is deleted, only branched.
+   */
+  const signingOffered = signingProvider !== null;
   const signingProviderLabel =
     signingProvider === "dropbox_sign"
       ? "Dropbox Sign"
       : signingProvider === "docusign"
         ? "Docusign"
         : // No signing app is offered or connected. Naming one would send the
-          // studio looking for an account they do not have.
+          // studio looking for an account they do not have. Only reached in
+          // copy that survives a lowercase noun phrase mid-sentence.
           "your signing app";
+  /**
+   * The same label where a sentence begins.
+   *
+   * The fallback is a lowercase noun phrase, so "The accepted proposal
+   * supplies the exact package and price. your signing app remains the
+   * authority…" shipped with a sentence starting in lowercase. Every other
+   * insertion site is now inside the `signingOffered` branch, where the label
+   * is a real provider name and reads correctly either way.
+   */
+  const signingProviderSentence =
+    signingProviderLabel.charAt(0).toUpperCase() +
+    signingProviderLabel.slice(1);
   // Superseded by bookingAutomationDrivesContract, which asks the sharper
   // question: not "is a plan running" but "is it running on this contract".
   const automationNeedsAttention = orchestration?.status === "needs_attention";
@@ -645,7 +674,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
             </div>
             <p>
               The accepted proposal supplies the exact package and price.{" "}
-              {signingProviderLabel} remains the authority for signature
+              {signingProviderSentence} remains the authority for signature
               completion.
             </p>
             {contractFailed ? (
@@ -718,7 +747,17 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               </div>
             ) : (
               <div className="booking-action-form">
-                {templateConfigured ? (
+                {!signingOffered ? (
+                  /* No signing app to send through. Say what happens instead,
+                     and let the record control below be the action. */
+                  <p className="booking-signing-absent">
+                    StudioCue has no signing app connected, so you send the
+                    agreement yourself and record the signature here. The
+                    booking proceeds exactly as it would through a provider —
+                    the retainer follows, and the gate reports this as your
+                    attestation.
+                  </p>
+                ) : templateConfigured ? (
                   // Provider internals stay out of the flow: a configured
                   // template needs no raw ID pasted mid-booking.
                   <details className="booking-template-configured">
@@ -769,21 +808,23 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     </details>
                   </div>
                 )}
-                <button
-                  className="button"
-                  disabled={
-                    busy !== null ||
-                    !proposal ||
-                    projectState !== "CONTRACT_PENDING"
-                  }
-                  onClick={() => void createContract()}
-                  type="button"
-                >
-                  {busy === "contract"
-                    ? "Preparing…"
-                    : "Approve sequence & send"}
-                  <ArrowRight size={15} />
-                </button>
+                {signingOffered ? (
+                  <button
+                    className="button"
+                    disabled={
+                      busy !== null ||
+                      !proposal ||
+                      projectState !== "CONTRACT_PENDING"
+                    }
+                    onClick={() => void createContract()}
+                    type="button"
+                  >
+                    {busy === "contract"
+                      ? "Preparing…"
+                      : "Approve sequence & send"}
+                    <ArrowRight size={15} />
+                  </button>
+                ) : null}
                 {!proposal ? (
                   <small>
                     The client’s accepted proposal is required first.
@@ -815,6 +856,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                       setNotice(message);
                       void load();
                     }}
+                    primary={!signingOffered}
                     projectId={projectId}
                     proposalId={String(proposal.id)}
                   />
@@ -825,7 +867,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 open with two explanatory panels, so the one control on it sat
                 below a screen of prose and a studio arriving from "Send
                 contract" could not see what it was being asked to do. */}
-            {!contract ? (
+            {!contract && signingOffered ? (
               <aside className="booking-provider-migration">
                 <strong>One approval completes the routine booking work</strong>
                 <small>
@@ -836,15 +878,17 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 </small>
               </aside>
             ) : null}
-            <aside className="booking-provider-migration">
-              <strong>Your approved agreement stays reusable</strong>
-              <small>
-                Import the current agreement once. StudioCue preserves its
-                wording and signer fields, then reuses the approved{" "}
-                {signingProviderLabel} template so you do not place fields for
-                every client.
-              </small>
-            </aside>
+            {signingOffered ? (
+              <aside className="booking-provider-migration">
+                <strong>Your approved agreement stays reusable</strong>
+                <small>
+                  Import the current agreement once. StudioCue preserves its
+                  wording and signer fields, then reuses the approved{" "}
+                  {signingProviderLabel} template so you do not place fields
+                  for every client.
+                </small>
+              </aside>
+            ) : null}
           </article>
         ) : null}
         {activeStep === 2 ? (
@@ -1044,7 +1088,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 </button>
                 {!contractComplete ? (
                   <small>
-                    {signingProviderLabel} completion unlocks this step.
+                    This unlocks once the signature is confirmed.
                   </small>
                 ) : null}
                 {/*

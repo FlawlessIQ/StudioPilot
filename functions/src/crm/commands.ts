@@ -4,6 +4,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "./security.js";
 import { studioHubCors } from "../security/cors.js";
+import { invalidCommandResponse } from "../security/invalid-command.js";
 
 const projectStates = [
   "LEAD",
@@ -375,7 +376,7 @@ export const crmCommand = onRequest(
 
     const parsed = commandSchema.safeParse(request.body);
     if (!parsed.success) {
-      response.status(400).json({ error: "INVALID_COMMAND" });
+      response.status(400).json(invalidCommandResponse(parsed.error));
       return;
     }
     const command = parsed.data;

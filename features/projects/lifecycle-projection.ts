@@ -1,5 +1,11 @@
 import type { ProjectState } from "@/features/projects/schema";
 import { preparationIsMoot } from "@/features/projects/job-moment";
+import {
+  checkpointSatisfiedByEvidence,
+  noReadinessEvidence,
+  type ReadinessEvidence,
+} from "@/features/readiness/checkpoint-evidence";
+import { checkpointWaitingReason } from "@/features/readiness/checkpoint-resolution";
 
 export type LifecycleRecord = Record<string, unknown> & { id: string };
 
@@ -122,6 +128,24 @@ export function projectLifecycleProjection(input: {
   aiActions?: LifecycleRecord[];
   deliveries?: LifecycleRecord[];
   reviewRequests?: LifecycleRecord[];
+  /**
+   * What the project's own records already prove.
+   *
+   * Without this the panel read `checkpoint.status` alone, and checkpoints are
+   * only ever written by workflow automation — so a job whose contract was
+   * completed and whose retainer was paid minutes earlier listed both as
+   * outstanding, owed by the client, directly beneath a journey rail reading
+   * "BOOKING 3/3". Marking a certificate not required left "COI approved and
+   * sent" on the list for ever.
+   *
+   * The header on the same screen was already evidence-aware, so the two
+   * disagreed by four items: 8 blockers counted, 12 listed. See
+   * features/readiness/checkpoint-evidence.ts — the rules this defers to.
+   *
+   * Defaults to "nothing proven", which is the old behaviour, so a caller that
+   * has not loaded evidence is no worse off than before.
+   */
+  evidence?: ReadinessEvidence;
   now?: string;
 }): ProjectLifecycleProjection {
   const now = input.now ?? new Date().toISOString();
@@ -185,8 +209,20 @@ export function projectLifecycleProjection(input: {
     }
   }
 
+  const evidence = input.evidence ?? noReadinessEvidence;
   for (const checkpoint of input.checkpoints ?? []) {
     if (["complete", "waived"].includes(text(checkpoint.status))) continue;
+    // Settled by the records, even though nothing wrote it to the document.
+    if (
+      checkpointSatisfiedByEvidence(
+        {
+          completionMethod: text(checkpoint.completionMethod),
+          templateKey: text(checkpoint.templateKey),
+        },
+        evidence,
+      )
+    )
+      continue;
     const ownerType = text(checkpoint.ownerType);
     const owner =
       ownerType === "client"
@@ -201,10 +237,23 @@ export function projectLifecycleProjection(input: {
       item({
         id: `checkpoint-${checkpoint.id}`,
         label: text(checkpoint.name) || "Readiness requirement",
+        /**
+         * What this one is actually waiting for.
+         *
+         * Every blocking checkpoint said "Blocks event readiness until
+         * resolved." — twelve identical sentences on one panel, carrying no
+         * information after the first and crowding out the part that differs.
+         * `status` already marks the blocking ones, so the words can do the
+         * other job.
+         */
         detail:
-          checkpoint.blocking === true
-            ? "Blocks event readiness until resolved."
-            : "Required project follow-up.",
+          checkpointWaitingReason({
+            status: text(checkpoint.status),
+            completionMethod: text(checkpoint.completionMethod),
+          }) ??
+          (checkpoint.blocking === true
+            ? "Your judgement — mark it done once you have."
+            : "Required project follow-up."),
         status: overdue(dueAt, now)
           ? "blocked"
           : checkpoint.blocking === true
@@ -302,10 +351,21 @@ export function projectLifecycleProjection(input: {
    * hub both — correctly — read the settled crew checkpoint and said crew was
    * done. Nobody is going to accept a role on a wedding that has happened.
    */
+  // Records count here too, for the same reason they count in the loop above:
+  // the crew checkpoints are `assignment_accepted`, which automation writes
+  // and nothing else does, so reading the status alone missed a job whose
+  // assignments were all accepted.
   const crewCheckpointSettled = (input.checkpoints ?? []).some(
     (checkpoint) =>
       text(checkpoint.templateKey).startsWith("crew") &&
-      ["complete", "waived"].includes(text(checkpoint.status)),
+      (["complete", "waived"].includes(text(checkpoint.status)) ||
+        checkpointSatisfiedByEvidence(
+          {
+            completionMethod: text(checkpoint.completionMethod),
+            templateKey: text(checkpoint.templateKey),
+          },
+          evidence,
+        )),
   );
   /**
    * Whether an unanswered crew offer is still the studio's problem.

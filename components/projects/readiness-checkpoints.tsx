@@ -10,6 +10,7 @@ import {
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { runWorkflowCommand } from "@/lib/workflows/command-client";
 import {
+  checkpointBlockedBy,
   checkpointIsResolvable,
   checkpointIsSettled,
   checkpointIsWaivable,
@@ -72,6 +73,11 @@ export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
       templateKey: text(item.templateKey),
       ownerType: text(item.ownerType),
       dueDate: text(item.resolvedDueDate) || null,
+      dependencyIds: Array.isArray(item.dependencyIds)
+        ? (item.dependencyIds as unknown[]).filter(
+            (id): id is string => typeof id === "string",
+          )
+        : [],
     }))
     .map((row) => ({
       ...row,
@@ -92,6 +98,19 @@ export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
     });
 
   if (!rows.length) return null;
+
+  /**
+   * Dependencies by id, so a row can ask what it is waiting on.
+   *
+   * Settled here means the same thing it means for the rows themselves —
+   * resolved by a person *or* proven by the records — which is the question
+   * `resolveCheckpoint` asks through `loadReadinessEvidence`. Reading only the
+   * stored status would put the button back on rows the server will refuse and
+   * take it off rows it would accept.
+   */
+  const dependencyById = new Map(
+    rows.map((row) => [row.id, { name: row.name, settled: row.settled }]),
+  );
 
   async function resolve(
     checkpointId: string,
@@ -154,13 +173,24 @@ export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
       <ul>
         {rows.map((row) => {
           const settled = row.settled;
-          const resolvable = !settled && checkpointIsResolvable(row);
+          // Asked before the button renders, not after the studio has written
+          // a reason and pressed it.
+          const blockedBy = settled
+            ? null
+            : checkpointBlockedBy(row, (id) => dependencyById.get(id));
+          const resolvable =
+            !settled && !blockedBy && checkpointIsResolvable(row);
           // Waivable is the wider set: anything the template allows waiving,
           // including the record-backed rows. Without it a checkpoint whose
           // evidence never arrives holds the job below 100% with nothing on
           // the row to do about it.
           const waivable = !settled && checkpointIsWaivable(row);
-          const waiting = settled || resolvable ? null : checkpointWaitingReason(row);
+          const waiting =
+            settled || resolvable
+              ? null
+              : blockedBy
+                ? `Settle "${blockedBy}" first — this step waits on it.`
+                : checkpointWaitingReason(row);
           // The sentence says what it waits on; this says where to start it.
           const source = waiting ? checkpointRecordSource(row.templateKey) : null;
           return (

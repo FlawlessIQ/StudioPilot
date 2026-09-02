@@ -244,6 +244,33 @@ const PREFIX_FALLBACKS: Array<[RegExp, string]> = [
   [/^AI_/, "We couldn't draft this. Try again."],
 ];
 
+/**
+ * Codes that arrive as `CODE:detail`, where the detail is the whole point.
+ *
+ * The flat code map answers with one fixed sentence, which is right for most
+ * failures and wrong for the two most common. A schema rejection knows which
+ * field it rejected and a dependency refusal knows which step it is waiting
+ * on; both used to land as a generic line that named neither, so
+ * "The package could not be created. Try again." was the entire report on a
+ * retainer percentage over 100, and "That checkpoint could not be updated."
+ * was the entire report on a checkpoint whose prerequisite was outstanding.
+ *
+ * "Try again" is also the one instruction guaranteed to fail identically.
+ * These say what to change instead.
+ */
+const DETAILED_BY_CODE: Record<string, (detail: string) => string> = {
+  // Every command endpoint returns this for any schema failure, so it is the
+  // most-hit error in the product and had no entry at all.
+  INVALID_COMMAND: (detail) =>
+    detail
+      ? `Check ${detail} — that value wasn't accepted.`
+      : "Something on this form wasn't accepted. Check the values and try again.",
+  DEPENDENCIES_INCOMPLETE: (detail) =>
+    detail
+      ? `Settle "${detail}" first — this step waits on it.`
+      : "Another step has to be settled before this one.",
+};
+
 /** True when a message is safe, human-authored copy rather than a code or dump. */
 const looksHumanWritten = (message: string) =>
   message.length > 0 &&
@@ -258,7 +285,12 @@ export function friendlyAiError(
   fallback = "We couldn't draft this. Try again.",
 ): string {
   const message = caught instanceof Error ? caught.message : String(caught ?? "");
-  const code = message.split(":")[0]?.trim() ?? "";
+  const [rawCode, ...rest] = message.split(":");
+  const code = rawCode?.trim() ?? "";
+  // Everything after the first colon, so a detail may itself contain one.
+  const detail = rest.join(":").trim();
+  const detailed = DETAILED_BY_CODE[code];
+  if (detailed) return detailed(detail);
   if (FRIENDLY_BY_CODE[code]) return FRIENDLY_BY_CODE[code];
   for (const [pattern, copy] of FRIENDLY_BY_PHRASE)
     if (pattern.test(message)) return copy;

@@ -48,6 +48,7 @@ import {
   type LifecycleLaneKey,
   type LifecycleRecord,
 } from "@/features/projects/lifecycle-projection";
+import type { ReadinessEvidence } from "@/features/readiness/checkpoint-evidence";
 import {
   projectStateAdvanceAction,
   projectStateLabel,
@@ -506,14 +507,20 @@ function ProjectLifecycleLanes({
   project,
   checkpoints,
   related,
+  evidence,
 }: {
   project: ProjectRecord;
   checkpoints: CheckpointRecord[];
   related: RelatedRecords;
+  evidence: ReadinessEvidence;
 }) {
+  // The same evidence the header above is scored from. Passing it is the whole
+  // fix for a panel that listed the contract and the retainer as outstanding
+  // while the header, four inches higher, counted them as done.
   const projection = projectLifecycleProjection({
     project,
     checkpoints,
+    evidence,
     ...related,
   });
   return (
@@ -889,6 +896,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
       <section className="project-now-next" aria-label="Project work summary">
         <ProjectLifecycleLanes
           checkpoints={checkpoints}
+          evidence={journey.readinessEvidence}
           project={project}
           related={related}
         />

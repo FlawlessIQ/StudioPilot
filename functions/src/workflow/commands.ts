@@ -17,6 +17,7 @@ import {
   type ReadinessEvidence,
 } from "./checkpoint-evidence.js";
 import { loadReadinessEvidence } from "./readiness-evidence-loader.js";
+import { invalidCommandResponse } from "../security/invalid-command.js";
 
 type CheckpointStatus =
   | "not_started"
@@ -542,10 +543,7 @@ export const workflowCommand = onRequest(
 
     const parsed = commandSchema.safeParse(request.body);
     if (!parsed.success) {
-      response.status(400).json({
-        error: "INVALID_COMMAND",
-        fields: parsed.error.issues.map((issue) => issue.path.join(".")),
-      });
+      response.status(400).json(invalidCommandResponse(parsed.error));
       return;
     }
     const command = parsed.data;
@@ -1016,15 +1014,24 @@ export const workflowCommand = onRequest(
            * a single record-satisfied step made all the rest unresolvable by
            * hand. See ./readiness-evidence-loader.ts.
            */
-          if (
-            command.input.resolution === "complete" &&
-            dependencies.some(
+          if (command.input.resolution === "complete") {
+            /**
+             * Name the blocker. The refusal used to carry only its code, and
+             * the studio was told "That checkpoint could not be updated." for
+             * a step whose prerequisite this function had just identified by
+             * name — so the one fact needed to act on the refusal was computed
+             * and discarded. `friendlyError` reads the text after the colon.
+             */
+            const blocking = dependencies.find(
               (dependency) =>
                 !dependency ||
                 !checkpointSatisfied(dependency, timestamp, checkpointEvidence),
-            )
-          ) {
-            throw new Error("DEPENDENCIES_INCOMPLETE");
+            );
+            if (blocking !== undefined) {
+              throw new Error(
+                `DEPENDENCIES_INCOMPLETE:${blocking?.name ?? ""}`,
+              );
+            }
           }
 
           const resolved: CheckpointDocument = {
