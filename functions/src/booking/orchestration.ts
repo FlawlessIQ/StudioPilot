@@ -15,8 +15,40 @@ function stableId(scope: string, ...parts: string[]) {
     .slice(0, 32)}`;
 }
 
-function dueDate(days: number, from: string) {
-  const value = new Date(from);
+/**
+ * The calendar date at `instant`, as observed in `timeZone`.
+ *
+ * Mirrored from lib/format/event-date.ts `todayInZone` — functions is a
+ * separate package and imports nothing from the app, the same reason
+ * checkpoint-evidence exists twice. `en-CA` is the locale whose numeric
+ * format is already YYYY-MM-DD.
+ */
+function zonedDate(instant: Date, timeZone: string): string {
+  if (!timeZone) return instant.toISOString().slice(0, 10);
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(instant);
+  } catch {
+    // An unrecognised zone must not stop a booking from raising its invoice.
+    return instant.toISOString().slice(0, 10);
+  }
+}
+
+/**
+ * A due date `days` after the booking, counted in the job's own timezone.
+ *
+ * This took `new Date(from)` and added days in UTC. `from` is the current
+ * instant, so a booking taken at 9pm Eastern was already tomorrow in UTC and
+ * every retainer and balance due date landed a day later than the policy
+ * says. Noon anchoring keeps the arithmetic clear of both boundaries.
+ */
+function dueDate(days: number, from: string, timeZone: string) {
+  const base = zonedDate(new Date(from), timeZone);
+  const value = new Date(`${base}T12:00:00.000Z`);
   value.setUTCDate(value.getUTCDate() + days);
   return value.toISOString().slice(0, 10);
 }
@@ -142,7 +174,7 @@ export const bookingContractCompleted = onDocumentWritten(
           // agreed to pay.
           amountCents: agreedRetainer,
           balanceCents: agreedRetainer,
-          dueDate: dueDate(days, now),
+          dueDate: dueDate(days, now, String(project.get("timezone") ?? "")),
           hostedUrl: null,
           lastSyncedAt: now,
           lastProviderEventId: null,
