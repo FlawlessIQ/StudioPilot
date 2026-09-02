@@ -11169,6 +11169,139 @@ textarea:focus-visible {
 }
 
 /* Crew · the hero when an offer is already out and unanswered. */
+/* ── Crew staffing, after the ease-of-use audit ─────────────────────────
+   The page ranked candidates well and never answered the studio's own two
+   questions: is this role filled, and what do I do next. These carry the
+   states that answer them. */
+
+/* A cascade that ran out of people. Same restrained treatment as
+   `.is-waiting` rather than the purple gradient — this is a problem to fix,
+   not a feature to announce. */
+.crew-cascade-hero.is-stalled {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e3e1d8);
+  border-left: 3px solid #9d4b3f;
+  box-shadow: none;
+  color: var(--ink, #1d2420);
+}
+
+.crew-cascade-hero.is-stalled .eyebrow,
+.crew-cascade-hero.is-stalled > svg {
+  color: #9d4b3f;
+}
+
+.crew-cascade-hero.is-stalled p {
+  color: var(--muted, #5f6a63);
+}
+
+.crew-cascade-recovery,
+.crew-staffing-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 15px;
+}
+
+/* The six stages, so the studio can see where it is in a flow that spans
+   days and two other people's inboxes. */
+.crew-staffing-stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  counter-reset: stage;
+}
+
+.crew-staffing-stages li {
+  align-items: center;
+  color: #ffffffa8;
+  counter-increment: stage;
+  display: flex;
+  font-size: 12px;
+  gap: 6px;
+}
+
+.crew-staffing-stages li::before {
+  align-items: center;
+  background: #ffffff24;
+  border-radius: 99px;
+  color: #fff;
+  content: counter(stage);
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 700;
+  height: 17px;
+  justify-content: center;
+  width: 17px;
+}
+
+/* Which of two people called the same name this row is. */
+.crew-candidate-email {
+  color: var(--muted, #5f6a63);
+  font-size: 11.5px;
+}
+
+/* Paperwork the person owes, with the request that used to be missing. */
+.crew-recommendation-list article em.crew-candidate-blocked {
+  flex-wrap: wrap;
+}
+
+.crew-request-paperwork {
+  background: var(--surface, #fff);
+  border: 1px solid color-mix(in srgb, var(--amber-dark, #8a6220) 40%, var(--line, #e3e1d8));
+  border-radius: 8px;
+  color: var(--amber-dark, #8a6220);
+  cursor: pointer;
+  font: 700 10.5px/1 var(--font-geist-sans);
+  min-height: 24px;
+  padding: 0 9px;
+}
+
+.crew-requested {
+  align-items: center;
+  color: var(--success, #2f6b45);
+  display: inline-flex;
+  gap: 4px;
+}
+
+/* Ruled-out people, behind the count that already named them. */
+.crew-ruled-out > summary {
+  color: var(--muted, #5f6a63);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+  padding: 10px 2px;
+}
+
+.crew-ruled-out > .crew-recommendation-list {
+  margin-top: 4px;
+}
+
+/* The arithmetic of one-offer-at-a-time, and the blocker behind it. */
+.crew-cascade-timing,
+.crew-cascade-paperwork-warning {
+  display: block;
+  margin-top: 6px;
+}
+
+.crew-cascade-paperwork-warning {
+  color: var(--amber-dark, #8a6220);
+  font-weight: 650;
+}
+
+/* The score column is gone, so the row is three columns, not four. */
+.crew-recommendation-list article {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+@media (max-width: 580px) {
+  .crew-staffing-stages li {
+    font-size: 11.5px;
+  }
+}
+
 .crew-cascade-hero.is-waiting {
   background: var(--surface, #fff);
   border: 1px solid var(--border, #e3e1d8);

@@ -110,7 +110,7 @@ type DomainConfig = {
   primary: string[];
   secondary: string[];
   status: string[];
-  facts: Array<{ label: string; fields: string[]; kind?: "money" | "date" | "count" | "percent" | "retainer" }>;
+  facts: Array<{ label: string; fields: string[]; kind?: "money" | "date" | "count" | "percent" | "retainer" | "version" }>;
   href?: (record: Value) => string;
 };
 
@@ -239,8 +239,8 @@ const configurations: Record<Domain, DomainConfig> = {
     status: ["status"],
     facts: [
       { label: "Arrival", fields: ["arrivalAt"], kind: "date" },
-      { label: "Schedule", fields: ["currentScheduleVersion"] },
-      { label: "Requirements", fields: ["requirements"], kind: "count" },
+      { label: "Run of show", fields: ["currentScheduleVersion"], kind: "version" },
+      { label: "Paperwork items", fields: ["requirements"], kind: "count" },
     ],
     href: (record) => `/studio/crew/${record.id}`,
   },
@@ -420,7 +420,7 @@ function nested(record: Value, paths: string[]) {
 
 function display(
   value: unknown,
-  kind: "money" | "date" | "count" | "percent" | "retainer" | undefined,
+  kind: "money" | "date" | "count" | "percent" | "retainer" | "version" | undefined,
   currency: unknown,
 ) {
   if (value === null || value === undefined || value === "") return "—";
@@ -455,6 +455,16 @@ function display(
     return formatDueDate(String(value));
   }
   if (kind === "count") return Array.isArray(value) ? value.length : Number(value);
+  // A schedule version of 0 is not a quantity, it is "none of these exist
+  // yet". The crew assignment row printed a bare "0" under the heading
+  // "Schedule", which reads as a count of something rather than as the
+  // absence of a run of show.
+  if (kind === "version") {
+    const version = Number(value);
+    return Number.isFinite(version) && version > 0
+      ? `v${version} sent`
+      : "Not sent yet";
+  }
   if (kind === "percent") return `${Number(value)}%`;
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (Array.isArray(value)) return value.map(String).join(", ");

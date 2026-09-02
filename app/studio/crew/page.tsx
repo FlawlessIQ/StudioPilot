@@ -54,8 +54,13 @@ export default async function StudioCrewPage({
         <section>
           <div className="section-heading-row">
             <div>
+              {/* One word per concept. This page is "Crew" under a nav item
+                  called "People", with a "Team" tab beside it and a section
+                  headed "Collaborators" — four words for two ideas. Crew are
+                  the people you hire for a job; Team are the people in your
+                  studio. */}
               <p className="eyebrow">Directory</p>
-              <h2>Collaborators</h2>
+              <h2>Your crew</h2>
             </div>
           </div>
           {/* Per-person editing and removal. The studio owns the directory

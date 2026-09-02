@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { CheckCircle2, Send, UserRoundCheck } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { sendCrewCommand } from "@/lib/crew/command-client";
@@ -57,6 +57,22 @@ const REQUIREMENTS = [
  */
 export function DirectInviteForm({ projectId }: { projectId: string }) {
   const returnToJob = useReturnToJob(projectId);
+  /**
+   * Open when linked to.
+   *
+   * The staffing header offers "I know who I want", which points here. A
+   * closed disclosure that stays closed when you click straight at it is a
+   * dead link as far as the studio is concerned.
+   */
+  const [openFromHash, setOpenFromHash] = useState(false);
+  useEffect(() => {
+    const sync = () => {
+      if (window.location.hash === "#crew-direct-invite") setOpenFromHash(true);
+    };
+    sync();
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
+  }, []);
   const { records: projects } = useTenantDocuments("projects");
   const { records: profiles } = useTenantDocuments("crewProfiles");
   const { records: assignments } = useTenantDocuments("crewAssignments");
@@ -198,7 +214,7 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
     );
 
   return (
-    <details className="crew-direct-invite">
+    <details className="crew-direct-invite" id="crew-direct-invite" open={openFromHash}>
       <summary>
         <UserRoundCheck aria-hidden="true" size={15} />
         Already know who you want? Offer this job to one person
