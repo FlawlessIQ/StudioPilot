@@ -3335,10 +3335,6 @@
     min-width: 0;
   }
 
-  .ds-root .consultation-availability form {
-    padding: 22px;
-  }
-
   .ds-root .consultation-availability-day-times {
     flex-wrap: wrap;
   }

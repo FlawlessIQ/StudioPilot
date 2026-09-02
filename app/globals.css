@@ -2407,9 +2407,11 @@ textarea:focus-visible {
   overflow: hidden;
 }
 
+/* The panel supplies the inset. This child used to supply its own, from
+   when `.panel` shipped none — now it lands at double. */
 .client-milestone-list {
   display: grid;
-  padding: 4px 18px 14px;
+  padding: 4px 0 14px;
 }
 
 .client-milestone {
@@ -3554,13 +3556,14 @@ textarea:focus-visible {
   padding-bottom: 0 !important;
 }
 
+/* The panel supplies the inset. This child used to supply its own, from
+   when `.panel` shipped none — now it lands at double. */
 .event-detail {
   align-items: center;
   border-bottom: 1px solid var(--line);
   display: flex;
   gap: 12px;
   min-height: 69px;
-  padding: 0 18px;
 }
 
 .event-detail > svg {
@@ -3619,12 +3622,13 @@ textarea:focus-visible {
   overflow: hidden;
 }
 
+/* The panel supplies the inset. This child used to supply its own, from
+   when `.panel` shipped none — now it lands at double. */
 .crm-toolbar {
   align-items: center;
   display: flex;
   justify-content: space-between;
   min-height: 62px;
-  padding: 0 18px;
 }
 
 .crm-tabs,
@@ -4822,7 +4826,7 @@ textarea:focus-visible {
     align-items: flex-start;
     flex-direction: column;
     gap: 8px;
-    padding: 12px;
+    padding-block: 12px;
   }
 
   .crm-leads-table .crm-table-head,
@@ -5213,7 +5217,7 @@ textarea:focus-visible {
 
 @media(max-width:850px){.crew-cascade-config{grid-template-columns:1fr 1fr}.crew-recommendation-list article{grid-template-columns:auto 1fr auto}.crew-recommendation-list footer{grid-column:2/-1}.crew-cascade-statuses{grid-template-columns:1fr}}@media(max-width:580px){.crew-cascade-config{grid-template-columns:1fr}.crew-cascade-config .form-span{grid-column:1}.crew-cascade-hero{padding:20px}.crew-cascade-boundary{grid-template-columns:auto 1fr}.crew-cascade-boundary .button{grid-column:2}.crew-recommendation-list article{grid-template-columns:auto 1fr}.crew-recommendation-list article>b{grid-column:1}.crew-recommendation-list footer{grid-column:2}}
 
-.client-artifact-hub{display:grid;gap:16px;margin:18px 0}.client-artifact-hub>.panel-heading{margin:0}.client-artifact-hub>div:last-child{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.client-artifact-hub>div:last-child>a{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:9px;border:1px solid var(--line);border-radius:13px;padding:11px;color:var(--ink);text-decoration:none;background:var(--canvas)}.client-artifact-hub>div:last-child>a.is-ready{background:color-mix(in srgb,var(--sage) 45%,var(--surface));border-color:color-mix(in srgb,var(--success) 20%,var(--line))}.client-artifact-hub>div:last-child>a>svg:first-child{color:var(--violet-dark)}.client-artifact-hub>div:last-child>a>svg:last-child{width:14px;color:var(--muted)}.client-artifact-hub>div:last-child>a.is-ready>svg:last-child{color:var(--success)}.client-artifact-hub a span{display:grid;min-width:0}.client-artifact-hub a small{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.client-records-empty{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:18px;border:1px dashed var(--line);border-radius:13px;color:var(--muted)}.client-records-empty>span{display:grid;gap:3px}.client-records-empty strong{color:var(--ink)}
+.client-artifact-hub{display:grid;gap:16px;margin:18px 0}.client-artifact-hub>div:last-child{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.client-artifact-hub>div:last-child>a{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:9px;border:1px solid var(--line);border-radius:13px;padding:11px;color:var(--ink);text-decoration:none;background:var(--canvas)}.client-artifact-hub>div:last-child>a.is-ready{background:color-mix(in srgb,var(--sage) 45%,var(--surface));border-color:color-mix(in srgb,var(--success) 20%,var(--line))}.client-artifact-hub>div:last-child>a>svg:first-child{color:var(--violet-dark)}.client-artifact-hub>div:last-child>a>svg:last-child{width:14px;color:var(--muted)}.client-artifact-hub>div:last-child>a.is-ready>svg:last-child{color:var(--success)}.client-artifact-hub a span{display:grid;min-width:0}.client-artifact-hub a small{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.client-records-empty{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:18px;border:1px dashed var(--line);border-radius:13px;color:var(--muted)}.client-records-empty>span{display:grid;gap:3px}.client-records-empty strong{color:var(--ink)}
 
 .client-album-workflow{display:grid;gap:16px;margin-top:18px;padding:clamp(18px,4vw,30px);border:1px solid var(--line);border-radius:20px;background:linear-gradient(145deg,color-mix(in srgb,var(--violet) 52%,var(--surface)),var(--surface))}.client-album-workflow>header{display:flex;justify-content:space-between;gap:18px}.client-album-workflow h2{font:600 clamp(25px,4vw,38px)/1.1 var(--font-display);margin:4px 0}.client-album-workflow header p:last-child{max-width:680px;color:var(--muted)}.client-album-workflow header>svg{width:34px;height:34px;color:var(--violet-dark)}.album-status-track{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}.album-status-track span{display:grid;gap:5px;color:var(--muted)}.album-status-track i{height:5px;border-radius:999px;background:var(--soft)}.album-status-track span.is-complete i{background:var(--violet-dark)}.album-status-track small{text-transform:capitalize}.client-album-workflow>.button{justify-self:start}.album-decision-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.album-studio-working{display:flex;gap:10px;align-items:center;padding:12px;border-radius:13px;background:var(--surface)}.album-studio-working span{display:grid;gap:3px}.album-studio-working small{color:var(--muted)}
 .client-questionnaire-picker{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}.client-questionnaire-picker>button{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);text-align:left;cursor:pointer}.client-questionnaire-picker>button.is-active{border-color:var(--emerald);box-shadow:0 0 0 2px color-mix(in srgb,var(--emerald) 16%,transparent)}.client-questionnaire-picker>button>span{display:grid;gap:3px}.client-questionnaire-picker small{color:var(--muted)}.client-questionnaire-upload{display:grid;gap:8px}.client-questionnaire-upload small{display:flex;gap:6px;align-items:center;color:var(--success)}.questionnaire-actions>.form-notice{flex:1;margin:0}
@@ -5590,13 +5594,11 @@ textarea:focus-visible {
 
 /* Timing rules sit above the AI schedule composer and previously inherited no
    horizontal padding for their list and empty state. */
-.timing-rule-editor > .timing-rule-list {
-  padding: 0 28px;
-}
-
+/* The panel supplies the inset. This child used to supply its own, from
+   when `.panel` shipped none — now it lands at double. */
 .timing-rule-editor > .button {
   justify-self: start;
-  margin: 0 28px 28px;
+  margin: 0 0 28px;
 }
 
 .timing-rule-editor > .timing-rule-form {
@@ -5662,10 +5664,6 @@ textarea:focus-visible {
   .copilot-result,
   .copilot-error {
     padding: 22px 20px;
-  }
-
-  .timing-rule-editor > .timing-rule-list {
-    padding-inline: 20px;
   }
 
   .timing-rule-editor > .button,
@@ -10086,10 +10084,11 @@ textarea:focus-visible {
   margin-bottom: 28px;
 }
 
+/* The panel supplies the inset. This child used to supply its own, from
+   when `.panel` shipped none — now it lands at double. */
 .consultation-availability form {
   display: grid;
   gap: 24px;
-  padding: 28px;
 }
 
 .consultation-availability-durations {
