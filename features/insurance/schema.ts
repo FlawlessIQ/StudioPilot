@@ -1,6 +1,20 @@
 import { z } from "zod";
 import { auditFieldsSchema } from "@/features/tenants/schema";
-export const coiStatusSchema = z.enum(["not_required","requirements_missing","ready_to_request","requested","awaiting_response","received","under_review","correction_required","approved","sent_to_venue","venue_acknowledged","waived","failed"]);
+/**
+ * The states a certificate actually reaches.
+ *
+ * `not_required`, `requirements_missing`, `ready_to_request` and `waived`
+ * were declared here and never written by anything — grepping the whole repo
+ * found no producer and no reader. They described a pre-request phase the
+ * product never modelled, which is why the page could not answer "does this
+ * job even need a certificate?": the states existed only in this union.
+ *
+ * Removed rather than wired up. Answering that question honestly needs no new
+ * state — either a request exists for the job or it does not, and the page now
+ * says so. Adding a project field the studio must remember to set would have
+ * created an "unknown" that stays unknown for ever.
+ */
+export const coiStatusSchema = z.enum(["requested","awaiting_response","received","under_review","correction_required","approved","sent_to_venue","venue_acknowledged","failed"]);
 export const insuranceRequirementSchema = auditFieldsSchema.extend({
   id: z.string(), tenantId: z.string(), projectId: z.string(), status: coiStatusSchema,
   certificateHolder: z.string(), venueLegalName: z.string(), venueAddress: z.string(),

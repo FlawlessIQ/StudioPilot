@@ -11169,6 +11169,67 @@ textarea:focus-visible {
 }
 
 /* Crew · the hero when an offer is already out and unanswered. */
+/* ── Certificates of insurance, after the ease-of-use audit ────────────
+   The model was right and the page described it backwards. These carry the
+   sequence and the field guidance that were missing. */
+
+.coi-flow-stages {
+  counter-reset: coi-stage;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.coi-flow-stages li {
+  align-items: center;
+  color: var(--muted, #5f6a63);
+  counter-increment: coi-stage;
+  display: flex;
+  font-size: 12.5px;
+  gap: 7px;
+}
+
+.coi-flow-stages li::before {
+  align-items: center;
+  background: var(--violet, #eee9fb);
+  border-radius: 99px;
+  color: var(--violet-dark, #5b4a8a);
+  content: counter(coi-stage);
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 800;
+  height: 18px;
+  justify-content: center;
+  width: 18px;
+}
+
+/* Field guidance: where each value comes from, since most of these are
+   copied off a venue's contract. */
+.coi-request-form label > small {
+  color: var(--muted, #5f6a63);
+  font-size: 11.5px;
+  font-weight: 450;
+  line-height: 1.45;
+}
+
+.coi-optional {
+  color: var(--muted, #5f6a63);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.coi-send-summary {
+  color: var(--muted, #5f6a63);
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin: 4px 0 0;
+}
+
 /* ── Crew staffing, after the ease-of-use audit ─────────────────────────
    The page ranked candidates well and never answered the studio's own two
    questions: is this role filled, and what do I do next. These carry the

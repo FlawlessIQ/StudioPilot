@@ -91,7 +91,7 @@ const emptyCopy: Partial<Record<Domain, { title: string; detail: string }>> = {
   schedules: { title: "No schedules yet", detail: "Generate a run of show from an active project." },
   vendors: { title: "No vendors yet", detail: "Add a venue, planner, or project vendor when details are available." },
   questionnaires: { title: "No questionnaires assigned", detail: "Assign a template below to send the client their details form." },
-  insurance: { title: "No certificate requests yet", detail: "Start a request when a venue requires proof of insurance." },
+  insurance: { title: "No certificate request for this job", detail: "If the venue asks for proof of insurance, request a certificate from your agent below." },
   crew_profiles: { title: "No crew profiles yet", detail: "Add a photographer or subcontractor before assigning project work." },
   crew_assignments: { title: "No crew assignments yet", detail: "Invite crew after the project role, timing, and responsibilities are clear." },
   post_production: { title: "No post-production work yet", detail: "Post-event milestones appear after event coverage is complete." },

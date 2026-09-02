@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
   LoaderCircle,
@@ -18,6 +18,7 @@ import { useTenantDocuments } from "@/components/live/tenant-records";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { todayLocalIso } from "@/lib/format/event-date";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { statusLabel } from "@/features/format/status-label";
@@ -38,6 +39,50 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [reason, setReason] = useState<Record<string, string>>({});
   const returnToJob = useReturnToJob(projectId ?? null);
+  /**
+   * Derived, not synchronised. The page's own project wins until the studio
+   * picks a different one — no effect mirroring a prop into state, which is
+   * the pattern that makes a late-arriving `projectId` fight whatever was
+   * rendered first.
+   */
+  const [projectOverride, setProjectOverride] = useState<string | null>(null);
+  const [eventDateOverride, setEventDateOverride] = useState<string | null>(null);
+  const [dueDateOverride, setDueDateOverride] = useState<string | null>(null);
+  const [limitDollars, setLimitDollars] = useState("1000000");
+  // `1000000` in a bare number input is hard to read and easy to mistype by
+  // an order of magnitude, which on a certificate is the whole point of it.
+  const formattedLimit = useMemo(() => {
+    const value = Number(limitDollars);
+    return Number.isFinite(value) && value > 0
+      ? value.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })
+      : "";
+  }, [limitDollars]);
+  const selectedProject = projectOverride ?? projectId ?? "";
+
+  /**
+   * Dates and venue, from the job.
+   *
+   * Both date inputs shipped with no default while the app knew the event
+   * date all along — and an empty `type="date"` is painted by Safari as a
+   * greyed *today*, so they read as filled with today's date for an event
+   * six weeks out. A wrong date on a certificate is the most expensive
+   * mistake available on this page, and it looked pre-filled.
+   *
+   * The due date leads the event by two weeks so there is room to correct a
+   * certificate that comes back wrong, and never lands in the past.
+   */
+  const chosen = projects?.find((item) => item.id === selectedProject);
+  const chosenEventDate = String(chosen?.eventDate ?? "").slice(0, 10);
+  const defaultDueDate = useMemo(() => {
+    if (!chosenEventDate) return "";
+    const event = Date.parse(`${chosenEventDate}T12:00:00`);
+    if (!Number.isFinite(event)) return "";
+    // `todayLocalIso` takes the date to convert, so it doubles as the
+    // local-ISO formatter and saves a second implementation of it.
+    const lead = todayLocalIso(new Date(event - 14 * 86_400_000));
+    const today = todayLocalIso();
+    return lead < today ? today : lead;
+  }, [chosenEventDate]);
 
   useEffect(() => {
     if (!dataIsLive) return;
@@ -165,7 +210,18 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
         <form className="coi-request-form" onSubmit={(event) => void create(event)}>
           <label>
             Project
-            <select name="projectId" required disabled={projectsLoading} defaultValue={projectId ?? ""}>
+            {/* Controlled, not `defaultValue`. The options arrive from
+                Firestore after mount, and `defaultValue` only applies at
+                mount — so a URL carrying ?project=… still rendered "Select a
+                project" once the list loaded, on the very page that had been
+                opened for that project. */}
+            <select
+              disabled={projectsLoading}
+              name="projectId"
+              onChange={(event) => setProjectOverride(event.target.value)}
+              required
+              value={selectedProject}
+            >
               <option value="">Select a project</option>
               {projects?.map((project) => (
                 <option key={project.id} value={project.id}>
@@ -177,10 +233,19 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
           <label>
             Certificate holder
             <input name="certificateHolder" required />
+            <small>
+              The venue&apos;s legal entity, exactly as their contract writes it.
+              This is who the certificate is issued to.
+            </small>
           </label>
           <label>
             Venue legal name
-            <input name="venueLegalName" required />
+            <input
+              defaultValue={String(chosen?.venueName ?? "")}
+              key={`venue-${selectedProject}`}
+              name="venueLegalName"
+              required
+            />
           </label>
           {/* The one address in the product with a legal consequence: it
               goes on the certificate the venue checks at the door. Looking
@@ -202,42 +267,81 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
           />
           <label>
             Event date
-            <input name="eventDate" type="date" required />
+            <input
+              name="eventDate"
+              onChange={(event) => setEventDateOverride(event.target.value)}
+              required
+              type="date"
+              value={eventDateOverride ?? chosenEventDate}
+            />
           </label>
           <label>
             Due date
-            <input name="dueDate" type="date" required />
+            <input
+              name="dueDate"
+              onChange={(event) => setDueDateOverride(event.target.value)}
+              required
+              type="date"
+              value={dueDateOverride ?? defaultDueDate}
+            />
           </label>
           <label>
             Insurance agent email
             <input name="insuranceAgentEmail" type="email" required />
+            <small>Your own agent. They get the request as soon as you send it.</small>
           </label>
           <label>
             Venue submission email
             <input name="submissionEmail" type="email" required />
+            <small>
+              Where the finished certificate goes — only after you have
+              reviewed and approved it. Nothing is sent here now.
+            </small>
           </label>
           <label>
-            Coverage types
+            Coverage type
             <input name="coverageTypes" defaultValue="General liability" required />
+            <small>Separate several with commas, as the venue lists them.</small>
           </label>
           <label>
             General liability limit (USD)
-            <input name="generalLiabilityDollars" min="0" type="number" defaultValue="1000000" required />
+            <input
+              min="0"
+              name="generalLiabilityDollars"
+              onChange={(event) => setLimitDollars(event.target.value)}
+              required
+              type="number"
+              value={limitDollars}
+            />
+            <small>
+              {formattedLimit
+                ? `${formattedLimit} — most venues ask for $1,000,000.`
+                : "Most venues ask for $1,000,000."}
+            </small>
           </label>
           <label className="form-span">
-            Additional-insured wording
+            Additional-insured wording <span className="coi-optional">optional</span>
             <textarea name="additionalInsuredWording" />
+            <small>
+              Copy this from the venue&apos;s contract if it specifies wording.
+            </small>
           </label>
           <label className="form-span">
-            Special instructions
+            Special instructions <span className="coi-optional">optional</span>
             <textarea name="specialInstructions" />
           </label>
           <label className="coi-checkbox">
-            <input name="waiverOfSubrogation" type="checkbox" /> Waiver of subrogation required
+            <input name="waiverOfSubrogation" type="checkbox" /> Waiver of
+            subrogation required
+            <small>Tick only if the venue&apos;s contract asks for it.</small>
           </label>
           <label className="coi-checkbox">
             <input name="primaryNoncontributory" type="checkbox" /> Primary and noncontributory wording required
           </label>
+          <p className="coi-send-summary form-span">
+            Sending requests the certificate from your agent. The venue is not
+            contacted until you approve what comes back.
+          </p>
           <button className="button button-dark" disabled={busy} type="submit">
             {busy ? <LoaderCircle className="spin" /> : <Send />}
             {busy ? "Creating…" : "Create and send request"}
