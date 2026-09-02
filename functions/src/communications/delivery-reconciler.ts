@@ -41,7 +41,45 @@ type Pending = {
  * The summary the sweep gets: "delivered", "not_delivered", "processing".
  * The event name behind a failure needs the detail call below.
  */
-type ActivityRow = { msg_id?: unknown; status?: unknown };
+type ActivityRow = {
+  msg_id?: unknown;
+  status?: unknown;
+  last_event_time?: unknown;
+};
+
+type ActivityEntry = {
+  summary: string;
+  activityId: string;
+  /** When SendGrid last acted on it — not when we noticed. */
+  lastEventTime: string;
+};
+
+/**
+ * Index the activity rows by the message id we stored.
+ *
+ * Pure and exported so the timestamp carry is tested: recording the sweep's
+ * own clock as `deliveredAt` is wrong by up to the polling interval, and
+ * wrong in a way that looks perfectly reasonable in the UI.
+ */
+export function activityEntriesFromRows(
+  rows: readonly ActivityRow[],
+): Map<string, ActivityEntry> {
+  const byPrefix = new Map<string, ActivityEntry>();
+  for (const row of rows) {
+    const id = text(row.msg_id);
+    const summary = text(row.status);
+    if (!id || !summary) continue;
+    // Most recent first, so an earlier entry wins over a later duplicate.
+    const key = messageIdPrefix(id);
+    if (byPrefix.has(key)) continue;
+    byPrefix.set(key, {
+      summary,
+      activityId: id,
+      lastEventTime: text(row.last_event_time),
+    });
+  }
+  return byPrefix;
+}
 
 const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
@@ -50,7 +88,7 @@ async function activityForSender(
   apiKey: string,
   fromEmail: string,
   limit: number,
-): Promise<Map<string, string>> {
+): Promise<Map<string, ActivityEntry>> {
   const url = new URL(ACTIVITY);
   // Scoped to our own sender, so this never reads another product's activity
   // even though the API key is shared across the account.
@@ -61,16 +99,7 @@ async function activityForSender(
   });
   if (!response.ok) throw new Error(`ACTIVITY_QUERY_FAILED:${response.status}`);
   const body = (await response.json()) as { messages?: ActivityRow[] };
-  const byPrefix = new Map<string, string>();
-  for (const row of body.messages ?? []) {
-    const id = text(row.msg_id);
-    const status = text(row.status);
-    if (!id || !status) continue;
-    // Most recent first, so an earlier entry wins over a later duplicate.
-    const key = messageIdPrefix(id);
-    if (!byPrefix.has(key)) byPrefix.set(key, `${status}|${id}`);
-  }
-  return byPrefix;
+  return activityEntriesFromRows(body.messages ?? []);
 }
 
 /**
@@ -159,18 +188,21 @@ export const emailDeliveryReconciler = onSchedule(
     for (const item of pending) {
       const entry = activity.get(messageIdPrefix(item.providerMessageId));
       if (!entry) continue;
-      const [summary, activityId] = entry.split("|");
-      if (!summary || summary === "processing") continue;
+      const { summary, activityId, lastEventTime } = entry;
+      if (summary === "processing") continue;
 
       let status = "delivered";
-      let occurredAt = now;
+      // SendGrid's own event time, falling back to ours only when it gave
+      // none. Recording the sweep's clock here put `deliveredAt` up to fifteen
+      // minutes late — and looked entirely plausible while doing it.
+      let occurredAt = lastEventTime || now;
       let reason: string | null = null;
 
       if (summary !== "delivered") {
         if (detailBudget <= 0) continue;
         detailBudget -= 1;
         try {
-          const detail = await failureDetail(apiKey, activityId ?? "");
+          const detail = await failureDetail(apiKey, activityId);
           status = detail.event;
           occurredAt = detail.occurredAt;
           reason = detail.reason;
