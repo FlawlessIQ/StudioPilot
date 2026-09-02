@@ -37,7 +37,7 @@ import {
   type PortalArea,
 } from "@/features/client/portal-stage";
 import type { ClientMilestone } from "@/server/client/portal-experience";
-import { daysUntilEvent } from "@/lib/format/event-date";
+import { daysUntilEvent, todayLocalIso } from "@/lib/format/event-date";
 import {
   displayableScheduleItems,
   scheduleItemClock,
@@ -225,7 +225,7 @@ function sentenceCase(value: string): string {
 function invoiceOverdue(invoice: Record<string, unknown>): boolean {
   if (number(invoice.balanceCents) <= 0) return false;
   const due = text(invoice.dueDate).slice(0, 10);
-  return Boolean(due) && due < new Date().toISOString().slice(0, 10);
+  return Boolean(due) && due < todayLocalIso();
 }
 
 function useProject(): Loadable<ClientPortalProject | null> {
@@ -538,7 +538,7 @@ export function LiveClientHome() {
   );
   // The largest unsettled invoice, and whether it has gone past its date. A
   // couple needs one number here, not a status word.
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocalIso();
   const outstanding = invoices.value
     .filter(
       (invoice) =>

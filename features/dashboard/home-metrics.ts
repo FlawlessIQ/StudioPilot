@@ -8,7 +8,11 @@
  */
 
 import { activeProjectStates } from "@/features/dashboard/active-states";
-import { daysUntilEvent, eventDateHasPassed } from "@/lib/format/event-date";
+import {
+  daysUntilEvent,
+  eventDateHasPassed,
+  todayLocalIso,
+} from "@/lib/format/event-date";
 
 export type MetricRecord = Record<string, unknown> & { id: string };
 
@@ -51,7 +55,12 @@ export function homeMetrics(input: {
   invoiceReferences?: readonly MetricRecord[] | null;
 }): HomeMetrics {
   const now = input.now;
-  const today = now.toISOString().slice(0, 10);
+  // Local, not UTC. `toISOString()` on the caller's `now` produced tomorrow's
+  // date west of Greenwich after about 8pm Eastern, which shifted the
+  // this-month bucket and the overdue comparison below for a third of the day.
+  // `todayLocalIso` takes the date to convert, so this stays a pure function
+  // of its input.
+  const today = todayLocalIso(now);
   const projects = (input.projects ?? []).filter(isActive);
   const invoices = input.invoiceReferences ?? [];
 

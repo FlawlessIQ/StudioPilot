@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { daysUntilEvent, todayLocalIso } from "@/lib/format/event-date";
+import {
+  daysUntilEvent,
+  todayInZone,
+  todayLocalIso,
+} from "@/lib/format/event-date";
 import { calendarDayDiff } from "@/features/today/inbox";
 
 /**
@@ -92,4 +96,21 @@ test("today's own date is the reader's, not Greenwich's", () => {
   assert.equal(todayLocalIso(evening), "2026-08-27");
   assert.equal(todayLocalIso(new Date(2026, 7, 27, 0, 1)), "2026-08-27");
   assert.equal(todayLocalIso(new Date(2026, 7, 27, 23, 59)), "2026-08-27");
+});
+
+test("on a server, today belongs to the job's timezone, not the container's", () => {
+  // 02:30 UTC on 3 September is still 22:30 on 2 September in New York. A
+  // UTC server marked a couple's balance overdue a day early every evening;
+  // `todayLocalIso` cannot help there, because "local" on Cloud Run is UTC.
+  const instant = new Date("2026-09-03T02:30:00Z");
+  assert.equal(todayInZone("America/New_York", instant), "2026-09-02");
+  assert.equal(todayInZone("UTC", instant), "2026-09-03");
+  // Sydney is already well into the 3rd.
+  assert.equal(todayInZone("Australia/Sydney", instant), "2026-09-03");
+  // An unknown or missing zone must fall back, not throw.
+  assert.equal(
+    todayInZone("Not/AZone", instant),
+    todayLocalIso(instant),
+  );
+  assert.equal(todayInZone("", instant), todayLocalIso(instant));
 });

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { todayInZone } from "@/lib/format/event-date";
 import {
   conversationIdFor,
   foldMessageIntoConversation,
@@ -534,7 +535,10 @@ async function clientProject(tenantId: string, projectId: string) {
   // portal should be telling them to do: the home page was pointing a couple at
   // "Review the final schedule" while their studio chased $6,265 overdue.
   const paymentsIndex = Object.keys(availabilityCollections).indexOf("payments");
-  const todayIso = new Date().toISOString().slice(0, 10);
+  // In the job's timezone, not the container's. This ran on a UTC server, so
+  // "overdue" turned over at 8pm Eastern — a couple saw their balance marked
+  // late a day early, every evening.
+  const todayIso = todayInZone(safeString(projectSnapshot.get("timezone")) ?? "");
   const outstandingBalance = availabilitySnapshots[paymentsIndex].docs
     .map((document) => document.data())
     .filter(

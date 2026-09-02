@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { todayLocalIso } from "@/lib/format/event-date";
 import { CheckCircle2, Send, UserRoundCheck } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { sendCrewCommand } from "@/lib/crew/command-client";
@@ -80,7 +81,7 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
 
   const project = projects?.find((item) => item.id === projectId);
   const eventDate =
-    text(project?.eventDate) || new Date().toISOString().slice(0, 10);
+    text(project?.eventDate) || todayLocalIso();
 
   // Someone already offered or booked on this job is not a candidate for a
   // second offer on it. The server would happily write a duplicate.

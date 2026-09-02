@@ -55,11 +55,8 @@ import { runClientInvitation } from "@/lib/client/invitation-client";
 export type TenantDocument = Record<string, unknown> & { id: string };
 
 import { demoTenantDocuments } from "@/features/live/demo-records";
-import {
-  describeEventProximity,
-  formatEventDate,
-} from "@/lib/format/event-date";
-import { formatDueDate } from "@/lib/format/event-date";
+import { describeEventProximity, formatDueDate, formatEventDate, todayLocalIso } from "@/lib/format/event-date";
+
 import {
   byLongestWaiting,
   waitingLabel,
@@ -701,7 +698,7 @@ export function LiveProjectRows({
       Number(row.totalCents ?? 0),
     ]),
   );
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocalIso();
   const stalled = new Set<string>();
   for (const job of providerJobs.records ?? []) {
     if (!["failed", "dead_letter"].includes(String(job.status))) continue;

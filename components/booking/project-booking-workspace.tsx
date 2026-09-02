@@ -36,7 +36,7 @@ import {
 } from "@/features/booking/orchestration";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
 import { friendlyError as friendlySharedError } from "@/lib/ai/friendly-error";
-import { formatDueDate } from "@/lib/format/event-date";
+import { formatDueDate, todayLocalIso } from "@/lib/format/event-date";
 import { providerName } from "@/lib/format/provider-name";
 import {
   PanelError,
@@ -233,7 +233,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
             isStandingInvoice(item.status) &&
             !["paid", "refunded"].includes(String(item.status)),
         );
-      const todayIso = new Date().toISOString().slice(0, 10);
+      const todayIso = todayLocalIso();
       setOutstanding(
         unpaid.length
           ? {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { todayLocalIso } from "@/lib/format/event-date";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -227,7 +228,7 @@ export function LiveReports() {
     );
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `studiocue-project-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.download = `studiocue-project-report-${todayLocalIso()}.csv`;
     anchor.click();
     URL.revokeObjectURL(url);
   }

@@ -79,6 +79,32 @@ export function formatEventDateLong(value: unknown): string {
  * went on printing the right date. Today read "Thursday, August 27" above
  * "September 4 · in 7 days", which is eight.
  */
+/**
+ * Today's date as `YYYY-MM-DD`, as observed in a named timezone.
+ *
+ * `todayLocalIso` is right in the browser, where "local" is the reader. It is
+ * wrong on a server, where local is whatever the container is set to — UTC on
+ * Cloud Run — so an overdue-invoice comparison made there marked a US couple's
+ * balance late a day early every evening.
+ *
+ * `en-CA` is not decoration: it is the locale whose numeric format is already
+ * `YYYY-MM-DD`, so this needs no part juggling.
+ */
+export function todayInZone(timeZone: string, now: Date = new Date()): string {
+  if (!timeZone) return todayLocalIso(now);
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(now);
+  } catch {
+    // An unknown zone must not take the page down with it.
+    return todayLocalIso(now);
+  }
+}
+
 export function todayLocalIso(now: Date = new Date()): string {
   const local = startOfDay(now);
   const month = String(local.getMonth() + 1).padStart(2, "0");

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { todayLocalIso } from "@/lib/format/event-date";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -58,7 +59,7 @@ function shortDayLabel(at: string): string {
 function dayLabel(day: string): string {
   const parsed = new Date(`${day}T12:00:00`);
   if (Number.isNaN(parsed.valueOf())) return day;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocalIso();
   if (day === today) return "Today";
   // A wedding books a year out, so a thread routinely spans years. "Fri,
   // Dec 5" on a job whose event is next week reads as next month unless the

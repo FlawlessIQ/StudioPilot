@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { formatDueDate } from "@/lib/format/event-date";
+import { formatDueDate, todayLocalIso } from "@/lib/format/event-date";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -80,7 +80,7 @@ export function EventDayCopilot({
       [...(projects ?? [])]
         .filter(
           (project) =>
-            text(project.eventDate) >= new Date().toISOString().slice(0, 10) &&
+            text(project.eventDate) >= todayLocalIso() &&
             !["CANCELLED", "CLOSED", "ARCHIVED"].includes(text(project.state)),
         )
         .sort((left, right) =>

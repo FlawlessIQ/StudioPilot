@@ -20,7 +20,7 @@ import {
   rankCrewCandidates,
   type CrewCandidateInput,
 } from "@/features/crew/cascade";
-import { daysUntilEvent } from "@/lib/format/event-date";
+import { daysUntilEvent, todayLocalIso } from "@/lib/format/event-date";
 import { sendCrewCommand } from "@/lib/crew/command-client";
 import { crewPublicError } from "@/lib/crew/public-error";
 import { statusLabel } from "@/features/format/status-label";
@@ -53,7 +53,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
   const { records: cascades } = useTenantDocuments("crewCascades");
   const { records: packageSnapshots } = useTenantDocuments("packageSnapshots");
   const project = projects?.find((item) => item.id === projectId);
-  const eventDate = text(project?.eventDate) || new Date().toISOString().slice(0, 10);
+  const eventDate = text(project?.eventDate) || todayLocalIso();
   const initialStart = new Date(`${eventDate}T12:00:00`);
   const initialEnd = new Date(`${eventDate}T20:00:00`);
   const [rolesText, setRolesText] = useState("Second photographer");
