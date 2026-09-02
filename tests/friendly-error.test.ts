@@ -72,3 +72,56 @@ test("a refused delivery says which step is missing", () => {
     /https:\/\//,
   );
 });
+
+test("a schema rejection names the field instead of saying Try again", () => {
+  /**
+   * `INVALID_COMMAND` is what all three command endpoints return for any
+   * schema failure — the most-hit error in the product — and it had no entry
+   * at all, so every one of them fell through to whichever generic fallback
+   * the calling form passed. A retainer percentage of 1000 on the package a
+   * new studio must create before its first proposal reported, in full,
+   * "The package could not be created. Try again." — the one instruction
+   * guaranteed to fail identically.
+   */
+  assert.match(
+    friendlyError(new Error("INVALID_COMMAND:retainer percent")),
+    /Check retainer percent/,
+  );
+  assert.doesNotMatch(
+    friendlyError(new Error("INVALID_COMMAND:retainer percent")),
+    /Try again/,
+  );
+  // Still answers when the server sent no detail.
+  assert.match(
+    friendlyError(new Error("INVALID_COMMAND")),
+    /wasn't accepted|Check the values/,
+  );
+});
+
+test("a dependency refusal names the step it waits on", () => {
+  assert.match(
+    friendlyError(new Error("DEPENDENCIES_INCOMPLETE:Questionnaire complete")),
+    /Questionnaire complete/,
+  );
+  assert.match(
+    friendlyError(new Error("DEPENDENCIES_INCOMPLETE")),
+    /before this one/,
+  );
+});
+
+test("a blocked closeout lists what is open", () => {
+  // The reconciler checks eight requirements and reported a three-way guess.
+  assert.match(
+    friendlyError(
+      new Error("CLOSEOUT_BLOCKED:Signed agreement, Final balance"),
+    ),
+    /Still open: Signed agreement, Final balance/,
+  );
+});
+
+test("a detail containing a colon survives intact", () => {
+  assert.match(
+    friendlyError(new Error("INVALID_COMMAND:gallery url: must be https")),
+    /gallery url: must be https/,
+  );
+});

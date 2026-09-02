@@ -23,6 +23,7 @@ import {
   manualScheduleBlockers,
   manualScheduleItem,
   nextItemStart,
+  seededManualSchedule,
 } from "@/features/planning/manual-run-of-show";
 
 type ScheduleItem = {
@@ -452,7 +453,25 @@ export function AiScheduleGenerator({
           : null,
       ].filter(Boolean)
     : [];
-  const ungrounded = grounding.length === 0;
+  /**
+   * What a hand-started draft was built from.
+   *
+   * `sourceTrace` only counts what the model was given — questionnaire
+   * answers, timing rules, crew facts — so a draft seeded from the form read
+   * "Nothing from this job yet", which was untrue the moment the studio typed
+   * a ceremony time. The form is a source; say so.
+   */
+  const manualGrounding =
+    draft && String(draft.interactionId ?? "").startsWith("manual_")
+      ? [
+          coverageStartsAt && coverageEndsAt ? "your coverage window" : null,
+          ceremonyTime ? "the ceremony time" : null,
+          receptionTime ? "the reception time" : null,
+          locations.trim() ? "your locations" : null,
+        ].filter(Boolean)
+      : [];
+  const groundingParts = [...grounding, ...manualGrounding];
+  const ungrounded = groundingParts.length === 0;
   /**
    * Coverage length, read off the window rather than typed beside it.
    *
@@ -477,7 +496,7 @@ export function AiScheduleGenerator({
   })();
   const groundingSummary = ungrounded
     ? "Nothing from this job yet — every time is a typical wedding"
-    : grounding.join(", ");
+    : groundingParts.join(", ");
 
   /** Send the edited questions to the client on this job. */
   async function askTheCouple() {
@@ -553,13 +572,23 @@ export function AiScheduleGenerator({
    * claiming otherwise would be the one thing this product must not do.
    */
   function startManualDraft() {
-    const start = nextItemStart([], coverageStartsAt || null);
+    // Seeded from the form above, which the studio has usually just filled in
+    // — see seededManualSchedule. It used to discard all of it.
+    const seeded = seededManualSchedule(() => crypto.randomUUID(), {
+      coverageStartsAt: coverageStartsAt || null,
+      coverageEndsAt: coverageEndsAt || null,
+      ceremonyTime: ceremonyTime || null,
+      receptionTime: receptionTime || null,
+      locations: locations || null,
+    });
     setFailed(false);
     setNotice(
-      "Empty run of show started. Add each item, then publish it as a version.",
+      seeded.length > 1
+        ? `Run of show started from what you entered — ${seeded.length} items. Add the rest, then publish it as a version.`
+        : "Empty run of show started. Add each item, then publish it as a version.",
     );
     setDraft({
-      items: [manualScheduleItem(crypto.randomUUID(), start) as ScheduleItem],
+      items: seeded as ScheduleItem[],
       assumptions: [],
       missingInformation: [],
       conflicts: [],

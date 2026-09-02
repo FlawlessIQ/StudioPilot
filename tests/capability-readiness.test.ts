@@ -72,19 +72,30 @@ test("nothing connected to sign points at the path that still works", () => {
   assert.equal(readiness.remedy, null);
 });
 
-test("nothing connected to invoice does not pretend there is a way round", () => {
-  // Signing has a manual path and invoicing does not: nothing records a
-  // retainer StudioCue did not raise, so the booking gate never sees one
-  // paid. Both used to end "so this step stays manual", which was
-  // reassurance the invoicing case had not earned.
+test("nothing connected to invoice names the manual path it has", () => {
+  /**
+   * This test used to assert the opposite, and was wrong.
+   *
+   * It required the summary to say the booking "cannot be confirmed" without a
+   * connected provider, on the reasoning that signing had a manual path and
+   * invoicing did not. `recordRetainerPayment` and `recordFinalPayment` had
+   * already been added for precisely that studio, and the walk of 2026-09-02
+   * took a job from inquiry to "Booking is confirmed" with nothing connected —
+   * reading that sentence, on the proposal page, one click before a new studio
+   * sends its first proposal.
+   *
+   * The invariant worth keeping is the original one: no vague "stays manual",
+   * which was unearned reassurance. Say what the studio actually does.
+   */
   const readiness = capabilityReadiness({
     capability: "invoicing",
     connections: [],
     selections: null,
   });
   assert.equal(readiness.state, "none_connected");
-  assert.match(readiness.summary, /cannot be confirmed/);
+  assert.match(readiness.summary, /record the payment on the booking/);
   assert.doesNotMatch(readiness.summary, /stays manual/);
+  assert.doesNotMatch(readiness.summary, /cannot be confirmed/);
 });
 
 test("ambiguity is currently unreachable, because each job has one offered app", () => {

@@ -6,7 +6,7 @@ import {
   signOut,
   updateProfile,
 } from "firebase/auth";
-import { ArrowRight, LoaderCircle } from "lucide-react";
+import { ArrowRight, CheckCircle2, LoaderCircle } from "lucide-react";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { requestBrandedAuthEmail } from "@/lib/auth/email-client";
 import { authIsLive } from "@/lib/runtime-mode";
@@ -17,6 +17,8 @@ export function RegisterForm({
   next?: string;
   intent?: "client" | "studio";
 }) {
+  /** The address the verification went to, so the confirmation can name it. */
+  const [sentTo, setSentTo] = useState("");
   const [state, setState] = useState<"idle" | "submitting" | "sent" | "error">(
     "idle",
   );
@@ -89,15 +91,17 @@ export function RegisterForm({
           next: safeNext,
         },
       });
+      setSentTo(email);
       setState("sent");
       setMessage(
         intent === "client"
-          ? "Check your email to verify your account. The secure link will return you to your invitation."
-          : "Check your email to verify your account. Then sign in to create your studio.",
+          ? "The secure link will return you to your invitation."
+          : "Open it, then sign in and we\u2019ll set your studio up.",
       );
     } catch {
       // Recoverable, and only if we say so: the account is real and the person
       // can ask for the email again from the sign-in page.
+      setSentTo(email);
       setState("sent");
       setMessage(
         "Your account was created, but we could not send the verification email. Use “Forgot password?” on the sign-in page to receive a secure link, or try signing in again shortly.",
@@ -107,6 +111,36 @@ export function RegisterForm({
       // an account that has not verified its address.
       await signOut(auth).catch(() => {});
     }
+  }
+  /**
+   * Success replaces the form, rather than adding a line under it.
+   *
+   * Submitting left the heading reading "Create your account", the fields
+   * still filled, the button still saying "Create account" (disabled, but a
+   * disabled button is not an answer), and one grey line added below. The
+   * account had been created and the page looked like it had not moved.
+   * `/studio/projects/new` already resolves its own success this way.
+   */
+  if (state === "sent") {
+    return (
+      <div className="command-success">
+        <CheckCircle2 size={23} />
+        <h2>Check your email</h2>
+        <p>
+          We sent a verification link to <strong>{sentTo}</strong>. {message}
+        </p>
+        <Link
+          className="button button-dark"
+          href={
+            safeNext
+              ? `/auth/login?next=${encodeURIComponent(safeNext)}`
+              : "/auth/login"
+          }
+        >
+          Go to sign in <ArrowRight size={15} />
+        </Link>
+      </div>
+    );
   }
   return (
     <form className="sign-in-form" onSubmit={submit}>
@@ -156,7 +190,9 @@ export function RegisterForm({
       <button
         className="button button-dark sign-in-submit"
         type="submit"
-        disabled={state === "submitting" || state === "sent"}
+        // "sent" no longer reaches here — the confirmation above replaces the
+        // whole form — so submitting is the only state that disables it.
+        disabled={state === "submitting"}
       >
         {state === "submitting" ? (
           <LoaderCircle className="spin" size={17} />

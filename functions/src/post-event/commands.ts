@@ -1064,10 +1064,27 @@ export const postEventCommand = onRequest(
         if (
           !closeout.exists ||
           closeout.get("tenantId") !== parsed.tenantId ||
-          closeout.get("projectId") !== parsed.input.projectId ||
-          !requirements.every(requirementIsSatisfied)
+          closeout.get("projectId") !== parsed.input.projectId
         )
           throw new Error("CLOSEOUT_BLOCKED");
+        /**
+         * Name what is open, rather than "something".
+         *
+         * The reconciler checks eight requirements and the refusal reported
+         * none of them, so the studio was told to go and reconcile the evidence
+         * to discover what this function had already worked out. The names are
+         * the studio's own requirement labels; `friendlyError` reads the text
+         * after the colon.
+         */
+        const unmet = requirements
+          .filter((requirement) => !requirementIsSatisfied(requirement))
+          .map((requirement) =>
+            typeof requirement.label === "string" && requirement.label
+              ? requirement.label
+              : String(requirement.key ?? "a closeout requirement"),
+          );
+        if (unmet.length)
+          throw new Error(`CLOSEOUT_BLOCKED:${unmet.slice(0, 3).join(", ")}`);
         const projectReference = db.doc(`projects/${parsed.input.projectId}`);
         const project = await projectReference.get();
         if (

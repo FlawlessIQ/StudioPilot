@@ -79,17 +79,29 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
    * already used by the checklist on this very page — the form simply never
    * asked it.
    */
+  /**
+   * No post-production record at all is not a cleared gate.
+   *
+   * `!production` returned an empty list, which reads exactly like "every step
+   * is ticked" — so on a job whose event is months away the form was fully
+   * enabled, invited a gallery URL, a review URL and a delivery date, and the
+   * server refused it. The record is opened by a trigger when the job reaches
+   * post-production, so before the event there is nothing to tick and nothing
+   * to say so.
+   */
+  const productionRecord = (productionRecords ?? []).find(
+    (item) => item.projectId === selectedProjectId,
+  );
+  const postProductionOpen = Boolean(selectedProjectId && productionRecord);
   const outstandingGateSteps = (() => {
-    const production = (productionRecords ?? []).find(
-      (item) => item.projectId === selectedProjectId,
-    );
-    if (!selectedProjectId || !production) return [];
-    const steps = (production.steps ?? {}) as Record<
+    if (!productionRecord) return [];
+    const steps = (productionRecord.steps ?? {}) as Record<
       string,
       { complete?: boolean } | undefined
     >;
     return DELIVERY_GATE_STEPS.filter((key) => steps[key]?.complete !== true);
   })();
+  const gateBlocked = !postProductionOpen || outstandingGateSteps.length > 0;
   const [provider, setProvider] = useState("manual");
   const [galleryUrl, setGalleryUrl] = useState("");
   const [accessCode, setAccessCode] = useState("");
@@ -499,7 +511,13 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
       </label>
         </div>
       </details>
-      {outstandingGateSteps.length ? (
+      {!postProductionOpen ? (
+        <p className="delivery-gate-notice form-span" role="status">
+          <strong>Not cleared for release yet.</strong> Post-production opens
+          after the event. The gallery can be recorded once the cards are backed
+          up, the edit is finished and the gallery is ready.
+        </p>
+      ) : outstandingGateSteps.length ? (
         <p className="delivery-gate-notice form-span" role="status">
           <strong>Not cleared for release yet.</strong> Tick{" "}
           {outstandingGateSteps
@@ -511,7 +529,7 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
       ) : null}
       <button
         className="button button-dark"
-        disabled={!interactive || outstandingGateSteps.length > 0}
+        disabled={!interactive || gateBlocked}
         type="submit"
       >
         <Send size={16} /> Record and release delivery

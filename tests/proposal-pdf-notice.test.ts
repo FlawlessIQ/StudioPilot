@@ -10,10 +10,14 @@ test("a failed PDF is never announced as being generated", () => {
   // The contradiction this exists to remove: the notice claimed generation was
   // under way while the panel below read "PDF generation failed".
   const notice = proposalPdfNotice(true, "failed");
-  assert.match(notice, /could not be generated/);
+  assert.match(notice, /could not be built/);
   assert.doesNotMatch(notice, /being generated/);
   // And it still says the approval landed, because it did.
   assert.match(notice, /^Approved/);
+  // It no longer claims sending is impossible: the server accepts a failed
+  // PDF on the send path, and the confirmation beside it says so.
+  assert.doesNotMatch(notice, /sending needs it/);
+  assert.match(notice, /send the proposal as a link/);
 });
 
 test("a ready PDF is not announced as pending", () => {
@@ -28,10 +32,18 @@ test("queued and unknown states keep the optimistic wording", () => {
   assert.match(proposalPdfNotice(false, "queued"), /fresh PDF/);
 });
 
-test("the failed panel does not reassure", () => {
-  assert.doesNotMatch(proposalPdfDetail("failed"), /within a minute/);
-  assert.match(proposalPdfDetail("failed"), /cannot be sent/);
-  assert.match(proposalPdfDetail("queued"), /within a minute/);
+test("the failed panel does not reassure, and does not overstate the failure", () => {
+  // No "usually finishes within a minute" over something that already
+  // stopped — the original point of this test.
+  assert.doesNotMatch(proposalPdfDetail("failed"), /a minute/);
+  // And not "the proposal cannot be sent without it" either, which was true
+  // when written and became false when the send path started accepting a
+  // failed PDF. The panel three inches below already offered exactly that.
+  assert.doesNotMatch(proposalPdfDetail("failed"), /cannot be sent/);
+  assert.match(proposalPdfDetail("failed"), /send the proposal as a link/);
+  assert.match(proposalPdfDetail("queued"), /a minute/);
+  // Said in the studio's terms, not the worker's.
+  assert.doesNotMatch(proposalPdfDetail("queued"), /document worker/);
 });
 
 test("a generating notice is dropped once the record says it failed", () => {

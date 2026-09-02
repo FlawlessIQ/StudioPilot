@@ -77,3 +77,45 @@ test("an empty checkpoint list is untracked", () => {
     blocking: [],
   });
 });
+
+test("the blocker list leads with what is due soonest", () => {
+  /**
+   * The caller renders the head of this list as "8 blockers: X +7 more", and
+   * it was in template order — so a wedding nine months out headlined with
+   * "Final balance paid", a client payment not due until a fortnight before
+   * the day and correctly outstanding. The item chosen to stand for the eight
+   * was the least actionable of them.
+   */
+  const summary = readinessSummary(
+    [
+      {
+        id: "cp-balance",
+        blocking: true,
+        status: "not_started",
+        name: "Final balance paid",
+        resolvedDueDate: "2027-05-29",
+      },
+      {
+        id: "cp-venue",
+        blocking: true,
+        status: "not_started",
+        name: "Venue confirmed",
+        resolvedDueDate: "2027-05-13",
+      },
+      {
+        id: "cp-undated",
+        blocking: true,
+        status: "not_started",
+        name: "Something with no date",
+        resolvedDueDate: null,
+      },
+    ],
+    new Date("2026-09-02T12:00:00.000Z"),
+  );
+  assert.deepEqual(summary.blocking, [
+    "Venue confirmed",
+    "Final balance paid",
+    // Undated last: no date is not more urgent than a date this month.
+    "Something with no date",
+  ]);
+});

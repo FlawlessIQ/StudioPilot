@@ -797,11 +797,24 @@ export function LiveProjectRows({
     );
   }
   if (values.length === 0) {
+    /**
+     * A filter clause only when there is a filter.
+     *
+     * "Create your first project or change the active filters" greeted a
+     * brand-new studio with nothing set — nothing to change, and an
+     * implication that the product might be hiding their work from them at the
+     * moment they are least able to tell.
+     */
+    const filtered = view !== "active" || type !== "all";
     return (
       <LiveRecordsState
         kind="empty"
-        state="No projects in this view"
-        detail="Create your first project or change the active filters."
+        state={filtered ? "No projects in this view" : "No projects yet"}
+        detail={
+          filtered
+            ? "Nothing matches the current filters. Clear them, or create a project."
+            : "Create your first project and StudioCue starts tracking it from the inquiry."
+        }
         action={{ href: "/studio/projects/new", label: "Create project" }}
       />
     );

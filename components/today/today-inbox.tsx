@@ -261,7 +261,14 @@ export function TodayInbox() {
     : loading
       ? "Catching up…"
       : waiting === 0
-        ? "You're all clear."
+        ? // "You're all clear. Nothing needs you right now" on a studio that
+          // cannot yet price a proposal, with "1 of 4 answered" on the same
+          // screen. Congratulating someone for finishing nothing is worse than
+          // saying nothing; while there is genuinely no work and the setup is
+          // unfinished, the setup is the news.
+          setup.brandNew && !setup.complete
+          ? "Let's get you set up."
+          : "You're all clear."
         : (lead?.title ?? "Here's where things stand.");
 
   const bands: TodayBand[] = ["overdue", "soon", "later"];
@@ -354,7 +361,7 @@ export function TodayInbox() {
             ) : null}
           </header>
 
-          {!loading && waiting === 0 && setup.brandNew && !setup.complete ? (
+          {!loading && !setup.complete && !(setup.brandNew && waiting > 0) ? (
             /**
              * The first screen a new studio ever sees.
              *
@@ -370,19 +377,41 @@ export function TodayInbox() {
              * an invitation, it shows only while there is genuinely no work on
              * the books, and it goes away for good once the four are answered.
              */
-            <section className="today-clear today-getting-started">
+            /* Shown until the four are answered, not until the first job is
+               created. It used to require `brandNew` — no projects and no
+               leads — so it vanished the moment a studio created its first
+               project, which is the first thing anyone does, leaving three
+               questions unanswered with no prompt and no route back. Once
+               there is work on the books it demotes to a quiet strip rather
+               than disappearing. */
+            <section
+              className={
+                setup.brandNew
+                  ? "today-clear today-getting-started"
+                  : "today-clear today-getting-started is-compact"
+              }
+            >
               <span className="today-clear-icon">
                 <Sparkles size={20} />
               </span>
               <div>
-                <strong>Let&rsquo;s get your studio ready.</strong>
+                <strong>
+                  {setup.brandNew
+                    ? "Let\u2019s get your studio ready."
+                    : "Finish setting up your studio."}
+                </strong>
                 <small>
                   {setup.answered} of 4 answered — your prices, your agreement,
                   your details form, and when you take consultations. Your
                   inquiry form is already live either way.
                 </small>
               </div>
-              <Link className="button button-dark" href="/studio/setup">
+              <Link
+                className={
+                  setup.brandNew ? "button button-dark" : "button button-light"
+                }
+                href="/studio/setup"
+              >
                 Continue setup <ArrowRight size={15} />
               </Link>
             </section>

@@ -82,8 +82,26 @@ export function readinessSummary(
   return {
     tracked: true,
     percent: Math.round((met.length / required.length) * 100),
+    /**
+     * Soonest due first, because the caller shows the head of this list.
+     *
+     * It was template order, so "8 blockers: **Final balance paid** +7 more"
+     * headlined a wedding nine months out with the one item that should worry
+     * nobody — a client payment not due until a fortnight before the day, and
+     * correctly outstanding. The item chosen to stand for the eight was the
+     * least actionable of them.
+     *
+     * Undated ones sort last: a requirement with no date is not more urgent
+     * than one with a date this month.
+     */
     blocking: required
       .filter((checkpoint) => !satisfied(checkpoint, now, evidence))
+      .slice()
+      .sort((left, right) =>
+        (text(left.resolvedDueDate) || "9999-12-31").localeCompare(
+          text(right.resolvedDueDate) || "9999-12-31",
+        ),
+      )
       .map((checkpoint) => text(checkpoint.name) || "Unnamed checkpoint"),
   };
 }

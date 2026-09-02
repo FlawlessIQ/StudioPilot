@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  checkpointBlockedBy,
   checkpointIsResolvable,
   checkpointIsSettled,
   checkpointIsWaivable,
@@ -140,4 +141,45 @@ test("no wedding checkpoint can strand a job with nothing to do", () => {
       `"${String(key)}" would hold a job below 100% with no way out`,
     );
   }
+});
+
+test("a blocked checkpoint offers no Mark done, and names what it waits on", () => {
+  /**
+   * `resolveCheckpoint` refuses a completion whose dependency is unsatisfied,
+   * and the UI never asked — so **Mark done** appeared on blocked rows, took a
+   * written reason ("Confirmed St Stephen Church and The Dorrance with both
+   * venues by phone") and then failed with "That checkpoint could not be
+   * updated." The graph is known before the button renders.
+   */
+  const dependency = (id: string) =>
+    ({
+      "cp-form": { name: "Questionnaire complete", settled: false },
+      "cp-schedule": { name: "Final run of show approved", settled: true },
+    })[id];
+
+  assert.equal(
+    checkpointBlockedBy({ dependencyIds: ["cp-form"] }, dependency),
+    "Questionnaire complete",
+  );
+  // Settled by the records counts, exactly as it counts for scoring.
+  assert.equal(
+    checkpointBlockedBy({ dependencyIds: ["cp-schedule"] }, dependency),
+    null,
+  );
+  assert.equal(checkpointBlockedBy({ dependencyIds: [] }, dependency), null);
+  assert.equal(checkpointBlockedBy({}, dependency), null);
+  // The nearest unmet link, not the whole chain.
+  assert.equal(
+    checkpointBlockedBy(
+      { dependencyIds: ["cp-schedule", "cp-form"] },
+      dependency,
+    ),
+    "Questionnaire complete",
+  );
+  // An id that resolves to nothing blocks, matching the server, which refuses
+  // when a dependency document cannot be found.
+  assert.equal(
+    checkpointBlockedBy({ dependencyIds: ["gone"] }, dependency),
+    "another step",
+  );
 });

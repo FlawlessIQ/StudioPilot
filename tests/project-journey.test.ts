@@ -41,7 +41,18 @@ test("a replied lead moves the journey to the consultation", () => {
   assert.equal(current?.key, "consultation");
 });
 
-test("waiting-on-client steps do not block the next studio action", () => {
+test("a step whose input has not arrived does not become the next move", () => {
+  /**
+   * This asserted `current === "retainer"` while the contract was out for
+   * signature, on the reasoning that the studio should never be left with
+   * nothing to do. But the retainer genuinely cannot be raised before the
+   * signature — the booking page says so on the step itself ("Retainer · Waits
+   * for the signature") and disables the control — so the journey was pointing
+   * at a destination that refuses, which is the defect this whole family of
+   * fixes is about. On a job whose only outstanding work is a client
+   * signature, "waiting" is the true answer, and the next-move card has a
+   * well-written state for exactly that.
+   */
   const { steps, current } = projectJourney({
     ...base,
     state: "CONTRACT_PENDING",
@@ -52,9 +63,49 @@ test("waiting-on-client steps do not block the next studio action", () => {
   });
   const contract = steps.find((step) => step.key === "contract");
   assert.equal(contract?.status, "waiting_client");
-  // With the contract out for signature, the studio's own next move is the
-  // retainer invoice.
+  const retainer = steps.find((step) => step.key === "retainer");
+  assert.equal(retainer?.status, "upcoming");
+  assert.equal(retainer?.action, null);
+  // Whatever the next move turns out to be, it is not the step that cannot
+  // start. (Here it is the details form, which genuinely can be sent now.)
+  assert.notEqual(current?.key, "retainer");
+});
+
+test("the step after a waiting one activates as soon as its input lands", () => {
+  // The other half: gating must not strand a job. With the signature
+  // recorded, the retainer is immediately the studio's move.
+  const { steps, current } = projectJourney({
+    ...base,
+    state: "RETAINER_PENDING",
+    lead: { id: "lead-1", status: "converted" },
+    hasConsultation: true,
+    proposalStatus: "accepted",
+    contractStatus: "completed",
+  });
+  assert.equal(
+    steps.find((step) => step.key === "contract")?.status,
+    "complete",
+  );
   assert.equal(current?.key, "retainer");
+  assert.equal(current?.action?.kind, "link");
+});
+
+test("the contract waits for an accepted proposal, not merely a sent one", () => {
+  // "Send contract — built from the accepted proposal" on a proposal the
+  // client had not opened, linking to a page that then refused with "The
+  // client's accepted proposal is required first."
+  const { steps, current } = projectJourney({
+    ...base,
+    state: "PROPOSAL",
+    lead: { id: "lead-1", status: "converted" },
+    hasConsultation: true,
+    proposalStatus: "sent",
+  });
+  const contract = steps.find((step) => step.key === "contract");
+  assert.equal(contract?.status, "upcoming");
+  assert.equal(contract?.action, null);
+  assert.doesNotMatch(contract?.detail ?? "", /accepted proposal/);
+  assert.notEqual(current?.key, "contract");
 });
 
 test("a booked project with a submitted form points at the run of show", () => {

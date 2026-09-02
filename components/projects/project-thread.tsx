@@ -89,6 +89,7 @@ export function ProjectThread({
   projectId,
   entries,
   current,
+  studioOpenWork = [],
   interruption,
   stateVersion,
   consultationId,
@@ -97,6 +98,14 @@ export function ProjectThread({
   projectId: string;
   entries: ThreadEntry[];
   current: JourneyStep | null;
+  /**
+   * Open readiness checkpoints the studio itself owns, soonest due first.
+   *
+   * Needed only for the no-current-step case: the card claimed the job was
+   * "waiting on someone else" while four manual studio judgements sat open in
+   * the panel below it, each with a control one click away.
+   */
+  studioOpenWork?: string[];
   /**
    * Set when the job is on hold or cancelled, with the reason the studio gave.
    * A cancelled job has no next move, and "waiting on someone else" is the
@@ -119,6 +128,7 @@ export function ProjectThread({
         onChanged={onChanged}
         projectId={projectId}
         stateVersion={stateVersion}
+        studioOpenWork={studioOpenWork}
       />
       {summary.latest ? (
         <>
@@ -347,12 +357,14 @@ function ThreadNextMove({
   onChanged,
   projectId,
   stateVersion,
+  studioOpenWork,
 }: {
   current: JourneyStep | null;
   interruption: { state: string; reason: string | null } | null;
   onChanged: (state?: string, version?: number) => void;
   projectId: string;
   stateVersion: number;
+  studioOpenWork: string[];
 }) {
   if (interruption) {
     /**
@@ -436,13 +448,40 @@ function ThreadNextMove({
         // finished loading rather than a job that is genuinely waiting.
         <div className="thread-next is-clear">
           <div className="thread-next-copy">
-            <p className="thread-next-eyebrow">
-              <Check size={12} /> Nothing for you right now
-            </p>
-            <strong>This job is waiting on someone else.</strong>
-            <small>
-              It comes back here the moment it needs a decision from you.
-            </small>
+            {studioOpenWork.length ? (
+              <>
+                {/* Not "waiting on someone else" — this is the studio's own
+                    work, and it is the next real thing on the job. */}
+                <p className="thread-next-eyebrow">
+                  <Check size={12} /> Nothing is blocked
+                </p>
+                <strong>
+                  {studioOpenWork.length === 1
+                    ? `${studioOpenWork[0]} is still yours to confirm.`
+                    : `${studioOpenWork[0]} and ${studioOpenWork.length - 1} other ${studioOpenWork.length === 2 ? "check" : "checks"} are still yours to confirm.`}
+                </strong>
+                <small>
+                  Nothing is due yet, and everything else is with a client or a
+                  provider.
+                </small>
+                <Link
+                  className="button button-light"
+                  href={`/studio/projects/${projectId}#project-checkpoints`}
+                >
+                  Confirm what you know <ArrowRight size={14} />
+                </Link>
+              </>
+            ) : (
+              <>
+                <p className="thread-next-eyebrow">
+                  <Check size={12} /> Nothing for you right now
+                </p>
+                <strong>This job is waiting on someone else.</strong>
+                <small>
+                  It comes back here the moment it needs a decision from you.
+                </small>
+              </>
+            )}
           </div>
         </div>
       )}

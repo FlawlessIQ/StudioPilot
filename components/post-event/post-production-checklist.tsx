@@ -50,9 +50,34 @@ export function PostProductionChecklist({
     (item) => item.projectId === projectId,
   );
 
-  // Absent until the job reaches post-production, which is when the trigger in
-  // functions/src/post-event/post-production-start.ts opens the record.
-  if (!production) return null;
+  /**
+   * Absent until the job reaches post-production, which is when the trigger in
+   * functions/src/post-event/post-production-start.ts opens the record.
+   *
+   * Rendering nothing left the delivery page instructing "work through
+   * post-production, then record the gallery" with nothing to work through,
+   * and — worse — the delivery gate's refusal names this checklist by name
+   * ("Backup, editing and gallery-ready all have to be ticked on this job's
+   * post-production checklist first"), so the studio was sent to a thing that
+   * was not on the screen. Say why it is not here yet.
+   */
+  if (!production) {
+    return (
+      <section className="panel post-production-pending">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">Post-production</p>
+            <h2>Opens after the event</h2>
+          </div>
+        </div>
+        <p>
+          The backup, editing and gallery-ready checks appear here once the
+          event has been covered. The gallery can be released after all three
+          are ticked.
+        </p>
+      </section>
+    );
+  }
 
   const steps = record(production.steps) as Record<
     string,

@@ -1047,3 +1047,73 @@ else**" — which is false, because four of the open items are the studio's own.
 The fix for B8 is therefore not new logic but Today's clause: distinguish "with
 someone else" from "not due yet", and when studio-owned items are open and
 near, name them instead of claiming either.
+
+---
+
+## Resolution — 2026-09-02
+
+All 48 are addressed across three commits. Verified in the browser against the
+Hartley Wedding job, on a production build, not by reading the diff.
+
+### Three the walk got wrong, corrected here
+
+Recorded so nobody "fixes" them again on the strength of the finding above.
+
+- **A5** claimed the new-client fields on `/studio/projects/new` carried no
+  required markers. First and last name carry both the `Required` label and the
+  schema refinement; email is genuinely optional and correctly unmarked. The
+  form was already right. The real instance of the pattern was A7's package
+  form, which is fixed.
+- **A6** claimed project creation has no venue field. It has one (`venueName`,
+  with a place lookup) along`city`. The defect was the job page rendering
+  `venueName ?? city` under a fixed "Venue" label, so a job with only a city —
+  the ordinary case at inquiry — reported "Venue: Providence". The label now
+  follows the field.
+- **A2** claimed pressing "Create account" a second time fails. It is disabled
+  after the first send. The real defect — the form staying in place with no
+  confirmation — is fixed.
+
+### Two fixes narrower than the finding asked for
+
+- **A19/B5** asked for a waiting state on the next-move card. It already
+  existed and is well written; only the premature `current` claims needed
+  gating. **The run of show is deliberately not gated** on the details form:
+  unlike the contract, its destination works without one — the generator asks
+  for coverage and ceremony times directly and says so, and "Build it myself"
+  needs nothing. Only the claim that it was "drafted from the form" was wrong.
+- **B9's** template fix applies to newly instantiated workflows. Jobs created
+  before it keep their chained `dependencyIds`, which is why the second half
+  matters: on the Hartley job the blocked rows now read *Settle "Questionnaire
+  complete" first — this step waits on it* and offer only **Waive**, instead of
+  taking a written reason and failing. Re-seeding picks up the new template
+  (`scripts/seed.ts` maps `template.dependencies`).
+
+### Verified on screen
+
+| Was | Now |
+|---|---|
+| Client needs (6), incl. Contract completed + Retainer paid | Client needs (3) |
+| Studio needs (5), incl. COI approved and sent | Studio needs (4) |
+| "Blocks event readiness until resolved." ×12 | "Your judgement — mark it done once you have." · "Completes when the couple submits the form with answers." |
+| "6 blockers: **Final balance paid**" (due May 29) | "6 blockers: **Questionnaire complete**" (due Apr 28) |
+| Venue: Providence | **City**: Providence |
+| Crew confirmed ✓ | Crew confirmed ✓ · **Shooting this one solo** |
+| Insurance to venue ✓ | Insurance to venue ✓ · **This venue does not require one** |
+| "This job is waiting on someone else" | "Primary contacts confirmed and 3 other checks are still yours to confirm" + a button |
+| Overview 50% / Plan 42% / both on the event-day brief | 50% everywhere |
+| "for example a consultation handled over the phone" (on a booked job) | "if starting the planning already happened outside StudioCue" |
+| Package form: 0 of 11 fields marked | 11 of 11, `max="100"` on the percentage |
+| 1000% retainer → "The package could not be created. Try again." | Browser: "Value must be less than or equal to 100." |
+| Retainer · $1,050.00 · **Not set** | Retainer · $1,050.00 · **On signing** |
+| Proposal page: no route to the job | Job link in the heading, at every status |
+
+### Still open, found while fixing
+
+- **Two rows for one questionnaire.** The reference panel lists both the
+  `questionnaire-complete` checkpoint ("Completes when the couple submits the
+  form with answers") and the questionnaire response record ("Finish planning
+  questionnaire · 0% complete"), against the same client and the same due date.
+  Pre-existing, and more visible now that the panel is four rows shorter.
+- **Legacy chains.** Existing jobs keep the old `dependencyIds`. Legible now,
+  but a one-off backfill clearing non-declared dependencies would finish B9 for
+  the demo and dev data.

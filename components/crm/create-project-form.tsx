@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -130,6 +130,21 @@ function FilledTag() {
 
 export function CreateProjectForm() {
   const workspace = useWorkspace();
+  /**
+   * A studio with no clients should not land on the tab that cannot work.
+   *
+   * "Existing client" was the active tab on a brand-new studio, and its
+   * dropdown held exactly one option: the empty placeholder. The note below it
+   * did say to switch tabs, which is a fair rescue and still one wasted step
+   * on the first project anyone creates.
+   *
+   * Applied once, and only while the studio has not touched the control, so a
+   * deliberate choice of "Existing client" on an empty directory is respected
+   * — and so a later fetch cannot yank the tab out from under someone who is
+   * mid-typing. `setValue` is react-hook-form's ref-based setter, not React
+   * state, so this does not cascade a render.
+   */
+  const clientModeDefaulted = useRef(false);
   const { records: contacts, loading: contactsLoading } =
     useTenantDocuments("contacts");
   const [outcome, setOutcome] = useState<{
@@ -169,6 +184,13 @@ export function CreateProjectForm() {
     },
   });
   const clientMode = watch("clientMode");
+  useEffect(() => {
+    if (clientModeDefaulted.current || contactsLoading) return;
+    if (contacts && contacts.length === 0) {
+      clientModeDefaulted.current = true;
+      setValue("clientMode", "new");
+    }
+  }, [contacts, contactsLoading, setValue]);
   const timezone = watch("timezone");
 
   const clearTag = (field: FillableField) =>

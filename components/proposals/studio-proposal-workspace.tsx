@@ -1452,11 +1452,28 @@ export function StudioProposalWorkspace({
     return () => window.clearInterval(timer);
   }, [load, proposal?.pdfState]);
 
+  /**
+   * Submit and approve, for a studio whose approver is the person drafting.
+   *
+   * Sequential rather than a new command: `approve` requires the proposal to be
+   * in internal review, which `submit_for_approval` sets, and keeping both
+   * means the audit log still records the submission and the approval
+   * separately. If the second fails, the proposal is in exactly the state the
+   * old two-button flow left it in, and the Approve button is right there.
+   */
+  async function submitAndApprove() {
+    // The returned flag, not the `error` state: that variable is the value
+    // captured when this closure rendered, so reading it after the await would
+    // always see the state from before the command ran.
+    if (await run("submit_for_approval")) await run("approve");
+  }
+
+  /** Resolves true when the command landed, so callers can chain on it. */
   async function run(
     type: ProposalCommandType,
     extra: Record<string, unknown> = {},
-  ) {
-    if (!proposal) return;
+  ): Promise<boolean> {
+    if (!proposal) return false;
     setWorking(type);
     setError("");
     setNotice("");
@@ -1522,12 +1539,14 @@ export function StudioProposalWorkspace({
       } else {
         setNotice(messages[type] ?? "Proposal updated.");
       }
+      return true;
     } catch (caught: unknown) {
       setError(
         commandError(
           friendlyError(caught, "The proposal could not be updated."),
         ),
       );
+      return false;
     } finally {
       setWorking(null);
     }
@@ -1904,21 +1923,37 @@ export function StudioProposalWorkspace({
                   )}
                   Save draft
                 </button>
+                {/* One step for whoever can approve their own draft.
+                    "Send for approval" → status "Needs approval" → "Approve the
+                    offer" → "Approve & generate PDF" is the right mechanism for
+                    a studio with an admin and a coordinator, and for a studio
+                    of one — the common case — it is two clicks and a status
+                    change to hand a document from someone to themselves.
+                    Nothing adapted it, and nothing said whose approval was
+                    being waited on. The two commands stay separate on the
+                    server, so the audit trail is unchanged and a failure
+                    between them lands on the ordinary Approve button. */}
                 <button
                   className="button button-dark"
                   disabled={working !== null}
-                  onClick={() => void run("submit_for_approval")}
+                  onClick={() =>
+                    void (canApprove
+                      ? submitAndApprove()
+                      : run("submit_for_approval"))
+                  }
                   type="button"
                 >
-                  {working === "submit_for_approval" ? (
+                  {working === "submit_for_approval" || working === "approve" ? (
                     <LoaderCircle className="spin" />
                   ) : (
                     <ArrowRight />
                   )}
-                  Send for approval
+                  {canApprove ? "Approve this proposal" : "Send for approval"}
                 </button>
                 <small>
-                  The client cannot see drafts or internal review activity.
+                  {canApprove
+                    ? "Approving is recorded against your name. The client sees nothing until you send it."
+                    : "An owner or admin approves it. The client cannot see drafts or internal review activity."}
                 </small>
                 {/* What happens after they accept. The page offered this
                     button without ever saying that an accepted proposal

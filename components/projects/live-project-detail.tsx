@@ -48,7 +48,10 @@ import {
   type LifecycleLaneKey,
   type LifecycleRecord,
 } from "@/features/projects/lifecycle-projection";
-import type { ReadinessEvidence } from "@/features/readiness/checkpoint-evidence";
+import {
+  checkpointSatisfiedByEvidence,
+  type ReadinessEvidence,
+} from "@/features/readiness/checkpoint-evidence";
 import {
   projectStateAdvanceAction,
   projectStateLabel,
@@ -64,7 +67,10 @@ import { ProjectPreparedTray } from "@/components/projects/project-prepared-tray
 import { ProjectPlanningCopilot } from "@/components/projects/project-planning-copilot";
 import { crmProjects } from "@/config/crm-demo-data";
 import { friendlyError } from "@/lib/ai/friendly-error";
-import { manualAdvanceFor } from "@/features/projects/manual-advance";
+import {
+  manualAdvanceExample,
+  manualAdvanceFor,
+} from "@/features/projects/manual-advance";
 import {
   INTERRUPTION_COPY,
   interruptionReasonIsUsable,
@@ -282,10 +288,14 @@ function ProjectStageControl({
           <small>Next stage</small>
           <strong>{stateLabel(nextStage)}</strong>
         </span>
+        {/* The example used to be a consultation at every stage, so a booked
+            job about to enter planning was told "for example a consultation
+            handled over the phone" — three stages behind it. Name the move
+            actually on offer. */}
         <p>
           {gated
             ? gated.detail
-            : "Use this when the step happened outside StudioCue — for example a consultation handled over the phone. The change is recorded in the audit log."}
+            : `Use this if ${manualAdvanceExample(nextStage)} already happened outside StudioCue. The change is recorded in the audit log.`}
         </p>
         {journeyAdvance && journeyAdvance.targetState === nextStage ? (
           <p className="project-stage-duplicate">
@@ -749,6 +759,42 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
   );
   const readiness = readinessView.percent;
   const outstanding = readinessView.blocking;
+  /**
+   * The studio's own open checkpoints, soonest first.
+   *
+   * The next-move card falls through to "This job is waiting on someone else"
+   * whenever no journey step is `current`, and on a job whose remaining work
+   * was four manual studio judgements — venue, primary contacts, locations,
+   * travel — it said exactly that while the panel below it listed all four
+   * against "You". Venue confirmed and Primary contacts are the next real work
+   * on that job, and they have inline controls a click away.
+   *
+   * Today's wording for the same state is the honest one — "everything is with
+   * a client, a provider, **or not due yet**" — so the card needs to know
+   * whether anything is genuinely the studio's before it claims otherwise.
+   */
+  const studioOpenWork = (checkpoints ?? [])
+    .filter(
+      (checkpoint) =>
+        checkpoint.projectId === projectId &&
+        checkpoint.archivedAt === null &&
+        checkpoint.ownerType === "studio" &&
+        !["complete", "waived"].includes(String(checkpoint.status ?? "")) &&
+        !checkpointSatisfiedByEvidence(
+          {
+            completionMethod: String(checkpoint.completionMethod ?? ""),
+            templateKey: String(checkpoint.templateKey ?? ""),
+          },
+          journey.readinessEvidence,
+        ),
+    )
+    .slice()
+    .sort((left, right) =>
+      String(left.resolvedDueDate ?? "9999-12-31").localeCompare(
+        String(right.resolvedDueDate ?? "9999-12-31"),
+      ),
+    )
+    .map((checkpoint) => String(checkpoint.name ?? "A readiness requirement"));
   const current = journey.current;
   const onTransition = (nextState: string, version: number) =>
     setProject((value) =>
@@ -816,8 +862,16 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
         </span>
         <span>
           <MapPin size={17} />
-          <small>Venue</small>
-          <strong>{String(project.venueName ?? project.city ?? "Pending")}</strong>
+          {/* A city is not a venue. `venueName ?? city` under a fixed "Venue"
+              label meant a job created with only a city — which is what
+              happens when the venue is not booked yet, the ordinary case at
+              inquiry — reported "Venue: Providence", and the studio had no way
+              to tell whether a venue had been captured or not. The label
+              follows the field. */}
+          <small>{project.venueName ? "Venue" : "City"}</small>
+          <strong>
+            {String(project.venueName ?? project.city ?? "Not set yet")}
+          </strong>
         </span>
         <span>
           <UserRound size={17} />
@@ -839,6 +893,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
         <ProjectThread
           consultationId={thread.openConsultationId}
           current={current}
+          studioOpenWork={studioOpenWork}
           entries={thread.entries}
           interruption={
             ["POSTPONED", "CANCELLED"].includes(state)

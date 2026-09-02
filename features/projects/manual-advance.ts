@@ -101,6 +101,33 @@ export function manualAdvanceFor(
   return { ...entry, href: entry.href.replaceAll(":projectId", projectId) };
 }
 
+/**
+ * What entering a stage means, for the ungated ones.
+ *
+ * The stage card explained itself with "for example a consultation handled
+ * over the phone" at *every* stage, because the copy was written once for the
+ * control rather than per move. A booked job about to enter planning read an
+ * example three stages behind it.
+ *
+ * Only the ungated transitions need this: the six evidence-controlled ones
+ * carry their own `detail` in ROUTES above, which names the record instead of
+ * an example.
+ */
+const STAGE_EXAMPLES: Partial<Record<ProjectState, string>> = {
+  CONSULTATION: "the consultation",
+  PROPOSAL: "sending the proposal",
+  PLANNING: "starting the planning",
+  READY: "getting the job ready",
+  EVENT_COMPLETE: "shooting the event",
+  POST_PRODUCTION: "starting the edit",
+  REVIEW_REQUESTED: "asking for the review",
+  CLOSED: "closing the job out",
+};
+
+export function manualAdvanceExample(to: ProjectState): string {
+  return STAGE_EXAMPLES[to] ?? "this step";
+}
+
 /** Every gated transition, for the coverage test. */
 export function gatedTransitionKeys(): string[] {
   return evidenceControlledProjectTransitions.map(

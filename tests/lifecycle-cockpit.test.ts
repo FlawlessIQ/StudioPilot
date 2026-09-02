@@ -5,6 +5,7 @@ import {
   aiActionVisibleInQueue,
 } from "@/features/ai-actions/schema";
 import { projectLifecycleProjection } from "@/features/projects/lifecycle-projection";
+import { noReadinessEvidence } from "@/features/readiness/checkpoint-evidence";
 
 const now = "2026-07-29T20:00:00.000Z";
 
@@ -108,4 +109,110 @@ test("AI queue hides future snoozes and receipts preserve operational controls",
     archivedAt: null,
   });
   assert.equal(receipt.success, true);
+});
+
+test("work the records already prove is not listed as outstanding", () => {
+  /**
+   * The reference panel decided from `checkpoint.status` alone, and checkpoints
+   * are only ever written by workflow automation — so a job whose contract was
+   * completed and whose retainer was paid minutes earlier listed both as
+   * outstanding, owed by the client, directly beneath a journey rail reading
+   * "BOOKING 3/3". The header on the same screen was already evidence-aware,
+   * so the two disagreed: 8 blockers counted, 12 listed.
+   */
+  const checkpoints = [
+    {
+      id: "cp-contract",
+      projectId: "project-1",
+      templateKey: "contract-completed",
+      completionMethod: "contract_completed",
+      name: "Contract completed",
+      ownerType: "client",
+      status: "ready",
+      blocking: true,
+      resolvedDueDate: "2027-02-12",
+    },
+    {
+      id: "cp-venue",
+      projectId: "project-1",
+      templateKey: "venue-confirmed",
+      completionMethod: "manual",
+      name: "Venue confirmed",
+      ownerType: "studio",
+      status: "not_started",
+      blocking: true,
+      resolvedDueDate: "2027-05-13",
+    },
+  ];
+  const project = { id: "project-1", state: "BOOKED" };
+
+  const blind = projectLifecycleProjection({ project, checkpoints });
+  assert.ok(
+    blind.lanes.client.some((item) => item.label === "Contract completed"),
+    "without evidence the contract is still listed, as before",
+  );
+
+  const informed = projectLifecycleProjection({
+    project,
+    checkpoints,
+    evidence: { ...noReadinessEvidence, contractCompleted: true },
+  });
+  assert.equal(
+    informed.lanes.client.filter(
+      (item) => item.label === "Contract completed",
+    ).length,
+    0,
+  );
+  // A manual judgement is never inferred, so it stays — and stays the
+  // studio's.
+  assert.ok(
+    informed.lanes.studio.some((item) => item.label === "Venue confirmed"),
+  );
+});
+
+test("a blocking checkpoint says what it waits for, not that it blocks", () => {
+  // Twelve entries across three lanes all read "Blocks event readiness until
+  // resolved." — no information after the first, and it crowded out the part
+  // that differs. `status` already marks the blocking ones.
+  const projection = projectLifecycleProjection({
+    project: { id: "project-1", state: "BOOKED" },
+    checkpoints: [
+      {
+        id: "cp-form",
+        projectId: "project-1",
+        templateKey: "questionnaire-complete",
+        completionMethod: "form_submitted",
+        name: "Questionnaire complete",
+        ownerType: "client",
+        status: "not_started",
+        blocking: true,
+        resolvedDueDate: "2027-04-28",
+      },
+      {
+        id: "cp-venue",
+        projectId: "project-1",
+        templateKey: "venue-confirmed",
+        completionMethod: "manual",
+        name: "Venue confirmed",
+        ownerType: "studio",
+        status: "not_started",
+        blocking: true,
+        resolvedDueDate: "2027-05-13",
+      },
+    ],
+  });
+  const details = [
+    ...projection.lanes.client,
+    ...projection.lanes.studio,
+  ].map((item) => item.detail);
+  for (const detail of details)
+    assert.doesNotMatch(detail, /Blocks event readiness until resolved/);
+  assert.ok(
+    details.some((detail) => /submits the form/.test(detail)),
+    "a record-backed one says which record",
+  );
+  assert.ok(
+    details.some((detail) => /judgement/.test(detail)),
+    "a manual one says it is the studio's call",
+  );
 });

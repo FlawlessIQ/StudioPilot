@@ -10968,6 +10968,11 @@ textarea:focus-visible {
 /* The new-studio invitation. Same shape as the all-clear card it sits above,
    but it is offering something rather than confirming nothing. */
 .today-getting-started .today-clear-icon{color:var(--accent,#2e7042);background:#e9f4ec}
+/* Setup, still unfinished, once the studio has real work on the books. Same
+   card, quieter: an invitation on day one, a reminder afterwards. */
+.today-getting-started.is-compact{padding:var(--panel-inset,26px) calc(var(--panel-inset,26px) * .75);background:transparent;border:1px dashed var(--line)}
+.today-getting-started.is-compact strong{font-size:14px}
+.today-getting-started.is-compact .today-clear-icon{width:30px;height:30px}
 .project-stage-duplicate{margin:0;font-size:12px;color:var(--muted,#8a938d)}
 .project-journey-progress em{display:block;font:500 10px var(--font-display,inherit);letter-spacing:.06em;text-transform:uppercase;opacity:.8;margin-top:2px;font-style:normal}
 .project-journey-steps{list-style:none;margin:6px 0 0;padding:0;display:grid}

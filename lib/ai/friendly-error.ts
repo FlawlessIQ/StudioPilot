@@ -102,10 +102,18 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "The studio server refused this request — usually a deploy still settling. Try again in a minute; if it keeps happening, contact support.",
   FUNCTION_UPSTREAM_UNAVAILABLE:
     "The studio server didn't answer properly. Try again in a minute; if it keeps happening, contact support.",
+  /**
+   * Both used to stop at "isn't switched on", naming no remedy and no
+   * alternative — and the schedule generator has one, built for exactly this:
+   * "Build it myself" starts a draft with no model involved, and the whole
+   * page is otherwise arranged around the button that just failed. The studio
+   * had filled in coverage, ceremony, reception, three locations and a
+   * constraints note before finding out.
+   */
   VERTEX_AI_SCHEDULE_NOT_CONFIGURED:
-    "AI drafting isn't switched on for this workspace yet.",
+    "AI drafting isn't available for this workspace — use \u201cBuild it myself\u201d to start the run of show from what you have entered.",
   VERTEX_AI_COPILOT_NOT_CONFIGURED:
-    "The assistant isn't switched on for this workspace yet.",
+    "The assistant isn't available for this workspace yet. Everything it reads is on the job itself.",
   VERTEX_AI_EMPTY_OUTPUT: "We couldn't draft this. Try again.",
   GOOGLE_RUNTIME_IDENTITY_UNAVAILABLE: "We couldn't draft this. Try again.",
 
@@ -125,8 +133,7 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
    * delivery" on a job at Shot and read only "Delivery could not be recorded",
    * when the code said exactly what was wrong.
    */
-  CLOSEOUT_BLOCKED:
-    "Something on the closeout list is still open. Reconcile the evidence to see which, and vouch for anything that happened off StudioCue.",
+
   PROJECT_NOT_CLOSEABLE:
     "This job isn't at a stage where it can be closed. It needs to be delivered first.",
   CLOSEOUT_REQUIREMENT_NEEDS_EVIDENCE:
@@ -160,8 +167,20 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "The gallery link has to start with https:// so the couple's photographs are not sent over an open connection.",
   DELIVERY_DRAFT_INVALID:
     "Some of the gallery details didn't look right. Check the link, the access code and the dates.",
+  /**
+   * Named the wrong three things, and named them as a guess.
+   *
+   * The reconciler checks eight — contract, balance, schedule, delivery,
+   * album, review ask, crew, insurance — and this reported a disjunction of
+   * three, so the studio was handed a guessing game while five were dropped
+   * from consideration. Worse, none of the three was the actual reason:
+   * `PROJECT_NOT_READY_FOR_CLOSEOUT` is thrown when the project has not
+   * reached DELIVERED (functions/src/post-event/commands.ts:806), which is a
+   * single, checkable condition. `CLOSEOUT_BLOCKED` is the one that means
+   * requirements are outstanding.
+   */
   PROJECT_NOT_READY_FOR_CLOSEOUT:
-    "This job can't be closed out yet — the gallery, the balance or the album is still open.",
+    "Closeout opens once the gallery has been delivered. Record the delivery first.",
   ALBUM_STATUS_REGRESSION:
     "An album can't go backwards. Refresh to see where this one actually is.",
   ALBUM_CREATIVE_AUTHORITY_REQUIRED:
@@ -265,6 +284,13 @@ const DETAILED_BY_CODE: Record<string, (detail: string) => string> = {
     detail
       ? `Check ${detail} — that value wasn't accepted.`
       : "Something on this form wasn't accepted. Check the values and try again.",
+  // The reconciler knows which requirements are outstanding; it used to say
+  // "something on the closeout list is still open" and send the studio to go
+  // and find out.
+  CLOSEOUT_BLOCKED: (detail) =>
+    detail
+      ? `Still open: ${detail}. Vouch for anything that happened off StudioCue.`
+      : "Something on the closeout list is still open. Reconcile the evidence to see which.",
   DEPENDENCIES_INCOMPLETE: (detail) =>
     detail
       ? `Settle "${detail}" first — this step waits on it.`

@@ -115,3 +115,85 @@ test("onboarding actually publishes them", () => {
   assert.match(onboarding, /workflowTemplates\/\$\{templateId\}/);
   assert.match(onboarding, /status: "active"/);
 });
+
+test("wedding checkpoints are not chained in template order", () => {
+  /**
+   * The chain that made this necessary.
+   *
+   * Every wedding checkpoint depended on whichever one preceded it in
+   * `weddingCheckpointDefinitions`, all twelve `blocking`, and
+   * `resolveCheckpoint` refuses a completion whose dependency is outstanding.
+   * So the studio could not confirm the venue until the couple returned their
+   * details form, and could not record a second shooter accepting until the
+   * final balance was paid a fortnight before the day — four studio-owned
+   * judgements queued behind client actions, in the order someone happened to
+   * type the array.
+   *
+   * This asserts the property rather than the current list, so re-introducing
+   * adjacency fails here even if the definitions are reordered.
+   */
+  const wedding = starterTemplates().find(
+    (template) => template.eventTypeId === "wedding",
+  );
+  assert.ok(wedding);
+  const order = weddingCheckpointDefinitions.map(([key]) => key);
+  for (const checkpoint of wedding.checkpointTemplates) {
+    const index = order.indexOf(checkpoint.key);
+    const previous = order[index - 1];
+    if (!previous) continue;
+    assert.ok(
+      !checkpoint.dependencies.includes(previous) ||
+        checkpoint.key === "crew-acknowledged",
+      `${checkpoint.key} depends on its predecessor ${previous}`,
+    );
+  }
+});
+
+test("a studio judgement never waits on a client action", () => {
+  const wedding = starterTemplates().find(
+    (template) => template.eventTypeId === "wedding",
+  );
+  assert.ok(wedding);
+  const ownerOf = new Map(
+    wedding.checkpointTemplates.map((checkpoint) => [
+      checkpoint.key,
+      checkpoint.ownerType,
+    ]),
+  );
+  for (const checkpoint of wedding.checkpointTemplates) {
+    if (checkpoint.ownerType !== "studio") continue;
+    for (const dependency of checkpoint.dependencies) {
+      assert.notEqual(
+        ownerOf.get(dependency),
+        "client",
+        `${checkpoint.key} (studio) waits on ${dependency} (client)`,
+      );
+    }
+  }
+});
+
+test("the one real prerequisite survives, and resolves inside the template", () => {
+  // Crew acknowledge a schedule, so there has to be one. And a dependency on
+  // a checkpoint the template omits would throw INVALID_CHECKPOINT_DEPENDENCY
+  // at instantiation, so every declared key must be present in its own set.
+  for (const template of starterTemplates()) {
+    const keys = new Set(
+      template.checkpointTemplates.map((checkpoint) => checkpoint.key),
+    );
+    for (const checkpoint of template.checkpointTemplates)
+      for (const dependency of checkpoint.dependencies)
+        assert.ok(
+          keys.has(dependency),
+          `${template.eventTypeId}: ${checkpoint.key} depends on absent ${dependency}`,
+        );
+  }
+  const wedding = starterTemplates().find(
+    (template) => template.eventTypeId === "wedding",
+  );
+  assert.deepEqual(
+    wedding?.checkpointTemplates.find(
+      (checkpoint) => checkpoint.key === "crew-acknowledged",
+    )?.dependencies,
+    ["schedule-approved"],
+  );
+});
