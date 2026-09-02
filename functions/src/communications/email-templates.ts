@@ -1,4 +1,4 @@
-import { clientEmailParagraphs } from "./email-content.js";
+import { bulletLinePattern, clientEmailParagraphs } from "./email-content.js";
 
 export const emailTemplateKeys = [
   "staff_invitation",
@@ -184,7 +184,7 @@ function customizedCopy(
 function copyFor(input: RenderEmailInput): EmailCopy {
   const { brand, values } = input;
   const recipient = input.recipientName?.trim();
-  const greeting = recipient ? `Hi ${recipient},` : "Hello,";
+  const greeting = recipient ? `Hi ${firstNameOf(recipient)},` : "Hello,";
   const project = projectReference(input.projectName);
   const inviteUrl = safeUrl(stringValue(values, "inviteUrl"));
   const actionUrl = safeUrl(stringValue(values, "actionUrl"));
@@ -730,8 +730,52 @@ const escapeHtml = (value: string): string =>
 const normalizeColor = (value: string): string =>
   /^#[0-9a-f]{6}$/i.test(value) ? value : "#35664a";
 
-const paragraphHtml = (paragraph: string): string =>
-  `<p class="email-paragraph" style="margin:0 0 18px;color:#4f5752;font-size:16px;line-height:1.7;">${escapeHtml(paragraph)}</p>`;
+/**
+ * How a person is addressed: "Hi John," not "Hi John Smith,".
+ *
+ * The contact record holds a full name because that is what a contact record
+ * is for, and the greeting used it verbatim — every client email opened by
+ * addressing the couple the way a form letter does.
+ *
+ * An honorific on its own is worse than the full name ("Hi Dr.,"), so skip it
+ * and take the name after it.
+ */
+const honorific = /^(?:mr|mrs|ms|miss|mx|dr|prof|rev|sir|dame)\.?$/i;
+
+export function firstNameOf(value: string): string {
+  const parts = value.trim().split(/\s+/).filter(Boolean);
+  const [first, second] = parts;
+  if (!first) return value.trim();
+  if (second && honorific.test(first)) return second;
+  return first;
+}
+
+const listItemsHtml = (lines: string[]): string =>
+  lines
+    .map(
+      (line) =>
+        `<li style="margin:0 0 8px;">${escapeHtml(line.replace(bulletLinePattern, ""))}</li>`,
+    )
+    .join("");
+
+/**
+ * A paragraph, or a list when that is what was written.
+ *
+ * Everything here used to become a `<p>`, so a block of bullet lines rendered
+ * as one wall of text with stray hyphens in it.
+ */
+const paragraphHtml = (paragraph: string): string => {
+  const lines = paragraph
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length > 1 && lines.every((line) => bulletLinePattern.test(line))) {
+    const ordered = lines.every((line) => /^\s*\d+[.)]\s+/.test(line));
+    const tag = ordered ? "ol" : "ul";
+    return `<${tag} class="email-list" style="margin:0 0 18px;padding-left:22px;color:#4f5752;font-size:16px;line-height:1.7;">${listItemsHtml(lines)}</${tag}>`;
+  }
+  return `<p class="email-paragraph" style="margin:0 0 18px;color:#4f5752;font-size:16px;line-height:1.7;">${escapeHtml(paragraph)}</p>`;
+};
 
 export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
   const copy = customizedCopy(copyFor(input), input);

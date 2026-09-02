@@ -923,8 +923,10 @@ export function AiScheduleGenerator({
                   onClick={() =>
                     setAskDraft(
                       [
-                        `Hi ${clientName},`,
-                        "",
+                        // No greeting here: the branded renderer writes
+                        // "Hi <first name>," itself and strips one from the
+                        // body, so a greeting typed here is invisible to the
+                        // couple and only misleads whoever edits this draft.
                         "A few questions so we can plan your day properly:",
                         "",
                         ...draft.suggestedQuestions.map(

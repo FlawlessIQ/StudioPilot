@@ -161,6 +161,52 @@ test("crew invitations include the decision-critical assignment details", () => 
   assert.match(rendered.text, /https:\/\/example.com\/crew\/accept/);
 });
 
+test("a written list arrives as a list, not one run-on paragraph", () => {
+  const rendered = renderEmailTemplate({
+    key: "manual_message",
+    brand,
+    recipientName: "John Smith",
+    projectName: "Smith wedding",
+    values: {
+      customSubject: "A few questions about your wedding day",
+      customBody: [
+        "A few questions so we can plan your day properly:",
+        "",
+        "- What is the confirmed ceremony start time?",
+        "- What is the confirmed reception start time?",
+        "- Are you planning a first look?",
+        "",
+        "No rush — whatever you know so far helps.",
+      ].join("\n"),
+    },
+  });
+  // The questions were arriving inside a single <p>, hyphens and all.
+  assert.match(rendered.html, /<ul class="email-list"/);
+  assert.equal(rendered.html.match(/<li /g)?.length, 3);
+  assert.doesNotMatch(rendered.html, /<p[^>]*>- What is the confirmed ceremony/);
+  // The lead-in and the sign-off stay prose.
+  assert.match(rendered.html, /<p[^>]*>A few questions so we can plan/);
+  assert.match(rendered.html, /<p[^>]*>No rush/);
+  // Plain-text alternative keeps one item per line.
+  assert.match(
+    rendered.text,
+    /- What is the confirmed ceremony start time\?\n- What is the confirmed reception start time\?/,
+  );
+});
+
+test("a greeting uses the first name, and skips an honorific", () => {
+  const greetingFor = (recipientName: string) =>
+    renderEmailTemplate({
+      key: "manual_message",
+      brand,
+      recipientName,
+      values: { customSubject: "Hello", customBody: "An update for you." },
+    }).text;
+  assert.match(greetingFor("John Smith"), /Hi John,/);
+  assert.match(greetingFor("Dr. Amara Osei"), /Hi Amara,/);
+  assert.match(greetingFor("Prakash"), /Hi Prakash,/);
+});
+
 test("manual emails render one greeting, no duplicate sign-off, and a compact project heading", () => {
   const rendered = renderEmailTemplate({
     key: "manual_message",
@@ -173,7 +219,9 @@ test("manual emails render one greeting, no duplicate sign-off, and a compact pr
         "Hi John Smith, It was a pleasure speaking with you. Please review the proposal. Best, Alder & Muse Photography",
     },
   });
-  assert.equal(rendered.text.match(/Hi John Smith,/g)?.length, 1);
+  // First name, not the contact record's full name.
+  assert.equal(rendered.text.match(/Hi John,/g)?.length, 1);
+  assert.doesNotMatch(rendered.text, /Hi John Smith,/);
   assert.doesNotMatch(rendered.text, /Best, Alder & Muse Photography/);
   assert.match(rendered.text, /A note about Smith wedding/);
   assert.doesNotMatch(rendered.html, />Following Up: Your Smith Wedding Photography Proposal<\/h1>/);
