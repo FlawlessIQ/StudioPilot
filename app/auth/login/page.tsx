@@ -54,7 +54,7 @@ export default async function LoginPage({
           )}
         </div>
         <div className="auth-trust">
-          <span><CircleCheck size={15} /> {isClientArrival ? "Exact-email verification" : "Tenant-isolated data"}</span>
+          <span><CircleCheck size={15} /> {isClientArrival ? "Exact-email verification" : "Your data stays private to your studio"}</span>
           <span><CircleCheck size={15} /> {isClientArrival ? "Revocable studio access" : "Audited actions"}</span>
           <span><CircleCheck size={15} /> {isClientArrival ? "No subscription required" : "Secure provider connections"}</span>
         </div>

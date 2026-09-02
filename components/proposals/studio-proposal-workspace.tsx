@@ -206,8 +206,24 @@ function money(value: unknown, currency = "USD"): string {
   }).format(number(value) / 100);
 }
 
-function date(value: unknown, includeTime = false): string {
-  if (typeof value !== "string" || !value) return "Not set";
+/**
+ * A date, or what to say when there is not one.
+ *
+ * The absent case was always "Not set", which is right for a field the studio
+ * was expected to fill and wrong for an event that simply has not happened.
+ * The client-facing payment schedule printed "Retainer · $1,050.00 · Not set"
+ * beside a real date on the row below — the retainer due date is optional
+ * until the agreement is ready, so the blank was deliberate and the couple was
+ * left unable to tell whether they owed it now, later, or whether something
+ * had broken. "Viewed · Not set" said the same thing about a proposal sent
+ * ninety seconds earlier.
+ */
+function date(
+  value: unknown,
+  includeTime = false,
+  absent = "Not set",
+): string {
+  if (typeof value !== "string" || !value) return absent;
   const parsed = new Date(
     value.includes("T") ? value : `${value}T12:00:00`,
   );
@@ -378,7 +394,16 @@ type ProjectNeedingPackage = {
   state: string;
 };
 
-export function StudioProposalCenter() {
+/**
+ * `recordingAcceptance` is passed down from the route, which reads
+ * `?record=acceptance` off the query string — see app/studio/proposals/page.tsx
+ * for why it is not read here.
+ */
+export function StudioProposalCenter({
+  recordingAcceptance = false,
+}: {
+  recordingAcceptance?: boolean;
+} = {}) {
   const workspace = useWorkspace();
   const [proposals, setProposals] = useState<Value[] | undefined>(
     dataIsLive
@@ -643,7 +668,12 @@ export function StudioProposalCenter() {
               const status = text(proposal.status, "draft");
               return (
                 <Link
-                  href={`/studio/proposals/${proposal.id}`}
+                  href={
+                    recordingAcceptance &&
+                    ["approved", "sent", "viewed"].includes(status)
+                      ? `/studio/proposals/${proposal.id}?record=acceptance`
+                      : `/studio/proposals/${proposal.id}`
+                  }
                   key={proposal.id}
                 >
                   <span className="proposal-center-list-icon">
@@ -936,15 +966,18 @@ export function StudioProposalComposer() {
           <p className="eyebrow">New proposal</p>
           <h1>Turn a selected package into a clear decision.</h1>
           <p>
-            Pricing remains locked to the project snapshot. You control the
+            The price you send is the price they see. You control the
             presentation, timing, and approval path.
           </p>
         </div>
         <div>
           <ShieldCheck />
           <span>
-            <strong>Snapshot protected</strong>
-            <small>Package pricing cannot drift while you write.</small>
+            <strong>Price locked</strong>
+            <small>
+              Changing your package later won&rsquo;t alter a proposal you have
+              already sent.
+            </small>
           </span>
         </div>
       </header>
@@ -1296,7 +1329,19 @@ export function StudioProposalComposer() {
   );
 }
 
-export function StudioProposalWorkspace({ id }: { id: string }) {
+export function StudioProposalWorkspace({
+  id,
+  /**
+   * Opened by `?record=acceptance`, carried from the job page's "Record their
+   * acceptance" through the proposals list. Without it the studio landed at the
+   * top of a long document with the form they were sent for folded shut at the
+   * bottom of the action stack.
+   */
+  recordAcceptance: openRecordAcceptance = false,
+}: {
+  id: string;
+  recordAcceptance?: boolean;
+}) {
   const workspace = useWorkspace();
   const [proposal, setProposal] = useState<Value | null | undefined>(
     dataIsLive ? undefined : { ...mockProposal, id },
@@ -1309,6 +1354,7 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
   const [notice, setNotice] = useState("");
   const [working, setWorking] = useState<ProposalCommandType | null>(null);
   const [confirmSend, setConfirmSend] = useState(false);
+
   const [notes, setNotes] = useState(
     dataIsLive ? "" : text(mockProposal.notes, ""),
   );
@@ -1521,7 +1567,10 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
    * couple's "yes" would have no way into StudioCue at all.
    */
   const recordAcceptance = ["approved", "sent", "viewed"].includes(status) ? (
-      <details className="record-signed-agreement proposal-record-acceptance">
+      <details
+        className="record-signed-agreement proposal-record-acceptance"
+        open={openRecordAcceptance}
+      >
         <summary>
           <CheckCircle2 aria-hidden="true" size={15} />
           They accepted outside StudioCue? Record it
@@ -1583,6 +1632,7 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
   const pricing = objectValue(proposal.pricingSnapshot);
   const event = objectValue(proposal.eventSnapshot);
   const client = objectValue(proposal.clientSnapshot);
+  const projectId = text(proposal.projectId, "");
   const lines = Array.isArray(pricing.lineItems)
     ? pricing.lineItems.map(objectValue)
     : [];
@@ -1604,6 +1654,25 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
           <p className="eyebrow">
             Proposal · version {number(proposal.version)}
           </p>
+          {/* The way back to the job.
+              This page is reached from the job's next-move card and, at every
+              status the studio actually works in — draft, needs approval,
+              approved, sent, viewed — offered no route back to it: "Back to
+              proposals" goes to the list, and the heading was plain text. Only
+              `accepted` had "Continue to project", which is the one state where
+              the studio is finished here. Six other steps got `useReturnToJob`
+              for this; the proposal is where the most time is spent and it was
+              missed. A link rather than a redirect, because "Track the
+              decision" is a place to stay. */}
+          {projectId ? (
+            <Link
+              className="proposal-workspace-job-link"
+              href={`/studio/projects/${projectId}`}
+            >
+              <ArrowLeft aria-hidden="true" size={13} />
+              {text(event.name, "this job")}
+            </Link>
+          ) : null}
           <h1>{text(event.name, "Photography proposal")}</h1>
           <p>
             Prepared for {text(client.displayName, "client")} ·{" "}
@@ -1759,7 +1828,9 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
                   <article key={`${text(payment.label)}-${index}`}>
                     <small>{text(payment.label, "Payment")}</small>
                     <strong>{money(payment.amountCents, currency)}</strong>
-                    <span>{date(payment.dueDate)}</span>
+                    {/* The retainer has no due date until the agreement is
+                        ready, and this is the couple's copy. */}
+                    <span>{date(payment.dueDate, false, "On signing")}</span>
                   </article>
                 ))}
               </div>
@@ -2037,7 +2108,7 @@ export function StudioProposalWorkspace({ id }: { id: string }) {
                   </div>
                   <div>
                     <dt>Viewed</dt>
-                    <dd>{date(proposal.viewedAt, true)}</dd>
+                    <dd>{date(proposal.viewedAt, true, "Not yet")}</dd>
                   </div>
                 </dl>
                 <button

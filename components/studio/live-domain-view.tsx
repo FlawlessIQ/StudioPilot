@@ -111,8 +111,10 @@ type DomainConfig = {
   vendorScoped?: boolean;
   primary: string[];
   secondary: string[];
+  /** How to render `secondary`; raw text when omitted, as it was throughout. */
+  secondaryKind?: "money" | "date" | "count" | "percent" | "retainer" | "version" | "authority";
   status: string[];
-  facts: Array<{ label: string; fields: string[]; kind?: "money" | "date" | "count" | "percent" | "retainer" | "version" }>;
+  facts: Array<{ label: string; fields: string[]; kind?: "money" | "date" | "count" | "percent" | "retainer" | "version" | "authority" }>;
   href?: (record: Value) => string;
 };
 
@@ -149,10 +151,15 @@ const configurations: Record<Domain, DomainConfig> = {
     collection: "contracts",
     projectScoped: true,
     primary: ["projectName"],
-    secondary: ["providerEnvelopeId", "id"],
+    secondary: ["completionAuthority"],
+    secondaryKind: "authority",
     status: ["status"],
     facts: [
       { label: "Signers", fields: ["signers"], kind: "count" },
+      // "Sent —" on an agreement that was never sent because it was signed on
+      // paper. `display` renders an absent value as an em dash, which is the
+      // honest answer, and the row no longer implies a send that did not
+      // happen because the authority line above says how it completed.
       { label: "Sent", fields: ["sentAt"], kind: "date" },
       { label: "Completed", fields: ["completedAt"], kind: "date" },
     ],
@@ -420,12 +427,36 @@ function nested(record: Value, paths: string[]) {
   return null;
 }
 
+/** How a completion was established, in the studio's words rather than ours. */
+const AUTHORITY_LABELS: Record<string, string> = {
+  manual_attested: "Signed elsewhere · recorded by you",
+  manual_attestation: "Signed elsewhere · recorded by you",
+  provider_webhook: "Confirmed by the signing provider",
+  provider: "Confirmed by the signing provider",
+};
+
 function display(
   value: unknown,
-  kind: "money" | "date" | "count" | "percent" | "retainer" | "version" | undefined,
+  kind:
+    | "money"
+    | "date"
+    | "count"
+    | "percent"
+    | "retainer"
+    | "version"
+    | "authority"
+    | undefined,
   currency: unknown,
 ) {
   if (value === null || value === undefined || value === "") return "—";
+  /**
+   * The contracts row used to fall through to `id` when no envelope existed,
+   * printing "contract 7de90d60702ef56e3f9641e98dd912f1" as the name of a
+   * signed agreement — which is every agreement recorded by hand, because
+   * those have no provider envelope. The record knows how it was completed.
+   */
+  if (kind === "authority")
+    return AUTHORITY_LABELS[String(value)] ?? String(value).replace(/_/g, " ");
   if (kind === "money")
     return new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -827,7 +858,7 @@ export function LiveDomainView({
         );
         const secondary = display(
           nested(record, config.secondary),
-          undefined,
+          config.secondaryKind,
           record.currency,
         );
         const status = nested(record, config.status);
@@ -1047,9 +1078,19 @@ export function ProjectContextBar({ projectId }: { projectId: string }) {
     new Date(),
     readinessEvidence,
   );
-  const readiness = readinessView.tracked
-    ? readinessView.percent
-    : Number(project?.readinessScore ?? 0);
+  /**
+   * Nothing to show until readiness is actually tracked.
+   *
+   * The bar printed a prominent "0 · 0% ready" through the whole booking
+   * sequence — before the workflow is instantiated there are no checkpoints,
+   * so there is no readiness — beside a journey rail reading 4/14 and a
+   * contract marked Signed. Two honest numbers about different things, telling
+   * the studio their job was simultaneously a quarter done and not begun. The
+   * job page has always hidden it in this state (see `readinessView.tracked`
+   * in live-project-detail.tsx); the bar did not.
+   */
+  const readiness = readinessView.percent;
+  const readinessTracked = readinessView.tracked;
   const eventDate = project?.eventDate;
   const proximity = describeEventProximity(eventDate);
   const passed = eventDateHasPassed(eventDate);
@@ -1089,13 +1130,15 @@ export function ProjectContextBar({ projectId }: { projectId: string }) {
               ) : null}
               {/* The ring carries the number, so no separate label: printing
                   readiness twice was a habit worth breaking. */}
-              <span
-                className="project-context-readiness"
-                title={`${readiness}% ready`}
-              >
-                <ReadinessRing size={42} stroke={3} value={readiness} />
-                <span className="ds-sr-only">{readiness}% ready</span>
-              </span>
+              {readinessTracked ? (
+                <span
+                  className="project-context-readiness"
+                  title={`${readiness}% ready`}
+                >
+                  <ReadinessRing size={42} stroke={3} value={readiness} />
+                  <span className="ds-sr-only">{readiness}% ready</span>
+                </span>
+              ) : null}
             </span>
           </>
         ) : null}

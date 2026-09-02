@@ -1666,6 +1666,25 @@ textarea:focus-visible {
   letter-spacing: -.05em;
 }
 
+/* The route back to the job this proposal belongs to.
+   Sits between the eyebrow and the title, so the job is named before the
+   document is — the studio arrived here from that job and needs the way
+   home more than it needs another heading. */
+.proposal-workspace-job-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.proposal-workspace-job-link:hover {
+  color: var(--ink, #1d211e);
+  text-decoration: underline;
+}
+
 .proposal-workspace-heading > div:first-child > p:last-child {
   margin: 0;
   color: var(--muted);

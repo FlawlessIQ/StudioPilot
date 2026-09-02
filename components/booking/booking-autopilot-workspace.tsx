@@ -42,6 +42,7 @@ import {
   pastConsultation,
   pastProposal,
 } from "@/features/projects/stage-progress";
+import { addCalendarDays, todayLocalIso } from "@/lib/format/event-date";
 
 type Value = Record<string, unknown> & { id: string };
 
@@ -64,6 +65,18 @@ function futureDate(days: number) {
   const date = new Date();
   date.setDate(date.getDate() + days);
   return date;
+}
+
+/**
+ * The same offset as a plain date, safe to send.
+ *
+ * `futureDate(7).toISOString().slice(0, 10)` re-read the shifted local date in
+ * UTC and landed a day late every evening in a negative offset. The full
+ * timestamp uses of `futureDate` are instants and stay as they are; only the
+ * date-string ones were wrong.
+ */
+function futureDateString(days: number) {
+  return addCalendarDays(todayLocalIso(), days);
 }
 
 const COMMAND_ERRORS: Record<string, string> = {
@@ -264,7 +277,7 @@ export function BookingAutopilotWorkspace({
    */
   const consultationBehindThem = pastConsultation(text(project?.state));
   const expiry = useMemo(() => futureDate(14), []);
-  const retainerDue = useMemo(() => futureDate(7), []);
+  const retainerDueDate = useMemo(() => futureDateString(7), []);
   const balanceDue = useMemo(() => {
     const eventDate = new Date(`${text(project?.eventDate)}T12:00:00`);
     const value = Number.isFinite(eventDate.valueOf())
@@ -418,7 +431,7 @@ export function BookingAutopilotWorkspace({
         termsSummary:
           groundedDraft.proposal?.termsSummary ??
           text(selectedPackage.terms),
-        retainerDueDate: retainerDue.toISOString().slice(0, 10),
+        retainerDueDate: retainerDueDate,
         balanceDueDate: balanceDue.toISOString().slice(0, 10),
       });
       const createdProposalId = text(created.result.proposalId);

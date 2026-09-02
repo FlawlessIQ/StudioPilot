@@ -38,7 +38,22 @@ const ROUTES: Record<string, ManualAdvance> = {
     label: "Record their acceptance",
     detail:
       "They said yes by email, text or in person? Record it on the proposal — StudioCue keeps who accepted and when.",
-    href: "/studio/proposals?project=:projectId",
+    /**
+     * `record=acceptance` is carried through to the proposal.
+     *
+     * The button named an action and delivered a list: the studio landed on a
+     * filtered index, had to recognise the right row, open it, scroll past the
+     * whole document and expand a folded `<details>` at the bottom of the
+     * action stack — three clicks and a scroll from the button named after it,
+     * for the escape hatch this product depends on for every client who says
+     * yes by text.
+     *
+     * The list stays the destination because a project can hold more than one
+     * proposal and choosing is the studio's call, but the intent travels: rows
+     * that can take a decision pass the parameter on, and the proposal page
+     * opens the form with it.
+     */
+    href: "/studio/proposals?project=:projectId&record=acceptance",
   },
   "CONTRACT_PENDING:RETAINER_PENDING": {
     label: "Record the signature",

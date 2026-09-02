@@ -36,7 +36,11 @@ import {
 } from "@/features/booking/orchestration";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
 import { friendlyError as friendlySharedError } from "@/lib/ai/friendly-error";
-import { formatDueDate, todayLocalIso } from "@/lib/format/event-date";
+import {
+  addCalendarDays,
+  formatDueDate,
+  todayLocalIso,
+} from "@/lib/format/event-date";
 import { providerName } from "@/lib/format/provider-name";
 import {
   PanelError,
@@ -44,6 +48,7 @@ import {
   useWorkspaceGate,
 } from "@/components/ui/panel-state";
 import { statusLabel } from "@/features/format/status-label";
+import { refreshTenantRecords } from "@/components/live/tenant-records";
 
 type RecordValue = Record<string, unknown> & { id: string };
 
@@ -350,11 +355,11 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
     "REVIEW_REQUESTED",
     "CLOSED",
   ].includes(projectState);
-  const dueDate = useMemo(() => {
-    const date = new Date();
-    date.setDate(date.getDate() + 7);
-    return date.toISOString().slice(0, 10);
-  }, []);
+  // Seven days out in the studio's own calendar. `toISOString().slice(0, 10)`
+  // after a local `setDate` re-reads the date in UTC, which put this a day
+  // late every evening west of Greenwich — the client twin of the bug already
+  // fixed on the server for the same field.
+  const dueDate = useMemo(() => addCalendarDays(todayLocalIso(), 7), []);
   /**
    * Whether there is a signing app to send through at all.
    *
@@ -567,7 +572,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
       setGateBlockers(blockers);
       setNotice(
         payload.passed === true
-          ? "Booking confirmed. The project setup jobs are now running."
+          ? "Booking confirmed. We're setting the job up now."
           : "Booking is still waiting on the requirements shown below.",
       );
       await load();
@@ -716,6 +721,20 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                       // it — which is why recording a signature used to say
                       // nothing at all. The workspace keeps it.
                       setNotice(message);
+                      // `load()` refreshes this workspace's own reads. The
+                      // project badge, the readiness evidence and the records
+                      // panels come from the shared tenant store, which is
+                      // fetch-once — so recording a signature said "Signature
+                      // recorded against your name" while the badge above it
+                      // still read "Awaiting signature" and the evidence panel
+                      // still read "No contracts yet", until a manual reload.
+                      refreshTenantRecords(
+                        "projects",
+                        "contracts",
+                        "invoiceReferences",
+                        "checkpoints",
+                        "readinessAssessments",
+                      );
                       void load();
                     }}
                     projectId={projectId}
@@ -854,6 +873,20 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                       // it — which is why recording a signature used to say
                       // nothing at all. The workspace keeps it.
                       setNotice(message);
+                      // `load()` refreshes this workspace's own reads. The
+                      // project badge, the readiness evidence and the records
+                      // panels come from the shared tenant store, which is
+                      // fetch-once — so recording a signature said "Signature
+                      // recorded against your name" while the badge above it
+                      // still read "Awaiting signature" and the evidence panel
+                      // still read "No contracts yet", until a manual reload.
+                      refreshTenantRecords(
+                        "projects",
+                        "contracts",
+                        "invoiceReferences",
+                        "checkpoints",
+                        "readinessAssessments",
+                      );
                       void load();
                     }}
                     primary={!signingOffered}
@@ -955,6 +988,20 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                       // it — which is why recording a signature used to say
                       // nothing at all. The workspace keeps it.
                       setNotice(message);
+                      // `load()` refreshes this workspace's own reads. The
+                      // project badge, the readiness evidence and the records
+                      // panels come from the shared tenant store, which is
+                      // fetch-once — so recording a signature said "Signature
+                      // recorded against your name" while the badge above it
+                      // still read "Awaiting signature" and the evidence panel
+                      // still read "No contracts yet", until a manual reload.
+                      refreshTenantRecords(
+                        "projects",
+                        "contracts",
+                        "invoiceReferences",
+                        "checkpoints",
+                        "readinessAssessments",
+                      );
                       void load();
                     }}
                     packageSnapshotId={String(packageSnapshot.id)}
@@ -1035,6 +1082,20 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                       // it — which is why recording a signature used to say
                       // nothing at all. The workspace keeps it.
                       setNotice(message);
+                      // `load()` refreshes this workspace's own reads. The
+                      // project badge, the readiness evidence and the records
+                      // panels come from the shared tenant store, which is
+                      // fetch-once — so recording a signature said "Signature
+                      // recorded against your name" while the badge above it
+                      // still read "Awaiting signature" and the evidence panel
+                      // still read "No contracts yet", until a manual reload.
+                      refreshTenantRecords(
+                        "projects",
+                        "contracts",
+                        "invoiceReferences",
+                        "checkpoints",
+                        "readinessAssessments",
+                      );
                       void load();
                     }}
                     packageSnapshotId={String(packageSnapshot.id)}
@@ -1106,6 +1167,20 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                       // it — which is why recording a signature used to say
                       // nothing at all. The workspace keeps it.
                       setNotice(message);
+                      // `load()` refreshes this workspace's own reads. The
+                      // project badge, the readiness evidence and the records
+                      // panels come from the shared tenant store, which is
+                      // fetch-once — so recording a signature said "Signature
+                      // recorded against your name" while the badge above it
+                      // still read "Awaiting signature" and the evidence panel
+                      // still read "No contracts yet", until a manual reload.
+                      refreshTenantRecords(
+                        "projects",
+                        "contracts",
+                        "invoiceReferences",
+                        "checkpoints",
+                        "readinessAssessments",
+                      );
                       void load();
                     }}
                     packageSnapshotId={String(packageSnapshot.id)}
@@ -1150,8 +1225,9 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 <span>
                   <strong>Booking is confirmed</strong>
                   <small>
-                    Portal, workflow, calendar, and project folders are being
-                    prepared.
+                    We&rsquo;re setting up the client portal, the planning
+                    checklist, the calendar entry and the job folder — this
+                    takes a minute. Nothing else is needed from you.
                   </small>
                 </span>
               </div>

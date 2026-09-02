@@ -24,8 +24,8 @@ export function proposalPdfNotice(
 ): string {
   if (pdfState === "failed") {
     return approved
-      ? "Approved, but the PDF could not be generated — sending needs it. Try Regenerate PDF."
-      : "The PDF could not be generated, and sending needs it. Try Regenerate PDF.";
+      ? "Approved, but the PDF could not be built. You can still send the proposal as a link, or try again."
+      : "The PDF could not be built. You can still send the proposal as a link, or try again.";
   }
   if (pdfState === "ready") {
     return approved
@@ -43,12 +43,22 @@ export function proposalPdfDetail(pdfState: ProposalPdfState): string {
     case "ready":
       return "Stored privately until this proposal is sent.";
     case "failed":
-      // Not "usually finishes within a minute" — it already stopped.
-      // Sending is gated on a ready PDF, both here and in the command, so
-      // "send it without one" would be advice the product cannot honour.
-      return "Nothing was produced, and the proposal cannot be sent without it.";
+      /**
+       * Not "usually finishes within a minute" — it already stopped.
+       *
+       * This used to end "and the proposal cannot be sent without it",
+       * which was true when written and stopped being true when the server
+       * started accepting `pdfState: "failed"` on the send path. The
+       * confirmation three inches below it already said the opposite —
+       * "this sends the branded email with a link to the proposal and no
+       * attachment" — so the screen both refused and offered the same
+       * action, and the discouraging half was the one an anxious owner read
+       * first. See the note at studio-proposal-workspace.tsx on the send
+       * branch: "The server allows it now".
+       */
+      return "Nothing was produced. You can still send the proposal as a link, or try again.";
     default:
-      return "The document worker usually finishes within a minute.";
+      return "We're building the PDF — usually under a minute.";
   }
 }
 

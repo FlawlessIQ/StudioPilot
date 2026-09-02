@@ -13,7 +13,7 @@ import {
   DELIVERY_GATE_STEPS,
   POST_PRODUCTION_META,
 } from "@/features/post-production/checklist";
-import { todayLocalIso } from "@/lib/format/event-date";
+import { addCalendarDays, todayLocalIso } from "@/lib/format/event-date";
 import { friendlyError } from "@/lib/ai/friendly-error";
 
 const record = (value: unknown): Record<string, unknown> =>
@@ -22,11 +22,13 @@ const record = (value: unknown): Record<string, unknown> =>
     : {};
 const text = (value: unknown) =>
   typeof value === "string" ? value : "";
-const dateFromToday = (days: number) => {
-  const date = new Date();
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-};
+/**
+ * Internally consistent before — `setUTCDate` then `toISOString` — and still
+ * UTC's today rather than the studio's, so a delivery recorded on a Friday
+ * evening in Providence dated itself Saturday.
+ */
+const dateFromToday = (days: number) =>
+  addCalendarDays(todayLocalIso(), days);
 const reviewKey = (label: string) =>
   label === "the_knot" ? "theKnot" : label;
 

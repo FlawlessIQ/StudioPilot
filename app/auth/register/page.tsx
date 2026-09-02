@@ -64,7 +64,7 @@ export default async function RegisterPage({
           <p>
             {isClientInvite
               ? "Use the email that received the invitation. After verification, your project will connect automatically."
-              : "Verify your work email, then create your tenant-isolated studio."}
+              : "Verify your work email, then set up your own private studio."}
           </p>
           <RegisterForm
             intent={isClientInvite ? "client" : "studio"}

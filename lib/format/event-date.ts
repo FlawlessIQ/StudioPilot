@@ -112,6 +112,28 @@ export function todayLocalIso(now: Date = new Date()): string {
   return `${local.getFullYear()}-${month}-${day}`;
 }
 
+/**
+ * A plain date, shifted by whole days, without leaving the calendar domain.
+ *
+ * The tempting one-liner is a local `Date`, `setDate(getDate() + n)`, then
+ * `toISOString().slice(0, 10)` — and that last step re-reads the result in
+ * UTC, so for anyone west of Greenwich working in the evening it lands a day
+ * late. Three defaults still did it after the server-side sweep: the retainer
+ * due date on the booking page, `futureDate()` in the booking autopilot, and
+ * the delivery form's `dateFromToday`. A wedding photographer works in the
+ * evening; that is the normal condition, not the edge case.
+ *
+ * Parsed at noon so no offset in use can push the arithmetic across a
+ * boundary, and formatted back through the same local reader the input came
+ * from.
+ */
+export function addCalendarDays(isoDate: string, days: number): string {
+  const parsed = new Date(`${isoDate}T12:00:00`);
+  if (Number.isNaN(parsed.valueOf())) return isoDate;
+  parsed.setDate(parsed.getDate() + days);
+  return todayLocalIso(parsed);
+}
+
 /** Whole days from today. Negative means the date has passed. */
 export function daysUntilEvent(value: unknown, now: Date = new Date()): number | null {
   const date = parseEventDate(value);
