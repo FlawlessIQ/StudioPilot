@@ -179,6 +179,35 @@ test("no opinion about crew demand is not the same as solo", () => {
   assert.notEqual(step(unknown, "crew")?.status, "complete");
 });
 
+test("a venue that does not want a certificate stops asking for one", () => {
+  // The job this exists for: "YOUR NEXT MOVE — Request COI" on a venue that
+  // never asked, for the life of the job, with the certificate counted among
+  // the readiness blockers. The only escape was waiving the checkpoint, which
+  // records accepting a risk rather than the fact that nobody asked.
+  const notRequired = {
+    ...booked,
+    coiStatus: null,
+    insuranceRequired: "not_required",
+  };
+  assert.equal(step(notRequired, "coi")?.status, "complete");
+  assert.match(
+    step(notRequired, "coi")?.detail ?? "",
+    /does not require one/,
+  );
+  assert.equal(step(notRequired, "coi")?.action, null);
+
+  // "required" and "unknown" both leave it as the studio's move — an unread
+  // venue contract must not silently clear the step.
+  for (const value of ["required", "unknown", null]) {
+    assert.notEqual(
+      step({ ...booked, coiStatus: null, insuranceRequired: value }, "coi")
+        ?.status,
+      "complete",
+      `insuranceRequired=${String(value)} must not settle the step`,
+    );
+  }
+});
+
 test("a waived readiness checkpoint settles its journey step", () => {
   const waivedCoi = {
     ...booked,

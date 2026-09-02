@@ -274,6 +274,28 @@ const command = z.discriminatedUnion("type", [
       requestId: z.string(),
     }),
   }),
+  z.object({
+    /**
+     * Whether this venue asks for proof of insurance.
+     *
+     * A job at a venue that does not was told to request a certificate for
+     * the whole of its life, and counted the missing certificate among its
+     * readiness blockers. The only escape was waiving the `coi-approved`
+     * checkpoint, which records the studio accepting a risk — not the fact
+     * that nobody ever asked.
+     *
+     * Deliberately not entitlement-gated: saying "this venue does not need
+     * one" must stay available to a studio whose COI capability is switched
+     * off, or the job stays blocked with no way out.
+     */
+    type: z.literal("setInsuranceRequirement"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      insuranceRequired: z.enum(["unknown", "required", "not_required"]),
+    }),
+  }),
 ]);
 const internalRoles = new Set([
   "studio_owner",
@@ -1021,6 +1043,22 @@ export const planningCommand = onRequest(
           updatedBy: identity.uid,
         });
         result = { requestId: parsed.input.requestId, status: "sent_to_venue" };
+      } else if (parsed.type === "setInsuranceRequirement") {
+        if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
+        const project = db.doc(`projects/${parsed.input.projectId}`);
+        const snapshot = await project.get();
+        if (!snapshot.exists || snapshot.get("tenantId") !== parsed.tenantId) {
+          throw new Error("NOT_FOUND");
+        }
+        await project.update({
+          insuranceRequired: parsed.input.insuranceRequired,
+          updatedAt: now,
+          updatedBy: identity.uid,
+        });
+        result = {
+          projectId: parsed.input.projectId,
+          insuranceRequired: parsed.input.insuranceRequired,
+        };
       } else if (parsed.type === "publishSchedule") {
         if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
         const schedules = await db

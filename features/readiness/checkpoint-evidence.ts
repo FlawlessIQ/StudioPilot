@@ -166,6 +166,13 @@ export function readinessEvidenceFromFacts(input: {
   crewAcknowledgedCurrent: number;
   /** The COI request's status, when the job has one. */
   coiStatus: string | null;
+  /**
+   * "not_required" when the venue never asked for a certificate. Without
+   * this, such a job carried `coi-approved` as an unsatisfiable blocker for
+   * ever — the certificate can never be sent to a venue that does not want
+   * one.
+   */
+  insuranceRequired: string | null;
 }): ReadinessEvidence {
   const paid = (status: string | null) => status === "paid";
   return {
@@ -194,8 +201,8 @@ export function readinessEvidenceFromFacts(input: {
       input.crewRequired > 0
         ? input.crewAcknowledgedCurrent >= input.crewRequired
         : true,
-    coiSentToVenue: ["sent_to_venue", "venue_acknowledged"].includes(
-      input.coiStatus ?? "",
-    ),
+    coiSentToVenue:
+      input.insuranceRequired === "not_required" ||
+      ["sent_to_venue", "venue_acknowledged"].includes(input.coiStatus ?? ""),
   };
 }

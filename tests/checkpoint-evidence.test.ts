@@ -118,6 +118,38 @@ test("every starter definition is either record-backed or honestly manual", () =
   }
 });
 
+test("a venue that wants no certificate satisfies the certificate checkpoint", () => {
+  const facts = {
+    contractStatus: "completed",
+    retainerInvoiceStatus: "paid",
+    finalInvoiceStatus: "sent",
+    questionnaireStatus: "submitted",
+    questionnaireAnswers: { planner: "The Marriott from 1pm" },
+    scheduleStatus: "approved",
+    scheduleItems: [{ startAt: "2027-07-02T17:00:00Z", title: "Ceremony" }],
+    crewAccepted: 1,
+    crewRequired: 1,
+    crewAcknowledgedCurrent: 1,
+    coiStatus: null,
+  };
+  // `coi-approved` is satisfied by `coiSentToVenue`, and a certificate can
+  // never be sent to a venue that does not want one — so without this the
+  // checkpoint is an unsatisfiable blocker for the life of the job.
+  assert.equal(
+    readinessEvidenceFromFacts({ ...facts, insuranceRequired: "not_required" })
+      .coiSentToVenue,
+    true,
+  );
+  for (const value of ["required", "unknown", null]) {
+    assert.equal(
+      readinessEvidenceFromFacts({ ...facts, insuranceRequired: value })
+        .coiSentToVenue,
+      false,
+      `insuranceRequired=${String(value)} must not satisfy the checkpoint`,
+    );
+  }
+});
+
 test("the builder uses substance, not status strings", () => {
   const base = {
     contractStatus: "completed",

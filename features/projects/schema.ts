@@ -41,6 +41,22 @@ export const projectSchema = auditFieldsSchema.extend({
   venueName: z.string().max(160).nullable().default(null),
   city: z.string().max(120).nullable().default(null),
   /**
+   * Whether this venue wants proof of insurance.
+   *
+   * Most do; some do not, and a studio working one that does not was told
+   * "YOUR NEXT MOVE — Request COI" for the life of the job, with the
+   * certificate counted among the readiness blockers. The only way out was
+   * to find the readiness panel and *waive* the checkpoint, which records
+   * the studio accepting a risk rather than the plain fact that the venue
+   * never asked.
+   *
+   * "unknown" is the honest default and the state most jobs are in until
+   * someone reads the venue contract.
+   */
+  insuranceRequired: z
+    .enum(["unknown", "required", "not_required"])
+    .default("unknown"),
+  /**
    * The venue as captured from an address lookup, when one was used.
    *
    * `venueName` and `city` remain the fields everything reads — this sits

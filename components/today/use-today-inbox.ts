@@ -189,6 +189,7 @@ export function useTodayInbox(): {
           (cascade) => cascade.status === "active",
         ),
         coiStatus: text(coi?.status) || null,
+        insuranceRequired: text(project?.insuranceRequired) || null,
         dayBeforeDraftStatus: text(dayBefore?.status) || null,
         hasDelivery: forProject(deliveries.records, projectId).length > 0,
         albumOrReviewDone: ["REVIEW_REQUESTED", "CLOSED"].includes(

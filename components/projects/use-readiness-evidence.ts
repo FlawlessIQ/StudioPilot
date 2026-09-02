@@ -27,6 +27,7 @@ export function useReadinessEvidence(projectId: string): ReadinessEvidence {
   const questionnaires = useTenantDocuments("questionnaireResponses");
   const schedules = useTenantDocuments("schedules");
   const crewAssignments = useTenantDocuments("crewAssignments");
+  const projects = useTenantDocuments("projects");
 
   const forProject = (
     records: Array<Record<string, unknown> & { id: string }> | null,
@@ -72,6 +73,11 @@ export function useReadinessEvidence(projectId: string): ReadinessEvidence {
         forProject(insuranceRequests.records).sort((left, right) =>
           text(right.createdAt).localeCompare(text(left.createdAt)),
         )[0]?.status,
+      ) || null,
+    insuranceRequired:
+      text(
+        (projects.records ?? []).find((item) => item.id === projectId)
+          ?.insuranceRequired,
       ) || null,
   });
 }

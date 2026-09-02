@@ -49,7 +49,7 @@ export async function loadReadinessEvidence(
       .where("projectId", "==", projectId)
       .get();
 
-  const [contracts, invoices, questionnaires, schedules, crew, insurance] =
+  const [contracts, invoices, questionnaires, schedules, crew, insurance, project] =
     await Promise.all([
       forProject("contracts"),
       forProject("invoiceReferences"),
@@ -57,6 +57,8 @@ export async function loadReadinessEvidence(
       forProject("schedules"),
       forProject("crewAssignments"),
       forProject("insuranceRequests"),
+      // The job itself, for whether the venue asks for a certificate at all.
+      db.doc(`projects/${projectId}`).get(),
     ]);
 
   const newestContract = contracts.docs
@@ -108,5 +110,9 @@ export async function loadReadinessEvidence(
           )[0]
           ?.get("status"),
       ) || null,
+    insuranceRequired:
+      project.exists && project.get("tenantId") === tenantId
+        ? text(project.get("insuranceRequired")) || null
+        : null,
   });
 }

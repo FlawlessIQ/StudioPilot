@@ -141,6 +141,8 @@ export type JourneyInput = {
   crewRequired?: number;
   crewCascadeActive: boolean;
   coiStatus: string | null;
+  /** "unknown" | "required" | "not_required" — see projects/schema.ts. */
+  insuranceRequired: string | null;
   /**
    * Readiness checkpoints the studio has already settled by hand, by template
    * key — `complete` and `waived` both count.
@@ -573,10 +575,17 @@ export function projectJourney(input: JourneyInput): {
         }),
   });
 
+  // A venue that never asked for a certificate is not a job with an
+  // outstanding certificate. This step used to sit "current" for ever on
+  // those jobs, with the only escape a checkpoint waiver — which records
+  // accepting a risk rather than the fact that nobody asked.
+  const coiNotRequired = input.insuranceRequired === "not_required";
   const coiDone =
-    ["approved", "sent_to_venue", "venue_acknowledged", "waived"].includes(
+    coiNotRequired ||
+    ["approved", "sent_to_venue", "venue_acknowledged"].includes(
       input.coiStatus ?? "",
-    ) || settled("coi-approved");
+    ) ||
+    settled("coi-approved");
   const coiWaiting = ["requested", "awaiting_response", "received", "under_review", "correction_required"].includes(
     input.coiStatus ?? "",
   );
@@ -584,9 +593,11 @@ export function projectJourney(input: JourneyInput): {
     key: "coi",
     title: "Insurance to venue",
     detail: coiDone
-      ? input.coiStatus
-        ? "Certificate handled"
-        : "Settled by you"
+      ? coiNotRequired
+        ? "This venue does not require one"
+        : input.coiStatus
+          ? "Certificate handled"
+          : "Settled by you"
       : coiWaiting
         ? "Requested — chasing automatically"
         : "Request the certificate for the venue",

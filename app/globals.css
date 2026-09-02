@@ -11169,6 +11169,35 @@ textarea:focus-visible {
 }
 
 /* Crew · the hero when an offer is already out and unanswered. */
+/* The question that decides whether the rest of the page applies. */
+.coi-requirement-choice {
+  align-items: center;
+  background: var(--canvas, #f7f8f6);
+  border: 1px solid var(--line, #e3e1d8);
+  border-radius: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 15px 17px;
+}
+
+.coi-requirement-choice p {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+}
+
+.coi-requirement-choice small {
+  color: var(--muted, #5f6a63);
+}
+
+.coi-requirement-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 /* ── Certificates of insurance, after the ease-of-use audit ────────────
    The model was right and the page described it backwards. These carry the
    sequence and the field guidance that were missing. */

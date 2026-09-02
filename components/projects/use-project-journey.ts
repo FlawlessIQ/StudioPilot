@@ -158,6 +158,11 @@ export function useProjectJourney({
       (cascade) => cascade.status === "active",
     ),
     coiStatus: text(coi?.status) || null,
+    insuranceRequired:
+      text(
+        (projectRecords.records ?? []).find((item) => item.id === projectId)
+          ?.insuranceRequired,
+      ) || null,
     dayBeforeDraftStatus: text(dayBeforeAction?.status) || null,
     hasDelivery: forProject(deliveries.records).length > 0,
     albumOrReviewDone: ["REVIEW_REQUESTED", "CLOSED"].includes(projectState),

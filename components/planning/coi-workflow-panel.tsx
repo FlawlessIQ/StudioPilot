@@ -49,6 +49,40 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
   const [eventDateOverride, setEventDateOverride] = useState<string | null>(null);
   const [dueDateOverride, setDueDateOverride] = useState<string | null>(null);
   const [limitDollars, setLimitDollars] = useState("1000000");
+  const [settingRequirement, setSettingRequirement] = useState(false);
+
+  /**
+   * Whether this venue asks for a certificate at all.
+   *
+   * Saying "it does not" is the fastest correct way past this step, and until
+   * now the only way was to find the readiness panel and waive the
+   * `coi-approved` checkpoint — which records the studio accepting a risk
+   * rather than the fact that nobody ever asked for one.
+   */
+  async function setRequirement(next: "required" | "not_required" | "unknown") {
+    if (!selectedProject) return;
+    setSettingRequirement(true);
+    setNotice(null);
+    try {
+      const outcome = await sendPlanningCommand("setInsuranceRequirement", {
+        projectId: selectedProject,
+        insuranceRequired: next,
+      });
+      setNotice(
+        outcome.persisted
+          ? next === "not_required"
+            ? "Marked as not required. This job no longer waits on a certificate."
+            : next === "required"
+              ? "Marked as required."
+              : "Set back to unknown."
+          : "Development preview — nothing was saved.",
+      );
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "That could not be saved."));
+    } finally {
+      setSettingRequirement(false);
+    }
+  }
   // `1000000` in a bare number input is hard to read and easy to mistype by
   // an order of magnitude, which on a certificate is the whole point of it.
   const formattedLimit = useMemo(() => {
@@ -73,6 +107,7 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
    */
   const chosen = projects?.find((item) => item.id === selectedProject);
   const chosenEventDate = String(chosen?.eventDate ?? "").slice(0, 10);
+  const requirement = String(chosen?.insuranceRequired ?? "unknown");
   const defaultDueDate = useMemo(() => {
     if (!chosenEventDate) return "";
     const event = Date.parse(`${chosenEventDate}T12:00:00`);
@@ -206,6 +241,48 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
             <p>A unique reply route associates one inbound PDF with this project.</p>
           </div>
           <Send />
+        </div>
+        {/* Answered before the form, because the answer decides whether the
+            form is needed at all. */}
+        <div className="coi-requirement-choice" role="group" aria-label="Does this venue require a certificate?">
+          <p>
+            <strong>Does this venue require a certificate?</strong>
+            <small>
+              {requirement === "not_required"
+                ? "Marked as not required — this job is not waiting on one."
+                : requirement === "required"
+                  ? "Marked as required."
+                  : "Nobody has said yet. Check the venue contract."}
+            </small>
+          </p>
+          <div className="coi-requirement-actions">
+            <button
+              className={requirement === "required" ? "button button-dark" : "button button-light"}
+              disabled={settingRequirement || !selectedProject}
+              onClick={() => void setRequirement("required")}
+              type="button"
+            >
+              Yes, it does
+            </button>
+            <button
+              className={requirement === "not_required" ? "button button-dark" : "button button-light"}
+              disabled={settingRequirement || !selectedProject}
+              onClick={() => void setRequirement("not_required")}
+              type="button"
+            >
+              No — not required
+            </button>
+            {requirement !== "unknown" ? (
+              <button
+                className="button button-quiet"
+                disabled={settingRequirement}
+                onClick={() => void setRequirement("unknown")}
+                type="button"
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
         </div>
         <form className="coi-request-form" onSubmit={(event) => void create(event)}>
           <label>

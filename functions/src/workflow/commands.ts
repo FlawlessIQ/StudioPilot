@@ -1321,6 +1321,11 @@ export const workflowCommand = onRequest(
             (newestBy(insuranceSnapshot, "createdAt")?.get("status") as
               | string
               | undefined) ?? null,
+          // A venue that never asked for a certificate cannot be sent one,
+          // so `coi-approved` would block this job for ever otherwise.
+          insuranceRequired:
+            (projectSnapshot.get("insuranceRequired") as string | undefined) ??
+            null,
         });
         const projection = await writeReadiness(transaction, db, {
           tenantId: command.tenantId,
