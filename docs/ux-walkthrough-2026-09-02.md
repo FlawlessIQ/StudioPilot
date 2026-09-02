@@ -1114,6 +1114,26 @@ Recorded so nobody "fixes" them again on the strength of the finding above.
   form with answers") and the questionnaire response record ("Finish planning
   questionnaire · 0% complete"), against the same client and the same due date.
   Pre-existing, and more visible now that the panel is four rows shorter.
-- **Legacy chains.** Existing jobs keep the old `dependencyIds`. Legible now,
-  but a one-off backfill clearing non-declared dependencies would finish B9 for
-  the demo and dev data.
+- **Legacy chains — done.** The gap was worse than "existing jobs":
+  `functions/src/saas/onboarding.ts` **publishes a copy** of the templates into
+  `workflowTemplates` at tenant creation, and `instantiateWorkflow` reads that
+  stored copy rather than the code. So correcting the definitions reached only
+  tenants onboarded after the deploy — every existing studio would have kept
+  the chain for **every job it booked from then on**. Found by tracing the
+  deploy set, not by reading the diff.
+
+  `scripts/backfill-checkpoint-dependencies.mts` rewrites both the published
+  templates and the checkpoints of jobs already instantiated, to the
+  dependencies the definitions now declare. Dry run by default, idempotent
+  (a second run reports 0 of 6 and 0 of 59), and it leaves settled checkpoints
+  alone. Verified against the emulator: 2 templates and 21 checkpoints
+  rewritten, `crew-acknowledged` **remapped** to `schedule-approved` rather
+  than cleared, and the attestation that opened B9 — "Confirmed St Stephen
+  Church and The Dorrance with both venues by phone" — now writes
+  `venue-confirmed: complete` instead of returning `DEPENDENCIES_INCOMPLETE`.
+
+  Run it once per environment after deploying:
+
+  ```bash
+  npx tsx scripts/backfill-checkpoint-dependencies.mts --all --apply
+  ```
