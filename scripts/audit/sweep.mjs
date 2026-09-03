@@ -147,9 +147,11 @@ if (!projectId) console.log("No project found — project-scoped views not swept
  * lands on a picker or a redirect, which measures nothing and reports clean.
  */
 const CREW_ROUTES = [
+  // /crew/event-day and /crew/accepted redirect to /crew/schedule and
+  // /crew/jobs, so measuring them would measure those twice.
   "/crew", "/crew/jobs", "/crew/schedule", "/crew/prep", "/crew/requirements",
-  "/crew/documents", "/crew/event-day", "/crew/closeout", "/crew/availability",
-  "/crew/profile", "/crew/account", "/crew/accepted", "/crew/pending",
+  "/crew/documents", "/crew/closeout", "/crew/availability",
+  "/crew/profile", "/crew/account", "/crew/pending",
 ];
 
 /**

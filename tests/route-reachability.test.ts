@@ -74,11 +74,9 @@ const DEEP_LINK_ONLY = new Map<string, string>([
   ["/studio/audit", "owner-only forensic view, reached from an audit event"],
   ["/studio/copilot", "reached from the composer's escalation link"],
   // Left behind when the crew nav collapsed "Pending offers" and "Accepted
-  // jobs" into one "Jobs" entry. Nothing links to them and nothing routes to
-  // them; only e2e/authenticated-visual-shell.spec.ts still visits them.
-  // Exempted rather than papered over with invented nav entries — they are
-  // candidates for deletion once that spec is updated.
-  ["/crew/accepted", "superseded by /crew/jobs — dead, pending deletion"],
+  // jobs" into one "Jobs" entry. /crew/accepted is now a redirect alias to
+  // /crew/jobs and so exempt by what it is (see below). /crew/pending still
+  // renders and is reached from the home page's invitation cards.
   ["/crew/pending", "superseded by /crew/jobs — dead, pending deletion"],
 ]);
 

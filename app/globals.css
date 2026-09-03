@@ -10809,7 +10809,11 @@ textarea:focus-visible {
 .crew-event-location a, .crew-event-contact a { align-items: center; display: inline-flex; gap: 5px; min-height: 44px; }
 .crew-payment-summary { display: grid; gap: 14px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .crew-payment-summary article { display: grid; gap: 6px; }
-.crew-payment-summary strong { font: 550 24px/1.15 var(--font-display); text-transform: capitalize; }
+.crew-payment-summary strong { font: 550 24px/1.15 var(--font-display); }
+/* `text-transform: capitalize` here turned the sentence-cased "Not submitted"
+   and "Not scheduled" into "Not Submitted" and "Not Scheduled" beside
+   sentence-cased copy everywhere else on the closeout page. The copy was
+   right; the stylesheet was rewriting it. */
 .crew-closeout-form header { grid-column: 1 / -1; }
 .crew-closeout-receipt { align-items: center; background: #edf7ef; border-color: #b9dbc0; color: #245b33; display: flex; gap: 13px; }
 .crew-closeout-receipt > span { display: grid; gap: 4px; }

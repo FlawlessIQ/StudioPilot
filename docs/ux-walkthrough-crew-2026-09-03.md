@@ -260,3 +260,44 @@ one. That remains open.
 2), CR4 (four routes render one brief; 13 routes, 4 nav links), CR5
 (availability asks for nothing when every window is past), CR6 (four variants
 of the product explaining its own data model), CR7 (smaller copy).
+
+## Fixed — 2026-09-03, second pass
+
+**One finding was wrong.** CR7's first bullet said "Download calendar file
+again" is unconditional. It is not — `assignment-actions.tsx:48` says "again"
+only once `calendarStatus` is `added` or `downloaded`, and Jordan's was. The
+copy was right about him. Recorded rather than dropped, so nobody "fixes" it.
+
+**CR2.** Home and Jobs now share `splitUpcomingAndPast` over every assignment,
+so an expired invitation is part of his history on both pages. Home reads
+"2 past assignments on file" and Jobs reads "2 total".
+
+**CR4.** One brief. `/crew/event-day` and `/crew/accepted` are redirect aliases
+(to `/crew/schedule` and `/crew/jobs`), `LiveCrewAccepted` is deleted, and the
+`context` prop that only changed a heading is gone. The prep hub had *two*
+tiles for that one page; it has one, whose second line now says the thing that
+matters — "Changed since you read version 3" — instead of "Review latest
+version" for everyone. The reachability test and the inset sweep no longer list
+the aliases.
+
+**CR5.** When every window has passed, or none exist, the availability page
+leads with why that matters: "Studios can only offer you work on dates you have
+marked. Add the next few months above." `features/crew/availability-moment.ts`
+decides it, and is tested.
+
+**CR6.** The four data-model reassurances are gone. Documents keeps one line in
+his terms — "Only your own paperwork is here. You never see the couple's
+contract, their invoices or their photographs." Requirements says what the
+page is ("What you have sent, and where each one stands"), availability says
+what to do ("Tell studios when you can work. Accepting a job is what actually
+books you"), and the offline copy's caveat survives without "role-scoped".
+
+**CR7.** "Not Submitted" and "Not Scheduled" were **CSS**, not copy —
+`.crew-payment-summary strong { text-transform: capitalize }` was rewriting
+correctly sentence-cased strings. Dropped. "Extra minutes" is now "Extra time
+(minutes)" with the rule that decides his pay: "Time beyond the agreed wrap.
+Travel and setup count only if the studio said so."
+
+**Still open:** a per-job event contact the studio can set. The studio phone
+(CR3) is the floor; this is the ceiling, and it needs a schema field, a command
+and a studio control that do not yet exist.
