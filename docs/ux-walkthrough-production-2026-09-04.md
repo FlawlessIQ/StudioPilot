@@ -510,3 +510,14 @@ recorded against your name. The retainer is the next step." (advanced without
 a reload — A26), evidence row "Signed elsewhere · recorded by you" (not a
 hash — A27), project → "Awaiting deposit". Disclosure was clear: "records this
 as your attestation, not a verified signature."
+
+**D6 · Retainer invoice created in LIVE QuickBooks (per Conor's decision).**
+"Create retainer invoice" queued a QuickBooks customer match + invoice; ~30s
+later: Retainer "Sent", Amount $1,350.00, Balance $1,350.00, StudioCue invoice
+no. SC-15F70B6D, QuickBooks `providerInvoiceId` **7**, banner "$1,350.00 still
+owed · Due Sep 10 · Chase payment". Couple email arrived 19:27Z: "Retainer from
+Walk Studio · Your retainer invoice is ready". **ACTION: Conor to void
+QuickBooks invoice #7 in the live company.** Minor: the retainer-due shown is
+Sep 10 (proposal expiry) though I set the proposal's retainer-due to Sep 20 —
+the invoice due date did not follow the proposal field (worth a look, low
+severity).
