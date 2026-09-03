@@ -1,0 +1,368 @@
+# Production click-through — findings
+
+Walked on **studio-cue.com** from **2026-09-04**, following
+`docs/production-click-through-plan-2026-09-04.md`. Production is live: real
+Stripe (`sk_live_`), real SendGrid, real data.
+
+Findings are gathered here as they are met and **not fixed until the walk is
+complete**, per the plan. Each carries the plan step it was found at, the
+pattern from `docs/ux-walkthrough-2026-09-02.md`, and blocks / doubt / friction.
+A repeat of a fixed finding is marked **REGRESSION** and jumps the queue.
+Anything a guard should have caught is marked **GUARD GAP**.
+
+## Identities
+
+| Role | Email | Studio / slug |
+|---|---|---|
+| Studio owner | conor+studio@flawlessiq.com | Harbour Light Photography · slug `harbour-light` (throwaway; delete after) |
+| The couple | conor+couple@flawlessiq.com | — |
+| Second shooter | conor@ad-helm.com — **not readable by me; Conor confirms crew emails** | — |
+
+Studio owner password: `Walk-yRf6rMSeFGKeTH!` (throwaway production account — this repo is
+private; rotate or delete the tenant when the walk is done).
+
+Decisions: Stripe A7 via a **100%-off coupon** Conor creates in the live
+dashboard beforehand; I pause at checkout. QuickBooks **connected** to a
+sandbox company in B6 — Conor does the OAuth.
+
+## Email log
+
+Ticked as each arrives, with the time triggered and the time seen.
+
+| Key | Step | Triggered | Seen | Notes |
+|---|---|---|---|---|
+| `email_verification` | A2 | 17:08:31Z | — | **Never sent** — App Check 403 in the automation browser (P2). |
+| `password_reset` | H6 (run early, as the A2 recovery) | 17:20:32Z | 17:20:45Z | 13s. From `studio@studio-cue.com`, subject "Reset your StudioCue password". Sent from real Chrome; the automation pane could not send it (P2). |
+
+## Findings
+
+### P1 · Register form marks nothing as required · A1 · #8 · friction
+All three fields (`name`, `email`, `password`) carry the `required` attribute
+and none carries a visible mark. Same class as A7 (the package form); the
+project form two clicks later does mark its fields. Low — every field is
+required so there is nothing to distinguish — but it is the first form a new
+studio meets and it sets the convention.
+
+**Also checked at A1, holding:** `/start-trial` → 307 → `/auth/register`; copy
+reads "own private studio", no "tenant"; App Check loads with no console
+errors on production.
+
+
+### P2 · One refused App Check exchange silences every command for a day, and the register screen says "sent" and "could not send" together · A2 · #5 · blocker-class (harness-triggered, product-owned)
+Registering `conor+studio@flawlessiq.com` at 17:08:31Z created the Auth user
+(17:08:40Z, `emailVerified: false`) and then showed, on one screen: "Check your
+email · We sent a verification link to conor+studio@flawlessiq.com. Your
+account was created, but we could not send the verification email." Nothing
+arrived. No request ever reached the relay or `authEmailCommand`; no
+`authEmailRequests`/`emailJobs` record exists for the address.
+
+**Cause, from the console:** the App Check exchange returned **403** at
+17:08:40Z (`appCheck/initial-throttle`), `getAppCheckToken()` threw before the
+`fetch`, and `register-form.tsx`'s bare `catch` set state `"sent"` with the
+failure message — so the "We sent…" heading from the success branch rendered
+over "we could not send". The SDK then self-throttled for **24h**
+(`appCheck/throttled`, still counting down at 17:16Z).
+
+**What the 403 was, and was not.** Site key, app ID, Enterprise registration,
+allowed domains (`studio-cue.com` listed), API enablement, and the grecaptcha
+script all check out; a browser-origin command succeeded on prod at
+2026-09-02T16:37Z and nothing in the bundle or headers changed since. The same
+exchange from the shell with a bogus token returns the identical `"App
+attestation failed."` — a *token* rejection — and reCAPTCHA's own metrics show
+every prior assessment in the human buckets. Then the product's own recovery,
+"Forgot password?" for the same address from an **established Chrome profile**,
+went end-to-end at 17:20:32Z (relay 202, function 202, `emailJobs
+password_reset succeeded`). Conclusion: reCAPTCHA Enterprise refused the
+automation browser's token. Real studios are not locked out today.
+
+**Why it is still a finding — three things the product owns:**
+1. **36 browser callers** use `getAppCheckToken()`, which throws; only
+   `getOptionalAppCheckToken` degrades. After one refused exchange the SDK
+   throttles for 24h, so *every* command — register, sign-in email, proposals,
+   crew, billing — fails from that browser for a day, and each caller
+   improvises its own message. A studio on a flagged network (VPN, corporate
+   proxy, a locked-down browser) hits exactly this with no route out and no
+   sentence that says "your browser could not be verified — try another
+   browser or network".
+2. **Three callers swallow the error with a bare `catch`** —
+   `register-form.tsx`, `forgot-password-form.tsx:43`,
+   `accept-client-invitation.tsx:217`. The forgot-password one is deliberate
+   (does not reveal whether an account exists) and fine; the register one
+   reuses the success state and produces the contradiction above.
+3. **The register failure copy points at "Forgot password?"** as the recovery
+   for an unverified *new* account — a reset link does not verify an email,
+   and the same throttled browser cannot send it anyway.
+
+Verify-email → resend path: not yet exercised (needs a signed-in session).
+
+**Regression check:** A2's fix (`59b31fa`, "your account was created" is
+stated) held; what regressed is nothing — this branch was never walked on
+production before.
+
+### P3 · The platform's own account mail is dressed as a tenant's client mail · H6 · #5/#3 · friction
+`password_reset` to the studio owner reads, top to bottom: "StudioCue · Powered
+by StudioCue" — a "Client operations powered by StudioCue" strap (HTML) — "Hi
+Conor, We received a request to reset the password for your StudioCue
+account." — "Sent by StudioCue using StudioCue." A studio owner is not a
+client, and a product powered by itself is the branding template's
+`${studioName} … ${platform}` pair rendered with both slots set to StudioCue.
+Auth mail (verification, reset, invitations before a tenant exists) needs a
+platform voice, not the tenant one with the platform's name pasted in twice.
+
+Also noted: the reset link is a SendGrid click-tracked URL
+(`u57073990.ct.sendgrid.net/ls/click?upn=…`), not `studio-cue.com`. For a
+one-time security link that reads as phishing-shaped to a careful person and
+to some mail gateways, and gateways that pre-fetch links can consume it. Turn
+click-tracking off for the auth templates.
+
+Delivery itself: 13s, inbox, `IMPORTANT`. Sender `studio@studio-cue.com`.
+
+### P4 · A studio owner whose verification mail never came has no way to ask for another · A3 · #4 · wall
+`emailVerification` is sent from exactly two places: the register form and the
+client-invitation acceptance (which has a "Resend verification email" button
+for couples). There is no resend for a studio owner. After sign-in, the
+onboarding form throws "Verify your email before creating a studio." and
+offers nothing — no button, no link, no "we can send it again". Combined with
+P2 (the first send can fail silently) the state is reachable on the first
+minute of a trial and has no route out except the Firebase-default email or
+support. The register failure copy sends them to "Forgot password?", which
+does not verify an email.
+
+**Seen as the owner sees it (17:3xZ, real Chrome):** sign-in succeeded and
+landed on `/auth/onboarding` with no mention of the unverified email. Filling
+the form and pressing "Start 14-day trial" produced one status box, "Verify
+your email before creating a studio." — no resend, no link, no "sent to
+<address>", no "check spam". The form stays filled and the button stays live,
+so the natural next move is to press it again. Dead end on minute one.
+
+**Bypass used (logged per plan §escape hatches):** `generateEmailVerificationLink`
+via the Admin SDK, opened in the same browser. A real owner has no equivalent.
+
+Where I stopped before the bypass: the throwaway owner is in exactly this state
+(`emailVerified: false`, no mail). Next is a signed-in session so the wall is
+seen as an owner sees it, then either a product route (none found in code) or
+the admin-minted link, logged as a bypass per the plan.
+
+### P5 · The verified screen thinks every new account was invited, and sends a signed-in owner back to sign-in · A3 · #5/#4 · friction
+`/auth/verify-email` verified the code and said: "Email verified · Your
+StudioCue account can now access its invited workspace or portal." A new
+studio owner has no invitation, workspace or portal yet — the sentence is the
+couple's/crew's. The only control is "Continue to sign in" →
+`/auth/login?verified=1`, offered to a user who is already signed in in this
+tab, while the link's `continueUrl` (`/auth/onboarding`) is ignored. The
+owner's next step is the form they were just bounced from; the page should
+say so and go there.
+**Then:** `/auth/login?verified=1` rendered the plain sign-in form — no
+"verified, sign in to continue" line (nothing reads the flag), and no use of
+the session that was still alive: navigating by hand to `/auth/onboarding`
+showed the form again, with my entries gone. An owner who obeys the screen
+types their password a second time for nothing.
+
+### P6 · "Sign in with your verified account first" for a session that is signed in · A4 · #5 · friction
+Second submit of "Create your workspace", session alive (`/studio` was
+redirecting to onboarding, which only a signed-in no-tenant user gets),
+produced: "Sign in with your verified account first." `onboarding-form.tsx`
+reads `auth.currentUser` **synchronously** at submit; on a fresh page load
+Firebase restores the session asynchronously, so a submit that lands before
+the restore sees `null` and the owner is told to sign in when they already
+are. The sentence then sends them to do something that will not change
+anything. The page has no auth gate of its own to wait on. Read the user from
+the auth listener (or await `authStateReady()`), and if there truly is no
+session, say "Your session ended — sign in again" rather than implying the
+account is unverified.
+
+### P7 · Workspace created, screen unchanged · A4 · #5/#4 · friction (double-submit risk)
+"Start 14-day trial" succeeded (relay 200 → `tenantOnboardingCommand`
+17:33:06Z, tenant + `studio_owner` membership, subscription `trialing` to
+2026-09-17). The form then cleared and sat there — no redirect, no "Walk Studio
+is ready", button live again. `onboarding-form.tsx` does `router.push("/studio")`,
+so `/studio` must have bounced the brand-new tenant straight back to
+`/auth/onboarding` (membership not yet visible to the boundary), which re-rendered
+the empty form. Ten seconds later a hand navigation to `/studio` landed on Today.
+An owner who sees the form again will press the button again; whether a
+second `tenantOnboardingCommand` creates a second studio for the same user is
+**not yet tested** — queued for the edits phase.
+
+**A4 notes:** timezone is a fixed list of six (New York, Chicago, Denver, Los
+Angeles, London, Sydney) — no Dublin, Paris, Toronto, Auckland; currency five.
+Fields carry no required marks (see P1). The placeholder studio name "Alder &
+Muse Photography" is the marketing testimonial's studio, which reads as a real
+example rather than a hint — fine.
+
+**A5 · Setup checklist, holding:** four questions, "1 of 4 answered", the
+inquiry form already live with a preview link (`/inquiry?studio=walk-studio-928697cf`).
+Two nits: the sidebar lights "Library" while on `/studio/setup`, and the tab
+title is the generic "StudioCue · Photography Operations OS" where Today's is
+"Today · StudioCue".
+**A4 addendum:** Studio settings offers thirteen timezones (adds Phoenix,
+Anchorage, Honolulu, Toronto, Vancouver, Dublin, Paris); onboarding offered
+six. Same field, two lists — an Irish or Canadian studio picks the wrong one
+at signup and finds the right one only if they open settings.
+
+**A5 · email:** nothing arrived after the workspace was created, and nothing
+exists to arrive — there is no welcome / trial-started template. Decision to
+make: a "Walk Studio is ready — here is your inquiry link, and your trial ends
+17 September" mail is the one message a new owner would keep. Logged as a
+gap, not a defect.
+
+### P8 · Subscription page speaks in tokens · A6 · #5 · friction
+Header badge: "trialing · studio" — the Stripe status enum and the plan slug,
+verbatim, to a studio owner. Should read "Free trial · Studio plan · ends
+17 September".
+**P8 addendum — no trial end date, anywhere.** The subscription page never
+says when the trial ends; the components read no `trialEnd`/`currentPeriodEnd`
+at all. The only date-bearing sentence on the page is Stripe's. The plan's
+A6 check ("exactly 14 days from A5, in your timezone") cannot be made — the
+number the owner most wants is absent. The four plan buttons are labelled by
+product ("Studio monthly") rather than action ("Choose Studio monthly"); with
+"Current" on the Studio card, "Studio monthly" under it reads as a status,
+not a button.
+
+**A7 · Checkout reached.** "Studio monthly" → live Stripe Checkout
+(`cs_live_…`) in ~3s. Price and relay are configured. Stopped on Stripe's page;
+no card entered by me.
+
+### P9 · Stripe Checkout is branded "FlawlessIQ" · A7 · #5 · trust
+Tab title "FlawlessIQ"; "By subscribing, you authorize **FlawlessIQ** to
+charge you"; Link "Pay securely at FlawlessIQ". The Stripe account's public
+business name is the parent company's, so the first money screen a studio
+sees names a company they have never heard of. Stripe Dashboard → Settings →
+Public details (name, and ideally a StudioCue statement descriptor and icon).
+Not a code change, but it blocks a real launch.
+
+### P10 · Checkout restarts the trial instead of honouring it · A7 · #3 · logic
+Stripe's page: "14 days free · Then $250.00 per month starting September 17,
+2026" — 14 days from *now*, because `buildStripeCheckoutParams` sends a fixed
+`subscription_data[trial_period_days]` (`STRIPE_TRIAL_PERIOD_DAYS`) rather
+than `subscription_data[trial_end]` = the tenant's `currentPeriodEnd`. Today
+it coincides (workspace and checkout are 20 minutes apart). An owner who adds
+a card on day 10 gets 24 free days and the in-app "trial ends" (were it shown,
+P8) and Stripe's date disagree. Reverse case: an owner whose trial has
+*expired* still gets 14 free days at checkout.
+
+### P11 · Checkout does not know who is paying · A7 · #4 · friction
+Email field empty — no `customer_email`/`customer` on the session for a
+trialing tenant (no Stripe customer yet). The owner retypes the address
+StudioCue already verified. Also offered as payment methods for a $250/month
+SaaS subscription: Cash App Pay and Klarna — a Stripe Dashboard setting worth
+trimming to card + Link + Apple/Google Pay.
+
+**Coupon decision, revised:** Checkout has no promotion-code field
+(`allow_promotion_codes` is not set) and the session carries no `discounts`,
+so the 100%-off coupon cannot be applied here. It is also unnecessary: the
+session starts a 14-day trial, so a card is collected and nothing is charged
+until 17 September.
+
+## Phase B · Setup
+
+**B1 · Packages, holding:** all eleven fields carry a visible "Required" mark;
+retainer 1000% is refused by the browser before submit (`max=100`, native
+popover; nothing reached the server). Defaults are sensible (30%, 8 hours, 2
+photographers, "Within 50 miles"). One nit: the refusal is the browser's
+transient popover, so a submit from the bottom of a long form silently jumps
+back up to the field with no persistent message.
+**B1 · created:** "Full Day Wedding is ready · Clients can now be offered this
+package in proposals" with a "View packages" button — a success screen that
+says what changed and what to do next. Terms field ships a real default
+("Subject to the completed studio agreement."), not a placeholder.
+**B2 · Questionnaires, holding:** Wedding (20 fields), Corporate (14), Sports
+(12), all `active` for a brand-new studio. Nits: the sidebar lights "Jobs"
+while on `/studio/questionnaires` (it is reached from Library), and the tab
+title is the generic product name.
+**B3 · Availability, holding:** Mon–Fri 09:00–17:00 at 45 minutes ships as
+the default; "Save availability" → "Consultation availability saved. Clients
+booking a consultation will see these windows." Saturday/Sunday "Closed" with
+an add link; "Block a specific date" present.
+**B4 · Event-day phone, holding:** field present with its purpose under it
+("Shown to crew on their event-day brief… Never shown to clients");
+"Save studio details" → "Studio details saved." Server: see below.
+Server after B3/B4: `eventDayPhone` = the typed number; audit events for the
+tenant now read `tenant.created, package.created, tenant.identity_updated,
+consultation.settings_updated`. (Earlier "auditEvents (empty)" in my notes was
+my query ordering on a field the records lack — not a finding.)
+
+**B5 · Integrations, first read:** Google Calendar, Zoom, Dropbox each "Ready
+to connect · Connect" with a one-line purpose and the areas they feed; a
+"Protected connection details" panel says sign-in details are encrypted and
+never shown. OAuth consent is Conor's to grant — parked.
+
+**B6 · QuickBooks — decision was "connect it" (sandbox).** OAuth consent is
+Conor's to grant; parked with B5. Until then the "Invoicing & payment"
+capability row reads "Connect a provider to enable this", which is the honest
+empty state.
+**B7 · Agreement template, holding (A25 regression check passed):** the
+section leads with "No signing app is connected, so StudioCue does not send
+agreements for you. Send your own and record the signature on each booking."
+No "choose your agreement first / paste a template ID" block. Capability
+routing lists Document signing, Invoicing & payment, Calendar, Video meetings,
+File storage — each "Connect a provider to enable this" with a plain
+one-liner. Honest empty state throughout.
+
+**Parked for Conor (OAuth — I cannot enter credentials or grant consent):**
+- **B5** Google Calendar + Zoom → Connect → OAuth, land back on Integrations "connected".
+- **B6** QuickBooks → Connect → OAuth against the sandbox company.
+Each is one "Connect" button on `/studio/integrations` (Google Calendar,
+Zoom, then QuickBooks Online lower down). Any error copy on the callback is a
+new error-copy finding.
+
+**A7 · confirmed after checkout.** Card entered by Conor; subscription now
+carries real Stripe IDs (`sub_…`, `cus_…`), status `trialing` (correct for a
+trial with a card on file — the plan's "active" expectation was wrong; active
+comes at trial end). The billing panel switched from "no billing to manage
+yet" to **"Open customer portal"** — `createPortal` is wired.
+
+### P8 (confirmed, persists after checkout) · No status detail even with a card
+After checkout the header badge is still "trialing · studio", there is still
+no trial-end date, and no "Current plan · Studio monthly · renews 17 September"
+summary. The Studio card shows "Current" yet the four plan buttons ("Studio
+monthly/annual", "Multi-Brand monthly/annual") remain live and unmarked, so an
+owner who just paid still sees four buy buttons with no indication which one
+they are on or when the trial converts.
+
+**A7 · billing portal opened (createPortal verified).** Stripe's portal is
+correct and complete: "Free trial ends Sep 17 · StudioCue Studio · $250.00 per
+month · After your free trial ends on September 17, 2026, this service will
+continue automatically," Mastercard on file, invoice history "Sep 3 · $0.00 ·
+Paid" (trial, no charge). This is the reinforcement for P8: the trial-end date
+StudioCue's own page hides is right here on the Stripe object as
+`trial_end`/`current_period_end` — the app just does not read it. Portal tab is
+branded "FlawlessIQ Billing" with "Return to FlawlessIQ" (P9 extends to the
+portal). A8 (change cadence, watch `stripeWebhook` update the record) left for
+Conor — it is a real subscription change; not mine to make.
+
+## Phase C · Inquiry & consultation
+
+**C1 · Inquiry submitted (public form), holding well.** `/inquiry?studio=<slug>`
+is a genuinely good page: "WALK STUDIO · Let's make something worth
+remembering", "Human reviewed", "Private by default", a live Places
+autocomplete on Venue (works on the public page — App Check degrades
+gracefully), a budget range, a bot-honeypot "Website" field, and a real
+consent checkbox. On submit: "Inquiry received · Thank you. We'll be in touch
+shortly. Your confirmation code is B708A9." Tab title is specific
+("Photography inquiry · Walk Studio · StudioCue"), unlike the app's generic
+titles.
+**C2 · Acknowledgement email arrived (~1 min).** "Walk Studio received your
+inquiry · Hi Maya, Walk Studio received your inquiry and will…" from
+studio@studio-cue.com, branded "Walk Studio · Client operations powered by
+StudioCue" — the correct tenant/platform pairing (contrast P3, where the same
+strap named StudioCue twice because the sender *was* the platform). Note: this
+send does not appear in the tenant's `emailJobs` (0 `inquiry_acknowledgement`
+rows) though it clearly delivered — the acknowledgement uses a different
+dispatch path, so the studio's email log/reconciler would not track it. Minor,
+flagged.
+**C3 · Lead created:** one lead, Maya Ellison, status `new`, correct email.
+Studio-side view: below.
+**C3 · Studio-side, holding well (the north star working).** Today led with
+"New inquiry — Maya Ellison · The Glasshouse, Montclair NJ · arrived today ·
+Review & reply", plus a "Prepared for you · Reply to Maya Ellison · StudioCue
+prepared this — you decide" card with Approve / Read it — AI prepares, human
+approves. Lead detail: contact, event (Oct 24, venue, $8,000–$12,000,
+Instagram), with Convert to project / Email client (mailto) / Call client
+(tel). Confirmation code B708A9 is the lead id's tail
+(`…a87d3fb708a9`), not a separate field — my earlier "confirmationCode
+undefined" was a field-name mismatch, not a defect.
+
+**Still parked for Conor:** B5 (Google Calendar + Zoom) and B6 (QuickBooks)
+OAuth — `integrationConnections` still 0. C4 (book a consultation) is walkable
+without them, but the Zoom meeting-link step needs B5. A8 (change cadence in
+the Stripe portal, watch the webhook) also awaits Conor.
