@@ -563,3 +563,45 @@ forever.
 invisible in the emulator/seed (no real providers) and invisible to the studio
 (the UI said "Booked · Nothing else is needed from you" while the couple got
 silence and a worker retried in a loop).
+
+## Phase E · Planning
+
+**E1 · Details form assigned.** "Send Maya Ellison wedding their details form ·
+Wedding Planning Questionnaire · due 45 days before the date". Sent; now
+"Progress 0% · Due Sep 9 · not started". (Email verification: the tenant's
+`emailJobs` stayed at 4 immediately after — re-checking whether
+`questionnaire_request` queued; if it never appears that is a finding.)
+E2 (couple fills, one field left empty) parked for Conor.
+**E3 · Run of show generated (AI), assumptions labelled (B6/B7 hold).** Both
+"Generate draft" and "Build it myself" offered side-by-side (fallback not
+hidden behind an error). Pre-filled coverage 12:00–20:00 and The Glasshouse
+from the job; I added ceremony 16:30, reception 18:00, and preferences. AI
+produced an 11-item timeline, each tagged "package fact · <field>" or
+"assumption · Assumed …". Also surfaced good AI clarifying questions for the
+couple with "Put these in a message". "Timing rules · AI suggestions never
+become rules until an owner approves them here."
+
+### P16 (RETRACTED / corrected) · AI schedule draft produced a self-conflicting item; the editor correctly blocks publish · E4 · #? · AI quality
+Initial reading was wrong. The publish button is
+`disabled={publishing || publishBlockers.length > 0}`
+(`components/planning/ai-schedule-generator.tsx`), and "One item ends before it
+starts" is the rendered blocker text — so a conflicting run of show **cannot**
+be published (my clicks were no-ops on a disabled button). The editor is
+correct. The real, lower-severity finding: the **AI generator produced a draft
+with a temporal conflict** (an item whose end precedes its start, from
+compressing golden-hour portraits "due to schedule constraints"), which a
+studio then has to hand-fix before publishing. Minor UX note: the disabled
+publish button keeps its full primary-green styling, so it does not read as
+disabled — the blocker line is the only cue.
+
+**E4 · Schedule published (after a manual conflict fix).** The publish button
+was correctly disabled by a hard blocker "One item ends before it starts" — the
+AI had generated a **zero-duration final item** ("Photographer Departure",
+20:00–20:00, `end <= start`). Removing it cleared the blocker; a remaining
+"golden-hour portraits conflict with ceremony/reception" note stayed as a
+**soft advisory** that does not disable publish. So the editor's hard-blocker /
+soft-advisory split is sound. Published → returned to the job, "Schedule ready
+for review" in history, **Event Readiness 33% → 42%** ("7 blockers:
+Questionnaire complete +6 more"). E5a (couple approves) parked for Conor.
+So the only AI-quality defect here is the zero-duration item the studio must
+delete by hand; everything else about the publish gate is correct.
