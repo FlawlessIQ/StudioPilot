@@ -1107,33 +1107,78 @@ Recorded so nobody "fixes" them again on the strength of the finding above.
 | Retainer · $1,050.00 · **Not set** | Retainer · $1,050.00 · **On signing** |
 | Proposal page: no route to the job | Job link in the heading, at every status |
 
-### Still open, found while fixing
+### Closed on 2026-09-03
 
-- **Two rows for one questionnaire.** The reference panel lists both the
-  `questionnaire-complete` checkpoint ("Completes when the couple submits the
-  form with answers") and the questionnaire response record ("Finish planning
-  questionnaire · 0% complete"), against the same client and the same due date.
-  Pre-existing, and more visible now that the panel is four rows shorter.
-- **Legacy chains — done.** The gap was worse than "existing jobs":
-  `functions/src/saas/onboarding.ts` **publishes a copy** of the templates into
-  `workflowTemplates` at tenant creation, and `instantiateWorkflow` reads that
-  stored copy rather than the code. So correcting the definitions reached only
-  tenants onboarded after the deploy — every existing studio would have kept
-  the chain for **every job it booked from then on**. Found by tracing the
-  deploy set, not by reading the diff.
+- **A13 was not resolved by A6**, contrary to the note above. A6 relabelled the
+  *job page*; this is the **client's copy**. `eventSnapshot.venue` takes
+  `venueName` alone (`functions/src/booking/proposals.ts:414`), and a proposal
+  written at inquiry usually has only a city — so the couple's own document read
+  "Jun 12, 2027 · **Venue pending**", which tells them nothing they do not
+  already know and reads as an unfinished product. The clause is now omitted
+  when there is no venue. The client portal's "To be confirmed" is left alone:
+  there it labels a field, and a labelled field needs a value.
 
-  `scripts/backfill-checkpoint-dependencies.mts` rewrites both the published
-  templates and the checkpoints of jobs already instantiated, to the
-  dependencies the definitions now declare. Dry run by default, idempotent
-  (a second run reports 0 of 6 and 0 of 59), and it leaves settled checkpoints
-  alone. Verified against the emulator: 2 templates and 21 checkpoints
-  rewritten, `crew-acknowledged` **remapped** to `schedule-approved` rather
-  than cleared, and the attestation that opened B9 — "Confirmed St Stephen
-  Church and The Dorrance with both venues by phone" — now writes
-  `venue-confirmed: complete` instead of returning `DEPENDENCIES_INCOMPLETE`.
+- **Two rows for one questionnaire — and three more pairs.** Four obligations
+  were described twice, by a checkpoint *and* by a record:
+  `questionnaire-complete`, `contract-completed`, `retainer-paid` /
+  `final-balance`, and `crew-acknowledged`. The record row now wins, because it
+  is the specific one — it carries the percentage, the balance, the signer
+  count. A checkpoint nothing else describes still appears, since suppressing
+  it would hide the obligation on a job where the form has not been sent, which
+  is when the studio most needs telling.
 
-  Run it once per environment after deploying:
+  Coverage is collected as the record loops push, not predicted before them, so
+  no predicate is duplicated — which is how the readiness score came to have
+  three definitions.
 
-  ```bash
-  npx tsx scripts/backfill-checkpoint-dependencies.mts --all --apply
-  ```
+- **A dead read of the stored readiness score.** `projectLifecycleProjection`
+  populated a `readiness` field from `project.readinessScore` that no caller
+  ever displayed — worse than a visible bug, because it was a trap for whoever
+  used it next. Field and read both deleted.
+
+  `tests/readiness-one-truth.test.ts` had missed it: the scan covered only
+  `components/` and `app/`. Widened to `features/`, `lib/`, `server/` and
+  `functions/src/`, which then produced four hits, three of them false — the
+  shared function is *also* called `readinessScore` (a naming collision made
+  when it was extracted), so its imports and call sites matched, as did the
+  write and the prose in these very comments. The scan now requires a leading
+  dot and strips comments first. `features/dashboard/home-metrics.ts` is the
+  one real read and is allowlisted with the list views: it aggregates across
+  every project, and deriving would mean loading every checkpoint of each.
+
+  **Second time a guard here needed widening after it passed.** The first was
+  `error-copy-coverage`, blind to the very code that motivated it. Both were
+  found by doing the next task rather than by the guard, which is worth
+  remembering when one of these goes green on the first run.
+
+- **Legacy chains, applied to production.** The backfill was run against
+  `studiohub-prod` on 2026-09-03: 1 wedding template and 12 of 13 checkpoints
+  rewritten, `crew-acknowledged` remapped to `schedule-approved`, a second run
+  reporting `0 of 3` and `0 of 13`. Verified by reading the Firestore documents
+  directly, not the script's own report. Production also carried
+  `shot-list-approved`, a checkpoint no longer in the definitions — its chain
+  was cleared and `crew-acknowledged` unhooked from it, but the document was
+  deliberately **not** deleted: removing a checkpoint is a data decision, and
+  it now sits as an independent, waivable row rather than gating three others.
+
+Run it once per environment after deploying:
+
+```bash
+npx tsx scripts/backfill-checkpoint-dependencies.mts --all --apply
+```
+
+### What no assertion can decide
+
+The backlog is closed. What remains is the part guards cannot reach — whether a
+flow is *pleasant*, whether the next move is the *right* move, whether a number
+is worth showing at all. Three guards now hold the mechanical classes
+(`error-copy-coverage`, `journey-preconditions`, `readiness-one-truth`), so the
+next walk is worth more per hour than this one was: it cannot spend its time
+rediscovering unmapped error codes, premature next-moves, or a quantity with two
+definitions.
+
+The walk that produced this document had one persona, one event type, one
+provider-less configuration, and one happy path. Untouched: the crew member on a
+phone, the client portal, corporate and sports templates, and every failure
+path. Those are where the next classes live — and, on the evidence of this
+document, the classes will be found by a person clicking, not by a test.

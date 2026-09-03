@@ -216,3 +216,107 @@ test("a blocking checkpoint says what it waits for, not that it blocks", () => {
     "a manual one says it is the studio's call",
   );
 });
+
+test("one obligation is one row, even when a checkpoint and a record describe it", () => {
+  /**
+   * The panel used to list both. "Completes when the couple submits the form
+   * with answers" (the `questionnaire-complete` checkpoint) sat directly above
+   * "Finish planning questionnaire · 0% complete" (the response record) —
+   * same person, same due date, same obligation. Four pairs do this:
+   * questionnaire, contract, unpaid invoices and crew acknowledgement. It
+   * became more visible once evidence stopped listing finished work, which
+   * left the panel four rows shorter and the duplicates adjacent.
+   *
+   * The record row wins because it is the specific one — it carries the
+   * percentage, the balance, the signer count.
+   */
+  const projection = projectLifecycleProjection({
+    now,
+    project: { id: "p1", state: "BOOKED", eventDate: "2027-06-12" },
+    evidence: noReadinessEvidence,
+    checkpoints: [
+      {
+        id: "k1",
+        projectId: "p1",
+        archivedAt: null,
+        templateKey: "questionnaire-complete",
+        name: "Questionnaire complete",
+        ownerType: "client",
+        blocking: true,
+        status: "not_started",
+        completionMethod: "form_submitted",
+        resolvedDueDate: "2027-04-28",
+      },
+      {
+        id: "k2",
+        projectId: "p1",
+        archivedAt: null,
+        templateKey: "venue-confirmed",
+        name: "Venue confirmed",
+        ownerType: "studio",
+        blocking: true,
+        status: "not_started",
+        completionMethod: "manual",
+        resolvedDueDate: "2027-05-13",
+      },
+    ],
+    questionnaires: [
+      {
+        id: "q1",
+        projectId: "p1",
+        status: "assigned",
+        completionPercent: 0,
+        resolvedDueDate: "2027-04-28",
+      },
+    ],
+  });
+
+  const labels = [
+    ...projection.lanes.client,
+    ...projection.lanes.studio,
+  ].map((work) => work.label);
+
+  assert.deepEqual(
+    labels.filter((label) => /questionnaire/i.test(label)),
+    ["Finish planning questionnaire"],
+    "the questionnaire should appear once, as the record row",
+  );
+  // A checkpoint with no record equivalent still has to be listed.
+  assert.ok(
+    labels.includes("Venue confirmed"),
+    "a checkpoint nothing else describes must survive the dedupe",
+  );
+});
+
+test("a checkpoint with no record of its own is still listed", () => {
+  /**
+   * The other half of the dedupe: suppressing a checkpoint because a record
+   * *could* exist would hide the obligation on a job where the studio has not
+   * sent the form yet, which is exactly when they need telling.
+   */
+  const projection = projectLifecycleProjection({
+    now,
+    project: { id: "p1", state: "BOOKED", eventDate: "2027-06-12" },
+    evidence: noReadinessEvidence,
+    checkpoints: [
+      {
+        id: "k1",
+        projectId: "p1",
+        archivedAt: null,
+        templateKey: "questionnaire-complete",
+        name: "Questionnaire complete",
+        ownerType: "client",
+        blocking: true,
+        status: "not_started",
+        completionMethod: "form_submitted",
+        resolvedDueDate: "2027-04-28",
+      },
+    ],
+    questionnaires: [],
+  });
+
+  assert.deepEqual(
+    projection.lanes.client.map((work) => work.label),
+    ["Questionnaire complete"],
+  );
+});

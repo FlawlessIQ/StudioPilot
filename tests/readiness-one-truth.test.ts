@@ -236,7 +236,7 @@ test("a single job's readiness is derived, not read from the stored field", () =
    * marked not required: evidence knows, a number written before the decision
    * does not.
    *
-   * Views listed here are lists. Anything else must derive — including the job
+   * Entries listed here are lists or aggregates. Anything else must derive — including the job
    * page, which is deliberately absent: it mentions the field in a comment and
    * assigns it while building mock data, and neither is a read.
    */
@@ -246,6 +246,8 @@ test("a single job's readiness is derived, not read from the stored field", () =
     "components/booking/studio-calendar.tsx",
     "components/dashboard/studio-dashboard.tsx",
     "components/dashboard/priority-signals.tsx",
+    // Aggregate metrics across every project, not one job's number.
+    "features/dashboard/home-metrics.ts",
   ]);
 
   const offenders: string[] = [];
@@ -260,14 +262,36 @@ test("a single job's readiness is derived, not read from the stored field", () =
       if (!/\.tsx?$/.test(entry.name)) continue;
       const relative = full.slice(process.cwd().length + 1);
       if (LIST_VIEWS.has(relative)) continue;
-      const source = readFileSync(full, "utf8");
-      // Reads of the field, not mentions of it in prose.
-      if (/\breadinessScore\s*\??\s*[).\],}]|\breadinessScore\s*\?\?/.test(source)) {
-        offenders.push(relative);
-      }
+      /**
+       * A *read of the stored field*, which is `something.readinessScore`.
+       *
+       * Three things must not trip it, and the first draft tripped on all
+       * three: the shared function is also called `readinessScore` (my naming
+       * collision), so its import and its call sites matched; the write
+       * `readinessScore: projection.score` matched; and the prose in doc
+       * comments explaining this very defect matched. Requiring a leading dot
+       * excludes the first two, and stripping comments excludes the third.
+       */
+      const source = readFileSync(full, "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/\/\/[^\n]*/g, "");
+      if (/\.readinessScore\b/.test(source)) offenders.push(relative);
     }
   };
-  for (const root of ["components", "app"]) walk(join(process.cwd(), root));
+  /**
+   * `features`, `lib` and `server` too, not just the screens.
+   *
+   * The first version of this test scanned only components/ and app/, and so
+   * missed `features/projects/lifecycle-projection.ts` reading the stored score
+   * to populate a `readiness` field — which nothing displayed, making it a trap
+   * for whoever used it next rather than a visible bug. Found by doing the next
+   * task, not by this test, which is the second time a guard here has needed
+   * widening after it passed.
+   */
+  for (const root of ["components", "app", "features", "lib", "server"]) {
+    walk(join(process.cwd(), root));
+  }
+  walk(join(process.cwd(), "functions", "src"));
 
   assert.deepEqual(
     offenders,

@@ -28,7 +28,6 @@ export type LifecycleWorkItem = {
 
 export type ProjectLifecycleProjection = {
   currentStage: "Inquiry" | "Booking" | "Planning" | "Event" | "Delivery";
-  readiness: number;
   nextAction: {
     label: string;
     owner: LifecycleWorkItem["owner"];
@@ -210,6 +209,25 @@ export function projectLifecycleProjection(input: {
   }
 
   const evidence = input.evidence ?? noReadinessEvidence;
+  /**
+   * Checkpoint rows, by the obligation each describes.
+   *
+   * Four of them are also described by a record further down — the
+   * questionnaire response, the contract, the unpaid invoices, the crew
+   * acknowledgement — and both were pushed, so the panel listed the same
+   * obligation twice against the same person and the same due date:
+   * "Completes when the couple submits the form with answers" directly above
+   * "Finish planning questionnaire · 0% complete". More visible once B1's
+   * evidence fix made the panel four rows shorter.
+   *
+   * The record row wins, because it is the specific one: it carries the
+   * percentage, the balance, the signer count. Collected here and filtered at
+   * the end rather than predicted up front, so the record loops keep deciding
+   * for themselves what they push and no predicate is duplicated — which is
+   * how the readiness score came to have three definitions.
+   */
+  const checkpointRowByObligation = new Map<string, string>();
+  const obligationsCoveredByRecords = new Set<string>();
   for (const checkpoint of input.checkpoints ?? []) {
     if (["complete", "waived"].includes(text(checkpoint.status))) continue;
     // Settled by the records, even though nothing wrote it to the document.
@@ -233,6 +251,10 @@ export function projectLifecycleProjection(input: {
     const lane =
       owner === "Client" ? lanes.client : owner === "Crew" ? lanes.crew : lanes.studio;
     const dueAt = due(checkpoint);
+    checkpointRowByObligation.set(
+      text(checkpoint.templateKey),
+      `checkpoint-${checkpoint.id}`,
+    );
     lane.push(
       item({
         id: `checkpoint-${checkpoint.id}`,
@@ -290,6 +312,7 @@ export function projectLifecycleProjection(input: {
       !["completed", "voided", "declined"].includes(text(contract.status)),
   );
   if (activeContract) {
+    obligationsCoveredByRecords.add("contract-completed");
     lanes.client.push(
       item({
         id: `contract-${activeContract.id}`,
@@ -310,6 +333,9 @@ export function projectLifecycleProjection(input: {
   );
   for (const invoice of unpaid) {
     const dueAt = due(invoice);
+    obligationsCoveredByRecords.add(
+      text(invoice.kind) === "retainer" ? "retainer-paid" : "final-balance",
+    );
     lanes.client.push(
       item({
         id: `invoice-${invoice.id}`,
@@ -329,6 +355,7 @@ export function projectLifecycleProjection(input: {
   for (const response of input.questionnaires ?? []) {
     if (["submitted", "reviewed", "complete"].includes(text(response.status)))
       continue;
+    obligationsCoveredByRecords.add("questionnaire-complete");
     lanes.client.push(
       item({
         id: `questionnaire-${response.id}`,
@@ -388,6 +415,7 @@ export function projectLifecycleProjection(input: {
         number(assignment.acknowledgedScheduleVersion) <
           number(assignment.currentScheduleVersion)
       ) {
+        obligationsCoveredByRecords.add("crew-acknowledged");
         lanes.crew.push(
           item({
             id: `crew-ack-${assignment.id}`,
@@ -421,6 +449,21 @@ export function projectLifecycleProjection(input: {
     );
   }
 
+  /**
+   * One obligation, one row. A checkpoint whose record row was pushed above is
+   * dropped here — see `checkpointRowByObligation`.
+   */
+  const superseded = new Set(
+    [...obligationsCoveredByRecords]
+      .map((key) => checkpointRowByObligation.get(key))
+      .filter((id): id is string => Boolean(id)),
+  );
+  if (superseded.size) {
+    for (const key of Object.keys(lanes) as LifecycleLaneKey[]) {
+      lanes[key] = lanes[key].filter((work) => !superseded.has(work.id));
+    }
+  }
+
   const currentStage = stateStage[state] ?? "Inquiry";
   const all = [
     ...lanes.studio,
@@ -437,10 +480,6 @@ export function projectLifecycleProjection(input: {
   const next = prioritized[0];
   return {
     currentStage,
-    readiness: Math.max(
-      0,
-      Math.min(100, number(input.project.readinessScore)),
-    ),
     nextAction: next
       ? {
           label: next.label,

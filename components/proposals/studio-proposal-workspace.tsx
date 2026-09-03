@@ -1718,8 +1718,16 @@ export function StudioProposalWorkspace({
             <div>
               <small>Prepared for</small>
               <h2>{text(client.displayName, "Client")}</h2>
+              {/* No venue clause when there is no venue.
+                  The snapshot takes `venueName` alone, and a job written at
+                  inquiry usually has only a city — so the couple's own proposal
+                  document read "Jun 12, 2027 · Venue pending", which tells them
+                  nothing they do not know and reads as an unfinished product.
+                  A6 was recorded as resolving this; it did not. That fix
+                  relabelled the *job page*, and this is the client's copy. */}
               <p>
-                {date(event.eventDate)} · {text(event.venue, "Venue pending")}
+                {date(event.eventDate)}
+                {text(event.venue) ? ` · ${text(event.venue)}` : ""}
               </p>
             </div>
             <div>
