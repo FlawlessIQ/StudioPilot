@@ -11,13 +11,17 @@ import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { requireEntitlement } from "../saas/entitlement-guard.js";
 import { studioHubCors } from "../security/cors.js";
 import {
-  checkpointSatisfiedByEvidence,
   noReadinessEvidence,
   readinessEvidenceFromFacts,
   type ReadinessEvidence,
 } from "./checkpoint-evidence.js";
 import { loadReadinessEvidence } from "./readiness-evidence-loader.js";
 import { invalidCommandResponse } from "../security/invalid-command.js";
+import {
+  checkpointIsRequired,
+  checkpointIsSatisfied,
+  readinessScore,
+} from "./readiness-score.js";
 
 type CheckpointStatus =
   | "not_started"
@@ -285,25 +289,6 @@ function resolveDueDate(
  * each checkpoint's own `completionMethod` and never infers anything a template
  * declares manual.
  */
-function checkpointSatisfied(
-  checkpoint: CheckpointDocument,
-  timestamp: string,
-  evidence: ReadinessEvidence = noReadinessEvidence,
-): boolean {
-  if (checkpoint.status === "complete") return true;
-  if (
-    checkpoint.status === "waived" &&
-    (!checkpoint.waiverExpiresAt || checkpoint.waiverExpiresAt > timestamp)
-  )
-    return true;
-  // A failed checkpoint is a recorded decision, not a missing record.
-  if (checkpoint.status === "failed") return false;
-  return checkpointSatisfiedByEvidence(
-    checkpoint as unknown as Record<string, unknown>,
-    evidence,
-  );
-}
-
 function readinessItem(
   checkpoint: CheckpointDocument,
   reason: string,
@@ -325,12 +310,17 @@ export function calculateReadiness(
 ): ReadinessProjection {
   const today = timestamp.slice(0, 10);
   const riskThrough = addUtcDays(today, 7);
-  const required = checkpoints.filter((checkpoint) => checkpoint.blocking);
+  // One definition, shared with features/readiness/score.ts. This function
+  // writes `project.readinessScore`, which the Jobs list, the calendar, the
+  // dashboard and the reports all display — so a formula of its own here is
+  // the most expensive place in the product to disagree.
+  const scored = readinessScore(checkpoints, timestamp, evidence);
+  const required = checkpoints.filter(checkpointIsRequired);
   const satisfied = required.filter((checkpoint) =>
-    checkpointSatisfied(checkpoint, timestamp, evidence),
+    checkpointIsSatisfied(checkpoint, timestamp, evidence),
   );
   const blockingItems = required
-    .filter((checkpoint) => !checkpointSatisfied(checkpoint, timestamp, evidence))
+    .filter((checkpoint) => !checkpointIsSatisfied(checkpoint, timestamp, evidence))
     .map((checkpoint) =>
       readinessItem(
         checkpoint,
@@ -344,7 +334,7 @@ export function calculateReadiness(
   const overdueItems = checkpoints
     .filter(
       (checkpoint) =>
-        !checkpointSatisfied(checkpoint, timestamp, evidence) &&
+        !checkpointIsSatisfied(checkpoint, timestamp, evidence) &&
         checkpoint.resolvedDueDate !== null &&
         checkpoint.resolvedDueDate < today,
     )
@@ -354,7 +344,7 @@ export function calculateReadiness(
   const atRiskItems = checkpoints
     .filter(
       (checkpoint) =>
-        !checkpointSatisfied(checkpoint, timestamp, evidence) &&
+        !checkpointIsSatisfied(checkpoint, timestamp, evidence) &&
         checkpoint.resolvedDueDate !== null &&
         checkpoint.resolvedDueDate >= today &&
         checkpoint.resolvedDueDate <= riskThrough,
@@ -362,10 +352,9 @@ export function calculateReadiness(
     .map((checkpoint) => readinessItem(checkpoint, "Due within seven days"));
   const primary = overdueItems[0] ?? blockingItems[0] ?? atRiskItems[0];
   return {
-    score:
-      required.length === 0
-        ? 0
-        : Math.round((satisfied.length / required.length) * 100),
+    // A stored 0 cannot distinguish "nothing required yet" from "nothing
+    // satisfied"; `totalRequired` is what readers must check. See ./readiness-score.ts.
+    score: scored.percent,
     ready: required.length > 0 && blockingItems.length === 0,
     totalRequired: required.length,
     satisfiedRequired: satisfied.length,
@@ -1025,7 +1014,7 @@ export const workflowCommand = onRequest(
             const blocking = dependencies.find(
               (dependency) =>
                 !dependency ||
-                !checkpointSatisfied(dependency, timestamp, checkpointEvidence),
+                !checkpointIsSatisfied(dependency, timestamp, checkpointEvidence),
             );
             if (blocking !== undefined) {
               throw new Error(
@@ -1062,7 +1051,7 @@ export const workflowCommand = onRequest(
           const satisfiedIds = new Set(
             projected
               .filter((candidate) =>
-                checkpointSatisfied(candidate, timestamp, checkpointEvidence),
+                checkpointIsSatisfied(candidate, timestamp, checkpointEvidence),
               )
               .map((candidate) => candidate.id),
           );

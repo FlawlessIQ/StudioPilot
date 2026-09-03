@@ -15,15 +15,22 @@
  * common state for a job that has not reached planning, and should be said
  * rather than scored.
  *
- * Pure function, no I/O. tests/readiness-summary.test.ts pins it against
- * calculateReadiness so the two can never drift.
+ * Pure function, no I/O. The scoring itself now lives in
+ * features/readiness/score.ts and is shared with both engines — this used to
+ * carry its own copy, and the test that claimed to pin it against
+ * `calculateReadiness` pinned it against the *app-side* engine while the
+ * server's, which writes the number every list displays, drifted unchecked.
  */
 
 import {
-  checkpointSatisfiedByEvidence,
   noReadinessEvidence,
   type ReadinessEvidence,
 } from "@/features/readiness/checkpoint-evidence";
+import {
+  checkpointIsRequired,
+  checkpointIsSatisfied,
+  readinessScore,
+} from "@/features/readiness/score";
 
 export type ReadinessCheckpointRecord = Record<string, unknown>;
 
@@ -39,49 +46,20 @@ export type ReadinessSummary = {
 const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
 
-/**
- * Complete, under a waiver that has not expired, or already proven by the
- * project's own records.
- *
- * The third clause is the one the walk of 2026-08-26 was missing: checkpoints
- * are only completed by workflow automation, so a job whose contract, retainer,
- * questionnaire, run of show and crew were all done still read 0% ready with
- * those five listed as blockers. See features/readiness/checkpoint-evidence.ts.
- */
-function satisfied(
-  checkpoint: ReadinessCheckpointRecord,
-  now: Date,
-  evidence: ReadinessEvidence,
-): boolean {
-  const status = text(checkpoint.status);
-  if (status === "complete") return true;
-  if (status === "waived") {
-    const expires = text(checkpoint.waiverExpiresAt);
-    return !expires || new Date(expires) > now;
-  }
-  // A failed checkpoint is a decision someone recorded, not a gap in the
-  // records, so evidence does not overturn it.
-  if (status === "failed") return false;
-  return checkpointSatisfiedByEvidence(checkpoint, evidence);
-}
-
 export function readinessSummary(
   checkpoints: readonly ReadinessCheckpointRecord[],
   now: Date = new Date(),
   evidence: ReadinessEvidence = noReadinessEvidence,
 ): ReadinessSummary {
-  const required = checkpoints.filter(
-    (checkpoint) => checkpoint.blocking === true,
-  );
-  if (required.length === 0)
-    return { tracked: false, percent: 0, blocking: [] };
+  // One definition of the score, shared with the readiness engine and the
+  // server that writes `project.readinessScore`. See features/readiness/score.ts.
+  const score = readinessScore(checkpoints, now.toISOString(), evidence);
+  if (!score.tracked) return { tracked: false, percent: 0, blocking: [] };
 
-  const met = required.filter((checkpoint) =>
-    satisfied(checkpoint, now, evidence),
-  );
+  const required = checkpoints.filter(checkpointIsRequired);
   return {
     tracked: true,
-    percent: Math.round((met.length / required.length) * 100),
+    percent: score.percent,
     /**
      * Soonest due first, because the caller shows the head of this list.
      *
@@ -95,7 +73,10 @@ export function readinessSummary(
      * than one with a date this month.
      */
     blocking: required
-      .filter((checkpoint) => !satisfied(checkpoint, now, evidence))
+      .filter(
+        (checkpoint) =>
+          !checkpointIsSatisfied(checkpoint, now.toISOString(), evidence),
+      )
       .slice()
       .sort((left, right) =>
         (text(left.resolvedDueDate) || "9999-12-31").localeCompare(
