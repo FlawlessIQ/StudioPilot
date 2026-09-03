@@ -11,6 +11,36 @@ import { activeMembership } from "@/lib/firebase/active-membership";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { validateStudioImportFileCandidate } from "@/features/studio-import/schema";
 
+/**
+ * Import failures a person can act on.
+ *
+ * Hoisted out of the response handler so `tests/error-copy-coverage.test.ts`
+ * can see it: studio import is a third surface with its own map, alongside
+ * lib/ai/friendly-error.ts and lib/crew/public-error.ts, and a code answered
+ * here must not be reported as uncovered there.
+ */
+const IMPORT_ERRORS: Record<string, string> = {
+  IMPORT_WEBSITE_URL_NOT_PUBLIC:
+    "Use a public HTTPS page that does not require a login.",
+  IMPORT_WEBSITE_FETCH_FAILED:
+    "StudioCue could not open that page. Check the URL and try again.",
+  IMPORT_WEBSITE_CONTENT_UNSUPPORTED:
+    "That URL is not an HTML or text page that StudioCue can import.",
+  IMPORT_WEBSITE_TOO_LARGE:
+    "That page is too large to import safely. Upload a PDF or paste the relevant content instead.",
+  IMPORT_WEBSITE_NO_READABLE_CONTENT:
+    "StudioCue could not find readable content on that page. Upload a PDF or paste the content instead.",
+  IMPORT_WEBSITE_TOO_MANY_REDIRECTS:
+    "That page redirects too many times. Use its final public URL instead.",
+  IMPORT_EMBEDDED_FORM_UNREADABLE:
+    "That page contains a form embedded by another service, so StudioCue cannot safely read its fields. Export or print the form as a PDF and use Upload files instead.",
+};
+
+/** Whether studio import has copy for this code. */
+export function importErrorCodeHasCopy(code: string): boolean {
+  return Object.hasOwn(IMPORT_ERRORS, code);
+}
+
 export type StudioImportRemoteItem = {
   id: string;
   clientId: string;
@@ -149,25 +179,9 @@ async function command<T>(
   }
   const result = (await response.json()) as T & { error?: string };
   if (!response.ok) {
-    const friendlyErrors: Record<string, string> = {
-      IMPORT_WEBSITE_URL_NOT_PUBLIC:
-        "Use a public HTTPS page that does not require a login.",
-      IMPORT_WEBSITE_FETCH_FAILED:
-        "StudioCue could not open that page. Check the URL and try again.",
-      IMPORT_WEBSITE_CONTENT_UNSUPPORTED:
-        "That URL is not an HTML or text page that StudioCue can import.",
-      IMPORT_WEBSITE_TOO_LARGE:
-        "That page is too large to import safely. Upload a PDF or paste the relevant content instead.",
-      IMPORT_WEBSITE_NO_READABLE_CONTENT:
-        "StudioCue could not find readable content on that page. Upload a PDF or paste the content instead.",
-      IMPORT_WEBSITE_TOO_MANY_REDIRECTS:
-        "That page redirects too many times. Use its final public URL instead.",
-      IMPORT_EMBEDDED_FORM_UNREADABLE:
-        "That page contains a form embedded by another service, so StudioCue cannot safely read its fields. Export or print the form as a PDF and use Upload files instead.",
-    };
     const error = typeof result.error === "string" ? result.error : "";
     throw new Error(
-      friendlyErrors[error] ??
+      IMPORT_ERRORS[error] ??
         (error ? error.replaceAll("_", " ").toLowerCase() : null) ??
         "Studio import could not be completed.",
     );

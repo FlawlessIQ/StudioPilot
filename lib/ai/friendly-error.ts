@@ -327,6 +327,23 @@ export function friendlyAiError(
 }
 
 /**
+ * Whether this code resolves to copy a studio can read, or falls through to
+ * whatever generic sentence the calling form happened to pass.
+ *
+ * Exported for `tests/error-copy-coverage.test.ts`, which holds the rule that
+ * every failure a person can trigger says what went wrong. It answers with the
+ * *same* logic `friendlyAiError` uses — the code maps and the prefix
+ * fallbacks — rather than a second list that would drift from it. A test that
+ * re-implemented the lookup could pass while the product still said
+ * "Try again".
+ */
+export function errorCodeHasCopy(code: string): boolean {
+  if (Object.hasOwn(DETAILED_BY_CODE, code)) return true;
+  if (Object.hasOwn(FRIENDLY_BY_CODE, code)) return true;
+  return PREFIX_FALLBACKS.some(([pattern]) => pattern.test(code));
+}
+
+/**
  * Same rules, general name. Non-AI surfaces (booking evidence, records
  * panels) show these notices too and must not leak plumbing either.
  */

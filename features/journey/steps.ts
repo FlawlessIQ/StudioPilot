@@ -30,6 +30,75 @@ export type JourneyStepKey =
   | "delivery"
   | "album_review";
 
+/**
+ * What each step needs finished before it may be the studio's next move.
+ *
+ * The next move is `steps.find((step) => step.status === "current")`, so a step
+ * that claims `current` too early *becomes* the instruction on the job page. A
+ * step waiting on the client is `waiting_client`, not `current`, which means
+ * the finder walks straight past it — and the step behind it inherits the card
+ * without being asked whether its own input had arrived.
+ *
+ * That is how a job whose proposal had been sent ninety seconds earlier, and
+ * never opened, came to lead with "Send contract — built from the accepted
+ * proposal", linking to a contracts page that answered "The client's accepted
+ * proposal is required first." The card sent the studio somewhere that refused
+ * them, and the only thing that noticed was a person walking the product by
+ * hand.
+ *
+ * Declared here rather than left implicit in each step's ternaries, because
+ * `tests/journey-preconditions.test.ts` enforces three things against it over
+ * every combination of records it can construct:
+ *
+ *   1. a `current` step's requirements are all complete;
+ *   2. an `upcoming` step offers no action, so nobody is sent to a page that
+ *      will refuse them;
+ *   3. a `current` step offers *something* — an action or a manual advance —
+ *      because a next move you cannot take is not a next move.
+ *
+ * An empty list is a real answer and several steps have one. It means the step
+ * can genuinely be started whenever the studio likes, and the reason is worth
+ * writing down:
+ *
+ * - `consultation`, `proposal` — a studio may book a call or price a job
+ *   before replying in StudioCue; plenty reply from their phone.
+ * - `schedule_form`, `coi`, `crew` — preparation work with no ordering between
+ *   them. Chaining these is exactly the defect B9 fixed in the readiness
+ *   template, and it is not being reintroduced here.
+ * - `run_of_show` — deliberately open, though it reads the form. The generator
+ *   asks for coverage and ceremony times directly and says so ("Fill in what
+ *   you know. Anything you leave blank is guessed"), and "Build it myself"
+ *   needs nothing at all. Drafting early is legitimate; only the claim that it
+ *   came from the form was wrong.
+ * - `final_balance`, `day_before`, `event_day` — gated by the calendar, not by
+ *   another step. `unlock` carries that ("Unlocks about 45 days before the
+ *   event").
+ */
+export const journeyStepRequires: Record<
+  JourneyStepKey,
+  readonly JourneyStepKey[]
+> = {
+  inquiry: [],
+  first_reply: ["inquiry"],
+  consultation: [],
+  proposal: [],
+  // Both destinations refuse without the step before: /studio/contracts wants
+  // an accepted proposal, and the retainer is created after signature.
+  contract: ["proposal"],
+  retainer: ["contract"],
+  schedule_form: [],
+  run_of_show: [],
+  crew: [],
+  coi: [],
+  final_balance: [],
+  day_before: [],
+  event_day: [],
+  // There is no gallery to deliver before the event, and nothing to select
+  // from or review before a gallery.
+  delivery: ["event_day"],
+  album_review: ["delivery"],
+};
+
 export type JourneyStepStatus =
   | "complete"
   | "current"

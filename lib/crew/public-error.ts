@@ -93,3 +93,14 @@ const CREW_CODE_MESSAGES: Record<string, string> = {
   CREW_PROFILE_NOT_FOUND:
     "Your crew profile could not be found for this studio. Ask them to re-send your invitation.",
 };
+
+/**
+ * Whether the crew portal has copy for this code.
+ *
+ * Same purpose as `errorCodeHasCopy` in lib/ai/friendly-error.ts: the crew
+ * portal is a separate surface with its own map, and a code thrown by
+ * `crewInvitationCommand` is answered here rather than there.
+ */
+export function crewErrorCodeHasCopy(code: string): boolean {
+  return Object.hasOwn(CREW_CODE_MESSAGES, code);
+}
