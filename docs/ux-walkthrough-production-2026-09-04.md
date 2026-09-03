@@ -637,3 +637,18 @@ was 7) because the offer opens new requirements (crew confirmed, W-9, COI) —
 taking the correct next step lowers the headline number, which could read as
 going backwards.
 **E8 (crew accepts) parked for Conor** — needs the conor@ad-helm.com inbox.
+
+**E11 · Readiness judgements — Mark done and Waive both work, no B9 regression.**
+Readiness page lists 12 checkpoints ("the judgements are yours"), auto-ones show
+only Waive, judgement-ones show Mark done + Waive, and completed ones (Contract,
+Retainer, Final run of show) show green with no buttons. **Mark done** ("Venue
+confirmed") opened "How do you know?" with the note "Recorded against your name
+in the audit log … your judgement, not something StudioCue saw"; submitting a
+reason moved Score 25% → 33%, 4/12, blocking 9 → 8 — **no `DEPENDENCIES_INCOMPLETE`
+(B9 holds)**. **Waive** ("Primary contacts confirmed") asked "Why is this being
+waived?", recorded the reason, moved Score 33% → 42%, 5/12, blocking → 7, and
+the row now reads "Waived · Due Sep 24". Auto-completing checkpoints correctly
+offer no "Mark done" and instead name their action ("Send the questionnaire",
+"Open crew", "Invoice the balance"). Minor: the Waive reason field's placeholder
+("The venue does not require a certificate") is COI-specific and reads oddly
+under non-COI checkpoints.
