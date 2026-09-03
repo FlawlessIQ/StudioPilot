@@ -345,11 +345,10 @@ titles.
 inquiry · Hi Maya, Walk Studio received your inquiry and will…" from
 studio@studio-cue.com, branded "Walk Studio · Client operations powered by
 StudioCue" — the correct tenant/platform pairing (contrast P3, where the same
-strap named StudioCue twice because the sender *was* the platform). Note: this
-send does not appear in the tenant's `emailJobs` (0 `inquiry_acknowledgement`
-rows) though it clearly delivered — the acknowledgement uses a different
-dispatch path, so the studio's email log/reconciler would not track it. Minor,
-flagged.
+strap named StudioCue twice because the sender *was* the platform). (Correction: an earlier note here claimed the acknowledgement was not in the
+tenant's `emailJobs`; that was a bug in my query. It *is* tracked —
+`inquiry_acknowledgement`, status `succeeded` — as is the reply
+(`manual_message`).)
 **C3 · Lead created:** one lead, Maya Ellison, status `new`, correct email.
 Studio-side view: below.
 **C3 · Studio-side, holding well (the north star working).** Today led with
@@ -366,3 +365,101 @@ undefined" was a field-name mismatch, not a defect.
 OAuth — `integrationConnections` still 0. C4 (book a consultation) is walkable
 without them, but the Zoom meeting-link step needs B5. A8 (change cadence in
 the Stripe portal, watch the webhook) also awaits Conor.
+
+### P12 · A declined OAuth is reported as a broken one, and the provider is lost · B5 · #5 (new error-copy) · blocker for that provider
+Connecting Google Calendar failed with the banner "The provider did not return
+a valid authorization result. Start the connection again." Logs show Google
+returned `?error=access_denied&state=…` (no `code`). The callback
+(`functions/src/integrations/oauth.ts:503-505`) reads only `state` and `code`
+and throws `OAUTH_CALLBACK_INVALID` when either is missing — it never inspects
+`request.query.error`. Consequences:
+1. **Wrong meaning.** `access_denied` is a *valid* provider response (consent
+   declined, or the studio's Google account is not permitted for this OAuth
+   app yet). The copy says the provider "did not return a valid authorization
+   result" — the opposite of what happened — and tells the user to "start
+   again", which loops if the cause is app config.
+2. **Provider lost.** It throws before parsing `state`→`provider` (line 515),
+   so `integration_oauth_failed` logs `provider: null, tenantId: null`. The
+   `state` doc could resolve both; the handler should read the error, look up
+   `state`, name the provider, and map `access_denied` to an actionable line
+   ("Google didn't grant access — you may have declined, or this studio's
+   Google account isn't allowed for this app yet. Check with your admin.").
+This is the error-copy class the guard baselined on this route (4 codes);
+`OAUTH_CALLBACK_INVALID` is being overloaded to cover a case it should not.
+
+**Root cause of the denial (Conor's side, not code):** almost certainly the
+Google Cloud OAuth consent screen is in *Testing* mode / unverified for the
+Calendar scope, so the Google account used is not an allowed test user. Fix is
+in Google Cloud console (add the account as a test user, or publish/verify the
+app) — separate from the P12 handling bug.
+
+**B5/B6 · Zoom + QuickBooks connected.** Both `integrationConnections`
+`connected`. Consultation meeting links (Zoom) will work; Google Calendar sync
+will not until the above is resolved. **CAUTION — QuickBooks connected to
+Conor's LIVE company, not a sandbox** (a `realmId` is present). Invoice steps
+in D/E would create *real* invoices there — either point QuickBooks at a
+sandbox before D5/E9, or expect and then void real invoices. Flagged so we do
+not silently bill through a live book.
+
+### P13 · The "personalized" reply is not personalized, and leaks a raw placeholder · C2 · #5/#3 · quality (client-facing)
+The AI-prepared inquiry reply (card titled "Personalized inquiry reply") is
+strong in the body — it correctly names Oct 24, The Glasshouse in Montclair,
+two shooters, candid family moments, the relaxed warm feel, late-afternoon
+ceremony into evening reception, and invents no pricing/availability
+("Grounded in the original inquiry"). But:
+1. **Salutation:** opens "Dear Client," when the couple's names (Maya /
+   Daniel) are on the same record and in the header. A "personalized" reply
+   that will not say "Dear Maya" undercuts the feature's whole promise.
+2. **Unfilled placeholder ships to the client:** it signs off "Warmly,
+   **[Studio Name]**" — a literal template token, not "Walk Studio". Approving
+   from Today ("Approve", one tap) would send "[Studio Name]" to the couple.
+   AI/template output that reaches a client must never contain a raw slot; the
+   studio name is known.
+The Today card offers only Approve / Hide (no inline edit), so the fast path
+sends the placeholder as-is; editing exists only via "Review, edit, or
+approve" → `/studio/ai-queue`. Good adjacent work: "Before the consultation ·
+The essential intake details are complete" and three specific, well-grounded
+"Suggested questions".
+**C2 · AI reply reviewed, edited, sent — the edit path works.** AI queue
+("Prepared for you. Never decided for you.") offered Approve / Edit first /
+Reject / Snooze / Dismiss at 93% confidence, with "Why StudioCue prepared
+this". "Edit first" made subject and body editable; I corrected the P13
+defects ("Dear Client"→"Dear Maya and Daniel", "[Studio Name]"→"Walk Studio"),
+approved, then "Send reply now". The couple received it 18:52Z reading exactly
+the edited text, branded "Walk Studio · powered by StudioCue" — so studio edits
+persist through the send, not just the preview. Two-step is clear: Approve
+creates the draft ("Approving runs create communication draft"), "Send reply
+now" dispatches. Note: the lead status stayed `new` after the reply (did not
+advance to a "replied/contacted" state) — plan expected the journey's "first
+reply" to complete; to re-check on the studio view below.
+
+## Phase C · consultation (cont.)
+
+**C4 · Consultation booked (studio-side), Zoom works, calendar degrades
+honestly.** From the project's "Schedule consultation" next-move, the studio
+calendar offered availability-derived 45-min slots. Booking dialog pre-selected
+the project and Zoom, and stated the truth: "Nothing is connected to put events
+on your calendar… Connect Google Calendar" while "StudioCue will create meeting
+links through Zoom." Booked Sept 4 10:00 ET; the record has a real Zoom join URL
+(`us05web.zoom.us/j/…`), status `scheduled`, and the calendar footer reads
+"Live calendar sync is unavailable right now — only internal bookings are
+shown." Zoom integration verified end-to-end.
+
+### P14 · A studio-booked consultation tells the client nothing · C4 · #4 · wall (client-facing)
+When the studio books the consultation on the couple's behalf, **no
+confirmation email is sent** — the tenant's `emailJobs` holds only
+`inquiry_acknowledgement` and `manual_message`; there is no
+`consultation_confirmation`. The record carries `reminderJobIds` (reminders may
+fire later) but nothing at booking time tells the couple *when* the
+consultation is or gives them the Zoom link. With Google Calendar disconnected
+(P12) there is also no calendar invite. Net: a couple has a Sept 4 10:00 Zoom
+call they will never know about. The `consultation_confirmation` template
+exists and the self-book path (`public-scheduling.ts`) sends it — the
+studio-direct booking path skips it. Booking someone a meeting must notify
+them; send `consultation_confirmation` (time, timezone, join URL) on
+studio-side booking too.
+**C5 · Journey advanced on booking.** Booking the consultation moved the job to
+"Talking" and checked Enquiry 3/3 (Inquiry received, First reply, Consultation);
+next move is "Prepare proposal". A separate "complete with notes ≥20 chars" step
+(plan C5) was not required — the booked consultation satisfied the Consultation
+checkpoint. "Log a call" tab is available on the project for notes.
