@@ -605,3 +605,16 @@ for review" in history, **Event Readiness 33% → 42%** ("7 blockers:
 Questionnaire complete +6 more"). E5a (couple approves) parked for Conor.
 So the only AI-quality defect here is the zero-duration item the studio must
 delete by hand; everything else about the publish gate is correct.
+
+### P17 · "Send the form" assigns the questionnaire but never emails the couple · E1 · #4 · wall (client-facing)
+The next-move button reads "Send Maya Ellison wedding their details form" →
+"Send the form". After clicking, the studio shows the Wedding Planning
+Questionnaire assigned ("Progress 0% · Due Sep 9 · not started"), but the
+couple received **no email** — the tenant's `emailJobs` never gains a
+`questionnaire_request` (5 jobs: acknowledgement, reply, proposal, retainer,
+schedule_review), and the couple's inbox has nothing about a form. So the
+couple is never told a form is waiting; the studio believes it "sent" one. The
+schedule-review path, by contrast, does email — so this is an inconsistency,
+not a platform-wide email outage. Either "Send the form" must queue
+`questionnaire_request`, or the button must not say "Send" (and the couple must
+learn about it some other disclosed way, e.g. the portal with a nudge).
