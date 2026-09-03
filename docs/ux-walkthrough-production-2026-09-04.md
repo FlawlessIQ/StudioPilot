@@ -463,3 +463,38 @@ studio-side booking too.
 next move is "Prepare proposal". A separate "complete with notes ≥20 chars" step
 (plan C5) was not required — the booked consultation satisfied the Consultation
 checkpoint. "Log a call" tab is available on the project for notes.
+
+## Phase D · Proposal & booking
+
+**D1 · Proposal built, holding well.** Builder leads with "The price you send
+is the price they see" and "Price locked · Changing your package later won't
+alter a proposal you have already sent" (the anti-drift language). Locked the
+Full Day Wedding package ($4,500; retainer prefilled $1,350 = 30%; tax $0).
+"Draft from the consultation" (AI) produced correctly personalized copy: "Dear
+Maya Ellison, We are thrilled to present this proposal for your wedding
+photography at The Glasshouse in Montclair, NJ on October 24, 2026…" — note it
+got the name right, unlike the inquiry-reply drafter (P13), so P13 is specific
+to that one drafter. Timing had sensible defaults (expires Sep 10, final
+balance Oct 10). "Creating a draft does not notify the client. Approval is
+required before sending."
+**D2 · PDF built (cloud-run).** "Approve this proposal" → V1 preserved →
+"Generating branded PDF" → "Branded PDF ready · Stored privately until this
+proposal is sent" with an "Open PDF" link (real Firebase Storage URL). Right
+rail honest: "Nothing is connected to send the agreement for signature… record
+the signature on the booking" and "StudioCue will save and track invoices
+through QuickBooks". Job link in the heading at every status (A17 holds).
+**D3 · Proposal sent.** Status Sent, "Viewed · Not yet". Email arrived 19:01Z:
+"Your proposal from Walk Studio · Powered by StudioCue", with the branded PDF
+attached (`maya-ellison-wedding-proposal-v1.pdf`), a portal "Review proposal"
+link, and "Accepting a proposal does not sign a contract or collect a payment.
+Those steps remain separate." Correct branding and disclosure. (The portal link
+is SendGrid click-tracked, same as P3.)
+
+## Parked — needs a decision before continuing
+- **D4a (couple accepts)** requires acting as the couple. The portal link
+  authenticates `conor+couple@flawlessiq.com`; opening it in the owner's signed-in
+  Chrome would switch identity there. Cleaner for Conor to open it, or accept
+  that the owner session is replaced and re-signed after.
+- **D6 (retainer invoice)** would create a **real invoice in Conor's live
+  QuickBooks** (P-note: connected live, not sandbox). Do not run D6 until that
+  is either pointed at a sandbox or explicitly accepted.
