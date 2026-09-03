@@ -521,3 +521,13 @@ QuickBooks invoice #7 in the live company.** Minor: the retainer-due shown is
 Sep 10 (proposal expiry) though I set the proposal's retainer-due to Sep 20 —
 the invoice due date did not follow the proposal field (worth a look, low
 severity).
+
+**D7 · Booking confirmed — the gate holds and copy is clean.** Recorded the
+retainer paid (form disclosure: "does not mark it paid in QuickBooks — do that
+there too, so the two agree"), which flipped Retainer → Paid and Booking →
+"Ready to confirm". "Check and confirm" ("Nothing here can be talked into
+skipping a step") → all three green (Signed / Paid / Confirmed), badge
+**Booked**, message "Booking is confirmed · We're setting up the client portal,
+the planning checklist, the calendar entry and the job folder — this takes a
+minute. Nothing else is needed from you." No "project setup jobs" jargon (A29
+holds).
