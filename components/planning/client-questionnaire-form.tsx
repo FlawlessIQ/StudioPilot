@@ -23,6 +23,10 @@ import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { uploadClientQuestionnaireFile } from "@/lib/client/questionnaire-upload";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import {
+  outstandingNotice,
+  outstandingRequired,
+} from "@/features/questionnaires/outstanding";
 
 type Field = {
   id: string;
@@ -242,14 +246,11 @@ export function ClientQuestionnaireForm({
   const requiredFields = visibleSections.flatMap((section) =>
     section.fields.filter((field) => field.required),
   );
-  const completedRequired = requiredFields.filter((field) => {
-    const value = answers[field.id];
-    return Array.isArray(value)
-      ? value.length > 0
-      : typeof value === "boolean"
-        ? value
-        : String(value ?? "").trim().length > 0;
-  }).length;
+  // One definition of "answered", shared with the badge and the notice below —
+  // see features/questionnaires/outstanding.ts.
+  const outstanding = outstandingRequired(requiredFields, answers);
+  const outstandingIds = new Set(outstanding.map((field) => field.id));
+  const completedRequired = requiredFields.length - outstanding.length;
   const completionPercent = requiredFields.length
     ? Math.round((completedRequired / requiredFields.length) * 100)
     : 100;
@@ -395,7 +396,16 @@ export function ClientQuestionnaireForm({
               <label key={field.id}>
                 <span>
                   {field.label}
-                  {field.required ? <em>Required</em> : null}
+                  {/* After submission the badge has to mean what the notice
+                      says it means. "Required" on a field already holding
+                      16:30, beside "the ones marked required are the ones your
+                      studio is still missing", sent a couple looking at the
+                      wrong field — one they could not edit anyway. */}
+                  {field.required ? (
+                    <em className={submitted && outstandingIds.has(field.id) ? "is-outstanding" : undefined}>
+                      {submitted && outstandingIds.has(field.id) ? "Still needed" : "Required"}
+                    </em>
+                  ) : null}
                 </span>
                 {field.type === "information" ? (
                   <p>{String(answers[field.id] ?? "")}</p>
@@ -475,9 +485,7 @@ export function ClientQuestionnaireForm({
         {submitted ? (
           <p className="form-notice">
             <CheckCircle2 size={16} />{" "}
-            {completionPercent < 100
-              ? "Submitted with some questions unanswered. The ones marked required are the ones your studio is still missing."
-              : "Submitted. Message your studio if an answer needs to be reopened."}
+            {outstandingNotice(outstanding.map((field) => field.label))}
           </p>
         ) : null}
         <button

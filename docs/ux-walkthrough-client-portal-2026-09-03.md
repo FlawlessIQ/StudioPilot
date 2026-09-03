@@ -305,3 +305,44 @@ pages in the nav, and the schedule decision is one click from the home page.
 
 Each new guard was proved by breaking its rule and watching it fail.
 
+---
+
+## Fixed — 2026-09-03, the rest
+
+All five remaining portal findings, verified on screen as Maya on a fresh
+build against the seeded records.
+
+**CP4.** "Required" and "still needed" are different things, and the badge now
+knows which. `features/questionnaires/outstanding.ts` derives outstanding
+required fields from the *answers*; the form, the badge and the notice share
+it. Verified: Ceremony time (holding 16:30) reads **Required**, Family photo
+list (empty) reads **Still needed**, and the notice says "Submitted — your
+studio is still missing Family photo list. Message them to reopen the form and
+add it." — instead of pointing at both.
+
+**CP5.** The hub no longer filters away the one artifact that mattered.
+Verified: "Event schedule · Version 4 · awaiting your review" is listed, and
+"No approved records yet" is gone.
+
+**CP6.** The shared filler is deleted — the "What happens next · Your studio
+prepares this area · You'll be notified · Only approved project details appear
+here" aside no longer exists. `features/client/portal-day.ts` gives payments,
+records, delivery and reviews each a specific reason, before and after the day.
+Verified titles: **Nothing to pay**, **No records yet**, **No review requested
+yet**, and delivery below. `tests/portal-day.test.ts` holds that no page can
+reuse that filler and that no two pages say the same thing.
+
+**CP7.** The lead-photographer fallback follows the *date*, not the stage.
+Verified nineteen days post-wedding at PLANNING: "Ask your studio who covered
+your day", where it had promised "Your studio will confirm this".
+
+**CP8.** Past the day with no gallery, delivery reads **"Your photographs are
+being worked on"** — editing in progress, the link will appear here, message
+the studio to ask when. **No expected date is shown, because none exists**:
+nothing the portal can read carries a delivery due date, and inventing one
+would be worse than the gap. That field is the honest next step if the studio
+wants to promise a date.
+
+The portal walk is closed. Every finding is fixed or, for the delivery date,
+named as a feature the product does not yet have.
+

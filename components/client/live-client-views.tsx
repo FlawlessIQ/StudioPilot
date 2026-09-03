@@ -39,6 +39,11 @@ import {
 import type { ClientMilestone } from "@/server/client/portal-experience";
 import { daysUntilEvent, todayLocalIso } from "@/lib/format/event-date";
 import {
+  eventHasPassed,
+  portalEmptyNotice,
+  type PortalEmptyArea,
+} from "@/features/client/portal-day";
+import {
   displayableScheduleItems,
   scheduleItemClock,
 } from "@/features/schedules/item-clock";
@@ -413,6 +418,8 @@ function PortalPageState({
   empty,
   area,
   milestones,
+  emptyArea,
+  eventDate = null,
 }: {
   eyebrow: string;
   title: string;
@@ -427,30 +434,37 @@ function PortalPageState({
    */
   area?: PortalArea;
   milestones?: ClientMilestone[] | null;
+  /**
+   * For the four pages that shared one block of filler: which page this is,
+   * so the empty state can say something true and specific, and know whether
+   * the day has been and gone. See features/client/portal-day.ts.
+   */
+  emptyArea?: PortalEmptyArea;
+  eventDate?: string | null;
 }) {
   const behind = area ? portalStageIsBehind(milestones, area) : false;
   const past = behind && area ? portalPastNotice(area) : null;
+  const dayNotice =
+    !past && emptyArea
+      ? portalEmptyNotice(emptyArea, eventHasPassed(eventDate, todayLocalIso()))
+      : null;
+  const notice = past ?? dayNotice;
   return (
     <div className="client-booking-page">
       <p className="eyebrow">{eyebrow}</p>
       <h1>{title}</h1>
       <p>{description}</p>
+      {/* The "What happens next" aside that used to follow every empty state —
+          "Your studio prepares this area · You'll be notified when it changes
+          · Only approved project details appear here" — is gone. It said the
+          same three things on four pages and none of them answered a question
+          the couple had. The page's own notice now carries the reason. */}
       <PortalState
-        emptyTitle={past?.title}
-        empty={empty ? (past ? past.detail : empty) : undefined}
+        emptyTitle={notice?.title}
+        empty={empty ? (notice ? notice.detail : empty) : undefined}
         error={error}
         loading={loading}
       />
-      {empty && !past ? (
-        <aside className="portal-empty-guide" aria-label="What happens next">
-          <p className="eyebrow">What happens next</p>
-          <div>
-            <span><CheckCircle2 /><strong>Your studio prepares this area</strong></span>
-            <span><MessageCircle /><strong>You’ll be notified when it changes</strong></span>
-            <span><ShieldCheck /><strong>Only approved project details appear here</strong></span>
-          </div>
-        </aside>
-      ) : null}
     </div>
   );
 }
@@ -645,7 +659,18 @@ export function LiveClientHome() {
       icon: BookOpenCheck,
     },
   ];
-  const availableRecords = artifacts.filter((artifact) => artifact.ready);
+  /**
+   * Ready records, plus anything waiting on the couple.
+   *
+   * This filtered on `ready` alone, so the one artifact that mattered most —
+   * "Event schedule · Version 4 · awaiting your review", with its link — was
+   * computed and then discarded, and the hub read "No approved records yet".
+   * The next-action card now carries that decision too, but the hub is where
+   * a couple looks for "what is mine to do"; it should not answer "nothing".
+   */
+  const availableRecords = artifacts.filter(
+    (artifact) => artifact.ready || /awaiting your review/i.test(artifact.detail),
+  );
   const upcomingMilestones = value.milestones
     .filter((milestone) => milestone.status !== "complete")
     .slice(0, 3);
@@ -863,7 +888,10 @@ export function LiveClientProjectDetails() {
               project that is past it. */}
           <span><small>Lead photographer</small><strong>{text(
             value.leadPhotographerName,
-            portalStageIsBehind(value.milestones, "schedule")
+            // Stage-based before: at PLANNING nineteen days after the wedding
+            // it still promised confirmation of who had already shot it.
+            portalStageIsBehind(value.milestones, "schedule") ||
+              eventHasPassed(value.eventDate, todayLocalIso())
               ? "Ask your studio who covered your day"
               : "Your studio will confirm this",
           )}</strong></span>
@@ -894,6 +922,7 @@ export function LiveClientProjectDetails() {
 }
 
 export function LiveClientDocuments() {
+  const portalProject = useProject();
   const documents = useProjectRecords("documents");
   const contracts = useProjectRecords("contracts");
   const invoices = useProjectRecords("invoiceReferences");
@@ -999,6 +1028,8 @@ export function LiveClientDocuments() {
         loading={loading}
         error={error}
         empty={!loading && !error ? "Approved project records will appear here as your project progresses." : undefined}
+        emptyArea="documents"
+        eventDate={portalProject.value?.eventDate ?? null}
       />
     );
   return (
@@ -2008,6 +2039,7 @@ export function LiveClientContract() {
 }
 
 export function LiveClientPayments() {
+  const portalProject = useProject();
   const invoices = useProjectRecords("invoiceReferences");
   const [openedInvoiceId, setOpenedInvoiceId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -2027,7 +2059,7 @@ export function LiveClientPayments() {
     };
   }, [openedInvoiceId, refreshInvoices]);
   if (invoices.error || invoices.value.length === 0)
-    return <PortalPageState eyebrow="Payments" title="Your payment schedule" description="Review amounts, due dates, and secure payment links." loading={invoices.loading} error={invoices.error} empty={!invoices.loading && !invoices.error ? "Invoices will appear here when your studio creates them." : undefined} />;
+    return <PortalPageState eyebrow="Payments" title="Your payment schedule" description="Review amounts, due dates, and secure payment links." loading={invoices.loading} error={invoices.error} empty={!invoices.loading && !invoices.error ? "Invoices will appear here when your studio creates them." : undefined} emptyArea="payments" eventDate={portalProject.value?.eventDate ?? null} />;
   return (
     <div className="client-booking-page">
       <p className="eyebrow">Payments</p>
@@ -2442,7 +2474,7 @@ export function LiveClientDelivery() {
   const delivery = deliveries.value[0];
   const album = albums.value[0];
   if (deliveries.loading || deliveries.error || !delivery)
-    return <PortalPageState eyebrow="Your photographs" title="Delivery" description="Open your gallery and confirm when your download is complete." loading={deliveries.loading} error={deliveries.error} empty={!deliveries.loading && !deliveries.error ? "Your secure gallery details will appear after delivery." : undefined} area="delivery" milestones={portalProject.value?.milestones ?? null} />;
+    return <PortalPageState eyebrow="Your photographs" title="Delivery" description="Open your gallery and confirm when your download is complete." loading={deliveries.loading} error={deliveries.error} empty={!deliveries.loading && !deliveries.error ? "Your secure gallery details will appear after delivery." : undefined} area="delivery" milestones={portalProject.value?.milestones ?? null} emptyArea="delivery" eventDate={portalProject.value?.eventDate ?? null} />;
   const expirationAt = new Date(String(delivery.expirationDate)).valueOf();
   const daysUntilExpiration = Number.isNaN(expirationAt)
     ? null
@@ -2711,7 +2743,7 @@ export function LiveClientReviews() {
   const reviews = useProjectRecords("reviewRequests");
   const review = reviews.value.find((item) => item.status !== "skipped");
   if (reviews.loading || reviews.error || !review)
-    return <PortalPageState eyebrow="After delivery" title="Reviews" description="Your studio may invite you to share feedback after delivery." loading={reviews.loading} error={reviews.error} empty={!reviews.loading && !reviews.error ? "A review request may appear after your gallery is delivered." : undefined} area="reviews" milestones={portalProject.value?.milestones ?? null} />;
+    return <PortalPageState eyebrow="After delivery" title="Reviews" description="Your studio may invite you to share feedback after delivery." loading={reviews.loading} error={reviews.error} empty={!reviews.loading && !reviews.error ? "A review request may appear after your gallery is delivered." : undefined} area="reviews" milestones={portalProject.value?.milestones ?? null} emptyArea="reviews" eventDate={portalProject.value?.eventDate ?? null} />;
   const confirmed = ["client_confirmed", "manually_confirmed"].includes(
     String(review.status),
   );
