@@ -498,3 +498,15 @@ is SendGrid click-tracked, same as P3.)
 - **D6 (retainer invoice)** would create a **real invoice in Conor's live
   QuickBooks** (P-note: connected live, not sandbox). Do not run D6 until that
   is either pointed at a sandbox or explicitly accepted.
+
+**D4a · Couple accepted (Conor opened the portal link).** Proposal went
+sent → viewed → accepted; studio side moved to "Awaiting signature", journey
+5/15, "Maya accepted the proposal" in job history.
+**D5 · Signed agreement recorded (A25/A26/A27 all hold).** Contract page led
+with "StudioCue has no signing app connected, so you send the agreement
+yourself and record the signature here." Recorded (Maya Ellison, 2026-09-03,
+"Signed PDF returned by email"). After: Contract "Signed", status "Signature
+recorded against your name. The retainer is the next step." (advanced without
+a reload — A26), evidence row "Signed elsewhere · recorded by you" (not a
+hash — A27), project → "Awaiting deposit". Disclosure was clear: "records this
+as your attestation, not a verified signature."
