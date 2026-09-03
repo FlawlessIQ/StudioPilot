@@ -516,6 +516,25 @@ async function clientProject(tenantId: string, projectId: string) {
       return [key, visible];
     }),
   );
+  /**
+   * The run of show as it stands, so a version awaiting the couple is their
+   * next action rather than a page reachable only by typing the URL. Same
+   * highest-version rule as the proposal below.
+   */
+  const scheduleIndex = Object.keys(availabilityCollections).indexOf("schedule");
+  const currentScheduleDoc = [...availabilitySnapshots[scheduleIndex].docs].sort(
+    (left, right) =>
+      Number(right.get("version") ?? 0) - Number(left.get("version") ?? 0),
+  )[0];
+  const currentSchedule = currentScheduleDoc
+    ? {
+        status: String(currentScheduleDoc.get("status") ?? ""),
+        version: Number(currentScheduleDoc.get("version") ?? 0),
+      }
+    : null;
+  const questionnaireIndex = Object.keys(availabilityCollections).indexOf("questionnaire");
+  const questionnaireStatus =
+    safeString(availabilitySnapshots[questionnaireIndex].docs[0]?.get("status")) ?? null;
   const proposalIndex = Object.keys(availabilityCollections).indexOf("proposal");
   const currentProposal = [...availabilitySnapshots[proposalIndex].docs].sort(
     (left, right) =>
@@ -577,6 +596,10 @@ async function clientProject(tenantId: string, projectId: string) {
     checkpoints,
     proposalStatus,
     outstandingBalance,
+    eventDate: safeString(projectSnapshot.get("eventDate")) ?? null,
+    today: todayIso,
+    currentSchedule,
+    questionnaireStatus,
   });
   return {
     id: projectId,

@@ -262,3 +262,46 @@ So the pattern from the studio walk repeats one level up: **a class fixed in one
 workspace is not fixed in the product.** Worth extending the guards to the
 portal's own derivations before walking the crew workspace, which is the third
 one and has had no walk at all.
+
+---
+
+## Fixed — 2026-09-03, by extending the guards
+
+The guards were extended to this workspace, and CP1, CP2 and CP3 were fixed
+as a consequence rather than as separate tasks — each guard needed a
+derivation it could drive, and building that derivation was the fix.
+
+**CP1 and CP3 · `tests/portal-next-action.test.ts`.** `buildClientPortalExperience`
+took no event date and no records, so it could not have known a wedding was
+over or that a revised run of show was waiting. It now takes `eventDate`,
+`today`, `currentSchedule` and `questionnaireStatus` (all optional, so nothing
+else changed). A schedule at `client_review` outranks everything but overdue
+money. Past the day, planning asks stop — the state fallback *and* a
+client-owned planning checkpoint, which the guard found first: "Questionnaire
+complete" outranked the past-date rule and asked for the ceremony time of a day
+already shot. Verified: the seeded couple's next action is now "Approve your
+event-day schedule · Version 4", and "Continue planning your event" is gone.
+
+**CP2 · `tests/portal-navigation.test.ts`.** The shell consumes the server's
+`ClientNavigation` through a pure `clientAreaItems()`. Verified: nine reachable
+pages in the nav, and the schedule decision is one click from the home page.
+
+### Two guard gaps found while doing it
+
+- **`route-reachability` was green for the exact pages it protects.** It
+  counted a route as linked if *any* source contained its string, and the
+  portal shell kept all nine in a plain `new Set([...])`. Tightened to require a
+  link position — which then reported four real studio tabs and `/studio/reviews`
+  as stranded, because it never scanned `features/`, where the journey builds
+  most hrefs with `project("/studio/…")`. Widened. It still cannot see whether
+  an `href:` in a server-side map is *rendered* — proved by removing the
+  schedule nav entry and watching it stay green — so CP2's rule lives in the
+  nav guard, not here.
+- **`error-copy-coverage` never scanned `app/api`.** The portal's own Next
+  route raises seventeen codes a couple reads. Eight person-facing routes are
+  now scanned, webhooks classified provider-facing, fourteen codes baselined
+  into the ratchet (one, `METHOD_NOT_ALLOWED`, already had copy and the ratchet
+  rejected it).
+
+Each new guard was proved by breaking its rule and watching it fail.
+

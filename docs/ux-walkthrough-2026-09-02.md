@@ -1172,7 +1172,8 @@ npx tsx scripts/backfill-checkpoint-dependencies.mts --all --apply
 The backlog is closed. What remains is the part guards cannot reach — whether a
 flow is *pleasant*, whether the next move is the *right* move, whether a number
 is worth showing at all. Three guards now hold the mechanical classes
-(`error-copy-coverage`, `journey-preconditions`, `readiness-one-truth`), so the
+(`error-copy-coverage`, `journey-preconditions`, `readiness-one-truth`), — and, as of 2026-09-03, hold
+them for the client portal and crew workspace too — so the
 next walk is worth more per hour than this one was: it cannot spend its time
 rediscovering unmapped error codes, premature next-moves, or a quantity with two
 definitions.

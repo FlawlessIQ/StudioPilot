@@ -82,8 +82,18 @@ const DEEP_LINK_ONLY = new Map<string, string>([
 
 test("every page behind a login has something linking to it", () => {
   const routes = AREAS.flatMap((area) => routesUnder(area.root, area.prefix));
+  /**
+   * features/ and lib/ too. The journey engine builds most studio hrefs with
+   * `project("/studio/reviews")` and the lifecycle projection assembles them
+   * as templates — both in features/, which this never scanned. So the first
+   * honest version of the link check reported /studio/reviews stranded when
+   * it is the destination of a journey step. The scan has to look where the
+   * links are actually written.
+   */
   const sources = [
     ...sourceFiles("components"),
+    ...sourceFiles("features"),
+    ...sourceFiles("lib"),
     ...sourceFiles(APP),
   ].map((path) => readFileSync(path, "utf8"));
 
@@ -99,12 +109,47 @@ test("every page behind a login has something linking to it", () => {
     );
     if (/\bredirect\(/.test(page) && !/export const metadata/.test(page))
       continue;
-    // Its own page file does not count as an inbound link.
+    /**
+     * A literal counts only where it is actually a link.
+     *
+     * This used to accept the route string anywhere in any source file, and
+     * the client portal shell keeps every portal route in a plain
+     * `new Set([...])` called `contextualRoutes` — so all nine of them
+     * "had a link" while the nav rendered four hardcoded entries plus one
+     * dynamic slot, and a run of show waiting for the couple's decision was
+     * reachable only by typing the URL. The guard was green for the exact
+     * pages it exists to protect, which is the same failure
+     * tests/readiness-summary.test.ts had: a test naming the right rule and
+     * watching the wrong thing.
+     *
+     * So the literal must sit in a link position — an href, a router push,
+     * a redirect — or in a template that builds one.
+     *
+     * What this still cannot see: whether a link is *rendered*. The portal's
+     * server writes `href: "/client/schedule"` into a destination map for
+     * every area, which passes here, while the shell rendered only one of
+     * them at a time. Proved by removing the schedule entry from the nav and
+     * watching this stay green. That rule — an area the server reports is an
+     * area the nav shows — is a property of the nav, and lives in
+     * tests/portal-navigation.test.ts.
+     */
     const linked = sources.some((source) => {
-      const withQuery = new RegExp(
-        `["\`]${route.replaceAll("/", "\\/")}(["\`?#]|\\$\\{)`,
+      const path = route.replaceAll("/", "\\/");
+      const inLinkPosition = new RegExp(
+        `(href\\s*[:=]\\s*\\{?\\s*|\\b(?:push|replace|redirect|permanentRedirect)\\(\\s*)[\`"']${path}(["\`'?#]|\\$\\{)`,
       );
-      return withQuery.test(source);
+      // A template literal assembling the href elsewhere: `${base}/client/x`
+      // or a prefixed constant. Rare, and worth allowing rather than forcing
+      // every dynamic link into an exemption.
+      const inTemplate = new RegExp(`\\$\\{[^}]*\\}${path}(["\`?#]|\\$\\{)`);
+      // A template that opens with the path and appends a query — the shape
+      // the project workspace tabs use inside a ternary:
+      //   `/studio/booking?project=${projectId}`
+      // The first tightening of this test missed it and reported four real
+      // tabs as stranded. A path followed by `?name=${` is unambiguously a
+      // link being assembled, whatever precedes it.
+      const assemblesQuery = new RegExp(`[\`]${path}\\?[a-zA-Z]+=\\$\\{`);
+      return inLinkPosition.test(source) || inTemplate.test(source) || assemblesQuery.test(source);
     });
     if (!linked) stranded.push(route);
   }

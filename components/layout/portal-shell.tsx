@@ -11,14 +11,21 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  CalendarCheck,
+  CalendarDays,
   CircleAlert,
-  ClipboardList,
   CircleDollarSign,
+  ClipboardList,
+  FileSignature,
   FolderOpen,
   Home,
+  Images,
+  ListChecks,
   LockKeyhole,
   Menu,
   MessageCircle,
+  Package,
+  Star,
   UserRound,
   X,
 } from "lucide-react";
@@ -27,6 +34,7 @@ import {
   useWorkspace,
   WorkspaceProvider,
 } from "@/features/auth/workspace-context";
+import { clientAreaItems } from "@/features/client/portal-navigation";
 
 const PortalShellContext = createContext(false);
 
@@ -142,6 +150,38 @@ function ClientPortalShell({
 
   const multipleProjects = workspace.clientProjects.length > 1;
   const nextAction = workspace.clientProject?.nextClientAction;
+  /**
+   * The areas this couple can actually open, as the server already decided.
+   *
+   * The nav was four hardcoded entries plus one slot derived from the next
+   * action, and nine routes competed for that slot — so a run of show holding
+   * "Approve this version" was reachable only by typing the URL. The server
+   * had been returning a per-area `ClientNavigation` the whole time
+   * (`schedule: true` at that stage) and no component read it. The comment
+   * that used to sit beside "Payments" records the class being hit once
+   * before and fixed by hardcoding one more link.
+   *
+   * Overview, records, payments and messages stay fixed. The rest appear when
+   * the server says the area exists for this project.
+   */
+  const navigation = workspace.clientProject?.navigation;
+  // Which icon each area shows. The list itself is pure and tested — see
+  // features/client/portal-navigation.ts.
+  const AREA_ICONS = {
+    CalendarCheck,
+    Package,
+    ClipboardList,
+    FileSignature,
+    ListChecks,
+    CalendarDays,
+    Images,
+    Star,
+  } as const;
+  const areaItems = clientAreaItems(navigation).map((item) => ({
+    label: item.label,
+    href: item.href,
+    icon: AREA_ICONS[item.icon],
+  }));
   const navItems = [
     { label: "Overview", icon: Home, href: "/client" },
     ...(nextAction && !["/client", "/client/messages"].includes(nextAction.href)
@@ -156,10 +196,9 @@ function ClientPortalShell({
           },
         ]
       : []),
+    // The next step already links its own page; do not list it twice.
+    ...areaItems.filter((item) => item.href !== nextAction?.href),
     { label: "Project records", icon: FolderOpen, href: "/client/documents" },
-    // Payments had no entry at all, so a couple with an outstanding balance
-    // could not reach the page that shows it — the studio chases them for
-    // money they have no way to see.
     { label: "Payments", icon: CircleDollarSign, href: "/client/payments" },
     { label: "Messages", icon: MessageCircle, href: "/client/messages" },
   ];

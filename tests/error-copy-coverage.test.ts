@@ -32,6 +32,35 @@ import { importErrorCodeHasCopy } from "@/lib/studio-import/command-client";
  */
 
 const FUNCTIONS_SRC = join(process.cwd(), "functions", "src");
+const APP_API = join(process.cwd(), "app", "api");
+
+/**
+ * Next API routes a person's browser calls, scanned the same way.
+ *
+ * The first version of this file scanned functions/src alone, on the
+ * reasoning that every command goes through a Cloud Function. The client
+ * portal does not: app/api/client/portal/route.ts is a Next route, and it
+ * raises seventeen codes a couple can read — PACKAGE_ALREADY_SELECTED,
+ * PROJECT_ACCESS_DENIED, PORTAL_REQUEST_FAILED — none of which this guard had
+ * ever seen. Found while extending the guards to the other two workspaces;
+ * the guard had been green for the portal by never looking at it.
+ *
+ * Paths are relative to app/api. Webhooks are provider-facing and excluded
+ * for the same reason the Cloud Function webhooks are.
+ */
+const USER_FACING_API_ROUTES = [
+  "client/portal/route.ts",
+  // A browser lands here after granting access; its refusals are read by a
+  // studio owner mid-setup, not by a provider.
+  "integrations/oauth/callback/route.ts",
+  "functions/[functionName]/route.ts",
+  "integrations/status/route.ts",
+  "public/places/route.ts",
+  "reply-approval/route.ts",
+  "studio/places/route.ts",
+  "studio/records/route.ts",
+  "workspace/bootstrap/route.ts",
+];
 
 /**
  * Endpoints whose failures a **person** reads.
@@ -108,7 +137,7 @@ const GENERIC_ON_PURPOSE: Record<string, string> = {
  * Deliberately **not** merged into GENERIC_ON_PURPOSE. That list is a claim
  * that the generic sentence is correct; this one is a claim that nobody has
  * looked yet. Mixing them would destroy the only thing that makes the first
- * list useful — 144 unexamined entries beside two examined ones teaches the
+ * list useful — 157 unexamined entries beside two examined ones teaches the
  * next reader to skim both.
  *
  * A ratchet, in three parts, all enforced below:
@@ -178,6 +207,8 @@ const KNOWN_GAPS: Record<string, string> = {
   EVENT_TYPE_MISMATCH: "workflow",
   EVIDENCE_REQUIRED: "workflow",
   EXPORT_NOT_READY: "saas",
+  FUNCTION_NOT_FOUND: "functions-proxy",
+  FUNCTION_PROXY_NOT_CONFIGURED: "functions-proxy",
   GOOGLE_CLOUD_PROJECT_REQUIRED: "integrations",
   IMPORT_ITEM_NOT_FOUND: "studio-import",
   IMPORT_ITEM_NOT_RETRYABLE: "studio-import",
@@ -185,7 +216,10 @@ const KNOWN_GAPS: Record<string, string> = {
   IMPORT_SESSION_INVALID: "studio-import",
   IMPORT_SESSION_NOT_FOUND: "studio-import",
   INQUIRY_FORM_UNAVAILABLE: "crm",
+  INTEGRATION_STATUS_UNAVAILABLE: "integrations",
   INTERNAL_USER_LIMIT_REACHED: "saas",
+  INVALID_APP_CHECK_TOKEN: "client",
+  INVALID_ATTACHMENT_REFERENCE: "client",
   INVALID_BOOKING_STATE: "booking",
   INVALID_DATE_ANCHOR: "workflow",
   INVALID_INQUIRY: "crm",
@@ -211,19 +245,23 @@ const KNOWN_GAPS: Record<string, string> = {
   MISSING_DATE_ANCHOR: "workflow",
   MISSING_INFORMATION: "ai",
   NOT_FOUND: "planning",
+  NO_ACTIVE_WORKSPACE: "workspace",
   NO_PACKAGE_CHANGES: "crm",
   NO_RECIPIENT_EMAIL: "ai",
   OAUTH_CALLBACK_INVALID: "integrations",
   OAUTH_CALLBACK_URL_REQUIRED: "integrations",
   OAUTH_PROVIDER_NOT_CONFIGURED: "integrations",
+  OAUTH_REDIRECT_REJECTED: "integrations-oauth",
   OAUTH_STATE_INVALID: "integrations",
   OAUTH_TOKEN_EXCHANGE_FAILED: "integrations",
   OPEN_PROPOSAL_EXISTS: "booking",
   OWNER_RECOVERY_NOT_ALLOWED: "saas",
   PACKAGE_ALREADY_SELECTED: "crm",
   PACKAGE_NOT_FOUND: "crm",
+  PACKAGE_SELECTION_NOT_AVAILABLE: "client",
   PACKAGE_SNAPSHOT_INVALID: "booking",
   PACKAGE_SNAPSHOT_REQUIRED: "ai, booking",
+  PORTAL_REQUEST_FAILED: "client",
   POST_EVENT_COMMAND_UNHANDLED: "post-event",
   PROJECT_ACCESS_DENIED: "workflow",
   PROJECT_CONTACT_REQUIRED: "ai, communications",
@@ -237,6 +275,7 @@ const KNOWN_GAPS: Record<string, string> = {
   PROPOSAL_NOT_FOUND: "booking",
   PROPOSAL_PDF_INVALID: "booking",
   PROPOSAL_PDF_NOT_READY: "booking",
+  PROPOSAL_SUPERSEDED: "client",
   PROVIDER_DOES_NOT_SERVE_CAPABILITY: "integrations",
   PROVIDER_NOT_CONNECTED: "integrations",
   QUESTIONNAIRE_ASSIGNMENT_INVALID: "planning",
@@ -254,8 +293,10 @@ const KNOWN_GAPS: Record<string, string> = {
   SECRET_MANAGER_IDENTITY_UNAVAILABLE: "integrations",
   SECRET_MANAGER_WRITE_FAILED: "integrations",
   SEND_PERMISSION_REQUIRED: "booking",
+  SERVICE_IDENTITY_UNAVAILABLE: "functions-proxy",
   SIGNATURE_ATTESTATION_PERMISSION_REQUIRED: "booking",
   SIGNING_TEMPLATE_LIST_FAILED: "integrations",
+  STUDIO_UNAVAILABLE: "public",
   SUBCONTRACTOR_LIMIT_REACHED: "crew",
   SUPPORT_ACCESS_NOT_ACTIVE: "saas",
   SUPPORT_ACCESS_REQUIRED: "saas",
@@ -269,6 +310,7 @@ const KNOWN_GAPS: Record<string, string> = {
   VERIFIED_EMAIL_REQUIRED: "client, crew, saas",
   WAIVER_PERMISSION_REQUIRED: "workflow",
   WORKFLOW_TEMPLATE_NOT_FOUND: "workflow",
+  WORKSPACE_ACCESS_DENIED: "studio",
 };
 
 /**
@@ -318,7 +360,13 @@ function allReachableCodes(): Map<string, string> {
   for (const relative of [...USER_FACING_HANDLERS, ...RESPONSE_HELPERS]) {
     const source = readFileSync(join(FUNCTIONS_SRC, relative), "utf8");
     for (const code of reachableCodes(source)) {
-      if (!found.has(code)) found.set(code, relative);
+      if (!found.has(code)) found.set(code, `functions/src/${relative}`);
+    }
+  }
+  for (const relative of USER_FACING_API_ROUTES) {
+    const source = readFileSync(join(APP_API, relative), "utf8");
+    for (const code of reachableCodes(source)) {
+      if (!found.has(code)) found.set(code, `app/api/${relative}`);
     }
   }
   return found;
@@ -408,6 +456,40 @@ test("the handler list still matches the request handlers on disk", () => {
 
   const classified = new Set([...USER_FACING_HANDLERS, ...PROVIDER_FACING]);
   const unclassified = found.filter((file) => !classified.has(file));
+
+  /**
+   * And the Next routes. A route.ts under app/api that nobody has classified
+   * is exactly how the portal's seventeen codes went unscanned.
+   */
+  const PROVIDER_FACING_API = new Set([
+    "webhooks/docusign/route.ts",
+    "webhooks/quickbooks/route.ts",
+    "webhooks/sendgrid/events/route.ts",
+    "webhooks/stripe/route.ts",
+    "webhooks/stripe-connect/route.ts",
+    "webhooks/zoom/route.ts",
+    "webhooks/provider-relay.ts",
+    "webhooks/sendgrid/inbound/route.ts",
+    "webhooks/sendgrid/gallery-inbound/route.ts",
+  ]);
+  const apiRoutes: string[] = [];
+  const walkApi = (directory: string, prefix = "") => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        walkApi(join(directory, entry.name), relative);
+        continue;
+      }
+      if (!entry.name.endsWith(".ts")) continue;
+      const source = readFileSync(join(directory, entry.name), "utf8");
+      if (reachableCodes(source).length) apiRoutes.push(relative);
+    }
+  };
+  walkApi(APP_API);
+  const classifiedApi = new Set([...USER_FACING_API_ROUTES, ...PROVIDER_FACING_API]);
+  for (const route of apiRoutes) {
+    if (!classifiedApi.has(route)) unclassified.push(`app/api/${route}`);
+  }
   assert.deepEqual(
     unclassified,
     [],

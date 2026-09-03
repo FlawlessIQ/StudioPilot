@@ -301,3 +301,20 @@ Travel and setup count only if the studio said so."
 **Still open:** a per-job event contact the studio can set. The studio phone
 (CR3) is the floor; this is the ceiling, and it needs a schema field, a command
 and a studio control that do not yet exist.
+
+---
+
+## Guarded — 2026-09-03
+
+`features/crew/attention.ts` is now the one derivation of what the home page
+says — invitations, a schedule to acknowledge, work records owed, and past work
+counted the way Jobs counts it — and `tests/crew-attention.test.ts` holds the
+rule that nothing his money depends on is left off the front page, over every
+combination of assignment records it can build. Proved: drop the closeout
+clause and three tests fail, one of them Jordan's actual records. The crew
+home renders identically to before the extraction, verified on screen.
+
+Each workspace now has exactly one "what needs me" a guard can drive:
+`projectJourney` (studio), `buildClientPortalExperience` (couple),
+`crewAttention` (crew).
+

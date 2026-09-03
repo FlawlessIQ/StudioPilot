@@ -348,11 +348,52 @@ export function buildClientPortalExperience({
   checkpoints,
   proposalStatus,
   outstandingBalance,
+  eventDate = null,
+  today = null,
+  currentSchedule = null,
+  questionnaireStatus = null,
 }: {
   state: string;
   availability: Availability;
   checkpoints: VisibleCheckpoint[];
   proposalStatus?: string | null;
+  /**
+   * The day itself, and which day it is. Both optional so existing callers
+   * keep working; supplying them is what lets this function know that a
+   * wedding is over.
+   *
+   * It did not know. It derived "past" from the *stage* — whether a gating
+   * milestone was complete, i.e. whether the studio had advanced the project
+   * — and never from the calendar. So nineteen days after a wedding still
+   * marked PLANNING, the portal's next action was "Continue planning your
+   * event" and the questionnaire asked the couple for the ceremony time of a
+   * day already shot. The Overview printed "19 days since your day" from
+   * this very date, and used it for that counter and nothing else.
+   *
+   * The studio's own UI reconciles the two ("Did this go ahead? The date
+   * passed N days ago and this job is still marked planning"). The couple is
+   * the wrong person to ask about a stale stage, so past the date the
+   * planning asks simply stop.
+   *
+   * Plain calendar dates, YYYY-MM-DD, compared as strings — the same way the
+   * route already decides `overdue`, in the job's own timezone.
+   */
+  eventDate?: string | null;
+  today?: string | null;
+  /**
+   * The run of show as it stands, so a version awaiting the couple's decision
+   * becomes their next action.
+   *
+   * The next action read only client-owned readiness checkpoints, and
+   * `schedule-approved` completes for ever on the first approval — so after
+   * the studio revised the timeline and sent v4 for review, nothing here
+   * knew. The one decision genuinely waiting on the couple was reachable only
+   * by typing the URL, while the card pointed them at a questionnaire they
+   * had already submitted.
+   */
+  currentSchedule?: { status: string; version: number } | null;
+  /** So the fallback never sends them back to a form they have finished. */
+  questionnaireStatus?: string | null;
   /**
    * What the client still owes, if anything. Optional so existing callers keep
    * working, but supplying it changes the priority: money that is past its date
@@ -371,11 +412,41 @@ export function buildClientPortalExperience({
   } | null;
 }) {
   const index = stateIndex(state);
+  const eventHasPassed =
+    Boolean(eventDate) && Boolean(today) && String(today) > String(eventDate);
+  const questionnaireDone = ["submitted", "locked"].includes(
+    String(questionnaireStatus ?? ""),
+  );
+  /**
+   * A schedule waiting on the couple outranks everything but overdue money.
+   * It is the one thing here that is unambiguously theirs to do, and the one
+   * thing the checkpoint path could not see.
+   */
+  const scheduleAction: ClientNextAction | null =
+    currentSchedule?.status === "client_review"
+      ? {
+          name: "Approve your event-day schedule",
+          description: `Version ${currentSchedule.version} of your timeline is ready for you to check. Approve it, or tell your studio what to change.`,
+          dueDate: null,
+          ownerType: "client",
+          responsibility: "client",
+          href: "/client/schedule",
+          actionLabel: "Review the schedule",
+        }
+      : null;
   const clientCheckpoint = checkpoints.find(
     (checkpoint) =>
       !["complete", "waived"].includes(checkpoint.status) &&
       (!checkpoint.ownerType ||
-        ["client", "contact"].includes(checkpoint.ownerType)),
+        ["client", "contact"].includes(checkpoint.ownerType)) &&
+      // Past the day, a planning checkpoint is a question about a wedding
+      // that has happened. The guard found this path first: a client-owned
+      // "Questionnaire complete" outranked the past-date rule below and
+      // asked for the ceremony time of a day already shot.
+      !(
+        eventHasPassed &&
+        checkpointDestination(checkpoint).href === "/client/questionnaire"
+      ),
   );
   const destination = clientCheckpoint
     ? checkpointDestination(clientCheckpoint)
@@ -418,19 +489,52 @@ export function buildClientPortalExperience({
               actionLabel: "View project details",
             }
           : null;
-  const nextClientAction: ClientNextAction = clientCheckpoint
-    ? {
-        name: clientCheckpoint.name,
+  const stateFallback = (() => {
+    const fallback = defaultNextAction(state);
+    // Past the day, a planning ask is a question about a wedding that has
+    // happened. Say what is true instead, and hand it to the studio.
+    if (eventHasPassed && ["PLANNING", "READY"].includes(state)) {
+      return {
+        name: "Your day has been and gone",
         description:
-          clientCheckpoint.description ??
-          "Open this step to review what your studio needs from you.",
-        dueDate: clientCheckpoint.dueDate,
-        ownerType: clientCheckpoint.ownerType,
-        responsibility: "client",
-        href: destination?.href ?? "/client/project",
-        actionLabel: destination?.actionLabel ?? "View project",
-      }
-    : proposalNextAction ?? defaultNextAction(state);
+          "Your studio is finishing up on their side. Your photographs will appear here once they are ready — there is nothing you need to do.",
+        dueDate: null,
+        ownerType: "studio",
+        responsibility: "studio",
+        href: "/client/project",
+        actionLabel: "View project",
+      } satisfies ClientNextAction;
+    }
+    // A finished form is not somewhere to send them back to.
+    if (questionnaireDone && fallback.href === "/client/questionnaire") {
+      return {
+        ...fallback,
+        name: "Your details are with the studio",
+        description:
+          "Thank you — your planning form is in. Your studio will share the event-day schedule for you to approve next.",
+        ownerType: "studio",
+        responsibility: "studio",
+        href: "/client/project",
+        actionLabel: "View project",
+      } satisfies ClientNextAction;
+    }
+    return fallback;
+  })();
+  const nextClientAction: ClientNextAction =
+    scheduleAction ??
+    (clientCheckpoint
+      ? {
+          name: clientCheckpoint.name,
+          description:
+            clientCheckpoint.description ??
+            "Open this step to review what your studio needs from you.",
+          dueDate: clientCheckpoint.dueDate,
+          ownerType: clientCheckpoint.ownerType,
+          responsibility: "client",
+          href: destination?.href ?? "/client/project",
+          actionLabel: destination?.actionLabel ?? "View project",
+        }
+      : proposalNextAction ?? stateFallback);
   // An overdue balance is the one thing that outranks the state-derived action.
   // Not merely outstanding — an invoice inside its terms is not yet the client's
   // problem — but past its date, which is when the studio starts chasing.

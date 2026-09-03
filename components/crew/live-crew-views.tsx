@@ -49,12 +49,10 @@ import {
   offerLapse,
   offerLapseNotice,
 } from "@/features/crew/offer-moment";
+import { crewAttention } from "@/features/crew/attention";
 import { availabilityNeedsFutureWindows } from "@/features/crew/availability-moment";
 import { normalizePhone } from "@/features/contacts/schema";
-import {
-  crewCloseoutIsSubmitted,
-  crewCloseoutMoment,
-} from "@/features/crew/closeout-moment";
+import { crewCloseoutIsSubmitted } from "@/features/crew/closeout-moment";
 import { greetingName } from "@/features/auth/session-failure";
 import {
   initials,
@@ -678,76 +676,20 @@ export function LiveCrewHome() {
     return <CrewPageState eyebrow="Crew workspace" title="Your assignments" description="See invitations, accepted work, and anything that needs your attention." data={data} />;
   const now = new Date();
   /**
-   * Offers this person can actually take up.
+   * One derivation of what needs him — see features/crew/attention.ts.
    *
-   * The count used to include every pending assignment, lapsed ones included,
-   * so the page opened "You have 1 invitation to answer" for an offer whose
-   * deadline had gone 26 days earlier — and then never showed it anywhere.
+   * These were four inline computations in this component: offers, a schedule
+   * to acknowledge, work records owed, and "past assignments" counted one way
+   * here and another on the Jobs page. Closeout was added inline as a third
+   * clause after a shooter owed $800 read "Nothing needs you right now"; the
+   * fourth clause would have been added inline too. Now a pure function holds
+   * all of it and a test holds the rule.
    */
-  const pending = data.assignments.filter((assignment) =>
-    offerCanBeAnswered({
-      status: String(assignment.status),
-      inviteExpiresAt: text(assignment.inviteExpiresAt),
-      arrivalAt: text(assignment.arrivalAt),
-      now,
-    }),
-  );
+  const attention = crewAttention(data.assignments, now);
+  const { invitations: pending, acknowledgementDue, closeoutsDue, behindThem } = attention;
   const accepted = data.assignments.filter(
     (assignment) => assignment.status === "accepted",
   );
-  /**
-   * A schedule acknowledgement only matters before the day.
-   *
-   * "Readiness blocker · Acknowledge Maya & Theo Johnson's current schedule"
-   * led the page thirteen days after that wedding was shot. Acknowledging a
-   * run of show for an event already over is not readiness, and calling it a
-   * blocker says something is at risk when nothing is.
-   */
-  const acknowledgementDue = accepted.find(
-    (assignment) =>
-      number(assignment.currentScheduleVersion) > 0 &&
-      number(assignment.acknowledgedScheduleVersion) !==
-        number(assignment.currentScheduleVersion) &&
-      Date.parse(text(assignment.departureAt) || text(assignment.arrivalAt)) >
-        now.valueOf(),
-  );
-  /**
-   * Work records he still owes the studio.
-   *
-   * The headline named invitations and schedule acknowledgements and stopped
-   * there, so a shooter owed $800 on a wedding nineteen days gone — payment
-   * cannot be scheduled until the hours are in — read "Nothing needs you right
-   * now." Both other clauses were correctly silent: the invitation had expired,
-   * and acknowledgement rightly ignores a day already past. Closeout was simply
-   * never a member of the list.
-   *
-   * See features/crew/closeout-moment.ts; the closeout page uses the same
-   * predicate rather than its own.
-   */
-  const closeoutsDue = data.assignments
-    .map((assignment) => ({
-      assignment,
-      moment: crewCloseoutMoment({
-        status: text(assignment.status),
-        closeoutStatus: text(record(assignment.closeout).status),
-        endsAt: text(assignment.departureAt) || text(assignment.arrivalAt),
-        now,
-      }),
-    }))
-    .filter((entry) => entry.moment.due);
-  /**
-   * Work whose date has gone by — the same split the Jobs page uses.
-   *
-   * This filtered `accepted` only, so an expired invitation counted on Jobs
-   * ("2 total", listed under Finished work) and not here ("1 past assignment
-   * on file"). Two pages, one question, two answers. An expired offer is part
-   * of his history, and Jobs was right to show it.
-   */
-  const behindThem = splitUpcomingAndPast(
-    data.assignments,
-    (assignment) => assignment.arrivalAt,
-    now,
-  ).past;
   // Sorting every accepted assignment by arrival and taking the first put a
   // wedding from four weeks ago under the heading "Next accepted job".
   // What is next is what has not happened yet; if nothing has, say so rather
@@ -773,24 +715,7 @@ export function LiveCrewHome() {
           {/* Was "2 invitations and no schedule acknowledgements need
               attention." — a template that concatenated counts without handling
               zero, and parsed two ways. Only what actually needs him is named. */}
-          <p>
-            {(() => {
-              const parts: string[] = [];
-              if (pending.length)
-                parts.push(
-                  `${pending.length} invitation${pending.length === 1 ? "" : "s"} to answer`,
-                );
-              if (acknowledgementDue)
-                parts.push("a schedule to acknowledge");
-              if (closeoutsDue.length)
-                parts.push(
-                  `${closeoutsDue.length} work record${closeoutsDue.length === 1 ? "" : "s"} to send in`,
-                );
-              return parts.length
-                ? `You have ${parts.join(" and ")}.`
-                : "Nothing needs you right now.";
-            })()}
-          </p>
+          <p>{attention.headline}</p>
           {/* The count was stated and then nothing on the page could act on it:
               "invitation" appeared exactly once, in that sentence, and the only
               card was an already-accepted job. */}
