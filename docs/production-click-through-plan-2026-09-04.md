@@ -22,7 +22,7 @@ on. Where this plan says "expect X", X was read from the code, not assumed.
 | Invoicing | QuickBooks offered, not connected on a fresh studio | Retainer and final balance take the record-by-hand path unless you connect QuickBooks in Phase B. Both paths are in scope. |
 | AI drafting | Vertex, configured on prod | Reply drafts, proposal copy, run-of-show generation should work. If any says "isn't available for this workspace", that is a finding. |
 | Lifecycle reminders | Scheduler, **daily at 13:00 UTC** | Reminder-type emails are *drafted for approval*, not sent. You will only see them if a run happens during the test window. Plan for it or skip it. |
-| Trial | 14 days from onboarding, cheapest-plan entitlements | `trialEndAt` is written and **never read** anywhere in `features/` or `lib/`. Expiry is not enforced client-side. Scenario H5 checks what a lapsed trial actually sees. |
+| Trial | 14 days from onboarding, cheapest-plan entitlements | Enforcement is by **status**: `entitlement-guard` refuses any command unless the subscription is `trialing` or `active`. But nothing ever flips a card-less trial off `trialing` — only Stripe's webhook changes status, and a trial that never checked out has no Stripe subscription. So a trial without a card is **effectively indefinite**. H5 confirms it. |
 
 ### Identities — set these up before you start
 
@@ -108,7 +108,7 @@ several steps fail late if these are missing (B6, A25, CR3).
 |---|---|---|---|---|
 | D1 | Prepare proposal → lock package → AI draft copy → create draft | Version 1 draft; **job link in the heading at every status** (A17) | — | "The price you send is the price they see" — no "snapshot"/"drift" |
 | D2 | Send for approval → approve → PDF | PDF builds (cloud-run worker is live on prod) | — | if the PDF fails, the page must offer send-as-link **and** not say sending is impossible (A16) |
-| D3 | Send proposal | Status Sent; "Viewed · Not yet" | **couple:** `proposal_sent` | delivery status flips to delivered within ~15 min (reconciler) |
+| D3 | Send proposal | Status Sent; "Viewed · Not yet" | **couple:** `proposal_sent` — **this email carries the couple's portal invitation** (`proposals.ts` mints one when the contact has no portal user yet). No separate invite is needed for D4a. | delivery status flips to delivered within ~15 min (reconciler) |
 | D4a | **As the couple**, open the portal link → accept | Portal shows the proposal; accept confirms | — | studio: status Accepted; journey → Awaiting signature |
 | **D4b** | Alternatively: **as the studio**, "Record their acceptance" | Lands on the proposal with the form **open** (A24) | — | audit shows "recorded against your name" |
 | D5 | Contract stage | Only path: **Record the signed agreement** (open by default, A25) | — | badge → Awaiting deposit **without reload** (A26); evidence row reads "Signed elsewhere · recorded by you", not a hash (A27) |
@@ -180,7 +180,7 @@ Each of these is a thing a real studio does, and each was a class of finding.
 | H2 | Change the venue/city after the proposal is sent | Job page label follows the field — "City" vs "Venue" (A6); proposal document shows no "Venue pending" (A13) | |
 | H3 | Cancel a job with a reason | Next-move card says Cancelled and shows the reason; portal and crew reflect it | no "Schedule consultation" on a cancelled job |
 | H4 | Resend: proposal, client invite, crew invite | Each creates a separate audited attempt and says so | delivery status per attempt |
-| H5 | **Trial expiry** — you cannot wait 14 days, so: what does a lapsed trial see? Check `/studio/subscription` copy and whether any command refuses on `ENTITLEMENT_EXCEEDED` | Today: nothing enforces `trialEndAt` client-side. Expect nothing to lock. **Record that as the finding**: either enforce it or say so | |
+| H5 | **Trial expiry** — you cannot wait 14 days, so read the mechanism instead: in the Firebase console set the test studio's subscription `currentPeriodEnd` to yesterday and reload | Expect **nothing to change** — the status is still `trialing`, the guard still lets every command through, and `/studio/subscription` still shows a trial. Nothing flips the status at the date; only a Stripe webhook does, and a trial that never checked out has no Stripe subscription. **Record it**: a card-less trial is indefinite. Decide whether that is intended. | |
 | H6 | Sign out and back in as each role; switch workspaces (`/auth/workspaces`) | Right workspace, right data, no leakage between the three identities | |
 | H7 | Mobile: repeat F3 and G3 on a phone (Pixel 7 emulation is fine) | Crew workspace is phone-first; insets ≥ 20px (the inset sweep guard covers it) | |
 
@@ -208,7 +208,7 @@ else, this is a finding to log) and the SendGrid activity feed as the tiebreak.
 | contract_sent | signing provider — **cannot fire on prod** (none offered) | — | — |
 | retainer_invoice | QuickBooks retainer invoice | D6a | couple |
 | booking_confirmation | booking gate | D7 | couple |
-| client_invitation | invite couple to the portal | D8 | couple |
+| client_invitation | **manual** invite from the client record only — a sent proposal mints its own access inside `proposal_sent` | D8 (optional, or for a second contact) | couple |
 | questionnaire_request | send the form | E1 | couple |
 | questionnaire_reminder | **scheduler draft only** | E13 | couple |
 | schedule_review | publish for review | E4, E5b | couple |
