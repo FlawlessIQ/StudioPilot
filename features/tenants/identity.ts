@@ -25,6 +25,24 @@ export type StudioIdentity = {
   timezone: string;
   currency: string;
   publicSlug: string;
+  /**
+   * The number a crew member can ring on the day.
+   *
+   * The event-day brief has always rendered `tel:` links from
+   * `assignment.contacts` — and **nothing in the product ever wrote that
+   * array**: no schema field, no command, no studio control. So every crew
+   * member on every job read "No event contact has been shared. Use the secure
+   * studio message below" on the one page marked "Available offline", and the
+   * person they would have messaged was shooting the same wedding.
+   *
+   * A number on the studio is the floor, not the ceiling — a per-job contact is
+   * still the better answer, and this is what a second shooter standing outside
+   * a venue needs when nobody set one.
+   *
+   * Nullable, because it cannot be demanded of studios onboarded before it
+   * existed. The brief says plainly when it is missing.
+   */
+  eventDayPhone: string | null;
 };
 
 /**
@@ -91,4 +109,6 @@ export const IDENTITY_SCOPE: Record<keyof StudioIdentity, string> = {
   currency:
     "The default for new packages and invoices. Existing prices keep their own currency.",
   publicSlug: "The address of your public inquiry form.",
+  eventDayPhone:
+    "Shown to crew on their event-day brief, so they can reach you from a venue. Never shown to clients.",
 };

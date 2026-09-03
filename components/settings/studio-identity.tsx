@@ -38,6 +38,7 @@ type Identity = {
   timezone: string;
   currency: string;
   publicSlug: string;
+  eventDayPhone: string;
 };
 
 const EMPTY: Identity = {
@@ -47,6 +48,7 @@ const EMPTY: Identity = {
   timezone: "America/New_York",
   currency: "USD",
   publicSlug: "",
+  eventDayPhone: "",
 };
 
 const TIMEZONES = [
@@ -96,6 +98,7 @@ export function StudioIdentitySettings() {
           timezone: text("timezone", "America/New_York"),
           currency: text("currency", "USD"),
           publicSlug: slug,
+          eventDayPhone: text("eventDayPhone"),
         });
         setOriginalSlug(slug);
       } finally {
@@ -132,7 +135,12 @@ export function StudioIdentitySettings() {
           authorization: `Bearer ${await user.getIdToken()}`,
           ...(appCheckToken ? { "x-firebase-appcheck": appCheckToken } : {}),
         },
-        body: JSON.stringify({ ...identity, publicSlug: proposedSlug }),
+        body: JSON.stringify({
+          ...identity,
+          publicSlug: proposedSlug,
+          // Blank means "not set", not an empty string on the record.
+          eventDayPhone: identity.eventDayPhone.trim() || null,
+        }),
       });
       const result = (await response.json()) as {
         error?: string;
@@ -194,6 +202,24 @@ export function StudioIdentitySettings() {
               value={identity.businessName}
             />
             <small>{IDENTITY_SCOPE.businessName}</small>
+          </label>
+          {/* The number a second shooter rings from the venue.
+              The event-day brief has rendered `tel:` links all along and
+              nothing could ever populate them — see the note on
+              `eventDayPhone` in features/tenants/identity.ts. */}
+          <label>
+            Event-day phone
+            <input
+              inputMode="tel"
+              maxLength={30}
+              onChange={(event) =>
+                setIdentity((c) => ({ ...c, eventDayPhone: event.target.value }))
+              }
+              placeholder="(555) 010-4477"
+              type="tel"
+              value={identity.eventDayPhone}
+            />
+            <small>{IDENTITY_SCOPE.eventDayPhone}</small>
           </label>
           <label>
             Timezone

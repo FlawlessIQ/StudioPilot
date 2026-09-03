@@ -128,6 +128,18 @@ const identitySchema = z.object({
   timezone: z.string().trim().min(3).max(64),
   currency: z.enum(SUPPORTED_CURRENCIES),
   publicSlug: z.string().trim().min(3).max(60),
+  /**
+   * Optional, and nullable, so a studio saving its identity from a client that
+   * predates this field is not rejected. See features/tenants/identity.ts for
+   * why crew need it.
+   */
+  eventDayPhone: z
+    .string()
+    .trim()
+    .max(30)
+    .nullable()
+    .optional()
+    .transform((value) => value ?? null),
 });
 
 /**
@@ -202,6 +214,7 @@ export const tenantIdentityCommand = onRequest(
         timezone: tenant.get("timezone") ?? null,
         currency: tenant.get("currency") ?? null,
         publicSlug: currentSlug,
+        eventDayPhone: tenant.get("eventDayPhone") ?? null,
       };
       const now = new Date().toISOString();
       const auditReference = db.collection("auditEvents").doc();
@@ -212,6 +225,7 @@ export const tenantIdentityCommand = onRequest(
         timezone: input.timezone,
         currency: input.currency,
         publicSlug: slug,
+        eventDayPhone: input.eventDayPhone,
         slugAliases,
         updatedAt: now,
         updatedBy: identity.uid,
@@ -232,7 +246,8 @@ export const tenantIdentityCommand = onRequest(
           businessName: input.businessName,
           timezone: input.timezone,
           currency: input.currency,
-            publicSlug: slug,
+          publicSlug: slug,
+          eventDayPhone: input.eventDayPhone,
           slugAliases,
         },
         ipAddress: request.ip ?? null,

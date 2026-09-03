@@ -211,3 +211,52 @@ Two classes now appear in **all three**: a quantity with more than one
 derivation, and routes the navigation cannot reach. Both are mechanical enough
 to guard, and the three existing guards cover only studio surfaces — which is
 the same finding this document's predecessor ended on, one workspace later.
+
+---
+
+## Fixed — 2026-09-03
+
+**CR1.** `features/crew/closeout-moment.ts` decides when a work record is his,
+and the crew home now names it. Verified on screen:
+
+> **You have 1 work record to send in.** · [Send in your hours]
+> *Your hours and expenses* — Send in your work record for Maya & Theo Johnson
+> **$800.00 is waiting on it** — your studio cannot schedule payment until the
+> hours are in. · [Send it in]
+
+The closeout page uses the same predicate rather than its own copy of the
+submitted test, so the two cannot disagree. `needs_changes` counts as his
+again — the studio asked him for something, and the closeout page already says
+"The studio requested changes". Nothing is due before the day, which is the
+mirror of the acknowledgement defect that once led the page thirteen days after
+the wedding.
+
+**CR3.** The reason nothing was ever shared: **nothing in the product could
+share it.** `assignment.contacts` had no schema field, no command and no studio
+control, so the `tel:` links this panel has always rendered had nothing to
+render. The tenant record had no phone either.
+
+So `eventDayPhone` is now part of studio identity — settable in Settings →
+Studio identity, written and audited by `tenantIdentityCommand`, delivered to
+the crew bundle (crew already read their tenant under `isActiveMember`), and
+shown on the brief as a real `tel:` link:
+
+> **Alder & Muse** · Studio · no contact set for this job · **(555) 010-4477**
+
+Two things this shook out, both verified by clearing the field and rebuilding:
+
+- The href needed `normalizePhone`, or it dialled `tel:(555) 010-4477` —
+  parentheses and a space.
+- `text()` in `live-crew-views.tsx` defaults to **"Pending"**, not `""`, so the
+  absent case rendered a contact row whose number read "Pending" and whose link
+  dialled nothing. The empty branch now says what is true and where to fix it:
+  "No phone number is on file for your studio. Ask them to add one in
+  Settings → Studio identity, and use the secure message below in the meantime."
+
+A per-job contact is still the better answer, and the studio has no way to set
+one. That remains open.
+
+**Still open from this walk:** CR2 (home counts 1 past assignment, Jobs counts
+2), CR4 (four routes render one brief; 13 routes, 4 nav links), CR5
+(availability asks for nothing when every window is past), CR6 (four variants
+of the product explaining its own data model), CR7 (smaller copy).

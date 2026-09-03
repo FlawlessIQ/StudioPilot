@@ -48,6 +48,11 @@ import {
   offerLapse,
   offerLapseNotice,
 } from "@/features/crew/offer-moment";
+import { normalizePhone } from "@/features/contacts/schema";
+import {
+  crewCloseoutIsSubmitted,
+  crewCloseoutMoment,
+} from "@/features/crew/closeout-moment";
 import { greetingName } from "@/features/auth/session-failure";
 import {
   initials,
@@ -66,6 +71,12 @@ type CrewData = {
   projects: Record<string, Value>;
   profile: Value | null;
   availability: Value[];
+  /**
+   * The studio's own record, for the one field crew need from it: the number to
+   * ring on the day. Readable here because `firestore.rules` allows any active
+   * member to read their tenant.
+   */
+  studio: Value | null;
   loading: boolean;
   error: string | null;
   refresh: () => void;
@@ -126,6 +137,7 @@ function useCrewData(): CrewData {
     projects: {},
     profile: null,
     availability: [],
+    studio: null,
     loading: dataIsLive,
     error: null,
   });
@@ -189,12 +201,15 @@ function useCrewData(): CrewData {
               .filter((projectId): projectId is string => typeof projectId === "string"),
           ),
         );
-        const projectDocuments = await withTimeout(
-          Promise.all(
-            projectIds.map((projectId) =>
-              getDoc(doc(firestore, "projects", projectId)),
+        const [projectDocuments, studioDocument] = await withTimeout(
+          Promise.all([
+            Promise.all(
+              projectIds.map((projectId) =>
+                getDoc(doc(firestore, "projects", projectId)),
+              ),
             ),
-          ),
+            getDoc(doc(firestore, "tenants", String(workspace.tenantId))),
+          ]),
           10_000,
           "Crew project details took too long to load. Try again.",
         );
@@ -219,6 +234,9 @@ function useCrewData(): CrewData {
             (document) =>
               ({ id: document.id, ...document.data() }) as Value,
           ),
+          studio: studioDocument.exists()
+            ? ({ id: studioDocument.id, ...studioDocument.data() } as Value)
+            : null,
           loading: false,
           error: null,
         });
@@ -691,6 +709,30 @@ export function LiveCrewHome() {
       Date.parse(text(assignment.departureAt) || text(assignment.arrivalAt)) >
         now.valueOf(),
   );
+  /**
+   * Work records he still owes the studio.
+   *
+   * The headline named invitations and schedule acknowledgements and stopped
+   * there, so a shooter owed $800 on a wedding nineteen days gone — payment
+   * cannot be scheduled until the hours are in — read "Nothing needs you right
+   * now." Both other clauses were correctly silent: the invitation had expired,
+   * and acknowledgement rightly ignores a day already past. Closeout was simply
+   * never a member of the list.
+   *
+   * See features/crew/closeout-moment.ts; the closeout page uses the same
+   * predicate rather than its own.
+   */
+  const closeoutsDue = data.assignments
+    .map((assignment) => ({
+      assignment,
+      moment: crewCloseoutMoment({
+        status: text(assignment.status),
+        closeoutStatus: text(record(assignment.closeout).status),
+        endsAt: text(assignment.departureAt) || text(assignment.arrivalAt),
+        now,
+      }),
+    }))
+    .filter((entry) => entry.moment.due);
   // Accepted work whose date has gone by. Not "completed" — the studio marks
   // that — but not upcoming either, which is the only thing Today claimed.
   const behindThem = accepted.filter(
@@ -732,6 +774,10 @@ export function LiveCrewHome() {
                 );
               if (acknowledgementDue)
                 parts.push("a schedule to acknowledge");
+              if (closeoutsDue.length)
+                parts.push(
+                  `${closeoutsDue.length} work record${closeoutsDue.length === 1 ? "" : "s"} to send in`,
+                );
               return parts.length
                 ? `You have ${parts.join(" and ")}.`
                 : "Nothing needs you right now.";
@@ -740,9 +786,22 @@ export function LiveCrewHome() {
           {/* The count was stated and then nothing on the page could act on it:
               "invitation" appeared exactly once, in that sentence, and the only
               card was an already-accepted job. */}
-          {pending.length || acknowledgementDue ? (
-            <Link className="button button-light" href={pending.length ? "/crew/pending" : "/crew/jobs"}>
-              {pending.length ? "Answer your invitations" : "Open your jobs"}{" "}
+          {pending.length || acknowledgementDue || closeoutsDue.length ? (
+            <Link
+              className="button button-light"
+              href={
+                pending.length
+                  ? "/crew/pending"
+                  : closeoutsDue.length && !acknowledgementDue
+                    ? `/crew/closeout?assignment=${encodeURIComponent(String(closeoutsDue[0]!.assignment.id))}`
+                    : "/crew/jobs"
+              }
+            >
+              {pending.length
+                ? "Answer your invitations"
+                : closeoutsDue.length && !acknowledgementDue
+                  ? "Send in your hours"
+                  : "Open your jobs"}{" "}
               <ArrowRight size={15} />
             </Link>
           ) : null}
@@ -786,6 +845,44 @@ export function LiveCrewHome() {
           </Link>
         </section>
       ) : null}
+      {closeoutsDue.map(({ assignment, moment }) => {
+        const job = projectFor(data, assignment);
+        // The amount, when he is allowed to see it. Payment cannot be
+        // scheduled until this arrives, so the sum is the whole motivation and
+        // the closeout page already states it.
+        const fee = assignment.compensationVisibleToCrew
+          ? money(assignment.compensationCents, assignment.currency)
+          : null;
+        return (
+          <section className="crew-next-action" key={`closeout-${assignment.id}`}>
+            <ReceiptText />
+            <span>
+              <small>
+                {moment.reason === "needs_changes"
+                  ? "The studio asked for changes"
+                  : "Your hours and expenses"}
+              </small>
+              <strong>
+                {moment.reason === "needs_changes"
+                  ? `Update your work record for ${text(job?.name) || "this job"}`
+                  : `Send in your work record for ${text(job?.name) || "this job"}`}
+              </strong>
+              <small>
+                {fee
+                  ? `${fee} is waiting on it — your studio cannot schedule payment until the hours are in.`
+                  : "Your studio cannot schedule payment until the hours are in."}
+              </small>
+            </span>
+            <Link
+              className="button button-dark"
+              href={`/crew/closeout?assignment=${encodeURIComponent(String(assignment.id))}`}
+            >
+              {moment.reason === "needs_changes" ? "Update it" : "Send it in"}{" "}
+              <ArrowRight />
+            </Link>
+          </section>
+        );
+      })}
       {!next && accepted.length ? (
         <section className="panel crew-upcoming-card is-clear">
           <div>
@@ -1379,6 +1476,14 @@ export function LiveCrewSchedule({ context = "schedule" }: { context?: "schedule
   const locations = list(assignment.locations).map(record);
   const responsibilities = list(assignment.responsibilities).map(String);
   const contacts = list(assignment.contacts).map(record);
+  // Nothing writes `assignment.contacts`, so this is the number crew actually
+  // get. See features/tenants/identity.ts.
+  // Explicit empty fallbacks: `text` in this file defaults to "Pending", which
+  // is truthy — so the absent case rendered a contact row whose number read
+  // "Pending" and whose tel: link dialled nothing.
+  const studioPhone = text(data.studio?.eventDayPhone, "").trim();
+  const studioName =
+    text(data.studio?.brandName, "") || text(data.studio?.businessName, "");
   const nextItemId = items.find((item) => Date.parse(text(item.endAt, "")) >= renderedAt)?.id;
   return (
     <div className="crew-mobile-page crew-event-day">
@@ -1412,7 +1517,19 @@ export function LiveCrewSchedule({ context = "schedule" }: { context?: "schedule
       <section className="crew-event-brief-grid">
         <article className="panel crew-brief-panel"><p className="eyebrow">Your role</p><h2>{text(assignment.role)}</h2><ul>{responsibilities.length ? responsibilities.map((item) => <li key={item}><CheckCircle2 size={14}/>{item}</li>) : <li><AlertTriangle size={14}/>Confirm responsibilities with the studio.</li>}</ul></article>
         <article className="panel crew-brief-panel"><p className="eyebrow">Locations & access</p>{locations.map((location) => <div className="crew-event-location" key={text(location.name)}><MapPin/><span><strong>{text(location.name)}</strong><small>{text(location.address, "Address pending")}</small>{location.address ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(text(location.address))}`} target="_blank" rel="noreferrer">Directions <ExternalLink size={12}/></a> : null}</span></div>)}</article>
-        <article className="panel crew-brief-panel"><p className="eyebrow">Event contacts</p>{contacts.length ? contacts.map((contact) => <div className="crew-event-contact" key={`${text(contact.name)}-${text(contact.phone)}`}><Phone/><span><strong>{text(contact.name)}</strong><small>{text(contact.role, "Studio contact")}</small>{contact.phone ? <a href={`tel:${text(contact.phone)}`}>{text(contact.phone)}</a> : null}</span></div>) : <p>No event contact has been shared. Use the secure studio message below.</p>}<StudioContactForm assignment={assignment} eventDay/></article>
+        <article className="panel crew-brief-panel"><p className="eyebrow">Event contacts</p>{contacts.length ? contacts.map((contact) => <div className="crew-event-contact" key={`${text(contact.name)}-${text(contact.phone)}`}><Phone/><span><strong>{text(contact.name)}</strong><small>{text(contact.role, "Studio contact")}</small>{contact.phone ? <a href={`tel:${normalizePhone(text(contact.phone))}`}>{text(contact.phone)}</a> : null}</span></div>) : studioPhone ? (
+          /**
+           * The studio's own number, when no per-job contact was set.
+           *
+           * This panel has always rendered `tel:` links from
+           * `assignment.contacts`, and nothing in the product ever wrote that
+           * array — so every crew member on every job read "No event contact
+           * has been shared. Use the secure studio message below" on the page
+           * the prep screen labels "Available offline", while the person they
+           * would message was shooting the same wedding.
+           */
+          <div className="crew-event-contact"><Phone/><span><strong>{text(studioName) || "Your studio"}</strong><small>Studio · no contact set for this job</small><a href={`tel:${normalizePhone(studioPhone)}`}>{studioPhone}</a></span></div>
+        ) : <p>No phone number is on file for your studio. Ask them to add one in Settings → Studio identity, and use the secure message below in the meantime.</p>}<StudioContactForm assignment={assignment} eventDay/></article>
       </section>
       <section className="crew-event-timeline">
         {items.length ? items.map((item) => (
@@ -1610,7 +1727,10 @@ export function LiveCrewCloseout() {
   const closeout = record(assignment.closeout);
   const payment = record(assignment.payment);
   const closeoutStatus = text(closeout.status, "");
-  const submitted = ["submitted", "approved", "paid"].includes(closeoutStatus);
+  // Shared with the home page, which now names outstanding records — see
+  // features/crew/closeout-moment.ts. Two derivations of one question is the
+  // class that gave readiness three different percentages.
+  const submitted = crewCloseoutIsSubmitted(closeoutStatus);
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (busy) return;
