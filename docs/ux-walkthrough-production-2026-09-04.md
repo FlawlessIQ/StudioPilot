@@ -618,3 +618,22 @@ schedule-review path, by contrast, does email — so this is an inconsistency,
 not a platform-wide email outage. Either "Send the form" must queue
 `questionnaire_request`, or the button must not say "Send" (and the couple must
 learn about it some other disclosed way, e.g. the portal with a nudge).
+
+**E6 · Crew profile added.** "Sam Rivera" (crew inbox conor@ad-helm.com, event
+rate $750, Montclair NJ). "Sam Rivera is in your directory · We've emailed them
+an invitation to set up their profile … The link expires in seven days."
+`crew_directory_invitation` sent (status succeeded).
+**E7 · Second-shooter role offered (direct path).** "I know who I want" → offer
+to Sam (Second photographer, 12:00–20:00, $750, covering ceremony reactions /
+cocktail-hour candids). Sent → job shows "Second photographer has not answered
+the offer" (pending). **Contentless-invite regression check PASSED:** the
+`crew_invitation` email job carries `inviteToken`, `inviteUrl`, role, arrival/
+departure, respondBy, location, responsibilities and compensation, with a real
+accept link `https://studio-cue.com/auth/crew-invite?token=…` (status
+succeeded). Not the empty "There's an update from your studio" of the 2026-09
+incident.
+Minor: offering the crew role dropped Event Readiness 42% → 25% (9 blockers,
+was 7) because the offer opens new requirements (crew confirmed, W-9, COI) —
+taking the correct next step lowers the headline number, which could read as
+going backwards.
+**E8 (crew accepts) parked for Conor** — needs the conor@ad-helm.com inbox.
