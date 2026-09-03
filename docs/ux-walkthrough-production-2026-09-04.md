@@ -531,3 +531,35 @@ skipping a step") → all three green (Signed / Paid / Confirmed), badge
 the planning checklist, the calendar entry and the job folder — this takes a
 minute. Nothing else is needed from you." No "project setup jobs" jargon (A29
 holds).
+
+### P15 · An optional provider (Dropbox) blocks post-booking setup and the client's booking confirmation · D7 · #? · P0 (production, integration-dependent)
+The booking confirmed cleanly (badge Booked, `bookingCompletedAt` set, client
+portal active), but **no `booking_confirmation` email reached the couple** —
+the tenant's `emailJobs` holds only inquiry_acknowledgement, manual_message,
+proposal_sent, retainer_invoice. Cause: the post-booking job
+`providerJobs/booking_<projectId>` (type `complete_booking_side_effects`) has
+ordered steps:
+`["dropbox_folders", "production_calendar", "workflow", "checkpoints", "confirmation"]`
+(`functions/src/booking/commands.ts:~1944`). **Dropbox is not connected**, so
+step 1 throws `DROPBOX_NOT_CONNECTED`; `operationsTaskWorker` logs a
+`studiocueOperationalError` and re-schedules — observed **4+ attempts retrying
+every 30–60s since 19:33**, `status: retry_scheduled`, and it will keep
+retrying. Dropbox / file storage is an **optional** provider (the Integrations
+page shows File storage as "Connect a provider to enable this", not required),
+yet the booking side-effects job hard-fails on it and never reaches the
+`confirmation` step — so the single most reassuring client email in the whole
+funnel ("you're booked") never sends. Also observed: `calendarEvents` = 0 (no
+production calendar; Google Calendar is disconnected too, so that step would
+also fail). `checkpoints` (12) and one `workflowRun` do exist, so some setup
+ran, but the job as a whole never completes and the confirmation is stuck
+behind the optional-provider failure.
+**Fix direction:** each side-effect step must be independent and
+non-fatal — an unconnected optional provider (file storage, calendar) should be
+skipped with a note, never abort the job or block `confirmation`. Order the
+client-facing confirmation so it cannot be gated by an optional integration,
+and cap retries on a permanently-unsatisfiable precondition instead of looping
+forever.
+**Note:** this is exactly the class of bug a production walk exists to find —
+invisible in the emulator/seed (no real providers) and invisible to the studio
+(the UI said "Booked · Nothing else is needed from you" while the couple got
+silence and a worker retried in a loop).
