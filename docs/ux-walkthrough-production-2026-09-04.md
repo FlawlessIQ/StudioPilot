@@ -888,3 +888,11 @@ The optional providers are now recorded-and-skipped instead of aborting; the
 confirmation is no longer gated. (Note: existing bookings already dead-lettered
 on the old code need a one-time re-drive like the above; the fix prevents new
 ones.)
+
+**P18 SPF remediation VERIFIED (2026-09-04).** Conor added the record in
+Cloudflare. `dig TXT studio-cue.com` now returns exactly one SPF —
+`v=spf1 include:sendgrid.net ~all` — at both 1.1.1.1 and 8.8.8.8. SendGrid is
+now SPF-authorized and DKIM was already present (s1/s2._domainkey → SendGrid),
+so mail from studio-cue.com passes both checks; strict inboxes (Outlook/
+ad-helm.com) should stop junking new sends. DMARC remains p=none (monitoring);
+tightening it later is optional hardening.
