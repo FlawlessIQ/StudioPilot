@@ -859,3 +859,19 @@ trial-expiry, which the plan says to simulate via console date edits) or need a
 **non-studio identity** (COI agent reply from ronoc.ie; crew schedule
 acknowledgement from conor@ad-helm.com). The only remaining studio-drivable test
 is **H3 (cancel the job)**, which is terminal.
+
+## Fix landed (code) — P15 (P0)
+`functions/src/operations/provider-runtime.ts` · `completeBookingResources`: the
+Dropbox-folder and Google-Calendar side-effects are now each wrapped in
+best-effort try/catch. A provider that is not connected (or otherwise fails)
+records its reason on the project as `bookingSideEffectSkips` and is skipped —
+the function always reaches the final batch that sets
+`bookingProviderState:"completed"` **and queues the `booking_confirmation`
+email**. So an optional provider can no longer abort the job or block the
+couple's confirmation, and the job no longer retries forever on
+`DROPBOX_NOT_CONNECTED`. Trade-off: a transient provider error also skips that
+one side-effect (folders/calendar) for the booking rather than retrying, which
+is recorded and far preferable to blocking confirmation. `cd functions && npm
+run build` is clean; `tests/provider-failure.test.ts` still passes. **Not yet
+deployed** — needs a full `firebase deploy --only functions` (provider-runtime
+is imported broadly) + the invoker script, per CLAUDE.md rules 5–6.
