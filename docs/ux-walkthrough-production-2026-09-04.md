@@ -795,3 +795,16 @@ still needs attention" and "1 crew acknowledgement missing" (Sam accepted the
 offer but has not acknowledged the published schedule — a crew-side step, owner
 subcontractor). Event is 50 days out so the "On the day · First up" countdown
 (B14) is not exercised here.
+
+**Reference panel ("Everything outstanding, by who owes it"), holding well.**
+Three columns correctly attribute open items: **Studio needs (4)** — Travel
+requirements, COI approved+sent, Locations confirmed, +1; **Client needs (2)** —
+Final balance paid, Finish planning questionnaire (0%); **Crew needs (1)** —
+Acknowledge the current schedule ("Second photographer has a newer published
+version · waiting"). Clear ownership. (Note: "Finish planning questionnaire" is
+correctly a client item but per P17 the client was never emailed it, so they
+cannot act — the two findings are consistent.)
+**Edit/reversal options** on the job: "Put the job on hold" (reversible — "bring
+it back when the new date is settled") and "Cancel the job" ("stops appearing as
+live work and stays on file. Nothing is deleted; contract, payments and delivery
+records are preserved"). H3 (cancel) deferred to the very end — it is terminal.
