@@ -549,23 +549,26 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     case "final_schedule_published": {
       const final = input.key === "final_schedule_published";
       return {
-        subject: `${final ? "Final schedule published" : "Schedule ready for review"} — ${brand.studioName}`,
+        // P20: the couple's portal offers no "approve" action — publishing is
+        // the shared state — so this must not promise a review/approval step.
+        // It shares the schedule and invites a message, nothing more.
+        subject: `${final ? "Final schedule published" : "Your event-day schedule"} — ${brand.studioName}`,
         preheader: final
           ? "Open the current event-day schedule."
-          : "Review the proposed event schedule.",
-        eyebrow: final ? "Final schedule" : "Schedule review",
+          : "Your event-day schedule is ready.",
+        eyebrow: final ? "Final schedule" : "Event-day schedule",
         heading: final
           ? "The final schedule is published"
-          : "The schedule is ready for review",
+          : "Your event-day schedule is ready",
         paragraphs: [
           greeting,
-          `${brand.studioName} ${final ? "published the current event-day schedule" : "prepared a schedule for your review"}${project}.`,
+          `${brand.studioName} ${final ? "published the current event-day schedule" : "shared your event-day schedule"}${project}.`,
           final
             ? "Please use this version on the event day. Relevant crew may be asked to acknowledge changes."
-            : "Send any requested changes before approval.",
+            : "Keep it handy for the day. Message your studio if anything needs to change.",
         ],
         action: scheduleUrl
-          ? { label: final ? "Open final schedule" : "Review schedule", url: scheduleUrl }
+          ? { label: final ? "Open final schedule" : "View schedule", url: scheduleUrl }
           : undefined,
       };
     }

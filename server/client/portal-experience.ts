@@ -446,6 +446,13 @@ export function buildClientPortalExperience({
       !(
         eventHasPassed &&
         checkpointDestination(checkpoint).href === "/client/questionnaire"
+      ) &&
+      // P21: once the contract stage is behind them (signed), a "Review
+      // contract" next-action is stale — the studio-side contract-verification
+      // checkpoint was surfacing to the couple for an already-signed contract.
+      !(
+        index > stateIndex("CONTRACT_PENDING") &&
+        checkpointDestination(checkpoint).href === "/client/contract"
       ),
   );
   const destination = clientCheckpoint
