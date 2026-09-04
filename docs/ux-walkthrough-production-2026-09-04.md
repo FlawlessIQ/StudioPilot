@@ -875,3 +875,16 @@ is recorded and far preferable to blocking confirmation. `cd functions && npm
 run build` is clean; `tests/provider-failure.test.ts` still passes. **Not yet
 deployed** — needs a full `firebase deploy --only functions` (provider-runtime
 is imported broadly) + the invoker script, per CLAUDE.md rules 5–6.
+
+**P15 fix VERIFIED LIVE (2026-09-04).** Deployed all functions to
+studiohub-prod + ran the invoker script (85 grants). Maya's booking job had
+already hit `dead_letter` (5 attempts) before the deploy, so I reset it to
+`retry_scheduled`; the fixed worker then ran it once and it **succeeded** —
+`bookingProviderState: completed`, `bookingSideEffectSkips:
+{dropbox:DROPBOX_NOT_CONNECTED, calendar:GOOGLE_CALENDAR_NOT_CONNECTED}`, and
+the `booking_confirmation` emailJob queued+succeeded. The couple received
+"You're booked with Walk Studio · Your date is officially booked" at 16:35Z.
+The optional providers are now recorded-and-skipped instead of aborting; the
+confirmation is no longer gated. (Note: existing bookings already dead-lettered
+on the old code need a one-time re-drive like the above; the fix prevents new
+ones.)
