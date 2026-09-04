@@ -720,3 +720,22 @@ trial-expiry, which the plan says to test by editing dates in the console).
 **Still studio-drivable now:** F1 (day-before checklist draft), F2 (studio
 event-day brief view), H2 (change venue/city label), H3 (cancel-with-reason),
 H4 (resend audited attempts).
+
+### P19 · Client portal has no durable sign-in; post-invitation emails dead-end an expired session · E5a · #4 · wall (client-facing)
+The couple account (`conor+couple@flawlessiq.com`) is a `password`-provider
+user with **no password set** (`passwordHash` absent; lastSignIn == creation) —
+it was created by the one-time `/auth/client-invite?token=…` link in the
+**proposal** email, and that `clientInvitations` record is now `status:
+accepted` (token consumed). Every later client email links to a **bare,
+session-gated URL** instead: the `schedule_review` email's `scheduleUrl` is
+just `https://studio-cue.com/client/schedule` (no token). So once the couple's
+session expires (hours/days later — exactly when they're asked to approve the
+schedule or pay), clicking "Review the schedule" lands on the portal with no
+session, no password to sign in with, and no fresh magic link — a dead end. The
+only recovery is "Forgot password?" to *create* a password on an account that
+never had one, which is unintuitive for a client who was never asked to set
+one. Fix options: make client-facing action emails carry a fresh
+self-authenticating link (magic link / signed portal token) rather than a bare
+`/client/...` URL, or give clients a first-class passwordless sign-in ("email me
+a link"). As-is, a booked couple can be locked out of their own portal at the
+moment they need it.
