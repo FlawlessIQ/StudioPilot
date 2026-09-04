@@ -671,5 +671,19 @@ sender-reputation / DMARC-alignment on the shared SendGrid account for
 studio-cue.com so security-relevant mail (crew invites, auth, invoices) reaches
 strict inboxes. The earlier "silent gap" framing was wrong — the reconciler and
 status are accurate; the problem is downstream deliverability.
+
+
+**DNS evidence (root cause confirmed):** `dig TXT studio-cue.com` returns **no
+SPF record**; DKIM is present (`s1/s2._domainkey.studio-cue.com` → SendGrid
+`u57073990`), and DMARC is `p=none`. The crew domain `ad-helm.com` is
+**Microsoft 365** (`MX → *.mail.protection.outlook.com`), whose filter weights
+SPF heavily; the couple domain is Gmail (lenient, passed on DKIM). So Outlook
+accepted the DKIM-signed mail (→ SendGrid "delivered") but filed it to Junk for
+lack of SPF. **Fix (production-blocking for reliable delivery):** add an SPF
+TXT on studio-cue.com authorizing SendGrid, e.g. `v=spf1 include:sendgrid.net
+~all`, then move DMARC past `p=none` after monitoring. Until then, crew invites,
+auth links, and invoices will land in Junk at strict (Outlook/corporate)
+domains while looking "delivered" in-app.
+
 Meanwhile the accept link is usable directly:
 `https://studio-cue.com/auth/crew-invite?token=Q6UfLo9Ul0wcePQhNMerCJSEXQJPiWP22q84AVtR7EY`.
