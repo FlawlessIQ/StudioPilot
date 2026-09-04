@@ -808,3 +808,15 @@ cannot act — the two findings are consistent.)
 it back when the new date is settled") and "Cancel the job" ("stops appearing as
 live work and stays on file. Nothing is deleted; contract, payments and delivery
 records are preserved"). H3 (cancel) deferred to the very end — it is terminal.
+
+### P22 · A booked couple never appears in the Clients directory · #4 · logic (relationship management gap)
+`/studio/clients` — headed "Keep client details, project relationships, and
+**portal access** in one place" — shows "**No clients yet**" (Active/Prospects/
+Archived all empty), despite Maya Ellison being fully booked: inquiry →
+converted to project → Booked → active client portal. So converting an inquiry
+and booking the job does **not** create a Clients directory entry. Consequences:
+the studio cannot see its actual clients in the place meant to list them, and —
+tying to P19 — there is no client record from which to manage or **re-invite**
+portal access (H4 resend of the client invite has no home). The client
+relationship is effectively invisible in the CRM after booking. Booking should
+create/lodge the client in the directory with their portal-access controls.
