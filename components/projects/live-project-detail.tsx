@@ -524,6 +524,35 @@ function ProjectLifecycleLanes({
   related: RelatedRecords;
   evidence: ReadinessEvidence;
 }) {
+  // P23: a cancelled or on-hold job owes nobody anything. Listing "Client
+  // needs: pay the balance" and "Crew needs: acknowledge the schedule" on a
+  // cancelled wedding — with a live readiness % — is wrong and confusing.
+  // Replace the obligations reference with a neutral note; the records stay on
+  // file, reachable from the tabs above.
+  if (project.state === "CANCELLED" || project.state === "POSTPONED") {
+    const cancelled = project.state === "CANCELLED";
+    const reason =
+      typeof project.interruptionReason === "string" &&
+      project.interruptionReason.trim().length > 0
+        ? project.interruptionReason.trim()
+        : null;
+    return (
+      <section className="project-lifecycle-cockpit" id="project-checkpoints">
+        <header>
+          <div>
+            <p className="eyebrow">Reference</p>
+            <h2>{cancelled ? "This job is cancelled" : "This job is on hold"}</h2>
+            <p>
+              Everything on it stays on file. Nothing is outstanding for the
+              studio, the client, or crew while it is{" "}
+              {cancelled ? "cancelled" : "on hold"}.
+              {reason ? ` Reason: ${reason}` : ""}
+            </p>
+          </div>
+        </header>
+      </section>
+    );
+  }
   // The same evidence the header above is scored from. Passing it is the whole
   // fix for a panel that listed the contract and the retainer as outstanding
   // while the header, four inches higher, counted them as done.

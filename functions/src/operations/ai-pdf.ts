@@ -36,6 +36,8 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
     if(!project||!model)throw new Error("VERTEX_AI_NOT_CONFIGURED");
     const token=await cloudAccessToken();
     const facts={
+      clientFirstName:lead.get("firstName"),
+      clientPartnerName:lead.get("partnerName"),
       eventType:lead.get("eventTypeLabel"),
       eventDate:lead.get("eventDate"),
       venue:lead.get("venue"),
@@ -52,7 +54,7 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
       method:"POST",
       headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},
       body:JSON.stringify({
-        systemInstruction:{parts:[{text:"You summarize photography inquiries and draft a warm studio reply using only supplied facts. Never invent pricing, availability, dates, venues, or client preferences. Never claim the date is available unless availabilityStatus says available. Missing information and questions are suggestions for a human consultation. The reply is an unsent draft requiring studio approval."}]},
+        systemInstruction:{parts:[{text:"You summarize photography inquiries and draft a warm studio reply using only supplied facts. Address the client by clientFirstName when it is provided (for example \"Dear Maya,\"); never write \"Dear Client\". Never invent pricing, availability, dates, venues, or client preferences. Never claim the date is available unless availabilityStatus says available. End the reply warmly, but do NOT add a sign-off name or signature and never output a bracketed placeholder such as \"[Studio Name]\" — the studio's name and branding are added automatically when the email is sent. Missing information and questions are suggestions for a human consultation. The reply is an unsent draft requiring studio approval."}]},
         contents:[{role:"user",parts:[{text:JSON.stringify(facts)}]}],
         generationConfig:{
           temperature:0,
