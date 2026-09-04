@@ -695,3 +695,28 @@ placement, not a send failure. Server: `crewAssignments` Second photographer →
 confirmed" checked, **Event Readiness 42% → 50%**. The crew directory/cascade
 correctly ruled Sam out of any second role ("Conflicts with accepted work" —
 A20-style reason shown).
+
+**E9 · Final schedule state.** No separate "publish final" step — the Version 1
+schedule is `published` and live (10 items, all at The Glasshouse). The detail
+page states "Published versions remain preserved. Human approval and renewed
+crew acknowledgement are tracked independently", and "Renewed crew
+acknowledgement: Not required" (the plan didn't change after Sam accepted, so no
+re-ack is forced). Couple approval (E5a) is the remaining track and is Conor's.
+
+## Where the walk stands (end of studio-drivable pre-event steps)
+Fully driven and verified on production: **A** (signup→subscription), **B**
+(setup + integrations; Google Calendar blocked by P12), **C** (inquiry→AI
+reply→consultation), **D** (proposal→PDF→accept→signature→retainer→**Booked**),
+**E1/E3/E4/E6/E7/E8/E11** (questionnaire, AI schedule, publish, crew profile+
+offer+**confirmed**, readiness judgements). Findings **P1–P18**, one P0 (P15),
+one P1 deliverability (P18, SPF).
+
+**Needs Conor (couple/crew/venue/live-billing):** E5a (couple approves schedule
+in portal), E10 (COI — venue + agent emails, or skip), E12 (final invoice —
+live QuickBooks), plus **void QuickBooks invoice #7**.
+**Date-gated (event is Oct 24, ~50 days out):** F4 (mark event complete), all of
+**G** (delivery/closeout/review — also G3 crew), and H1/H5 (date-change and
+trial-expiry, which the plan says to test by editing dates in the console).
+**Still studio-drivable now:** F1 (day-before checklist draft), F2 (studio
+event-day brief view), H2 (change venue/city label), H3 (cancel-with-reason),
+H4 (resend audited attempts).
