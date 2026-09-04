@@ -820,3 +820,22 @@ tying to P19 — there is no client record from which to manage or **re-invite**
 portal access (H4 resend of the client invite has no home). The client
 relationship is effectively invisible in the CRM after booking. Booking should
 create/lodge the client in the directory with their portal-access controls.
+
+**E10 · COI requested from the agent, holding.** Insurance page leads with
+"Legal sufficiency is never automated · a studio reviewer always decides" (AI
+advisory only) and a clear 6-step chain (request → agent PDF → review →
+approve → StudioCue sends to venue → venue acknowledges). The request form has
+sensible prefills (venue legal name, event date, due date, coverage "General
+liability", limit $1,000,000 with "most venues ask for $1,000,000"), a Places
+lookup for the venue address, and two clearly-separated emails: **Insurance
+agent email** ("they get the request as soon as you send it") vs **Venue
+submission email** ("only after you have reviewed and approved it. Nothing is
+sent here now"). Filled agent `ronoc.ie@gmail.com`, venue submission
+`con.lawless@gmail.com`, holder "The Glasshouse LLC". "Create and send request"
+→ `coi_request` emailed to the agent (status succeeded); job shows the
+certificate request "Open", next move "NOTHING IS BLOCKED". The disclosure held
+throughout: the venue is not contacted until the studio approves.
+**COI continuation (needs Conor as the agent):** reply to the `coi_request` in
+`ronoc.ie@gmail.com` attaching any COI PDF, to exercise the inbound-parse →
+human-review → approve → `coi_venue_delivery` chain (`coi_correction` if the
+AI flags a discrepancy). I cannot send from that inbox.
