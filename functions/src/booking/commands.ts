@@ -478,6 +478,26 @@ export const bookingCommand = onRequest(
               createdAt: timestamp,
             });
         }
+        // P14: a studio-booked consultation must tell the couple, exactly as
+        // the self-serve path does — otherwise they have a meeting they never
+        // hear about. Mirrors public-scheduling's consultation_confirmation
+        // enqueue. Guarded by the consultation .create() above, which throws on
+        // a retry before this runs, so it cannot double-send.
+        await firestore
+          .doc(`emailJobs/consultation_confirmation_${consultationId}`)
+          .create({
+            id: `consultation_confirmation_${consultationId}`,
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            contactId: command.input.contactId,
+            type: "consultation_confirmation",
+            startsAt: command.input.startsAt,
+            location: command.input.location ?? null,
+            status: "queued",
+            attempts: 0,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          });
         // Booking the consultation is itself the evidence that the
         // conversation has started, so the project moves with it. Without this
         // the journey ticked "Consultation" while the project stayed at LEAD,

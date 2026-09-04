@@ -701,6 +701,23 @@ export const planningCommand = onRequest(
           updatedBy: identity.uid,
           archivedAt: null,
         });
+        // P17: assigning the details form must actually send it. This command
+        // previously created the response record but queued no email, so the
+        // couple was never told a form was waiting ("Send the form" sent
+        // nothing). The worker resolves the client recipient from the project;
+        // actionUrl drives the "Complete questionnaire" button.
+        await db.doc(`emailJobs/questionnaire_request_${id}`).create({
+          id: `questionnaire_request_${id}`,
+          tenantId: parsed.tenantId,
+          projectId: parsed.input.projectId,
+          type: "questionnaire_request",
+          actionUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app"}/client/questionnaire`,
+          status: "queued",
+          attempts: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+
         result = {
           responseId: id,
           status: "not_started",
