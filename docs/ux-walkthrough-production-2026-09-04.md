@@ -653,19 +653,23 @@ offer no "Mark done" and instead name their action ("Send the questionnaire",
 ("The venue does not require a certificate") is COI-specific and reads oddly
 under non-COI checkpoints.
 
-### P18 · Crew invitation recorded "succeeded" but never arrived · E7/E8 · #? · P1 (silent delivery gap, client/crew-facing)
-Conor reports the crew invite never reached `conor@ad-helm.com`. Server-side,
-**both** crew email jobs (`crew_directory_invitation`, `crew_invitation`)
-recorded `status: succeeded` with a real accept link
-(`/auth/crew-invite?token=…`), and every same-period email to the couple's
-address (`conor+couple@flawlessiq.com`) delivered — so this is destination-
-specific, not a platform outage. "Succeeded" here means only "handed to
-SendGrid", and with no SendGrid webhook (the 15-min `emailDeliveryReconciler`
-poll is the only signal) a bounce / spam-filter / domain rejection at
-ad-helm.com is invisible in-app: the studio sees "offer sent" and would believe
-the crew was invited. This is the exact failure class CLAUDE.md flags ("the job
-recorded succeeded, because sending worked"). Needs: surface real delivery
-state (delivered/bounced/deferred/dropped) on crew and client sends, not just
-the enqueue result, and flag a non-delivery so the studio can resend or fix the
-address. Diagnosis of the specific cause (bounce vs spam vs block) is pending a
-gcloud reauth to read the SendGrid delivery record.
+### P18 (corrected) · Crew invite delivered per SendGrid but not seen — likely spam placement at the recipient domain · E7/E8 · #? · deliverability
+Conor reported the crew invite never arrived at `conor@ad-helm.com`. After a
+gcloud reauth, the records are clearer than first thought: **both** crew email
+jobs show `status: succeeded` **and `deliveryStatus: delivered`** (the 15-min
+`emailDeliveryReconciler` updated them from succeeded → delivered), each with a
+SendGrid message id. So StudioCue's in-app delivery tracking is *working* and
+SendGrid reports ad-helm.com's mail server accepted both messages. The couple's
+sends to `conor+couple@flawlessiq.com` (Gmail) all landed in the inbox. Net:
+this is not a send failure or a false "succeeded" — it is **inbox placement**:
+ad-helm.com accepted the mail (250) then almost certainly filed it to spam/junk
+or filtered it, which no sender sees as a bounce. Likely root cause is
+sender-reputation / DMARC-alignment on the shared SendGrid account for
+`studio-cue.com` (strict domains quarantine; Gmail was lenient). Actions:
+(1) Conor check the ad-helm.com spam/junk folder — if it is there, confirmed;
+(2) for production, verify SendGrid domain authentication (SPF/DKIM/DMARC) for
+studio-cue.com so security-relevant mail (crew invites, auth, invoices) reaches
+strict inboxes. The earlier "silent gap" framing was wrong — the reconciler and
+status are accurate; the problem is downstream deliverability.
+Meanwhile the accept link is usable directly:
+`https://studio-cue.com/auth/crew-invite?token=Q6UfLo9Ul0wcePQhNMerCJSEXQJPiWP22q84AVtR7EY`.
