@@ -91,3 +91,42 @@ surfacing**: show real SendGrid delivery status (delivered/bounced/deferred) on
 client- and crew-facing sends, and flag a lifecycle step whose declared email
 did not actually queue. That single capability would have caught four of these
 findings at the source.
+
+---
+
+## Shipped 2026-09-04 (this pass)
+Deployed to production (all functions + invoker script) and frontend rolled out
+(verified by served bundle carrying the P2 change), all on `main`. Full gate
+green: typecheck, 936 unit tests, lint (0 errors), Next build, functions build.
+
+| ID | Fix | Where |
+|---|---|---|
+| **P17** | assignQuestionnaire enqueues `questionnaire_request` | planning/commands + email-triggers guard |
+| **P14** | scheduleConsultation enqueues `consultation_confirmation`; consultation calendar step best-effort | booking/commands, provider-runtime |
+| **P10** | Checkout honours the existing `trial_end`, no restart; expired trial re-grants nothing | stripe-checkout |
+| **P11** (code) | Checkout prefills `customer_email` | stripe-checkout |
+| **P8** | Plain-language status ("Free trial · Studio") + trial-end/renewal date | live-subscription |
+| **P2** | Send-failure gets its own honest state, not the "we sent a link" screen | register-form |
+| **P1** | Required marks on register fields | register-form |
+| **P4** | Resend verification from the onboarding wall (session live) | onboarding-form |
+| **P6** | authStateReady before reading currentUser | onboarding-form |
+| **P7** | Terminal success + replace/refresh, no re-submittable form | onboarding-form |
+| **P5** | Verified screen: no "invited" copy, honours continueUrl | verify-email-action |
+| — | Timezone list unified with settings (13 zones) | onboarding-form |
+| **P12** | OAuth denial reported specifically, provider resolved from state | integrations/oauth + integration-manager copy |
+| **P13** | Inquiry-reply AI greets by name, no `[Studio Name]` placeholder | operations/ai-pdf |
+| **P20** | Schedule email no longer promises a missing approval step | email-templates |
+| **P21** | No stale "Review contract" next-action after signing | portal-experience |
+| **P23** | Cancelled/on-hold job shows a neutral note + reason, not live obligations | live-project-detail |
+
+## Deferred (with reason)
+- **P19** (durable client portal sign-in) — a real feature (magic-link /
+  passwordless), needs design + auth testing that shouldn't be rushed to prod.
+- **P22** (booked couple absent from Clients directory) — a data-model change
+  to how a booked client is registered/queried; needs the contact/client model
+  worked out to avoid breaking the directory. Not a safe one-shot.
+- **P9** (Checkout branded "FlawlessIQ") — Stripe Dashboard → public business
+  name. Config, not code.
+- **P11** (Cash App / Klarna offered) — Stripe Dashboard payment-method config.
+- **P3** — auth-mail platform voice is a template refinement; the auth-link
+  click-tracking is a SendGrid account/send setting. Low-severity polish.
