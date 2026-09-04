@@ -502,12 +502,39 @@ export const integrationOAuth = onRequest(
       }
       const state = String(request.query.state ?? "");
       const code = String(request.query.code ?? "");
+      const providerError =
+        typeof request.query.error === "string" ? request.query.error : "";
+      const stateReference = state
+        ? db.doc(
+            `oauthStates/${createHash("sha256").update(state).digest("hex")}`,
+          )
+        : null;
+      const saved = stateReference ? await stateReference.get() : null;
+      // P12: resolve the provider from state as early as possible so a denial
+      // or a malformed callback names the provider instead of logging
+      // provider:null. The state doc is present on a denial — the provider
+      // echoes the state param back alongside the error.
+      if (saved?.exists) {
+        const resolved = providerSchema.safeParse(saved.get("provider"));
+        if (resolved.success) {
+          failureProvider = resolved.data;
+          failureTenantId = String(saved.get("tenantId"));
+        }
+      }
+      // P12: a provider that returns ?error=... has given a valid response, not
+      // a broken one. Report the specific, actionable cause instead of the
+      // generic "did not return a valid authorization result" (which also sent
+      // the studio into a "start again" loop that could not succeed).
+      if (providerError)
+        throw new Error(
+          providerError === "access_denied"
+            ? "OAUTH_ACCESS_DENIED"
+            : `OAUTH_PROVIDER_ERROR:${providerError}`,
+        );
       if (!state || !code) throw new Error("OAUTH_CALLBACK_INVALID");
-      const stateReference = db.doc(
-        `oauthStates/${createHash("sha256").update(state).digest("hex")}`,
-      );
-      const saved = await stateReference.get();
       if (
+        !stateReference ||
+        !saved ||
         !saved.exists ||
         new Date(String(saved.get("expiresAt"))) < new Date()
       )

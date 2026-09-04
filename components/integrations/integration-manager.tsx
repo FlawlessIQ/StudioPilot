@@ -272,11 +272,21 @@ const callbackErrors: Record<string, string> = {
     "This authorization session expired or was already used. Start a new connection.",
   OAUTH_CALLBACK_INVALID:
     "The provider did not return a valid authorization result. Start the connection again.",
+  OAUTH_ACCESS_DENIED:
+    "That provider didn’t grant access. You may have declined, or this studio’s account isn’t permitted for the app yet — a Testing-mode OAuth app only lets approved accounts connect. Check with your admin, then reconnect.",
   OAUTH_PROVIDER_NOT_CONFIGURED:
     "This provider’s production application credentials are not configured.",
 };
 
 function readableError(value: string): string {
+  // P12: the provider named its own reason (e.g. invalid_scope); surface it
+  // instead of a generic line.
+  if (value.startsWith("OAUTH_PROVIDER_ERROR:")) {
+    const detail = value
+      .slice("OAUTH_PROVIDER_ERROR:".length)
+      .replaceAll("_", " ");
+    return `The provider reported “${detail}” and did not complete the connection. Reconnect, or check the provider’s app settings.`;
+  }
   return (
     callbackErrors[value] ??
     value
