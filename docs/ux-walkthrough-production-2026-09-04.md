@@ -783,3 +783,15 @@ as their next action (with a "Review contract" button and a past due date of Jun
 verification step should not be the couple's next action, and certainly not
 after the signature is recorded.
 
+
+## Phase F/H · Event-day brief and edits (studio-drivable)
+
+**F2 · Studio event-day brief, holding (B10/B11).** "MOBILE EVENT COMMAND ·
+Event day, without the scavenger hunt · One current brief for the schedule,
+crew, readiness, insurance, and venue details." Summary: Venue The Glasshouse,
+Schedule Version 1, Accepted crew 1, **Readiness 50% — matches the job page's
+50%** (single readiness number, B10/B11 holds). Correctly surfaces "Insurance
+still needs attention" and "1 crew acknowledgement missing" (Sam accepted the
+offer but has not acknowledged the published schedule — a crew-side step, owner
+subcontractor). Event is 50 days out so the "On the day · First up" countdown
+(B14) is not exercised here.
