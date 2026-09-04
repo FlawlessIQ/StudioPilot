@@ -6,7 +6,7 @@ import {
   signOut,
   updateProfile,
 } from "firebase/auth";
-import { ArrowRight, CheckCircle2, LoaderCircle } from "lucide-react";
+import { ArrowRight, CheckCircle2, LoaderCircle, ShieldAlert } from "lucide-react";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { requestBrandedAuthEmail } from "@/lib/auth/email-client";
 import { authIsLive } from "@/lib/runtime-mode";
@@ -19,9 +19,9 @@ export function RegisterForm({
 }) {
   /** The address the verification went to, so the confirmation can name it. */
   const [sentTo, setSentTo] = useState("");
-  const [state, setState] = useState<"idle" | "submitting" | "sent" | "error">(
-    "idle",
-  );
+  const [state, setState] = useState<
+    "idle" | "submitting" | "sent" | "created_unverified" | "error"
+  >("idle");
   const [message, setMessage] = useState("");
   const safeNext = next?.startsWith("/") && !next.startsWith("//") ? next : null;
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -99,13 +99,15 @@ export function RegisterForm({
           : "Open it, then sign in and we\u2019ll set your studio up.",
       );
     } catch {
-      // Recoverable, and only if we say so: the account is real and the person
-      // can ask for the email again from the sign-in page.
+      // P2: the account is real but the verification email did not go out. This
+      // must NOT reuse the "sent" screen — that screen says "We sent a link",
+      // which would contradict "we could not send" on the same page. Its own
+      // honest state, and it points at signing in (where the verify wall now
+      // offers a resend — P4), never at "Forgot password?" (a reset link does
+      // not verify an email, and the same throttled browser cannot send it).
       setSentTo(email);
-      setState("sent");
-      setMessage(
-        "Your account was created, but we could not send the verification email. Use “Forgot password?” on the sign-in page to receive a secure link, or try signing in again shortly.",
-      );
+      setState("created_unverified");
+      setMessage("");
     } finally {
       // Always, so a failed send never leaves the browser holding a session for
       // an account that has not verified its address.
@@ -142,10 +144,33 @@ export function RegisterForm({
       </div>
     );
   }
+  if (state === "created_unverified") {
+    return (
+      <div className="command-success">
+        <ShieldAlert size={23} />
+        <h2>Account created — one step left</h2>
+        <p>
+          Your account for <strong>{sentTo}</strong> is ready, but we couldn’t
+          send the verification link just now. Sign in with the password you
+          just chose and we’ll offer to send it again.
+        </p>
+        <Link
+          className="button button-dark"
+          href={
+            safeNext
+              ? `/auth/login?next=${encodeURIComponent(safeNext)}`
+              : "/auth/login"
+          }
+        >
+          Go to sign in <ArrowRight size={15} />
+        </Link>
+      </div>
+    );
+  }
   return (
     <form className="sign-in-form" onSubmit={submit}>
       <label>
-        Your name
+        Your name <span className="required-mark">Required</span>
         <input
           name="name"
           required
@@ -155,7 +180,7 @@ export function RegisterForm({
         />
       </label>
       <label>
-        {intent === "client" ? "Invited email" : "Work email"}
+        {intent === "client" ? "Invited email" : "Work email"} <span className="required-mark">Required</span>
         <input
           name="email"
           required
@@ -169,7 +194,7 @@ export function RegisterForm({
         />
       </label>
       <label>
-        Password
+        Password <span className="required-mark">Required</span>
         <input
           name="password"
           required

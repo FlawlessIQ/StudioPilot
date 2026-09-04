@@ -60,19 +60,22 @@ export function VerifyEmailAction({
       </div>
     );
   }
-  const destination =
-    next?.startsWith("/") && !next.startsWith("//")
-      ? `/auth/login?verified=1&next=${encodeURIComponent(next)}`
-      : "/auth/login?verified=1";
+  // P5: honour the link's own continueUrl (`next`) — for a new studio owner
+  // that is /auth/onboarding, so verifying carries them straight on instead of
+  // detouring through sign-in. Its own guard handles auth if the session has
+  // lapsed. Only fall back to sign-in when there is no safe next.
+  const safeNext = next?.startsWith("/") && !next.startsWith("//") ? next : null;
+  const destination = safeNext ?? "/auth/login?verified=1";
   return (
     <div className="auth-completion" role="status">
       <span className="auth-completion-icon">
         <CheckCircle2 />
       </span>
       <h2>Email verified</h2>
-      <p>Your StudioCue account can now access its invited workspace or portal.</p>
+      {/* P5: no assumption that the account was invited — a new owner was not. */}
+      <p>Your email is confirmed. Continue to finish setting up your studio.</p>
       <Link className="button button-dark" href={destination}>
-        Continue to sign in
+        Continue
       </Link>
     </div>
   );
