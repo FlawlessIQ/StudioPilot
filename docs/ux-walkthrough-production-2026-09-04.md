@@ -687,3 +687,11 @@ domains while looking "delivered" in-app.
 
 Meanwhile the accept link is usable directly:
 `https://studio-cue.com/auth/crew-invite?token=Q6UfLo9Ul0wcePQhNMerCJSEXQJPiWP22q84AVtR7EY`.
+
+**E8 · Crew accepted (from Junk — P18 confirmed).** Conor found both crew
+emails in the ad-helm.com **Junk** folder and accepted — confirming P18 is spam
+placement, not a send failure. Server: `crewAssignments` Second photographer →
+`accepted`. Studio: job history "Second photographer confirmed", journey "Crew
+confirmed" checked, **Event Readiness 42% → 50%**. The crew directory/cascade
+correctly ruled Sam out of any second role ("Conflicts with accepted work" —
+A20-style reason shown).
