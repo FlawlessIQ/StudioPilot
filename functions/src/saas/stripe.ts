@@ -162,8 +162,17 @@ export const billingCommand = onRequest(
         params = buildStripeCheckoutParams({
           appUrl,
           customerId,
+          // P11: prefill the owner's verified email when there is no Stripe
+          // customer yet, so Checkout isn't asking them to retype it.
+          customerEmail: customerId ? null : (identity.email ?? null),
           priceId,
           tenantId: parsed.tenantId,
+          // P10: carry the tenant's existing trial end so Checkout honours it
+          // rather than restarting the clock.
+          trialEndIso:
+            (subscription.get("currentPeriodEnd") as string | undefined) ??
+            (subscription.get("trialEndAt") as string | undefined) ??
+            null,
         });
       } else {
         params = new URLSearchParams();

@@ -36,6 +36,33 @@ export function LiveSubscription() {
   }, [workspace.tenantId]);
   const plan = String(subscription?.plan ?? "studio");
   const status = String(subscription?.status ?? (dataIsLive ? "loading" : "trialing"));
+  // P8: say it in plain language, not the Stripe enum + plan slug ("trialing ·
+  // studio"), and show the date the studio actually wants — when the trial ends
+  // or when it renews. Stripe holds it; the page was hiding it.
+  const statusLabel =
+    (
+      {
+        trialing: "Free trial",
+        active: "Active",
+        past_due: "Payment past due",
+        paused: "Paused",
+        canceled: "Canceled",
+        loading: "Loading…",
+      } as Record<string, string>
+    )[status] ?? status.replaceAll("_", " ");
+  const periodEndIso =
+    typeof subscription?.currentPeriodEnd === "string"
+      ? subscription.currentPeriodEnd
+      : typeof subscription?.trialEndAt === "string"
+        ? subscription.trialEndAt
+        : null;
+  const periodEndLabel = periodEndIso
+    ? new Date(periodEndIso).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : null;
   // Whether Stripe has a customer for this studio at all. Without one there is
   // no portal to open, whatever the plan badge says.
   const stripeCustomerId =
@@ -62,9 +89,20 @@ export function LiveSubscription() {
           <h1>Subscription</h1>
           <p>Manage your plan and billing securely through Stripe.</p>
         </div>
-        <StatusBadge tone={["active", "trialing"].includes(status) ? "success" : "warning"}>
-          {status.replaceAll("_", " ")} · {plan.replaceAll("_", " ")}
-        </StatusBadge>
+        <div className="subscription-status">
+          <StatusBadge tone={["active", "trialing"].includes(status) ? "success" : "warning"}>
+            {statusLabel} · {planCards.find((card) => card.key === plan)?.name ?? plan.replaceAll("_", " ")}
+          </StatusBadge>
+          {periodEndLabel ? (
+            <small className="subscription-period">
+              {status === "trialing"
+                ? `Trial ends ${periodEndLabel}`
+                : status === "active"
+                  ? `Renews ${periodEndLabel}`
+                  : `Current period ends ${periodEndLabel}`}
+            </small>
+          ) : null}
+        </div>
       </header>
       <section className="usage-grid">
         <article className="panel usage-card">
