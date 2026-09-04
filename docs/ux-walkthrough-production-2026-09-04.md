@@ -839,3 +839,23 @@ throughout: the venue is not contacted until the studio approves.
 `ronoc.ie@gmail.com` attaching any COI PDF, to exercise the inbound-parse →
 human-review → approve → `coi_venue_delivery` chain (`coi_correction` if the
 AI flags a discrepancy). I cannot send from that inbox.
+
+**E12 · Final invoice — deliberately date-gated, cannot run now.** Invoices page
+("QUICKBOOKS REFERENCES · See retainer and final invoice status synced from
+QuickBooks") shows the retainer correctly ("$1,350.00 · Balance $0.00 · paid").
+Final invoice section: "Explainable accounting · Final invoice review ·
+StudioCue prepares the arithmetic; QuickBooks remains authoritative", then **"No
+final invoice is due for preparation yet. StudioCue starts the review 28 days
+before an eligible event."** Event is Oct 24 (~50 days out), so the final
+invoice is unavailable until ~Sep 26 — E12 (and the `final_invoice` email) can
+only be tested inside that 28-day window. Sensible gate, not a defect; noted so
+E12 is understood as date-gated alongside Phase G.
+
+## Walk status (pre-event, current date 2026-09-04)
+Everything the current date permits has been exercised. The remaining plan
+steps are **date-gated** (E12 final invoice <28 days out; all of Phase F on/after
+the day; all of Phase G delivery/closeout/review; H1 date-change and H5
+trial-expiry, which the plan says to simulate via console date edits) or need a
+**non-studio identity** (COI agent reply from ronoc.ie; crew schedule
+acknowledgement from conor@ad-helm.com). The only remaining studio-drivable test
+is **H3 (cancel the job)**, which is terminal.
