@@ -896,3 +896,32 @@ now SPF-authorized and DKIM was already present (s1/s2._domainkey → SendGrid),
 so mail from studio-cue.com passes both checks; strict inboxes (Outlook/
 ad-helm.com) should stop junking new sends. DMARC remains p=none (monitoring);
 tightening it later is optional hardening.
+
+## Phase H · H3 · Cancel the job (terminal test)
+**H3 · Cancel with reason — mostly holds, two gaps.** "Something changed with
+this job → Cancel the job" opened an inline "Why was it cancelled?" reason
+field; submitting flipped the header to a **"Cancelled"** badge and replaced the
+next-move card with "This job was cancelled. Everything on it is still on file.
+Nothing was deleted." **No stale "Schedule consultation"/next-move action
+remains** (the H3 regression check passes), and the journey + 19-entry history
+are preserved. The reason is **captured and audited** — `auditEvents` has
+`project.state_changed` carrying the exact text I entered.
+
+### P23 · A cancelled job hides its reason and still chases everyone for open items · H3 · #5/#3 · logic
+Two problems on the cancelled job:
+1. **Reason not shown.** The cancel card reads only "This job was cancelled …
+   Nothing was deleted" — the cancellation reason (stored in the audit log) is
+   never surfaced on the job. The plan expected the card to show it; a studio
+   returning later cannot see *why* it was cancelled without opening the audit
+   log.
+2. **Still lists live obligations.** The "Everything outstanding, by who owes
+   it" panel is unchanged after cancellation — Studio needs (4), **Client needs
+   (2: "Final balance paid", "Finish planning questionnaire")**, **Crew needs
+   (1: "Acknowledge the current schedule")** — and EVENT READINESS still reads
+   "50% · 6 blockers". A cancelled job should not keep presenting the couple as
+   owing a balance/questionnaire or the crew as owing an acknowledgement; those
+   obligations are moot once cancelled. Suppress or clearly neutralise the
+   outstanding/readiness panels on a cancelled (or on-hold) job.
+Minor UX note: the "Cancel the job" control only responded once its "Something
+changed with this job" disclosure was expanded and clicked directly; a
+collapsed-state click did nothing (no error) — the affordance is easy to miss.
