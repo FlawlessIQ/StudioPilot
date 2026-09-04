@@ -737,5 +737,49 @@ never had one, which is unintuitive for a client who was never asked to set
 one. Fix options: make client-facing action emails carry a fresh
 self-authenticating link (magic link / signed portal token) rather than a bare
 `/client/...` URL, or give clients a first-class passwordless sign-in ("email me
-a link"). As-is, a booked couple can be locked out of their own portal at the
-moment they need it.
+a link"). As-is, a booked couple on a fresh device / expired session has no self-
+service way back in. (Update: the device that accepted the invite keeps its
+session — Conor was still signed in on his phone — so it is not a universal
+lockout; the gap is cross-device / after a session expires.)
+
+
+### P20 · The couple's schedule "approval" step does not exist; states disagree across the app · E5a · #3/#5 · logic (confusing, not blocking)
+Chasing "why won't the schedule approve" exposed a three-way disagreement:
+- `publishSchedule` (`functions/src/planning/commands.ts:1157,1217`) only ever
+  writes schedule `status: "published"`. **No code anywhere sets
+  `status: "client_review"`.**
+- The portal's client next-action "**Approve your event-day schedule**"
+  (`server/client/portal-experience.ts:426`) fires only when
+  `status === "client_review"` — so it is **dead code that never appears**. The
+  couple is never actually given a way to approve.
+- The couple's records view (`components/client/live-client-views.tsx:622`) and
+  the readiness evidence (`functions/src/workflow/checkpoint-evidence.ts:10`,
+  `SETTLED_SCHEDULE = ["approved","published"]`) both treat `published` **as
+  approved** — so the portal shows "Event schedule · Version 1 · approved" and
+  the readiness checkpoint settles.
+- Meanwhile the schedule doc's separate `approvalState` field stays
+  `client_pending` forever (nothing updates it) — a **vestigial field** that
+  misled this walk into thinking a couple approval was outstanding.
+- And the `schedule_review` **email** tells the couple "ready for **review**",
+  implying an approval step the portal does not offer.
+Net: publishing is the terminal state and the couple has nothing to do — which
+is fine — but the leftover `client_review` action, the `approvalState` field,
+and the "review" email all imply a couple-approval gate that was removed or
+never wired. Either delete the vestige (drop `approvalState`/the dead action,
+and reword the email to "shared" not "for review"), or actually implement the
+client_review → approve → approved flow. This directly caused a real support
+loop in this walk ("I already approved it" / "it isn't asking me to do
+anything").
+
+### P21 · Portal shows "Review contract" as the couple's next action for an already-signed contract · E5a · #5 · logic (client-facing)
+On the couple's portal home (screenshot), "Your next action" is "**Contract
+completed · Contract completed must be verified before event readiness · Due
+June 26, 2026 · Review contract**" — while the same screen's "Your approved
+records" shows "**Signed contract · Signature complete ✓**". So the couple is
+told to "review" a contract that is already signed and shown complete. "Contract
+completed" is a studio-side *verification* checkpoint; surfacing it to the couple
+as their next action (with a "Review contract" button and a past due date of Jun
+26) is a mis-attribution and reads as a contradiction. A studio-owned
+verification step should not be the couple's next action, and certainly not
+after the signature is recorded.
+
