@@ -220,6 +220,18 @@ export function AcceptClientInvitation({
   }
 
   async function switchAccount() {
+    // Carry the invited email across the sign-out → login round-trip so the
+    // login form prefills the address the invitation is actually for, not the
+    // studio account the browser just signed out of (audit-2 N2). Kept out of
+    // the URL — an email in a query string is PII that ends up in logs — so it
+    // rides in sessionStorage, same-origin and tab-scoped.
+    if (preview?.email && typeof window !== "undefined") {
+      try {
+        window.sessionStorage.setItem("studiohub.invitedEmail", preview.email);
+      } catch {
+        // Private-mode storage denial is non-fatal; the field just starts empty.
+      }
+    }
     if (authIsLive) await signOut(getFirebaseClient().auth);
     router.replace(loginHref);
   }

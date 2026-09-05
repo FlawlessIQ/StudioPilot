@@ -110,6 +110,12 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
   const [reviewDestinationLabel, setReviewDestinationLabel] =
     useState("google");
   const [reviewDestinationUrl, setReviewDestinationUrl] = useState("");
+  // The review-URL and other release fields live in a collapsed <details>. A
+  // required field inside a closed <details> makes the browser block submit
+  // with no visible bubble — "Record and release delivery" looked like a dead
+  // button (audit-2 N6). Controlling the section lets us pop it open the moment
+  // native validation flags a hidden field, so the studio sees what is missing.
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [albumIncluded, setAlbumIncluded] = useState(false);
   const [albumInstructionsUrl, setAlbumInstructionsUrl] = useState("");
   const [studioDefaultsHydrated, setStudioDefaultsHydrated] = useState(false);
@@ -313,7 +319,19 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
   }
 
   return (
-    <form className="delivery-form delivery-release-form" onSubmit={(event) => void submit(event)}>
+    <form
+      className="delivery-form delivery-release-form"
+      onSubmit={(event) => void submit(event)}
+      onInvalidCapture={() => {
+        // A hidden required field (review URL, in the collapsed section) just
+        // blocked submit. Open the section so the browser's validation lands on
+        // a visible field, and say so instead of leaving the button dead.
+        setAdvancedOpen(true);
+        setNotice(
+          "Add the missing release details below before releasing — the review destination URL is required.",
+        );
+      }}
+    >
       <label className="form-span delivery-project-first">
         Project
         <select
@@ -406,7 +424,13 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
           value={galleryUrl}
         />
       </label>
-      <details className="delivery-advanced-options form-span">
+      <details
+        className="delivery-advanced-options form-span"
+        open={advancedOpen}
+        onToggle={(event) =>
+          setAdvancedOpen((event.currentTarget as HTMLDetailsElement).open)
+        }
+      >
         <summary>Follow-ups and studio defaults</summary>
         <div className="delivery-advanced-grid">
       <label>

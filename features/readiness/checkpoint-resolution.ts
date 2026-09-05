@@ -87,7 +87,12 @@ export function checkpointWaitingReason(
     case "form_submitted":
       return "Completes when the couple submits the form with answers.";
     case "schedule_approved":
-      return "Completes when the couple approves the run of show.";
+      // Completion is driven by the studio publishing a usable, client-visible
+      // run of show (scheduleIsUsable), not by a couple approval step — there is
+      // no couple approval flow in the portal. Saying "when the couple approves"
+      // stranded this as the couple's next action for something they cannot do
+      // (audit-2 N5).
+      return "Completes when you publish a run of show the couple can see.";
     case "assignment_accepted":
       return "Completes when the crew accept and acknowledge the schedule.";
     case "system_rule":

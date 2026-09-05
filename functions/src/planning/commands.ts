@@ -1268,23 +1268,34 @@ export const planningCommand = onRequest(
             );
           }
         }
-        batch.set(
-          db.doc(`emailJobs/schedule_client_${id}`),
-          {
-            id: `schedule_client_${id}`,
-            tenantId: parsed.tenantId,
-            projectId: parsed.input.projectId,
-            type: "schedule_review",
-            scheduleId: id,
-            scheduleVersion: version,
-            scheduleUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app"}/client/schedule`,
-            status: "queued",
-            attempts: 0,
-            createdAt: now,
-            updatedAt: now,
-          },
-          { merge: false },
-        );
+        // The couple's schedule view only renders items marked "client" or
+        // "shared" (components/client/live-client-views.tsx). Telling them "your
+        // event-day schedule is ready" while every item is crew-only lands them
+        // on a page that says "no times are set" — the studio believes it shared
+        // a schedule the couple cannot see (audit-2 N4). Only queue the client
+        // email when there is something on it for them; the crew still get theirs.
+        const clientVisibleItemCount = currentItems.filter((scheduleItem) =>
+          ["client", "shared"].includes(scheduleItem.visibility),
+        ).length;
+        if (clientVisibleItemCount > 0) {
+          batch.set(
+            db.doc(`emailJobs/schedule_client_${id}`),
+            {
+              id: `schedule_client_${id}`,
+              tenantId: parsed.tenantId,
+              projectId: parsed.input.projectId,
+              type: "schedule_review",
+              scheduleId: id,
+              scheduleVersion: version,
+              scheduleUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app"}/client/schedule`,
+              status: "queued",
+              attempts: 0,
+              createdAt: now,
+              updatedAt: now,
+            },
+            { merge: false },
+          );
+        }
         const auditReference = db.doc(`auditEvents/schedule_published_${id}`);
         batch.create(auditReference, {
           id: auditReference.id,

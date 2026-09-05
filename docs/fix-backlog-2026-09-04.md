@@ -130,3 +130,19 @@ green: typecheck, 936 unit tests, lint (0 errors), Next build, functions build.
 - **P11** (Cash App / Klarna offered) — Stripe Dashboard payment-method config.
 - **P3** — auth-mail platform voice is a template refinement; the auth-link
   click-tracking is a SendGrid account/send setting. Low-severity polish.
+
+---
+
+## Audit #2 findings folded in (2026-09-05)
+From `docs/ux-audit-2-2026-09-04.md`. Same rule: every fix lands with a guard.
+
+| ID | Title | Sev | Effort | Area |
+|---|---|---|---|---|
+| **N4** | Published event-day schedule invisible to couple — AI marks every item `visibility: crew`, client view shows only client/shared, yet the "schedule ready" email still fires | HIGH | S–M | Schedule |
+| **N2** | "Secure invitation" link, when another account is signed in, drops the token → password wall, prefills the wrong email, signs the studio out | HIGH | M | Client portal auth |
+| **N6** | "Record and release delivery" silently no-ops when the required review-destination URL is blank in a collapsed section (no surfaced error) | MED | S | Delivery |
+| **N5** | Vestigial `approvalState: client_pending` strands the "Final run of show approved" checkpoint (no couple approval UI) and mis-attributes it as the couple's next action | MED | M | Schedule/readiness |
+| **N3** | Overview hero shows "Your next action: Review your proposal" after the proposal is accepted | MED | S | Client portal |
+| **N1** | Inquiry-reply AI draft lost its paragraph breaks | LOW | S | AI drafts |
+
+**Fix order (harm-first):** N4 → N2 → N6 → N5 → N3 → N1.

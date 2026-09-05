@@ -495,7 +495,22 @@ export function buildClientPortalExperience({
               href: "/client/project",
               actionLabel: "View project details",
             }
-          : null;
+          : state === "PROPOSAL" && proposalStatus === "accepted"
+            ? {
+                // Accepted, but the studio has not sent the agreement yet, so
+                // the project is still PROPOSAL. The state fallback here is
+                // "Review your proposal" — telling a couple who just accepted to
+                // go review it again (audit-2 N3). The ball is with the studio.
+                name: "Your studio is preparing your agreement",
+                description:
+                  "You’ve accepted the proposal — nothing more is needed from you right now. Your studio will send the agreement to sign next.",
+                dueDate: null,
+                ownerType: "studio",
+                responsibility: "studio",
+                href: "/client/proposal",
+                actionLabel: "View accepted proposal",
+              }
+            : null;
   const stateFallback = (() => {
     const fallback = defaultNextAction(state);
     // Past the day, a planning ask is a question about a wedding that has

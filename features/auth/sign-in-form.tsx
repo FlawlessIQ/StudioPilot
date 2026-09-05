@@ -27,7 +27,19 @@ export function SignInForm({
 }) {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState("");
+  // A client arriving from an invitation gets the address the invitation is
+  // for, stashed by the invite page before the sign-out → login round-trip
+  // (audit-2 N2). Without this the field starts empty and the browser autofills
+  // whatever account was last used here — typically the studio the couple just
+  // got bounced out of. Studio sign-in keeps its empty default.
+  const [email, setEmail] = useState(() => {
+    if (intent !== "client" || typeof window === "undefined") return "";
+    try {
+      return window.sessionStorage.getItem("studiohub.invitedEmail") ?? "";
+    } catch {
+      return "";
+    }
+  });
   const [password, setPassword] = useState("");
   const [formState, setFormState] = useState<FormState>({
     status: "idle",

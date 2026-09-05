@@ -311,7 +311,7 @@ export function AiQueueCard({
           {text(answering.subject) ? (
             <strong>{text(answering.subject)}</strong>
           ) : null}
-          <p>{text(answering.body)}</p>
+          <p style={{ whiteSpace: "pre-wrap" }}>{text(answering.body)}</p>
         </div>
       ) : null}
 
@@ -322,7 +322,10 @@ export function AiQueueCard({
             {text(output.recipientEmail) ? ` · ${text(output.recipientEmail)}` : ""}
           </small>
           <strong>{text(output.subject)}</strong>
-          <p>{text(output.body)}</p>
+          {/* Preserve the draft's paragraph breaks — a plain <p> collapses the
+              \n\n the model wrote, so the studio previewed one dense block and
+              could not see the letter's shape (audit-2 N1). */}
+          <p style={{ whiteSpace: "pre-wrap" }}>{text(output.body)}</p>
         </div>
       ) : null}
 
