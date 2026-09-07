@@ -72,6 +72,36 @@ legal determination is supplied by this repository.
   Firebase Admin’s Google Cloud dependencies. Track the upstream update rather
   than forcing an incompatible Firebase downgrade.
 
+## Pending manual activation (console/config, no code)
+
+Shipped code that is deliberately inert until a console or config step is taken.
+Each is safe to leave off; turning it on is a one-time deliberate action.
+
+- **P9 — Stripe public/brand name.** New studios now start at Stripe Checkout,
+  so the merchant name shown there matters. In the Stripe Dashboard (live,
+  FlawlessIQ) set Settings → Business → **Public business name** to "StudioCue",
+  add the StudioCue logo/icon and support URL, and verify against a fresh
+  Checkout session. The product line item already reads "StudioCue Studio"; the
+  account/statement descriptor stays FlawlessIQ (shared account) unless a
+  separate Stripe account is created. Owner: Conor (dashboard).
+
+- **P19 — Passwordless client sign-in (magic link).** Code is deployed but dark.
+  To activate:
+  1. Firebase console → Authentication → Sign-in method → enable **Email link
+     (passwordless sign-in)** on the Email/Password provider.
+  2. Confirm the app domains are in Authentication → Settings → **Authorized
+     domains** (studio-cue.com).
+  3. Set **`NEXT_PUBLIC_CLIENT_MAGIC_LINK=1`** in the app environment and roll
+     out, so the "Email me a sign-in link" option appears on client sign-in.
+  4. Run the e2e once before relying on it: request a link → open it →
+     `/auth/email-link` completes sign-in → lands in the portal. Links are
+     single-use and expire; the send path is the platform-branded, tracking-free
+     auth mail (P3), so the link is not redirect-wrapped.
+  The password sign-in path is unchanged and remains the fallback. True
+  multi-session (studio + client signed in at once in one browser) is still a
+  Firebase single-session-per-browser limitation; the invite screen handles the
+  mismatch explicitly rather than silently signing the studio out.
+
 ## Promotion sequence
 
 Promote one immutable, verified revision. Deploy rules/indexes first, then

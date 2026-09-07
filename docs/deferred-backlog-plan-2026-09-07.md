@@ -1,5 +1,18 @@
 # Deferred backlog — implementation plan (2026-09-07)
 
+> **Status (2026-09-07, end of day):** all shipped.
+> - **P11-methods** — done (folded into the card-required checkout params).
+> - **P3** (auth mail voice + tracking-free links) — done, live (`18f47e0`).
+> - **P22** (booked couple in Clients directory + re-invite) — done, live (`f5ad774`).
+> - **P19 + N2** (passwordless client sign-in) — code shipped behind a flag
+>   (`6ffe4dc`); activation steps in `production-readiness.md` (Firebase console
+>   Email-link method + `NEXT_PUBLIC_CLIENT_MAGIC_LINK=1` + an e2e). N2's
+>   signed-in-mismatch is handled without a silent sign-out.
+> - **P9** (Stripe public name) — Conor's dashboard task; noted in
+>   `production-readiness.md`.
+> - AI command-chat P1 (multi-turn) + P2 (inline draft-and-send) also shipped
+>   this day — see `ai-command-chat-plan-2026-09-07.md`.
+
 The items left deferred after the two production audits (`docs/fix-backlog-2026-09-04.md`,
 `docs/ux-audit-2-2026-09-04.md`). Each was deferred because it is either **config,
 not code** (Stripe dashboard), or a **real feature** needing design/auth testing
