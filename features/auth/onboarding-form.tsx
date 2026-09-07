@@ -1,8 +1,8 @@
 "use client";
 import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { invalidateMembershipCache } from "@/lib/firebase/membership-cache";
 import { requestBrandedAuthEmail } from "@/lib/auth/email-client";
 
 // P-note (timezone parity): the same list the Studio-settings identity form
@@ -24,7 +24,6 @@ const TIMEZONES: ReadonlyArray<{ value: string; label: string }> = [
 ];
 
 export function OnboardingForm() {
-  const router = useRouter();
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // P4/P7: distinct states so the wall can offer a resend, and success stops
@@ -129,8 +128,17 @@ export function OnboardingForm() {
       // opens Stripe; the webhook flips the subscription to `trialing` and the
       // gate opens the workspace. (Dev preview with no billing backend lands in
       // the same place; the page discloses that checkout is disabled.)
-      router.replace("/studio/subscription");
-      router.refresh();
+      //
+      // Two things matter about HOW we get there. First, AuthBoundary caches
+      // "no memberships" for 60s, and the register→/studio bounce populates
+      // that empty entry seconds before this membership is created — so drop it
+      // or the just-created owner is bounced straight back here. Second, use a
+      // full-page navigation, not router.replace: it re-bootstraps the whole
+      // client (workspace context + a fresh, strongly-consistent membership
+      // read) so AuthBoundary sees the new active membership instead of a stale
+      // in-memory miss. A soft client nav reuses that stale state and loops.
+      invalidateMembershipCache(user.uid);
+      window.location.assign("/studio/subscription");
     } catch (caught: unknown) {
       setNotice(
         caught instanceof Error ? caught.message : "Studio setup failed.",
