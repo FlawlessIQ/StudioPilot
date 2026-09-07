@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, CircleCheck } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { SignInForm } from "@/features/auth/sign-in-form";
+import { MagicLinkRequest } from "@/features/auth/magic-link-request";
 
 export const metadata: Metadata = {
   title: "Sign in",
@@ -75,6 +76,7 @@ export default async function LoginPage({
               : "Continue to your projects, clients, and operations workspace."}
           </p>
           <SignInForm intent={isClientArrival ? "client" : "studio"} next={next} />
+          {isClientArrival ? <MagicLinkRequest next={next ?? null} /> : null}
         </div>
         <p className="auth-legal">
           By continuing, you agree to our <Link href="/terms">Terms</Link> and{" "}

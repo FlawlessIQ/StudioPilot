@@ -298,10 +298,14 @@ test("no published template key falls through to the generic update", () => {
 
 // ---- P3: auth mail is platform-branded and tracking-free ----
 
-test("auth mail types are exactly verification + reset", () => {
-  assert.deepEqual([...AUTH_EMAIL_TYPES], ["email_verification", "password_reset"]);
+test("auth mail types are the platform account-security messages", () => {
+  assert.deepEqual(
+    [...AUTH_EMAIL_TYPES],
+    ["email_verification", "password_reset", "sign_in_link"],
+  );
   assert.equal(isAuthEmailType("email_verification"), true);
   assert.equal(isAuthEmailType("password_reset"), true);
+  assert.equal(isAuthEmailType("sign_in_link"), true);
   assert.equal(isAuthEmailType("client_invitation"), false);
   assert.equal(isAuthEmailType("proposal_sent"), false);
 });

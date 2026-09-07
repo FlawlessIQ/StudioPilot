@@ -13,6 +13,11 @@ type AuthEmailRequest =
       type: "emailVerification";
       idempotencyKey: string;
       input: { email: string; next: string | null };
+    }
+  | {
+      type: "signInLink";
+      idempotencyKey: string;
+      input: { email: string; next: string | null };
     };
 
 export async function requestBrandedAuthEmail(

@@ -27,6 +27,16 @@ const requestSchema = z.discriminatedUnion("type", [
       next: z.string().max(1000).nullable(),
     }),
   }),
+  z.object({
+    // Passwordless portal sign-in link (P19). Requestable by email, no session
+    // — mirrors passwordReset's anti-enumeration handling.
+    type: z.literal("signInLink"),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      email: z.string().email().max(320),
+      next: z.string().max(1000).nullable(),
+    }),
+  }),
 ]);
 
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
@@ -141,7 +151,7 @@ export const authEmailCommand = onRequest(
       let actionUrl: string;
       let tenantId: string;
       let recipientName: string | null = null;
-      let templateKey: "password_reset" | "email_verification";
+      let templateKey: "password_reset" | "email_verification" | "sign_in_link";
       if (parsed.type === "emailVerification") {
         const identity = await requireIdentity(request);
         if (
@@ -166,6 +176,47 @@ export const authEmailCommand = onRequest(
         recipientName =
           typeof identity.name === "string" ? identity.name : null;
         templateKey = "email_verification";
+      } else if (parsed.type === "signInLink") {
+        // Passwordless portal sign-in (P19). Same anti-enumeration shape as
+        // passwordReset: an unknown address returns "accepted" and sends
+        // nothing, everything else is logged.
+        templateKey = "sign_in_link";
+        try {
+          const user = await getAuth().getUserByEmail(email);
+          const appUrl =
+            process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app";
+          const landing = new URL("/auth/email-link", appUrl);
+          landing.searchParams.set("next", safeNext(parsed.input.next) ?? "/client");
+          // The generated link already targets our landing (handleCodeInApp),
+          // so it is emailed as-is — no oobCode rewrap like verify/reset.
+          actionUrl = await getAuth().generateSignInWithEmailLink(email, {
+            url: landing.toString(),
+            handleCodeInApp: true,
+          });
+          tenantId = await tenantForAccount(user.uid, email);
+          recipientName = user.displayName ?? null;
+        } catch (caught: unknown) {
+          const code =
+            typeof caught === "object" && caught && "code" in caught
+              ? String((caught as { code: unknown }).code)
+              : "";
+          if (code !== "auth/user-not-found") {
+            console.error(
+              JSON.stringify({
+                severity: "ERROR",
+                event: "auth.sign_in_link_failed",
+                code: code || "unknown",
+                emailHash,
+                detail: (caught instanceof Error
+                  ? caught.message
+                  : String(caught)
+                ).slice(0, 300),
+              }),
+            );
+          }
+          response.status(202).json({ accepted: true });
+          return;
+        }
       } else {
         templateKey = "password_reset";
         try {
@@ -241,7 +292,9 @@ export const authEmailCommand = onRequest(
         action:
           parsed.type === "emailVerification"
             ? "auth.verification_requested"
-            : "auth.password_reset_requested",
+            : parsed.type === "signInLink"
+              ? "auth.sign_in_link_requested"
+              : "auth.password_reset_requested",
         entityType: "auth_email",
         entityId: emailHash,
         timestamp: now,

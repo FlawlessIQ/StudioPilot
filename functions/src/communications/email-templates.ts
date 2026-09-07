@@ -11,7 +11,11 @@ import { bulletLinePattern, clientEmailParagraphs } from "./email-content.js";
  * other template legitimately names the studio (a studio IS inviting the client
  * / sending the proposal), so this stays deliberately narrow.
  */
-export const AUTH_EMAIL_TYPES = ["email_verification", "password_reset"] as const;
+export const AUTH_EMAIL_TYPES = [
+  "email_verification",
+  "password_reset",
+  "sign_in_link",
+] as const;
 
 export const isAuthEmailType = (type: string): boolean =>
   (AUTH_EMAIL_TYPES as readonly string[]).includes(type);
@@ -23,6 +27,7 @@ export const emailTemplateKeys = [
   "crew_directory_invitation",
   "email_verification",
   "password_reset",
+  "sign_in_link",
   "inquiry_acknowledgement",
   "consultation_confirmation",
   "consultation_invitation",
@@ -354,6 +359,22 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           : undefined,
         note:
           "If you did not request this change, ignore this email. Your password will remain unchanged.",
+      };
+    case "sign_in_link":
+      return {
+        subject: "Your StudioCue sign-in link",
+        preheader: "Open your portal with this secure one-time link.",
+        eyebrow: "Account security",
+        heading: "Sign in to your portal",
+        paragraphs: [
+          greeting,
+          "Use the secure link below to open your StudioCue portal. No password needed — the link signs you in on this device.",
+        ],
+        action: actionUrl
+          ? { label: "Open my portal", url: actionUrl }
+          : undefined,
+        note:
+          "This link is single-use and expires shortly. If you did not request it, you can safely ignore this email.",
       };
     case "inquiry_acknowledgement":
       return {
