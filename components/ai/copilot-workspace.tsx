@@ -30,13 +30,18 @@ const prompts = [
   "Which upcoming projects have travel conflicts?",
 ];
 
+type ChatTurn =
+  | { role: "user"; text: string }
+  | { role: "assistant"; result: CopilotResult };
+
 export function CopilotWorkspace() {
   const workspace = useWorkspace();
   const [question, setQuestion] = useState("");
   const [projectOnly, setProjectOnly] = useState(false);
-  const [result, setResult] = useState<CopilotResult | null>(null);
+  const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const started = turns.length > 0;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -44,16 +49,28 @@ export function CopilotWorkspace() {
       setError("No active studio is available.");
       return;
     }
+    const asked = question.trim();
+    if (asked.length < 3 || busy) return;
+    // The conversation so far, oldest first, so a follow-up is understood in
+    // context. Assistant turns contribute their concise answer (facts and
+    // citations are re-derived server-side each turn, not replayed).
+    const history = turns.map((turn) =>
+      turn.role === "user"
+        ? { role: "user" as const, text: turn.text }
+        : { role: "assistant" as const, text: turn.result.answer },
+    );
+    setTurns((prior) => [...prior, { role: "user", text: asked }]);
+    setQuestion("");
     setBusy(true);
     setError(null);
     try {
-      setResult(
-        await askCopilot({
-          tenantId: workspace.tenantId,
-          projectId: projectOnly ? workspace.projectId : null,
-          question,
-        }),
-      );
+      const result = await askCopilot({
+        tenantId: workspace.tenantId,
+        projectId: projectOnly ? workspace.projectId : null,
+        question: asked,
+        history,
+      });
+      setTurns((prior) => [...prior, { role: "assistant", result }]);
     } catch (caught: unknown) {
       setError(friendlyError(caught, "Copilot failed."));
     } finally {
@@ -87,24 +104,52 @@ export function CopilotWorkspace() {
           <span><strong>Import studio materials</strong><small>Turn existing files into reusable workflows</small></span>
         </Link>
       </nav>
+      {started ? (
+        <section className="copilot-thread" aria-live="polite" aria-label="Conversation">
+          {turns.map((turn, index) =>
+            turn.role === "user" ? (
+              <div className="copilot-turn-user" key={`u-${index}`}>
+                <p>{turn.text}</p>
+              </div>
+            ) : (
+              <AssistantTurn key={`a-${index}`} result={turn.result} />
+            ),
+          )}
+          {busy ? (
+            <p className="copilot-turn-thinking" role="status">
+              <LoaderCircle className="spin" size={15} /> Reviewing records…
+            </p>
+          ) : null}
+        </section>
+      ) : null}
       <section className="panel copilot-compose">
-        <div className="copilot-prompts" aria-label="Suggested questions">
-          {prompts.map((prompt) => (
-            <button key={prompt} type="button" onClick={() => setQuestion(prompt)}>
-              <Sparkles size={14} /> {prompt}
-            </button>
-          ))}
-        </div>
+        {!started ? (
+          <div className="copilot-prompts" aria-label="Suggested questions">
+            {prompts.map((prompt) => (
+              <button key={prompt} type="button" onClick={() => setQuestion(prompt)}>
+                <Sparkles size={14} /> {prompt}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <form onSubmit={(event) => void submit(event)}>
           <label>
-            <span>Ask about operations, risk, payments, contracts, or crew</span>
+            <span>
+              {started
+                ? "Ask a follow-up — it keeps the conversation's context"
+                : "Ask about operations, risk, payments, contracts, or crew"}
+            </span>
             <textarea
               required
               minLength={3}
               maxLength={1200}
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
-              placeholder="What is blocking my next wedding?"
+              placeholder={
+                started
+                  ? "What should I do about it?"
+                  : "What is blocking my next wedding?"
+              }
             />
           </label>
           {workspace.projectId ? (
@@ -119,7 +164,7 @@ export function CopilotWorkspace() {
           ) : null}
           <button className="button button-dark" disabled={busy} type="submit">
             {busy ? <LoaderCircle className="spin" /> : <Send />}
-            {busy ? "Reviewing records…" : "Ask StudioCue"}
+            {busy ? "Reviewing records…" : started ? "Send" : "Ask StudioCue"}
           </button>
         </form>
       </section>
@@ -143,41 +188,44 @@ export function CopilotWorkspace() {
           </span>
         </section>
       ) : null}
-      {result ? (
-        <section className="panel copilot-result" aria-live="polite">
-          <header>
-            <BookOpenCheck />
-            <span>
-              <p className="eyebrow">Grounded response</p>
-              <small>Facts current as of {new Date(result.asOf).toLocaleString()}</small>
-            </span>
-          </header>
-          <h2>{result.answer}</h2>
-          {result.facts.length ? (
-            <div>
-              <h3>Verified facts</h3>
-              <ul>{result.facts.map((fact) => <li key={fact}>{fact}</li>)}</ul>
-            </div>
-          ) : null}
-          {result.suggestions.length ? (
-            <div>
-              <h3>Suggestions</h3>
-              <ul>{result.suggestions.map((suggestion) => <li key={suggestion}>{suggestion}</li>)}</ul>
-            </div>
-          ) : null}
-          {result.citations.length ? (
-            <footer>
-              {result.citations.map((citation) => (
-                <Link href={citation.href} key={`${citation.href}-${citation.label}`}>
-                  {citation.label}
-                </Link>
-              ))}
-            </footer>
-          ) : null}
-          <PreparedActions citations={result.citations} />
-        </section>
-      ) : null}
     </div>
+  );
+}
+
+function AssistantTurn({ result }: { result: CopilotResult }) {
+  return (
+    <section className="panel copilot-result">
+      <header>
+        <BookOpenCheck />
+        <span>
+          <p className="eyebrow">Grounded response</p>
+          <small>Facts current as of {new Date(result.asOf).toLocaleString()}</small>
+        </span>
+      </header>
+      <h2>{result.answer}</h2>
+      {result.facts.length ? (
+        <div>
+          <h3>Verified facts</h3>
+          <ul>{result.facts.map((fact) => <li key={fact}>{fact}</li>)}</ul>
+        </div>
+      ) : null}
+      {result.suggestions.length ? (
+        <div>
+          <h3>Suggestions</h3>
+          <ul>{result.suggestions.map((suggestion) => <li key={suggestion}>{suggestion}</li>)}</ul>
+        </div>
+      ) : null}
+      {result.citations.length ? (
+        <footer>
+          {result.citations.map((citation) => (
+            <Link href={citation.href} key={`${citation.href}-${citation.label}`}>
+              {citation.label}
+            </Link>
+          ))}
+        </footer>
+      ) : null}
+      <PreparedActions citations={result.citations} />
+    </section>
   );
 }
 

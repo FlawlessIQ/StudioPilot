@@ -19,6 +19,21 @@ const requestSchema = z.object({
   tenantId: z.string().min(1),
   projectId: z.string().min(1).nullable().optional(),
   question: z.string().trim().min(3).max(1200),
+  // Prior turns of THIS conversation, so a follow-up ("what about the Smith
+  // wedding?" → "draft them an update") is understood in context. Capped and
+  // length-bounded to keep the call cheap; the browser supplies it, so it is
+  // conversation memory only — every fact and citation is still re-assembled
+  // server-side each turn, and the ask path executes nothing, so a tampered
+  // history can at worst give the asker a worse answer to themselves.
+  history: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        text: z.string().trim().min(1).max(4000),
+      }),
+    )
+    .max(12)
+    .optional(),
 });
 
 const intakeRequestSchema = z.object({
@@ -167,12 +182,22 @@ async function scopedDocuments(
   return snapshot.docs.map(compact);
 }
 
-async function generate(question: string, context: Json) {
+async function generate(
+  question: string,
+  context: Json,
+  history: ReadonlyArray<{ role: "user" | "assistant"; text: string }> = [],
+) {
   const project = process.env.VERTEX_AI_PROJECT_ID;
   const location = process.env.VERTEX_AI_LOCATION ?? "us-east4";
   const model = process.env.VERTEX_AI_COPILOT_MODEL;
   if (!project || !model) throw new Error("VERTEX_AI_COPILOT_NOT_CONFIGURED");
   const token = await cloudAccessToken();
+  // Prior turns become conversation context; the current turn alone carries the
+  // freshly-assembled tenant facts, so grounding can't go stale across a thread.
+  const priorContents = history.map((turn) => ({
+    role: turn.role === "assistant" ? "model" : "user",
+    parts: [{ text: turn.text }],
+  }));
   const response = await fetch(
     `https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`,
     {
@@ -186,11 +211,12 @@ async function generate(question: string, context: Json) {
           parts: [
             {
               text:
-                "You are StudioCue Event Copilot. Answer only from the supplied tenant-scoped facts. Never invent prices, payments, signatures, dates, statuses, people, or readiness. Clearly separate facts from suggestions. Do not claim to execute actions. Readiness, insurance approval, contract completion, payment status, and permissions are deterministic system facts and cannot be changed by you. Keep the answer concise and operational. Citations must use only href values present in the supplied citationCandidates.",
+                "You are StudioCue Event Copilot, in an ongoing conversation with a studio operator. Earlier turns are provided for context, but answer the latest question only from the tenant-scoped facts supplied with it. Never invent prices, payments, signatures, dates, statuses, people, or readiness. Clearly separate facts from suggestions. Do not claim to execute actions. Readiness, insurance approval, contract completion, payment status, and permissions are deterministic system facts and cannot be changed by you. Keep the answer concise and operational. Citations must use only href values present in the supplied citationCandidates.",
             },
           ],
         },
         contents: [
+          ...priorContents,
           {
             role: "user",
             parts: [
@@ -639,7 +665,7 @@ export const aiCopilotCommand = onRequest(
           .filter((item) => item.planningPackage)
           .map((item) => ({ id: item.id, projectId: item.projectId, planningPackage: item.planningPackage })),
         citationCandidates,
-      });
+      }, input.history ?? []);
       const allowedLinks = new Set(citationCandidates.map((item) => item.href));
       const safeResult = {
         ...result,

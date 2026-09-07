@@ -13,10 +13,14 @@ export type CopilotResult = {
   asOf: string;
 };
 
+export type CopilotTurn = { role: "user" | "assistant"; text: string };
+
 export async function askCopilot(input: {
   tenantId: string;
   projectId?: string | null;
   question: string;
+  /** Prior turns of this conversation, oldest first, for follow-up context. */
+  history?: CopilotTurn[];
 }): Promise<CopilotResult> {
   const endpoint = process.env.NEXT_PUBLIC_AI_FUNCTIONS_URL;
   if (!endpoint) throw new Error("AI Copilot is not configured.");
