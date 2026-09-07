@@ -3,6 +3,10 @@ import { getFirestore,type DocumentSnapshot } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { buildIntegrationDiagnostics } from "../integrations/diagnostics.js";
 import {
+  alreadyClientOnly,
+  promoteContactTypesToClient,
+} from "../contacts/promotion.js";
+import {
   docusignUserInfoUrl,
   oauthRefreshTokenUrl,
   quickBooksApiBaseUrl,
@@ -1011,7 +1015,35 @@ export async function completeBookingResources(job:DocumentSnapshot){const db=ge
   if(project.get("bookingProviderState")==="completed")return{projectId,folderIds:project.get("dropboxFolderIds"),eventId:project.get("calendarEventId"),workflow};
   const date=String(project.get("eventDate"));const name=String(project.get("name"));const eventType=String(project.get("eventType"));const safe=`${date}_${name}_${eventType}`.replace(/[^a-zA-Z0-9_-]+/g,"_");let folderIds:string[]=[];let projectRootPath:string|null=null;const sideEffectSkips:Record<string,string>={};try{const dropbox=await connection(tenantId,"dropbox");const configuredRoot=String(dropbox.document.get("selectedResourceId")??"/StudioCue");const root=configuredRoot.startsWith("/")?configuredRoot:`/${configuredRoot}`;const projectRoot=`${root.replace(/\/$/,"")}/${date.slice(0,4)}/${safe}`;projectRootPath=projectRoot;const paths=[projectRoot,...["01_Contracts","02_Invoices","03_Client_Details","04_Schedule","05_COI","06_Crew","07_Delivery"].map(folder=>`${projectRoot}/${folder}`)];for(const path of paths){if(dropbox.mock){folderIds.push(mockId("dropbox",path));continue}const value=await dropboxFolder(String(dropbox.credential?.accessToken),path);folderIds.push(text(value.id))}}catch(caught:unknown){folderIds=[];projectRootPath=null;sideEffectSkips.dropbox=caught instanceof Error?caught.message:"DROPBOX_UNAVAILABLE"}
   let eventId=String(project.get("calendarEventId")??"");try{const calendar=await connection(tenantId,"google_calendar");if(!eventId&&calendar.mock)eventId=mockId("event",projectId);else if(!eventId){const calendarId=encodeURIComponent(String(calendar.document.get("selectedResourceId")??"primary"));const endDate=new Date(`${date}T00:00:00Z`);endDate.setUTCDate(endDate.getUTCDate()+1);const providerEventId=createHash("sha256").update(`project:${projectId}`).digest("hex").slice(0,32);const url=`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`;const create=await fetch(url,{method:"POST",headers:{authorization:`Bearer ${calendar.credential?.accessToken}`,"content-type":"application/json"},body:JSON.stringify({id:providerEventId,summary:`${name} · ${eventType}`,start:{date},end:{date:endDate.toISOString().slice(0,10)},transparency:"opaque",extendedProperties:{private:{studioHubProjectId:projectId}}})});if(create.status===409){const value=await providerJson(`${url}/${providerEventId}`,{headers:{authorization:`Bearer ${calendar.credential?.accessToken}`}},"CALENDAR_READ_FAILED");eventId=text(value.id)}else{const value=asRecord(await create.json().catch(()=>({})));if(!create.ok)throw new Error(`CALENDAR_CREATE_FAILED:${create.status}`);eventId=text(value.id)}}}catch(caught:unknown){sideEffectSkips.calendar=caught instanceof Error?caught.message:"GOOGLE_CALENDAR_UNAVAILABLE"}
-  const now=new Date().toISOString();const batch=db.batch();batch.update(project.ref,{dropboxRootPath:projectRootPath,dropboxFolderIds:folderIds,calendarEventId:eventId,bookingProviderState:"completed",bookingSideEffectSkips:Object.keys(sideEffectSkips).length?sideEffectSkips:null,updatedAt:now,updatedBy:"provider-worker"});batch.set(db.doc(`emailJobs/booking_confirmation_${projectId}`),{id:`booking_confirmation_${projectId}`,tenantId,projectId,type:"booking_confirmation",status:"queued",attempts:0,createdAt:now,updatedAt:now},{merge:false});await batch.commit();return{projectId,folderIds,eventId,workflow}}
+  const now=new Date().toISOString();
+  // P22: promote the booked couple from prospect to client so they appear in
+  // the Clients directory (where re-invite already lives). Nothing did this, so
+  // a booked couple was reachable only through their project. Done here in the
+  // post-booking side-effects worker — never in the evidence-controlled booking
+  // transaction — and idempotent: a contact that is already a client is skipped.
+  const clientContactIds = Array.isArray(project.get("clientContactIds"))
+    ? (project.get("clientContactIds") as unknown[]).filter(
+        (value): value is string => typeof value === "string" && value.length > 0,
+      )
+    : [];
+  const contactSnaps = clientContactIds.length
+    ? await db.getAll(...clientContactIds.map((id) => db.doc(`contacts/${id}`)))
+    : [];
+  const batch=db.batch();
+  batch.update(project.ref,{dropboxRootPath:projectRootPath,dropboxFolderIds:folderIds,calendarEventId:eventId,bookingProviderState:"completed",bookingSideEffectSkips:Object.keys(sideEffectSkips).length?sideEffectSkips:null,updatedAt:now,updatedBy:"provider-worker"});
+  for (const snap of contactSnaps) {
+    if (!snap.exists) continue;
+    const existingTypes = Array.isArray(snap.get("contactTypes"))
+      ? (snap.get("contactTypes") as unknown[]).map(String)
+      : [];
+    if (alreadyClientOnly(existingTypes)) continue;
+    batch.update(snap.ref, {
+      contactTypes: promoteContactTypesToClient(existingTypes),
+      updatedAt: now,
+      updatedBy: "provider-worker",
+    });
+  }
+  batch.set(db.doc(`emailJobs/booking_confirmation_${projectId}`),{id:`booking_confirmation_${projectId}`,tenantId,projectId,type:"booking_confirmation",status:"queued",attempts:0,createdAt:now,updatedAt:now},{merge:false});await batch.commit();return{projectId,folderIds,eventId,workflow}}
 
 export async function uploadDropboxDocument(job:DocumentSnapshot){
   const db=getFirestore();const tenantId=String(job.get("tenantId"));const projectId=String(job.get("projectId"));const documentId=String(job.get("documentId"));
