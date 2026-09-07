@@ -167,12 +167,19 @@ export const billingCommand = onRequest(
           customerEmail: customerId ? null : (identity.email ?? null),
           priceId,
           tenantId: parsed.tenantId,
-          // P10: carry the tenant's existing trial end so Checkout honours it
-          // rather than restarting the clock.
+          // P10: carry the tenant's existing trial end so a RE-checkout honours
+          // it rather than restarting the clock.
           trialEndIso:
             (subscription.get("currentPeriodEnd") as string | undefined) ??
             (subscription.get("trialEndAt") as string | undefined) ??
             null,
+          // First checkout (never subscribed) starts a fresh 14-day trial
+          // anchored at checkout; see buildStripeCheckoutParams. `incomplete`
+          // is exactly the between-onboarding-and-checkout state, and any
+          // trialing/active/past_due/paused subscription was rerouted to the
+          // portal above, so this only ever grants a new trial to a genuine
+          // first-timer (or a cancelled tenant with no live trial to honour).
+          firstCheckout: normalizeStatus(existingStatus) === "incomplete",
         });
       } else {
         params = new URLSearchParams();

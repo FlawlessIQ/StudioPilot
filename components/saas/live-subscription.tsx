@@ -42,6 +42,11 @@ export function LiveSubscription() {
   // trialing on its own) or a cancelled session. Drives the banner below.
   const checkoutOutcome = useSearchParams().get("checkout");
   const trialActive = status === "trialing" || status === "active";
+  // The studio has created its workspace but never completed Checkout: no
+  // trial, no Stripe customer, no usage. Show a focused "choose a plan to start
+  // your trial" screen rather than the plan-management view (usage meters and a
+  // customer portal that don't exist yet).
+  const preTrial = status === "incomplete";
   // Close the provisioning race: the workspace loads subscription status once at
   // bootstrap, so after Checkout the app-shell gate would stay shut until a
   // re-bootstrap. This page is live (onSnapshot) — the moment the webhook flips
@@ -104,9 +109,13 @@ export function LiveSubscription() {
     <div className="saas-page">
       <header className="page-heading">
         <div>
-          <p className="eyebrow">Plan & usage</p>
-          <h1>Subscription</h1>
-          <p>Manage your plan and billing securely through Stripe.</p>
+          <p className="eyebrow">{preTrial ? "Start your trial" : "Plan & usage"}</p>
+          <h1>{preTrial ? "Start your 14-day trial" : "Subscription"}</h1>
+          <p>
+            {preTrial
+              ? "Pick the plan that fits your studio to open your workspace. Your card is collected now but nothing is charged until the trial ends — cancel any time before then."
+              : "Manage your plan and billing securely through Stripe."}
+          </p>
         </div>
         <div className="subscription-status">
           <StatusBadge tone={["active", "trialing"].includes(status) ? "success" : "warning"}>
@@ -147,7 +156,7 @@ export function LiveSubscription() {
           </p>
         </section>
       ) : null}
-      <section className="usage-grid">
+      <section className="usage-grid" hidden={preTrial}>
         <article className="panel usage-card">
           <span className="usage-card-icon"><UsersRound /></span>
           <span>
@@ -179,8 +188,16 @@ export function LiveSubscription() {
         <div className="section-heading-row">
           <div>
             <p className="eyebrow">Plans</p>
-            <h2>Choose the operating capacity your studio needs</h2>
-            <p>Upgrade or change cadence without contacting support.</p>
+            <h2>
+              {preTrial
+                ? "Choose a plan to start your trial"
+                : "Choose the operating capacity your studio needs"}
+            </h2>
+            <p>
+              {preTrial
+                ? "Both start with a 14-day free trial. Switch plan or cadence any time — nothing is charged until the trial ends."
+                : "Upgrade or change cadence without contacting support."}
+            </p>
           </div>
         </div>
         <div className="plan-grid">
@@ -198,7 +215,7 @@ export function LiveSubscription() {
               <ul>
                 <li>{card.users}</li>
                 <li>{card.ai}</li>
-                {card.features.slice(0, 2).map((feature) => <li key={feature}>{feature}</li>)}
+                {card.features.slice(0, preTrial ? card.features.length : 2).map((feature) => <li key={feature}>{feature}</li>)}
               </ul>
               <div className="plan-billing-actions">
                 <BillingAction plan={card.key} cadence="monthly" label={`${card.name} monthly`} />
@@ -208,7 +225,7 @@ export function LiveSubscription() {
           ))}
         </div>
       </section>
-      <section className="panel billing-boundary">
+      <section className="panel billing-boundary" hidden={preTrial}>
         <div>
           <CreditCard />
           <span>

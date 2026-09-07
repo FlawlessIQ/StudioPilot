@@ -122,48 +122,15 @@ export function OnboardingForm() {
       // second submit.
       setPhase("done");
       // Card-required trial: onboarding created the studio with an `incomplete`
-      // subscription; the 14-day trial only starts once Stripe Checkout collects
-      // a card. Send the owner straight to Checkout. Stripe returns them to
-      // /studio/subscription?checkout=success and the subscription becomes
-      // `trialing` (via the customer.subscription.created webhook); until then
-      // the app gate keeps the workspace closed.
-      const billingEndpoint = process.env.NEXT_PUBLIC_BILLING_FUNCTIONS_URL;
-      if (!billingEndpoint || !result.tenantId) {
-        // Dev preview with no billing backend — nothing to charge; land in-app.
-        router.replace("/studio");
-        router.refresh();
-        return;
-      }
-      const checkoutAppCheck = await getAppCheckToken();
-      const checkoutResponse = await fetch(
-        `${billingEndpoint.replace(/\/$/, "")}/billingCommand`,
-        {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${await user.getIdToken()}`,
-            ...(checkoutAppCheck
-              ? { "x-firebase-appcheck": checkoutAppCheck }
-              : {}),
-          },
-          body: JSON.stringify({
-            type: "createCheckout",
-            tenantId: result.tenantId,
-            plan: "studio",
-            cadence: "monthly",
-          }),
-        },
-      );
-      const checkout = (await checkoutResponse.json()) as {
-        url?: string;
-        error?: string;
-      };
-      if (!checkoutResponse.ok || !checkout.url)
-        throw new Error(
-          checkout.error ??
-            "Your studio was created, but we couldn't open Stripe Checkout to start your trial. Reopen it from Studio settings → Subscription.",
-        );
-      window.location.assign(checkout.url);
+      // subscription and no access. Rather than assuming Studio-monthly and
+      // jumping straight to Stripe, land on the subscription page — the app
+      // gate's destination for an ungated studio — where the owner picks a plan
+      // and cadence and sees what it includes before checkout. Choosing there
+      // opens Stripe; the webhook flips the subscription to `trialing` and the
+      // gate opens the workspace. (Dev preview with no billing backend lands in
+      // the same place; the page discloses that checkout is disabled.)
+      router.replace("/studio/subscription");
+      router.refresh();
     } catch (caught: unknown) {
       setNotice(
         caught instanceof Error ? caught.message : "Studio setup failed.",

@@ -32,6 +32,27 @@ test("Checkout honours the tenant's existing trial end, not a fresh 14 days (P10
   assert.equal(params.has("customer"), false);
 });
 
+test("First checkout starts a fresh 14-day trial anchored at checkout, not the onboarding timestamp", () => {
+  // Onboarding wrote trialEndAt ~14 days out seconds ago; honouring it here
+  // would hand Stripe <14 whole days and its Checkout page would floor to
+  // "13 days free". First checkout must use trial_period_days instead so the
+  // buyer gets a full 14 days counted from checkout.
+  const trialEndIso = new Date(Date.now() + 14 * 86400000).toISOString();
+  const params = buildStripeCheckoutParams({
+    appUrl: "https://studio-cue.com",
+    priceId: "price_live",
+    tenantId: "tenant_a",
+    trialEndIso,
+    firstCheckout: true,
+  });
+  assert.equal(
+    params.get("subscription_data[trial_period_days]"),
+    String(STRIPE_TRIAL_PERIOD_DAYS),
+  );
+  // The onboarding timestamp is NOT used to anchor the first trial.
+  assert.equal(params.has("subscription_data[trial_end]"), false);
+});
+
 test("Checkout requires a card up front and takes only a card", () => {
   const params = buildStripeCheckoutParams({
     appUrl: "https://studio-cue.com",
