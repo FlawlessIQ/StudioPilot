@@ -77,13 +77,17 @@ legal determination is supplied by this repository.
 Shipped code that is deliberately inert until a console or config step is taken.
 Each is safe to leave off; turning it on is a one-time deliberate action.
 
-- **P9 — Stripe public/brand name.** New studios now start at Stripe Checkout,
-  so the merchant name shown there matters. In the Stripe Dashboard (live,
-  FlawlessIQ) set Settings → Business → **Public business name** to "StudioCue",
-  add the StudioCue logo/icon and support URL, and verify against a fresh
-  Checkout session. The product line item already reads "StudioCue Studio"; the
-  account/statement descriptor stays FlawlessIQ (shared account) unless a
-  separate Stripe account is created. Owner: Conor (dashboard).
+- **P9 — Stripe merchant name is "FlawlessIQ" at Checkout.** Do **NOT** change
+  the account Public business name to "StudioCue": Public business name, logo,
+  and statement descriptor are **account-level** on Stripe and the FlawlessIQ
+  account is shared with other products (AdHelm, ScoreOps, …) — renaming it would
+  relabel every one of their Checkout pages, receipts, and card statements.
+  What the buyer sees they're buying, the Checkout **line item**, already reads
+  "StudioCue Studio" (correct, no change). A single standard account cannot
+  per-product brand the Checkout header, so the merchant name stays "FlawlessIQ"
+  for now. The only way to get a "StudioCue" merchant/statement identity is a
+  **separate Stripe account** (or Connect) for StudioCue — a business decision,
+  deferred to Conor. **Accepted as-is; no dashboard change to make.**
 
 - **P19 — Passwordless client sign-in (magic link).** Code is deployed but dark.
   To activate:
