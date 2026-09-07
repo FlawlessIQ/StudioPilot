@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import {
+  AUTH_EMAIL_TYPES,
   emailTemplateKeys,
+  isAuthEmailType,
   renderEmailTemplate,
 } from "../functions/src/communications/email-templates.ts";
 
@@ -291,4 +294,58 @@ test("no published template key falls through to the generic update", () => {
       `${key} has no copy of its own and sends the generic update instead`,
     );
   }
+});
+
+// ---- P3: auth mail is platform-branded and tracking-free ----
+
+test("auth mail types are exactly verification + reset", () => {
+  assert.deepEqual([...AUTH_EMAIL_TYPES], ["email_verification", "password_reset"]);
+  assert.equal(isAuthEmailType("email_verification"), true);
+  assert.equal(isAuthEmailType("password_reset"), true);
+  assert.equal(isAuthEmailType("client_invitation"), false);
+  assert.equal(isAuthEmailType("proposal_sent"), false);
+});
+
+test("platform-branded mail (studio === product) drops the 'powered by' credit", () => {
+  const platform = {
+    studioName: "StudioCue",
+    productName: "StudioCue",
+    accentColor: "#35664a",
+    logoUrl: null,
+    contactEmail: null,
+  };
+  const rendered = renderEmailTemplate({
+    key: "email_verification",
+    brand: platform,
+    recipientName: "Jordan Rivera",
+    projectName: null,
+    values: { actionUrl: "https://studio-cue.com/auth/verify-email?oobCode=x" },
+  });
+  // No "StudioCue · Powered by StudioCue" / "using StudioCue" redundancy.
+  assert.ok(!rendered.text.includes("Powered by"), "text keeps no powered-by");
+  assert.ok(!rendered.text.includes("using StudioCue"), "text keeps no using-line");
+  assert.ok(!rendered.html.includes("powered by"), "html keeps no powered-by");
+  assert.match(rendered.text, /Sent by StudioCue\./);
+
+  // A real studio brand still gets its credit (studio !== product).
+  const tenant = renderEmailTemplate({
+    key: "email_verification",
+    brand: { ...platform, studioName: "Alder & Muse", productName: "StudioCue" },
+    recipientName: "Jordan",
+    projectName: null,
+    values: {},
+  });
+  assert.ok(tenant.text.includes("Powered by StudioCue"));
+  assert.ok(tenant.text.includes("Sent by Alder & Muse using StudioCue"));
+});
+
+// The send path is Firebase-heavy, so guard by source: auth mail must disable
+// SendGrid click/open tracking and be fed the platform brand. This mirrors the
+// original invisible-gap pattern — nothing exercised the worker end to end.
+test("send worker disables tracking and platform-brands auth mail (source guard)", () => {
+  const src = readFileSync("functions/src/operations/jobs.ts", "utf8");
+  assert.match(src, /isAuthEmailType\(type\)/, "tracking gate keyed on auth type");
+  assert.match(src, /click_tracking:\s*\{\s*enable:\s*false/, "click tracking off");
+  assert.match(src, /open_tracking:\s*\{\s*enable:\s*false/, "open tracking off");
+  assert.match(src, /isAuthEmailType\(templateKey\)/, "brand override keyed on auth type");
 });

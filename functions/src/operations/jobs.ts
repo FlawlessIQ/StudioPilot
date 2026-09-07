@@ -5,6 +5,7 @@ import {
 import { getStorage } from "firebase-admin/storage";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import {
+  isAuthEmailType,
   renderEmailTemplate,
   type EmailBrand,
   type EmailTemplateOverride,
@@ -519,21 +520,33 @@ async function emailContext(
       ? emailTemplateOverride(activeTemplate.data(), tenantId, templateKey)
       : null);
 
-  return {
-    brand: {
-      studioName,
-      productName: "StudioCue",
-      accentColor,
-      logoUrl: safeLogoUrl(
-        firstString(
-          document.get("brandLogoUrl"),
-          emailBranding.logoUrl,
-          tenant?.get("logoUrl"),
-          tenant?.get("logo"),
+  // Auth mail (verification / reset) is from the PLATFORM, not the studio, so it
+  // never wears the tenant's name, logo, or accent — see AUTH_EMAIL_TYPES.
+  const isAuth = isAuthEmailType(templateKey);
+  const brand: EmailBrand = isAuth
+    ? {
+        studioName: "StudioCue",
+        productName: "StudioCue",
+        accentColor: "#35664a",
+        logoUrl: null,
+        contactEmail: null,
+      }
+    : {
+        studioName,
+        productName: "StudioCue",
+        accentColor,
+        logoUrl: safeLogoUrl(
+          firstString(
+            document.get("brandLogoUrl"),
+            emailBranding.logoUrl,
+            tenant?.get("logoUrl"),
+            tenant?.get("logo"),
+          ),
         ),
-      ),
-      contactEmail,
-    },
+        contactEmail,
+      };
+  return {
+    brand,
     projectName,
     recipientName,
     template,
@@ -623,6 +636,18 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
     ],
     categories: ["studiocue-transactional", type].slice(0, 10),
   };
+  // Auth links must not be redirect-wrapped. SendGrid click-tracking rewrites
+  // every URL to `*.ct.sendgrid.net/ls/click?...`, so a verification / reset
+  // link no longer visibly points at studio-cue.com (phishing-adjacent) and a
+  // tracking outage would break the one link the email exists to deliver.
+  // Disable it (and open-tracking) for auth mail specifically; tenant/marketing
+  // mail keeps the account default.
+  if (isAuthEmailType(type)) {
+    payload.tracking_settings = {
+      click_tracking: { enable: false, enable_text: false },
+      open_tracking: { enable: false },
+    };
+  }
   // A thread's own reply address takes precedence, so the client's reply comes
   // back into StudioCue instead of the studio's personal inbox. The From line is
   // untouched — the client still sees the studio's name and address; only where

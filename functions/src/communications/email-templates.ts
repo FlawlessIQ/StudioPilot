@@ -1,5 +1,21 @@
 import { bulletLinePattern, clientEmailParagraphs } from "./email-content.js";
 
+/**
+ * Account-security mail sent by the PLATFORM, not a studio: email verification
+ * and password reset. These must never wear a tenant's letterhead — the person
+ * receiving a "verify your StudioCue email" has, from their point of view, an
+ * account with StudioCue, and may not recognise (or may distrust) a studio brand
+ * on it. So the render is fed a platform brand and the send disables SendGrid
+ * click/open tracking, because an auth link wrapped in a `ct.sendgrid.net`
+ * redirect is phishing-adjacent and breaks if tracking has an outage. Every
+ * other template legitimately names the studio (a studio IS inviting the client
+ * / sending the proposal), so this stays deliberately narrow.
+ */
+export const AUTH_EMAIL_TYPES = ["email_verification", "password_reset"] as const;
+
+export const isAuthEmailType = (type: string): boolean =>
+  (AUTH_EMAIL_TYPES as readonly string[]).includes(type);
+
 export const emailTemplateKeys = [
   "staff_invitation",
   "client_invitation",
@@ -785,6 +801,17 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
   const accent = normalizeColor(input.brand.accentColor);
   const studioName = escapeHtml(input.brand.studioName);
   const productName = escapeHtml(input.brand.productName);
+  // Platform mail (auth) sets studioName === productName. "StudioCue · Powered
+  // by StudioCue" / "Sent by StudioCue using StudioCue" reads as a bug, so the
+  // secondary "powered by / using" line is dropped when they are the same. For
+  // tenant mail (studio ≠ product) it stays, correctly crediting the studio.
+  const isPlatformSender = input.brand.studioName === input.brand.productName;
+  const senderSubline = isPlatformSender
+    ? ""
+    : `<span style="display:block;color:#778079;font-size:12px;line-height:1.4;">Client operations powered by ${productName}</span>`;
+  const sentByLine = isPlatformSender
+    ? `Sent by ${studioName}.`
+    : `Sent by ${studioName} using ${productName}.`;
   const logoUrl = input.brand.logoUrl
     ? safeUrl(input.brand.logoUrl)
     : "";
@@ -828,7 +855,7 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
             <td style="vertical-align:middle;">${brandMark}</td>
             <td style="padding-left:12px;vertical-align:middle;">
               <strong style="display:block;color:#171a18;font-size:17px;line-height:1.3;">${studioName}</strong>
-              <span style="display:block;color:#778079;font-size:12px;line-height:1.4;">Client operations powered by ${productName}</span>
+              ${senderSubline}
             </td>
           </tr></table>
         </td></tr>
@@ -843,7 +870,7 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
           </div>
         </td></tr>
         <tr><td class="email-footer" style="padding:20px 18px 0;color:#7b837d;font-size:12px;line-height:1.65;text-align:center;">
-          Sent by ${studioName} using ${productName}.${contact}<br>
+          ${sentByLine}${contact}<br>
           This message relates to a private studio workspace or photography project.
         </td></tr>
       </table>
@@ -853,7 +880,9 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
 </html>`;
 
   const text = [
-    `${input.brand.studioName} · Powered by ${input.brand.productName}`,
+    isPlatformSender
+      ? input.brand.studioName
+      : `${input.brand.studioName} · Powered by ${input.brand.productName}`,
     "",
     copy.heading,
     "",
@@ -861,7 +890,9 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
     ...(copy.action ? ["", `${copy.action.label}: ${copy.action.url}`] : []),
     ...(copy.note ? ["", copy.note] : []),
     "",
-    `Sent by ${input.brand.studioName} using ${input.brand.productName}.`,
+    isPlatformSender
+      ? `Sent by ${input.brand.studioName}.`
+      : `Sent by ${input.brand.studioName} using ${input.brand.productName}.`,
   ].join("\n");
 
   // What the studio actually said, without the branded wrapper. `text` is the
