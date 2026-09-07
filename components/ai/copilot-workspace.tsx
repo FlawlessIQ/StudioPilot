@@ -14,6 +14,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { AiQueueCard } from "@/components/ai/ai-approval-queue";
+import { useTenantDocuments } from "@/components/live/tenant-records";
 import { askCopilot, type CopilotResult } from "@/lib/ai/copilot-client";
 import {
   requestMessageDraft,
@@ -250,11 +252,20 @@ function PreparedActions({
   const workspace = useWorkspace();
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [drafted, setDrafted] = useState(false);
+  // Draft ids prepared from this answer, newest first, so their approval cards
+  // appear inline below — the owner approves and sends here instead of leaving
+  // for the review queue. (P2 of the AI command-chat plan.)
+  const [draftedIds, setDraftedIds] = useState<string[]>([]);
+  const aiState = useTenantDocuments("aiActions");
   const projectCitation = citations.find((citation) =>
     citation.href.startsWith("/studio/projects/"),
   );
   const projectId = projectCitation?.href.split("/").pop() ?? null;
+
+  const inlineActions = (aiState.records ?? []).filter((record) =>
+    draftedIds.includes(record.id),
+  );
+
   if (!projectId || !workspace.tenantId) return null;
 
   async function prepare(trigger: MessageDraftTrigger, label: string) {
@@ -267,16 +278,17 @@ function PreparedActions({
         trigger,
         projectId,
       });
-      setDrafted(result.mode === "live");
-      setNotice(
-        result.mode === "preview"
-          ? `Preview: "${label}" would wait in your review queue.`
-          : `Draft prepared — review it in your AI queue.`,
-      );
+      if (result.mode === "live" && result.actionId) {
+        setDraftedIds((prior) =>
+          prior.includes(result.actionId!) ? prior : [result.actionId!, ...prior],
+        );
+      } else {
+        setNotice(
+          `Preview: "${label}" would be prepared as an approval card here.`,
+        );
+      }
     } catch (caught: unknown) {
-      setNotice(
-        friendlyError(caught, "The draft could not be prepared."),
-      );
+      setNotice(friendlyError(caught, "The draft could not be prepared."));
     } finally {
       setBusy(null);
     }
@@ -286,7 +298,7 @@ function PreparedActions({
     <div className="copilot-prepared-actions">
       <small>
         Prepared next steps for {projectCitation?.label ?? "this project"} —
-        every draft waits for your approval:
+        each draft appears below for you to review, edit, and send:
       </small>
       <div>
         {preparedActionOptions.map((option) => (
@@ -305,12 +317,20 @@ function PreparedActions({
           </button>
         ))}
       </div>
-      {notice ? (
-        <p role="status">
-          {notice}{" "}
-          {drafted ? <Link href="/studio/ai-queue">Open review queue</Link> : null}
-        </p>
+      {inlineActions.length ? (
+        <div className="copilot-inline-approvals">
+          {inlineActions.map((action) => (
+            <AiQueueCard
+              action={action}
+              key={action.id}
+              onDecision={(id) =>
+                setDraftedIds((prior) => prior.filter((value) => value !== id))
+              }
+            />
+          ))}
+        </div>
       ) : null}
+      {notice ? <p role="status">{notice}</p> : null}
     </div>
   );
 }
