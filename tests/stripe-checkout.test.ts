@@ -2,8 +2,41 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildStripeCheckoutParams,
+  resolveSubscriptionPeriod,
   STRIPE_TRIAL_PERIOD_DAYS,
 } from "../functions/src/saas/stripe-checkout.ts";
+
+test("Subscription period resolves from the item and trial when the object lacks top-level periods", () => {
+  const trialStart = 1_757_000_000;
+  const trialEnd = trialStart + STRIPE_TRIAL_PERIOD_DAYS * 86400;
+
+  // Recent API: no top-level current_period_*, only the item carries them.
+  const fromItem = resolveSubscriptionPeriod(
+    { trial_start: trialStart, trial_end: trialEnd },
+    { current_period_start: trialStart, current_period_end: trialEnd },
+  );
+  assert.equal(fromItem.start, new Date(trialStart * 1000).toISOString());
+  assert.equal(fromItem.end, new Date(trialEnd * 1000).toISOString());
+
+  // Neither object nor item carries a period (a trial mid-provision): fall back
+  // to trial_start/end so "Trial ends …" is the real trial end, not a stale one.
+  const fromTrial = resolveSubscriptionPeriod({
+    trial_start: trialStart,
+    trial_end: trialEnd,
+  });
+  assert.equal(fromTrial.end, new Date(trialEnd * 1000).toISOString());
+
+  // Top-level wins when present (older API / a paid period past the trial).
+  const paidEnd = trialEnd + 30 * 86400;
+  const fromObject = resolveSubscriptionPeriod(
+    { current_period_start: trialEnd, current_period_end: paidEnd, trial_end: trialEnd },
+    { current_period_end: 999 },
+  );
+  assert.equal(fromObject.end, new Date(paidEnd * 1000).toISOString());
+
+  // Nothing at all → null, so the caller keeps the stored value.
+  assert.deepEqual(resolveSubscriptionPeriod({}), { start: null, end: null });
+});
 
 test("Checkout honours the tenant's existing trial end, not a fresh 14 days (P10)", () => {
   const trialEndIso = new Date(Date.now() + 9 * 86400000).toISOString();

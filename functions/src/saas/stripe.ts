@@ -4,7 +4,10 @@ import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
-import { buildStripeCheckoutParams } from "./stripe-checkout.js";
+import {
+  buildStripeCheckoutParams,
+  resolveSubscriptionPeriod,
+} from "./stripe-checkout.js";
 
 const billingCommandSchema = z.object({
   type: z.enum(["createCheckout", "createPortal"]),
@@ -274,10 +277,20 @@ export const stripeWebhook = onRequest(
       const subscriptionReference = db.doc(`subscriptions/${tenantId}`);
       const current = await subscriptionReference.get();
       const items = object.items as
-        | { data?: Array<{ price?: { id?: string } }> }
+        | {
+            data?: Array<{
+              price?: { id?: string };
+              current_period_start?: number;
+              current_period_end?: number;
+            }>;
+          }
         | undefined;
-      const priceId =
-        items?.data?.[0]?.price?.id ?? current.get("stripePriceId") ?? null;
+      const firstItem = items?.data?.[0];
+      const priceId = firstItem?.price?.id ?? current.get("stripePriceId") ?? null;
+      // Resolve the period from the object/item/trial (see resolveSubscriptionPeriod
+      // — the top-level current_period_* fields are absent on recent API versions),
+      // then fall back to the stored value.
+      const period = resolveSubscriptionPeriod(object, firstItem);
       const mappedPlan = priceId ? planForPrice(priceId) : undefined;
       // The entry plan is the floor for a subscription whose price we
       // cannot map. It was "solo", which no longer exists — a webhook for an
@@ -310,13 +323,9 @@ export const stripeWebhook = onRequest(
           ),
           stripePriceId: priceId,
           currentPeriodStart:
-            typeof object.current_period_start === "number"
-              ? new Date(object.current_period_start * 1000).toISOString()
-              : (current.get("currentPeriodStart") ?? null),
+            period.start ?? (current.get("currentPeriodStart") ?? null),
           currentPeriodEnd:
-            typeof object.current_period_end === "number"
-              ? new Date(object.current_period_end * 1000).toISOString()
-              : (current.get("currentPeriodEnd") ?? null),
+            period.end ?? (current.get("currentPeriodEnd") ?? null),
           cancelAtPeriodEnd: Boolean(object.cancel_at_period_end),
           entitlements: entitlements[plan],
           internalUserCount: current.get("internalUserCount") ?? 0,

@@ -3,6 +3,41 @@
 // existing end rather than restarting one — see below.
 export const STRIPE_TRIAL_PERIOD_DAYS = 14;
 
+/** A Stripe unix-seconds timestamp to an ISO string, or null if absent. */
+export const stripeSecondsToIso = (value: unknown): string | null =>
+  typeof value === "number" ? new Date(value * 1000).toISOString() : null;
+
+/**
+ * The current period start/end for a subscription, from a webhook object.
+ *
+ * Stripe moved `current_period_start/end` off the subscription object and onto
+ * its items in recent API versions, so reading only the top-level fields left
+ * the period stuck at whatever was written before (for a new studio, the trial
+ * end anchored at workspace creation — ~38 min before the real checkout-anchored
+ * trial, so "Trial ends …" showed the wrong instant). Resolve from the object,
+ * then the first item, then `trial_start/end` for a trial — whose period end IS
+ * the trial end. Returns null for a field when none is present, so the caller
+ * can fall back to the stored value.
+ */
+export const resolveSubscriptionPeriod = (
+  object: {
+    current_period_start?: unknown;
+    current_period_end?: unknown;
+    trial_start?: unknown;
+    trial_end?: unknown;
+  },
+  firstItem?: { current_period_start?: unknown; current_period_end?: unknown },
+): { start: string | null; end: string | null } => ({
+  start:
+    stripeSecondsToIso(object.current_period_start) ??
+    stripeSecondsToIso(firstItem?.current_period_start) ??
+    stripeSecondsToIso(object.trial_start),
+  end:
+    stripeSecondsToIso(object.current_period_end) ??
+    stripeSecondsToIso(firstItem?.current_period_end) ??
+    stripeSecondsToIso(object.trial_end),
+});
+
 export const buildStripeCheckoutParams = ({
   appUrl,
   customerId,
