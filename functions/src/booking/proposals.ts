@@ -6,6 +6,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { mintClientInvitation } from "../client/invitation-mint.js";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
+import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { studioHubCors } from "../security/cors.js";
 import {
   assertProposalAction,
@@ -285,6 +286,8 @@ export const proposalCommand = onRequest(
       const command = commandSchema.parse(request.body);
       const membership = await membershipFor(command.tenantId, identity.uid);
       const db = getFirestore();
+      // Whole-product billing gate (studio commands require a live subscription).
+      await requireActiveSubscription(db, command.tenantId);
       const executionId = stableId(
         "proposal_command",
         command.tenantId,

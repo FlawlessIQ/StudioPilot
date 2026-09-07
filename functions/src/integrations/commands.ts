@@ -6,6 +6,7 @@ import {
   requireAppCheckOrAppHostingProxy,
   requireIdentity,
 } from "../crm/security.js";
+import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { studioHubCors } from "../security/cors.js";
 import { capabilitySchema, providerSchema, providerCapabilities, type Provider } from "./capability-resolution.js";
 import { invalidCommandResponse } from "../security/invalid-command.js";
@@ -105,6 +106,13 @@ export const integrationsCommand = onRequest(
       !allowedRoles.includes(membershipData.role)
     ) {
       response.status(403).json({ error: "FORBIDDEN" });
+      return;
+    }
+    // Whole-product billing gate (studio commands require a live subscription).
+    try {
+      await requireActiveSubscription(db, command.tenantId);
+    } catch {
+      response.status(402).json({ error: "ACTIVE_SUBSCRIPTION_REQUIRED" });
       return;
     }
 

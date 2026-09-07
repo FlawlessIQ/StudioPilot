@@ -4,6 +4,7 @@ import {
   type DocumentSnapshot,
   type Query,
 } from "firebase-admin/firestore";
+import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
@@ -446,6 +447,8 @@ export const aiCopilotCommand = onRequest(
           !internalRoles.has(String(intakeMembership.get("role")))
         )
           throw new Error("FORBIDDEN");
+        // Whole-product billing gate (studio commands require a live subscription).
+        await requireActiveSubscription(db, intake.tenantId);
         const now = new Date().toISOString();
         await db.runTransaction((transaction) =>
           consumeAiQuota(transaction, db, intake.tenantId, now),
@@ -482,6 +485,8 @@ export const aiCopilotCommand = onRequest(
           !internalRoles.has(String(draftMembership.get("role")))
         )
           throw new Error("FORBIDDEN");
+        // Whole-product billing gate (studio commands require a live subscription).
+        await requireActiveSubscription(db, draftRequest.tenantId);
         const projectDocument = await db
           .doc(`projects/${draftRequest.projectId}`)
           .get();
@@ -571,6 +576,8 @@ export const aiCopilotCommand = onRequest(
         !internalRoles.has(String(membership.get("role")))
       )
         throw new Error("FORBIDDEN");
+      // Whole-product billing gate (studio commands require a live subscription).
+      await requireActiveSubscription(db, input.tenantId);
       const role = String(membership.get("role"));
       const broadAccess = ["studio_owner", "studio_admin"].includes(role);
       const assigned = Array.isArray(membership.get("projectIds"))

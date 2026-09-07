@@ -118,13 +118,52 @@ export function OnboardingForm() {
           "studiohub.activeTenantId",
           result.tenantId,
         );
-      // P7: show a terminal success and keep the form disabled so a bounce back
-      // from /studio (before the new membership is visible) can't re-render a
-      // live form and invite a second submit. refresh() re-runs the server
-      // boundary once the membership has landed.
+      // P7: terminal success, form stays disabled so a bounce can't invite a
+      // second submit.
       setPhase("done");
-      router.replace("/studio");
-      router.refresh();
+      // Card-required trial: onboarding created the studio with an `incomplete`
+      // subscription; the 14-day trial only starts once Stripe Checkout collects
+      // a card. Send the owner straight to Checkout. Stripe returns them to
+      // /studio/subscription?checkout=success and the subscription becomes
+      // `trialing` (via the customer.subscription.created webhook); until then
+      // the app gate keeps the workspace closed.
+      const billingEndpoint = process.env.NEXT_PUBLIC_BILLING_FUNCTIONS_URL;
+      if (!billingEndpoint || !result.tenantId) {
+        // Dev preview with no billing backend — nothing to charge; land in-app.
+        router.replace("/studio");
+        router.refresh();
+        return;
+      }
+      const checkoutAppCheck = await getAppCheckToken();
+      const checkoutResponse = await fetch(
+        `${billingEndpoint.replace(/\/$/, "")}/billingCommand`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${await user.getIdToken()}`,
+            ...(checkoutAppCheck
+              ? { "x-firebase-appcheck": checkoutAppCheck }
+              : {}),
+          },
+          body: JSON.stringify({
+            type: "createCheckout",
+            tenantId: result.tenantId,
+            plan: "studio",
+            cadence: "monthly",
+          }),
+        },
+      );
+      const checkout = (await checkoutResponse.json()) as {
+        url?: string;
+        error?: string;
+      };
+      if (!checkoutResponse.ok || !checkout.url)
+        throw new Error(
+          checkout.error ??
+            "Your studio was created, but we couldn't open Stripe Checkout to start your trial. Reopen it from Studio settings → Subscription.",
+        );
+      window.location.assign(checkout.url);
     } catch (caught: unknown) {
       setNotice(
         caught instanceof Error ? caught.message : "Studio setup failed.",

@@ -23,6 +23,15 @@ export const buildStripeCheckoutParams = ({
   params.set("mode", "subscription");
   params.set("line_items[0][price]", priceId);
   params.set("line_items[0][quantity]", "1");
+  // Card-required trial: collect a payment method up front even though the
+  // first 14 days don't charge, so the trial converts (or fails to past_due)
+  // on its own instead of becoming a free-forever account. Without this Stripe
+  // defaults to "if_required" for trials and lets the trial start with no card.
+  params.set("payment_method_collection", "always");
+  // A monthly B2B SaaS subscription takes a card, not Cash App Pay / Klarna
+  // (audit deferred item P11-methods). Pin the method rather than inheriting the
+  // account's globally-enabled set, which is shared with other FlawlessIQ products.
+  params.set("payment_method_types[0]", "card");
   params.set("success_url", `${appUrl}/studio/subscription?checkout=success`);
   params.set("cancel_url", `${appUrl}/studio/subscription?checkout=cancelled`);
   // P10: honour the tenant's existing trial end instead of restarting a fresh

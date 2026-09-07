@@ -34,6 +34,37 @@ export type GuardedCapability =
  * ladder moves underneath it. That is what let the Solo migration retire a
  * plan without changing anyone's capacity.
  */
+/**
+ * The single server-side source of truth for "may this tenant use the product".
+ * Only a live trial or paying subscription grants access; incomplete (Checkout
+ * never finished), past_due, paused, canceled, expired are refused. Mirrors
+ * `subscriptionGrantsAccess` in features/subscriptions/entitlements.ts — kept in
+ * sync by hand because functions/ cannot import @/features.
+ */
+export function subscriptionGrantsAccess(status: string): boolean {
+  return status === "trialing" || status === "active";
+}
+
+/**
+ * Refuse any studio work unless the tenant has a live subscription (trial or
+ * paid). Card-required onboarding means every tenant has a subscription, so this
+ * is the gate that puts the whole studio product behind billing. Apply it at the
+ * top of every studio command endpoint, after identity + membership resolve.
+ * NOT for client/crew endpoints or the billing/onboarding commands themselves.
+ */
+export async function requireActiveSubscription(
+  db: Firestore,
+  tenantId: string,
+): Promise<void> {
+  const subscription = await db.doc(`subscriptions/${tenantId}`).get();
+  if (
+    !subscription.exists ||
+    !subscriptionGrantsAccess(String(subscription.get("status")))
+  ) {
+    throw new Error("ACTIVE_SUBSCRIPTION_REQUIRED");
+  }
+}
+
 export async function requireEntitlement(
   db: Firestore,
   tenantId: string,
@@ -42,7 +73,7 @@ export async function requireEntitlement(
   const subscription = await db.doc(`subscriptions/${tenantId}`).get();
   if (
     !subscription.exists ||
-    !["trialing", "active"].includes(String(subscription.get("status")))
+    !subscriptionGrantsAccess(String(subscription.get("status")))
   ) {
     throw new Error("ACTIVE_SUBSCRIPTION_REQUIRED");
   }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { BrainCircuit, CheckCircle2, CreditCard, UsersRound } from "lucide-react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { BillingAction } from "@/components/saas/billing-actions";
@@ -36,6 +37,23 @@ export function LiveSubscription() {
   }, [workspace.tenantId]);
   const plan = String(subscription?.plan ?? "studio");
   const status = String(subscription?.status ?? (dataIsLive ? "loading" : "trialing"));
+  // How the studio arrived: back from Stripe Checkout (?checkout=success — the
+  // trial is being provisioned by the webhook and this live page flips to
+  // trialing on its own) or a cancelled session. Drives the banner below.
+  const checkoutOutcome = useSearchParams().get("checkout");
+  const trialActive = status === "trialing" || status === "active";
+  // Close the provisioning race: the workspace loads subscription status once at
+  // bootstrap, so after Checkout the app-shell gate would stay shut until a
+  // re-bootstrap. This page is live (onSnapshot) — the moment the webhook flips
+  // the trial active after a successful checkout, do a full navigation into the
+  // studio, which re-bootstraps the workspace and opens the gate app-wide.
+  useEffect(() => {
+    if (checkoutOutcome === "success" && trialActive) {
+      const timer = setTimeout(() => window.location.assign("/studio"), 1200);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [checkoutOutcome, trialActive]);
   // P8: say it in plain language, not the Stripe enum + plan slug ("trialing ·
   // studio"), and show the date the studio actually wants — when the trial ends
   // or when it renews. Stripe holds it; the page was hiding it.
@@ -44,6 +62,7 @@ export function LiveSubscription() {
       {
         trialing: "Free trial",
         active: "Active",
+        incomplete: "Trial not started",
         past_due: "Payment past due",
         paused: "Paused",
         canceled: "Canceled",
@@ -104,6 +123,30 @@ export function LiveSubscription() {
           ) : null}
         </div>
       </header>
+      {!trialActive && status !== "loading" ? (
+        <section
+          className="panel"
+          style={{ margin: "0 0 20px", padding: "16px 20px" }}
+          role="status"
+        >
+          <strong>
+            {checkoutOutcome === "success"
+              ? "Starting your trial…"
+              : checkoutOutcome === "cancelled"
+                ? "Checkout was cancelled — your trial hasn't started"
+                : status === "incomplete"
+                  ? "Your trial hasn't started yet"
+                  : "Your subscription needs attention"}
+          </strong>
+          <p style={{ margin: "6px 0 0" }}>
+            {checkoutOutcome === "success"
+              ? "We're confirming your card with Stripe. This page updates on its own the moment your trial is live — usually a few seconds."
+              : status === "incomplete"
+                ? "Add a card below to start your 14-day trial and open your studio. You won't be charged until the trial ends."
+                : "Update your card below to reactivate your studio and pick up where you left off."}
+          </p>
+        </section>
+      ) : null}
       <section className="usage-grid">
         <article className="panel usage-card">
           <span className="usage-card-icon"><UsersRound /></span>

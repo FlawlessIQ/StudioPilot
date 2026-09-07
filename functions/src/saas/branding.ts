@@ -2,6 +2,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
+import { requireActiveSubscription } from "./entitlement-guard.js";
 import { studioHubCors } from "../security/cors.js";
 import {
   normalizeSlug,
@@ -34,6 +35,8 @@ async function requireOwner(tenantId: string, userId: string) {
   ) {
     throw new Error("FORBIDDEN");
   }
+  // Whole-product billing gate (studio settings require a live subscription).
+  await requireActiveSubscription(getFirestore(), tenantId);
 }
 
 export const tenantBrandingCommand = onRequest(

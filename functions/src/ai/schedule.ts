@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { consumeAiQuota, refundAiQuota } from "../saas/usage.js";
+import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { productEvent } from "../operations/product-events.js";
 
 type Json = Record<string, unknown>;
@@ -408,6 +409,8 @@ export const aiScheduleCommand = onRequest(
         project.get("tenantId") !== input.tenantId
       )
         throw new Error("FORBIDDEN");
+      // Whole-product billing gate (studio commands require a live subscription).
+      await requireActiveSubscription(db, input.tenantId);
       if (
         Date.parse(input.coverageEndsAt) <= Date.parse(input.coverageStartsAt)
       )

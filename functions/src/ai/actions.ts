@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
@@ -48,6 +49,8 @@ async function requireReviewer(
     )
   )
     throw new Error("FORBIDDEN");
+  // Whole-product billing gate (studio commands require a live subscription).
+  await requireActiveSubscription(db, tenantId);
   if (
     projectId &&
     membership.get("role") === "studio_coordinator" &&

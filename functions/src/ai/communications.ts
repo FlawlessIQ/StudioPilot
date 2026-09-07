@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { consumeAiQuota } from "../saas/usage.js";
+import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { productEvent } from "../operations/product-events.js";
 import { normalizeClientEmailBody } from "../communications/email-content.js";
 
@@ -139,6 +140,8 @@ export const aiCommunicationsCommand = onRequest(
         !allowedRoles.has(role)
       )
         throw new Error("FORBIDDEN");
+      // Whole-product billing gate (studio commands require a live subscription).
+      await requireActiveSubscription(db, input.tenantId);
       if (
         !project.exists ||
         project.get("tenantId") !== input.tenantId ||

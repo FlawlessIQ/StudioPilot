@@ -4,6 +4,7 @@ import {
   type DocumentData,
   type DocumentSnapshot,
 } from "firebase-admin/firestore";
+import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { z } from "zod";
@@ -684,6 +685,8 @@ export const crewCommand = onRequest(
         .get();
       if (!membership.exists || membership.get("status") !== "active")
         throw new Error("FORBIDDEN");
+      // Whole-product billing gate (studio commands require a live subscription).
+      await requireActiveSubscription(db, parsed.tenantId);
       const role = String(membership.get("role"));
       const projectIds = membership.get("projectIds") as unknown;
       const hasProject = (projectId: string) =>

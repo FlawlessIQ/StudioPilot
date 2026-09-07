@@ -3,6 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "./security.js";
+import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { studioHubCors } from "../security/cors.js";
 import { invalidCommandResponse } from "../security/invalid-command.js";
 
@@ -393,6 +394,14 @@ export const crmCommand = onRequest(
       !allowedRoles.includes(membershipData.role)
     ) {
       response.status(403).json({ error: "FORBIDDEN" });
+      return;
+    }
+    // Whole-product billing gate: no studio work without a live trial/paid
+    // subscription. 402 Payment Required so the client can route to Checkout.
+    try {
+      await requireActiveSubscription(db, command.tenantId);
+    } catch {
+      response.status(402).json({ error: "ACTIVE_SUBSCRIPTION_REQUIRED" });
       return;
     }
 

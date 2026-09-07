@@ -1,4 +1,5 @@
 import { getFirestore } from "firebase-admin/firestore";
+import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
@@ -48,6 +49,8 @@ export const lifecycleSettingsCommand = onRequest(
         membership.get("role") !== "studio_owner"
       )
         throw new Error("FORBIDDEN");
+      // Whole-product billing gate (studio commands require a live subscription).
+      await requireActiveSubscription(db, input.tenantId);
       const tenantReference = db.doc(`tenants/${input.tenantId}`);
       const tenant = await tenantReference.get();
       if (!tenant.exists) throw new Error("TENANT_NOT_FOUND");

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
+import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { z } from "zod";
@@ -129,6 +130,8 @@ export const communicationsCommand = onRequest(
       ) {
         throw new Error("FORBIDDEN");
       }
+      // Whole-product billing gate (studio commands require a live subscription).
+      await requireActiveSubscription(db, command.tenantId);
       const executionId = stableId(
         "communications",
         command.tenantId,

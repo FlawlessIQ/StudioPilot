@@ -32,6 +32,20 @@ test("Checkout honours the tenant's existing trial end, not a fresh 14 days (P10
   assert.equal(params.has("customer"), false);
 });
 
+test("Checkout requires a card up front and takes only a card", () => {
+  const params = buildStripeCheckoutParams({
+    appUrl: "https://studio-cue.com",
+    priceId: "price_live",
+    tenantId: "tenant_a",
+    trialEndIso: new Date(Date.now() + 14 * 86400000).toISOString(),
+  });
+  // Card required during the trial so it converts/fails on its own rather than
+  // becoming a free-forever account.
+  assert.equal(params.get("payment_method_collection"), "always");
+  // Card only — no Cash App Pay / Klarna on a B2B subscription (P11-methods).
+  assert.equal(params.get("payment_method_types[0]"), "card");
+});
+
 test("An expired or missing trial re-grants nothing (P10)", () => {
   const past = buildStripeCheckoutParams({
     appUrl: "https://studio-cue.com",

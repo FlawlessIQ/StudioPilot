@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { consumeAiQuota } from "../saas/usage.js";
+import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 
 type Json = Record<string, unknown>;
 const record = (value: unknown): Json =>
@@ -197,6 +198,8 @@ export const aiTimingRulesCommand = onRequest(
         )
       )
         throw new Error("FORBIDDEN");
+      // Whole-product billing gate (studio commands require a live subscription).
+      await requireActiveSubscription(db, input.tenantId);
       const now = new Date().toISOString();
       await db.runTransaction((transaction) =>
         consumeAiQuota(transaction, db, input.tenantId, now),

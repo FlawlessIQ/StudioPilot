@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { isIP } from "node:net";
 import { resolve4, resolve6 } from "node:dns/promises";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
@@ -328,6 +329,8 @@ async function requireStudioOwnerOrAdmin(
   ) {
     throw new Error("FORBIDDEN");
   }
+  // Whole-product billing gate (studio commands require a live subscription).
+  await requireActiveSubscription(db, tenantId);
   return membership.get("role") as "studio_owner" | "studio_admin";
 }
 

@@ -19,6 +19,7 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
+import { subscriptionGrantsAccess } from "@/features/subscriptions/entitlements";
 import { CueMark } from "@/components/brand/logo";
 import { GlobalSearch } from "@/components/layout/global-search";
 import { PlatformReturnLink } from "@/components/layout/platform-return-link";
@@ -219,6 +220,15 @@ function StudioShell({
     return () => document.removeEventListener("keydown", onKey);
   }, [navigationOpen]);
   const workspace = useWorkspace();
+  // App gate: card-required onboarding leaves a studio `incomplete` until Stripe
+  // Checkout. Until the subscription grants access, replace the workspace with a
+  // "start your trial" panel — except on the subscription page itself (where
+  // Checkout returns and provisioning lands), so there's no redirect loop.
+  // `subscriptionStatus` is null while loading and in mock mode, so neither gates.
+  const subscriptionGated =
+    workspace.subscriptionStatus !== null &&
+    !subscriptionGrantsAccess(workspace.subscriptionStatus) &&
+    !pathname.startsWith("/studio/subscription");
   const routeSegment = pathname.split("/").filter(Boolean)[1] ?? "";
   const resolvedActive =
     active ?? studioRouteLabels[routeSegment] ?? "Dashboard";
@@ -424,7 +434,37 @@ function StudioShell({
               )}
             </div>
           ) : null}
-          <main className="ds-content">{children}</main>
+          <main className="ds-content">
+            {subscriptionGated ? (
+              <section
+                className="panel"
+                style={{
+                  maxWidth: 520,
+                  margin: "56px auto",
+                  textAlign: "center",
+                }}
+              >
+                <p className="eyebrow">Subscription</p>
+                <h1>
+                  {workspace.subscriptionStatus === "incomplete"
+                    ? "Start your trial to open your studio"
+                    : "Reactivate your studio to continue"}
+                </h1>
+                <p>
+                  {workspace.subscriptionStatus === "incomplete"
+                    ? "Your studio is set up — add a card to start your 14-day trial and the workspace unlocks right away. You won't be charged until the trial ends."
+                    : "Your subscription needs attention. Update your card to reactivate your studio and pick up where you left off."}
+                </p>
+                <Link className="button button-dark" href="/studio/subscription">
+                  {workspace.subscriptionStatus === "incomplete"
+                    ? "Start your trial"
+                    : "Manage billing"}
+                </Link>
+              </section>
+            ) : (
+              children
+            )}
+          </main>
         </div>
       </div>
     </div>

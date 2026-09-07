@@ -148,7 +148,16 @@ export const tenantOnboardingCommand = onRequest(
           tenantId,
           plan: "studio",
           cadence: "monthly",
-          status: "trialing",
+          // Card-required onboarding: the trial does not start until the studio
+          // completes Stripe Checkout. Until then the subscription is
+          // `incomplete` — `subscriptionGrantsAccess` refuses it, so the app
+          // gate routes the studio to Checkout instead of into the workspace.
+          // Provisioning (session return + the customer.subscription.created
+          // webhook) flips this to `trialing` with the real Stripe ids and
+          // trial_end. The entitlements snapshot is kept so counters render;
+          // access is gated by status, not by emptying entitlements.
+          status: "incomplete",
+          checkoutRequired: true,
           stripeCustomerId: null,
           stripeSubscriptionId: null,
           stripePriceId: null,

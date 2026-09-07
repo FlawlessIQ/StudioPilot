@@ -62,6 +62,13 @@ type WorkspaceState = {
   tenantName: string;
   tenantSlug: string;
   tenantPlan: string;
+  /**
+   * Billing status from subscriptions/{tenantId} (studio area only). Drives the
+   * app gate: card-required onboarding leaves this `incomplete` until Checkout,
+   * and the shell routes non-access statuses to /studio/subscription. `null`
+   * while loading or in mock mode (which never gates).
+   */
+  subscriptionStatus: string | null;
   role: Role | null;
   projectIds: string[];
   projectId: string | null;
@@ -87,6 +94,7 @@ const mockWorkspace: WorkspaceState = {
   tenantName: "StudioCue Demo Studio",
   tenantSlug: "studiocue-demo-studio",
   tenantPlan: "Studio",
+  subscriptionStatus: "trialing",
   role: "studio_owner",
   projectIds: [],
   projectId: null,
@@ -108,6 +116,7 @@ const initialWorkspace: WorkspaceState = authIsLive
       tenantName: "Loading studio…",
       tenantSlug: "",
       tenantPlan: "",
+      subscriptionStatus: null,
       role: null,
       projectIds: [],
       projectId: null,
@@ -275,23 +284,37 @@ export function WorkspaceProvider({
           let profile: Record<string, unknown> = {};
           let project: Record<string, unknown> = {};
           let clientProject: ClientPortalProject | null = null;
+          // Billing status for the app gate — studio area only; left null (never
+          // gates) for client/crew and on a load failure below.
+          let subscriptionStatus: string | null = null;
           try {
-            const [tenantDocument, userDocument, projectDocument] =
-              await withTimeout(
-                Promise.all([
-                  getDoc(doc(firestore, "tenants", membership.tenantId)),
-                  getDoc(doc(firestore, "users", user.uid)),
-                  projectId
-                    ? area === "client"
-                      ? getClientPortalProject(membership.tenantId, projectId)
-                      : getDoc(doc(firestore, "projects", projectId))
-                    : Promise.resolve(null),
-                ]),
-                15_000,
-                "Your workspace details took too long to load. Try again.",
-              );
+            const [
+              tenantDocument,
+              userDocument,
+              projectDocument,
+              subscriptionDocument,
+            ] = await withTimeout(
+              Promise.all([
+                getDoc(doc(firestore, "tenants", membership.tenantId)),
+                getDoc(doc(firestore, "users", user.uid)),
+                projectId
+                  ? area === "client"
+                    ? getClientPortalProject(membership.tenantId, projectId)
+                    : getDoc(doc(firestore, "projects", projectId))
+                  : Promise.resolve(null),
+                area === "studio"
+                  ? getDoc(doc(firestore, "subscriptions", membership.tenantId))
+                  : Promise.resolve(null),
+              ]),
+              15_000,
+              "Your workspace details took too long to load. Try again.",
+            );
             tenant = tenantDocument.data() ?? {};
             profile = userDocument.data() ?? {};
+            subscriptionStatus =
+              subscriptionDocument && "data" in subscriptionDocument
+                ? (String(subscriptionDocument.data()?.status ?? "") || null)
+                : null;
             project =
               projectDocument && "data" in projectDocument
                 ? projectDocument.data() ?? {}
@@ -335,6 +358,7 @@ export function WorkspaceProvider({
                 ? `${tenant.subscriptionPlan} plan`
                 : roleLabel(membership.role),
             ),
+            subscriptionStatus,
             role: membership.role,
             projectIds: membership.projectIds,
             projectId,

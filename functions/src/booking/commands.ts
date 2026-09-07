@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { consumeAiQuota } from "../saas/usage.js";
+import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import {
   requireProviderForTenant,
   resolveProviderForTenant,
@@ -286,6 +287,8 @@ export const bookingCommand = onRequest(
         assertProjectAccess(membership, command.input.projectId);
       }
       const firestore = getFirestore();
+      // Whole-product billing gate (studio commands require a live subscription).
+      await requireActiveSubscription(firestore, command.tenantId);
       const executionId = stableId(
         "booking",
         command.tenantId,

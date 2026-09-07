@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { consumeAiQuota } from "../saas/usage.js";
+import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { productEvent } from "../operations/product-events.js";
 import {
   lifecycleTriggerSet,
@@ -385,6 +386,8 @@ export const aiMessageDraftCommand = onRequest(
         !["studio_owner", "studio_admin", "studio_coordinator"].includes(role)
       )
         throw new Error("FORBIDDEN");
+      // Whole-product billing gate (studio commands require a live subscription).
+      await requireActiveSubscription(db, input.tenantId);
 
       // Idempotency: one action per (tenant, trigger, subject record) per day.
       const subjectId = input.projectId ?? input.leadId ?? "";

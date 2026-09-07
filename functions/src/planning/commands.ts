@@ -3,7 +3,10 @@ import { getFirestore, type DocumentData } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
-import { requireEntitlement } from "../saas/entitlement-guard.js";
+import {
+  requireActiveSubscription,
+  requireEntitlement,
+} from "../saas/entitlement-guard.js";
 import { productEvent } from "../operations/product-events.js";
 import { studioHubCors } from "../security/cors.js";
 
@@ -404,6 +407,8 @@ export const planningCommand = onRequest(
         .get();
       if (!membership.exists || membership.get("status") !== "active")
         throw new Error("FORBIDDEN");
+      // Whole-product billing gate (studio commands require a live subscription).
+      await requireActiveSubscription(db, parsed.tenantId);
       const role = String(membership.get("role"));
       const projectIds = membership.get("projectIds") as unknown;
       const projectId =

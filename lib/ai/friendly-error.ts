@@ -7,6 +7,8 @@
  */
 
 const FRIENDLY_BY_CODE: Record<string, string> = {
+  ACTIVE_SUBSCRIPTION_REQUIRED:
+    "Your trial hasn't started yet. Add a card under Studio settings → Subscription to start it, then try again. If your subscription lapsed, update your card there to reactivate.",
   AI_OUTPUT_INVALID:
     "The draft didn't pass our checks, so nothing was saved. Try again — a fresh attempt usually works.",
   AI_SCHEDULE_FAILED: "We couldn't draft this schedule. Try again.",

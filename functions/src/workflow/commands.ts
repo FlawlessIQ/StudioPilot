@@ -4,6 +4,7 @@ import type {
   Firestore,
   Transaction,
 } from "firebase-admin/firestore";
+import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
@@ -547,6 +548,13 @@ export const workflowCommand = onRequest(
       !operatorRoles.includes(membership.role)
     ) {
       response.status(403).json({ error: "FORBIDDEN" });
+      return;
+    }
+    // Whole-product billing gate (studio commands require a live subscription).
+    try {
+      await requireActiveSubscription(db, command.tenantId);
+    } catch {
+      response.status(402).json({ error: "ACTIVE_SUBSCRIPTION_REQUIRED" });
       return;
     }
     if (
