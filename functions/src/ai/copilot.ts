@@ -1070,7 +1070,8 @@ async function buildCommandProposalActions(
       command = {
         domain: "planning",
         op: "setInsuranceRequirement",
-        input: { projectId: proposal.projectId, insuranceRequired: true },
+        // insuranceRequired is an enum, not a boolean.
+        input: { projectId: proposal.projectId, insuranceRequired: "required" },
       };
       label = `Flag insurance required on ${projectName}`;
       detail = "Mark that the venue requires proof of insurance.";
