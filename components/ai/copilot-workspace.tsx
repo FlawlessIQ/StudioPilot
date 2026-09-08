@@ -157,7 +157,7 @@ export function CopilotWorkspace() {
                 <p>{turn.text}</p>
               </div>
             ) : (
-              <AssistantTurn key={`a-${index}`} result={turn.result} />
+              <AssistantTurn key={`a-${index}`} result={turn.result} onFollowUp={runAsk} />
             ),
           )}
           {busy ? (
@@ -255,7 +255,13 @@ function reviewTrace(result: CopilotResult): Array<{ label: string; detail: stri
   return trace.slice(0, 4);
 }
 
-function AssistantTurn({ result }: { result: CopilotResult }) {
+function AssistantTurn({
+  result,
+  onFollowUp,
+}: {
+  result: CopilotResult;
+  onFollowUp?: (question: string) => void;
+}) {
   const trace = reviewTrace(result);
   return (
     <section className="panel copilot-result">
@@ -286,9 +292,24 @@ function AssistantTurn({ result }: { result: CopilotResult }) {
         </div>
       ) : null}
       {result.suggestions.length ? (
-        <div>
-          <h3>Suggestions</h3>
-          <ul>{result.suggestions.map((suggestion) => <li key={suggestion}>{suggestion}</li>)}</ul>
+        <div className="cp-followups-wrap">
+          <h3>Suggested next</h3>
+          <div className="cp-followups">
+            {result.suggestions.map((suggestion) =>
+              onFollowUp ? (
+                <button
+                  className="cp-followup"
+                  key={suggestion}
+                  type="button"
+                  onClick={() => onFollowUp(suggestion)}
+                >
+                  <Sparkles size={13} /> {suggestion}
+                </button>
+              ) : (
+                <span className="cp-followup is-static" key={suggestion}>{suggestion}</span>
+              ),
+            )}
+          </div>
         </div>
       ) : null}
       {result.citations.length ? (
