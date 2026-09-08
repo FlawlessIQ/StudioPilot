@@ -84,6 +84,10 @@ export function AiQueueCard({
   const [bodyDraft, setBodyDraft] = useState(text(output.body));
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // A proposed studio command that was approved but whose command run failed —
+  // keep the card so the owner can retry, rather than losing it with a stale
+  // "approved" state and no effect.
+  const [studioCommandFailed, setStudioCommandFailed] = useState(false);
   const [approvedReplyDraftId, setApprovedReplyDraftId] = useState<
     string | null
   >(null);
@@ -154,7 +158,9 @@ export function AiQueueCard({
       } else if (decision === "approved" && isProposedStudioCommand(output)) {
         // A non-email studio command: run it through the normal command endpoint
         // now that the owner has approved, then record the execution on the
-        // action. The command enforces its own authorization server-side.
+        // action. The command enforces its own authorization server-side. On
+        // failure, keep the card (studioCommandFailed) so the owner can retry —
+        // the action is already approved, so a retry only re-runs the command.
         try {
           const { commandId, summary } = await runProposedStudioCommand(output);
           await runAiQueueCommand({
@@ -162,14 +168,15 @@ export function AiQueueCard({
             input: { actionId: action.id, commandId, summary },
           });
           setNotice(summary);
+          onDecision(action.id, decision);
         } catch (runError: unknown) {
+          setStudioCommandFailed(true);
           setNotice(
             runError instanceof Error
               ? runError.message.replaceAll("_", " ")
-              : "The action was approved but could not be run.",
+              : "The action was approved but could not be run. You can retry it.",
           );
         }
-        onDecision(action.id, decision);
       } else {
         onDecision(action.id, decision);
       }
@@ -178,6 +185,29 @@ export function AiQueueCard({
         caught instanceof Error
           ? caught.message.replaceAll("_", " ")
           : "The decision could not be saved.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function retryStudioCommand() {
+    setBusy("retry");
+    setNotice(null);
+    try {
+      const { commandId, summary } = await runProposedStudioCommand(output);
+      await runAiQueueCommand({
+        type: "recordAiExecution",
+        input: { actionId: action.id, commandId, summary },
+      });
+      setStudioCommandFailed(false);
+      setNotice(summary);
+      onDecision(action.id, "approved");
+    } catch (runError: unknown) {
+      setNotice(
+        runError instanceof Error
+          ? runError.message.replaceAll("_", " ")
+          : "The action still could not be run.",
       );
     } finally {
       setBusy(null);
@@ -344,6 +374,9 @@ export function AiQueueCard({
           {text(output.detail) ? (
             <p style={{ whiteSpace: "pre-wrap" }}>{text(output.detail)}</p>
           ) : null}
+          {output.outward === true ? (
+            <small>Sends to {text(output.sendsTo) || "the client"}</small>
+          ) : null}
           {text(output.rationale) ? <small>{text(output.rationale)}</small> : null}
         </div>
       ) : null}
@@ -409,6 +442,25 @@ export function AiQueueCard({
             <Check /> Done
           </button>
         </footer>
+      ) : studioCommandFailed ? (
+        <footer>
+          <button
+            className="is-primary"
+            disabled={Boolean(busy)}
+            onClick={() => void retryStudioCommand()}
+            type="button"
+          >
+            {busy === "retry" ? <LoaderCircle className="spin" /> : <Check />}
+            Retry
+          </button>
+          <button
+            disabled={Boolean(busy)}
+            onClick={() => onDecision(action.id, "approved")}
+            type="button"
+          >
+            Dismiss
+          </button>
+        </footer>
       ) : (
       <footer>
         <button
@@ -418,7 +470,7 @@ export function AiQueueCard({
           type="button"
         >
           {busy === "approved" ? <LoaderCircle className="spin" /> : <Check />}
-          Approve
+          {output.outward === true ? "Approve & send" : "Approve"}
         </button>
         {text(output.kind) === "studio_command" ? null : (
           <button

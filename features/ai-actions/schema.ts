@@ -21,6 +21,10 @@ export const aiCapabilitySchema = z.enum([
   // A reversible studio command the copilot proposed (e.g. create a task, flag
   // insurance required); executed on approval through the normal command path.
   "studio_action",
+  // Planning follow-up email draft. `functions/src/ai/actions.ts` already treats
+  // this as a communication capability that dispatches on approval; it was
+  // missing from this enum, so an action carrying it failed client validation.
+  "planning_followup_draft",
 ]);
 
 export const aiAuthorityBoundarySchema = z.enum([

@@ -47,12 +47,30 @@ export function dispatchesOnApproval(input: ApprovalConsequenceInput): boolean {
  * Names the recipient when the mail is going out. A photographer about to send
  * a stranger their prices should see the address they are sending to.
  */
+/**
+ * A natural sentence for the copilot's proposed non-email commands, keyed by the
+ * downstream commandType. Falls back to a generic "Approving runs …" for any
+ * command not named here, so a new command type is never left without copy.
+ */
+const COMMAND_CONSEQUENCE: Record<string, string> = {
+  create_task: "Approving adds this task to the project.",
+  set_insurance_required: "Approving flags that the venue requires insurance.",
+  create_proposal_draft:
+    "Approving creates an unsent proposal draft you can review before sending.",
+  send_crew_offer: "Approving emails this crew offer to the photographer.",
+  assign_questionnaire: "Approving sends the questionnaire to the client.",
+  request_coi: "Approving emails the insurance request to the agent.",
+};
+
 export function approvalConsequenceSentence(
   input: ApprovalConsequenceInput,
   readable: (value: string) => string,
 ): string {
   if (input.downstreamCommandType) {
-    return `Approving runs ${readable(input.downstreamCommandType).toLowerCase()}.`;
+    return (
+      COMMAND_CONSEQUENCE[input.downstreamCommandType] ??
+      `Approving runs ${readable(input.downstreamCommandType).toLowerCase()}.`
+    );
   }
   if (dispatchesOnApproval(input)) {
     return `Approving emails this to ${input.recipient} straight away.`;

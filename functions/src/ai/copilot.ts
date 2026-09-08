@@ -125,7 +125,12 @@ const responseSchema = z.object({
   actionProposals: z
     .array(
       z.object({
-        commandType: z.enum(["create_task", "set_insurance_required"]),
+        commandType: z.enum([
+          "create_task",
+          "set_insurance_required",
+          "create_proposal_draft",
+          "assign_questionnaire",
+        ]),
         projectId: z.string().min(1),
         title: z.string().max(200).optional().default(""),
         detail: z.string().max(2000).optional().default(""),
@@ -373,7 +378,12 @@ const RESPONSE_SCHEMA_JSON = {
         properties: {
           commandType: {
             type: "STRING",
-            enum: ["create_task", "set_insurance_required"],
+            enum: [
+              "create_task",
+              "set_insurance_required",
+              "create_proposal_draft",
+              "assign_questionnaire",
+            ],
           },
           projectId: { type: "STRING" },
           title: { type: "STRING" },
@@ -432,7 +442,7 @@ const COPILOT_THINKING_BUDGET = 256;
 const COPILOT_SYSTEM_INSTRUCTION =
   "You are StudioCue Event Copilot, in an ongoing conversation with a studio operator. Earlier turns are provided for context, but answer the latest question only from the tenant-scoped facts supplied with it. Never invent prices, payments, signatures, dates, statuses, people, or readiness. Clearly separate facts from suggestions. Do not claim to execute actions. Readiness, insurance approval, contract completion, payment status, and permissions are deterministic system facts and cannot be changed by you. Keep the answer concise and operational. Monetary amounts in the facts are integer cents — render them as US dollars (e.g. 56970 becomes $569.70) and never describe a value as a number of 'cents'. Citations must use only href values present in the supplied citationCandidates." +
   " You may also propose up to three client emails in `proposals` when the answer implies a concrete outward step to a client — a reminder for an overdue balance, a nudge for an expired crew offer or an unsigned contract, a request to finish an overdue questionnaire. Each proposal is a DRAFT the operator reviews and sends with one tap; you never send anything. Write a specific, warm, professional subject and body grounded strictly in the supplied facts — do not invent amounts, dates, or names, and do not address the recipient by a guessed name or write an email address (the system fills the real recipient). `projectId` must be one from the supplied project overview. Propose an email only when it is genuinely the next step; leave `proposals` empty for purely informational questions, and never propose the same email twice." +
-  " You may also propose up to three internal, reversible actions in `actionProposals` when the answer implies one: `create_task` (a to-do on a project — supply a short `title` and optional `detail` and `dueDate` as YYYY-MM-DD, e.g. a task to chase an overdue retainer or follow up on an expired offer) or `set_insurance_required` (flag that the venue requires insurance). Give a one-line `rationale` for each. Each is a card the operator approves; nothing runs until they tap approve, and you never set money, ids, or recipients — the system resolves those. `projectId` must be one from the overview. Leave `actionProposals` empty unless an action is clearly the next step.";
+  " You may also propose up to three internal, reversible actions in `actionProposals` when the answer implies one: `create_task` (a to-do on a project — supply a short `title` and optional `detail` and `dueDate` as YYYY-MM-DD, e.g. a task to chase an overdue retainer or follow up on an expired offer), `set_insurance_required` (flag that the venue requires insurance), `create_proposal_draft` (prepare an unsent proposal draft — only when the project already has a selected package; put any cover note in `detail`), or `assign_questionnaire` (send the studio's planning questionnaire to the client — propose this when the questionnaire is overdue or not yet sent; approving emails the client). Give a one-line `rationale` for each. Each is a card the operator approves; nothing runs until they tap approve, and you never set money, ids, or recipients — the system resolves those. `projectId` must be one from the overview. Leave `actionProposals` empty unless an action is clearly the next step.";
 
 /**
  * The final-answer request. The agent's gathered retrieval already lives in
@@ -935,7 +945,11 @@ async function buildProposalActions(
 }
 
 type CopilotCommandProposal = {
-  commandType: "create_task" | "set_insurance_required";
+  commandType:
+    | "create_task"
+    | "set_insurance_required"
+    | "create_proposal_draft"
+    | "assign_questionnaire";
   projectId: string;
   title: string;
   detail: string;
@@ -963,6 +977,7 @@ async function buildCommandProposalActions(
   projectNames: Map<string, string>,
   allowedProjectIds: Set<string>,
 ): Promise<Array<{ id: string; action: Record<string, unknown> }>> {
+  const db = getFirestore();
   const model = process.env.VERTEX_AI_COPILOT_MODEL ?? "vertex_ai";
   const built: Array<{ id: string; action: Record<string, unknown> }> = [];
   for (const proposal of proposals) {
@@ -971,7 +986,38 @@ async function buildCommandProposalActions(
     let command: { domain: string; op: string; input: Record<string, unknown> };
     let label: string;
     let detail: string;
-    if (proposal.commandType === "create_task") {
+    // Outward actions email a real person on approval; the card asks the owner
+    // to confirm the send and names the recipient.
+    let outward = false;
+    let sendsTo: string | null = null;
+    if (proposal.commandType === "create_proposal_draft") {
+      // A proposal draft needs the project's selected package snapshot for the
+      // required termsSummary. No package selected (or terms too short) → skip,
+      // rather than emit a card that would fail on approval.
+      const projectDoc = await db.doc(`projects/${proposal.projectId}`).get();
+      if (!projectDoc.exists || projectDoc.get("tenantId") !== tenantId) continue;
+      const snapshotId = projectDoc.get("packageSnapshotId");
+      if (typeof snapshotId !== "string" || !snapshotId) continue;
+      const snapshot = await db.doc(`packageSnapshots/${snapshotId}`).get();
+      if (!snapshot.exists || snapshot.get("tenantId") !== tenantId) continue;
+      const terms = snapshot.get("terms");
+      if (typeof terms !== "string" || terms.trim().length < 10) continue;
+      const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+      command = {
+        domain: "proposal",
+        op: "create_draft",
+        input: {
+          projectId: proposal.projectId,
+          expiresAt,
+          notes: proposal.detail.trim() || null,
+          termsSummary: terms,
+          retainerDueDate: null,
+          balanceDueDate: null,
+        },
+      };
+      label = `Draft a proposal for ${projectName}`;
+      detail = "Prepare an unsent proposal draft from the selected package.";
+    } else if (proposal.commandType === "create_task") {
       const title = (proposal.title || proposal.rationale).slice(0, 200).trim();
       if (title.length < 2) continue;
       const dueDate = ISO_DATE.test(proposal.dueDate) ? proposal.dueDate : null;
@@ -995,8 +1041,32 @@ async function buildCommandProposalActions(
       };
       label = `Create a task on ${projectName}`;
       detail = title;
-    } else {
-      // set_insurance_required
+    } else if (proposal.commandType === "assign_questionnaire") {
+      // Send the studio's planning questionnaire to the couple. The template id
+      // is resolved server-side: only when the tenant has exactly one active
+      // template is it unambiguous — otherwise skip rather than send the wrong
+      // one. The command resolves the actual recipient from the project.
+      const templates = await db
+        .collection("questionnaireTemplates")
+        .where("tenantId", "==", tenantId)
+        .limit(20)
+        .get();
+      const active = templates.docs.filter(
+        (doc) => String(doc.get("status") ?? "").toLowerCase() === "active",
+      );
+      if (active.length !== 1) continue;
+      const template = active[0];
+      if (!template) continue;
+      command = {
+        domain: "planning",
+        op: "assignQuestionnaire",
+        input: { projectId: proposal.projectId, templateId: template.id },
+      };
+      label = `Send the questionnaire for ${projectName}`;
+      detail = "Email the studio's planning questionnaire to the client.";
+      outward = true;
+      sendsTo = "the client";
+    } else if (proposal.commandType === "set_insurance_required") {
       command = {
         domain: "planning",
         op: "setInsuranceRequirement",
@@ -1004,6 +1074,8 @@ async function buildCommandProposalActions(
       };
       label = `Flag insurance required on ${projectName}`;
       detail = "Mark that the venue requires proof of insurance.";
+    } else {
+      continue;
     }
     const id = `ai_${randomUUID()}`;
     built.push({
@@ -1036,6 +1108,8 @@ async function buildCommandProposalActions(
           label,
           detail,
           rationale: proposal.rationale,
+          outward,
+          sendsTo,
           command,
         },
         confidence: { overall: 0.7, label: "medium", uncertainFields: [] },

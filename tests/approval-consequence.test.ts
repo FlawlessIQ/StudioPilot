@@ -66,3 +66,35 @@ test("a draft that runs a command names the command, not the email", () => {
     false,
   );
 });
+
+test("known copilot command types get a specific, human sentence", () => {
+  const cases: Record<string, string> = {
+    create_task: "Approving adds this task to the project.",
+    set_insurance_required: "Approving flags that the venue requires insurance.",
+    create_proposal_draft:
+      "Approving creates an unsent proposal draft you can review before sending.",
+    assign_questionnaire: "Approving sends the questionnaire to the client.",
+  };
+  for (const [commandType, sentence] of Object.entries(cases)) {
+    assert.equal(
+      approvalConsequenceSentence({ ...draft, downstreamCommandType: commandType }, readable),
+      sentence,
+      `${commandType} should have its own sentence`,
+    );
+    // None of these is an email dispatch from the copilot's own send path.
+    assert.equal(
+      dispatchesOnApproval({ ...draft, downstreamCommandType: commandType }),
+      false,
+    );
+  }
+});
+
+test("an unmapped command type still gets a safe generic sentence", () => {
+  assert.equal(
+    approvalConsequenceSentence(
+      { ...draft, downstreamCommandType: "some_new_command" },
+      readable,
+    ),
+    "Approving runs some new command.",
+  );
+});
