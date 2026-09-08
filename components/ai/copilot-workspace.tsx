@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   BookOpenCheck,
@@ -48,13 +48,12 @@ export function CopilotWorkspace() {
   const [busy, setBusy] = useState(false);
   const started = turns.length > 0;
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function runAsk(raw: string) {
     if (!workspace.tenantId) {
       setError("No active studio is available.");
       return;
     }
-    const asked = question.trim();
+    const asked = raw.trim();
     if (asked.length < 3 || busy) return;
     // The conversation so far, oldest first, so a follow-up is understood in
     // context. Assistant turns contribute their concise answer (facts and
@@ -82,6 +81,41 @@ export function CopilotWorkspace() {
       setBusy(false);
     }
   }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void runAsk(question);
+  }
+
+  // P4 — proactive: greet an owner opening the assistant with today's priorities
+  // instead of a blank prompt, once per browser session and only on the empty
+  // state (an ongoing conversation is left alone). It runs the same grounded,
+  // read-only "attention" question the user could ask by hand — nothing sends.
+  const autoBriefed = useRef(false);
+  useEffect(() => {
+    if (autoBriefed.current) return;
+    if (workspace.loading || !workspace.tenantId) return;
+    if (turns.length > 0) return;
+    let alreadyThisSession = false;
+    try {
+      alreadyThisSession =
+        sessionStorage.getItem("studiohub.copilotAutoBrief") === "1";
+    } catch {
+      // Storage disabled — skip the auto-brief rather than risk a loop.
+      alreadyThisSession = true;
+    }
+    if (alreadyThisSession) return;
+    autoBriefed.current = true;
+    try {
+      sessionStorage.setItem("studiohub.copilotAutoBrief", "1");
+    } catch {
+      // ignore
+    }
+    // Deferred so the ask's state updates land outside this effect's
+    // synchronous run; it fires once after bootstrap on the empty state.
+    const timer = setTimeout(() => void runAsk("What needs my attention today?"), 0);
+    return () => clearTimeout(timer);
+  }, [workspace.loading, workspace.tenantId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="copilot-workspace">
@@ -293,35 +327,77 @@ function PreparedActions({
 
   if (!projectId || !workspace.tenantId) return null;
 
+  // Prepare one draft, returning its action id (or null in preview mode).
+  async function draftFor(
+    trigger: MessageDraftTrigger,
+  ): Promise<string | null> {
+    if (!workspace.tenantId) return null;
+    const result = await requestMessageDraft({
+      tenantId: workspace.tenantId,
+      trigger,
+      projectId,
+    });
+    return result.mode === "live" ? result.actionId : null;
+  }
+
+  function showDrafts(ids: string[]) {
+    if (!ids.length) return;
+    setDraftedIds((prior) => [
+      ...ids.filter((id) => !prior.includes(id)),
+      ...prior,
+    ]);
+    // useTenantDocuments is a cached fetch, not a live subscription — the
+    // aiActions snapshot was read at page load, before these drafts existed.
+    // Refresh it so the new records load and their inline cards render.
+    refreshTenantRecords("aiActions");
+  }
+
   async function prepare(trigger: MessageDraftTrigger, label: string) {
     if (!workspace.tenantId) return;
     setBusy(trigger);
     setNotice(null);
     try {
-      const result = await requestMessageDraft({
-        tenantId: workspace.tenantId,
-        trigger,
-        projectId,
-      });
-      if (result.mode === "live" && result.actionId) {
-        setDraftedIds((prior) =>
-          prior.includes(result.actionId!) ? prior : [result.actionId!, ...prior],
-        );
-        // useTenantDocuments is a cached fetch, not a live subscription — the
-        // aiActions snapshot was read at page load, before this draft existed.
-        // Refresh it so the just-created record loads and its inline approval
-        // card renders (without this the card never appeared).
-        refreshTenantRecords("aiActions");
-      } else {
+      const id = await draftFor(trigger);
+      if (id) showDrafts([id]);
+      else
         setNotice(
           `Preview: "${label}" would be prepared as an approval card here.`,
         );
-      }
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "The draft could not be prepared."));
     } finally {
       setBusy(null);
     }
+  }
+
+  // P3: prepare every suggested next step at once, so the owner reviews and
+  // sends them as a batch of cards rather than one chip at a time. Each draft
+  // is independent — one failing doesn't sink the rest — and each still lands
+  // as its own approval card that sends only on the owner's tap.
+  async function prepareAll() {
+    if (!workspace.tenantId) return;
+    setBusy("__all__");
+    setNotice(null);
+    const ids: string[] = [];
+    let failures = 0;
+    for (const option of visibleActionOptions) {
+      try {
+        const id = await draftFor(option.trigger);
+        if (id) ids.push(id);
+      } catch {
+        failures += 1;
+      }
+    }
+    showDrafts(ids);
+    if (!ids.length)
+      setNotice(
+        failures
+          ? "These drafts could not be prepared. Try again."
+          : "Preview: these drafts would be prepared as approval cards here.",
+      );
+    else if (failures)
+      setNotice(`Prepared ${ids.length}; ${failures} could not be prepared.`);
+    setBusy(null);
   }
 
   return (
@@ -330,6 +406,21 @@ function PreparedActions({
         Prepared next steps for {projectCitation?.label ?? "this project"} —
         each draft appears below for you to review, edit, and send:
       </small>
+      {visibleActionOptions.length > 1 ? (
+        <button
+          className="button button-dark copilot-prepare-all"
+          disabled={busy !== null}
+          onClick={() => void prepareAll()}
+          type="button"
+        >
+          {busy === "__all__" ? (
+            <LoaderCircle className="spin" size={14} />
+          ) : (
+            <Sparkles size={14} />
+          )}
+          Prepare all {visibleActionOptions.length} next steps
+        </button>
+      ) : null}
       <div>
         {visibleActionOptions.map((option) => (
           <button
