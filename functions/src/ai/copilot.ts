@@ -182,6 +182,100 @@ async function scopedDocuments(
   return snapshot.docs.map(compact);
 }
 
+/**
+ * The "job as a live object" the assistant renders inline. Every value here is
+ * derived from records (project + its readiness assessment), never written by
+ * the model — readiness counts and blockers are authoritative facts the model
+ * must not invent. See docs/ai-command-chat-plan.
+ */
+const LIFECYCLE_STAGES = ["Inquiry", "Booking", "Planning", "Event", "Delivery"] as const;
+
+function stageIndexForState(state: string): number {
+  switch (state) {
+    case "NEW":
+    case "INQUIRY":
+    case "CONSULTATION":
+      return 0;
+    case "PROPOSAL":
+    case "CONTRACT_PENDING":
+    case "RETAINER_PENDING":
+    case "POSTPONED":
+      return 1;
+    case "BOOKED":
+    case "PLANNING":
+    case "READY":
+      return 2;
+    case "EVENT_COMPLETE":
+      return 3;
+    case "POST_PRODUCTION":
+    case "DELIVERED":
+    case "REVIEW_REQUESTED":
+    case "CLOSED":
+    case "ARCHIVED":
+      return 4;
+    default:
+      return 1;
+  }
+}
+
+type AttentionItem = {
+  name: string;
+  severity: "critical" | "warning" | "info";
+  reason: string;
+  dueDate: string | null;
+};
+
+function attentionFromAssessment(assessment: Record<string, unknown>): AttentionItem[] {
+  const seen = new Map<string, AttentionItem>();
+  const items = (value: unknown): Record<string, unknown>[] =>
+    Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
+  const add = (raw: Record<string, unknown>, severity: AttentionItem["severity"]) => {
+    const id = String(raw.checkpointId ?? raw.name ?? "");
+    if (!id || seen.has(id)) return;
+    seen.set(id, {
+      name: String(raw.name ?? "Checkpoint"),
+      severity,
+      reason: String(raw.reason ?? ""),
+      dueDate: typeof raw.dueDate === "string" ? raw.dueDate : null,
+    });
+  };
+  // Blocking first so a blocking+overdue item resolves to critical, not warning.
+  for (const item of items(assessment.blockingItems)) add(item, "critical");
+  for (const item of items(assessment.overdueItems)) add(item, "warning");
+  for (const item of items(assessment.atRiskItems)) add(item, "warning");
+  return [...seen.values()].slice(0, 6);
+}
+
+function buildJobObject(
+  project: Record<string, unknown>,
+  assessment: Record<string, unknown> | null,
+) {
+  const venue = [project.venueName, project.city]
+    .filter((part): part is string => typeof part === "string" && part.length > 0)
+    .join(", ");
+  return {
+    projectId: String(project.id ?? ""),
+    name: String(project.name ?? "Untitled project"),
+    eventDate: typeof project.eventDate === "string" ? project.eventDate : null,
+    venue: venue || null,
+    state: String(project.state ?? ""),
+    stageIndex: stageIndexForState(String(project.state ?? "")),
+    stages: [...LIFECYCLE_STAGES],
+    readiness: assessment
+      ? {
+          satisfied: Number(assessment.satisfiedRequired ?? 0),
+          total: Number(assessment.totalRequired ?? 0),
+          ready: Boolean(assessment.ready),
+        }
+      : null,
+    recommendedNextAction:
+      assessment && typeof assessment.recommendedNextAction === "string"
+        ? assessment.recommendedNextAction
+        : null,
+    attention: assessment ? attentionFromAssessment(assessment) : [],
+  };
+}
+
 async function generate(
   question: string,
   context: Json,
@@ -671,6 +765,31 @@ export const aiCopilotCommand = onRequest(
         ...result,
         citations: result.citations.filter((item) => allowedLinks.has(item.href)),
       };
+      // The project the answer is really about: the first cited project, else
+      // the scoped project, else the one carrying the most attention. Its job
+      // object renders inline as a live, record-derived summary.
+      const citedProjectId =
+        safeResult.citations[0]?.href.split("/").pop() ??
+        input.projectId ??
+        null;
+      const readinessByProject = new Map(
+        readiness.map((item) => [String((item as Record<string, unknown>).projectId ?? ""), item as Record<string, unknown>]),
+      );
+      const primaryProject =
+        (citedProjectId
+          ? projects.find((project) => String((project as Record<string, unknown>).id) === citedProjectId)
+          : undefined) ??
+        projects.find((project) => {
+          const a = readinessByProject.get(String((project as Record<string, unknown>).id));
+          return a && a.ready === false;
+        }) ??
+        projects[0];
+      const jobObject = primaryProject
+        ? buildJobObject(
+            primaryProject as Record<string, unknown>,
+            readinessByProject.get(String((primaryProject as Record<string, unknown>).id)) ?? null,
+          )
+        : null;
       const interactionId = `ai_${randomUUID()}`;
       const batch = db.batch();
       batch.create(db.doc(`aiInteractions/${interactionId}`), {
@@ -723,7 +842,7 @@ export const aiCopilotCommand = onRequest(
       });
       batch.create(db.doc(`productEvents/${preparedEvent.id}`), preparedEvent);
       await batch.commit();
-      response.status(200).json({ ...safeResult, interactionId, asOf: now });
+      response.status(200).json({ ...safeResult, interactionId, asOf: now, jobObject });
     } catch (caught: unknown) {
       const message =
         caught instanceof Error ? caught.message : "AI_COPILOT_FAILED";

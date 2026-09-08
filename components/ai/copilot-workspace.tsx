@@ -1,11 +1,13 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { Fragment, FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   BookOpenCheck,
+  Check,
   CircleAlert,
   FileText,
+  FolderKanban,
   FolderPlus,
   Mail,
   LoaderCircle,
@@ -19,7 +21,11 @@ import {
   refreshTenantRecords,
   useTenantDocuments,
 } from "@/components/live/tenant-records";
-import { askCopilot, type CopilotResult } from "@/lib/ai/copilot-client";
+import {
+  askCopilot,
+  type CopilotResult,
+  type CopilotJobObject,
+} from "@/lib/ai/copilot-client";
 import {
   requestMessageDraft,
   type MessageDraftTrigger,
@@ -242,6 +248,7 @@ function AssistantTurn({ result }: { result: CopilotResult }) {
         </span>
       </header>
       <h2>{result.answer}</h2>
+      {result.jobObject ? <JobObject job={result.jobObject} /> : null}
       {result.facts.length ? (
         <div>
           <h3>Verified facts</h3>
@@ -265,6 +272,104 @@ function AssistantTurn({ result }: { result: CopilotResult }) {
       ) : null}
       <PreparedActions citations={result.citations} />
     </section>
+  );
+}
+
+function humanState(state: string): string {
+  if (!state) return "In progress";
+  const s = state.replaceAll("_", " ").toLowerCase();
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/**
+ * The job rendered as a live object: readiness meter, lifecycle position, and
+ * the record-derived attention list. Every value comes from the server's
+ * deterministic jobObject — none of it is model-authored.
+ */
+function JobObject({ job }: { job: CopilotJobObject }) {
+  const dateLabel = job.eventDate
+    ? new Date(`${job.eventDate}T00:00:00`).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
+  const sub = [dateLabel, job.venue].filter(Boolean).join(" · ");
+  const r = job.readiness;
+  const segTotal = r ? Math.max(r.total, 1) : 0;
+  return (
+    <div className="cp-job">
+      <div className="cp-job-top">
+        <span className="cp-film" aria-hidden="true"><FolderKanban size={18} /></span>
+        <span className="cp-job-id">
+          <strong>{job.name}</strong>
+          {sub ? <small>{sub}</small> : null}
+        </span>
+        <span className="cp-stage-pill"><i aria-hidden="true" /> {humanState(job.state)}</span>
+      </div>
+
+      <div className="cp-job-grid">
+        {r ? (
+          <div className="cp-job-cell">
+            <p className="cp-cell-label">Readiness</p>
+            <div className="cp-readiness">
+              <b>{r.satisfied}<span>/{r.total}</span></b>
+              <span>{r.ready ? "ready to go" : "checkpoints clear"}</span>
+            </div>
+            <div className="cp-segs">
+              {Array.from({ length: segTotal }).map((_, i) => (
+                <span key={i} className={i < r.satisfied ? "cp-seg on" : "cp-seg"} />
+              ))}
+            </div>
+          </div>
+        ) : null}
+        <div className="cp-job-cell">
+          <p className="cp-cell-label">Lifecycle</p>
+          <div className="cp-timeline">
+            {job.stages.map((stage, i) => (
+              <Fragment key={stage}>
+                {i > 0 ? (
+                  <span className={i <= job.stageIndex ? "cp-tl-line done" : "cp-tl-line"} />
+                ) : null}
+                <span className={i === job.stageIndex ? "cp-tl-node now" : "cp-tl-node"}>
+                  <span
+                    className={
+                      i < job.stageIndex
+                        ? "cp-tl-dot done"
+                        : i === job.stageIndex
+                          ? "cp-tl-dot now"
+                          : "cp-tl-dot"
+                    }
+                  >
+                    {i < job.stageIndex ? <Check size={9} strokeWidth={3.5} /> : null}
+                  </span>
+                  <span className="cp-tl-cap">{stage}</span>
+                </span>
+              </Fragment>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {job.attention.length ? (
+        <div className="cp-attn">
+          {job.attention.map((a) => (
+            <div className="cp-attn-row" key={a.name}>
+              <span className={`cp-sev ${a.severity}`} aria-hidden="true" />
+              <span className="cp-attn-what">{a.name}</span>
+              {a.reason ? <span className="cp-attn-reason">{a.reason}</span> : null}
+              <span className={`cp-attn-tag ${a.severity}`}>
+                {a.severity === "critical"
+                  ? "blocks"
+                  : a.severity === "warning"
+                    ? "attention"
+                    : "on track"}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

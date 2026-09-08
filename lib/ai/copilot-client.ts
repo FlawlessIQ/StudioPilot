@@ -4,6 +4,26 @@ import { friendlyAiError } from "@/lib/ai/friendly-error";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 
+export type CopilotAttentionItem = {
+  name: string;
+  severity: "critical" | "warning" | "info";
+  reason: string;
+  dueDate: string | null;
+};
+
+export type CopilotJobObject = {
+  projectId: string;
+  name: string;
+  eventDate: string | null;
+  venue: string | null;
+  state: string;
+  stageIndex: number;
+  stages: string[];
+  readiness: { satisfied: number; total: number; ready: boolean } | null;
+  recommendedNextAction: string | null;
+  attention: CopilotAttentionItem[];
+};
+
 export type CopilotResult = {
   answer: string;
   facts: string[];
@@ -11,6 +31,8 @@ export type CopilotResult = {
   citations: Array<{ label: string; href: string }>;
   interactionId: string;
   asOf: string;
+  /** The primary project rendered as a live, record-derived object. */
+  jobObject?: CopilotJobObject | null;
 };
 
 export type CopilotTurn = { role: "user" | "assistant"; text: string };
