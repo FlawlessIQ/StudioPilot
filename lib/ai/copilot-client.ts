@@ -138,3 +138,79 @@ export async function loadCopilotThread(
   });
   return turns;
 }
+
+/**
+ * Streaming ask: the answer text arrives token-by-token via onToken; the full
+ * result (facts, citations, jobObject, threadId) resolves at the end. Falls
+ * back cleanly if the platform buffers the stream — onToken simply fires once
+ * near the end, and the resolved result is authoritative either way.
+ */
+export async function askCopilotStream(
+  input: {
+    tenantId: string;
+    projectId?: string | null;
+    question: string;
+    history?: CopilotTurn[];
+    threadId?: string;
+  },
+  onToken: (delta: string) => void,
+): Promise<CopilotResult> {
+  const endpoint = process.env.NEXT_PUBLIC_AI_FUNCTIONS_URL;
+  if (!endpoint) throw new Error("AI Copilot is not configured.");
+  const { auth } = getFirebaseClient();
+  const user = auth.currentUser;
+  if (!user) throw new Error("Sign in before asking Copilot.");
+  const appCheckToken = await getAppCheckToken();
+  const response = await fetch(`${endpoint.replace(/\/$/, "")}/aiCopilotCommand`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${await user.getIdToken()}`,
+      ...(appCheckToken ? { "x-firebase-appcheck": appCheckToken } : {}),
+    },
+    body: JSON.stringify({ ...input, stream: true }),
+  });
+  if (!response.ok || !response.body) {
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(
+      friendlyAiError(
+        new Error(payload.error ?? ""),
+        "The assistant couldn't answer that. Try again.",
+      ),
+    );
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let done: CopilotResult | null = null;
+  const handleFrame = (frame: string) => {
+    const line = frame.split("\n").find((l) => l.startsWith("data:"));
+    if (!line) return;
+    const raw = line.slice(5).trim();
+    if (!raw) return;
+    const event = JSON.parse(raw) as {
+      token?: string;
+      done?: CopilotResult;
+      error?: string;
+    };
+    if (typeof event.token === "string") onToken(event.token);
+    else if (event.done) done = event.done;
+    else if (event.error)
+      throw new Error(
+        friendlyAiError(new Error(event.error), "The assistant couldn't answer that."),
+      );
+  };
+  for (;;) {
+    const { value, done: streamDone } = await reader.read();
+    if (streamDone) break;
+    buffer += decoder.decode(value, { stream: true });
+    let idx: number;
+    while ((idx = buffer.indexOf("\n\n")) !== -1) {
+      handleFrame(buffer.slice(0, idx));
+      buffer = buffer.slice(idx + 2);
+    }
+  }
+  if (buffer.trim()) handleFrame(buffer);
+  if (!done) throw new Error("The assistant's answer ended unexpectedly. Try again.");
+  return done;
+}

@@ -37,6 +37,8 @@ const requestSchema = z.object({
     .optional(),
   /** Existing conversation to append to; omitted starts a new thread. */
   threadId: z.string().min(1).max(80).optional(),
+  /** Stream the answer as Server-Sent Events instead of one JSON response. */
+  stream: z.boolean().optional(),
 });
 
 const listThreadsSchema = z.object({
@@ -375,6 +377,124 @@ async function generate(
   const output = asRecord(parts[0]).text;
   if (typeof output !== "string") throw new Error("VERTEX_AI_EMPTY_OUTPUT");
   return responseSchema.parse(JSON.parse(output));
+}
+
+const COPILOT_SYSTEM_INSTRUCTION =
+  "You are StudioCue Event Copilot, in an ongoing conversation with a studio operator. Earlier turns are provided for context, but answer the latest question only from the tenant-scoped facts supplied with it. Never invent prices, payments, signatures, dates, statuses, people, or readiness. Clearly separate facts from suggestions. Do not claim to execute actions. Readiness, insurance approval, contract completion, payment status, and permissions are deterministic system facts and cannot be changed by you. Keep the answer concise and operational. Monetary amounts in the facts are integer cents — render them as US dollars (e.g. 56970 becomes $569.70) and never describe a value as a number of 'cents'. Citations must use only href values present in the supplied citationCandidates.";
+
+function copilotRequestBody(
+  question: string,
+  context: Json,
+  history: ReadonlyArray<{ role: "user" | "assistant"; text: string }>,
+) {
+  return {
+    systemInstruction: { parts: [{ text: COPILOT_SYSTEM_INSTRUCTION }] },
+    contents: [
+      ...history.map((turn) => ({
+        role: turn.role === "assistant" ? "model" : "user",
+        parts: [{ text: turn.text }],
+      })),
+      { role: "user", parts: [{ text: JSON.stringify({ question, context }) }] },
+    ],
+    generationConfig: {
+      temperature: 0,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "OBJECT",
+        properties: {
+          answer: { type: "STRING" },
+          facts: { type: "ARRAY", items: { type: "STRING" } },
+          suggestions: { type: "ARRAY", items: { type: "STRING" } },
+          citations: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: { label: { type: "STRING" }, href: { type: "STRING" } },
+              required: ["label", "href"],
+            },
+          },
+        },
+        required: ["answer", "facts", "suggestions", "citations"],
+      },
+    },
+  };
+}
+
+/** The answer value typed so far, from an in-flight responseSchema JSON buffer. */
+function partialAnswer(raw: string): string {
+  const match = raw.match(/"answer"\s*:\s*"((?:\\.|[^"\\])*)/);
+  if (!match) return "";
+  try {
+    // Close the string so JSON.parse can unescape it; drop a dangling backslash.
+    return JSON.parse(`"${(match[1] ?? "").replace(/\\$/, "")}"`);
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Same grounded generation as `generate`, but streamed: forwards the answer
+ * text as it is produced (onToken) so the UI reveals it live, then returns the
+ * fully parsed result. The answer is the first field in the schema, so it
+ * streams first; the rest of the JSON follows and is parsed at the end.
+ */
+async function generateStream(
+  question: string,
+  context: Json,
+  history: ReadonlyArray<{ role: "user" | "assistant"; text: string }>,
+  onToken: (delta: string) => void,
+) {
+  const project = process.env.VERTEX_AI_PROJECT_ID;
+  const location = process.env.VERTEX_AI_LOCATION ?? "us-east4";
+  const model = process.env.VERTEX_AI_COPILOT_MODEL;
+  if (!project || !model) throw new Error("VERTEX_AI_COPILOT_NOT_CONFIGURED");
+  const token = await cloudAccessToken();
+  const response = await fetch(
+    `https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`,
+    {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify(copilotRequestBody(question, context, history)),
+    },
+  );
+  if (!response.ok || !response.body)
+    throw new Error(`VERTEX_AI_COPILOT_FAILED:${response.status}`);
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let raw = "";
+  let emitted = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    // Vertex SSE frames are `data: {json}\n\n`; process complete lines only.
+    let newlineIndex: number;
+    while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
+      const line = buffer.slice(0, newlineIndex).trim();
+      buffer = buffer.slice(newlineIndex + 1);
+      if (!line.startsWith("data:")) continue;
+      const payload = line.slice(5).trim();
+      if (!payload || payload === "[DONE]") continue;
+      try {
+        const chunk = asRecord(JSON.parse(payload));
+        const candidates = Array.isArray(chunk.candidates) ? chunk.candidates : [];
+        const parts = Array.isArray(asRecord(asRecord(candidates[0]).content).parts)
+          ? (asRecord(asRecord(candidates[0]).content).parts as unknown[])
+          : [];
+        const text = asRecord(parts[0]).text;
+        if (typeof text === "string") raw += text;
+      } catch {
+        /* a partial JSON frame across reads — keep accumulating */
+      }
+      const answerSoFar = partialAnswer(raw);
+      if (answerSoFar.length > emitted.length) {
+        onToken(answerSoFar.slice(emitted.length));
+        emitted = answerSoFar;
+      }
+    }
+  }
+  return responseSchema.parse(JSON.parse(raw));
 }
 
 /**
@@ -848,7 +968,7 @@ export const aiCopilotCommand = onRequest(
         label: String(project.name ?? project.id),
         href: `/studio/projects/${String(project.id)}`,
       }));
-      const result = await generate(input.question, {
+      const contextPack: Json = {
         asOf: now,
         projects,
         contracts,
@@ -863,7 +983,27 @@ export const aiCopilotCommand = onRequest(
           .filter((item) => item.planningPackage)
           .map((item) => ({ id: item.id, projectId: item.projectId, planningPackage: item.planningPackage })),
         citationCandidates,
-      }, input.history ?? []);
+      };
+      // Streaming: open an SSE response and forward the answer as it's produced,
+      // so the UI reveals it live instead of waiting on the whole turn (Pro is
+      // ~2x slower than Flash). Everything after — filtering, jobObject,
+      // persistence — is identical to the non-streaming path; only the delivery
+      // of the final payload differs (a `done` event vs a JSON body).
+      const streaming = input.stream === true;
+      if (streaming) {
+        response.setHeader("content-type", "text/event-stream");
+        response.setHeader("cache-control", "no-cache");
+        response.setHeader("connection", "keep-alive");
+        response.flushHeaders?.();
+      }
+      const writeSSE = (obj: unknown) => {
+        response.write(`data: ${JSON.stringify(obj)}\n\n`);
+      };
+      const result = streaming
+        ? await generateStream(input.question, contextPack, input.history ?? [], (delta) =>
+            writeSSE({ token: delta }),
+          )
+        : await generate(input.question, contextPack, input.history ?? []);
       const allowedLinks = new Set(citationCandidates.map((item) => item.href));
       const safeResult = {
         ...result,
@@ -966,10 +1106,28 @@ export const aiCopilotCommand = onRequest(
       });
       batch.create(db.doc(`productEvents/${preparedEvent.id}`), preparedEvent);
       await batch.commit();
-      response.status(200).json({ ...safeResult, interactionId, asOf: now, jobObject, threadId });
+      const payload = { ...safeResult, interactionId, asOf: now, jobObject, threadId };
+      if (streaming) {
+        writeSSE({ done: payload });
+        response.end();
+      } else {
+        response.status(200).json(payload);
+      }
     } catch (caught: unknown) {
       const message =
         caught instanceof Error ? caught.message : "AI_COPILOT_FAILED";
+      // If a stream was already opened, the status/headers are sent — surface
+      // the failure as an SSE error event and close, rather than throwing on a
+      // second header write.
+      if (response.headersSent) {
+        try {
+          response.write(`data: ${JSON.stringify({ error: message })}\n\n`);
+        } catch {
+          /* connection already gone */
+        }
+        response.end();
+        return;
+      }
       response
         .status(message === "FORBIDDEN" ? 403 : 400)
         .json({ error: message });

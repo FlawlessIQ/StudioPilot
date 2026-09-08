@@ -24,7 +24,7 @@ import {
   useTenantDocuments,
 } from "@/components/live/tenant-records";
 import {
-  askCopilot,
+  askCopilotStream,
   listCopilotThreads,
   loadCopilotThread,
   type CopilotResult,
@@ -70,6 +70,7 @@ export function CopilotWorkspace() {
   const [busy, setBusy] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [threads, setThreads] = useState<CopilotThreadSummary[]>([]);
+  const [streamingText, setStreamingText] = useState("");
   const started = turns.length > 0;
 
   const refreshThreads = useCallback(() => {
@@ -132,14 +133,18 @@ export function CopilotWorkspace() {
     setQuestion("");
     setBusy(true);
     setError(null);
+    setStreamingText("");
     try {
-      const result = await askCopilot({
-        tenantId: workspace.tenantId,
-        projectId: projectOnly ? workspace.projectId : null,
-        question: asked,
-        history,
-        threadId: threadId ?? undefined,
-      });
+      const result = await askCopilotStream(
+        {
+          tenantId: workspace.tenantId,
+          projectId: projectOnly ? workspace.projectId : null,
+          question: asked,
+          history,
+          threadId: threadId ?? undefined,
+        },
+        (delta) => setStreamingText((prior) => prior + delta),
+      );
       setTurns((prior) => [...prior, { role: "assistant", result }]);
       if (result.threadId) setThreadId(result.threadId);
       refreshThreads();
@@ -147,6 +152,7 @@ export function CopilotWorkspace() {
       setError(friendlyError(caught, "Copilot failed."));
     } finally {
       setBusy(false);
+      setStreamingText("");
     }
   }
 
@@ -247,7 +253,21 @@ export function CopilotWorkspace() {
               <AssistantTurn key={`a-${index}`} result={turn.result} onFollowUp={runAsk} />
             ),
           )}
-          {busy ? (
+          {busy && streamingText ? (
+            <section className="panel copilot-result cp-streaming" aria-live="polite">
+              <header>
+                <BookOpenCheck />
+                <span>
+                  <p className="eyebrow">Grounded response</p>
+                  <small>Answering…</small>
+                </span>
+              </header>
+              <h2>
+                {streamingText}
+                <span className="cp-caret" aria-hidden="true" />
+              </h2>
+            </section>
+          ) : busy ? (
             <p className="copilot-turn-thinking" role="status">
               <LoaderCircle className="spin" size={15} /> Reviewing records…
             </p>
