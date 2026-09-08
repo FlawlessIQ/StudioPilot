@@ -243,6 +243,12 @@ const preparedActionOptions: Array<{
   { trigger: "review_request", label: "Draft a review request" },
 ];
 
+// Drafts that only make sense after the event; hidden while it is still upcoming.
+const POST_EVENT_TRIGGERS = new Set<MessageDraftTrigger>([
+  "delivery_note",
+  "review_request",
+]);
+
 /**
  * Copilot with hands: answers can end in prepared drafts. Each chip creates a
  * draft that lands in the AI review queue — Copilot never sends anything.
@@ -260,10 +266,26 @@ function PreparedActions({
   // for the review queue. (P2 of the AI command-chat plan.)
   const [draftedIds, setDraftedIds] = useState<string[]>([]);
   const aiState = useTenantDocuments("aiActions");
+  const projectState = useTenantDocuments("projects");
   const projectCitation = citations.find((citation) =>
     citation.href.startsWith("/studio/projects/"),
   );
   const projectId = projectCitation?.href.split("/").pop() ?? null;
+
+  // Don't offer post-event drafts (delivery email, review request) before the
+  // event has happened — a "please review your experience" note dated before
+  // the wedding reads as a mistake. The day-before checklist stays: it is a
+  // pre-event step. Absent/unparseable event date shows everything (fail open).
+  const project = (projectState.records ?? []).find(
+    (record) => record.id === projectId,
+  );
+  // Captured once at mount so the render stays pure (no Date.now() in render).
+  const [nowMs] = useState(() => Date.now());
+  const eventDateMs = Date.parse(String(project?.eventDate ?? ""));
+  const eventInFuture = Number.isFinite(eventDateMs) && eventDateMs > nowMs;
+  const visibleActionOptions = preparedActionOptions.filter(
+    (option) => !(eventInFuture && POST_EVENT_TRIGGERS.has(option.trigger)),
+  );
 
   const inlineActions = (aiState.records ?? []).filter((record) =>
     draftedIds.includes(record.id),
@@ -309,7 +331,7 @@ function PreparedActions({
         each draft appears below for you to review, edit, and send:
       </small>
       <div>
-        {preparedActionOptions.map((option) => (
+        {visibleActionOptions.map((option) => (
           <button
             disabled={busy !== null}
             key={option.trigger}

@@ -779,7 +779,12 @@ export const aiMessageDraftCommand = onRequest(
          */
         conversationId: input.conversationId,
         actorId: identity.uid,
-        title: `Review ${input.trigger.replaceAll("_", " ")}`,
+        // Humanised trigger as the title — no "Review " prefix, which doubled
+        // up as "Review review request" for the review_request trigger (the
+        // card already shows a "… DRAFT" kind label and Approve/Reject controls).
+        title: `${input.trigger.charAt(0).toUpperCase()}${input.trigger
+          .slice(1)
+          .replaceAll("_", " ")}`,
         capability: CAPABILITY[input.trigger],
         authorityBoundary: "draft_requires_review",
         status: "review_required",
