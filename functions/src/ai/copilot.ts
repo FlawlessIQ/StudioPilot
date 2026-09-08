@@ -710,6 +710,10 @@ async function runToolLoop(
     const calls = parts.filter((part) => part.functionCall);
     if (!calls.length) return { contents, referenced };
     contents.push({ role: "model", parts });
+    // The model may emit several functionCall parts in one turn. Their responses
+    // must come back in a SINGLE content with one functionResponse part each, in
+    // order — separate per-call contents are rejected by Vertex with a 400.
+    const responseParts: unknown[] = [];
     for (const part of calls) {
       const call = part.functionCall;
       if (!call) continue;
@@ -729,11 +733,9 @@ async function runToolLoop(
         : [];
       for (const match of matches)
         if (typeof match.projectId === "string") referenced.add(match.projectId);
-      contents.push({
-        role: "user",
-        parts: [{ functionResponse: { name: call.name, response: result } }],
-      });
+      responseParts.push({ functionResponse: { name: call.name, response: result } });
     }
+    contents.push({ role: "user", parts: responseParts });
   }
   return { contents, referenced };
 }
