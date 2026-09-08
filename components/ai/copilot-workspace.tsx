@@ -628,16 +628,20 @@ function PreparedActions({
   const shownIds = [...(proposalActionIds ?? []), ...draftedIds].filter(
     (id, index, all) => all.indexOf(id) === index && !dismissedIds.includes(id),
   );
-  const inlineActions = (aiState.records ?? []).filter((record) =>
-    shownIds.includes(record.id),
+  // Only still-pending actions render as cards. Without this, resuming a
+  // conversation (whose stored result carries proposalActionIds) would re-show
+  // proposals already approved/executed/rejected as if they were fresh.
+  const inlineActions = (aiState.records ?? []).filter(
+    (record) =>
+      shownIds.includes(record.id) &&
+      ["queued", "running", "review_required"].includes(String(record.status)),
   );
 
   // Render when there is a project to prepare manual next steps for, OR when the
   // copilot proposed its own actions for this answer (which carry their own
   // project and can appear even on a portfolio-wide answer).
   if (!workspace.tenantId) return null;
-  if (!projectId && !inlineActions.length && !proposalActionIds?.length)
-    return null;
+  if (!projectId && !inlineActions.length) return null;
 
   // Prepare one draft, returning its action id (or null in preview mode).
   async function draftFor(
@@ -712,7 +716,11 @@ function PreparedActions({
     setBusy(null);
   }
 
-  const proposalCount = proposalActionIds?.length ?? 0;
+  // Header reflects proposal cards actually showing (pending), not the stored
+  // count — so a resumed, fully-acted thread shows no stale "prepared" header.
+  const proposalCount = inlineActions.filter((action) =>
+    (proposalActionIds ?? []).includes(action.id),
+  ).length;
 
   return (
     <div className="copilot-prepared-actions">
