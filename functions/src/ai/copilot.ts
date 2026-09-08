@@ -117,6 +117,25 @@ const responseSchema = z.object({
     .max(3)
     .optional()
     .default([]),
+  // Optional non-email actions the copilot proposes — internal, reversible
+  // studio commands (a task to chase something, a proposal draft, an insurance
+  // flag). Each becomes a human-approval card that runs the real command only on
+  // the owner's tap. The model chooses WHICH command and supplies human-readable
+  // copy; every entity id and precondition is resolved and checked server-side.
+  actionProposals: z
+    .array(
+      z.object({
+        commandType: z.enum(["create_task", "set_insurance_required"]),
+        projectId: z.string().min(1),
+        title: z.string().max(200).optional().default(""),
+        detail: z.string().max(2000).optional().default(""),
+        dueDate: z.string().max(40).optional().default(""),
+        rationale: z.string().min(1).max(300),
+      }),
+    )
+    .max(3)
+    .optional()
+    .default([]),
 });
 
 const internalRoles = new Set([
@@ -347,6 +366,24 @@ const RESPONSE_SCHEMA_JSON = {
         required: ["projectId", "subject", "body", "purpose"],
       },
     },
+    actionProposals: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          commandType: {
+            type: "STRING",
+            enum: ["create_task", "set_insurance_required"],
+          },
+          projectId: { type: "STRING" },
+          title: { type: "STRING" },
+          detail: { type: "STRING" },
+          dueDate: { type: "STRING" },
+          rationale: { type: "STRING" },
+        },
+        required: ["commandType", "projectId", "rationale"],
+      },
+    },
   },
   required: ["answer", "facts", "suggestions", "citations"],
 } as const;
@@ -394,7 +431,8 @@ const COPILOT_THINKING_BUDGET = 256;
 
 const COPILOT_SYSTEM_INSTRUCTION =
   "You are StudioCue Event Copilot, in an ongoing conversation with a studio operator. Earlier turns are provided for context, but answer the latest question only from the tenant-scoped facts supplied with it. Never invent prices, payments, signatures, dates, statuses, people, or readiness. Clearly separate facts from suggestions. Do not claim to execute actions. Readiness, insurance approval, contract completion, payment status, and permissions are deterministic system facts and cannot be changed by you. Keep the answer concise and operational. Monetary amounts in the facts are integer cents — render them as US dollars (e.g. 56970 becomes $569.70) and never describe a value as a number of 'cents'. Citations must use only href values present in the supplied citationCandidates." +
-  " You may also propose up to three client emails in `proposals` when the answer implies a concrete outward step to a client — a reminder for an overdue balance, a nudge for an expired crew offer or an unsigned contract, a request to finish an overdue questionnaire. Each proposal is a DRAFT the operator reviews and sends with one tap; you never send anything. Write a specific, warm, professional subject and body grounded strictly in the supplied facts — do not invent amounts, dates, or names, and do not address the recipient by a guessed name or write an email address (the system fills the real recipient). `projectId` must be one from the supplied project overview. Propose an email only when it is genuinely the next step; leave `proposals` empty for purely informational questions, and never propose the same email twice.";
+  " You may also propose up to three client emails in `proposals` when the answer implies a concrete outward step to a client — a reminder for an overdue balance, a nudge for an expired crew offer or an unsigned contract, a request to finish an overdue questionnaire. Each proposal is a DRAFT the operator reviews and sends with one tap; you never send anything. Write a specific, warm, professional subject and body grounded strictly in the supplied facts — do not invent amounts, dates, or names, and do not address the recipient by a guessed name or write an email address (the system fills the real recipient). `projectId` must be one from the supplied project overview. Propose an email only when it is genuinely the next step; leave `proposals` empty for purely informational questions, and never propose the same email twice." +
+  " You may also propose up to three internal, reversible actions in `actionProposals` when the answer implies one: `create_task` (a to-do on a project — supply a short `title` and optional `detail` and `dueDate` as YYYY-MM-DD, e.g. a task to chase an overdue retainer or follow up on an expired offer) or `set_insurance_required` (flag that the venue requires insurance). Give a one-line `rationale` for each. Each is a card the operator approves; nothing runs until they tap approve, and you never set money, ids, or recipients — the system resolves those. `projectId` must be one from the overview. Leave `actionProposals` empty unless an action is clearly the next step.";
 
 /**
  * The final-answer request. The agent's gathered retrieval already lives in
@@ -882,6 +920,134 @@ async function buildProposalActions(
           estimatedCostMicros: 0,
           latencyMs: 0,
           estimatedMinutesSaved: 10,
+        },
+        failure: null,
+        snoozedUntil: null,
+        archivedAt: null,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: actorId,
+        updatedBy: actorId,
+      },
+    });
+  }
+  return built;
+}
+
+type CopilotCommandProposal = {
+  commandType: "create_task" | "set_insurance_required";
+  projectId: string;
+  title: string;
+  detail: string;
+  dueDate: string;
+  rationale: string;
+};
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Turns the copilot's non-email action proposals into human-approval cards that
+ * run a real, reversible studio command on approval. The card carries the fully
+ * RESOLVED command payload in `structuredOutput.command` (domain + op + input);
+ * the client runs that exact command through the normal command endpoint — which
+ * enforces its own authorization — after the owner approves, then stamps the
+ * action via recordAiExecution. The model chooses the command and writes the
+ * copy; ids and the project are resolved and scope-checked here, never authored
+ * by the model. Actions are internal and reversible: a task doc, a project flag.
+ */
+async function buildCommandProposalActions(
+  tenantId: string,
+  actorId: string,
+  now: string,
+  proposals: ReadonlyArray<CopilotCommandProposal>,
+  projectNames: Map<string, string>,
+  allowedProjectIds: Set<string>,
+): Promise<Array<{ id: string; action: Record<string, unknown> }>> {
+  const model = process.env.VERTEX_AI_COPILOT_MODEL ?? "vertex_ai";
+  const built: Array<{ id: string; action: Record<string, unknown> }> = [];
+  for (const proposal of proposals) {
+    if (!allowedProjectIds.has(proposal.projectId)) continue;
+    const projectName = projectNames.get(proposal.projectId) ?? "the project";
+    let command: { domain: string; op: string; input: Record<string, unknown> };
+    let label: string;
+    let detail: string;
+    if (proposal.commandType === "create_task") {
+      const title = (proposal.title || proposal.rationale).slice(0, 200).trim();
+      if (!title) continue;
+      const dueDate = ISO_DATE.test(proposal.dueDate) ? proposal.dueDate : null;
+      command = {
+        domain: "workflow",
+        op: "createTask",
+        input: {
+          projectId: proposal.projectId,
+          title,
+          description: proposal.detail.trim() || null,
+          dueDate,
+        },
+      };
+      label = `Create a task on ${projectName}`;
+      detail = title;
+    } else {
+      // set_insurance_required
+      command = {
+        domain: "planning",
+        op: "setInsuranceRequirement",
+        input: { projectId: proposal.projectId, insuranceRequired: true },
+      };
+      label = `Flag insurance required on ${projectName}`;
+      detail = "Mark that the venue requires proof of insurance.";
+    }
+    const id = `ai_${randomUUID()}`;
+    built.push({
+      id,
+      action: {
+        id,
+        tenantId,
+        projectId: proposal.projectId,
+        actorId,
+        title: (proposal.rationale || label).slice(0, 200),
+        capability: "studio_action",
+        authorityBoundary: "human_approval_required",
+        status: "review_required",
+        modelProvider: "vertex_ai",
+        modelVersion: model,
+        instructionVersion: "copilot_action_v1",
+        outputSchemaVersion: "copilot_action_output_v1",
+        sourceReferences: [
+          {
+            entityType: "project",
+            entityId: proposal.projectId,
+            versionId: null,
+            label: projectName,
+            locator: null,
+          },
+        ],
+        structuredOutput: {
+          kind: "studio_command",
+          commandType: proposal.commandType,
+          label,
+          detail,
+          rationale: proposal.rationale,
+          command,
+        },
+        confidence: { overall: 0.7, label: "medium", uncertainFields: [] },
+        validation: { status: "passed", issues: [] },
+        decision: null,
+        // commandType is set now so recordAiExecution can stamp the real result
+        // on approval; commandId is a placeholder (the schema requires non-empty)
+        // that the client overwrites with the created entity id once the command
+        // actually runs, with executedAt still null until then.
+        downstreamCommand: {
+          commandType: proposal.commandType,
+          commandId: "pending",
+          executedAt: null,
+        },
+        usage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          estimatedCostMicros: 0,
+          latencyMs: 0,
+          estimatedMinutesSaved: 5,
         },
         failure: null,
         snoozedUntil: null,
@@ -1457,10 +1623,24 @@ export const aiCopilotCommand = onRequest(
         (result.proposals ?? []) as CopilotProposal[],
         allowedProjectIds,
       );
-      const proposalActionIds = proposalActions.map((entry) => entry.id);
+      // Non-email, reversible command proposals (create a task, flag insurance).
+      // Rendered as the same inline approval cards; the client runs the command
+      // on approval.
+      const commandActions = await buildCommandProposalActions(
+        input.tenantId,
+        identity.uid,
+        now,
+        (result.actionProposals ?? []) as CopilotCommandProposal[],
+        projectNames,
+        allowedProjectIds,
+      );
+      const proposalActionIds = [
+        ...proposalActions.map((entry) => entry.id),
+        ...commandActions.map((entry) => entry.id),
+      ];
       const interactionId = `ai_${randomUUID()}`;
       const batch = db.batch();
-      for (const entry of proposalActions) {
+      for (const entry of [...proposalActions, ...commandActions]) {
         batch.set(db.doc(`aiActions/${entry.id}`), entry.action);
       }
       batch.create(db.doc(`aiInteractions/${interactionId}`), {

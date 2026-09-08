@@ -27,6 +27,10 @@ import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { runAiQueueCommand } from "@/lib/ai-actions/command-client";
 import {
+  isProposedStudioCommand,
+  runProposedStudioCommand,
+} from "@/lib/ai-actions/proposed-command-runner";
+import {
   approvalConsequenceSentence,
   dispatchesOnApproval,
 } from "@/features/ai/approval-consequence";
@@ -147,6 +151,25 @@ export function AiQueueCard({
         // that is what made the card contradict itself.
         setApprovedReplyDraftId(`ai_reply_${action.id}`);
         if (approvingSends) setDispatched(true);
+      } else if (decision === "approved" && isProposedStudioCommand(output)) {
+        // A non-email studio command: run it through the normal command endpoint
+        // now that the owner has approved, then record the execution on the
+        // action. The command enforces its own authorization server-side.
+        try {
+          const { commandId, summary } = await runProposedStudioCommand(output);
+          await runAiQueueCommand({
+            type: "recordAiExecution",
+            input: { actionId: action.id, commandId, summary },
+          });
+          setNotice(summary);
+        } catch (runError: unknown) {
+          setNotice(
+            runError instanceof Error
+              ? runError.message.replaceAll("_", " ")
+              : "The action was approved but could not be run.",
+          );
+        }
+        onDecision(action.id, decision);
       } else {
         onDecision(action.id, decision);
       }
@@ -315,6 +338,16 @@ export function AiQueueCard({
         </div>
       ) : null}
 
+      {text(output.kind) === "studio_command" && !editing ? (
+        <div className="ai-message-preview">
+          <strong>{text(output.label) || "Proposed action"}</strong>
+          {text(output.detail) ? (
+            <p style={{ whiteSpace: "pre-wrap" }}>{text(output.detail)}</p>
+          ) : null}
+          {text(output.rationale) ? <small>{text(output.rationale)}</small> : null}
+        </div>
+      ) : null}
+
       {isMessageDraft && !editing ? (
         <div className="ai-message-preview">
           <small>
@@ -353,7 +386,7 @@ export function AiQueueCard({
           <span>Review and edit the prepared details</span>
           <StructuredContentFields onChange={setEditor} value={editor} />
         </div>
-      ) : !isMessageDraft ? (
+      ) : !isMessageDraft && text(output.kind) !== "studio_command" ? (
         <StructuredContentPreview value={object(action.structuredOutput)} />
       ) : null}
 
@@ -387,13 +420,15 @@ export function AiQueueCard({
           {busy === "approved" ? <LoaderCircle className="spin" /> : <Check />}
           Approve
         </button>
-        <button
-          disabled={Boolean(busy)}
-          onClick={() => setEditing((current) => !current)}
-          type="button"
-        >
-          <Sparkles /> {editing ? "Use original" : "Edit first"}
-        </button>
+        {text(output.kind) === "studio_command" ? null : (
+          <button
+            disabled={Boolean(busy)}
+            onClick={() => setEditing((current) => !current)}
+            type="button"
+          >
+            <Sparkles /> {editing ? "Use original" : "Edit first"}
+          </button>
+        )}
         <button
           disabled={Boolean(busy)}
           onClick={() => void decide("rejected")}

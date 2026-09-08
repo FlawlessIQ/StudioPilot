@@ -18,6 +18,9 @@ export const aiCapabilitySchema = z.enum([
   "delivery_message_draft",
   "review_request_draft",
   "project_risk_summary",
+  // A reversible studio command the copilot proposed (e.g. create a task, flag
+  // insurance required); executed on approval through the normal command path.
+  "studio_action",
 ]);
 
 export const aiAuthorityBoundarySchema = z.enum([
