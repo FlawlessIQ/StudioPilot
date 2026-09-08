@@ -973,16 +973,24 @@ async function buildCommandProposalActions(
     let detail: string;
     if (proposal.commandType === "create_task") {
       const title = (proposal.title || proposal.rationale).slice(0, 200).trim();
-      if (!title) continue;
+      if (title.length < 2) continue;
       const dueDate = ISO_DATE.test(proposal.dueDate) ? proposal.dueDate : null;
+      // Full createTask payload — every field is required by the workflow
+      // command's schema; description must be a string (not null).
       command = {
         domain: "workflow",
         op: "createTask",
         input: {
           projectId: proposal.projectId,
+          workflowRunId: null,
+          checkpointId: null,
           title,
-          description: proposal.detail.trim() || null,
+          description: proposal.detail.trim().slice(0, 3000),
+          assignedUserId: null,
+          assignedRole: null,
           dueDate,
+          priority: "normal",
+          blocking: false,
         },
       };
       label = `Create a task on ${projectName}`;
