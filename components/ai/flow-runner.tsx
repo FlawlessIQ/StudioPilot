@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { LoaderCircle, Send, Users } from "lucide-react";
+import { LoaderCircle, PackageOpen, Send, Users } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { sendCrewCommand } from "@/lib/crew/command-client";
+import { runCrmCommand } from "@/lib/crm/command-client";
 import { crewPublicError } from "@/lib/crew/public-error";
 import {
   rankCrewCandidates,
@@ -23,7 +24,107 @@ const arr = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
  */
 export function FlowRunner({ flow }: { flow: CopilotFlow }) {
   if (flow.type === "crew_offer") return <CrewOfferFlow flow={flow} />;
+  if (flow.type === "select_package") return <PackageSelectFlow flow={flow} />;
   return null;
+}
+
+const dollars = (cents: unknown) =>
+  `$${(num(cents) / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+
+/**
+ * gather → select → act for choosing a project's package. Prices come from the
+ * package records (never the model); selecting one creates the immutable
+ * package snapshot the proposal is later built from.
+ */
+function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
+  const projectId = flow.projectId;
+  const { records: projects } = useTenantDocuments("projects");
+  const { records: packages } = useTenantDocuments("packages");
+  const project = (projects ?? []).find((item) => item.id === projectId);
+  const alreadySelected = Boolean(str(project?.packageSnapshotId));
+  const eventTypeId = str(project?.eventTypeId);
+
+  // Active packages, preferring ones matching the project's event type.
+  const options = (packages ?? [])
+    .filter((p) => p.active === true)
+    .filter((p) => !eventTypeId || str(p.eventTypeId) === eventTypeId || !str(p.eventTypeId))
+    .sort((a, b) => num(a.displayOrder) - num(b.displayOrder));
+
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+
+  async function apply(packageId: string, name: string) {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const response = await runCrmCommand("selectPackage", {
+        projectId,
+        packageId,
+        selectedAddOns: [],
+      });
+      if (response.persisted) setDone(name);
+      else setNotice("Preview: the package would be selected from here.");
+    } catch (caught: unknown) {
+      setNotice(
+        caught instanceof Error
+          ? caught.message.replaceAll("_", " ")
+          : "The package could not be selected.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (done) {
+    return (
+      <div className="panel copilot-flow">
+        <p role="status">
+          Selected {done} for {str(project?.name) || "the project"}. You can now
+          prepare a proposal from it.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="panel copilot-flow">
+      <header className="copilot-flow-head">
+        <PackageOpen size={15} />
+        <span>
+          <strong>{flow.title}</strong>
+          <small>{flow.reason}</small>
+        </span>
+      </header>
+      {alreadySelected ? (
+        <p role="status">
+          {str(project?.name) || "This project"} already has a package selected.
+        </p>
+      ) : options.length === 0 ? (
+        <p role="status">No active packages to choose from yet.</p>
+      ) : (
+        <div className="copilot-flow-options">
+          {options.map((option) => (
+            <button
+              key={str(option.id)}
+              className="copilot-flow-option"
+              disabled={busy}
+              onClick={() => void apply(str(option.id), str(option.name))}
+              type="button"
+            >
+              <strong>
+                {str(option.name)} · {dollars(option.basePriceCents)}
+              </strong>
+              {str(option.eventTypeLabel) ? (
+                <small>{str(option.eventTypeLabel)}</small>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      )}
+      {notice ? <p role="status">{notice}</p> : null}
+    </div>
+  );
 }
 
 // Map a project's event type to the crew specialty the ranker matches on.

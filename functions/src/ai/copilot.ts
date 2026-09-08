@@ -147,7 +147,7 @@ const responseSchema = z.object({
   // the flow itself is deterministic and human-driven.
   flow: z
     .object({
-      type: z.enum(["crew_offer"]),
+      type: z.enum(["crew_offer", "select_package"]),
       projectId: z.string().min(1),
       reason: z.string().min(1).max(300),
     })
@@ -409,7 +409,7 @@ const RESPONSE_SCHEMA_JSON = {
     flow: {
       type: "OBJECT",
       properties: {
-        type: { type: "STRING", enum: ["crew_offer"] },
+        type: { type: "STRING", enum: ["crew_offer", "select_package"] },
         projectId: { type: "STRING" },
         reason: { type: "STRING" },
       },
@@ -463,7 +463,7 @@ const COPILOT_SYSTEM_INSTRUCTION =
   "You are StudioCue Event Copilot, in an ongoing conversation with a studio operator. Earlier turns are provided for context, but answer the latest question only from the tenant-scoped facts supplied with it. Never invent prices, payments, signatures, dates, statuses, people, or readiness. Clearly separate facts from suggestions. Do not claim to execute actions. Readiness, insurance approval, contract completion, payment status, and permissions are deterministic system facts and cannot be changed by you. Keep the answer concise and operational. Monetary amounts in the facts are integer cents — render them as US dollars (e.g. 56970 becomes $569.70) and never describe a value as a number of 'cents'. Citations must use only href values present in the supplied citationCandidates." +
   " You may also propose up to three client emails in `proposals` when the answer implies a concrete outward step to a client — a reminder for an overdue balance, a nudge for an expired crew offer or an unsigned contract, a request to finish an overdue questionnaire. Each proposal is a DRAFT the operator reviews and sends with one tap; you never send anything. Write a specific, warm, professional subject and body grounded strictly in the supplied facts — do not invent amounts, dates, or names, and do not address the recipient by a guessed name or write an email address (the system fills the real recipient). `projectId` must be one from the supplied project overview. Propose an email only when it is genuinely the next step; leave `proposals` empty for purely informational questions, and never propose the same email twice." +
   " You may also propose up to three internal, reversible actions in `actionProposals` when the answer implies one: `create_task` (a to-do on a project — supply a short `title` and optional `detail` and `dueDate` as YYYY-MM-DD, e.g. a task to chase an overdue retainer or follow up on an expired offer), `set_insurance_required` (flag that the venue requires insurance), `create_proposal_draft` (prepare an unsent proposal draft — only when the project already has a selected package; put any cover note in `detail`), or `assign_questionnaire` (send the studio's planning questionnaire to the client — propose this when the questionnaire is overdue or not yet sent; approving emails the client). Give a one-line `rationale` for each. Each is a card the operator approves; nothing runs until they tap approve, and you never set money, ids, or recipients — the system resolves those. `projectId` must be one from the overview. Leave `actionProposals` empty unless an action is clearly the next step." +
-  " When the operator needs to STAFF CREW — they ask to add crew, book a photographer/second shooter, fill a crew role, or a required crew role is unfilled — set `flow` to { type: 'crew_offer', projectId, reason }. This launches an interactive flow that shows who is available, lets the operator pick who and set the pay, and sends the offers. Set `flow` only for staffing; keep the `answer` short (one line) since the flow carries the interaction. Use at most one flow per turn, and `projectId` must be one from the overview.";
+  " When the operator needs to STAFF CREW — they ask to add crew, book a photographer/second shooter, fill a crew role, or a required crew role is unfilled — set `flow` to { type: 'crew_offer', projectId, reason }. This launches an interactive flow that shows who is available, lets the operator pick who and set the pay, and sends the offers. When the operator needs to CHOOSE A PACKAGE for a project that has not selected one yet — they ask to pick/select a package, or building a proposal is blocked because no package is chosen — set `flow` to { type: 'select_package', projectId, reason }; it shows the studio's packages, the operator picks one, and it is applied. Set `flow` only for staffing or package selection; keep the `answer` short (one line) since the flow carries the interaction. Use at most one flow per turn, and `projectId` must be one from the overview. Be proactive: if, while answering any question (including 'what needs my attention today'), you find a project whose required crew role is unfilled or whose crew offers have all expired, launch the crew_offer flow for it even if the operator did not explicitly ask — offering to act is the helpful move. Only launch a flow when there is a real, specific gap on a real project; never launch one speculatively.";
 
 /**
  * The final-answer request. The agent's gathered retrieval already lives in
@@ -1745,12 +1745,18 @@ export const aiCopilotCommand = onRequest(
       // A launched conversational flow — validated to the caller's scope. The
       // model only chose the type + project; the flow's own steps fetch options,
       // take the operator's input, and run the command.
+      const flowProjectName =
+        (result.flow && projectNames.get(result.flow.projectId)) ?? "the project";
+      const flowTitles: Record<string, string> = {
+        crew_offer: `Staff ${flowProjectName}`,
+        select_package: `Choose a package for ${flowProjectName}`,
+      };
       const flowDirective =
         result.flow && allowedProjectIds.has(result.flow.projectId)
           ? {
               type: result.flow.type,
               projectId: result.flow.projectId,
-              title: `Staff ${projectNames.get(result.flow.projectId) ?? "the project"}`,
+              title: flowTitles[result.flow.type] ?? flowProjectName,
               reason: result.flow.reason,
             }
           : null;
