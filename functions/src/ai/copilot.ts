@@ -94,7 +94,10 @@ const responseSchema = z.object({
     .array(
       z.object({
         label: z.string().min(1),
-        href: z.string().startsWith("/studio/"),
+        // The model's href is advisory; the handler filters citations to real
+        // project links (allowedLinks) after parsing, so a stray or guessed
+        // href must NOT reject the whole answer — it is simply dropped there.
+        href: z.string(),
       }),
     )
     .max(12),
@@ -370,9 +373,22 @@ const COPILOT_SYSTEM_INSTRUCTION =
  * keeps the {answer, facts, suggestions, citations} contract; `answer` is first
  * in the schema so it streams first.
  */
-function finalAnswerBody(contents: unknown[]) {
+function finalAnswerBody(
+  contents: unknown[],
+  citationCandidates: ReadonlyArray<{ label: string; href: string }>,
+) {
   return {
-    systemInstruction: { parts: [{ text: COPILOT_SYSTEM_INSTRUCTION }] },
+    systemInstruction: {
+      parts: [
+        {
+          text:
+            COPILOT_SYSTEM_INSTRUCTION +
+            " Cite only from these citation targets (use their exact href, or omit citations if none apply): " +
+            JSON.stringify(citationCandidates) +
+            ".",
+        },
+      ],
+    },
     contents,
     generationConfig: {
       temperature: 0,
@@ -1235,7 +1251,7 @@ export const aiCopilotCommand = onRequest(
           if (streaming) writeSSE({ status: toolStatusLabel(name, toolArgs, projectNames) });
         },
       );
-      const finalBody = finalAnswerBody(retrievalContents);
+      const finalBody = finalAnswerBody(retrievalContents, citationCandidates);
       const result = streaming
         ? await streamStructuredBody(finalBody, (delta) => writeSSE({ token: delta }))
         : await generateStructuredBody(finalBody);
