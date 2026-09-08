@@ -49,6 +49,16 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  # Passwordless client sign-in (P19). Gates the "Email me a sign-in link" UI.
+  # Safe only once Firebase Auth has Email-link (passwordless) sign-in enabled
+  # (Console → Authentication → Sign-in method → Email/Password), which was
+  # turned on 2026-09-08 — otherwise the link mint fails silently. NEXT_PUBLIC_
+  # is build-time, so a rollout must rebuild for a change here to take effect.
+  - variable: NEXT_PUBLIC_CLIENT_MAGIC_LINK
+    value: "1"
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: NEXT_PUBLIC_DATA_MODE
     value: live
     availability:
