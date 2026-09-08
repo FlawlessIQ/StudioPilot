@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, FormEvent, useEffect, useRef, useState } from "react";
+import { Fragment, FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   BookOpenCheck,
@@ -11,6 +11,8 @@ import {
   FolderPlus,
   Mail,
   LoaderCircle,
+  MessagesSquare,
+  Plus,
   Send,
   ShieldCheck,
   Sparkles,
@@ -23,8 +25,11 @@ import {
 } from "@/components/live/tenant-records";
 import {
   askCopilot,
+  listCopilotThreads,
+  loadCopilotThread,
   type CopilotResult,
   type CopilotJobObject,
+  type CopilotThreadSummary,
 } from "@/lib/ai/copilot-client";
 import {
   requestMessageDraft,
@@ -63,7 +68,50 @@ export function CopilotWorkspace() {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [threads, setThreads] = useState<CopilotThreadSummary[]>([]);
   const started = turns.length > 0;
+
+  const refreshThreads = useCallback(() => {
+    if (!workspace.tenantId) return;
+    void listCopilotThreads(workspace.tenantId)
+      .then(setThreads)
+      .catch(() => {
+        /* the rail is a convenience; a load failure stays silent */
+      });
+  }, [workspace.tenantId]);
+
+  useEffect(() => {
+    refreshThreads();
+  }, [refreshThreads]);
+
+  function newConversation() {
+    setTurns([]);
+    setThreadId(null);
+    setQuestion("");
+    setError(null);
+  }
+
+  async function resumeThread(id: string) {
+    if (!workspace.tenantId || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const loaded = await loadCopilotThread(workspace.tenantId, id);
+      const restored: ChatTurn[] = loaded.map((turn) =>
+        turn.role === "user"
+          ? { role: "user", text: turn.text }
+          : { role: "assistant", result: turn.result },
+      );
+      setTurns(restored);
+      setThreadId(id);
+      setQuestion("");
+    } catch (caught: unknown) {
+      setError(friendlyError(caught, "That conversation couldn't be opened."));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function runAsk(raw: string) {
     if (!workspace.tenantId) {
@@ -90,8 +138,11 @@ export function CopilotWorkspace() {
         projectId: projectOnly ? workspace.projectId : null,
         question: asked,
         history,
+        threadId: threadId ?? undefined,
       });
       setTurns((prior) => [...prior, { role: "assistant", result }]);
+      if (result.threadId) setThreadId(result.threadId);
+      refreshThreads();
     } catch (caught: unknown) {
       setError(friendlyError(caught, "Copilot failed."));
     } finally {
@@ -145,7 +196,32 @@ export function CopilotWorkspace() {
             imported workflow from one place.
           </p>
         </div>
+        {started || threads.length > 0 ? (
+          <button type="button" className="cp-new" onClick={newConversation}>
+            <Plus size={15} /> New conversation
+          </button>
+        ) : null}
       </header>
+      {!started && threads.length ? (
+        <section className="cp-recent" aria-label="Recent conversations">
+          <p className="cp-recent-label"><MessagesSquare size={13} /> Pick up where you left off</p>
+          <div className="cp-recent-list">
+            {threads.slice(0, 6).map((thread) => (
+              <button
+                type="button"
+                className="cp-recent-item"
+                key={thread.id}
+                onClick={() => void resumeThread(thread.id)}
+              >
+                <span className="cp-recent-title">{thread.title}</span>
+                <span className="cp-recent-meta">
+                  {thread.turnCount} {thread.turnCount === 1 ? "message" : "messages"}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
       <nav className="copilot-create-actions" aria-label="Create with StudioCue">
         <Link href="/studio/messages">
           <Mail size={17} />

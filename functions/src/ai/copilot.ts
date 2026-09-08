@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  FieldValue,
   getFirestore,
   type DocumentSnapshot,
   type Query,
@@ -34,6 +35,19 @@ const requestSchema = z.object({
     )
     .max(12)
     .optional(),
+  /** Existing conversation to append to; omitted starts a new thread. */
+  threadId: z.string().min(1).max(80).optional(),
+});
+
+const listThreadsSchema = z.object({
+  kind: z.literal("list_threads"),
+  tenantId: z.string().min(1),
+});
+
+const loadThreadSchema = z.object({
+  kind: z.literal("load_thread"),
+  tenantId: z.string().min(1),
+  threadId: z.string().min(1).max(80),
 });
 
 const intakeRequestSchema = z.object({
@@ -691,6 +705,88 @@ export const aiCopilotCommand = onRequest(
         return;
       }
 
+      // Conversation continuity (read-only): list the owner's recent threads,
+      // or rebuild one thread's turns from the aiInteractions it wrote. Both
+      // filter to userId + tenantId in memory so a single-field index suffices
+      // and one owner can never read another's conversations.
+      if (asRecord(request.body).kind === "list_threads") {
+        const parsed = listThreadsSchema.parse(request.body);
+        const db = getFirestore();
+        const threadMembership = await db
+          .doc(`memberships/${parsed.tenantId}_${identity.uid}`)
+          .get();
+        if (
+          !threadMembership.exists ||
+          threadMembership.get("status") !== "active" ||
+          !internalRoles.has(String(threadMembership.get("role")))
+        )
+          throw new Error("FORBIDDEN");
+        const snapshot = await db
+          .collection("copilotThreads")
+          .where("userId", "==", identity.uid)
+          .limit(60)
+          .get();
+        const threads = snapshot.docs
+          .map((doc) => doc.data())
+          .filter((data) => data.tenantId === parsed.tenantId)
+          .sort((a, b) =>
+            String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? "")),
+          )
+          .slice(0, 20)
+          .map((data) => ({
+            id: String(data.id ?? ""),
+            title: String(data.title ?? "Conversation"),
+            lastQuestion: String(data.lastQuestion ?? ""),
+            projectId: (data.projectId as string | null) ?? null,
+            turnCount: Number(data.turnCount ?? 0),
+            updatedAt: String(data.updatedAt ?? ""),
+          }));
+        response.status(200).json({ threads });
+        return;
+      }
+
+      if (asRecord(request.body).kind === "load_thread") {
+        const parsed = loadThreadSchema.parse(request.body);
+        const db = getFirestore();
+        const threadMembership = await db
+          .doc(`memberships/${parsed.tenantId}_${identity.uid}`)
+          .get();
+        if (
+          !threadMembership.exists ||
+          threadMembership.get("status") !== "active" ||
+          !internalRoles.has(String(threadMembership.get("role")))
+        )
+          throw new Error("FORBIDDEN");
+        const snapshot = await db
+          .collection("aiInteractions")
+          .where("threadId", "==", parsed.threadId)
+          .limit(60)
+          .get();
+        const interactions = snapshot.docs
+          .map((doc) => doc.data())
+          .filter(
+            (data) =>
+              data.userId === identity.uid && data.tenantId === parsed.tenantId,
+          )
+          .sort((a, b) =>
+            String(a.createdAt ?? "").localeCompare(String(b.createdAt ?? "")),
+          );
+        const turns: Array<
+          | { role: "user"; text: string }
+          | { role: "assistant"; result: unknown }
+        > = [];
+        for (const data of interactions) {
+          if (typeof data.question === "string") {
+            turns.push({ role: "user", text: data.question });
+          }
+          if (data.result && typeof data.result === "object") {
+            turns.push({ role: "assistant", result: data.result });
+          }
+        }
+        response.status(200).json({ threadId: parsed.threadId, turns });
+        return;
+      }
+
       const input = requestSchema.parse(request.body);
       const db = getFirestore();
       const membership = await db
@@ -704,6 +800,8 @@ export const aiCopilotCommand = onRequest(
         throw new Error("FORBIDDEN");
       // Whole-product billing gate (studio commands require a live subscription).
       await requireActiveSubscription(db, input.tenantId);
+      const isNewThread = !input.threadId;
+      const threadId = input.threadId ?? `thread_${randomUUID()}`;
       const role = String(membership.get("role"));
       const broadAccess = ["studio_owner", "studio_admin"].includes(role);
       const assigned = Array.isArray(membership.get("projectIds"))
@@ -804,11 +902,31 @@ export const aiCopilotCommand = onRequest(
         projectId: input.projectId ?? null,
         userId: identity.uid,
         type: "copilot_question",
+        threadId,
         question: input.question,
-        result: safeResult,
+        // Store the full client-facing result (incl. jobObject + asOf) so a
+        // resumed thread re-renders faithfully, not just the bare answer.
+        result: { ...safeResult, jobObject, asOf: now },
         model: process.env.VERTEX_AI_COPILOT_MODEL,
         createdAt: now,
       });
+      // Thread index for the conversation rail. Title is set once, on the first
+      // turn (a new thread carries no incoming threadId); later turns only bump
+      // recency and the running turn count.
+      batch.set(
+        db.doc(`copilotThreads/${threadId}`),
+        {
+          id: threadId,
+          tenantId: input.tenantId,
+          userId: identity.uid,
+          projectId: input.projectId ?? null,
+          lastQuestion: input.question.slice(0, 120),
+          updatedAt: now,
+          turnCount: FieldValue.increment(1),
+          ...(isNewThread ? { title: input.question.slice(0, 80), createdAt: now } : {}),
+        },
+        { merge: true },
+      );
       batch.create(db.doc(`auditEvents/${interactionId}`), {
         id: interactionId,
         tenantId: input.tenantId,
@@ -848,7 +966,7 @@ export const aiCopilotCommand = onRequest(
       });
       batch.create(db.doc(`productEvents/${preparedEvent.id}`), preparedEvent);
       await batch.commit();
-      response.status(200).json({ ...safeResult, interactionId, asOf: now, jobObject });
+      response.status(200).json({ ...safeResult, interactionId, asOf: now, jobObject, threadId });
     } catch (caught: unknown) {
       const message =
         caught instanceof Error ? caught.message : "AI_COPILOT_FAILED";

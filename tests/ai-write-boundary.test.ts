@@ -41,6 +41,9 @@ const AI_SOURCES = [
 const AI_OWNED_COLLECTIONS = new Set([
   "aiActions",
   "aiInteractions",
+  // The assistant's own conversation index (thread title, recency, turn count)
+  // for the copilot chat rail — an AI artifact, not a business record.
+  "copilotThreads",
   "actionReceipts",
   "auditEvents",
   "commandExecutions",
