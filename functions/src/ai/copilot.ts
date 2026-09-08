@@ -253,6 +253,18 @@ function buildJobObject(
   const venue = [project.venueName, project.city]
     .filter((part): part is string => typeof part === "string" && part.length > 0)
     .join(", ");
+  const attention = assessment ? attentionFromAssessment(assessment) : [];
+  let readiness: { satisfied: number; total: number; ready: boolean } | null = null;
+  if (assessment) {
+    const satisfied = Number(assessment.satisfiedRequired ?? 0);
+    // The assessment's own totalRequired can lag its blocking list; never show a
+    // meter with fewer checkpoints than the ones we're flagging as outstanding.
+    const total = Math.max(
+      Number(assessment.totalRequired ?? 0),
+      satisfied + attention.length,
+    );
+    readiness = { satisfied, total, ready: Boolean(assessment.ready) };
+  }
   return {
     projectId: String(project.id ?? ""),
     name: String(project.name ?? "Untitled project"),
@@ -261,18 +273,12 @@ function buildJobObject(
     state: String(project.state ?? ""),
     stageIndex: stageIndexForState(String(project.state ?? "")),
     stages: [...LIFECYCLE_STAGES],
-    readiness: assessment
-      ? {
-          satisfied: Number(assessment.satisfiedRequired ?? 0),
-          total: Number(assessment.totalRequired ?? 0),
-          ready: Boolean(assessment.ready),
-        }
-      : null,
+    readiness,
     recommendedNextAction:
       assessment && typeof assessment.recommendedNextAction === "string"
         ? assessment.recommendedNextAction
         : null,
-    attention: assessment ? attentionFromAssessment(assessment) : [],
+    attention,
   };
 }
 
