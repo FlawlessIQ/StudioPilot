@@ -365,6 +365,7 @@ async function generate(
             },
             required: ["answer", "facts", "suggestions", "citations"],
           },
+          thinkingConfig: { thinkingBudget: COPILOT_THINKING_BUDGET },
         },
       }),
     },
@@ -378,6 +379,16 @@ async function generate(
   if (typeof output !== "string") throw new Error("VERTEX_AI_EMPTY_OUTPUT");
   return responseSchema.parse(JSON.parse(output));
 }
+
+// gemini-2.5-pro thinks with a dynamic budget by default, which held the whole
+// response open for 5–8s before emitting a single token — measured against
+// Vertex directly (see the streaming work of 2026-09-08). The copilot's facts
+// are already computed deterministically and handed to the model in the context
+// pack, so it phrases grounded facts rather than deriving them; a small fixed
+// budget keeps that reasoning intact while cutting time-to-first-token to ~2.6s
+// and letting the answer stream. 256 was both faster AND at least as accurate as
+// 512/1024 on a multi-project reasoning probe — more thinking bought nothing here.
+const COPILOT_THINKING_BUDGET = 256;
 
 const COPILOT_SYSTEM_INSTRUCTION =
   "You are StudioCue Event Copilot, in an ongoing conversation with a studio operator. Earlier turns are provided for context, but answer the latest question only from the tenant-scoped facts supplied with it. Never invent prices, payments, signatures, dates, statuses, people, or readiness. Clearly separate facts from suggestions. Do not claim to execute actions. Readiness, insurance approval, contract completion, payment status, and permissions are deterministic system facts and cannot be changed by you. Keep the answer concise and operational. Monetary amounts in the facts are integer cents — render them as US dollars (e.g. 56970 becomes $569.70) and never describe a value as a number of 'cents'. Citations must use only href values present in the supplied citationCandidates.";
@@ -416,6 +427,7 @@ function copilotRequestBody(
         },
         required: ["answer", "facts", "suggestions", "citations"],
       },
+      thinkingConfig: { thinkingBudget: COPILOT_THINKING_BUDGET },
     },
   };
 }
