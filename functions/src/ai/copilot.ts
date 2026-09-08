@@ -298,78 +298,48 @@ function buildJobObject(
   };
 }
 
-async function generate(
-  question: string,
-  context: Json,
-  history: ReadonlyArray<{ role: "user" | "assistant"; text: string }> = [],
-) {
+// The client-facing result schema, shared by the streaming and non-streaming
+// final-answer calls. Money stays integer cents on the wire; the prompt tells
+// the model to render dollars in the prose it writes.
+const RESPONSE_SCHEMA_JSON = {
+  type: "OBJECT",
+  properties: {
+    answer: { type: "STRING" },
+    facts: { type: "ARRAY", items: { type: "STRING" } },
+    suggestions: { type: "ARRAY", items: { type: "STRING" } },
+    citations: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: { label: { type: "STRING" }, href: { type: "STRING" } },
+        required: ["label", "href"],
+      },
+    },
+  },
+  required: ["answer", "facts", "suggestions", "citations"],
+} as const;
+
+const VERTEX_LOCATION = process.env.VERTEX_AI_LOCATION ?? "us-east4";
+
+function vertexUrl(method: "generateContent" | "streamGenerateContent"): string {
   const project = process.env.VERTEX_AI_PROJECT_ID;
-  const location = process.env.VERTEX_AI_LOCATION ?? "us-east4";
   const model = process.env.VERTEX_AI_COPILOT_MODEL;
   if (!project || !model) throw new Error("VERTEX_AI_COPILOT_NOT_CONFIGURED");
+  const suffix =
+    method === "streamGenerateContent"
+      ? "streamGenerateContent?alt=sse"
+      : "generateContent";
+  return `https://${VERTEX_LOCATION}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(VERTEX_LOCATION)}/publishers/google/models/${encodeURIComponent(model)}:${suffix}`;
+}
+
+/** One non-streaming generateContent call with a prebuilt request body. */
+async function generateStructuredBody(requestBody: unknown) {
   const token = await cloudAccessToken();
-  // Prior turns become conversation context; the current turn alone carries the
-  // freshly-assembled tenant facts, so grounding can't go stale across a thread.
-  const priorContents = history.map((turn) => ({
-    role: turn.role === "assistant" ? "model" : "user",
-    parts: [{ text: turn.text }],
-  }));
-  const response = await fetch(
-    `https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`,
-    {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${token}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [
-            {
-              text:
-                "You are StudioCue Event Copilot, in an ongoing conversation with a studio operator. Earlier turns are provided for context, but answer the latest question only from the tenant-scoped facts supplied with it. Never invent prices, payments, signatures, dates, statuses, people, or readiness. Clearly separate facts from suggestions. Do not claim to execute actions. Readiness, insurance approval, contract completion, payment status, and permissions are deterministic system facts and cannot be changed by you. Keep the answer concise and operational. Monetary amounts in the facts are integer cents — render them as US dollars (e.g. 56970 becomes $569.70) and never describe a value as a number of 'cents'. Citations must use only href values present in the supplied citationCandidates.",
-            },
-          ],
-        },
-        contents: [
-          ...priorContents,
-          {
-            role: "user",
-            parts: [
-              {
-                text: JSON.stringify({ question, context }),
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0,
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: "OBJECT",
-            properties: {
-              answer: { type: "STRING" },
-              facts: { type: "ARRAY", items: { type: "STRING" } },
-              suggestions: { type: "ARRAY", items: { type: "STRING" } },
-              citations: {
-                type: "ARRAY",
-                items: {
-                  type: "OBJECT",
-                  properties: {
-                    label: { type: "STRING" },
-                    href: { type: "STRING" },
-                  },
-                  required: ["label", "href"],
-                },
-              },
-            },
-            required: ["answer", "facts", "suggestions", "citations"],
-          },
-          thinkingConfig: { thinkingBudget: COPILOT_THINKING_BUDGET },
-        },
-      }),
-    },
-  );
+  const response = await fetch(vertexUrl("generateContent"), {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify(requestBody),
+  });
   if (!response.ok) throw new Error(`VERTEX_AI_COPILOT_FAILED:${response.status}`);
   const body = asRecord(await response.json());
   const candidates = Array.isArray(body.candidates) ? body.candidates : [];
@@ -393,40 +363,21 @@ const COPILOT_THINKING_BUDGET = 256;
 const COPILOT_SYSTEM_INSTRUCTION =
   "You are StudioCue Event Copilot, in an ongoing conversation with a studio operator. Earlier turns are provided for context, but answer the latest question only from the tenant-scoped facts supplied with it. Never invent prices, payments, signatures, dates, statuses, people, or readiness. Clearly separate facts from suggestions. Do not claim to execute actions. Readiness, insurance approval, contract completion, payment status, and permissions are deterministic system facts and cannot be changed by you. Keep the answer concise and operational. Monetary amounts in the facts are integer cents — render them as US dollars (e.g. 56970 becomes $569.70) and never describe a value as a number of 'cents'. Citations must use only href values present in the supplied citationCandidates.";
 
-function copilotRequestBody(
-  question: string,
-  context: Json,
-  history: ReadonlyArray<{ role: "user" | "assistant"; text: string }>,
-) {
+/**
+ * The final-answer request. The agent's gathered retrieval already lives in
+ * `contents` (the function-call / function-response turns), and this call has
+ * NO tools, so the model must answer now rather than fetch more. responseSchema
+ * keeps the {answer, facts, suggestions, citations} contract; `answer` is first
+ * in the schema so it streams first.
+ */
+function finalAnswerBody(contents: unknown[]) {
   return {
     systemInstruction: { parts: [{ text: COPILOT_SYSTEM_INSTRUCTION }] },
-    contents: [
-      ...history.map((turn) => ({
-        role: turn.role === "assistant" ? "model" : "user",
-        parts: [{ text: turn.text }],
-      })),
-      { role: "user", parts: [{ text: JSON.stringify({ question, context }) }] },
-    ],
+    contents,
     generationConfig: {
       temperature: 0,
       responseMimeType: "application/json",
-      responseSchema: {
-        type: "OBJECT",
-        properties: {
-          answer: { type: "STRING" },
-          facts: { type: "ARRAY", items: { type: "STRING" } },
-          suggestions: { type: "ARRAY", items: { type: "STRING" } },
-          citations: {
-            type: "ARRAY",
-            items: {
-              type: "OBJECT",
-              properties: { label: { type: "STRING" }, href: { type: "STRING" } },
-              required: ["label", "href"],
-            },
-          },
-        },
-        required: ["answer", "facts", "suggestions", "citations"],
-      },
+      responseSchema: RESPONSE_SCHEMA_JSON,
       thinkingConfig: { thinkingBudget: COPILOT_THINKING_BUDGET },
     },
   };
@@ -445,30 +396,21 @@ function partialAnswer(raw: string): string {
 }
 
 /**
- * Same grounded generation as `generate`, but streamed: forwards the answer
- * text as it is produced (onToken) so the UI reveals it live, then returns the
- * fully parsed result. The answer is the first field in the schema, so it
- * streams first; the rest of the JSON follows and is parsed at the end.
+ * Streams the final structured answer from a prebuilt request body: forwards the
+ * `answer` text as it is produced (onToken) so the UI reveals it live, then
+ * returns the fully parsed result. `answer` is first in the schema, so it streams
+ * first; the rest of the JSON follows and is parsed at the end.
  */
-async function generateStream(
-  question: string,
-  context: Json,
-  history: ReadonlyArray<{ role: "user" | "assistant"; text: string }>,
+async function streamStructuredBody(
+  requestBody: unknown,
   onToken: (delta: string) => void,
 ) {
-  const project = process.env.VERTEX_AI_PROJECT_ID;
-  const location = process.env.VERTEX_AI_LOCATION ?? "us-east4";
-  const model = process.env.VERTEX_AI_COPILOT_MODEL;
-  if (!project || !model) throw new Error("VERTEX_AI_COPILOT_NOT_CONFIGURED");
   const token = await cloudAccessToken();
-  const response = await fetch(
-    `https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`,
-    {
-      method: "POST",
-      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-      body: JSON.stringify(copilotRequestBody(question, context, history)),
-    },
-  );
+  const response = await fetch(vertexUrl("streamGenerateContent"), {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify(requestBody),
+  });
   if (!response.ok || !response.body)
     throw new Error(`VERTEX_AI_COPILOT_FAILED:${response.status}`);
   const reader = response.body.getReader();
@@ -507,6 +449,277 @@ async function generateStream(
     }
   }
   return responseSchema.parse(JSON.parse(raw));
+}
+
+// The agentic retrieval loop. Instead of dumping every collection into context,
+// the model is handed a cheap project overview and two READ-ONLY tools, and it
+// pulls only what a given question needs. Both tools are clamped server-side to
+// the caller's permitted projects — the model cannot widen its own scope by
+// naming a project id it was not granted, and no tool writes, sends, or executes
+// anything (that stays with the human-approved command path).
+const COPILOT_MAX_TOOL_ITERATIONS = 4;
+
+const COPILOT_RETRIEVAL_INSTRUCTION =
+  "You are StudioCue Event Copilot for a studio operator. You are given the operator's question and a compact overview of every project they can see (id, name, type, event date, state, readiness score). Use the read-only tools to fetch exactly the detail the question needs, then stop calling tools — a later step writes the final answer. For a question about one project, call get_project_detail with its id from the overview. For a portfolio question (who owes money, what is unsigned, which crew have not accepted), call find_across_projects. Do not call a tool if the overview already answers the question. Never invent data; rely only on tool results and the overview.";
+
+const COPILOT_TOOL_DECLARATIONS = [
+  {
+    name: "get_project_detail",
+    description:
+      "Full operational detail for ONE project: contract status, invoices (balanceCents, dueDate, status), crew assignments and their acceptance status, open tasks, schedule, insurance, questionnaire, and the readiness assessment. Pass a projectId taken from the supplied project overview.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        projectId: {
+          type: "STRING",
+          description: "Project id from the overview handed to you with the question.",
+        },
+      },
+      required: ["projectId"],
+    },
+  },
+  {
+    name: "find_across_projects",
+    description:
+      "Scan every project the operator can see and return only the records matching one dimension. Use for portfolio-wide questions. Returns slim records tagged with projectName and projectId.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        dimension: {
+          type: "STRING",
+          description: "Which cross-project condition to scan for.",
+          enum: [
+            "unpaid_invoices",
+            "unsigned_contracts",
+            "pending_crew",
+            "open_tasks",
+            "incomplete_questionnaires",
+          ],
+        },
+      },
+      required: ["dimension"],
+    },
+  },
+] as const;
+
+/** A short, human-readable status for the tool the agent just chose to call. */
+function toolStatusLabel(
+  name: string,
+  args: Record<string, unknown>,
+  projectNames: Map<string, string>,
+): string {
+  if (name === "get_project_detail") {
+    const id = typeof args.projectId === "string" ? args.projectId : "";
+    return `Reading ${projectNames.get(id) ?? "the project"}…`;
+  }
+  if (name === "find_across_projects") {
+    const labels: Record<string, string> = {
+      unpaid_invoices: "Checking balances across projects…",
+      unsigned_contracts: "Checking contract signatures…",
+      pending_crew: "Checking crew acceptance…",
+      open_tasks: "Checking open tasks…",
+      incomplete_questionnaires: "Checking questionnaires…",
+    };
+    return labels[String(args.dimension)] ?? "Scanning your projects…";
+  }
+  return "Looking that up…";
+}
+
+/** Runs one read-only tool, always clamped to the caller's permitted scope. */
+async function executeReadTool(
+  name: string,
+  args: Record<string, unknown>,
+  tenantId: string,
+  permitted: string[] | null,
+  projectNames: Map<string, string>,
+): Promise<Json> {
+  if (name === "get_project_detail") {
+    const projectId = typeof args.projectId === "string" ? args.projectId : "";
+    if (!projectId) return { error: "projectId is required" };
+    // An id outside the caller's grant reads nothing — scope is enforced here,
+    // never trusted from the model.
+    if (permitted && !permitted.includes(projectId))
+      return { error: "project not accessible" };
+    const scope = [projectId];
+    const [contracts, invoices, crew, tasks, schedules, insurance, questionnaires, readiness] =
+      await Promise.all([
+        scopedDocuments("contracts", tenantId, scope),
+        scopedDocuments("invoiceReferences", tenantId, scope),
+        scopedDocuments("crewAssignments", tenantId, scope),
+        scopedDocuments("tasks", tenantId, scope),
+        scopedDocuments("schedules", tenantId, scope),
+        scopedDocuments("insuranceRequests", tenantId, scope),
+        scopedDocuments("questionnaireResponses", tenantId, scope),
+        scopedDocuments("readinessAssessments", tenantId, scope),
+      ]);
+    return {
+      projectId,
+      name: projectNames.get(projectId) ?? projectId,
+      contracts,
+      invoices,
+      crew,
+      tasks,
+      schedules,
+      insurance,
+      questionnaires: questionnaires.map((item) => ({
+        id: item.id,
+        projectId: item.projectId,
+        planningPackage: item.planningPackage,
+        approvalState: item.approvalState,
+      })),
+      readiness: readiness[0] ?? null,
+    };
+  }
+  if (name === "find_across_projects") {
+    const dimension = typeof args.dimension === "string" ? args.dimension : "";
+    const tag = (row: Json & { id: string }) => ({
+      ...row,
+      projectName: projectNames.get(String(row.projectId ?? "")) ?? null,
+    });
+    const lower = (value: unknown) => String(value ?? "").toLowerCase();
+    if (dimension === "unpaid_invoices") {
+      const rows = await scopedDocuments("invoiceReferences", tenantId, permitted);
+      return {
+        dimension,
+        matches: rows.filter((row) => Number(row.balanceCents ?? 0) > 0).map(tag),
+      };
+    }
+    if (dimension === "unsigned_contracts") {
+      const rows = await scopedDocuments("contracts", tenantId, permitted);
+      const signed = new Set(["signed", "completed", "complete", "executed"]);
+      return {
+        dimension,
+        matches: rows.filter((row) => !signed.has(lower(row.status))).map(tag),
+      };
+    }
+    if (dimension === "pending_crew") {
+      const rows = await scopedDocuments("crewAssignments", tenantId, permitted);
+      return {
+        dimension,
+        matches: rows.filter((row) => lower(row.status) !== "accepted").map(tag),
+      };
+    }
+    if (dimension === "open_tasks") {
+      const rows = await scopedDocuments("tasks", tenantId, permitted);
+      const done = new Set(["done", "completed", "complete", "closed"]);
+      return {
+        dimension,
+        matches: rows.filter((row) => !done.has(lower(row.status))).map(tag),
+      };
+    }
+    if (dimension === "incomplete_questionnaires") {
+      const rows = await scopedDocuments("questionnaireResponses", tenantId, permitted);
+      return {
+        dimension,
+        matches: rows
+          .filter((row) => lower(row.status ?? row.approvalState) !== "complete")
+          .map((row) => ({
+            id: row.id,
+            projectId: row.projectId,
+            status: row.status ?? row.approvalState ?? null,
+            projectName: projectNames.get(String(row.projectId ?? "")) ?? null,
+          })),
+      };
+    }
+    return { error: `unknown dimension: ${dimension}` };
+  }
+  return { error: `unknown tool: ${name}` };
+}
+
+type ModelPart = {
+  text?: string;
+  functionCall?: { name: string; args?: Record<string, unknown> };
+};
+
+/**
+ * Reason → retrieve loop. Returns the accumulated `contents` (including every
+ * function-call and function-response turn) for the final answer call, plus the
+ * set of project ids the agent actually looked at (for citation scoping). The
+ * loop ends when the model stops requesting tools, or at the iteration cap — a
+ * bound on cost and latency; the final answer call has no tools, so it always
+ * resolves to an answer regardless.
+ */
+async function runToolLoop(
+  question: string,
+  history: ReadonlyArray<{ role: "user" | "assistant"; text: string }>,
+  projectOverview: unknown,
+  tenantId: string,
+  permitted: string[] | null,
+  projectNames: Map<string, string>,
+  onTool: (name: string, args: Record<string, unknown>) => void,
+): Promise<{ contents: unknown[]; referenced: Set<string> }> {
+  const referenced = new Set<string>();
+  const contents: unknown[] = [
+    ...history.map((turn) => ({
+      role: turn.role === "assistant" ? "model" : "user",
+      parts: [{ text: turn.text }],
+    })),
+    {
+      role: "user",
+      parts: [
+        {
+          text: JSON.stringify({
+            question,
+            projectOverview,
+            asOf: new Date().toISOString(),
+          }),
+        },
+      ],
+    },
+  ];
+  for (let iteration = 0; iteration < COPILOT_MAX_TOOL_ITERATIONS; iteration++) {
+    const token = await cloudAccessToken();
+    const response = await fetch(vertexUrl("generateContent"), {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: COPILOT_RETRIEVAL_INSTRUCTION }] },
+        contents,
+        tools: [{ functionDeclarations: COPILOT_TOOL_DECLARATIONS }],
+        toolConfig: { functionCallingConfig: { mode: "AUTO" } },
+        generationConfig: {
+          temperature: 0,
+          thinkingConfig: { thinkingBudget: COPILOT_THINKING_BUDGET },
+        },
+      }),
+    });
+    if (!response.ok) throw new Error(`VERTEX_AI_COPILOT_FAILED:${response.status}`);
+    const body = asRecord(await response.json());
+    const candidates = Array.isArray(body.candidates) ? body.candidates : [];
+    const parts = (
+      Array.isArray(asRecord(asRecord(candidates[0]).content).parts)
+        ? (asRecord(asRecord(candidates[0]).content).parts as unknown[])
+        : []
+    ) as ModelPart[];
+    const calls = parts.filter((part) => part.functionCall);
+    if (!calls.length) return { contents, referenced };
+    contents.push({ role: "model", parts });
+    for (const part of calls) {
+      const call = part.functionCall;
+      if (!call) continue;
+      const callArgs = call.args ?? {};
+      if (call.name === "get_project_detail" && typeof callArgs.projectId === "string")
+        referenced.add(callArgs.projectId);
+      onTool(call.name, callArgs);
+      const result = await executeReadTool(
+        call.name,
+        callArgs,
+        tenantId,
+        permitted,
+        projectNames,
+      );
+      const matches = Array.isArray((result as Json).matches)
+        ? ((result as Json).matches as Json[])
+        : [];
+      for (const match of matches)
+        if (typeof match.projectId === "string") referenced.add(match.projectId);
+      contents.push({
+        role: "user",
+        parts: [{ functionResponse: { name: call.name, response: result } }],
+      });
+    }
+  }
+  return { contents, referenced };
 }
 
 /**
@@ -952,55 +1165,55 @@ export const aiCopilotCommand = onRequest(
       await db.runTransaction((transaction) =>
         consumeAiQuota(transaction, db, input.tenantId, now),
       );
-      const [
-        projects,
-        contracts,
-        invoices,
-        assignments,
-        readiness,
-        tasks,
-        schedules,
-        insurance,
-        vendors,
-        questionnaires,
-      ] =
-        await Promise.all([
-          scopedDocuments("projects", input.tenantId, permittedProjectIds),
-          scopedDocuments("contracts", input.tenantId, permittedProjectIds),
-          scopedDocuments("invoiceReferences", input.tenantId, permittedProjectIds),
-          scopedDocuments("crewAssignments", input.tenantId, permittedProjectIds),
-          scopedDocuments("readinessAssessments", input.tenantId, permittedProjectIds),
-          scopedDocuments("tasks", input.tenantId, permittedProjectIds),
-          scopedDocuments("schedules", input.tenantId, permittedProjectIds),
-          scopedDocuments("insuranceRequests", input.tenantId, permittedProjectIds),
-          scopedDocuments("vendors", input.tenantId, permittedProjectIds),
-          scopedDocuments("questionnaireResponses", input.tenantId, permittedProjectIds),
-        ]);
+      // Only the two collections the deterministic layer needs are loaded up
+      // front: `projects` (the overview + citation candidates + primary-project
+      // pick) and `readiness` (the job object's authoritative counts). Every
+      // heavier per-project record is pulled on demand by the agent, so this
+      // scales to a large portfolio without dumping it all into one prompt.
+      const [projects, readiness] = await Promise.all([
+        scopedDocuments("projects", input.tenantId, permittedProjectIds),
+        scopedDocuments("readinessAssessments", input.tenantId, permittedProjectIds),
+      ]);
       const citationCandidates = projects.map((project) => ({
         label: String(project.name ?? project.id),
         href: `/studio/projects/${String(project.id)}`,
       }));
-      const contextPack: Json = {
-        asOf: now,
-        projects,
-        contracts,
-        invoices,
-        crewAssignments: assignments,
-        readiness,
-        tasks,
-        schedules,
-        insurance,
-        vendors,
-        planningPackages: questionnaires
-          .filter((item) => item.planningPackage)
-          .map((item) => ({ id: item.id, projectId: item.projectId, planningPackage: item.planningPackage })),
-        citationCandidates,
-      };
-      // Streaming: open an SSE response and forward the answer as it's produced,
-      // so the UI reveals it live instead of waiting on the whole turn (Pro is
-      // ~2x slower than Flash). Everything after — filtering, jobObject,
-      // persistence — is identical to the non-streaming path; only the delivery
-      // of the final payload differs (a `done` event vs a JSON body).
+      const projectNames = new Map(
+        projects.map((project) => [String(project.id), String(project.name ?? project.id)]),
+      );
+      // Readiness signal comes from the loaded assessments (the authoritative
+      // source), never the project's cached readinessScore, which drifts against
+      // the checkpoints. Keyed once here and reused for the job object below.
+      const readinessByProject = new Map(
+        readiness.map((item) => [
+          String((item as Record<string, unknown>).projectId ?? ""),
+          item as Record<string, unknown>,
+        ]),
+      );
+      // The cheap overview the agent gets up front, so it resolves a project by
+      // name without a round-trip and pulls heavy detail only when needed.
+      const projectOverview = projects.map((project) => {
+        const assessment = readinessByProject.get(String(project.id));
+        return {
+          id: String(project.id),
+          name: project.name ?? null,
+          eventType: project.eventType ?? null,
+          eventDate: project.eventDate ?? null,
+          state: project.state ?? null,
+          ready: assessment ? Boolean(assessment.ready) : null,
+          openBlockers:
+            assessment && Array.isArray(assessment.blockingItems)
+              ? assessment.blockingItems.length
+              : null,
+        };
+      });
+
+      // Open the SSE response first so retrieval status ("Reading Smith
+      // Wedding…") and the streamed answer both push as they happen. The tool
+      // loop runs the read-only tools the model chooses; the final call carries
+      // no tools, so it must answer. Non-streaming callers get one JSON body and
+      // no interim status. Everything after — filtering, jobObject, persistence
+      // — is identical for both.
       const streaming = input.stream === true;
       if (streaming) {
         response.setHeader("content-type", "text/event-stream");
@@ -1011,11 +1224,21 @@ export const aiCopilotCommand = onRequest(
       const writeSSE = (obj: unknown) => {
         response.write(`data: ${JSON.stringify(obj)}\n\n`);
       };
+      const { contents: retrievalContents } = await runToolLoop(
+        input.question,
+        input.history ?? [],
+        projectOverview,
+        input.tenantId,
+        permittedProjectIds,
+        projectNames,
+        (name, toolArgs) => {
+          if (streaming) writeSSE({ status: toolStatusLabel(name, toolArgs, projectNames) });
+        },
+      );
+      const finalBody = finalAnswerBody(retrievalContents);
       const result = streaming
-        ? await generateStream(input.question, contextPack, input.history ?? [], (delta) =>
-            writeSSE({ token: delta }),
-          )
-        : await generate(input.question, contextPack, input.history ?? []);
+        ? await streamStructuredBody(finalBody, (delta) => writeSSE({ token: delta }))
+        : await generateStructuredBody(finalBody);
       const allowedLinks = new Set(citationCandidates.map((item) => item.href));
       const safeResult = {
         ...result,
@@ -1028,9 +1251,6 @@ export const aiCopilotCommand = onRequest(
         safeResult.citations[0]?.href.split("/").pop() ??
         input.projectId ??
         null;
-      const readinessByProject = new Map(
-        readiness.map((item) => [String((item as Record<string, unknown>).projectId ?? ""), item as Record<string, unknown>]),
-      );
       const primaryProject =
         (citedProjectId
           ? projects.find((project) => String((project as Record<string, unknown>).id) === citedProjectId)

@@ -154,6 +154,7 @@ export async function askCopilotStream(
     threadId?: string;
   },
   onToken: (delta: string) => void,
+  onStatus?: (label: string) => void,
 ): Promise<CopilotResult> {
   const endpoint = process.env.NEXT_PUBLIC_AI_FUNCTIONS_URL;
   if (!endpoint) throw new Error("AI Copilot is not configured.");
@@ -190,10 +191,12 @@ export async function askCopilotStream(
     if (!raw) return;
     const event = JSON.parse(raw) as {
       token?: string;
+      status?: string;
       done?: CopilotResult;
       error?: string;
     };
-    if (typeof event.token === "string") onToken(event.token);
+    if (typeof event.status === "string") onStatus?.(event.status);
+    else if (typeof event.token === "string") onToken(event.token);
     else if (event.done) done = event.done;
     else if (event.error)
       throw new Error(

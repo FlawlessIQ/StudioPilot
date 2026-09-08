@@ -71,6 +71,7 @@ export function CopilotWorkspace() {
   const [threadId, setThreadId] = useState<string | null>(null);
   const [threads, setThreads] = useState<CopilotThreadSummary[]>([]);
   const [streamingText, setStreamingText] = useState("");
+  const [statusText, setStatusText] = useState("");
   const started = turns.length > 0;
 
   const refreshThreads = useCallback(() => {
@@ -134,6 +135,7 @@ export function CopilotWorkspace() {
     setBusy(true);
     setError(null);
     setStreamingText("");
+    setStatusText("");
     try {
       const result = await askCopilotStream(
         {
@@ -144,6 +146,7 @@ export function CopilotWorkspace() {
           threadId: threadId ?? undefined,
         },
         (delta) => setStreamingText((prior) => prior + delta),
+        (label) => setStatusText(label),
       );
       setTurns((prior) => [...prior, { role: "assistant", result }]);
       if (result.threadId) setThreadId(result.threadId);
@@ -153,6 +156,7 @@ export function CopilotWorkspace() {
     } finally {
       setBusy(false);
       setStreamingText("");
+      setStatusText("");
     }
   }
 
@@ -268,8 +272,9 @@ export function CopilotWorkspace() {
               </h2>
             </section>
           ) : busy ? (
-            <p className="copilot-turn-thinking" role="status">
-              <LoaderCircle className="spin" size={15} /> Reviewing records…
+            <p className="copilot-turn-thinking" role="status" aria-live="polite">
+              <LoaderCircle className="spin" size={15} />{" "}
+              {statusText || "Reviewing records…"}
             </p>
           ) : null}
         </section>
