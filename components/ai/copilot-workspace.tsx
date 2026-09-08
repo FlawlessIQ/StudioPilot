@@ -237,7 +237,26 @@ export function CopilotWorkspace() {
   );
 }
 
+function reviewTrace(result: CopilotResult): Array<{ label: string; detail: string }> {
+  const trace: Array<{ label: string; detail: string }> = [];
+  const job = result.jobObject;
+  if (job?.readiness) {
+    trace.push({ label: "Readiness", detail: `${job.readiness.satisfied}/${job.readiness.total} clear` });
+  }
+  if (job?.attention.length) {
+    trace.push({ label: "Attention", detail: `${job.attention.length} flagged` });
+  }
+  if (result.citations.length) {
+    trace.push({ label: "Projects", detail: `${result.citations.length} referenced` });
+  }
+  if (result.facts.length) {
+    trace.push({ label: "Records", detail: `${result.facts.length} facts` });
+  }
+  return trace.slice(0, 4);
+}
+
 function AssistantTurn({ result }: { result: CopilotResult }) {
+  const trace = reviewTrace(result);
   return (
     <section className="panel copilot-result">
       <header>
@@ -247,6 +266,17 @@ function AssistantTurn({ result }: { result: CopilotResult }) {
           <small>Facts current as of {new Date(result.asOf).toLocaleString()}</small>
         </span>
       </header>
+      {trace.length ? (
+        <div className="cp-trace" aria-label="What the assistant reviewed">
+          {trace.map((step) => (
+            <span className="cp-trace-chip" key={step.label}>
+              <Check size={12} strokeWidth={3} />
+              <b>{step.label}</b>
+              <span>{step.detail}</span>
+            </span>
+          ))}
+        </div>
+      ) : null}
       <h2>{result.answer}</h2>
       {result.jobObject ? <JobObject job={result.jobObject} /> : null}
       {result.facts.length ? (
