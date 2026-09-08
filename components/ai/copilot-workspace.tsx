@@ -41,6 +41,17 @@ const prompts = [
   "Which upcoming projects have travel conflicts?",
 ];
 
+// Slash commands expand to a full grounded question the assistant already
+// answers. Typing "/" surfaces them; picking one fills the box (no auto-send).
+const SLASH_COMMANDS: Array<{ cmd: string; desc: string; question: string }> = [
+  { cmd: "/attention", desc: "Today's priorities across every job", question: "What needs my attention today?" },
+  { cmd: "/unstuck", desc: "What's blocking my next wedding and how to clear it", question: "What is blocking my next wedding, and how do I clear it?" },
+  { cmd: "/week", desc: "What's coming up this week and what it needs", question: "What's happening this week and what needs doing?" },
+  { cmd: "/unpaid", desc: "Clients with an outstanding balance", question: "Which clients have unpaid balances?" },
+  { cmd: "/crew", desc: "Crew assignments that need attention", question: "Which crew assignments need attention?" },
+  { cmd: "/notready", desc: "Projects not yet ready for their event", question: "Which projects are not ready, and why?" },
+];
+
 type ChatTurn =
   | { role: "user"; text: string }
   | { role: "assistant"; result: CopilotResult };
@@ -177,12 +188,29 @@ export function CopilotWorkspace() {
             ))}
           </div>
         ) : null}
+        {question.startsWith("/") ? (
+          <div className="cp-slash" role="listbox" aria-label="Commands">
+            {SLASH_COMMANDS.filter((c) =>
+              c.cmd.startsWith(question.split(/\s/)[0].toLowerCase()),
+            ).map((c) => (
+              <button
+                key={c.cmd}
+                type="button"
+                className="cp-slash-item"
+                onClick={() => setQuestion(c.question)}
+              >
+                <span className="cp-slash-cmd">{c.cmd}</span>
+                <span className="cp-slash-desc">{c.desc}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
         <form onSubmit={(event) => void submit(event)}>
           <label>
             <span>
               {started
                 ? "Ask a follow-up — it keeps the conversation's context"
-                : "Ask about operations, risk, payments, contracts, or crew"}
+                : "Ask about operations, risk, payments, contracts, or crew — or type / for a command"}
             </span>
             <textarea
               required
