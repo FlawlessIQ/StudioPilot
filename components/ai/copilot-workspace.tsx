@@ -450,7 +450,10 @@ function AssistantTurn({
           ))}
         </footer>
       ) : null}
-      <PreparedActions citations={result.citations} />
+      <PreparedActions
+        citations={result.citations}
+        proposalActionIds={result.proposalActionIds}
+      />
     </section>
   );
 }
@@ -574,8 +577,10 @@ const POST_EVENT_TRIGGERS = new Set<MessageDraftTrigger>([
  */
 function PreparedActions({
   citations,
+  proposalActionIds,
 }: {
   citations: Array<{ label: string; href: string }>;
+  proposalActionIds?: string[];
 }) {
   const workspace = useWorkspace();
   const [busy, setBusy] = useState<string | null>(null);
@@ -584,7 +589,19 @@ function PreparedActions({
   // appear inline below — the owner approves and sends here instead of leaving
   // for the review queue. (P2 of the AI command-chat plan.)
   const [draftedIds, setDraftedIds] = useState<string[]>([]);
+  // Cards decided inline (approved/rejected/dismissed) — dropped from view.
+  // Works for both manual drafts and copilot proposals, since proposals come
+  // from a prop we can't mutate.
+  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const aiState = useTenantDocuments("aiActions");
+  // The copilot's own proposed emails were created server-side as review-required
+  // cards. useTenantDocuments is a cached fetch, not a live subscription, so
+  // refresh once per answer to load the just-created actions. This effect only
+  // syncs the external cache — no setState — so it can't cascade renders.
+  const proposalKey = (proposalActionIds ?? []).join(",");
+  useEffect(() => {
+    if (proposalKey) refreshTenantRecords("aiActions");
+  }, [proposalKey]);
   const projectState = useTenantDocuments("projects");
   const projectCitation = citations.find((citation) =>
     citation.href.startsWith("/studio/projects/"),
@@ -606,11 +623,21 @@ function PreparedActions({
     (option) => !(eventInFuture && POST_EVENT_TRIGGERS.has(option.trigger)),
   );
 
+  // Shown inline: the copilot's proposals plus anything prepared from the chips,
+  // minus cards already decided. Proposals lead so they read first.
+  const shownIds = [...(proposalActionIds ?? []), ...draftedIds].filter(
+    (id, index, all) => all.indexOf(id) === index && !dismissedIds.includes(id),
+  );
   const inlineActions = (aiState.records ?? []).filter((record) =>
-    draftedIds.includes(record.id),
+    shownIds.includes(record.id),
   );
 
-  if (!projectId || !workspace.tenantId) return null;
+  // Render when there is a project to prepare manual next steps for, OR when the
+  // copilot proposed its own actions for this answer (which carry their own
+  // project and can appear even on a portfolio-wide answer).
+  if (!workspace.tenantId) return null;
+  if (!projectId && !inlineActions.length && !proposalActionIds?.length)
+    return null;
 
   // Prepare one draft, returning its action id (or null in preview mode).
   async function draftFor(
@@ -685,13 +712,22 @@ function PreparedActions({
     setBusy(null);
   }
 
+  const proposalCount = proposalActionIds?.length ?? 0;
+
   return (
     <div className="copilot-prepared-actions">
-      <small>
-        Prepared next steps for {projectCitation?.label ?? "this project"} —
-        each draft appears below for you to review, edit, and send:
-      </small>
-      {visibleActionOptions.length > 1 ? (
+      {proposalCount ? (
+        <small>
+          StudioCue drafted {proposalCount === 1 ? "an email" : `${proposalCount} emails`}{" "}
+          for you — review, edit, and send below. Nothing is sent until you approve.
+        </small>
+      ) : projectId ? (
+        <small>
+          Prepared next steps for {projectCitation?.label ?? "this project"} —
+          each draft appears below for you to review, edit, and send:
+        </small>
+      ) : null}
+      {projectId && visibleActionOptions.length > 1 ? (
         <button
           className="button button-dark copilot-prepare-all"
           disabled={busy !== null}
@@ -706,23 +742,25 @@ function PreparedActions({
           Prepare all {visibleActionOptions.length} next steps
         </button>
       ) : null}
-      <div>
-        {visibleActionOptions.map((option) => (
-          <button
-            disabled={busy !== null}
-            key={option.trigger}
-            onClick={() => void prepare(option.trigger, option.label)}
-            type="button"
-          >
-            {busy === option.trigger ? (
-              <LoaderCircle className="spin" size={13} />
-            ) : (
-              <Sparkles size={13} />
-            )}
-            {option.label}
-          </button>
-        ))}
-      </div>
+      {projectId ? (
+        <div>
+          {visibleActionOptions.map((option) => (
+            <button
+              disabled={busy !== null}
+              key={option.trigger}
+              onClick={() => void prepare(option.trigger, option.label)}
+              type="button"
+            >
+              {busy === option.trigger ? (
+                <LoaderCircle className="spin" size={13} />
+              ) : (
+                <Sparkles size={13} />
+              )}
+              {option.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {inlineActions.length ? (
         <div className="copilot-inline-approvals">
           {inlineActions.map((action) => (
@@ -730,7 +768,9 @@ function PreparedActions({
               action={action}
               key={action.id}
               onDecision={(id) =>
-                setDraftedIds((prior) => prior.filter((value) => value !== id))
+                setDismissedIds((prior) =>
+                  prior.includes(id) ? prior : [...prior, id],
+                )
               }
             />
           ))}

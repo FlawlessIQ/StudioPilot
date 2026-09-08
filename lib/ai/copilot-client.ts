@@ -35,6 +35,12 @@ export type CopilotResult = {
   jobObject?: CopilotJobObject | null;
   /** The conversation this answer belongs to. */
   threadId?: string;
+  /**
+   * Ids of aiActions the copilot proposed for this answer (client-email drafts),
+   * already created server-side as review-required approval cards. The chat
+   * renders them inline so the owner reviews and sends with one tap.
+   */
+  proposalActionIds?: string[];
 };
 
 export type CopilotThreadSummary = {

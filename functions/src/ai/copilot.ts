@@ -101,6 +101,22 @@ const responseSchema = z.object({
       }),
     )
     .max(12),
+  // Optional client emails the copilot proposes when the answer implies an
+  // outward step (an overdue balance, an expired offer, a missing form). Each
+  // becomes a human-approval card; nothing is ever sent without the owner's tap,
+  // and the recipient is resolved server-side, never authored by the model.
+  proposals: z
+    .array(
+      z.object({
+        projectId: z.string().min(1),
+        subject: z.string().min(1).max(200),
+        body: z.string().min(1).max(4000),
+        purpose: z.string().min(1).max(160),
+      }),
+    )
+    .max(3)
+    .optional()
+    .default([]),
 });
 
 const internalRoles = new Set([
@@ -318,6 +334,19 @@ const RESPONSE_SCHEMA_JSON = {
         required: ["label", "href"],
       },
     },
+    proposals: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          projectId: { type: "STRING" },
+          subject: { type: "STRING" },
+          body: { type: "STRING" },
+          purpose: { type: "STRING" },
+        },
+        required: ["projectId", "subject", "body", "purpose"],
+      },
+    },
   },
   required: ["answer", "facts", "suggestions", "citations"],
 } as const;
@@ -364,7 +393,8 @@ async function generateStructuredBody(requestBody: unknown) {
 const COPILOT_THINKING_BUDGET = 256;
 
 const COPILOT_SYSTEM_INSTRUCTION =
-  "You are StudioCue Event Copilot, in an ongoing conversation with a studio operator. Earlier turns are provided for context, but answer the latest question only from the tenant-scoped facts supplied with it. Never invent prices, payments, signatures, dates, statuses, people, or readiness. Clearly separate facts from suggestions. Do not claim to execute actions. Readiness, insurance approval, contract completion, payment status, and permissions are deterministic system facts and cannot be changed by you. Keep the answer concise and operational. Monetary amounts in the facts are integer cents — render them as US dollars (e.g. 56970 becomes $569.70) and never describe a value as a number of 'cents'. Citations must use only href values present in the supplied citationCandidates.";
+  "You are StudioCue Event Copilot, in an ongoing conversation with a studio operator. Earlier turns are provided for context, but answer the latest question only from the tenant-scoped facts supplied with it. Never invent prices, payments, signatures, dates, statuses, people, or readiness. Clearly separate facts from suggestions. Do not claim to execute actions. Readiness, insurance approval, contract completion, payment status, and permissions are deterministic system facts and cannot be changed by you. Keep the answer concise and operational. Monetary amounts in the facts are integer cents — render them as US dollars (e.g. 56970 becomes $569.70) and never describe a value as a number of 'cents'. Citations must use only href values present in the supplied citationCandidates." +
+  " You may also propose up to three client emails in `proposals` when the answer implies a concrete outward step to a client — a reminder for an overdue balance, a nudge for an expired crew offer or an unsigned contract, a request to finish an overdue questionnaire. Each proposal is a DRAFT the operator reviews and sends with one tap; you never send anything. Write a specific, warm, professional subject and body grounded strictly in the supplied facts — do not invent amounts, dates, or names, and do not address the recipient by a guessed name or write an email address (the system fills the real recipient). `projectId` must be one from the supplied project overview. Propose an email only when it is genuinely the next step; leave `proposals` empty for purely informational questions, and never propose the same email twice.";
 
 /**
  * The final-answer request. The agent's gathered retrieval already lives in
@@ -738,6 +768,132 @@ async function runToolLoop(
     contents.push({ role: "user", parts: responseParts });
   }
   return { contents, referenced };
+}
+
+type CopilotProposal = {
+  projectId: string;
+  subject: string;
+  body: string;
+  purpose: string;
+};
+
+/**
+ * Turns the copilot's proposed client emails into human-approval cards. Each is
+ * created exactly like an `aiMessageDraftCommand` draft — capability
+ * `inquiry_reply_draft`, `draft_requires_review`, `review_required` — so the
+ * existing AiQueueCard renders it and approving dispatches the email through the
+ * same `approvedCommunicationDispatch` path. The MODEL writes only the subject,
+ * body, and purpose; the recipient is resolved HERE from the project's client
+ * contact and is never model-authored, so the copilot can't email an address it
+ * invented. A proposal for a project outside the caller's scope is dropped.
+ */
+async function buildProposalActions(
+  tenantId: string,
+  actorId: string,
+  now: string,
+  proposals: ReadonlyArray<CopilotProposal>,
+  allowedProjectIds: Set<string>,
+): Promise<Array<{ id: string; action: Record<string, unknown> }>> {
+  const db = getFirestore();
+  const model = process.env.VERTEX_AI_COPILOT_MODEL ?? "vertex_ai";
+  const built: Array<{ id: string; action: Record<string, unknown> }> = [];
+  for (const proposal of proposals) {
+    if (!allowedProjectIds.has(proposal.projectId)) continue;
+    const projectDoc = await db.doc(`projects/${proposal.projectId}`).get();
+    if (!projectDoc.exists || projectDoc.get("tenantId") !== tenantId) continue;
+    const projectName = String(projectDoc.get("name") ?? "Project");
+    const sourceReferences: Array<Record<string, unknown>> = [
+      {
+        entityType: "project",
+        entityId: proposal.projectId,
+        versionId: null,
+        label: projectName,
+        locator: null,
+      },
+    ];
+    let recipientEmail: string | null = null;
+    let recipientName: string | null = null;
+    let contactId: string | null = null;
+    const contactIds = Array.isArray(projectDoc.get("clientContactIds"))
+      ? (projectDoc.get("clientContactIds") as unknown[]).map(String)
+      : [];
+    if (contactIds[0]) {
+      const contact = await db.doc(`contacts/${contactIds[0]}`).get();
+      if (contact.exists && contact.get("tenantId") === tenantId) {
+        recipientEmail =
+          (typeof contact.get("email") === "string" ? contact.get("email") : null) || null;
+        recipientName =
+          (typeof contact.get("displayName") === "string"
+            ? contact.get("displayName")
+            : null) || null;
+        contactId = contact.id;
+        sourceReferences.push({
+          entityType: "contact",
+          entityId: contact.id,
+          versionId: null,
+          label: recipientName ?? "Client contact",
+          locator: null,
+        });
+      }
+    }
+    const issues = recipientEmail
+      ? []
+      : [
+          {
+            code: "NO_RECIPIENT_EMAIL",
+            severity: "warning" as const,
+            message: "No client email is on file; add one before this draft can be sent.",
+            field: null,
+          },
+        ];
+    const id = `ai_${randomUUID()}`;
+    built.push({
+      id,
+      action: {
+        id,
+        tenantId,
+        projectId: proposal.projectId,
+        actorId,
+        title: proposal.purpose.slice(0, 200),
+        capability: "inquiry_reply_draft",
+        authorityBoundary: "draft_requires_review",
+        status: "review_required",
+        modelProvider: "vertex_ai",
+        modelVersion: model,
+        instructionVersion: "copilot_proposal_v1",
+        outputSchemaVersion: "copilot_proposal_output_v1",
+        sourceReferences,
+        structuredOutput: {
+          subject: proposal.subject,
+          body: proposal.body,
+          recipientEmail,
+          recipientName,
+          projectName,
+          contactId,
+          purpose: proposal.purpose,
+        },
+        confidence: { overall: 0.7, label: "medium", uncertainFields: [] },
+        validation: { status: issues.length ? "pending" : "passed", issues },
+        decision: null,
+        downstreamCommand: null,
+        usage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          estimatedCostMicros: 0,
+          latencyMs: 0,
+          estimatedMinutesSaved: 10,
+        },
+        failure: null,
+        snoozedUntil: null,
+        archivedAt: null,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: actorId,
+        updatedBy: actorId,
+      },
+    });
+  }
+  return built;
 }
 
 /**
@@ -1258,8 +1414,12 @@ export const aiCopilotCommand = onRequest(
         ? await streamStructuredBody(finalBody, (delta) => writeSSE({ token: delta }))
         : await generateStructuredBody(finalBody);
       const allowedLinks = new Set(citationCandidates.map((item) => item.href));
+      // `proposals` is the model's raw draft input; the client renders the
+      // created approval cards by id, so it is not echoed in the client result.
       const safeResult = {
-        ...result,
+        answer: result.answer,
+        facts: result.facts,
+        suggestions: result.suggestions,
         citations: result.citations.filter((item) => allowedLinks.has(item.href)),
       };
       // The project the answer is really about: the first cited project, else
@@ -1284,8 +1444,25 @@ export const aiCopilotCommand = onRequest(
             readinessByProject.get(String((primaryProject as Record<string, unknown>).id)) ?? null,
           )
         : null;
+      // The copilot's proposed client emails become human-approval cards. The
+      // model wrote the subject/body; the recipient is resolved server-side, and
+      // a proposal for a project outside the caller's scope is dropped.
+      const allowedProjectIds = new Set(
+        projects.map((project) => String((project as Record<string, unknown>).id)),
+      );
+      const proposalActions = await buildProposalActions(
+        input.tenantId,
+        identity.uid,
+        now,
+        (result.proposals ?? []) as CopilotProposal[],
+        allowedProjectIds,
+      );
+      const proposalActionIds = proposalActions.map((entry) => entry.id);
       const interactionId = `ai_${randomUUID()}`;
       const batch = db.batch();
+      for (const entry of proposalActions) {
+        batch.set(db.doc(`aiActions/${entry.id}`), entry.action);
+      }
       batch.create(db.doc(`aiInteractions/${interactionId}`), {
         id: interactionId,
         tenantId: input.tenantId,
@@ -1296,7 +1473,7 @@ export const aiCopilotCommand = onRequest(
         question: input.question,
         // Store the full client-facing result (incl. jobObject + asOf) so a
         // resumed thread re-renders faithfully, not just the bare answer.
-        result: { ...safeResult, jobObject, asOf: now },
+        result: { ...safeResult, jobObject, asOf: now, proposalActionIds },
         model: process.env.VERTEX_AI_COPILOT_MODEL,
         createdAt: now,
       });
@@ -1356,7 +1533,14 @@ export const aiCopilotCommand = onRequest(
       });
       batch.create(db.doc(`productEvents/${preparedEvent.id}`), preparedEvent);
       await batch.commit();
-      const payload = { ...safeResult, interactionId, asOf: now, jobObject, threadId };
+      const payload = {
+        ...safeResult,
+        interactionId,
+        asOf: now,
+        jobObject,
+        threadId,
+        proposalActionIds,
+      };
       if (streaming) {
         writeSSE({ done: payload });
         response.end();
