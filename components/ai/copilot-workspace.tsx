@@ -718,8 +718,9 @@ function PreparedActions({
     <div className="copilot-prepared-actions">
       {proposalCount ? (
         <small>
-          StudioCue drafted {proposalCount === 1 ? "an email" : `${proposalCount} emails`}{" "}
-          for you — review, edit, and send below. Nothing is sent until you approve.
+          StudioCue prepared {proposalCount === 1 ? "this" : `these ${proposalCount}`}{" "}
+          for you — review, edit, and approve below. Nothing happens until you
+          approve.
         </small>
       ) : projectId ? (
         <small>
