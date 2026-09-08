@@ -15,7 +15,10 @@ import {
 } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { AiQueueCard } from "@/components/ai/ai-approval-queue";
-import { useTenantDocuments } from "@/components/live/tenant-records";
+import {
+  refreshTenantRecords,
+  useTenantDocuments,
+} from "@/components/live/tenant-records";
 import { askCopilot, type CopilotResult } from "@/lib/ai/copilot-client";
 import {
   requestMessageDraft,
@@ -282,6 +285,11 @@ function PreparedActions({
         setDraftedIds((prior) =>
           prior.includes(result.actionId!) ? prior : [result.actionId!, ...prior],
         );
+        // useTenantDocuments is a cached fetch, not a live subscription — the
+        // aiActions snapshot was read at page load, before this draft existed.
+        // Refresh it so the just-created record loads and its inline approval
+        // card renders (without this the card never appeared).
+        refreshTenantRecords("aiActions");
       } else {
         setNotice(
           `Preview: "${label}" would be prepared as an approval card here.`,
