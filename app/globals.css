@@ -11045,6 +11045,25 @@ textarea:focus-visible {
 .copilot-prepared-actions p{margin:0;font-size:12px;color:var(--muted,#6b7570)}
 .copilot-prepared-actions p a{font-weight:700}
 
+/* Conversational flows (gather -> select -> form -> act), rendered inline. */
+.copilot-flow{margin-top:14px;display:grid;gap:12px;padding:16px}
+.copilot-flow-head{display:flex;gap:10px;align-items:flex-start}
+.copilot-flow-head strong{display:block;font-size:14px}
+.copilot-flow-head small{display:block;color:var(--muted,#6b7570);font-size:12px;margin-top:2px}
+.copilot-flow-options{display:grid;gap:8px}
+.copilot-flow-option{display:grid;gap:2px;text-align:left;border:1px solid var(--border,#dfe3de);border-radius:12px;background:var(--surface,#fff);padding:11px 14px;font:inherit;cursor:pointer}
+.copilot-flow-option:hover:not(:disabled){background:#f6f8f5;border-color:var(--accent,#2f6f4f)}
+.copilot-flow-option:disabled{opacity:.6;cursor:not-allowed}
+.copilot-flow-option strong{font-size:13px}
+.copilot-flow-option small{font-size:11.5px;color:var(--muted,#6b7570)}
+.copilot-flow-form{display:grid;gap:10px}
+.copilot-flow-form>p{margin:0;font-size:13px}
+.copilot-flow-form label{display:grid;gap:4px;font-size:12px;font-weight:650}
+.copilot-flow-form label span{color:var(--muted,#6b7570);font-weight:600}
+.copilot-flow-form input{border:1px solid var(--border,#dfe3de);border-radius:9px;padding:9px 11px;font:inherit;font-size:14px}
+.copilot-flow-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:2px}
+.copilot-flow-actions button:not(.button-dark){border:1px solid var(--border,#dfe3de);border-radius:99px;background:var(--surface,#fff);padding:8px 14px;font:inherit;font-size:12px;font-weight:650;cursor:pointer}
+
 /* The Journey: one thread per couple, one action at a time. */
 .project-journey{display:grid;gap:4px}
 .project-journey-progress{font:600 15px var(--font-display,inherit);color:var(--muted,#6b7570);border:1px solid var(--border,#e3e6e2);border-radius:99px;padding:6px 13px;align-self:start}

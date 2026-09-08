@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { AiQueueCard } from "@/components/ai/ai-approval-queue";
+import { FlowRunner } from "@/components/ai/flow-runner";
 import {
   refreshTenantRecords,
   useTenantDocuments,
@@ -454,6 +455,7 @@ function AssistantTurn({
         citations={result.citations}
         proposalActionIds={result.proposalActionIds}
       />
+      {result.flow ? <FlowRunner flow={result.flow} /> : null}
     </section>
   );
 }

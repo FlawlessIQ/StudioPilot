@@ -1,0 +1,267 @@
+"use client";
+
+import { useState } from "react";
+import { LoaderCircle, Send, Users } from "lucide-react";
+import { useTenantDocuments } from "@/components/live/tenant-records";
+import { sendCrewCommand } from "@/lib/crew/command-client";
+import { crewPublicError } from "@/lib/crew/public-error";
+import {
+  rankCrewCandidates,
+  type CrewCandidateInput,
+} from "@/features/crew/cascade";
+import type { CopilotFlow } from "@/lib/ai/copilot-client";
+
+const str = (value: unknown) => (typeof value === "string" ? value : "");
+const num = (value: unknown) => (typeof value === "number" ? value : 0);
+const arr = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+
+/**
+ * A copilot-launched conversational flow: gather → select → form → act. The
+ * model only chose the flow type + project; every option shown is a real record,
+ * the operator makes the choices and types any money, and the final tap runs the
+ * real command. Nothing the model can't be trusted with is authored by the model.
+ */
+export function FlowRunner({ flow }: { flow: CopilotFlow }) {
+  if (flow.type === "crew_offer") return <CrewOfferFlow flow={flow} />;
+  return null;
+}
+
+// Map a project's event type to the crew specialty the ranker matches on.
+const SPECIALTY: Record<string, string> = {
+  Wedding: "weddings",
+  Corporate: "corporate",
+  Sports: "sports",
+};
+
+type Requirement = {
+  id: string;
+  name: string;
+  kind: "w9" | "insurance" | "acknowledgement";
+  required: boolean;
+  dueAt: string | null;
+  instructions: string;
+};
+
+// The same obligations a cascade or direct offer carries, so every path agrees.
+const REQUIREMENTS: Requirement[] = [
+  { id: "w9", name: "W-9 on file", kind: "w9", required: true, dueAt: null, instructions: "Upload a current signed W-9 for studio review." },
+  { id: "insurance", name: "Liability insurance", kind: "insurance", required: true, dueAt: null, instructions: "Upload a current certificate of liability insurance." },
+  { id: "schedule", name: "Current schedule acknowledged", kind: "acknowledgement", required: true, dueAt: null, instructions: "Review and acknowledge the current schedule before event day." },
+];
+
+function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
+  const projectId = flow.projectId;
+  const { records: projects } = useTenantDocuments("projects");
+  const { records: profiles } = useTenantDocuments("crewProfiles");
+  const { records: availability } = useTenantDocuments("crewAvailability");
+  const { records: assignments } = useTenantDocuments("crewAssignments");
+  const { records: schedules } = useTenantDocuments("schedules");
+
+  const project = (projects ?? []).find((item) => item.id === projectId);
+  const eventDate = str(project?.eventDate) || new Date().toISOString().slice(0, 10);
+  const startsAt = new Date(`${eventDate}T12:00:00`).toISOString();
+  const endsAt = new Date(`${eventDate}T20:00:00`).toISOString();
+  const roleSpecialty = SPECIALTY[str(project?.eventType)] ?? "events";
+  const serviceArea = str(project?.city);
+
+  const latestSchedule = (schedules ?? [])
+    .filter((item) => item.projectId === projectId)
+    .filter((item) => !["superseded", "archived"].includes(str(item.status)))
+    .sort((a, b) => num(b.version) - num(a.version))[0];
+
+  // Anyone already offered or booked on this job is not a candidate for a
+  // second offer on it — the server would happily write a duplicate. (The React
+  // Compiler memoizes these derivations; no manual useMemo.)
+  const spokenFor = new Set<string>();
+  for (const item of assignments ?? []) {
+    if (item.projectId === projectId && !["declined", "cancelled"].includes(str(item.status)))
+      spokenFor.add(str(item.crewProfileId));
+  }
+
+  // Candidate assembly + ranking mirrors the crew cascade workspace, so the
+  // copilot flow and that screen agree on who is available.
+  const candidates: CrewCandidateInput[] = (profiles ?? [])
+    .filter((p) => p.active === true)
+    .map((p) => ({
+      id: str(p.id),
+      name: str(p.name),
+      active: p.active === true,
+      specialties: arr(p.specialties).map(String),
+      serviceAreas: arr(p.serviceAreas).map(String),
+      travelRadiusMiles: num(p.travelRadiusMiles),
+      preferenceRank: typeof p.preferenceRank === "number" ? p.preferenceRank : null,
+      w9Status: str(p.w9Status) || "unknown",
+      insuranceStatus: str(p.insuranceStatus) || "unknown",
+      contractStatus: str(p.contractStatus) || "unknown",
+      availability: (availability ?? [])
+        .filter((av) => av.crewProfileId === p.id)
+        .map((av) => ({
+          startsAt: str(av.startsAt),
+          endsAt: str(av.endsAt),
+          status: (str(av.status) || "available") as
+            | "available"
+            | "unavailable"
+            | "tentative",
+        })),
+      acceptedAssignments: (assignments ?? [])
+        .filter((a) => a.crewProfileId === p.id && str(a.status) === "accepted")
+        .map((a) => ({ startsAt: str(a.arrivalAt), endsAt: str(a.departureAt) })),
+    }));
+  const ranked = rankCrewCandidates({
+    roleSpecialty,
+    serviceArea,
+    startsAt,
+    endsAt,
+    candidates,
+  }).filter((candidate) => !spokenFor.has(candidate.crewProfileId));
+
+  const [step, setStep] = useState<"select" | "form">("select");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [role, setRole] = useState("Second photographer");
+  const [rate, setRate] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [sent, setSent] = useState<string | null>(null);
+
+  const chosenProfile = (profiles ?? []).find((p) => p.id === selectedId);
+
+  function choose(id: string) {
+    setSelectedId(id);
+    const profile = (profiles ?? []).find((p) => p.id === id);
+    // Open the pay field at that person's own rate; the operator sets the number.
+    setRate(profile ? String(Math.round(num(profile.rateCents) / 100)) : "");
+    setStep("form");
+    setNotice(null);
+  }
+
+  async function send() {
+    if (!chosenProfile) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      const response = await sendCrewCommand("inviteAssignment", {
+        projectId,
+        crewProfileId: str(chosenProfile.id),
+        userId: str(chosenProfile.userId) || null,
+        role,
+        compensationCents: Math.round(Number(rate || 0) * 100),
+        compensationType: str(chosenProfile.rateType) === "hourly" ? "hourly" : "event",
+        currency: "USD",
+        compensationVisibleToCrew: true,
+        arrivalAt: startsAt,
+        departureAt: endsAt,
+        locations: [
+          {
+            name: str(project?.venueName) || "Event location",
+            address:
+              str((project?.venue as Record<string, unknown> | undefined)?.formatted) || null,
+          },
+        ],
+        responsibilities: [],
+        scheduleItemIds: [],
+        currentScheduleId: latestSchedule ? str(latestSchedule.id) : null,
+        currentScheduleVersion: num(latestSchedule?.version),
+        requirements: REQUIREMENTS,
+      });
+      if (response.persisted) {
+        setSent(str(chosenProfile.name) || "The photographer");
+      } else {
+        setNotice("Preview: the offer would be sent from here.");
+      }
+    } catch (caught: unknown) {
+      setNotice(crewPublicError(caught, "The offer could not be sent."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (sent) {
+    return (
+      <div className="panel copilot-flow">
+        <p role="status">
+          Offer sent to {sent}. They&rsquo;ll get an email to accept or decline —
+          nothing changes on the job until they respond.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="panel copilot-flow">
+      <header className="copilot-flow-head">
+        <Users size={15} />
+        <span>
+          <strong>{flow.title}</strong>
+          <small>{flow.reason}</small>
+        </span>
+      </header>
+
+      {step === "select" ? (
+        <div className="copilot-flow-options">
+          {ranked.length === 0 ? (
+            <p role="status">
+              No available crew to offer for {str(project?.name) || "this project"} right
+              now. Crew set their own availability for the event window.
+            </p>
+          ) : (
+            ranked.map((candidate) => (
+              <button
+                key={candidate.crewProfileId}
+                className="copilot-flow-option"
+                disabled={!candidate.eligible}
+                onClick={() => choose(candidate.crewProfileId)}
+                type="button"
+              >
+                <strong>{candidate.name}</strong>
+                {candidate.explanations[0] ? (
+                  <small>{candidate.explanations[0]}</small>
+                ) : null}
+                {!candidate.eligible && candidate.exclusions[0] ? (
+                  <small className="cp-attn-tag warning">{candidate.exclusions[0]}</small>
+                ) : null}
+              </button>
+            ))
+          )}
+        </div>
+      ) : (
+        <div className="copilot-flow-form">
+          <p>
+            Offer to <strong>{str(chosenProfile?.name)}</strong>. Set the terms —
+            approving sends them the offer to accept or decline.
+          </p>
+          <label>
+            <span>Role</span>
+            <input value={role} onChange={(e) => setRole(e.target.value)} />
+          </label>
+          <label>
+            <span>Pay ({str(chosenProfile?.rateType) === "hourly" ? "per hour" : "for the event"}, USD)</span>
+            <input
+              inputMode="decimal"
+              value={rate}
+              onChange={(e) => setRate(e.target.value)}
+              placeholder="e.g. 500"
+            />
+          </label>
+          <small>
+            {eventDate} · {str(project?.venueName) || "event location"}
+          </small>
+          <div className="copilot-flow-actions">
+            <button
+              className="button button-dark"
+              disabled={busy || !rate.trim()}
+              onClick={() => void send()}
+              type="button"
+            >
+              {busy ? <LoaderCircle className="spin" size={14} /> : <Send size={14} />}
+              Send offer to {str(chosenProfile?.name).split(" ")[0] || "them"}
+            </button>
+            <button disabled={busy} onClick={() => setStep("select")} type="button">
+              Back
+            </button>
+          </div>
+        </div>
+      )}
+      {notice ? <p role="status">{notice}</p> : null}
+    </div>
+  );
+}

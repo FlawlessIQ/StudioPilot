@@ -41,6 +41,20 @@ export type CopilotResult = {
    * renders them inline so the owner reviews and sends with one tap.
    */
   proposalActionIds?: string[];
+  /**
+   * A multi-turn conversational flow the copilot launched (gather → select →
+   * form → act). Rendered inline as a FlowRunner. The model only chose the type
+   * + project; the flow's steps fetch real options and take the operator's
+   * input before anything runs.
+   */
+  flow?: CopilotFlow | null;
+};
+
+export type CopilotFlow = {
+  type: "crew_offer";
+  projectId: string;
+  title: string;
+  reason: string;
 };
 
 export type CopilotThreadSummary = {

@@ -141,6 +141,18 @@ const responseSchema = z.object({
     .max(3)
     .optional()
     .default([]),
+  // A multi-turn conversational flow the copilot can launch instead of (or with)
+  // an answer: gather real options → the operator selects → fills a small form
+  // (incl. any money) → sends. The model only chooses WHICH flow and the project;
+  // the flow itself is deterministic and human-driven.
+  flow: z
+    .object({
+      type: z.enum(["crew_offer"]),
+      projectId: z.string().min(1),
+      reason: z.string().min(1).max(300),
+    })
+    .nullable()
+    .optional(),
 });
 
 const internalRoles = new Set([
@@ -394,6 +406,14 @@ const RESPONSE_SCHEMA_JSON = {
         required: ["commandType", "projectId", "rationale"],
       },
     },
+    flow: {
+      type: "OBJECT",
+      properties: {
+        type: { type: "STRING", enum: ["crew_offer"] },
+        projectId: { type: "STRING" },
+        reason: { type: "STRING" },
+      },
+    },
   },
   required: ["answer", "facts", "suggestions", "citations"],
 } as const;
@@ -442,7 +462,8 @@ const COPILOT_THINKING_BUDGET = 256;
 const COPILOT_SYSTEM_INSTRUCTION =
   "You are StudioCue Event Copilot, in an ongoing conversation with a studio operator. Earlier turns are provided for context, but answer the latest question only from the tenant-scoped facts supplied with it. Never invent prices, payments, signatures, dates, statuses, people, or readiness. Clearly separate facts from suggestions. Do not claim to execute actions. Readiness, insurance approval, contract completion, payment status, and permissions are deterministic system facts and cannot be changed by you. Keep the answer concise and operational. Monetary amounts in the facts are integer cents — render them as US dollars (e.g. 56970 becomes $569.70) and never describe a value as a number of 'cents'. Citations must use only href values present in the supplied citationCandidates." +
   " You may also propose up to three client emails in `proposals` when the answer implies a concrete outward step to a client — a reminder for an overdue balance, a nudge for an expired crew offer or an unsigned contract, a request to finish an overdue questionnaire. Each proposal is a DRAFT the operator reviews and sends with one tap; you never send anything. Write a specific, warm, professional subject and body grounded strictly in the supplied facts — do not invent amounts, dates, or names, and do not address the recipient by a guessed name or write an email address (the system fills the real recipient). `projectId` must be one from the supplied project overview. Propose an email only when it is genuinely the next step; leave `proposals` empty for purely informational questions, and never propose the same email twice." +
-  " You may also propose up to three internal, reversible actions in `actionProposals` when the answer implies one: `create_task` (a to-do on a project — supply a short `title` and optional `detail` and `dueDate` as YYYY-MM-DD, e.g. a task to chase an overdue retainer or follow up on an expired offer), `set_insurance_required` (flag that the venue requires insurance), `create_proposal_draft` (prepare an unsent proposal draft — only when the project already has a selected package; put any cover note in `detail`), or `assign_questionnaire` (send the studio's planning questionnaire to the client — propose this when the questionnaire is overdue or not yet sent; approving emails the client). Give a one-line `rationale` for each. Each is a card the operator approves; nothing runs until they tap approve, and you never set money, ids, or recipients — the system resolves those. `projectId` must be one from the overview. Leave `actionProposals` empty unless an action is clearly the next step.";
+  " You may also propose up to three internal, reversible actions in `actionProposals` when the answer implies one: `create_task` (a to-do on a project — supply a short `title` and optional `detail` and `dueDate` as YYYY-MM-DD, e.g. a task to chase an overdue retainer or follow up on an expired offer), `set_insurance_required` (flag that the venue requires insurance), `create_proposal_draft` (prepare an unsent proposal draft — only when the project already has a selected package; put any cover note in `detail`), or `assign_questionnaire` (send the studio's planning questionnaire to the client — propose this when the questionnaire is overdue or not yet sent; approving emails the client). Give a one-line `rationale` for each. Each is a card the operator approves; nothing runs until they tap approve, and you never set money, ids, or recipients — the system resolves those. `projectId` must be one from the overview. Leave `actionProposals` empty unless an action is clearly the next step." +
+  " When the operator needs to STAFF CREW — they ask to add crew, book a photographer/second shooter, fill a crew role, or a required crew role is unfilled — set `flow` to { type: 'crew_offer', projectId, reason }. This launches an interactive flow that shows who is available, lets the operator pick who and set the pay, and sends the offers. Set `flow` only for staffing; keep the `answer` short (one line) since the flow carries the interaction. Use at most one flow per turn, and `projectId` must be one from the overview.";
 
 /**
  * The final-answer request. The agent's gathered retrieval already lives in
@@ -1721,6 +1742,18 @@ export const aiCopilotCommand = onRequest(
         ...proposalActions.map((entry) => entry.id),
         ...commandActions.map((entry) => entry.id),
       ];
+      // A launched conversational flow — validated to the caller's scope. The
+      // model only chose the type + project; the flow's own steps fetch options,
+      // take the operator's input, and run the command.
+      const flowDirective =
+        result.flow && allowedProjectIds.has(result.flow.projectId)
+          ? {
+              type: result.flow.type,
+              projectId: result.flow.projectId,
+              title: `Staff ${projectNames.get(result.flow.projectId) ?? "the project"}`,
+              reason: result.flow.reason,
+            }
+          : null;
       const interactionId = `ai_${randomUUID()}`;
       const batch = db.batch();
       for (const entry of [...proposalActions, ...commandActions]) {
@@ -1736,7 +1769,7 @@ export const aiCopilotCommand = onRequest(
         question: input.question,
         // Store the full client-facing result (incl. jobObject + asOf) so a
         // resumed thread re-renders faithfully, not just the bare answer.
-        result: { ...safeResult, jobObject, asOf: now, proposalActionIds },
+        result: { ...safeResult, jobObject, asOf: now, proposalActionIds, flow: flowDirective },
         model: process.env.VERTEX_AI_COPILOT_MODEL,
         createdAt: now,
       });
@@ -1803,6 +1836,7 @@ export const aiCopilotCommand = onRequest(
         jobObject,
         threadId,
         proposalActionIds,
+        flow: flowDirective,
       };
       if (streaming) {
         writeSSE({ done: payload });
