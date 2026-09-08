@@ -232,7 +232,7 @@ function compact(document: DocumentSnapshot): Json & { id: string } {
   };
 }
 
-async function scopedDocuments(
+export async function scopedDocuments(
   collectionName: string,
   tenantId: string,
   projectIds: string[] | null,

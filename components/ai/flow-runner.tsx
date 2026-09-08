@@ -258,7 +258,9 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
               str((project?.venue as Record<string, unknown> | undefined)?.formatted) || null,
           },
         ],
-        responsibilities: [],
+        responsibilities: arr(latestSchedule?.items)
+          .map((it) => str((it as Record<string, unknown>).title))
+          .filter(Boolean),
         scheduleItemIds: [],
         currentScheduleId: latestSchedule ? str(latestSchedule.id) : null,
         currentScheduleVersion: num(latestSchedule?.version),
