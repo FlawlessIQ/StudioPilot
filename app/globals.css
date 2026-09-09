@@ -11053,6 +11053,7 @@ textarea:focus-visible {
 .copilot-flow-options{display:grid;gap:8px}
 .copilot-flow-option{display:grid;gap:2px;text-align:left;border:1px solid var(--border,#dfe3de);border-radius:12px;background:var(--surface,#fff);padding:11px 14px;font:inherit;cursor:pointer}
 .copilot-flow-option:hover:not(:disabled){background:#f6f8f5;border-color:var(--accent,#2f6f4f)}
+.copilot-flow-option.is-picked{border-color:var(--accent,#2f6f4f);background:#eef5ef}
 .copilot-flow-option:disabled{opacity:.6;cursor:not-allowed}
 .copilot-flow-option strong{font-size:13px}
 .copilot-flow-option small{font-size:11.5px;color:var(--muted,#6b7570)}

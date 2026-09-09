@@ -217,59 +217,88 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
   }).filter((candidate) => !spokenFor.has(candidate.crewProfileId));
 
   const [step, setStep] = useState<"select" | "form">("select");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
   const [role, setRole] = useState("Second photographer");
   const [rate, setRate] = useState("");
+  const [windowHours, setWindowHours] = useState("48");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
 
-  const chosenProfile = (profiles ?? []).find((p) => p.id === selectedId);
+  const profileById = (id: string) => (profiles ?? []).find((p) => p.id === id);
+  // Selected candidates, kept in the ranker's order — that order is the cascade
+  // order (offer to the top pick first, then down the list).
+  const orderedIds = ranked
+    .map((c) => c.crewProfileId)
+    .filter((id) => selected.includes(id));
+  const firstProfile = orderedIds[0] ? profileById(orderedIds[0]) : undefined;
+  const isCascade = orderedIds.length > 1;
 
-  function choose(id: string) {
-    setSelectedId(id);
-    const profile = (profiles ?? []).find((p) => p.id === id);
-    // Open the pay field at that person's own rate; the operator sets the number.
-    setRate(profile ? String(Math.round(num(profile.rateCents) / 100)) : "");
+  function toggle(id: string) {
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }
+
+  function proceed() {
+    const first = orderedIds[0] ? profileById(orderedIds[0]) : undefined;
+    setRate(first ? String(Math.round(num(first.rateCents) / 100)) : "");
     setStep("form");
     setNotice(null);
   }
 
   async function send() {
-    if (!chosenProfile) return;
+    const ids = orderedIds;
+    const first = ids[0] ? profileById(ids[0]) : undefined;
+    if (!ids.length || !first) return;
     setBusy(true);
     setNotice(null);
+    // Terms shared by a single offer and a cascade; the operator authors the pay.
+    const terms = {
+      projectId,
+      role,
+      compensationCents: Math.round(Number(rate || 0) * 100),
+      compensationType: str(first.rateType) === "hourly" ? "hourly" : "event",
+      currency: "USD",
+      compensationVisibleToCrew: true,
+      arrivalAt: startsAt,
+      departureAt: endsAt,
+      locations: [
+        {
+          name: str(project?.venueName) || "Event location",
+          address:
+            str((project?.venue as Record<string, unknown> | undefined)?.formatted) || null,
+        },
+      ],
+      responsibilities: arr(latestSchedule?.items)
+        .map((it) => str((it as Record<string, unknown>).title))
+        .filter(Boolean),
+      scheduleItemIds: [],
+      currentScheduleId: latestSchedule ? str(latestSchedule.id) : null,
+      currentScheduleVersion: num(latestSchedule?.version),
+      requirements: REQUIREMENTS,
+    };
     try {
-      const response = await sendCrewCommand("inviteAssignment", {
-        projectId,
-        crewProfileId: str(chosenProfile.id),
-        userId: str(chosenProfile.userId) || null,
-        role,
-        compensationCents: Math.round(Number(rate || 0) * 100),
-        compensationType: str(chosenProfile.rateType) === "hourly" ? "hourly" : "event",
-        currency: "USD",
-        compensationVisibleToCrew: true,
-        arrivalAt: startsAt,
-        departureAt: endsAt,
-        locations: [
-          {
-            name: str(project?.venueName) || "Event location",
-            address:
-              str((project?.venue as Record<string, unknown> | undefined)?.formatted) || null,
-          },
-        ],
-        responsibilities: arr(latestSchedule?.items)
-          .map((it) => str((it as Record<string, unknown>).title))
-          .filter(Boolean),
-        scheduleItemIds: [],
-        currentScheduleId: latestSchedule ? str(latestSchedule.id) : null,
-        currentScheduleVersion: num(latestSchedule?.version),
-        requirements: REQUIREMENTS,
-      });
-      if (response.persisted) {
-        setSent(str(chosenProfile.name) || "The photographer");
+      if (ids.length === 1) {
+        const response = await sendCrewCommand("inviteAssignment", {
+          ...terms,
+          crewProfileId: ids[0],
+          userId: str(first.userId) || null,
+        });
+        if (response.persisted) setSent(`Offer sent to ${str(first.name)}.`);
+        else setNotice("Preview: the offer would be sent from here.");
       } else {
-        setNotice("Preview: the offer would be sent from here.");
+        const hours = Math.min(168, Math.max(1, Math.round(Number(windowHours) || 48)));
+        const response = await sendCrewCommand("createCrewCascade", {
+          ...terms,
+          candidateIds: ids,
+          responseWindowHours: hours,
+        });
+        if (response.persisted)
+          setSent(
+            `Cascade started — offered to ${str(first.name)} first; if they pass, the next in line is offered automatically (each has ${hours}h).`,
+          );
+        else setNotice("Preview: the cascade would start from here.");
       }
     } catch (caught: unknown) {
       setNotice(crewPublicError(caught, "The offer could not be sent."));
@@ -282,8 +311,8 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
     return (
       <div className="panel copilot-flow">
         <p role="status">
-          Offer sent to {sent}. They&rsquo;ll get an email to accept or decline —
-          nothing changes on the job until they respond.
+          {sent} They&rsquo;ll get an email to accept or decline — nothing changes
+          on the job until they respond.
         </p>
       </div>
     );
@@ -300,44 +329,86 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
       </header>
 
       {step === "select" ? (
-        <div className="copilot-flow-options">
-          {ranked.length === 0 ? (
-            <p role="status">
-              No available crew to offer for {str(project?.name) || "this project"} right
-              now. Crew set their own availability for the event window.
-            </p>
-          ) : (
-            ranked.map((candidate) => (
-              <button
-                key={candidate.crewProfileId}
-                className="copilot-flow-option"
-                disabled={!candidate.eligible}
-                onClick={() => choose(candidate.crewProfileId)}
-                type="button"
-              >
-                <strong>{candidate.name}</strong>
-                {candidate.explanations[0] ? (
-                  <small>{candidate.explanations[0]}</small>
-                ) : null}
-                {!candidate.eligible && candidate.exclusions[0] ? (
-                  <small className="cp-attn-tag warning">{candidate.exclusions[0]}</small>
-                ) : null}
+        <>
+          <div className="copilot-flow-options">
+            {ranked.length === 0 ? (
+              <p role="status">
+                No available crew to offer for {str(project?.name) || "this project"}{" "}
+                right now. Crew set their own availability for the event window.
+              </p>
+            ) : (
+              ranked.map((candidate) => {
+                const picked = selected.includes(candidate.crewProfileId);
+                return (
+                  <button
+                    key={candidate.crewProfileId}
+                    className={`copilot-flow-option${picked ? " is-picked" : ""}`}
+                    disabled={!candidate.eligible}
+                    aria-pressed={picked}
+                    onClick={() => toggle(candidate.crewProfileId)}
+                    type="button"
+                  >
+                    <strong>
+                      {picked ? "✓ " : ""}
+                      {candidate.name}
+                    </strong>
+                    {candidate.explanations[0] ? (
+                      <small>{candidate.explanations[0]}</small>
+                    ) : null}
+                    {!candidate.eligible && candidate.exclusions[0] ? (
+                      <small className="cp-attn-tag warning">
+                        {candidate.exclusions[0]}
+                      </small>
+                    ) : null}
+                  </button>
+                );
+              })
+            )}
+          </div>
+          {orderedIds.length > 0 ? (
+            <div className="copilot-flow-actions">
+              <button className="button button-dark" onClick={proceed} type="button">
+                Continue with {orderedIds.length}{" "}
+                {orderedIds.length === 1 ? "candidate" : "candidates in order"}
               </button>
-            ))
-          )}
-        </div>
+              {orderedIds.length > 1 ? (
+                <small>Offered one at a time, top pick first.</small>
+              ) : null}
+            </div>
+          ) : ranked.length ? (
+            <small>Pick one to offer directly, or several to cascade in order.</small>
+          ) : null}
+        </>
       ) : (
         <div className="copilot-flow-form">
           <p>
-            Offer to <strong>{str(chosenProfile?.name)}</strong>. Set the terms —
-            approving sends them the offer to accept or decline.
+            {isCascade ? (
+              <>
+                Cascade to{" "}
+                <strong>
+                  {orderedIds
+                    .map((id) => str(profileById(id)?.name))
+                    .filter(Boolean)
+                    .join(" → ")}
+                </strong>
+                . Set the terms — approving offers the first in line, then the next
+                automatically if they pass.
+              </>
+            ) : (
+              <>
+                Offer to <strong>{str(firstProfile?.name)}</strong>. Set the terms —
+                approving sends them the offer to accept or decline.
+              </>
+            )}
           </p>
           <label>
             <span>Role</span>
             <input value={role} onChange={(e) => setRole(e.target.value)} />
           </label>
           <label>
-            <span>Pay ({str(chosenProfile?.rateType) === "hourly" ? "per hour" : "for the event"}, USD)</span>
+            <span>
+              Pay ({str(firstProfile?.rateType) === "hourly" ? "per hour" : "for the event"}, USD)
+            </span>
             <input
               inputMode="decimal"
               value={rate}
@@ -345,6 +416,17 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
               placeholder="e.g. 500"
             />
           </label>
+          {isCascade ? (
+            <label>
+              <span>Hours each candidate has to respond</span>
+              <input
+                inputMode="numeric"
+                value={windowHours}
+                onChange={(e) => setWindowHours(e.target.value)}
+                placeholder="48"
+              />
+            </label>
+          ) : null}
           <small>
             {eventDate} · {str(project?.venueName) || "event location"}
           </small>
@@ -356,7 +438,9 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
               type="button"
             >
               {busy ? <LoaderCircle className="spin" size={14} /> : <Send size={14} />}
-              Send offer to {str(chosenProfile?.name).split(" ")[0] || "them"}
+              {isCascade
+                ? `Start cascade (${orderedIds.length})`
+                : `Send offer to ${str(firstProfile?.name).split(" ")[0] || "them"}`}
             </button>
             <button disabled={busy} onClick={() => setStep("select")} type="button">
               Back
