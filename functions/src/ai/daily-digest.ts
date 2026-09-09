@@ -22,6 +22,14 @@ type Priority = { text: string; rank: number };
 const str = (value: unknown) => (typeof value === "string" ? value : "");
 const num = (value: unknown) => (typeof value === "number" ? value : 0);
 const usd = (cents: unknown) => `$${(num(cents) / 100).toFixed(2)}`;
+/** ISO YYYY-MM-DD → "September 1" (falls back to the raw value if unparseable). */
+const humanDate = (iso: unknown) => {
+  const value = str(iso);
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString("en-US", { month: "long", day: "numeric" });
+};
 const list = (value: unknown): Record<string, unknown>[] =>
   Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
 
@@ -48,7 +56,7 @@ async function computePriorities(tenantId: string): Promise<Priority[]> {
     if (balance > 0 && dueDate && dueDate < todayIso) {
       priorities.push({
         rank: 0,
-        text: `${projectName.get(str(invoice.projectId)) ?? "A project"}: ${usd(balance)} overdue (due ${dueDate}).`,
+        text: `${projectName.get(str(invoice.projectId)) ?? "A project"} — the ${usd(balance)} balance is overdue (was due ${humanDate(dueDate)}).`,
       });
     }
   }
@@ -64,7 +72,7 @@ async function computePriorities(tenantId: string): Promise<Priority[]> {
   for (const [projectId, count] of expiredByProject) {
     priorities.push({
       rank: 1,
-      text: `${projectName.get(projectId) ?? "A project"}: ${count} crew offer${count === 1 ? "" : "s"} expired with the role still open.`,
+      text: `${projectName.get(projectId) ?? "A project"} — a crew role is still open (${count} offer${count === 1 ? "" : "s"} lapsed).`,
     });
   }
 
@@ -81,7 +89,7 @@ async function computePriorities(tenantId: string): Promise<Priority[]> {
       const blockers = list(assessment.blockingItems).length;
       priorities.push({
         rank: 2,
-        text: `${projectName.get(projectId) ?? "A project"} (${projectEventDate}) is not ready${blockers ? ` — ${blockers} blocker${blockers === 1 ? "" : "s"}` : ""}.`,
+        text: `${projectName.get(projectId) ?? "A project"} (${humanDate(projectEventDate)}) isn't ready yet${blockers ? ` — ${blockers} open item${blockers === 1 ? "" : "s"}` : ""}.`,
       });
     }
   }
@@ -92,7 +100,7 @@ async function computePriorities(tenantId: string): Promise<Priority[]> {
     if (status && status !== "complete") {
       priorities.push({
         rank: 3,
-        text: `${projectName.get(str(response.projectId)) ?? "A project"}: client questionnaire still incomplete.`,
+        text: `${projectName.get(str(response.projectId)) ?? "A project"} — the client questionnaire is still incomplete.`,
       });
     }
   }
@@ -110,12 +118,14 @@ function renderDigest(
   priorities: Priority[],
 ): { subject: string; body: string } {
   const n = priorities.length;
-  const subject = `Your ${studioName} brief — ${n} thing${n === 1 ? "" : "s"} need${n === 1 ? "s" : ""} you`;
+  const subject = `Your ${studioName} brief — ${n} thing${n === 1 ? "" : "s"} to look at today`;
   const lines = priorities.map((p) => `• ${p.text}`).join("\n\n");
+  // No "Good morning" here — the email template's heading greets by name, so
+  // repeating it in the body reads twice.
   const body = [
-    `Good morning. Here ${n === 1 ? "is" : "are"} ${n === 1 ? "the item" : `the ${n} items`} that need your attention today:`,
+    `Here ${n === 1 ? "is the one thing" : `are the ${n} things`} that need your attention today:`,
     lines,
-    "Open StudioCue to review and act — every reply and action is prepared for you to approve.",
+    "Open StudioCue whenever you're ready — every reply and action is prepared for you to review and approve, and nothing is sent on its own.",
   ].join("\n\n");
   return { subject, body };
 }
@@ -176,10 +186,10 @@ export const dailyDigestScheduler = onSchedule(
             recipient,
             recipientName: str(owner.get("displayName")) || null,
             projectName: null,
-            type: "manual_message",
+            type: "daily_digest",
             customSubject: subject,
             customBody: body,
-            actionLabel: "Open StudioCue",
+            actionLabel: "Review in StudioCue",
             actionUrl: `${appUrl}/studio/copilot`,
             category: "digest",
             communicationDraftId: null,

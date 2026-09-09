@@ -54,6 +54,9 @@ export const emailTemplateKeys = [
   "manual_message",
   // Studio-facing: a client wrote in and someone needs to know.
   "client_message_received",
+  // Studio-facing: the owner's own morning brief. Not a client note — it gets
+  // its own framing rather than the "note from your studio" shell.
+  "daily_digest",
 ] as const;
 
 export type EmailTemplateKey = (typeof emailTemplateKeys)[number];
@@ -687,6 +690,25 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           ? `A note about ${input.projectName}`
           : `An update from ${brand.studioName}`,
         paragraphs: [greeting, ...clientEmailParagraphs(body)],
+        action: actionUrl ? { label, url: actionUrl } : undefined,
+      };
+    }
+    // The owner's own morning brief — a personal internal note, so it skips the
+    // client-facing "note from your studio" shell. The heading greets by name;
+    // the body carries the items, so it must NOT repeat the greeting.
+    case "daily_digest": {
+      const subject =
+        stringValue(values, "customSubject") || `Your ${brand.studioName} brief`;
+      const body =
+        stringValue(values, "customBody") ||
+        "Here's what needs your attention today.";
+      const label = stringValue(values, "actionLabel") || "Review in StudioCue";
+      return {
+        subject,
+        preheader: body.replace(/\s+/g, " ").trim().slice(0, 120),
+        eyebrow: "Your morning brief",
+        heading: recipient ? `Good morning, ${firstNameOf(recipient)}` : "Good morning",
+        paragraphs: clientEmailParagraphs(body),
         action: actionUrl ? { label, url: actionUrl } : undefined,
       };
     }
