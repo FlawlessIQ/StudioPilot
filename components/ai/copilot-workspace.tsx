@@ -204,7 +204,13 @@ export function CopilotWorkspace() {
   const hour = now.getHours();
   const dayPart =
     hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-  const firstName = (workspace.userName || "").trim().split(/\s+/)[0];
+  // Only greet by name once we actually have one — never the bootstrap
+  // placeholder ("Signed-in user") or an empty name, which would flash a
+  // "Good morning, Signed-in." before the workspace loads.
+  const rawName = (workspace.userName || "").trim();
+  const hasRealName =
+    !workspace.loading && rawName !== "" && rawName !== "Signed-in user";
+  const firstName = hasRealName ? rawName.split(/\s+/)[0] : "";
   const greeting = `${dayPart}${firstName ? `, ${firstName}` : ""}.`;
   const dateLabel = now.toLocaleDateString(undefined, {
     weekday: "long",
