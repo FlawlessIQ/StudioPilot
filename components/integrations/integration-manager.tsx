@@ -636,25 +636,24 @@ export function IntegrationManager() {
                 <Icon />
               </span>
               <span className="ds-int-copy">
-                <strong>{definition.label}</strong>
+                <span className="ds-int-name">
+                  <strong>{definition.label}</strong>
+                  <StatusBadge
+                    dot
+                    tone={connected ? "success" : available ? "info" : "neutral"}
+                  >
+                    {connected
+                      ? "Connected"
+                      : available
+                        ? "Ready to connect"
+                        : "Setup required"}
+                  </StatusBadge>
+                </span>
                 <p>{definition.description}</p>
                 <span className="ds-int-caps">
                   {definition.capabilities.join(" · ")}
                 </span>
-              </span>
-              <StatusBadge
-                dot
-                tone={connected ? "success" : available ? "info" : "neutral"}
-              >
-                {connected
-                  ? "Connected"
-                  : available
-                    ? "Ready to connect"
-                    : "Setup required"}
-              </StatusBadge>
-              <span className="ds-int-health">
-                <small>Health</small>
-                <strong>{healthText}</strong>
+                <span className="ds-int-meta">{healthText}</span>
               </span>
               <div className="ds-int-actions">
                 {connected ? (

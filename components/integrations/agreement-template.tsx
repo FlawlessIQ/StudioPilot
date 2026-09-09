@@ -211,8 +211,15 @@ export function AgreementTemplate() {
       {/* Test mode is the only way to exercise signing on a Dropbox Sign
           account with no paid API plan, which answers 402 to every live
           send. It has to be obvious: a watermarked, non-binding signature
-          that nobody noticed would be worse than no signature at all. */}
-      {signingConnection ? (
+          that nobody noticed would be worse than no signature at all.
+
+          Gate it on a signing app being BOTH offered and connected — not just
+          on a connection record existing. A held/disconnected leftover (the
+          default state while the signing subscriptions wait on revenue)
+          otherwise rendered this toggle right under "No signing app is
+          connected", so the page both denied and offered to send through
+          Dropbox Sign at once. */}
+      {signingApp && signingConnection?.status === "connected" ? (
         <div className={`agreement-test-mode${testMode ? " is-on" : ""}`}>
           <label>
             <input
