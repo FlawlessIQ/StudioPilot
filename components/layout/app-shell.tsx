@@ -399,9 +399,6 @@ function StudioShell({
             >
               <Bell size={18} />
             </Link>
-            <Link href="/studio/copilot" className="ds-action">
-              <Sparkles size={15} /> Ask or create
-            </Link>
           </header>
           {workspace.error ? (
             <div className="ds-topbar-error" role="alert">
