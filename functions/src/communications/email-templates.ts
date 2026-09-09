@@ -147,12 +147,17 @@ const safeUrl = (value: string): string => {
 
 const humanDate = (value: string): string => {
   const date = new Date(value);
-  return Number.isNaN(date.valueOf())
-    ? value
-    : new Intl.DateTimeFormat("en-US", {
-        dateStyle: "long",
-        timeStyle: value.includes("T") ? "short" : undefined,
-      }).format(date);
+  if (Number.isNaN(date.valueOf())) return value;
+  // A date-only string (YYYY-MM-DD) parses as UTC midnight; formatting it in
+  // the server's local zone can slip it to the day before. Pin such values to
+  // UTC so the calendar date is what was meant, on any host. Full timestamps
+  // (with a "T") keep local formatting and show a time.
+  const dateOnly = !value.includes("T");
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "long",
+    timeStyle: dateOnly ? undefined : "short",
+    timeZone: dateOnly ? "UTC" : undefined,
+  }).format(date);
 };
 
 const projectReference = (
@@ -492,8 +497,8 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           : `Your ${label} invoice is ready`,
         paragraphs: [
           greeting,
-          `${brand.studioName} ${isReminder ? "is reminding you about" : "created"} the ${label} invoice${project}.`,
-          "Payment status and payment collection remain in the studio’s secure accounting system.",
+          `${brand.studioName} ${isReminder ? "has a gentle reminder about your" : "has your"} ${label} invoice ready${project}.`,
+          "You can review the details and pay securely whenever you're ready.",
         ],
         action: invoiceUrl
           ? { label: "Open secure invoice", url: invoiceUrl }
@@ -508,8 +513,8 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: "Your date is officially booked",
         paragraphs: [
           greeting,
-          `${brand.studioName} confirmed the required agreement and retainer steps${project}.`,
-          "Your portal will keep the next actions, planning details, documents, and schedule in one place.",
+          `Your signed agreement and retainer are both in${project} — your date is secured.`,
+          "Your portal keeps the next steps, planning details, documents, and schedule together in one place.",
         ],
         action: portalUrl
           ? { label: "Open client portal", url: portalUrl }
@@ -542,8 +547,8 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: "Please prepare a certificate of insurance",
         paragraphs: [
           greeting,
-          `${brand.studioName} needs a certificate for ${String(requirement.venueLegalName ?? "the venue")} on ${String(requirement.eventDate ?? "the event date")}.`,
-          `Certificate holder: ${String(requirement.certificateHolder ?? "See the attached requirements")}. Due: ${String(requirement.dueDate ?? "As soon as possible")}.`,
+          `${brand.studioName} needs a certificate for ${String(requirement.venueLegalName ?? "the venue")} on ${requirement.eventDate ? humanDate(String(requirement.eventDate)) : "the event date"}.`,
+          `Certificate holder: ${String(requirement.certificateHolder ?? "See the attached requirements")}. Due: ${requirement.dueDate ? humanDate(String(requirement.dueDate)) : "as soon as possible"}.`,
           "Reply to this email with one PDF attachment. The studio will review the certificate before it is sent to the venue.",
         ],
       };
