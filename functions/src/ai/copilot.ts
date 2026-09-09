@@ -160,15 +160,20 @@ const responseSchema = z.object({
   flow: z
     .object({
       type: z.enum(["crew_offer", "select_package"]),
-      projectId: z.string().min(1),
-      reason: z.string().min(1).max(300),
+      // The model reliably emits `flow: { type: 'crew_offer' }` with no
+      // projectId or reason even though it resolved the project (it names it in
+      // the answer and fetched it via tool calls). Keep those recoverable — an
+      // absent/blank value becomes null and the handler backfills the id from
+      // the caller's scope or the single referenced project. A strict schema
+      // here rejected the whole answer instead ("Cue could not answer",
+      // VERTEX_AI_PARSE_FAILED on flow.projectId); dropping the flow entirely
+      // (the previous fix) merely hid the launch. `type` stays required — the
+      // outer .catch drops a flow with no valid type.
+      projectId: z.string().min(1).nullable().optional().catch(null),
+      reason: z.string().min(1).max(300).nullable().optional().catch(null),
     })
     .nullable()
     .optional()
-    // The model sometimes emits a flow with a missing/null projectId; that must
-    // drop the flow (the handler re-checks the id against the caller's scope
-    // anyway), never reject the whole answer — which was the intermittent
-    // "Cue could not answer" (VERTEX_AI_PARSE_FAILED on flow.projectId).
     .catch(null),
 });
 
@@ -183,6 +188,25 @@ const asRecord = (value: unknown): Json =>
   typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Json)
     : {};
+
+// Resolve the project a launched flow targets. The model usually omits
+// flow.projectId (see the flow schema), so backfill it from the strongest
+// available signal, in order: the id the model gave (if it is one the caller
+// can see), the project the whole conversation is scoped to, or — when the
+// model looked at exactly one project during tool use — that project. If none
+// of those disambiguates, return null and the flow does not launch.
+function resolveFlowProjectId(
+  rawId: string | null | undefined,
+  allowed: Set<string>,
+  scopedId: string | null,
+  referenced: Set<string>,
+): string | null {
+  if (rawId && allowed.has(rawId)) return rawId;
+  if (scopedId && allowed.has(scopedId)) return scopedId;
+  const referencedAllowed = [...referenced].filter((id) => allowed.has(id));
+  if (referencedAllowed.length === 1) return referencedAllowed[0] ?? null;
+  return null;
+}
 
 async function cloudAccessToken() {
   const response = await fetch(
@@ -1762,7 +1786,7 @@ export const aiCopilotCommand = onRequest(
       const writeSSE = (obj: unknown) => {
         response.write(`data: ${JSON.stringify(obj)}\n\n`);
       };
-      const { contents: retrievalContents } = await runToolLoop(
+      const { contents: retrievalContents, referenced: referencedProjectIds } = await runToolLoop(
         input.question,
         input.history ?? [],
         projectOverview,
@@ -1786,10 +1810,28 @@ export const aiCopilotCommand = onRequest(
         suggestions: result.suggestions,
         citations: result.citations.filter((item) => allowedLinks.has(item.href)),
       };
-      // The project the answer is really about: the first cited project, else
-      // the scoped project, else the one carrying the most attention. Its job
-      // object renders inline as a live, record-derived summary.
+      const allowedProjectIds = new Set(
+        projects.map((project) => String((project as Record<string, unknown>).id)),
+      );
+      // A launched flow's project, recovered even when the model omitted the id
+      // (it almost always does). Computed here so the inline job card can follow
+      // the flow rather than an unrelated project.
+      const flowProjectId = result.flow
+        ? resolveFlowProjectId(
+            result.flow.projectId,
+            allowedProjectIds,
+            input.projectId ?? null,
+            referencedProjectIds,
+          )
+        : null;
+      // The project the answer is really about: the launched flow's project,
+      // else the first cited project, else the scoped project, else the one
+      // carrying the most attention. Its job object renders inline as a live,
+      // record-derived summary. (A crew/package flow answer carries no
+      // citations, so without the flow project first the card would fall
+      // through to an arbitrary at-risk project — the wrong one.)
       const citedProjectId =
+        flowProjectId ??
         safeResult.citations[0]?.href.split("/").pop() ??
         input.projectId ??
         null;
@@ -1811,9 +1853,6 @@ export const aiCopilotCommand = onRequest(
       // The copilot's proposed client emails become human-approval cards. The
       // model wrote the subject/body; the recipient is resolved server-side, and
       // a proposal for a project outside the caller's scope is dropped.
-      const allowedProjectIds = new Set(
-        projects.map((project) => String((project as Record<string, unknown>).id)),
-      );
       const proposalActions = await buildProposalActions(
         input.tenantId,
         identity.uid,
@@ -1836,22 +1875,28 @@ export const aiCopilotCommand = onRequest(
         ...proposalActions.map((entry) => entry.id),
         ...commandActions.map((entry) => entry.id),
       ];
-      // A launched conversational flow — validated to the caller's scope. The
-      // model only chose the type + project; the flow's own steps fetch options,
-      // take the operator's input, and run the command.
+      // A launched conversational flow — its project recovered above and
+      // validated to the caller's scope. The model only chose the type (and
+      // usually little else); the flow's own steps fetch options, take the
+      // operator's input, and run the command. A missing reason gets a
+      // sensible default so the card always reads cleanly.
       const flowProjectName =
-        (result.flow && projectNames.get(result.flow.projectId)) ?? "the project";
+        (flowProjectId && projectNames.get(flowProjectId)) ?? "the project";
       const flowTitles: Record<string, string> = {
         crew_offer: `Staff ${flowProjectName}`,
         select_package: `Choose a package for ${flowProjectName}`,
       };
+      const flowReasons: Record<string, string> = {
+        crew_offer: `Find and offer crew for ${flowProjectName}.`,
+        select_package: `Choose a package for ${flowProjectName}.`,
+      };
       const flowDirective =
-        result.flow && allowedProjectIds.has(result.flow.projectId)
+        result.flow && flowProjectId
           ? {
               type: result.flow.type,
-              projectId: result.flow.projectId,
+              projectId: flowProjectId,
               title: flowTitles[result.flow.type] ?? flowProjectName,
-              reason: result.flow.reason,
+              reason: result.flow.reason ?? flowReasons[result.flow.type] ?? flowProjectName,
             }
           : null;
       const interactionId = `ai_${randomUUID()}`;
