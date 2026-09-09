@@ -146,7 +146,6 @@ const responseSchema = z.object({
           "create_task",
           "set_insurance_required",
           "create_proposal_draft",
-          "assign_questionnaire",
         ]),
         projectId: z.string().min(1),
         title: z.string().max(200).optional().default(""),
@@ -166,7 +165,7 @@ const responseSchema = z.object({
   // the flow itself is deterministic and human-driven.
   flow: z
     .object({
-      type: z.enum(["crew_offer", "select_package"]),
+      type: z.enum(["crew_offer", "select_package", "select_questionnaire"]),
       // The model reliably emits `flow: { type: 'crew_offer' }` with no
       // projectId or reason even though it resolved the project (it names it in
       // the answer and fetched it via tool calls). Keep those recoverable — an
@@ -455,7 +454,6 @@ const RESPONSE_SCHEMA_JSON = {
               "create_task",
               "set_insurance_required",
               "create_proposal_draft",
-              "assign_questionnaire",
             ],
           },
           projectId: { type: "STRING" },
@@ -470,7 +468,10 @@ const RESPONSE_SCHEMA_JSON = {
     flow: {
       type: "OBJECT",
       properties: {
-        type: { type: "STRING", enum: ["crew_offer", "select_package"] },
+        type: {
+          type: "STRING",
+          enum: ["crew_offer", "select_package", "select_questionnaire"],
+        },
         projectId: { type: "STRING" },
         reason: { type: "STRING" },
       },
@@ -529,8 +530,8 @@ const COPILOT_THINKING_BUDGET = 256;
 const COPILOT_SYSTEM_INSTRUCTION =
   "You are StudioCue Event Copilot, in an ongoing conversation with a studio operator. Earlier turns are provided for context, but answer the latest question only from the tenant-scoped facts supplied with it. Never invent prices, payments, signatures, dates, statuses, people, or readiness. Clearly separate facts from suggestions. Populate `suggestions` with 2-3 short follow-up QUESTIONS the operator is likely to ask next — phrased as a question or a brief imperative Cue can answer or prepare a draft for, each under about six words (e.g. 'Draft the balance reminder', 'Who can shoot this?', 'What is still blocking it?'). They must be things you accomplish by answering or by preparing something for the operator to approve — never a promise to send, book, or change anything. Leave `suggestions` EMPTY whenever you set a `flow`, since the flow already carries the next step. Do not claim to execute actions. Readiness, insurance approval, contract completion, payment status, and permissions are deterministic system facts and cannot be changed by you. Keep the answer concise and operational. Monetary amounts in the facts are integer cents — render them as US dollars (e.g. 56970 becomes $569.70) and never describe a value as a number of 'cents'. Citations must use only href values present in the supplied citationCandidates." +
   " You may also propose up to three client emails in `proposals` when the answer implies a concrete outward step to a client — a reminder for an overdue balance, a nudge for an expired crew offer or an unsigned contract, a request to finish an overdue questionnaire. Each proposal is a DRAFT the operator reviews and sends with one tap; you never send anything. Write a specific, warm, professional subject and body grounded strictly in the supplied facts — do not invent amounts, dates, or names, and do not address the recipient by a guessed name or write an email address (the system fills the real recipient). `projectId` must be one from the supplied project overview. Propose an email only when it is genuinely the next step; leave `proposals` empty for purely informational questions, and never propose the same email twice." +
-  " You may also propose up to three internal, reversible actions in `actionProposals` when the answer implies one: `create_task` (a to-do on a project — supply a short `title` and optional `detail` and `dueDate` as YYYY-MM-DD, e.g. a task to chase an overdue retainer or follow up on an expired offer), `set_insurance_required` (flag that the venue requires insurance), `create_proposal_draft` (prepare an unsent proposal draft — only when the project already has a selected package; put any cover note in `detail`), or `assign_questionnaire` (send the studio's planning questionnaire to the client — propose this when the questionnaire is overdue or not yet sent; approving emails the client). Give a one-line `rationale` for each. Each is a card the operator approves; nothing runs until they tap approve, and you never set money, ids, or recipients — the system resolves those. `projectId` must be one from the overview. Leave `actionProposals` empty unless an action is clearly the next step." +
-  " When the operator ASKS to STAFF CREW — add crew, book a photographer/second shooter, or fill a crew role — set `flow` to { type: 'crew_offer', projectId, reason }. This launches an interactive flow that shows who is available, lets the operator pick who and set the pay, and sends the offers. When you launch crew_offer, do NOT state specific counts or statuses of prior crew offers (how many were sent, expired, invited, viewed, or accepted) in your `answer` or `facts` — you cannot see the live offer state and the flow shows it accurately; limit yourself to noting that the role is unfilled. When the operator needs to CHOOSE A PACKAGE for a project that has not selected one yet — they ask to pick/select a package, or building a proposal is blocked because no package is chosen — set `flow` to { type: 'select_package', projectId, reason }; it shows the studio's packages, the operator picks one, and it is applied. Set `flow` only for staffing or package selection; keep the `answer` short (one line) since the flow carries the interaction. Use at most one flow per turn, and `projectId` must be one from the overview. Be proactive, but never at the expense of the question actually asked. Launch a flow only when the operator's request is itself about acting — staffing or filling a crew role, choosing a package, or an open-ended triage ask such as 'what needs my attention today' or 'prep everything' — AND there is a real, specific gap on a real project. When the operator asked an INFORMATIONAL question — a status, a fact or count, 'is X ready', 'what is blocking X', 'which clients…', 'show me…' — ANSWER it directly and do NOT set `flow`, even if you notice an unfilled crew role or a missing package; instead name that gap in your answer and offer to act with a `suggestions` entry (e.g. 'Staff the second photographer'). Never launch a flow speculatively.";
+  " You may also propose up to three internal, reversible actions in `actionProposals` when the answer implies one: `create_task` (a to-do on a project — supply a short `title` and optional `detail` and `dueDate` as YYYY-MM-DD, e.g. a task to chase an overdue retainer or follow up on an expired offer), `set_insurance_required` (flag that the venue requires insurance), or `create_proposal_draft` (prepare an unsent proposal draft — only when the project already has a selected package; put any cover note in `detail`). Give a one-line `rationale` for each. Each is a card the operator approves; nothing runs until they tap approve, and you never set money, ids, or recipients — the system resolves those. `projectId` must be one from the overview. Leave `actionProposals` empty unless an action is clearly the next step." +
+  " When the operator ASKS to STAFF CREW — add crew, book a photographer/second shooter, or fill a crew role — set `flow` to { type: 'crew_offer', projectId, reason }. This launches an interactive flow that shows who is available, lets the operator pick who and set the pay, and sends the offers. When you launch crew_offer, do NOT state specific counts or statuses of prior crew offers (how many were sent, expired, invited, viewed, or accepted) in your `answer` or `facts` — you cannot see the live offer state and the flow shows it accurately; limit yourself to noting that the role is unfilled. When the operator needs to CHOOSE A PACKAGE for a project that has not selected one yet — they ask to pick/select a package, or building a proposal is blocked because no package is chosen — set `flow` to { type: 'select_package', projectId, reason }; it shows the studio's packages, the operator picks one, and it is applied. When the operator asks to SEND OR ASSIGN THE PLANNING QUESTIONNAIRE — send the form/questionnaire/details form to the client, or the questionnaire is overdue or not yet sent — set `flow` to { type: 'select_questionnaire', projectId, reason }; it shows the studio's active questionnaire templates, the operator picks which one, and it is sent to the client. Set `flow` only for staffing, package selection, or sending a questionnaire; keep the `answer` short (one line) since the flow carries the interaction. Use at most one flow per turn, and `projectId` must be one from the overview. Be proactive, but never at the expense of the question actually asked. Launch a flow only when the operator's request is itself about acting — staffing or filling a crew role, choosing a package, sending the planning questionnaire, or an open-ended triage ask such as 'what needs my attention today' or 'prep everything' — AND there is a real, specific gap on a real project. When the operator asked an INFORMATIONAL question — a status, a fact or count, 'is X ready', 'what is blocking X', 'which clients…', 'show me…' — ANSWER it directly and do NOT set `flow`, even if you notice an unfilled crew role or a missing package; instead name that gap in your answer and offer to act with a `suggestions` entry (e.g. 'Staff the second photographer'). Never launch a flow speculatively.";
 
 /**
  * The final-answer request. The agent's gathered retrieval already lives in
@@ -1058,8 +1059,7 @@ type CopilotCommandProposal = {
   commandType:
     | "create_task"
     | "set_insurance_required"
-    | "create_proposal_draft"
-    | "assign_questionnaire";
+    | "create_proposal_draft";
   projectId: string;
   title: string;
   detail: string;
@@ -1096,10 +1096,13 @@ async function buildCommandProposalActions(
     let command: { domain: string; op: string; input: Record<string, unknown> };
     let label: string;
     let detail: string;
-    // Outward actions email a real person on approval; the card asks the owner
-    // to confirm the send and names the recipient.
-    let outward = false;
-    let sendsTo: string | null = null;
+    // Every remaining command proposal is internal and reversible (a task, an
+    // insurance flag, an unsent proposal draft) — none emails anyone on
+    // approval. Outward sends now run as conversational flows instead (crew
+    // offers, the questionnaire), so these stay false; the card still carries
+    // the fields the renderer expects.
+    const outward = false;
+    const sendsTo: string | null = null;
     if (proposal.commandType === "create_proposal_draft") {
       // A proposal draft needs the project's selected package snapshot for the
       // required termsSummary. No package selected (or terms too short) → skip,
@@ -1151,31 +1154,6 @@ async function buildCommandProposalActions(
       };
       label = `Create a task on ${projectName}`;
       detail = title;
-    } else if (proposal.commandType === "assign_questionnaire") {
-      // Send the studio's planning questionnaire to the couple. The template id
-      // is resolved server-side: only when the tenant has exactly one active
-      // template is it unambiguous — otherwise skip rather than send the wrong
-      // one. The command resolves the actual recipient from the project.
-      const templates = await db
-        .collection("questionnaireTemplates")
-        .where("tenantId", "==", tenantId)
-        .limit(20)
-        .get();
-      const active = templates.docs.filter(
-        (doc) => String(doc.get("status") ?? "").toLowerCase() === "active",
-      );
-      if (active.length !== 1) continue;
-      const template = active[0];
-      if (!template) continue;
-      command = {
-        domain: "planning",
-        op: "assignQuestionnaire",
-        input: { projectId: proposal.projectId, templateId: template.id },
-      };
-      label = `Send the questionnaire for ${projectName}`;
-      detail = "Email the studio's planning questionnaire to the client.";
-      outward = true;
-      sendsTo = "the client";
     } else if (proposal.commandType === "set_insurance_required") {
       command = {
         domain: "planning",
@@ -1907,10 +1885,12 @@ export const aiCopilotCommand = onRequest(
       const flowTitles: Record<string, string> = {
         crew_offer: `Staff ${flowProjectName}`,
         select_package: `Choose a package for ${flowProjectName}`,
+        select_questionnaire: `Send a questionnaire for ${flowProjectName}`,
       };
       const flowReasons: Record<string, string> = {
         crew_offer: `Find and offer crew for ${flowProjectName}.`,
         select_package: `Choose a package for ${flowProjectName}.`,
+        select_questionnaire: `Pick the planning questionnaire to send for ${flowProjectName}.`,
       };
       const flowDirective =
         result.flow && flowProjectId

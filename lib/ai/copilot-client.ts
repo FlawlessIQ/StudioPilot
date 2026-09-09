@@ -51,7 +51,7 @@ export type CopilotResult = {
 };
 
 export type CopilotFlow = {
-  type: "crew_offer" | "select_package";
+  type: "crew_offer" | "select_package" | "select_questionnaire";
   projectId: string;
   title: string;
   reason: string;

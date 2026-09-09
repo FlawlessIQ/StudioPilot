@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { LoaderCircle, PackageOpen, Send, Users } from "lucide-react";
+import { ClipboardList, LoaderCircle, PackageOpen, Send, Users } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { sendCrewCommand } from "@/lib/crew/command-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
+import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { crewPublicError } from "@/lib/crew/public-error";
 import {
   rankCrewCandidates,
@@ -25,6 +26,8 @@ const arr = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
 export function FlowRunner({ flow }: { flow: CopilotFlow }) {
   if (flow.type === "crew_offer") return <CrewOfferFlow flow={flow} />;
   if (flow.type === "select_package") return <PackageSelectFlow flow={flow} />;
+  if (flow.type === "select_questionnaire")
+    return <QuestionnaireSelectFlow flow={flow} />;
   return null;
 }
 
@@ -118,6 +121,119 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
               {str(option.eventTypeLabel) ? (
                 <small>{str(option.eventTypeLabel)}</small>
               ) : null}
+            </button>
+          ))}
+        </div>
+      )}
+      {notice ? <p role="status">{notice}</p> : null}
+    </div>
+  );
+}
+
+/**
+ * gather → select → act for sending a project's planning questionnaire. The
+ * studio has several active templates (wedding, corporate, sports), so — unlike
+ * the old actionProposal, which could only fire when exactly one existed and so
+ * never fired at all — the operator picks which one. Templates matching the
+ * project's event type are offered first; selecting one emails the client.
+ */
+function QuestionnaireSelectFlow({ flow }: { flow: CopilotFlow }) {
+  const projectId = flow.projectId;
+  const { records: projects } = useTenantDocuments("projects");
+  const { records: templates } = useTenantDocuments("questionnaireTemplates");
+  const { records: responses } = useTenantDocuments("questionnaireResponses");
+  const project = (projects ?? []).find((item) => item.id === projectId);
+  const eventTypeId = str(project?.eventTypeId);
+  const alreadyAssigned = (responses ?? []).some(
+    (response) =>
+      response.projectId === projectId && response.archivedAt === null,
+  );
+
+  // Every active template, with the ones for this project's event type first.
+  const options = (templates ?? [])
+    .filter((template) => template.status === "active")
+    .map((template) => ({
+      id: str(template.id),
+      name: str(template.name),
+      eventTypeId: str(template.eventTypeId),
+      dueDays: num(template.dueDaysBeforeEvent),
+    }))
+    .sort((a, b) => {
+      const aMatch = eventTypeId && a.eventTypeId === eventTypeId ? 0 : 1;
+      const bMatch = eventTypeId && b.eventTypeId === eventTypeId ? 0 : 1;
+      return aMatch - bMatch || a.name.localeCompare(b.name);
+    });
+
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+
+  async function send(templateId: string, name: string) {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const response = await sendPlanningCommand("assignQuestionnaire", {
+        projectId,
+        templateId,
+      });
+      if (response.persisted) setDone(name);
+      else setNotice("Preview: the questionnaire would be sent from here.");
+    } catch (caught: unknown) {
+      setNotice(
+        caught instanceof Error
+          ? caught.message.replaceAll("_", " ")
+          : "The questionnaire could not be sent.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (done) {
+    return (
+      <div className="panel copilot-flow">
+        <p role="status">
+          Sent {done} to {str(project?.name) || "the client"}. They can fill it
+          in from their portal.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="panel copilot-flow">
+      <header className="copilot-flow-head">
+        <ClipboardList size={15} />
+        <span>
+          <strong>{flow.title}</strong>
+          <small>{flow.reason}</small>
+        </span>
+      </header>
+      {alreadyAssigned ? (
+        <p role="status">
+          {str(project?.name) || "This project"} already has a questionnaire on
+          file. Sending another replaces the current one.
+        </p>
+      ) : null}
+      {options.length === 0 ? (
+        <p role="status">No active questionnaire templates to send yet.</p>
+      ) : (
+        <div className="copilot-flow-options">
+          {options.map((option) => (
+            <button
+              key={option.id}
+              className="copilot-flow-option"
+              disabled={busy}
+              onClick={() => void send(option.id, option.name)}
+              type="button"
+            >
+              <strong>{option.name}</strong>
+              <small>
+                {eventTypeId && option.eventTypeId === eventTypeId
+                  ? "Matches this event · "
+                  : ""}
+                Due {option.dueDays} days before the date
+              </small>
             </button>
           ))}
         </div>
