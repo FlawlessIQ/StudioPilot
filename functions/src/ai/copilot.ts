@@ -445,13 +445,19 @@ async function generateStructuredBody(requestBody: unknown) {
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
     body: JSON.stringify(requestBody),
   });
-  if (!response.ok) throw new Error(`VERTEX_AI_COPILOT_FAILED:${response.status}`);
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`VERTEX_AI_COPILOT_FAILED:${response.status}:${detail.slice(0, 500)}`);
+  }
   const body = asRecord(await response.json());
   const candidates = Array.isArray(body.candidates) ? body.candidates : [];
   const content = asRecord(asRecord(candidates[0]).content);
   const parts = Array.isArray(content.parts) ? content.parts : [];
   const output = asRecord(parts[0]).text;
-  if (typeof output !== "string") throw new Error("VERTEX_AI_EMPTY_OUTPUT");
+  if (typeof output !== "string")
+    throw new Error(
+      `VERTEX_AI_EMPTY_OUTPUT:finish=${String(asRecord(candidates[0]).finishReason ?? "none")}`,
+    );
   return responseSchema.parse(JSON.parse(output));
 }
 
@@ -538,8 +544,10 @@ async function streamStructuredBody(
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
     body: JSON.stringify(requestBody),
   });
-  if (!response.ok || !response.body)
-    throw new Error(`VERTEX_AI_COPILOT_FAILED:${response.status}`);
+  if (!response.ok || !response.body) {
+    const detail = !response.ok ? await response.text().catch(() => "") : "no response body";
+    throw new Error(`VERTEX_AI_COPILOT_FAILED:${response.status}:${detail.slice(0, 500)}`);
+  }
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -575,7 +583,18 @@ async function streamStructuredBody(
       }
     }
   }
-  return responseSchema.parse(JSON.parse(raw));
+  // A parse failure here usually means the model returned no/truncated JSON
+  // (safety block, MAX_TOKENS, or an empty stream). Surface the reason and a
+  // head of the raw buffer so the catch logs something actionable.
+  try {
+    return responseSchema.parse(JSON.parse(raw));
+  } catch (parseError: unknown) {
+    const reason =
+      parseError instanceof Error ? parseError.message : "parse failed";
+    throw new Error(
+      `VERTEX_AI_PARSE_FAILED:${reason}:rawLen=${raw.length}:head=${raw.slice(0, 200)}`,
+    );
+  }
 }
 
 // The agentic retrieval loop. Instead of dumping every collection into context,
@@ -810,7 +829,10 @@ async function runToolLoop(
         },
       }),
     });
-    if (!response.ok) throw new Error(`VERTEX_AI_COPILOT_FAILED:${response.status}`);
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error(`VERTEX_AI_COPILOT_FAILED:${response.status}:${detail.slice(0, 500)}`);
+    }
     const body = asRecord(await response.json());
     const candidates = Array.isArray(body.candidates) ? body.candidates : [];
     const parts = (
@@ -1914,6 +1936,18 @@ export const aiCopilotCommand = onRequest(
     } catch (caught: unknown) {
       const message =
         caught instanceof Error ? caught.message : "AI_COPILOT_FAILED";
+      // Make the failure visible in Cloud Logging at ERROR severity. Without
+      // this the function returns 200 with a streamed error event (or a 400),
+      // and the real cause — a Vertex status/body or a responseSchema parse
+      // failure — never reaches the logs, so "Cue could not answer" is
+      // undiagnosable from the access log alone.
+      console.error("[copilot] request failed", {
+        message,
+        name: caught instanceof Error ? caught.name : typeof caught,
+        stack: caught instanceof Error ? caught.stack : undefined,
+        streamed: response.headersSent,
+        correlationId: request.get("x-correlation-id") ?? null,
+      });
       // If a stream was already opened, the status/headers are sent — surface
       // the failure as an SSE error event and close, rather than throwing on a
       // second header write.
