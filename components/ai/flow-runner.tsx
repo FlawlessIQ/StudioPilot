@@ -170,12 +170,24 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
     .filter((item) => !["superseded", "archived"].includes(str(item.status)))
     .sort((a, b) => num(b.version) - num(a.version))[0];
 
-  // Anyone already offered or booked on this job is not a candidate for a
-  // second offer on it — the server would happily write a duplicate. (The React
+  // Someone is "spoken for" only while an offer on this job is still live or
+  // accepted — a duplicate offer then would be wrong. Lapsed offers do NOT lock
+  // a crew member out: declined/cancelled were always re-offerable, and an
+  // EXPIRED (or reassigned) offer is re-offerable too — see
+  // features/crew/offer-moment.ts and the crew workspace, which has no such
+  // filter. Treating expired the same as active work was the bug that made the
+  // copilot report "no crew" when everyone had simply lapsed. (The React
   // Compiler memoizes these derivations; no manual useMemo.)
+  const LIVE_OFFER_STATUSES = new Set([
+    "draft",
+    "invited",
+    "viewed",
+    "accepted",
+    "completed",
+  ]);
   const spokenFor = new Set<string>();
   for (const item of assignments ?? []) {
-    if (item.projectId === projectId && !["declined", "cancelled"].includes(str(item.status)))
+    if (item.projectId === projectId && LIVE_OFFER_STATUSES.has(str(item.status)))
       spokenFor.add(str(item.crewProfileId));
   }
 
@@ -333,8 +345,11 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
           <div className="copilot-flow-options">
             {ranked.length === 0 ? (
               <p role="status">
-                No available crew to offer for {str(project?.name) || "this project"}{" "}
-                right now. Crew set their own availability for the event window.
+                {candidates.length === 0
+                  ? "You don't have any active crew to offer yet — add crew under People, then ask again."
+                  : `Everyone who could take this already has a live or accepted offer for ${
+                      str(project?.name) || "this project"
+                    }. Reopen or reassign an existing offer from the crew page.`}
               </p>
             ) : (
               ranked.map((candidate) => {
