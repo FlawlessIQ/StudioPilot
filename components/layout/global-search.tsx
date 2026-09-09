@@ -12,7 +12,6 @@ import {
   ListTodo,
   Plus,
   Search,
-  Sparkles,
   UserPlus,
   X,
 } from "lucide-react";
@@ -225,7 +224,7 @@ export function GlobalSearch() {
   return (
     <>
       <button
-        aria-label="Ask StudioCue, search, or create"
+        aria-label="Search StudioCue"
         aria-expanded={open}
         aria-haspopup="dialog"
         className="command-search"
@@ -233,11 +232,7 @@ export function GlobalSearch() {
         type="button"
       >
         <Search size={17} />
-        <span>Ask StudioCue, search, or create</span>
-        {/* The field's first word is "Ask", and nothing in it looked like it
-            could. The mark is trailing so the collapsed mobile pill keeps a
-            magnifier rather than becoming an unexplained sparkle. */}
-        <Sparkles aria-hidden="true" className="command-search-ai" size={14} />
+        <span>Search StudioCue</span>
         <kbd>⌘ K</kbd>
       </button>
       {open ? (
@@ -259,7 +254,7 @@ export function GlobalSearch() {
               <input
                 aria-label="Search records and commands"
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Ask a question, find a record, or start something"
+                placeholder="Search projects, people, contracts, tasks…"
                 ref={inputRef}
                 value={query}
               />
@@ -269,14 +264,7 @@ export function GlobalSearch() {
             </header>
             {!query.trim() ? (
               <div className="search-quick-actions">
-                <p>Ask or create</p>
-                <Link href="/studio/copilot" onClick={close}>
-                  <BrainCircuit size={17} />
-                  <span>
-                    <strong>Ask StudioCue</strong>
-                    <small>Get a grounded answer or prepare project work</small>
-                  </span>
-                </Link>
+                <p>Quick actions</p>
                 {operator ? <Link href="/studio/projects/new" onClick={close}>
                   <Plus size={17} />
                   <span>
