@@ -7,6 +7,59 @@ It records what is enabled, what is deliberately unavailable, and the checks
 required before a provider may be added to
 `NEXT_PUBLIC_ENABLED_OAUTH_PROVIDERS`.
 
+## Status update — September 9, 2026
+
+Re-audited against the **code and production config**, not just the provider
+consoles. The headline: **nothing in the repo is unbuilt.** All seven providers
+have real HTTP adapters (`functions/src/operations/provider-runtime.ts`),
+authorization-code + refresh OAuth (`functions/src/integrations/oauth.ts`,
+`oauth-strategy.ts`), and signature-verified inbound webhooks wherever the
+provider pushes state back — Zoom, DocuSign, Dropbox Sign, QuickBooks, and
+Stripe Connect (`functions/src/integrations/webhooks.ts`, `zoom-webhook.ts`).
+Google Calendar and Dropbox have no inbound webhook by design (write/pull only).
+The live-vs-mock switch is **per connection** (`mockMode`, set only by the
+emulator seed) — production connections always call the real APIs;
+`server/integrations/mock-provider.ts` is not on the live path.
+
+So the remaining work is **operational configuration and three deliberate
+business holds — not code.**
+
+**Offered and routable today** — the authoritative set is `offeredProviders`
+(`features/integrations/schema.ts`, mirrored in
+`functions/src/integrations/capability-resolution.ts`) and it equals
+`NEXT_PUBLIC_ENABLED_OAUTH_PROVIDERS` in `apphosting.yaml`:
+**Google Calendar, Zoom, QuickBooks, Dropbox.** The resolution layer refuses to
+select any provider outside this set, so a leftover connection to a held
+provider can never be chosen to sign a contract or raise an invoice.
+
+**Deliberately held** — implemented, gated off, *not* readiness problems:
+**DocuSign, Dropbox Sign, Stripe Connect (client invoicing).**
+
+| Provider | State | What is really left — and where |
+| --- | --- | --- |
+| Google Calendar | Offered · connected · verified | **Operational only:** record the create/delete consultation acceptance test. No repo work. |
+| Zoom | Offered · built · webhook-verified | **Operational only:** the pilot tenant's connection is currently `error` (token needs reauth — this is why a `create_consultation_resources` job dead-lettered on Sep 9). Reconnect through the normal flow, then record a create/delete meeting + signed-webhook acceptance test. No repo work. |
+| Dropbox | Offered · connected · verified | **Operational only:** record the folder create/delete acceptance test. No repo work. |
+| QuickBooks Online | Offered again · connected | **Supersedes the Aug 19 row below.** Re-enabled since the Aug 19 re-gate: it is back in `NEXT_PUBLIC_ENABLED_OAUTH_PROVIDERS` and shows `connected` on the pilot tenant, so the Intuit `ApplicationAuthorizationFailed` / production-keypair block is resolved. **Operational only:** confirm the Intuit app's **Webhooks Endpoint URL** points at `/api/webhooks/quickbooks` (the handler exists and verifies `intuit-signature`, but without the console registration invoice-status reconciliation will not fire), then record the invoice create + reconcile acceptance test. No repo work. |
+| DocuSign | **Held** (dormant) | **Business, not repo.** The production request was declined; the implementation (envelope create + HMAC-verified Connect webhook) stays dormant. Dropbox Sign is the preferred signing path. Nothing to do in the repo. |
+| Dropbox Sign (HelloSign) | **Held** | **Business + external.** Backend, OAuth, and `event_hash`-verified webhook all pass; the HelloSign OAuth app reports `is_approved=false` and a paid plan is required — "spend waits on revenue." Submit the OAuth app review with a demo and take the paid plan before enabling. No repo work. |
+| Stripe Connect (client invoicing) | **Held** | **Business + one config value.** Distinct from the platform subscription billing (`saas/stripe.ts`), which is **live**. The per-studio Connect invoice path — adapter, OAuth, signed webhook — is complete; it needs `STRIPE_CLIENT_ID` (the `ca_…`) and its redirect URI registered in Stripe. Gated on the FlawlessIQ platform-onboarding decision; QuickBooks is the offered invoicing provider meanwhile. No repo work. |
+
+**Reading the Release-evidence "4 failing provider jobs" correctly.** On the
+pilot tenant these were: 2× `create_dropbox_sign_request` (a held provider,
+`disconnected` — correctly refused), 1× `create_quickbooks_invoice` (a stale
+Aug 25 failure from before the reconnect), and 1× `create_consultation_resources`
+(the Zoom-in-`error` case above). **None indicate unbuilt integrations** — they
+are two held-provider jobs, one stale job, and one connection needing reauth.
+
+**Bottom line.** Build-level work remaining in the repo for integrations:
+**none.** Launch-relevant work is (a) reconnect Zoom on the pilot tenant,
+(b) confirm QuickBooks' Intuit webhook registration and run the four acceptance
+tests (Calendar, Zoom, Dropbox, QuickBooks), and (c) the three deliberate holds,
+which are business decisions. The detailed August 18–19 investigation below is
+retained as history; where it conflicts with this section (QuickBooks), this
+section is current.
+
 ## Production rules
 
 - The canonical application origin is `https://studio-cue.com`.
@@ -322,10 +375,16 @@ signing secrets, client secrets, or raw authorization codes into this file.
 
 ## Deferred or approval-gated providers
 
-QuickBooks Online, Dropbox Sign, and Docusign remain intentionally hidden.
-Enabling any of them before its external production requirements are complete
-would present users with a connection that cannot reliably finish. Zoom stays
-visible specifically so the studio owner can replace the revoked token through
-the normal reconnect flow. Add a hidden provider to
+*(Current as of the September 9, 2026 status update above; the August wording
+listed QuickBooks here before it was re-enabled.)*
+
+**DocuSign, Dropbox Sign, and Stripe Connect** remain intentionally hidden —
+each held for a business reason, not a code gap: DocuSign's production request
+was declined; Dropbox Sign needs OAuth-app approval and a paid plan whose spend
+waits on revenue; Stripe Connect waits on the FlawlessIQ platform-onboarding
+decision (and one `STRIPE_CLIENT_ID` value). Enabling any of them before its
+external requirements are complete would present users with a connection that
+cannot reliably finish. Add a hidden provider to
 `NEXT_PUBLIC_ENABLED_OAUTH_PROVIDERS` only after every item in its
-final-evidence column has passed.
+final-evidence column has passed. Zoom stays visible specifically so the studio
+owner can replace a revoked token through the normal reconnect flow.

@@ -50,12 +50,14 @@ signatures via attestation and accept provider certification as a separate gate.
 3. **Measurement discipline.** Nominate one **observer** who records handling
    time as tasks happen. Decide the method up front (timer or observation) and
    keep an evidence log (template at the end).
-4. **Integration decision.** Either (a) complete production OAuth + certification
-   for Dropbox Sign, QuickBooks, and Calendar per
-   [`manual-launch-checklist.md`](./manual-launch-checklist.md) so their jobs
-   succeed and provider health goes healthy, or (b) run the contract-signature
-   and deposit steps through the booking gate's **"record it"** attestation and
-   note in the log that provider certification is deferred to its own gate.
+4. **Integration decision.** The offered integrations are Google Calendar,
+   Zoom, QuickBooks, and Dropbox — connect each on the pilot tenant and confirm
+   its acceptance test so its jobs succeed and provider health goes healthy
+   (see [`integration-production-readiness.md`](./integration-production-readiness.md)).
+   Signing (DocuSign / Dropbox Sign) is a **deliberate hold**, so run the
+   contract-signature and deposit steps through the booking gate's **"record
+   it"** attestation and note that in the log — that is the intended path today,
+   not a workaround.
 5. **Incident channel.** Agree where S1/S2 issues are logged the moment they
    occur, so the defects gate reflects reality rather than silence.
 
