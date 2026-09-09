@@ -1,4 +1,5 @@
 import { getFirestore } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { scopedDocuments } from "./copilot.js";
 
@@ -126,14 +127,17 @@ export const dailyDigestScheduler = onSchedule(
     const now = new Date().toISOString();
     const dayKey = now.slice(0, 10).replaceAll("-", "");
     const tenants = await db.collection("tenants").get();
+    console.log(`[digest] scanning ${tenants.size} tenants`);
     for (const tenantDoc of tenants.docs) {
       const digestSettings = tenantDoc.get("dailyDigest") as
         | { enabled?: boolean }
         | undefined;
       if (!digestSettings?.enabled) continue;
       const tenantId = tenantDoc.id;
+      console.log(`[digest] ${tenantId} enabled`);
 
       const priorities = await computePriorities(tenantId);
+      console.log(`[digest] ${tenantId} priorities=${priorities.length}`);
       if (!priorities.length) continue; // nothing pressing — don't email for the sake of it
 
       const memberships = await db
@@ -143,15 +147,26 @@ export const dailyDigestScheduler = onSchedule(
       const owners = memberships.docs.filter(
         (m) => m.get("role") === "studio_owner" && m.get("status") === "active",
       );
+      console.log(`[digest] ${tenantId} owners=${owners.length}`);
       const studioName = str(tenantDoc.get("name")) || "StudioCue";
       const { subject, body } = renderDigest(studioName, priorities);
       const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com";
 
       for (const owner of owners) {
-        const recipient = str(owner.get("email"));
+        const userId = str(owner.get("userId"));
+        // The membership doc doesn't always carry an email; fall back to the
+        // owner's Firebase Auth address.
+        let recipient = str(owner.get("email"));
+        if (!recipient && userId) {
+          try {
+            recipient = (await getAuth().getUser(userId)).email ?? "";
+          } catch {
+            /* no auth user — skip this owner */
+          }
+        }
         if (!recipient) continue;
         // One digest per owner per day — a deterministic id makes a retry a no-op.
-        const jobId = `digest_${tenantId}_${str(owner.get("userId"))}_${dayKey}`;
+        const jobId = `digest_${tenantId}_${userId}_${dayKey}`;
         try {
           await db.doc(`emailJobs/${jobId}`).create({
             id: jobId,
