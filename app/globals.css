@@ -12795,3 +12795,72 @@ form:has(> .address-field) > .address-field,
   .cue-dock{padding:12px 18px 16px}
   .cue-rail{flex-direction:column}
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Cue conversation refine (2026-09): surface contrast + calmer type.
+   The thread was white cards on a white surface, and the answer read
+   as a 28px serif headline. Give the thread a warm canvas so the answer
+   card lifts, drop the answer to a chat-sized sans line, restore the
+   review chips (a global `.copilot-result > div{display:grid}` was
+   stretching them into full-width bars), and inset the nested cards.
+   ───────────────────────────────────────────────────────────── */
+
+/* Warm canvas behind the conversation so white cards read as elevated. */
+.cue-thread { background: var(--background); }
+
+/* The grounded-response card, defined against the tint. */
+.cue-thread .copilot-result.panel {
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-sm);
+  gap: 15px;
+}
+
+/* The answer is a chat reply, not a headline: body sans, ~16px, regular. */
+.cue-thread .copilot-result h2,
+.cue-thread .cp-streaming h2 {
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 1.6;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--ink);
+}
+
+/* Restore the review chips to a compact inline row (a global
+   `.copilot-result > div{display:grid}` had turned them into full-width
+   stacked bars). */
+.cue-thread .copilot-result .cp-trace {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+/* Section labels + fact lists at a calm, readable size. */
+.cue-thread .copilot-result h3 {
+  font-size: 11px;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+}
+.cue-thread .copilot-result ul { font-size: 13.5px; line-height: 1.5; }
+
+/* Nested cards read as insets within the white answer card. */
+.cue-thread .cp-job,
+.cue-thread .copilot-flow.panel,
+.cue-thread .copilot-flow-option {
+  background: color-mix(in srgb, var(--background) 72%, var(--surface));
+}
+.cue-thread .cp-job,
+.cue-thread .copilot-flow.panel {
+  border-color: var(--line-strong);
+  box-shadow: none;
+}
+
+/* The user's own message: a touch smaller and tighter. */
+.cue-thread .copilot-turn-user { font-size: 14.5px; }
+.cue-thread .copilot-turn-user p { line-height: 1.5; }
+
+/* Follow-up suggestion chips: match the calmer scale. */
+.cue-thread .cp-followup { font-size: 13px; }
