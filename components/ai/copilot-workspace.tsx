@@ -28,6 +28,8 @@ import {
   askCopilotStream,
   listCopilotThreads,
   loadCopilotThread,
+  getCopilotVoice,
+  setCopilotVoice,
   type CopilotResult,
   type CopilotJobObject,
   type CopilotThreadSummary,
@@ -247,6 +249,7 @@ export function CopilotWorkspace() {
           <span><strong>Import studio materials</strong><small>Turn existing files into reusable workflows</small></span>
         </Link>
       </nav>
+      {!started ? <CopilotVoiceSetting /> : null}
       {started ? (
         <section className="copilot-thread" aria-live="polite" aria-label="Conversation">
           {turns.map((turn, index) =>
@@ -789,5 +792,87 @@ function PreparedActions({
       ) : null}
       {notice ? <p role="status">{notice}</p> : null}
     </div>
+  );
+}
+
+/**
+ * "Teach StudioCue your voice" — an owner sets the tone and sign-off their
+ * client emails should use, and the copilot matches it when drafting. Loaded
+ * lazily when opened (owner/admin only); the value lives on the tenant.
+ */
+function CopilotVoiceSetting() {
+  const workspace = useWorkspace();
+  const canEdit =
+    workspace.role === "studio_owner" || workspace.role === "studio_admin";
+  const [voice, setVoice] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  if (!canEdit || !workspace.tenantId) return null;
+
+  async function load() {
+    if (!workspace.tenantId) return;
+    try {
+      const value = await getCopilotVoice(workspace.tenantId);
+      setVoice(value ?? "");
+    } catch {
+      /* non-owners are filtered above; a transient failure just leaves it blank */
+    } finally {
+      setLoaded(true);
+    }
+  }
+
+  async function save() {
+    if (!workspace.tenantId) return;
+    setBusy(true);
+    setSaved(false);
+    try {
+      const stored = await setCopilotVoice(workspace.tenantId, voice);
+      setVoice(stored ?? "");
+      setSaved(true);
+    } catch {
+      /* keep what they typed; a transient failure shouldn't wipe the field */
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <details
+      className="copilot-voice"
+      onToggle={(event) => {
+        if (event.currentTarget.open && !loaded) void load();
+      }}
+    >
+      <summary>
+        <Sparkles size={13} /> Teach StudioCue your voice
+      </summary>
+      <p>
+        How should your client emails sound — tone, and how you sign off?
+        StudioCue matches this when it drafts.
+      </p>
+      <textarea
+        value={voice}
+        onChange={(event) => {
+          setVoice(event.target.value);
+          setSaved(false);
+        }}
+        placeholder="e.g. Warm and first-name, never stiff. Sign off &lsquo;Warmly, Conor&rsquo;."
+        rows={3}
+        disabled={!loaded || busy}
+      />
+      <div className="copilot-voice-actions">
+        <button
+          className="button button-dark"
+          onClick={() => void save()}
+          disabled={busy || !loaded}
+          type="button"
+        >
+          {busy ? <LoaderCircle className="spin" size={14} /> : null} Save voice
+        </button>
+        {saved ? <span role="status">Saved.</span> : null}
+      </div>
+    </details>
   );
 }

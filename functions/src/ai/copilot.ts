@@ -52,6 +52,12 @@ const loadThreadSchema = z.object({
   threadId: z.string().min(1).max(80),
 });
 
+const copilotVoiceSchema = z.object({
+  kind: z.enum(["get_copilot_voice", "set_copilot_voice"]),
+  tenantId: z.string().min(1),
+  voice: z.string().max(600).optional(),
+});
+
 const intakeRequestSchema = z.object({
   kind: z.literal("project_intake"),
   tenantId: z.string().min(1),
@@ -475,13 +481,19 @@ const COPILOT_SYSTEM_INSTRUCTION =
 function finalAnswerBody(
   contents: unknown[],
   citationCandidates: ReadonlyArray<{ label: string; href: string }>,
+  voice?: string | null,
 ) {
+  const voiceNote =
+    voice && voice.trim()
+      ? ` When you write client email drafts, match this studio's voice: ${voice.trim()}. Keep it grounded in the facts; the voice guides tone and sign-off, not content.`
+      : "";
   return {
     systemInstruction: {
       parts: [
         {
           text:
             COPILOT_SYSTEM_INSTRUCTION +
+            voiceNote +
             " Cite only from these citation targets (use their exact href, or omit citations if none apply): " +
             JSON.stringify(citationCandidates) +
             ".",
@@ -1534,6 +1546,48 @@ export const aiCopilotCommand = onRequest(
         return;
       }
 
+      // The studio's saved copilot voice (tone / sign-off for email drafts).
+      // Owner/admin only, since it is a tenant-wide setting.
+      if (
+        asRecord(request.body).kind === "get_copilot_voice" ||
+        asRecord(request.body).kind === "set_copilot_voice"
+      ) {
+        const parsed = copilotVoiceSchema.parse(request.body);
+        const db = getFirestore();
+        const voiceMembership = await db
+          .doc(`memberships/${parsed.tenantId}_${identity.uid}`)
+          .get();
+        const voiceRole = String(voiceMembership.get("role"));
+        if (
+          !voiceMembership.exists ||
+          voiceMembership.get("status") !== "active" ||
+          !["studio_owner", "studio_admin"].includes(voiceRole)
+        )
+          throw new Error("FORBIDDEN");
+        const tenantRef = db.doc(`tenants/${parsed.tenantId}`);
+        if (parsed.kind === "set_copilot_voice") {
+          const value = (parsed.voice ?? "").trim().slice(0, 600);
+          await tenantRef.set(
+            {
+              copilotVoice: value || null,
+              updatedAt: new Date().toISOString(),
+              updatedBy: identity.uid,
+            },
+            { merge: true },
+          );
+          response.status(200).json({ voice: value || null });
+          return;
+        }
+        const current = await tenantRef.get();
+        response.status(200).json({
+          voice:
+            typeof current.get("copilotVoice") === "string"
+              ? current.get("copilotVoice")
+              : null,
+        });
+        return;
+      }
+
       if (asRecord(request.body).kind === "load_thread") {
         const parsed = loadThreadSchema.parse(request.body);
         const db = getFirestore();
@@ -1589,6 +1643,13 @@ export const aiCopilotCommand = onRequest(
         throw new Error("FORBIDDEN");
       // Whole-product billing gate (studio commands require a live subscription).
       await requireActiveSubscription(db, input.tenantId);
+      // The studio's saved copilot voice (tone / sign-off), if set — shapes only
+      // how email drafts read, never their facts.
+      const tenantDoc = await db.doc(`tenants/${input.tenantId}`).get();
+      const copilotVoice =
+        typeof tenantDoc.get("copilotVoice") === "string"
+          ? (tenantDoc.get("copilotVoice") as string)
+          : null;
       const isNewThread = !input.threadId;
       const threadId = input.threadId ?? `thread_${randomUUID()}`;
       const role = String(membership.get("role"));
@@ -1679,7 +1740,7 @@ export const aiCopilotCommand = onRequest(
           if (streaming) writeSSE({ status: toolStatusLabel(name, toolArgs, projectNames) });
         },
       );
-      const finalBody = finalAnswerBody(retrievalContents, citationCandidates);
+      const finalBody = finalAnswerBody(retrievalContents, citationCandidates, copilotVoice);
       const result = streaming
         ? await streamStructuredBody(finalBody, (delta) => writeSSE({ token: delta }))
         : await generateStructuredBody(finalBody);

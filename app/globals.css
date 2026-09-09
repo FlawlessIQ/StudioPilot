@@ -11064,6 +11064,15 @@ textarea:focus-visible {
 .copilot-flow-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:2px}
 .copilot-flow-actions button:not(.button-dark){border:1px solid var(--border,#dfe3de);border-radius:99px;background:var(--surface,#fff);padding:8px 14px;font:inherit;font-size:12px;font-weight:650;cursor:pointer}
 
+/* "Teach StudioCue your voice" — owner preference for email drafting tone. */
+.copilot-voice{margin-top:8px;border:1px solid var(--border,#e7eae6);border-radius:12px;padding:10px 14px;background:var(--surface,#fff)}
+.copilot-voice>summary{cursor:pointer;font-size:13px;font-weight:650;display:flex;gap:7px;align-items:center;list-style:none}
+.copilot-voice>summary::-webkit-details-marker{display:none}
+.copilot-voice>p{margin:8px 0;font-size:12px;color:var(--muted,#6b7570)}
+.copilot-voice textarea{width:100%;border:1px solid var(--border,#dfe3de);border-radius:9px;padding:9px 11px;font:inherit;font-size:13px;resize:vertical}
+.copilot-voice-actions{display:flex;gap:10px;align-items:center;margin-top:8px}
+.copilot-voice-actions span{font-size:12px;color:var(--accent,#2f6f4f);font-weight:650}
+
 /* The Journey: one thread per couple, one action at a time. */
 .project-journey{display:grid;gap:4px}
 .project-journey-progress{font:600 15px var(--font-display,inherit);color:var(--muted,#6b7570);border:1px solid var(--border,#e3e6e2);border-radius:99px;padding:6px 13px;align-self:start}

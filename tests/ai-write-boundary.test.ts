@@ -81,6 +81,11 @@ const ALLOWED_ON_BUSINESS_RECORDS = new Set([
   "discrepancies",
   "humanDecision",
   "status",
+  // An owner-authored setting, not AI-derived content: the studio's chosen
+  // copilot "voice" (tone / sign-off for email drafts). Written only via the
+  // owner/admin-gated set_copilot_voice path and read only when the copilot
+  // drafts an email — it configures the assistant, it doesn't decide anything.
+  "copilotVoice",
 ]);
 
 /**

@@ -137,6 +137,28 @@ async function postCopilot<T>(body: Record<string, unknown>): Promise<T> {
   return payload;
 }
 
+/** The studio's saved copilot voice (tone / sign-off for email drafts), or null. */
+export async function getCopilotVoice(tenantId: string): Promise<string | null> {
+  const { voice } = await postCopilot<{ voice: string | null }>({
+    kind: "get_copilot_voice",
+    tenantId,
+  });
+  return voice ?? null;
+}
+
+/** Save the studio's copilot voice (owner/admin only). Returns the stored value. */
+export async function setCopilotVoice(
+  tenantId: string,
+  voice: string,
+): Promise<string | null> {
+  const { voice: saved } = await postCopilot<{ voice: string | null }>({
+    kind: "set_copilot_voice",
+    tenantId,
+    voice,
+  });
+  return saved ?? null;
+}
+
 /** The signed-in owner's recent copilot conversations, newest first. */
 export async function listCopilotThreads(tenantId: string): Promise<CopilotThreadSummary[]> {
   const { threads } = await postCopilot<{ threads: CopilotThreadSummary[] }>({
