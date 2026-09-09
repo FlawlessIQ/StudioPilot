@@ -33,7 +33,14 @@ const requestSchema = z.object({
         text: z.string().trim().min(1).max(4000),
       }),
     )
-    .max(12)
+    // The browser sends the whole thread, which grows unbounded. Keep only the
+    // most recent 12 turns rather than REJECTING an over-long array — a hard
+    // .max(12) here permanently broke every conversation past its 12th turn
+    // (the request failed Zod validation before reaching the model, surfacing
+    // as "Cue could not answer" on every later ask). The outer bound just caps
+    // per-request work; the slice keeps the call cheap either way.
+    .max(500)
+    .transform((turns) => turns.slice(-12))
     .optional(),
   /** Existing conversation to append to; omitted starts a new thread. */
   threadId: z.string().min(1).max(80).optional(),
@@ -192,19 +199,32 @@ const asRecord = (value: unknown): Json =>
 // Resolve the project a launched flow targets. The model usually omits
 // flow.projectId (see the flow schema), so backfill it from the strongest
 // available signal, in order: the id the model gave (if it is one the caller
-// can see), the project the whole conversation is scoped to, or — when the
-// model looked at exactly one project during tool use — that project. If none
-// of those disambiguates, return null and the flow does not launch.
+// can see), the project the whole conversation is scoped to, the project the
+// model looked at when it referenced exactly one during tool use, or — as a
+// last resort — the single visible project whose full name the model wrote
+// into its answer or the operator quoted in the question. That last case
+// covers select_package, which the model tends to launch WITHOUT a tool call
+// (it needs no project detail to raise the picker), leaving `referenced`
+// empty. If none of those disambiguates, return null and the flow does not
+// launch — better a dropped flow than one aimed at the wrong project.
 function resolveFlowProjectId(
   rawId: string | null | undefined,
   allowed: Set<string>,
   scopedId: string | null,
   referenced: Set<string>,
+  projectNames: Map<string, string>,
+  text: string,
 ): string | null {
   if (rawId && allowed.has(rawId)) return rawId;
   if (scopedId && allowed.has(scopedId)) return scopedId;
   const referencedAllowed = [...referenced].filter((id) => allowed.has(id));
   if (referencedAllowed.length === 1) return referencedAllowed[0] ?? null;
+  const haystack = text.toLowerCase();
+  const named = [...allowed].filter((id) => {
+    const name = projectNames.get(id)?.trim().toLowerCase();
+    return !!name && name.length >= 3 && haystack.includes(name);
+  });
+  if (named.length === 1) return named[0] ?? null;
   return null;
 }
 
@@ -1822,6 +1842,8 @@ export const aiCopilotCommand = onRequest(
             allowedProjectIds,
             input.projectId ?? null,
             referencedProjectIds,
+            projectNames,
+            `${result.answer ?? ""} ${input.question ?? ""}`,
           )
         : null;
       // The project the answer is really about: the launched flow's project,

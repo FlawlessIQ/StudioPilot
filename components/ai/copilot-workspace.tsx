@@ -128,12 +128,18 @@ export function CopilotWorkspace() {
     if (asked.length < 3 || busy) return;
     // The conversation so far, oldest first, so a follow-up is understood in
     // context. Assistant turns contribute their concise answer (facts and
-    // citations are re-derived server-side each turn, not replayed).
-    const history = turns.map((turn) =>
-      turn.role === "user"
-        ? { role: "user" as const, text: turn.text }
-        : { role: "assistant" as const, text: turn.result.answer },
-    );
+    // citations are re-derived server-side each turn, not replayed). Only the
+    // most recent 12 turns are sent — the server keeps at most that many, and
+    // an empty answer would fail its per-turn min-length check — so a long
+    // thread never ships an oversized (or invalid) history payload.
+    const history = turns
+      .map((turn) =>
+        turn.role === "user"
+          ? { role: "user" as const, text: turn.text }
+          : { role: "assistant" as const, text: turn.result.answer },
+      )
+      .filter((turn) => turn.text.trim().length > 0)
+      .slice(-12);
     setTurns((prior) => [...prior, { role: "user", text: asked }]);
     setQuestion("");
     setBusy(true);
