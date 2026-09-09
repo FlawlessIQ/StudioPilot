@@ -565,6 +565,7 @@ function AssistantTurn({
       <PreparedActions
         citations={result.citations}
         proposalActionIds={result.proposalActionIds}
+        hasFlow={Boolean(result.flow)}
       />
       {result.flow ? <FlowRunner flow={result.flow} /> : null}
     </section>
@@ -691,9 +692,14 @@ const POST_EVENT_TRIGGERS = new Set<MessageDraftTrigger>([
 function PreparedActions({
   citations,
   proposalActionIds,
+  hasFlow = false,
 }: {
   citations: Array<{ label: string; href: string }>;
   proposalActionIds?: string[];
+  // When the answer launched a conversational flow (crew_offer, select_package),
+  // that flow IS the next step — don't also offer the generic project drafts
+  // (day-before checklist, delivery, review), which are unrelated to it.
+  hasFlow?: boolean;
 }) {
   const workspace = useWorkspace();
   const [busy, setBusy] = useState<string | null>(null);
@@ -750,11 +756,15 @@ function PreparedActions({
       ["queued", "running", "review_required"].includes(String(record.status)),
   );
 
-  // Render when there is a project to prepare manual next steps for, OR when the
-  // copilot proposed its own actions for this answer (which carry their own
-  // project and can appear even on a portfolio-wide answer).
+  // Offer the generic project drafts only when there's a project AND the answer
+  // did not launch a flow — a crew_offer/select_package answer's next step is
+  // the flow itself, so "Draft the day-before checklist" there is off-topic.
+  const showManualDrafts = Boolean(projectId) && !hasFlow;
+  // Render when there are manual drafts to offer, OR when the copilot proposed
+  // its own actions for this answer (which carry their own project and can
+  // appear even on a portfolio-wide answer).
   if (!workspace.tenantId) return null;
-  if (!projectId && !inlineActions.length) return null;
+  if (!showManualDrafts && !inlineActions.length) return null;
 
   // Prepare one draft, returning its action id (or null in preview mode).
   async function draftFor(
@@ -843,13 +853,13 @@ function PreparedActions({
           for you — review, edit, and approve below. Nothing happens until you
           approve.
         </small>
-      ) : projectId ? (
+      ) : showManualDrafts ? (
         <small>
           Prepared next steps for {projectCitation?.label ?? "this project"} —
           each draft appears below for you to review, edit, and send:
         </small>
       ) : null}
-      {projectId && visibleActionOptions.length > 1 ? (
+      {showManualDrafts && visibleActionOptions.length > 1 ? (
         <button
           className="button button-dark copilot-prepare-all"
           disabled={busy !== null}
@@ -864,7 +874,7 @@ function PreparedActions({
           Prepare all {visibleActionOptions.length} next steps
         </button>
       ) : null}
-      {projectId ? (
+      {showManualDrafts ? (
         <div>
           {visibleActionOptions.map((option) => (
             <button
