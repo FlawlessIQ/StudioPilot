@@ -11,6 +11,7 @@ import {
   CircleGauge,
   FolderKanban,
   LibraryBig,
+  ListChecks,
   Menu,
   MessageSquareText,
   Settings,
@@ -48,6 +49,7 @@ const navSections = [
     label: "Workspace",
     items: [
       { label: "Today", href: "/studio", icon: CircleGauge },
+      { label: "Cue", href: "/studio/copilot", icon: Sparkles },
       { label: "Jobs", href: "/studio/projects", icon: FolderKanban },
     ],
   },
@@ -57,7 +59,7 @@ const navSections = [
       { label: "Calendar", href: "/studio/calendar", icon: CalendarDays },
       { label: "Messages", href: "/studio/messages", icon: MessageSquareText },
       { label: "People", href: "/studio/clients", icon: UsersRound },
-      { label: "AI review", href: "/studio/ai-queue", icon: Sparkles },
+      { label: "AI review", href: "/studio/ai-queue", icon: ListChecks },
       { label: "Insights", href: "/studio/reports", icon: ChartNoAxesColumn },
     ],
   },
@@ -76,7 +78,8 @@ const navSections = [
 
 const activeGroups: Record<string, string[]> = {
   Today: ["Today", "Dashboard", "Notifications", "Leads", "Inquiries"],
-  "AI review": ["AI review", "Copilot"],
+  Cue: ["Cue", "Copilot"],
+  "AI review": ["AI review"],
   Insights: ["Insights"],
   Messages: ["Messages"],
   Jobs: [
@@ -118,7 +121,7 @@ const studioRouteLabels: Record<string, string> = {
   calendar: "Calendar",
   clients: "Clients",
   contracts: "Contracts",
-  copilot: "Copilot",
+  copilot: "Cue",
   crew: "Crew",
   delivery: "Delivery",
   "event-day": "Event day",

@@ -5,18 +5,19 @@ import Link from "next/link";
 import {
   BookOpenCheck,
   Check,
+  ChevronRight,
   CircleAlert,
   FileText,
   FolderKanban,
   FolderPlus,
   Mail,
   LoaderCircle,
-  MessagesSquare,
   Plus,
   Send,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
+import { CueMark } from "@/components/brand/logo";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { AiQueueCard } from "@/components/ai/ai-approval-queue";
 import { FlowRunner } from "@/components/ai/flow-runner";
@@ -198,174 +199,275 @@ export function CopilotWorkspace() {
     return () => clearTimeout(timer);
   }, [workspace.loading, workspace.tenantId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return (
-    <div className="copilot-workspace">
-      <header className="page-heading">
-        <div>
-          <p className="eyebrow">One StudioCue assistant</p>
-          <h1>Ask or create</h1>
-          <p>
-            Ask about your studio or start client communication, a project, or
-            imported workflow from one place.
-          </p>
+  // Greeting is computed once at mount so the render stays pure.
+  const [now] = useState(() => new Date());
+  const hour = now.getHours();
+  const dayPart =
+    hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const firstName = (workspace.userName || "").trim().split(/\s+/)[0];
+  const greeting = `${dayPart}${firstName ? `, ${firstName}` : ""}.`;
+  const dateLabel = now.toLocaleDateString(undefined, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+
+  // The composer is shared between the empty (hero) state and the docked
+  // in-conversation state — built once, placed in whichever wrapper applies.
+  const composer = (
+    <div className="cue-composer">
+      {question.startsWith("/") ? (
+        <div className="cp-slash" role="listbox" aria-label="Commands">
+          {SLASH_COMMANDS.filter((c) =>
+            c.cmd.startsWith(question.split(/\s/)[0].toLowerCase()),
+          ).map((c) => (
+            <button
+              key={c.cmd}
+              type="button"
+              className="cp-slash-item"
+              onClick={() => setQuestion(c.question)}
+            >
+              <span className="cp-slash-cmd">{c.cmd}</span>
+              <span className="cp-slash-desc">{c.desc}</span>
+            </button>
+          ))}
         </div>
-        {started || threads.length > 0 ? (
-          <button type="button" className="cp-new" onClick={newConversation}>
-            <Plus size={15} /> New conversation
-          </button>
-        ) : null}
-      </header>
-      {!started && threads.length ? (
-        <section className="cp-recent" aria-label="Recent conversations">
-          <p className="cp-recent-label"><MessagesSquare size={13} /> Pick up where you left off</p>
-          <div className="cp-recent-list">
-            {threads.slice(0, 6).map((thread) => (
-              <button
-                type="button"
-                className="cp-recent-item"
-                key={thread.id}
-                onClick={() => void resumeThread(thread.id)}
-              >
-                <span className="cp-recent-title">{thread.title}</span>
-                <span className="cp-recent-meta">
-                  {thread.turnCount} {thread.turnCount === 1 ? "message" : "messages"}
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
       ) : null}
-      <nav className="copilot-create-actions" aria-label="Create with StudioCue">
-        <Link href="/studio/messages">
-          <Mail size={17} />
-          <span><strong>Draft a client email</strong><small>Write, revise, and approve before sending</small></span>
-        </Link>
-        <Link href="/studio/projects/new">
-          <FolderPlus size={17} />
-          <span><strong>Create a project</strong><small>Start with the client and event essentials</small></span>
-        </Link>
-        <Link href="/studio/import">
-          <FileText size={17} />
-          <span><strong>Import studio materials</strong><small>Turn existing files into reusable workflows</small></span>
-        </Link>
-      </nav>
-      {!started ? <CopilotVoiceSetting /> : null}
-      {started ? (
-        <section className="copilot-thread" aria-live="polite" aria-label="Conversation">
-          {turns.map((turn, index) =>
-            turn.role === "user" ? (
-              <div className="copilot-turn-user" key={`u-${index}`}>
-                <p>{turn.text}</p>
-              </div>
-            ) : (
-              <AssistantTurn key={`a-${index}`} result={turn.result} onFollowUp={runAsk} />
-            ),
-          )}
-          {busy && streamingText ? (
-            <section className="panel copilot-result cp-streaming" aria-live="polite">
-              <header>
-                <BookOpenCheck />
-                <span>
-                  <p className="eyebrow">Grounded response</p>
-                  <small>Answering…</small>
-                </span>
-              </header>
-              <h2>
-                {streamingText}
-                <span className="cp-caret" aria-hidden="true" />
-              </h2>
-            </section>
-          ) : busy ? (
-            <p className="copilot-turn-thinking" role="status" aria-live="polite">
-              <LoaderCircle className="spin" size={15} />{" "}
-              {statusText || "Reviewing records…"}
-            </p>
-          ) : null}
-        </section>
-      ) : null}
-      <section className="panel copilot-compose">
-        {!started ? (
-          <div className="copilot-prompts" aria-label="Suggested questions">
-            {prompts.map((prompt) => (
-              <button key={prompt} type="button" onClick={() => setQuestion(prompt)}>
-                <Sparkles size={14} /> {prompt}
-              </button>
-            ))}
-          </div>
-        ) : null}
-        {question.startsWith("/") ? (
-          <div className="cp-slash" role="listbox" aria-label="Commands">
-            {SLASH_COMMANDS.filter((c) =>
-              c.cmd.startsWith(question.split(/\s/)[0].toLowerCase()),
-            ).map((c) => (
-              <button
-                key={c.cmd}
-                type="button"
-                className="cp-slash-item"
-                onClick={() => setQuestion(c.question)}
-              >
-                <span className="cp-slash-cmd">{c.cmd}</span>
-                <span className="cp-slash-desc">{c.desc}</span>
-              </button>
-            ))}
-          </div>
-        ) : null}
-        <form onSubmit={(event) => void submit(event)}>
-          <label>
-            <span>
-              {started
-                ? "Ask a follow-up — it keeps the conversation's context"
-                : "Ask about operations, risk, payments, contracts, or crew — or type / for a command"}
-            </span>
-            <textarea
-              required
-              minLength={3}
-              maxLength={1200}
-              value={question}
-              onChange={(event) => setQuestion(event.target.value)}
-              placeholder={
-                started
-                  ? "What should I do about it?"
-                  : "What is blocking my next wedding?"
-              }
-            />
-          </label>
+      <form onSubmit={(event) => void submit(event)}>
+        <textarea
+          aria-label={started ? "Ask a follow-up" : "Ask Cue"}
+          required
+          minLength={3}
+          maxLength={1200}
+          value={question}
+          onChange={(event) => setQuestion(event.target.value)}
+          placeholder={
+            started
+              ? "Ask a follow-up — it keeps the conversation's context"
+              : "What is blocking my next wedding?"
+          }
+        />
+        <div className="cue-composer-row">
           {workspace.projectId ? (
-            <label className="copilot-scope">
+            <label className="cue-scope">
               <input
                 checked={projectOnly}
                 type="checkbox"
                 onChange={(event) => setProjectOnly(event.target.checked)}
               />
-              Restrict this question to {workspace.projectName}
+              <FolderKanban size={13} aria-hidden="true" />
+              {projectOnly ? workspace.projectName : "All projects"}
             </label>
-          ) : null}
-          <button className="button button-dark" disabled={busy} type="submit">
-            {busy ? <LoaderCircle className="spin" /> : <Send />}
-            {busy ? "Reviewing records…" : started ? "Send" : "Ask StudioCue"}
-          </button>
-        </form>
-      </section>
-      <p className="copilot-boundary is-footnote">
-        <ShieldCheck aria-hidden="true" size={14} />
-        <span>
-          <strong>Answers only — Copilot never changes authoritative status.</strong>
-          <small>
-            Payments, signatures, insurance approval, permissions and readiness
-            follow the project&rsquo;s own rules, and any action needs your
-            confirmation.
-          </small>
-        </span>
-      </p>
-      {error ? (
-        <section className="panel copilot-error" role="alert">
-          <CircleAlert />
-          <span>
-            <strong>Copilot could not answer</strong>
-            <small>{error}</small>
+          ) : (
+            <span className="cue-scope is-static">
+              <FolderKanban size={13} aria-hidden="true" /> All projects
+            </span>
+          )}
+          <span className="cue-slashhint">
+            Type <kbd>/</kbd> for a command
           </span>
+          <span className="cue-composer-spacer" />
+          <button
+            className="cue-send"
+            disabled={busy}
+            type="submit"
+            aria-label={started ? "Send" : "Ask Cue"}
+          >
+            {busy ? (
+              <LoaderCircle className="spin" size={18} />
+            ) : (
+              <Send size={18} />
+            )}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+
+  return (
+    <div className="cue-shell">
+      <div className="cue-main">
+        <header className="cue-topline">
+          <span className="cue-id">
+            <span className="cue-id-mark">
+              <CueMark size={30} />
+            </span>
+            <span className="cue-id-text">
+              <strong>Cue</strong>
+              <small>
+                <i className="cue-live" aria-hidden="true" /> StudioCue assistant
+                · ready
+              </small>
+            </span>
+          </span>
+          <span className="cue-topline-spacer" />
+          {started || threads.length > 0 ? (
+            <button type="button" className="cue-new" onClick={newConversation}>
+              <Plus size={15} /> New conversation
+            </button>
+          ) : null}
+        </header>
+
+        {!started ? (
+          <div className="cue-empty">
+            <div className="cue-greeting">
+              <p className="cue-eyebrow">{dateLabel}</p>
+              <h1>
+                {greeting}
+                <br />
+                What can I <em>prepare</em> for you?
+              </h1>
+              <p>
+                Ask about operations, payments, crew, contracts or readiness —
+                I&rsquo;ll do the legwork and hand you the next step to approve.
+              </p>
+            </div>
+            {composer}
+            <div className="cue-starters" aria-label="Suggested questions">
+              {prompts.slice(0, 4).map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  onClick={() => setQuestion(prompt)}
+                >
+                  <Sparkles size={14} /> {prompt}
+                </button>
+              ))}
+            </div>
+            <p className="cue-promise">
+              <ShieldCheck size={15} aria-hidden="true" />
+              Cue prepares — you approve. Nothing sends or changes status on its
+              own.
+            </p>
+          </div>
+        ) : (
+          <>
+            <section
+              className="cue-thread"
+              aria-live="polite"
+              aria-label="Conversation"
+            >
+              <div className="cue-thread-inner">
+                {turns.map((turn, index) =>
+                  turn.role === "user" ? (
+                    <div className="copilot-turn-user" key={`u-${index}`}>
+                      <p>{turn.text}</p>
+                    </div>
+                  ) : (
+                    <AssistantTurn
+                      key={`a-${index}`}
+                      result={turn.result}
+                      onFollowUp={runAsk}
+                    />
+                  ),
+                )}
+                {busy && streamingText ? (
+                  <section
+                    className="panel copilot-result cp-streaming"
+                    aria-live="polite"
+                  >
+                    <header>
+                      <BookOpenCheck />
+                      <span>
+                        <p className="eyebrow">Grounded response</p>
+                        <small>Answering…</small>
+                      </span>
+                    </header>
+                    <h2>
+                      {streamingText}
+                      <span className="cp-caret" aria-hidden="true" />
+                    </h2>
+                  </section>
+                ) : busy ? (
+                  <p
+                    className="copilot-turn-thinking"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <LoaderCircle className="spin" size={15} />{" "}
+                    {statusText || "Reviewing records…"}
+                  </p>
+                ) : null}
+              </div>
+            </section>
+            <div className="cue-dock">
+              <div className="cue-dock-inner">{composer}</div>
+            </div>
+          </>
+        )}
+
+        {error ? (
+          <section className="panel copilot-error cue-error" role="alert">
+            <CircleAlert />
+            <span>
+              <strong>Cue could not answer</strong>
+              <small>{error}</small>
+            </span>
+          </section>
+        ) : null}
+      </div>
+
+      <aside className="cue-rail" aria-label="Assistant context">
+        {threads.length ? (
+          <section className="cue-rail-sec">
+            <h2>Pick up where you left off</h2>
+            <div className="cue-rail-threads">
+              {threads.slice(0, 6).map((thread) => (
+                <button
+                  type="button"
+                  className="cue-rail-thread"
+                  key={thread.id}
+                  onClick={() => void resumeThread(thread.id)}
+                >
+                  <span className="t">{thread.title}</span>
+                  <span className="m">
+                    {thread.turnCount}{" "}
+                    {thread.turnCount === 1 ? "message" : "messages"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <section className="cue-rail-sec">
+          <h2>Quick actions</h2>
+          <nav className="cue-quick" aria-label="Create with StudioCue">
+            <Link href="/studio/messages">
+              <span className="cue-quick-ico">
+                <Mail size={16} />
+              </span>
+              <span className="cue-quick-label">
+                <strong>Draft a client email</strong>
+                <small>Write, revise, approve before sending</small>
+              </span>
+              <ChevronRight size={15} className="cue-quick-arr" />
+            </Link>
+            <Link href="/studio/projects/new">
+              <span className="cue-quick-ico">
+                <FolderPlus size={16} />
+              </span>
+              <span className="cue-quick-label">
+                <strong>Create a project</strong>
+                <small>Start with the client and event</small>
+              </span>
+              <ChevronRight size={15} className="cue-quick-arr" />
+            </Link>
+            <Link href="/studio/import">
+              <span className="cue-quick-ico">
+                <FileText size={16} />
+              </span>
+              <span className="cue-quick-label">
+                <strong>Import studio materials</strong>
+                <small>Turn files into reusable workflows</small>
+              </span>
+              <ChevronRight size={15} className="cue-quick-arr" />
+            </Link>
+          </nav>
         </section>
-      ) : null}
+
+        <CopilotVoiceSetting />
+      </aside>
     </div>
   );
 }
@@ -847,11 +949,11 @@ function CopilotVoiceSetting() {
   return (
     <details className="copilot-voice">
       <summary>
-        <Sparkles size={13} /> Teach StudioCue your voice
+        <Sparkles size={13} /> Teach Cue your voice
       </summary>
       <p>
-        How should your client emails sound — tone, and how you sign off?
-        StudioCue matches this when it drafts.
+        How should your client emails sound — tone, and how you sign off? Cue
+        matches this when it drafts.
       </p>
       <textarea
         value={voice}
