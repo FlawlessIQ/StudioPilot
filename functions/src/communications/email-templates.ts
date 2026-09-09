@@ -233,7 +233,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: `Join ${brand.studioName}`,
         paragraphs: [
           greeting,
-          `${brand.studioName} invited you to help manage its photography operations in StudioCue.`,
+          `We've invited you to help manage our photography operations in StudioCue.`,
           "Use the invited email address when you create or sign in to your account.",
         ],
         action: inviteUrl
@@ -299,14 +299,14 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: `A new assignment is ready`,
         paragraphs: [
           greeting,
-          `${brand.studioName} invited you to review a photography assignment${project}.`,
+          `We'd like you to review a photography assignment${project}.`,
           ...details,
           "Open the secure job brief to review responsibilities and requirements before accepting or declining.",
         ],
         action: inviteUrl
           ? { label: "Review assignment", url: inviteUrl }
           : undefined,
-        note: "The secure brief is the source of truth if the studio updates this offer.",
+        note: "The secure brief is the source of truth if we update this offer.",
       };
       }
     case "crew_directory_invitation":
@@ -326,15 +326,15 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: "You've been added to the crew",
         paragraphs: [
           greeting,
-          `${brand.studioName} added you to their crew roster on StudioCue. There's no job attached to this yet — it means they'd like you ready for one.`,
+          `We've added you to our crew roster on StudioCue. There's no job attached to this yet — it means we'd like you ready for one.`,
           "Setting up your profile takes a few minutes: confirm your specialties and the areas you travel to, mark the dates you're free, and send over your W-9 and proof of insurance.",
-          "Once that's done you'll see any assignment they offer you, with the schedule and the brief, in the same place.",
+          "Once that's done you'll see any assignment we offer you, with the schedule and the brief, in the same place.",
         ],
         action: inviteUrl
           ? { label: "Set up your crew profile", url: inviteUrl }
           : undefined,
         note:
-          "For your security, this link expires after seven days and can be revoked by the studio.",
+          "For your security, this link expires after seven days and can be revoked by us.",
       };
     case "email_verification":
       return {
@@ -547,9 +547,9 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: "Please prepare a certificate of insurance",
         paragraphs: [
           greeting,
-          `${brand.studioName} needs a certificate for ${String(requirement.venueLegalName ?? "the venue")} on ${requirement.eventDate ? humanDate(String(requirement.eventDate)) : "the event date"}.`,
+          `We need a certificate for ${String(requirement.venueLegalName ?? "the venue")} on ${requirement.eventDate ? humanDate(String(requirement.eventDate)) : "the event date"}.`,
           `Certificate holder: ${String(requirement.certificateHolder ?? "See the attached requirements")}. Due: ${requirement.dueDate ? humanDate(String(requirement.dueDate)) : "as soon as possible"}.`,
-          "Reply to this email with one PDF attachment. The studio will review the certificate before it is sent to the venue.",
+          "Reply to this email with one PDF attachment. We'll review the certificate before sending it to the venue.",
         ],
       };
     case "coi_correction":
@@ -560,7 +560,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: "Please revise the certificate",
         paragraphs: [
           greeting,
-          `${brand.studioName} reviewed the submitted certificate and needs a correction.`,
+          `We reviewed the submitted certificate and need a correction.`,
           `Studio review note: ${stringValue(values, "reason") || "Please contact the studio for the requested correction."}`,
           "Reply to this email with one corrected PDF attachment.",
         ],
@@ -573,7 +573,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: "Approved certificate attached",
         paragraphs: [
           greeting,
-          `${brand.studioName} reviewed and approved the attached certificate for ${stringValue(values, "venueName") || "the upcoming event venue"}.`,
+          `We reviewed and approved the attached certificate for ${stringValue(values, "venueName") || "the upcoming event venue"}.`,
         ],
       };
     case "crew_reminder":
@@ -584,7 +584,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: "Your assignment needs attention",
         paragraphs: [
           greeting,
-          `${brand.studioName} is waiting for an assignment response, document, or schedule acknowledgement${project}.`,
+          `We're waiting for an assignment response, document, or schedule acknowledgement${project}.`,
         ],
         action: actionUrl
           ? { label: "Open job brief", url: actionUrl }

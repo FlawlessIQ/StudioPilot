@@ -12903,3 +12903,8 @@ form:has(> .address-field) > .address-field,
 /* Proposal package rows: flag a second-shooter package so the coverage the
    client asked about is scannable, not buried in "N photographers". */
 .pkg-flag{color:var(--accent);font-weight:600}
+
+/* Next-move card: a quiet "meanwhile, waiting on the client" line, so a studio
+   task surfaced ahead of a client-blocked step doesn't read as skipping it. */
+.thread-next-meanwhile{display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:color-mix(in srgb,var(--paper) 78%,var(--muted));opacity:.9}
+.thread-next-meanwhile svg{flex:none;opacity:.85}

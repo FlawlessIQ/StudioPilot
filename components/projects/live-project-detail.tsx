@@ -825,6 +825,13 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
     )
     .map((checkpoint) => String(checkpoint.name ?? "A readiness requirement"));
   const current = journey.current;
+  // The next move is the studio's own actionable task, which can sit in a later
+  // phase than something still out with the client (e.g. "Send the form" while
+  // the proposal is awaiting the couple's yes). Surface that so the card reads
+  // as parallel work, not a jump past the booking phase.
+  const waitingOnClient =
+    journey.steps.find((step) => step.status === "waiting_client")?.title ??
+    null;
   const onTransition = (nextState: string, version: number) =>
     setProject((value) =>
       value ? { ...value, state: nextState, stateVersion: version } : value,
@@ -922,6 +929,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
         <ProjectThread
           consultationId={thread.openConsultationId}
           current={current}
+          waitingOnClient={waitingOnClient}
           studioOpenWork={studioOpenWork}
           entries={thread.entries}
           interruption={

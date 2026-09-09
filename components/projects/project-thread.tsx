@@ -7,6 +7,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   Check,
+  Clock,
   History,
   LoaderCircle,
   MessageSquareText,
@@ -89,6 +90,7 @@ export function ProjectThread({
   projectId,
   entries,
   current,
+  waitingOnClient = null,
   studioOpenWork = [],
   interruption,
   stateVersion,
@@ -98,6 +100,12 @@ export function ProjectThread({
   projectId: string;
   entries: ThreadEntry[];
   current: JourneyStep | null;
+  /**
+   * The title of a step still out with the client (a proposal awaiting their
+   * yes, say) while the next move is a studio task in a later phase. Shown as a
+   * "meanwhile" line so the next move doesn't read as skipping the booking.
+   */
+  waitingOnClient?: string | null;
   /**
    * Open readiness checkpoints the studio itself owns, soonest due first.
    *
@@ -124,6 +132,7 @@ export function ProjectThread({
     <section className="job-thread" aria-label="This job">
       <ThreadNextMove
         current={current}
+        waitingOnClient={waitingOnClient}
         interruption={interruption}
         onChanged={onChanged}
         projectId={projectId}
@@ -353,6 +362,7 @@ const NOTE_SUGGESTIONS = [
  */
 function ThreadNextMove({
   current,
+  waitingOnClient = null,
   interruption,
   onChanged,
   projectId,
@@ -360,6 +370,7 @@ function ThreadNextMove({
   studioOpenWork,
 }: {
   current: JourneyStep | null;
+  waitingOnClient?: string | null;
   interruption: { state: string; reason: string | null } | null;
   onChanged: (state?: string, version?: number) => void;
   projectId: string;
@@ -418,6 +429,12 @@ function ThreadNextMove({
                 : current.title}
             </strong>
             <small>{current.detail}</small>
+            {waitingOnClient ? (
+              <small className="thread-next-meanwhile">
+                <Clock size={12} aria-hidden="true" /> Meanwhile, waiting on the
+                client: {waitingOnClient}.
+              </small>
+            ) : null}
           </div>
           <div className="thread-next-actions">
             {current.action?.kind === "link" ? (
