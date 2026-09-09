@@ -164,17 +164,33 @@ export const dailyDigestScheduler = onSchedule(
 
       for (const owner of owners) {
         const userId = str(owner.get("userId"));
-        // The membership doc doesn't always carry an email; fall back to the
-        // owner's Firebase Auth address.
+        // The membership doc doesn't always carry an email or a display name;
+        // fall back to the owner's Firebase Auth record for both, so the brief
+        // can still reach them AND greet them by name.
         let recipient = str(owner.get("email"));
-        if (!recipient && userId) {
+        let displayName = str(owner.get("displayName"));
+        if ((!recipient || !displayName) && userId) {
           try {
-            recipient = (await getAuth().getUser(userId)).email ?? "";
+            const authUser = await getAuth().getUser(userId);
+            if (!recipient) recipient = authUser.email ?? "";
+            if (!displayName) displayName = authUser.displayName ?? "";
           } catch {
             /* no auth user — skip this owner */
           }
         }
         if (!recipient) continue;
+        // Greet by name: prefer a real display name; otherwise derive a
+        // capitalized name from the email local part ("conor.lawless" → "Conor
+        // Lawless") so the heading reads "Good morning, Conor" rather than a
+        // bare "Good morning".
+        const recipientName =
+          displayName ||
+          (recipient.split("@")[0] ?? "")
+            .split(/[._-]+/)
+            .filter(Boolean)
+            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(" ") ||
+          null;
         // One digest per owner per day — a deterministic id makes a retry a no-op.
         const jobId = `digest_${tenantId}_${userId}_${dayKey}`;
         try {
@@ -184,7 +200,7 @@ export const dailyDigestScheduler = onSchedule(
             projectId: null,
             contactId: null,
             recipient,
-            recipientName: str(owner.get("displayName")) || null,
+            recipientName,
             projectName: null,
             type: "daily_digest",
             customSubject: subject,
