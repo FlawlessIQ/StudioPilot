@@ -106,7 +106,9 @@ const responseSchema = z.object({
         href: z.string(),
       }),
     )
-    .max(12),
+    .max(12)
+    // Advisory list: a malformed citation must never sink the whole answer.
+    .catch([]),
   // Optional client emails the copilot proposes when the answer implies an
   // outward step (an overdue balance, an expired offer, a missing form). Each
   // becomes a human-approval card; nothing is ever sent without the owner's tap,
@@ -122,7 +124,9 @@ const responseSchema = z.object({
     )
     .max(3)
     .optional()
-    .default([]),
+    .default([])
+    // Advisory: a malformed proposal is dropped, never fatal to the answer.
+    .catch([]),
   // Optional non-email actions the copilot proposes — internal, reversible
   // studio commands (a task to chase something, a proposal draft, an insurance
   // flag). Each becomes a human-approval card that runs the real command only on
@@ -146,7 +150,9 @@ const responseSchema = z.object({
     )
     .max(3)
     .optional()
-    .default([]),
+    .default([])
+    // Advisory: a malformed action proposal is dropped, never fatal.
+    .catch([]),
   // A multi-turn conversational flow the copilot can launch instead of (or with)
   // an answer: gather real options → the operator selects → fills a small form
   // (incl. any money) → sends. The model only chooses WHICH flow and the project;
@@ -158,7 +164,12 @@ const responseSchema = z.object({
       reason: z.string().min(1).max(300),
     })
     .nullable()
-    .optional(),
+    .optional()
+    // The model sometimes emits a flow with a missing/null projectId; that must
+    // drop the flow (the handler re-checks the id against the caller's scope
+    // anyway), never reject the whole answer — which was the intermittent
+    // "Cue could not answer" (VERTEX_AI_PARSE_FAILED on flow.projectId).
+    .catch(null),
 });
 
 const internalRoles = new Set([
