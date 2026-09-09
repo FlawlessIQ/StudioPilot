@@ -532,25 +532,27 @@ function AssistantTurn({
           <ul>{result.facts.map((fact) => <li key={fact}>{fact}</li>)}</ul>
         </div>
       ) : null}
-      {result.suggestions.length ? (
-        <div className="cp-followups-wrap">
-          <h3>Suggested next</h3>
-          <div className="cp-followups">
-            {result.suggestions.map((suggestion) =>
-              onFollowUp ? (
-                <button
-                  className="cp-followup"
-                  key={suggestion}
-                  type="button"
-                  onClick={() => onFollowUp(suggestion)}
-                >
-                  <Sparkles size={13} /> {suggestion}
-                </button>
-              ) : (
-                <span className="cp-followup is-static" key={suggestion}>{suggestion}</span>
-              ),
-            )}
-          </div>
+      {/* Quick-reply chips: grounded follow-up QUESTIONS to save the operator
+          typing. They only ever ask or prepare (never send/change status). When
+          a flow owns the turn, it carries the next step — no competing chips. */}
+      {result.suggestions.length && !result.flow ? (
+        <div className="cp-quickreplies" aria-label="Suggested follow-ups">
+          {result.suggestions.map((suggestion) =>
+            onFollowUp ? (
+              <button
+                className="cp-quickreply"
+                key={suggestion}
+                type="button"
+                onClick={() => onFollowUp(suggestion)}
+              >
+                {suggestion}
+              </button>
+            ) : (
+              <span className="cp-quickreply is-static" key={suggestion}>
+                {suggestion}
+              </span>
+            ),
+          )}
         </div>
       ) : null}
       {result.citations.length ? (

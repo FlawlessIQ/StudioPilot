@@ -12864,3 +12864,31 @@ form:has(> .address-field) > .address-field,
 
 /* Follow-up suggestion chips: match the calmer scale. */
 .cue-thread .cp-followup { font-size: 13px; }
+
+/* Quick-reply follow-up chips: grounded questions to save typing (never
+   actions). A global `.copilot-result > div{display:grid}` would stack them,
+   so force the inline row with a scoped rule, like .cp-trace. */
+.cue-thread .copilot-result .cp-quickreplies { display: flex; flex-wrap: wrap; gap: 7px; }
+.cp-quickreply {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: border-color .12s, background .12s, color .12s;
+}
+.cp-quickreply:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+  color: var(--ink);
+}
+.cp-quickreply.is-static { cursor: default; }
+.cp-quickreply.is-static:hover { border-color: var(--line); background: var(--surface); color: var(--muted); }
