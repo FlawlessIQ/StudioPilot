@@ -15,6 +15,7 @@ import {
   Gauge,
   Info,
   Printer,
+  Rocket,
   SlidersHorizontal,
   TrendingDown,
   WalletCards,
@@ -259,6 +260,9 @@ export function LiveReports() {
           <p>Understand the health of your pipeline, projects, and collections without losing sight of where each number came from.</p>
         </div>
         <div className="report-actions">
+          <Link className="button button-light" href="/studio/reports/release-evidence">
+            <Rocket /> Release evidence
+          </Link>
           <button className="button button-light" type="button" onClick={() => window.print()}>
             <Printer /> Print
           </button>
