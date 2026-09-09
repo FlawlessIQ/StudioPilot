@@ -363,6 +363,11 @@ export function CopilotWorkspace() {
                     <AssistantTurn
                       key={`a-${index}`}
                       result={turn.result}
+                      question={
+                        turns[index - 1]?.role === "user"
+                          ? (turns[index - 1] as { text: string }).text
+                          : ""
+                      }
                       onFollowUp={runAsk}
                     />
                   ),
@@ -498,9 +503,11 @@ function reviewTrace(result: CopilotResult): Array<{ label: string; detail: stri
 
 function AssistantTurn({
   result,
+  question = "",
   onFollowUp,
 }: {
   result: CopilotResult;
+  question?: string;
   onFollowUp?: (question: string) => void;
 }) {
   const trace = reviewTrace(result);
@@ -568,6 +575,7 @@ function AssistantTurn({
         citations={result.citations}
         proposalActionIds={result.proposalActionIds}
         hasFlow={Boolean(result.flow)}
+        question={question}
       />
       {result.flow ? <FlowRunner flow={result.flow} /> : null}
     </section>
@@ -691,10 +699,17 @@ const POST_EVENT_TRIGGERS = new Set<MessageDraftTrigger>([
  * Copilot with hands: answers can end in prepared drafts. Each chip creates a
  * draft that lands in the AI review queue — Copilot never sends anything.
  */
+// The generic project drafts (day-before checklist, delivery, review) are
+// pre-event prep / comms — only offer them when the operator's question is
+// actually about getting ready, timing, or the run of show, not on an
+// unrelated answer like "which clients have unpaid balances?".
+const PREP_INTENT = /\b(ready|readiness|prep|prepare|preparing|checklist|day[-\s]?before|timeline|run of show|schedule|logistic|planning|blocker|blocking|what.{0,12}(needs? doing|to do|left)|this week|upcoming|event[-\s]day|before the (wedding|event|shoot))\b/i;
+
 function PreparedActions({
   citations,
   proposalActionIds,
   hasFlow = false,
+  question = "",
 }: {
   citations: Array<{ label: string; href: string }>;
   proposalActionIds?: string[];
@@ -702,6 +717,9 @@ function PreparedActions({
   // that flow IS the next step — don't also offer the generic project drafts
   // (day-before checklist, delivery, review), which are unrelated to it.
   hasFlow?: boolean;
+  // The question that produced this answer, used to gate the generic prep
+  // drafts to pre-event-prep intent (see PREP_INTENT).
+  question?: string;
 }) {
   const workspace = useWorkspace();
   const [busy, setBusy] = useState<string | null>(null);
@@ -758,10 +776,12 @@ function PreparedActions({
       ["queued", "running", "review_required"].includes(String(record.status)),
   );
 
-  // Offer the generic project drafts only when there's a project AND the answer
-  // did not launch a flow — a crew_offer/select_package answer's next step is
-  // the flow itself, so "Draft the day-before checklist" there is off-topic.
-  const showManualDrafts = Boolean(projectId) && !hasFlow;
+  // Offer the generic project drafts only when there's a project, the answer
+  // did not launch a flow (a crew_offer/select_package answer's next step is
+  // the flow itself), AND the question was about pre-event prep — so "Draft the
+  // day-before checklist" never shows up on, say, a payments question.
+  const showManualDrafts =
+    Boolean(projectId) && !hasFlow && PREP_INTENT.test(question);
   // Render when there are manual drafts to offer, OR when the copilot proposed
   // its own actions for this answer (which carry their own project and can
   // appear even on a portfolio-wide answer).
