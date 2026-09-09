@@ -48,7 +48,9 @@ acceptance path. Local development remains mock by default.
 9. Obtain legal review for contracts, insurance language, privacy/retention, SMS consent, and workflows involving minors.
 10. Run the clean-account acceptance pilot with real owner, client, and crew
     personas; record measured handling baselines and resolve every amber launch
-    gate in **Reports → Release evidence**.
+    gate in **Reports → Release evidence**. The step-by-step script — which
+    gate each action produces, and how handling time is measured — is
+    [`docs/acceptance-pilot.md`](./acceptance-pilot.md).
 
 No provider credential, payment instrument, signature, insurance approval, or
 legal determination is supplied by this repository.
@@ -115,6 +117,8 @@ files or demo credentials.
 
 The current external-account and business-approval work is maintained in
 [`docs/manual-launch-checklist.md`](./manual-launch-checklist.md).
+The clean-account acceptance-pilot script is maintained in
+[`docs/acceptance-pilot.md`](./acceptance-pilot.md).
 Failure diagnosis and recovery procedures are maintained in
 [`docs/support-runbook.md`](./support-runbook.md).
 The implementation and release-evidence record is maintained in
