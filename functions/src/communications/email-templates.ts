@@ -249,7 +249,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: `Your project space is ready`,
         paragraphs: [
           greeting,
-          `${brand.studioName} created a private portal${project} where you can see next steps, complete questionnaires, review the schedule, and access approved documents.`,
+          `We created a private portal${project} where you can see next steps, complete questionnaires, review the schedule, and access approved documents.`,
           "Activate access using the same email address that received this invitation.",
         ],
         action: inviteUrl
@@ -387,12 +387,12 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     case "inquiry_acknowledgement":
       return {
         subject: `${brand.studioName} received your inquiry`,
-        preheader: "Your photography inquiry is safely with the studio.",
+        preheader: "Your inquiry is safely with us.",
         eyebrow: "Inquiry received",
         heading: "Thank you for reaching out",
         paragraphs: [
           greeting,
-          `${brand.studioName} received your inquiry and will review the event details before confirming availability or recommending a next step.`,
+          `We received your inquiry and will review the event details before confirming availability or recommending a next step.`,
         ],
         action: portalUrl
           ? { label: "View your inquiry", url: portalUrl }
@@ -409,10 +409,10 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: isReminder ? "We’ll see you soon" : "Your consultation is booked",
         paragraphs: [
           greeting,
-          `${brand.studioName} ${isReminder ? "is looking forward to" : "confirmed"} your consultation${startsAt ? ` on ${startsAt}` : ""}.`,
+          `We${isReminder ? "'re looking forward to" : " confirmed"} your consultation${startsAt ? ` on ${startsAt}` : ""}.`,
           stringValue(values, "location")
             ? `Location or meeting details: ${stringValue(values, "location")}`
-            : "Your studio will share any final meeting details before the appointment.",
+            : "We'll share any final meeting details before the appointment.",
         ],
         action: actionUrl
           ? { label: "View consultation", url: actionUrl }
@@ -427,8 +427,8 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: "Let’s find a time to talk",
         paragraphs: [
           greeting,
-          `${brand.studioName} invited you to choose a consultation time${project}.`,
-          "Open the secure scheduler to see the studio’s current availability. A confirmation will be sent after you choose a time.",
+          `We'd like you to choose a consultation time${project}.`,
+          "Open the secure scheduler to see our current availability. A confirmation will be sent after you choose a time.",
         ],
         action: actionUrl
           ? { label: "Choose a consultation time", url: actionUrl }
@@ -443,7 +443,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: "Let’s find the right coverage",
         paragraphs: [
           greeting,
-          `${brand.studioName} prepared the next step${project}. Review the available coverage and send any questions before making a selection.`,
+          `We've prepared the next step${project}. Review the available coverage and send any questions before making a selection.`,
         ],
         action: portalUrl
           ? { label: "Review packages", url: portalUrl }
@@ -457,7 +457,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: "Your proposal is ready to review",
         paragraphs: [
           greeting,
-          `${brand.studioName} prepared a proposal${project} with your selected coverage, pricing, payment schedule, and terms summary.`,
+          `We've prepared a proposal${project} with your selected coverage, pricing, payment schedule, and terms summary.`,
           "Review the live proposal in your secure client portal. A PDF copy is attached for your records.",
         ],
         action: actionUrl
@@ -474,7 +474,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: "Your agreement is ready to sign",
         paragraphs: [
           greeting,
-          `${brand.studioName} sent the photography agreement${project} through its secure signature provider.`,
+          `We sent the photography agreement${project} through our secure signature provider.`,
         ],
         action: actionUrl
           ? { label: "Review agreement", url: actionUrl }
@@ -497,7 +497,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           : `Your ${label} invoice is ready`,
         paragraphs: [
           greeting,
-          `${brand.studioName} ${isReminder ? "has a gentle reminder about your" : "has your"} ${label} invoice ready${project}.`,
+          `We ${isReminder ? `have a gentle reminder about your ${label}${project}.` : `have your ${label} invoice ready${project}.`}`,
           "You can review the details and pay securely whenever you're ready.",
         ],
         action: invoiceUrl
@@ -532,7 +532,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           : "Help us plan the details",
         paragraphs: [
           greeting,
-          `${brand.studioName} ${reminder ? "is still waiting for" : "is ready to collect"} the planning information${project}. You can save your progress and return before submitting.`,
+          `We${reminder ? "'re still waiting for" : "'re ready to collect"} the planning information${project}. You can save your progress and return before submitting.`,
         ],
         action: actionUrl
           ? { label: "Complete questionnaire", url: actionUrl }
@@ -607,10 +607,10 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           : "Your event-day schedule is ready",
         paragraphs: [
           greeting,
-          `${brand.studioName} ${final ? "published the current event-day schedule" : "shared your event-day schedule"}${project}.`,
+          `We${final ? "'ve published the current event-day schedule" : "'ve shared your event-day schedule"}${project}.`,
           final
             ? "Please use this version on the event day. Relevant crew may be asked to acknowledge changes."
-            : "Keep it handy for the day. Message your studio if anything needs to change.",
+            : "Keep it handy for the day. Message us if anything needs to change.",
         ],
         action: scheduleUrl
           ? { label: final ? "Open final schedule" : "View schedule", url: scheduleUrl }
@@ -625,8 +625,8 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: "We’re ready for your event",
         paragraphs: [
           greeting,
-          `${brand.studioName} is looking forward to your event${project}. Review the current schedule, arrival details, and any remaining next action in your portal.`,
-          "To help photography begin on time, please have the wedding dress on a hanger and keep the shoes, flowers, rings, and invitation suite together before the team arrives.",
+          `We're looking forward to your event${project}. Review the current schedule, arrival details, and any remaining next action in your portal.`,
+          "To help photography begin on time, please have the wedding dress on a hanger and keep the shoes, flowers, rings, and invitation suite together before we arrive.",
         ],
         action: portalUrl
           ? { label: "Open project portal", url: portalUrl }
@@ -635,12 +635,12 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     case "thank_you":
       return {
         subject: `Thank you from ${brand.studioName}`,
-        preheader: "Thank you for trusting the studio with your event.",
+        preheader: "Thank you for trusting us with your event.",
         eyebrow: "Thank you",
         heading: "It was a privilege to be there",
         paragraphs: [
           greeting,
-          `${brand.studioName} appreciates the trust you placed in the team${project}. The studio will keep your portal updated as post-production progresses.`,
+          `We're grateful for the trust you placed in us${project}. We'll keep your portal updated as post-production progresses.`,
         ],
       };
     case "delivery": {
@@ -653,7 +653,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: "Your photographs are ready",
         paragraphs: [
           greeting,
-          `${brand.studioName} completed your delivery${project}. Use the secure link below and keep any access code private.`,
+          `We've finished your delivery${project}. Use the secure link below and keep any access code private.`,
           ...(accessCode ? [`Gallery access code: ${accessCode}`] : []),
           ...(expirationDate
             ? [`Please download and back up your photographs before ${humanDate(expirationDate)}.`]
@@ -672,8 +672,8 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: "Thank you for choosing us",
         paragraphs: [
           greeting,
-          `${brand.studioName} would be grateful if you shared an honest review of your experience.`,
-          "Opening the review link does not tell the studio that a review was posted. You can confirm completion separately in your portal.",
+          `We'd be grateful if you shared an honest review of your experience.`,
+          "Opening the review link does not tell us that a review was posted. You can confirm completion separately in your portal.",
         ],
         action: destinationUrl
           ? { label: "Share your experience", url: destinationUrl }
