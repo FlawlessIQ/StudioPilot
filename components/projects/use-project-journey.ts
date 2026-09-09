@@ -65,6 +65,7 @@ export function useProjectJourney({
   const insuranceRequests = useTenantDocuments("insuranceRequests");
   const deliveries = useTenantDocuments("deliveryRecords");
   const aiActions = useTenantDocuments("aiActions");
+  const packageSnapshots = useTenantDocuments("packageSnapshots");
 
   const forProject = (
     records: Array<Record<string, unknown> & { id: string }> | null,
@@ -91,6 +92,17 @@ export function useProjectJourney({
   const coi = forProject(insuranceRequests.records).sort((left, right) =>
     text(right.createdAt).localeCompare(text(left.createdAt)),
   )[0];
+
+  // The booked package's photographer count: >1 means a second shooter is part
+  // of what the client paid for, so "no crew offered" must not read as solo.
+  const journeyProject = (projectRecords.records ?? []).find(
+    (item) => item.id === projectId,
+  );
+  const bookedSnapshot = (packageSnapshots.records ?? []).find(
+    (snapshot) => snapshot.id === text(journeyProject?.packageSnapshotId),
+  );
+  const packageNeedsSecondShooter =
+    Number(bookedSnapshot?.includedPhotographers ?? 1) > 1;
 
   const readinessEvidence = useReadinessEvidence(projectId);
 
@@ -150,6 +162,7 @@ export function useProjectJourney({
     ).length,
     // Every role offered on this job. Zero means solo — see JourneyInput.
     crewRequired: forProject(crewAssignments.records).length,
+    packageNeedsSecondShooter,
     settledCheckpointKeys: forProject(checkpoints.records)
       .filter((checkpoint) => ["complete", "waived"].includes(text(checkpoint.status)))
       .map((checkpoint) => text(checkpoint.templateKey))

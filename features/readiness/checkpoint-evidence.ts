@@ -173,8 +173,20 @@ export function readinessEvidenceFromFacts(input: {
    * one.
    */
   insuranceRequired: string | null;
+  /**
+   * The booked package includes a second shooter, so zero crew offered is an
+   * open item, not a solo shoot — keeps this engine agreeing with the journey
+   * rail (features/journey/steps.ts).
+   */
+  packageNeedsSecondShooter?: boolean;
 }): ReadinessEvidence {
   const paid = (status: string | null) => status === "paid";
+  const effectiveCrewRequired =
+    input.crewRequired > 0
+      ? input.crewRequired
+      : input.packageNeedsSecondShooter
+        ? 1
+        : 0;
   return {
     contractCompleted: input.contractStatus === "completed",
     retainerPaid: paid(input.retainerInvoiceStatus),
@@ -190,16 +202,19 @@ export function readinessEvidenceFromFacts(input: {
     // Vacuously satisfied when no role is required. `crewRequired` must be the
     // number of roles the studio actually needs filled — count the roles
     // offered, not a guess — so that zero means "shooting this one alone"
-    // rather than "we have not worked out the crew yet".
+    // rather than "we have not worked out the crew yet". EXCEPT when the booked
+    // package includes a second shooter: then zero roles offered is an open
+    // item (the client paid for coverage still to be arranged), not solo — so
+    // treat the required count as at least one.
     crewAccepted:
-      input.crewRequired > 0
-        ? input.crewAccepted >= input.crewRequired
+      effectiveCrewRequired > 0
+        ? input.crewAccepted >= effectiveCrewRequired
         : true,
     // Every required assignment, not merely one of them: a brief half the crew
     // has read is not a brief the crew has read.
     crewAcknowledgedSchedule:
-      input.crewRequired > 0
-        ? input.crewAcknowledgedCurrent >= input.crewRequired
+      effectiveCrewRequired > 0
+        ? input.crewAcknowledgedCurrent >= effectiveCrewRequired
         : true,
     coiSentToVenue:
       input.insuranceRequired === "not_required" ||

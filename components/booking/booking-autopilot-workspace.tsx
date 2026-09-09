@@ -30,6 +30,7 @@ import { runAiQueueCommand } from "@/lib/ai-actions/command-client";
 import { sendBookingCommand } from "@/lib/booking/command-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { useTenantDocuments } from "@/components/live/tenant-records";
 import { runProposalCommand } from "@/lib/proposals/command-client";
 import {
   PanelError,
@@ -117,6 +118,12 @@ export function BookingAutopilotWorkspace({
   const [proposalId, setProposalId] = useState<string | null>(null);
   const [noteSource, setNoteSource] = useState<"notes" | "transcript">("notes");
 
+  // The project's state via the live store, so a booking mutation elsewhere on
+  // this page (record signature/retainer, confirm booking) re-flows the hero
+  // and status label here without a reload. Falls back to the one-shot getDoc
+  // read below until the store has it.
+  const { records: projectRecords } = useTenantDocuments("projects");
+
   const load = useCallback(async () => {
     if (!workspace.tenantId) return;
     setLoading(true);
@@ -125,8 +132,13 @@ export function BookingAutopilotWorkspace({
       // config, and outside it that escaped as an unhandled rejection, so the
       // finally never ran and this panel spun forever.
       const { firestore } = getFirebaseClient();
-      const [projectSnapshot, consultationSnapshot, packageSnapshot, actionSnapshot] =
-        await Promise.all([
+      const [
+        projectSnapshot,
+        consultationSnapshot,
+        packageSnapshot,
+        actionSnapshot,
+        proposalSnapshot,
+      ] = await Promise.all([
           getDoc(doc(firestore, "projects", projectId)),
           getDocs(
             query(
@@ -145,6 +157,13 @@ export function BookingAutopilotWorkspace({
           getDocs(
             query(
               collection(firestore, "aiActions"),
+              where("tenantId", "==", workspace.tenantId),
+              where("projectId", "==", projectId),
+            ),
+          ),
+          getDocs(
+            query(
+              collection(firestore, "proposals"),
               where("tenantId", "==", workspace.tenantId),
               where("projectId", "==", projectId),
             ),
@@ -176,6 +195,17 @@ export function BookingAutopilotWorkspace({
         })),
       );
       setActions(actionValues);
+      // A proposal on file — created here OR in the standalone builder — means
+      // the "no proposal is on file, booked outside StudioCue" copy is wrong.
+      // Reflect any existing proposal (accepted first, else the latest version).
+      const proposalValue =
+        proposalSnapshot.docs
+          .map((item): Value => ({ id: item.id, ...item.data() }))
+          .sort((left, right) => Number(right.version ?? 0) - Number(left.version ?? 0));
+      const onFile =
+        proposalValue.find((item) => item.status === "accepted") ??
+        proposalValue[0];
+      if (onFile) setProposalId((current) => current ?? onFile.id);
       setNotes(
         (current) =>
           current || text(consultationValue?.internalNotes),
@@ -260,7 +290,13 @@ export function BookingAutopilotWorkspace({
    * pre-consultation flow and told to "Schedule the consultation first".
    * See features/projects/stage-progress.ts.
    */
-  const laterBookingState = pastProposal(text(project?.state));
+  // Prefer the live store's state (refreshed by booking mutations) over the
+  // one-shot getDoc read, so this hero doesn't sit on a stale "awaiting
+  // signature" after the job is booked on the same page.
+  const liveState =
+    text(projectRecords?.find((entry) => entry.id === projectId)?.state) ||
+    text(project?.state);
+  const laterBookingState = pastProposal(liveState);
   /**
    * The consultation already happened, whatever this page can see of it.
    *
@@ -275,7 +311,7 @@ export function BookingAutopilotWorkspace({
    * The state is the authority. Anything from CONSULTATION onward means the
    * conversation is behind them.
    */
-  const consultationBehindThem = pastConsultation(text(project?.state));
+  const consultationBehindThem = pastConsultation(liveState);
   const expiry = useMemo(() => futureDate(14), []);
   const retainerDueDate = useMemo(() => futureDateString(7), []);
   const balanceDue = useMemo(() => {
@@ -501,7 +537,7 @@ export function BookingAutopilotWorkspace({
         <header className="booking-autopilot-hero is-settled">
           <div>
             <p className="eyebrow">
-              <Check size={14} /> {projectStateLabel(text(project?.state))}
+              <Check size={14} /> {projectStateLabel(liveState)}
             </p>
             <h1>{text(project?.name) || "This job"} is past the proposal.</h1>
             <p>

@@ -510,6 +510,17 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
       setNotice(
         `Booking sequence approved. The contract is queued through ${signingProviderLabel}; StudioCue will prepare the retainer after signature and confirm the booking after payment.`,
       );
+      // Refresh the shared tenant store too, so the project badge in the
+      // context bar, the autopilot hero, and the readiness gauge reflect the
+      // new state — without this, confirming a booking left them reading
+      // "Awaiting deposit" until a manual reload.
+      refreshTenantRecords(
+        "projects",
+        "contracts",
+        "invoiceReferences",
+        "checkpoints",
+        "readinessAssessments",
+      );
       await load();
     } catch (error: unknown) {
       setNotice(friendlyError(error));
@@ -535,6 +546,17 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
       });
       setNotice(
         "QuickBooks customer matching and retainer creation are queued.",
+      );
+      // Refresh the shared tenant store too, so the project badge in the
+      // context bar, the autopilot hero, and the readiness gauge reflect the
+      // new state — without this, confirming a booking left them reading
+      // "Awaiting deposit" until a manual reload.
+      refreshTenantRecords(
+        "projects",
+        "contracts",
+        "invoiceReferences",
+        "checkpoints",
+        "readinessAssessments",
       );
       await load();
     } catch (error: unknown) {
@@ -574,6 +596,17 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
         payload.passed === true
           ? "Booking confirmed. We're setting the job up now."
           : "Booking is still waiting on the requirements shown below.",
+      );
+      // Refresh the shared tenant store too, so the project badge in the
+      // context bar, the autopilot hero, and the readiness gauge reflect the
+      // new state — without this, confirming a booking left them reading
+      // "Awaiting deposit" until a manual reload.
+      refreshTenantRecords(
+        "projects",
+        "contracts",
+        "invoiceReferences",
+        "checkpoints",
+        "readinessAssessments",
       );
       await load();
     } catch (error: unknown) {

@@ -28,6 +28,7 @@ export function useReadinessEvidence(projectId: string): ReadinessEvidence {
   const schedules = useTenantDocuments("schedules");
   const crewAssignments = useTenantDocuments("crewAssignments");
   const projects = useTenantDocuments("projects");
+  const packageSnapshots = useTenantDocuments("packageSnapshots");
 
   const forProject = (
     records: Array<Record<string, unknown> & { id: string }> | null,
@@ -42,6 +43,14 @@ export function useReadinessEvidence(projectId: string): ReadinessEvidence {
   )[0];
   const questionnaire = forProject(questionnaires.records)[0];
   const crew = forProject(crewAssignments.records);
+  const projectRecord = (projects.records ?? []).find(
+    (item) => item.id === projectId,
+  );
+  const bookedSnapshot = (packageSnapshots.records ?? []).find(
+    (snapshot) => snapshot.id === text(projectRecord?.packageSnapshotId),
+  );
+  const packageNeedsSecondShooter =
+    Number(bookedSnapshot?.includedPhotographers ?? 1) > 1;
 
   return readinessEvidenceFromFacts({
     contractStatus: text(latestContract?.status) || null,
@@ -62,6 +71,7 @@ export function useReadinessEvidence(projectId: string): ReadinessEvidence {
     // The roles this job actually needs filled: every assignment offered on it.
     // Zero means nobody was asked, which is a solo wedding.
     crewRequired: crew.length,
+    packageNeedsSecondShooter,
     // Against the current version, not merely "has acknowledged something".
     crewAcknowledgedCurrent: crew.filter(
       (assignment) =>

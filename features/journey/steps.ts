@@ -223,6 +223,13 @@ export type JourneyInput = {
    * showed "100% ready — nothing blocking" directly above "Crew confirmed ✗".
    */
   crewRequired?: number;
+  /**
+   * The booked package includes more than one photographer (a second shooter),
+   * so "no crew offered" is NOT a solo shoot — the client paid for coverage
+   * that still needs arranging. Without this, a 2-photographer package with no
+   * crew offered ticked "Crew confirmed · shooting this one solo".
+   */
+  packageNeedsSecondShooter?: boolean;
   crewCascadeActive: boolean;
   coiStatus: string | null;
   /** "unknown" | "required" | "not_required" — see projects/schema.ts. */
@@ -651,7 +658,10 @@ export function projectJourney(input: JourneyInput): {
   // means "no opinion", which is not the same as "solo".
   const settled = (key: string) =>
     (input.settledCheckpointKeys ?? []).includes(key);
-  const shootingSolo = input.crewRequired === 0 && input.crewAccepted === 0;
+  const shootingSolo =
+    input.crewRequired === 0 &&
+    input.crewAccepted === 0 &&
+    !input.packageNeedsSecondShooter;
   /**
    * Every role that was offered, not the first person to say yes.
    *
