@@ -195,6 +195,19 @@ function text(value: unknown, fallback = "—"): string {
   return typeof value === "string" && value.trim() ? value : fallback;
 }
 
+/**
+ * Package descriptions in the library are often written with ".." between
+ * clauses ("coverage each.. Drone included.."). That copy is prefilled into
+ * the client-facing proposal introduction, so collapse those runs into a
+ * single sentence break before the client ever sees it.
+ */
+function cleanIntro(value: string): string {
+  return value
+    .replace(/\s*\.{2,}\s*/g, ". ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 function number(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
@@ -806,7 +819,7 @@ export function StudioProposalComposer() {
         );
         if (requestedProject) {
           setProjectId(requestedProject.id);
-          setNotes(text(requestedProject.packageSnapshot.description, ""));
+          setNotes(cleanIntro(text(requestedProject.packageSnapshot.description, "")));
           setTermsSummary(
             text(requestedProject.packageSnapshot.terms, ""),
           );
@@ -856,7 +869,7 @@ export function StudioProposalComposer() {
       (project) => project.id === nextProjectId,
     );
     if (!nextProject) return;
-    setNotes(text(nextProject.packageSnapshot.description, ""));
+    setNotes(cleanIntro(text(nextProject.packageSnapshot.description, "")));
     setTermsSummary(text(nextProject.packageSnapshot.terms, ""));
     const event = new Date(`${nextProject.eventDate}T12:00:00`);
     setBalanceDueDate(
@@ -895,7 +908,7 @@ export function StudioProposalComposer() {
       setPackagePickerFor(null);
       if (readyProject) {
         setProjectId(readyProject.id);
-        setNotes(text(readyProject.packageSnapshot.description, ""));
+        setNotes(cleanIntro(text(readyProject.packageSnapshot.description, "")));
         setTermsSummary(text(readyProject.packageSnapshot.terms, ""));
         const event = new Date(`${readyProject.eventDate}T12:00:00`);
         if (!Number.isNaN(event.valueOf())) {
@@ -1049,6 +1062,9 @@ export function StudioProposalComposer() {
                               {number(studioPackage.includedPhotographers) > 1
                                 ? "s"
                                 : ""}
+                              {number(studioPackage.includedPhotographers) > 1 ? (
+                                <b className="pkg-flag"> · second shooter</b>
+                              ) : null}
                             </small>
                           </span>
                           <button
@@ -1295,7 +1311,7 @@ export function StudioProposalComposer() {
                 type="number"
                 value={
                   retainerOverride === null
-                    ? String(number(pricing.retainerCents) / 100)
+                    ? (number(pricing.retainerCents) / 100).toFixed(2)
                     : retainerOverride
                 }
               />

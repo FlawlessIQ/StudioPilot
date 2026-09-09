@@ -12892,3 +12892,14 @@ form:has(> .address-field) > .address-field,
 }
 .cp-quickreply.is-static { cursor: default; }
 .cp-quickreply.is-static:hover { border-color: var(--line); background: var(--surface); color: var(--muted); }
+
+/* Calendar: context banner when arriving to schedule a specific project's
+   consultation (via ?project=), so the month view isn't a contextless page. */
+.ds-cal-context{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px;padding:12px 16px;border:1px solid color-mix(in srgb,var(--accent) 28%,var(--line));border-radius:12px;background:color-mix(in srgb,var(--accent) 7%,var(--surface));font-size:13.5px;color:var(--ink)}
+.ds-cal-context strong{font-weight:650}
+.ds-cal-context a{display:inline-flex;align-items:center;gap:5px;color:var(--accent);font-weight:600;text-decoration:none;white-space:nowrap}
+.ds-cal-context a:hover{text-decoration:underline}
+
+/* Proposal package rows: flag a second-shooter package so the coverage the
+   client asked about is scannable, not buried in "N photographers". */
+.pkg-flag{color:var(--accent);font-weight:600}

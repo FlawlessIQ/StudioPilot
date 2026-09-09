@@ -14,6 +14,7 @@ import {
   ListChecks,
   Menu,
   MessageSquareText,
+  Plus,
   Settings,
   Sparkles,
   ChartNoAxesColumn,
@@ -392,6 +393,9 @@ function StudioShell({
               <b>Workspace ·</b> {resolvedActive === "Dashboard" ? "Today" : resolvedActive}
             </span>
             <GlobalSearch />
+            <Link href="/studio/projects/new" className="ds-action">
+              <Plus size={15} /> New project
+            </Link>
             <Link
               className="ds-btn ds-btn-ghost ds-btn-sm"
               href="/studio/notifications"

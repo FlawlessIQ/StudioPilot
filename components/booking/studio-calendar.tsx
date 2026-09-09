@@ -119,6 +119,19 @@ export function StudioCalendar() {
   const tenantId = workspace.tenantId ?? "";
   const { records: projects } = useTenantDocuments("projects");
 
+  // "Schedule consultation" on a project links here with ?project=<id>. Read it
+  // (post-mount, so SSR and first paint match) to show whose consultation this
+  // is — otherwise the month view looks like the generic calendar with no cue.
+  const [schedulingForId, setSchedulingForId] = useState<string | null>(null);
+  useEffect(() => {
+    void Promise.resolve().then(() =>
+      setSchedulingForId(new URLSearchParams(window.location.search).get("project")),
+    );
+  }, []);
+  const schedulingFor = schedulingForId
+    ? (projects ?? []).find((project) => project.id === schedulingForId)
+    : undefined;
+
   // Studio-local timezone + the weekly-availability settings doc, kept live
   // so a change made in Settings (or another tab) shows up here without a
   // manual reload.
@@ -320,6 +333,18 @@ export function StudioCalendar() {
 
   return (
     <section className="ds-cal" aria-label="Studio calendar">
+      {schedulingFor ? (
+        <div className="ds-cal-context" role="status">
+          <span>
+            Scheduling a consultation for{" "}
+            <strong>{String(schedulingFor.name ?? "this project")}</strong> — pick
+            an open time below.
+          </span>
+          <a href={`/studio/projects/${schedulingFor.id}`}>
+            <ArrowUpRight size={13} aria-hidden="true" /> Back to project
+          </a>
+        </div>
+      ) : null}
       <div className="ds-card ds-cal-grid-card">
         <div className="ds-cal-head">
           <div>
@@ -885,7 +910,7 @@ function BookSlotForm({
       setNotice(
         outcome.mode === "preview"
           ? "Development preview: this booking was validated but not persisted."
-          : "Consultation booked.",
+          : "Consultation booked — it's on your calendar and shows on the project.",
       );
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "Consultation could not be scheduled."));
