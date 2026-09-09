@@ -805,23 +805,28 @@ function CopilotVoiceSetting() {
   const canEdit =
     workspace.role === "studio_owner" || workspace.role === "studio_admin";
   const [voice, setVoice] = useState("");
-  const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const touched = useRef(false);
+
+  // Load the saved voice on mount (mirrors the refreshThreads pattern that
+  // works with the React Compiler). Never clobber what the owner is typing.
+  const loadVoice = useCallback(() => {
+    if (!canEdit || !workspace.tenantId) return;
+    void getCopilotVoice(workspace.tenantId)
+      .then((value) => {
+        if (!touched.current) setVoice(value ?? "");
+      })
+      .catch(() => {
+        /* the setting is a convenience; a load failure stays silent */
+      });
+  }, [canEdit, workspace.tenantId]);
+
+  useEffect(() => {
+    loadVoice();
+  }, [loadVoice]);
 
   if (!canEdit || !workspace.tenantId) return null;
-
-  async function load() {
-    if (!workspace.tenantId) return;
-    try {
-      const value = await getCopilotVoice(workspace.tenantId);
-      setVoice(value ?? "");
-    } catch {
-      /* non-owners are filtered above; a transient failure just leaves it blank */
-    } finally {
-      setLoaded(true);
-    }
-  }
 
   async function save() {
     if (!workspace.tenantId) return;
@@ -829,6 +834,7 @@ function CopilotVoiceSetting() {
     setSaved(false);
     try {
       const stored = await setCopilotVoice(workspace.tenantId, voice);
+      touched.current = false;
       setVoice(stored ?? "");
       setSaved(true);
     } catch {
@@ -839,12 +845,7 @@ function CopilotVoiceSetting() {
   }
 
   return (
-    <details
-      className="copilot-voice"
-      onToggle={(event) => {
-        if (event.currentTarget.open && !loaded) void load();
-      }}
-    >
+    <details className="copilot-voice">
       <summary>
         <Sparkles size={13} /> Teach StudioCue your voice
       </summary>
@@ -855,18 +856,19 @@ function CopilotVoiceSetting() {
       <textarea
         value={voice}
         onChange={(event) => {
+          touched.current = true;
           setVoice(event.target.value);
           setSaved(false);
         }}
         placeholder="e.g. Warm and first-name, never stiff. Sign off &lsquo;Warmly, Conor&rsquo;."
         rows={3}
-        disabled={!loaded || busy}
+        disabled={busy}
       />
       <div className="copilot-voice-actions">
         <button
           className="button button-dark"
           onClick={() => void save()}
-          disabled={busy || !loaded}
+          disabled={busy}
           type="button"
         >
           {busy ? <LoaderCircle className="spin" size={14} /> : null} Save voice
