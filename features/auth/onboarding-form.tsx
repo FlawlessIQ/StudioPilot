@@ -110,6 +110,9 @@ export function OnboardingForm() {
       const result = (await response.json()) as {
         error?: string;
         tenantId?: string;
+        // False for a comped studio — access is already granted, so skip the
+        // plan picker and open the workspace directly.
+        checkoutRequired?: boolean;
       };
       if (!response.ok) throw new Error(result.error ?? "Studio setup failed.");
       if (result.tenantId)
@@ -138,7 +141,11 @@ export function OnboardingForm() {
       // read) so AuthBoundary sees the new active membership instead of a stale
       // in-memory miss. A soft client nav reuses that stale state and loops.
       invalidateMembershipCache(user.uid);
-      window.location.assign("/studio/subscription");
+      // A comped studio is already granted access, so send it straight into the
+      // workspace rather than the plan picker; everyone else picks a plan.
+      window.location.assign(
+        result.checkoutRequired === false ? "/studio" : "/studio/subscription",
+      );
     } catch (caught: unknown) {
       setNotice(
         caught instanceof Error ? caught.message : "Studio setup failed.",

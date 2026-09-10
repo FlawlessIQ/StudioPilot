@@ -36,6 +36,21 @@ const trialEntitlements = {
   apiAccessEnabled: false,
   prioritySupportEnabled: true,
 };
+
+// Owner emails that get a free, comped studio — access granted at onboarding
+// without Stripe Checkout. Set COMPED_OWNER_EMAILS (comma-separated) in
+// functions/.env.studiohub-prod; matched case-insensitively against the
+// verified owner email. Empty or unset means nobody is comped.
+const compedOwnerEmails = new Set(
+  (process.env.COMPED_OWNER_EMAILS ?? "")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean),
+);
+// A comped studio has no trial to end; park its period end far out so nothing
+// treats it as expiring.
+const COMPED_PERIOD_END = "2099-12-31T00:00:00.000Z";
+
 const slug = (value: string) =>
   value
     .toLowerCase()
@@ -66,15 +81,22 @@ export const tenantOnboardingCommand = onRequest(
       const input = inputSchema.parse(request.body);
       const db = getFirestore();
       const now = new Date().toISOString();
+      const comped = compedOwnerEmails.has(identity.email.toLowerCase());
       const onboardingReference = db.doc(`tenantOnboarding/${identity.uid}`);
       const result = await db.runTransaction(async (transaction) => {
         const existing = await transaction.get(onboardingReference);
         if (existing.exists)
-          return { tenantId: String(existing.get("tenantId")), created: false };
+          return {
+            tenantId: String(existing.get("tenantId")),
+            created: false,
+            checkoutRequired: !comped,
+          };
         const tenantId = `tenant_${randomUUID()}`;
         const membershipId = `${tenantId}_${identity.uid}`;
         const publicSlug = `${slug(input.businessName)}-${createHash("sha256").update(identity.uid).digest("hex").slice(0, 8)}`;
-        const trialEndAt = new Date(Date.now() + 14 * 86400000).toISOString();
+        const trialEndAt = comped
+          ? COMPED_PERIOD_END
+          : new Date(Date.now() + 14 * 86400000).toISOString();
         transaction.set(
           db.doc(`users/${identity.uid}`),
           {
@@ -148,16 +170,22 @@ export const tenantOnboardingCommand = onRequest(
           tenantId,
           plan: "studio",
           cadence: "monthly",
-          // Card-required onboarding: the trial does not start until the studio
-          // completes Stripe Checkout. Until then the subscription is
-          // `incomplete` — `subscriptionGrantsAccess` refuses it, so the app
-          // gate routes the studio to Checkout instead of into the workspace.
-          // Provisioning (session return + the customer.subscription.created
-          // webhook) flips this to `trialing` with the real Stripe ids and
-          // trial_end. The entitlements snapshot is kept so counters render;
-          // access is gated by status, not by emptying entitlements.
-          status: "incomplete",
-          checkoutRequired: true,
+          // A comped owner (COMPED_OWNER_EMAILS) is granted access immediately:
+          // `active` with no Stripe ids, no Checkout, no trial to end. Nothing
+          // flips it back — there is no Stripe subscription for a webhook to
+          // touch, and no scheduler expires an `active` status by date.
+          //
+          // Everyone else: card-required onboarding. The trial does not start
+          // until the studio completes Stripe Checkout; until then the
+          // subscription is `incomplete` — `subscriptionGrantsAccess` refuses
+          // it, so the app gate routes the studio to Checkout instead of into
+          // the workspace. Provisioning (session return + the
+          // customer.subscription.created webhook) flips this to `trialing`
+          // with the real Stripe ids and trial_end. The entitlements snapshot
+          // is kept so counters render; access is gated by status.
+          status: comped ? "active" : "incomplete",
+          checkoutRequired: !comped,
+          comped,
           stripeCustomerId: null,
           stripeSubscriptionId: null,
           stripePriceId: null,
@@ -270,7 +298,7 @@ export const tenantOnboardingCommand = onRequest(
           automationRunId: null,
           providerEventId: null,
         });
-        return { tenantId, created: true };
+        return { tenantId, created: true, checkoutRequired: !comped };
       });
       response.status(200).json(result);
     } catch (caught: unknown) {
