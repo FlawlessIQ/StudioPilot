@@ -5,6 +5,7 @@ import {
   ArrowRight,
   CircleGauge,
   ClipboardCheck,
+  Compass,
   ExternalLink,
   FolderKanban,
   Sparkles,
@@ -86,6 +87,17 @@ export function HelpCenter() {
             );
           })}
         </div>
+        <Link className="help-example-link" href="/studio/help/example">
+          <Compass aria-hidden="true" />
+          <span>
+            <strong>Walk through an example job</strong>
+            <small>
+              See a sample wedding end to end — the phases, readiness, and how
+              Cue prepares your next step.
+            </small>
+          </span>
+          <ArrowRight className="help-link-arrow" aria-hidden="true" />
+        </Link>
       </section>
 
       <section className="help-section">
