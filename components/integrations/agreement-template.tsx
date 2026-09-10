@@ -133,6 +133,14 @@ export function AgreementTemplate() {
     }
   }
 
+  // Signing is a deliberate product hold: no signing app is offered, so this
+  // whole card only restated "no signing app connected" — which the Document
+  // signing row in Capability routing now says ("Recorded on each booking").
+  // Hide the duplicate; it returns, with its template picker, the moment a
+  // signing app is offered and connected. (Placed after every hook so hook
+  // order stays stable — signingApp is derived, null on every render here.)
+  if (!signingApp) return null;
+
   return (
     <section className="integration-routing agreement-template">
       <header>

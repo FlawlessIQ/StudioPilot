@@ -30,6 +30,7 @@ import {
 } from "@/features/integrations/routing";
 import {
   isOfferedProvider,
+  offeredSigningProvider,
   type IntegrationCapability,
   type IntegrationProvider,
 } from "@/features/integrations/schema";
@@ -796,6 +797,15 @@ export function IntegrationManager() {
                           (definition) =>
                             definition.provider === resolution.provider,
                         )?.label ?? resolution.provider}
+                      </>
+                    ) : capability === "signing" && !offeredSigningProvider() ? (
+                      // Signing is a deliberate product hold — no signing app is
+                      // offered to connect, so "Connect a provider" would point
+                      // at nothing. State the real path instead; this is what
+                      // the separate Agreement-template card used to say.
+                      <>
+                        <FileSignature />
+                        Recorded on each booking
                       </>
                     ) : (
                       <>
