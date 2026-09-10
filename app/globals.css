@@ -4692,6 +4692,20 @@ textarea:focus-visible {
   line-height: 1.7;
 }
 
+/* Links in legal/support prose inherited the grey body colour with no
+   underline, so the support-email, Zoom guide, and Privacy Policy references
+   read as plain text — the page looked like it had no links at all. */
+.legal-page article a {
+  color: var(--sage-dark, #2e6b4b);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+.legal-page article a:hover {
+  text-decoration-thickness: 2px;
+}
+
 /* Responsive */
 @media (max-width: 1100px) {
   .hero {
