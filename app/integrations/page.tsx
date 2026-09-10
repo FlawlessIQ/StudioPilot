@@ -96,8 +96,8 @@ export default function IntegrationsPage() {
             ],
           },
           {
-            title: "AI, built in",
-            text: "Real help drafting, with hard limits on what it may decide.",
+            title: "Cue, built in",
+            text: "Cue — StudioCue's assistant — drafts real work, with hard limits on what it may decide.",
             points: [
               "Extraction and comparison",
               "Schedule drafting",

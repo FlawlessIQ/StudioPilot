@@ -51,8 +51,8 @@ const productPoints = [
   {
     icon: Sparkles,
     eyebrow: "Know what you are missing",
-    title: "AI that tells you what needs doing",
-    text: "It reads the certificate, drafts the run of show, and says plainly what is not ready and why. It never records a payment or a signature — you stay the one deciding.",
+    title: "Cue tells you what needs doing",
+    text: "Cue reads the certificate, drafts the run of show, and says plainly what is not ready and why. It never records a payment or a signature — you stay the one deciding.",
   },
 ];
 
@@ -67,6 +67,7 @@ export default function MarketingHome() {
           <Link href="/features">Features</Link>
           <Link href="/for-crew">For crew</Link>
           <Link href="/for-clients">For clients</Link>
+          <Link href="/wedding-photographers">For weddings</Link>
           <Link href="/integrations">Integrations</Link>
           <Link href="/pricing">Pricing</Link>
         </nav>
@@ -85,7 +86,7 @@ export default function MarketingHome() {
           <div className="hero-glow" aria-hidden="true" />
           <div className="hero-copy">
             <StatusBadge tone="info" dot>
-              It prepares. You approve.
+              Meet Cue — it prepares, you approve.
             </StatusBadge>
             <h1>
               The next step is
@@ -111,7 +112,7 @@ export default function MarketingHome() {
                 <Check size={15} /> 14-day trial
               </span>
               <span>
-                <Check size={15} /> No card required
+                <Check size={15} /> No charge until it renews
               </span>
               <span>
                 <Check size={15} /> Guided setup
@@ -211,6 +212,52 @@ export default function MarketingHome() {
           </div>
         </section>
 
+        <section className="readiness-story" id="cue">
+          <div className="story-copy">
+            <span className="section-kicker">Meet Cue</span>
+            <h2>Your studio&rsquo;s second brain.</h2>
+            <p>
+              Cue reads the questionnaire and drafts the run of show, writes the
+              client email in your voice, and tells you plainly what isn&rsquo;t
+              ready and why. Ask it &ldquo;how do I book a client?&rdquo; and it
+              walks you through it.
+            </p>
+            <ul>
+              <li>
+                <Sparkles size={18} /> Drafts your next step, in your voice
+              </li>
+              <li>
+                <ShieldCheck size={18} /> Never records a payment, signature,
+                permission, or readiness check
+              </li>
+              <li>
+                <Check size={18} /> Nothing sends until you approve
+              </li>
+            </ul>
+            <Link className="button button-dark" href="/studio-preview">
+              See Cue at work <ArrowRight size={17} />
+            </Link>
+          </div>
+          <div className="story-visual">
+            <div className="signal-row">
+              <span>Questionnaire reminder</span>
+              <strong className="signal-good">Drafted</strong>
+            </div>
+            <div className="signal-row">
+              <span>Wedding-day run of show</span>
+              <strong className="signal-good">Drafted</strong>
+            </div>
+            <div className="signal-row">
+              <span>Overdue-balance nudge</span>
+              <strong className="signal-warn">Waiting your OK</strong>
+            </div>
+            <div className="signal-row">
+              <span>Record a payment or signature</span>
+              <strong className="signal-warn">Only you</strong>
+            </div>
+          </div>
+        </section>
+
         <section className="readiness-story" id="readiness">
           <div className="story-copy">
             <span className="section-kicker">The readiness engine</span>
@@ -265,7 +312,7 @@ export default function MarketingHome() {
         <section className="integration-band" id="integrations">
           <p>Works with the tools your studio already trusts</p>
           <div>
-            {["QuickBooks", "Dropbox Sign", "Google Calendar", "Dropbox", "Zoom", "Stripe"].map(
+            {["QuickBooks", "Google Calendar", "Zoom", "Dropbox"].map(
               (name) => (
                 <span key={name}>{name}</span>
               ),
@@ -320,7 +367,7 @@ export default function MarketingHome() {
             ))}
           </div>
           <p className="marketing-pricing-note">
-            Provider subscriptions, SMS usage, assisted migration, and implementation
+            Provider subscriptions, assisted migration, and implementation
             services are billed separately. StudioCue does not charge a percentage of
             client payments.
           </p>

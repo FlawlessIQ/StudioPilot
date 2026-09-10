@@ -21,9 +21,9 @@ export function MarketingLayout({
           <Link href="/features">Features</Link>
           <Link href="/for-crew">For crew</Link>
           <Link href="/for-clients">For clients</Link>
+          <Link href="/wedding-photographers">For weddings</Link>
           <Link href="/integrations">Integrations</Link>
           <Link href="/pricing">Pricing</Link>
-          <Link href="/wedding-photographers">Industries</Link>
         </nav>
         <div className="marketing-actions">
           <Link className="text-link" href="/auth/login">Sign in</Link>

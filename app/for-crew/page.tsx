@@ -94,10 +94,10 @@ export default function ForCrewPage() {
           },
           {
             title: "No licence per freelancer",
-            text: "Your crew are not billed seats. Bring in whoever the job needs — the people you hire for one Saturday do not cost you a subscription.",
+            text: "Your crew are not billed seats — the plan's seats are for your own team. Bring in the people you hire for one Saturday without adding a subscription; Studio covers up to 25 active crew.",
             points: [
-              "Unlimited subcontractors",
-              "Seats are for your own team",
+              "No per-seat billing for crew",
+              "Up to 25 active crew on Studio",
               "Invite by email, no account admin",
             ],
           },
