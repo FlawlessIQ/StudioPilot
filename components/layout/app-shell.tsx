@@ -11,6 +11,7 @@ import {
   CircleGauge,
   FolderKanban,
   LibraryBig,
+  LifeBuoy,
   ListChecks,
   Menu,
   MessageSquareText,
@@ -73,6 +74,9 @@ const navSections = [
       { label: "Library", href: "/studio/library", icon: LibraryBig },
       // Owner-only, as it was in the avatar menu: settings reaches billing.
       { label: "Studio settings", href: "/studio/settings", icon: Settings, ownerOnly: true },
+      // A standing home for "how does this work" — the workspace had no Help,
+      // Docs, or Support entry at all, so a new owner had nowhere to turn.
+      { label: "Help & guides", href: "/studio/help", icon: LifeBuoy },
     ],
   },
 ] as const;

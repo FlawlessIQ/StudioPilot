@@ -50,6 +50,15 @@ const prompts = [
   "Which upcoming projects have travel conflicts?",
 ];
 
+// A brand-new studio has no data for the questions above to bite on, so its
+// first prompts teach the product instead of querying an empty account.
+const onboardingPrompts = [
+  "How do I get started with StudioCue?",
+  "How do I book a client?",
+  "How do I create my first project?",
+  "How does StudioCue work?",
+];
+
 // Slash commands expand to a full grounded question the assistant already
 // answers. Typing "/" surfaces them; picking one fills the box (no auto-send).
 const SLASH_COMMANDS: Array<{ cmd: string; desc: string; question: string }> = [
@@ -77,6 +86,13 @@ export function CopilotWorkspace() {
   const [streamingText, setStreamingText] = useState("");
   const [statusText, setStatusText] = useState("");
   const started = turns.length > 0;
+  // A studio with no projects is new: its first prompts teach the product, and
+  // the empty-account auto-brief (a data query) is suppressed since it would
+  // return nothing. Undefined while loading — treat as "not yet known".
+  const projectsState = useTenantDocuments("projects");
+  const brandNew =
+    !projectsState.loading && (projectsState.records?.length ?? 0) === 0;
+  const heroPrompts = brandNew ? onboardingPrompts : prompts;
 
   const refreshThreads = useCallback(() => {
     if (!workspace.tenantId) return;
@@ -184,6 +200,11 @@ export function CopilotWorkspace() {
     if (autoBriefed.current) return;
     if (workspace.loading || !workspace.tenantId) return;
     if (turns.length > 0) return;
+    // Wait until we know whether there is work, then skip the data-query brief
+    // for a brand-new studio — it would return nothing and read as broken. The
+    // onboarding hero (with how-to prompts) carries the empty state instead.
+    if (projectsState.loading) return;
+    if ((projectsState.records?.length ?? 0) === 0) return;
     let alreadyThisSession = false;
     try {
       alreadyThisSession =
@@ -203,7 +224,10 @@ export function CopilotWorkspace() {
     // synchronous run; it fires once after bootstrap on the empty state.
     const timer = setTimeout(() => void runAsk("What needs my attention today?"), 0);
     return () => clearTimeout(timer);
-  }, [workspace.loading, workspace.tenantId]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Deps include the projects signal so the brief re-evaluates once we know
+    // whether there is work — without it a studio with projects would never get
+    // briefed (projects load after the workspace).
+  }, [workspace.loading, workspace.tenantId, projectsState.loading, projectsState.records?.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Greeting is computed once at mount so the render stays pure.
   const [now] = useState(() => new Date());
@@ -330,13 +354,14 @@ export function CopilotWorkspace() {
                 What can I <em>prepare</em> for you?
               </h1>
               <p>
-                Ask about operations, payments, crew, contracts or readiness —
-                I&rsquo;ll do the legwork and hand you the next step to approve.
+                {brandNew
+                  ? "New here? Ask me how anything works or how to get set up, and I'll walk you through it — then prepare the work for you to approve."
+                  : "Ask about operations, payments, crew, contracts or readiness — I'll do the legwork and hand you the next step to approve."}
               </p>
             </div>
             {composer}
             <div className="cue-starters" aria-label="Suggested questions">
-              {prompts.slice(0, 4).map((prompt) => (
+              {heroPrompts.slice(0, 4).map((prompt) => (
                 <button
                   key={prompt}
                   type="button"

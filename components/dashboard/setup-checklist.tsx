@@ -22,7 +22,13 @@ type SetupStep = {
   icon: typeof Circle;
 };
 
-export function SetupChecklist() {
+export function SetupChecklist({
+  alwaysExpanded = false,
+}: {
+  // The Help hub shows the full checklist as a standing reference — never the
+  // hidden-when-complete or compact-when-busy variants used inline elsewhere.
+  alwaysExpanded?: boolean;
+} = {}) {
   const workspace = useWorkspace();
   const { records: projects } = useTenantDocuments("projects");
   const { records: packages } = useTenantDocuments("packages");
@@ -75,11 +81,11 @@ export function SetupChecklist() {
     },
   ];
   const completed = steps.filter((step) => step.done).length;
-  if (completed === steps.length) return null;
+  if (completed === steps.length && !alwaysExpanded) return null;
   const next = steps.find((step) => !step.done);
   const hasActiveWork = Boolean(projects?.length);
 
-  if (hasActiveWork && next) {
+  if (hasActiveWork && next && !alwaysExpanded) {
     const Icon = next.icon;
     return (
       <details className="studio-setup-compact">
