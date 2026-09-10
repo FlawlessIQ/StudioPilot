@@ -557,30 +557,14 @@ export function IntegrationManager() {
 
   return (
     <div className="integration-center">
-      <section className="integration-overview">
-        <div className="integration-overview-copy">
-          <span>
-            <ShieldCheck size={15} /> Secure connection center
-          </span>
-          <h2>
-            {connectedCount
-              ? `${connectedCount} provider${connectedCount === 1 ? "" : "s"} connected`
-              : "Build your connected studio"}
-          </h2>
-          <p>
-            Connect the services your team already uses, then manage them from
-            one place.
-          </p>
-        </div>
-        <div className="integration-vault">
-          <LockKeyhole />
-          <span>
-            <strong>Protected connection details</strong>
-            <small>
-              Sign-in details are encrypted and are never shown in the browser.
-            </small>
-          </span>
-        </div>
+      <section className="integration-statusbar">
+        <ShieldCheck size={16} aria-hidden="true" />
+        <strong>
+          {connectedCount
+            ? `${connectedCount} provider${connectedCount === 1 ? "" : "s"} connected`
+            : "No providers connected yet"}
+        </strong>
+        <span>Sign-in details are encrypted and never shown in the browser.</span>
       </section>
 
       {notice ? (
