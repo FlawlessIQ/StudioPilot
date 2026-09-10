@@ -66,9 +66,9 @@ export function ExampleTour() {
         <div className="example-note">
           <span className="example-note-num">1</span>
           <p>
-            A <strong>job</strong> is one client&rsquo;s whole story. This one is
-            booked and now in <strong>Planning</strong> — the track shows every
-            phase it moves through, in order.
+            A <strong>job</strong>{" "}is one client&rsquo;s whole story. This
+            one is booked and now in <strong>Planning</strong>{" "}— the track
+            shows every phase it moves through, in order.
           </p>
         </div>
         <article className="panel example-job">
@@ -103,9 +103,9 @@ export function ExampleTour() {
         <div className="example-note">
           <span className="example-note-num">2</span>
           <p>
-            <strong>Readiness</strong> is what has to be true before the day.
-            StudioCue tracks it for you — the cleared items are done; the rest
-            are what&rsquo;s left, and what it&rsquo;ll prepare next.
+            <strong>Readiness</strong>{" "}is what has to be true before the
+            day. StudioCue tracks it for you — the cleared items are done; the
+            rest are what&rsquo;s left, and what it&rsquo;ll prepare next.
           </p>
         </div>
         <article className="panel example-readiness">
@@ -142,9 +142,9 @@ export function ExampleTour() {
         <div className="example-note">
           <span className="example-note-num">3</span>
           <p>
-            <strong>Cue prepares; you approve.</strong> It drafts the next step —
-            here, the reminder for the couple&rsquo;s questionnaire — and waits.
-            Nothing is sent and no status changes until you tap approve.
+            <strong>Cue prepares; you approve.</strong>{" "}It drafts the next
+            step — here, the reminder for the couple&rsquo;s questionnaire — and
+            waits. Nothing is sent and no status changes until you tap approve.
           </p>
         </div>
         <article className="panel example-prepared">
