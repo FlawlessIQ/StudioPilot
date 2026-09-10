@@ -1028,18 +1028,22 @@ export function StudioProposalComposer() {
                       <span>
                         <strong>No active packages yet</strong>
                         <small>
-                          Create your first package and you&rsquo;ll land
-                          right back here — the proposal picks up where you
-                          left off.
+                          A proposal needs a package to price it. Import your
+                          price list and StudioCue drafts your packages, or
+                          create one by hand — either way you land right back
+                          here and the proposal picks up where you left off.
                         </small>
                       </span>
-                      <Link
-                        href={`/studio/packages/new?return=${encodeURIComponent(
-                          `/studio/proposals/new?project=${packagePickerFor.id}`,
-                        )}`}
-                      >
-                        Create a package
-                      </Link>
+                      <span className="proposal-inline-actions">
+                        <Link href="/studio/import">Import your price list</Link>
+                        <Link
+                          href={`/studio/packages/new?return=${encodeURIComponent(
+                            `/studio/proposals/new?project=${packagePickerFor.id}`,
+                          )}`}
+                        >
+                          Create a package
+                        </Link>
+                      </span>
                     </div>
                   ) : (
                     <div className="proposal-package-options">

@@ -1536,6 +1536,20 @@ textarea:focus-visible {
   font-weight: 750;
 }
 
+.proposal-inline-empty > .proposal-inline-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.proposal-inline-actions > a {
+  color: var(--sage-dark);
+  font-size: 13px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
 .proposal-composer-preview {
   position: sticky;
   top: 92px;

@@ -22,6 +22,7 @@ import {
 } from "@/features/readiness/checkpoint-resolution";
 import { checkpointSatisfiedByEvidence } from "@/features/readiness/checkpoint-evidence";
 import { useReadinessEvidence } from "@/components/projects/use-readiness-evidence";
+import { InfoHint } from "@/components/ui/info-hint";
 import { formatDueDate } from "@/lib/format/event-date";
 
 const text = (value: unknown): string =>
@@ -160,7 +161,14 @@ export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
       <header>
         <div>
           <p className="eyebrow">Before the day</p>
-          <h2>Readiness checkpoints</h2>
+          <h2>
+            Readiness checkpoints
+            <InfoHint term="Readiness">
+              Readiness is the checklist a booked job must clear before the
+              event — contract signed, deposit paid, crew accepted,
+              questionnaire complete, and so on.
+            </InfoHint>
+          </h2>
           <p>
             What has to be true before this wedding is ready. Most complete
             themselves when the record arrives; the judgements are yours.

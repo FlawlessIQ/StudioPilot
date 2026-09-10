@@ -108,3 +108,72 @@
   flex: none;
   color: var(--ds-muted);
 }
+
+/* InfoHint — a definition popover beside a term of art. Pure CSS reveal on
+   hover/focus so it needs no client state and works anywhere. */
+.info-hint {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 0.3rem;
+}
+.info-hint-trigger {
+  display: inline-grid;
+  place-items: center;
+  width: 1.05rem;
+  height: 1.05rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ds-muted);
+  cursor: help;
+  line-height: 0;
+}
+.info-hint-trigger svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+.info-hint-trigger:hover,
+.info-hint-trigger:focus-visible {
+  color: var(--success);
+}
+.info-hint-trigger:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--success) 55%, transparent);
+  outline-offset: 2px;
+}
+.info-hint-pop {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  width: max-content;
+  max-width: 17rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--ds-line);
+  background: var(--ds-surface, #fff);
+  color: var(--ds-ink);
+  box-shadow: var(--ds-shadow-md, 0 8px 28px rgba(33, 30, 24, 0.14));
+  font-size: 0.8rem;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease;
+  pointer-events: none;
+}
+.info-hint:hover .info-hint-pop,
+.info-hint:focus-within .info-hint-pop {
+  opacity: 1;
+  visibility: visible;
+}
+@media (prefers-reduced-motion: reduce) {
+  .info-hint-pop {
+    transition: none;
+  }
+}

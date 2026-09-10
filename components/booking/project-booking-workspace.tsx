@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { offeredSigningProvider } from "@/features/integrations/schema";
 import { CapabilityNote } from "@/components/integrations/capability-note";
+import { InfoHint } from "@/components/ui/info-hint";
 import { RecordSignedAgreement } from "@/components/booking/record-signed-agreement";
 import { RecordRetainerPayment } from "@/components/booking/record-retainer-payment";
 import Link from "next/link";
@@ -1241,7 +1242,15 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               <ShieldCheck aria-hidden="true" />
               <span>
                 <small>The final check</small>
-                <h2>Confirm booking</h2>
+                <h2>
+                  Confirm booking
+                  <InfoHint term="Booking gate">
+                    The booking gate is the final check that turns a job Booked.
+                    It only flips on real evidence — a signed contract and a paid
+                    retainer, or a signature you record yourself — never on AI or
+                    a guess.
+                  </InfoHint>
+                </h2>
               </span>
               <StatusBadge tone={bookingComplete ? "success" : "neutral"}>
                 {bookingComplete ? "Booked" : "Waiting"}
