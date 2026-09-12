@@ -12,8 +12,8 @@ test("public StudioCue prices match the approved plan ladder", () => {
       yearlyCents,
     })),
     [
-      { key: "studio", monthlyCents: 25_000, yearlyCents: 250_000 },
-      { key: "multi_brand", monthlyCents: 39_900, yearlyCents: 399_000 },
+      { key: "studio", monthlyCents: 15_000, yearlyCents: 150_000 },
+      { key: "multi_brand", monthlyCents: 29_900, yearlyCents: 299_000 },
     ],
   );
 });
