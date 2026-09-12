@@ -13137,3 +13137,255 @@ form:has(> .address-field) > .address-field,
     padding: 54px 22px 58px;
   }
 }
+
+/* ============================================================
+   Vendor run-of-show share — the read-only page a DJ or hair
+   stylist opens from their link. Warm, mobile-first, one action.
+   ============================================================ */
+.ros-share {
+  background: var(--cream);
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 40px 18px 64px;
+}
+
+.ros-share-card {
+  background: var(--paper, #fbfaf5);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: var(--shadow-sm);
+  max-width: 640px;
+  padding: 40px 40px 28px;
+  width: 100%;
+}
+
+.ros-eyebrow {
+  color: var(--amber-dark);
+  font-size: 12px;
+  font-weight: 680;
+  letter-spacing: 0.1em;
+  margin: 0 0 12px;
+  text-transform: uppercase;
+}
+
+.ros-share-card h1 {
+  font-size: clamp(26px, 5vw, 34px);
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  margin: 0;
+}
+
+.ros-day {
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+.ros-venue {
+  color: var(--ink-soft);
+  font-size: 15px;
+  margin: 8px 0 0;
+}
+
+.ros-lead {
+  color: var(--ink-soft);
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 14px 0 0;
+}
+
+.ros-note {
+  background: var(--cream);
+  border: 1px solid #e8e1d2;
+  border-radius: 14px;
+  color: var(--ink-soft);
+  font-size: 15px;
+  line-height: 1.55;
+  margin: 24px 0 4px;
+  padding: 18px 20px;
+}
+
+.ros-note p {
+  margin: 0 0 6px;
+}
+
+.ros-note-from {
+  color: var(--ink);
+  display: block;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+.ros-timeline {
+  list-style: none;
+  margin: 28px 0 0;
+  padding: 0;
+}
+
+.ros-segment {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 84px 1fr;
+  padding: 18px 0;
+}
+
+.ros-segment:first-child {
+  border-top: 0;
+}
+
+.ros-time {
+  display: flex;
+  flex-direction: column;
+}
+
+.ros-time strong {
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+
+.ros-time span {
+  color: var(--muted, #747d77);
+  font-size: 12px;
+}
+
+.ros-body h2 {
+  font-size: 17px;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.ros-where {
+  color: var(--sage-dark);
+  font-size: 13px;
+  font-weight: 550;
+  margin: 4px 0 0;
+}
+
+.ros-desc,
+.ros-seg-note {
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 6px 0 0;
+}
+
+.ros-seg-note {
+  font-style: italic;
+}
+
+.ros-empty {
+  color: var(--ink-soft);
+  font-size: 15px;
+  padding: 8px 0;
+}
+
+.ros-confirm {
+  border-top: 1px solid var(--line);
+  margin-top: 22px;
+  padding-top: 24px;
+}
+
+.ros-confirm-form p {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 14px;
+}
+
+.ros-confirm-form .button {
+  width: 100%;
+}
+
+.ros-confirm-hint {
+  color: var(--muted, #747d77);
+  display: block;
+  font-size: 13px;
+  margin-top: 12px;
+  text-align: center;
+}
+
+.ros-confirmed {
+  color: var(--sage-dark);
+  font-size: 16px;
+  font-weight: 550;
+  line-height: 1.5;
+  margin: 0;
+}
+
+@media (max-width: 520px) {
+  .ros-share-card {
+    padding: 30px 22px 24px;
+  }
+
+  .ros-segment {
+    grid-template-columns: 72px 1fr;
+    gap: 12px;
+  }
+}
+
+/* Vendor run-of-show share control on the Vendors page (studio side). */
+.vendor-share summary .vendor-share-dot {
+  background: var(--sage-dark);
+  border-radius: 50%;
+  display: inline-block;
+  height: 7px;
+  margin-left: 6px;
+  vertical-align: middle;
+  width: 7px;
+}
+
+.vendor-share-status {
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 550;
+  margin: 0 0 12px;
+  padding: 7px 11px;
+}
+
+.vendor-share-status-acknowledged {
+  background: var(--emerald-soft, #d9f4ea);
+  color: var(--sage-dark);
+}
+
+.vendor-share-status-viewed {
+  background: #f3ecd9;
+  color: var(--amber-dark);
+}
+
+.vendor-share-status-sent {
+  background: var(--cream);
+  color: var(--ink-soft);
+}
+
+.vendor-share-status-revoked {
+  background: #f2efee;
+  color: var(--muted, #747d77);
+}
+
+.vendor-share-link {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.vendor-share-link input {
+  flex: 1;
+  font-size: 12px;
+  min-width: 0;
+}
+
+.vendor-share-link .button {
+  flex: none;
+  gap: 6px;
+}
+
+.vendor-share-revoke {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  display: inline-block;
+  font-size: 12.5px;
+  margin-top: 12px;
+  padding: 0;
+  text-decoration: underline;
+}

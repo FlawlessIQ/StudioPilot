@@ -9,6 +9,7 @@ import {
 } from "../saas/entitlement-guard.js";
 import { productEvent } from "../operations/product-events.js";
 import { studioHubCors } from "../security/cors.js";
+import { mintRunOfShowShare, shareIdFor } from "./share-mint.js";
 
 const item = z.object({
   id: z.string(),
@@ -297,6 +298,35 @@ const command = z.discriminatedUnion("type", [
     input: z.object({
       projectId: z.string(),
       insuranceRequired: z.enum(["unknown", "required", "not_required"]),
+    }),
+  }),
+  z.object({
+    /**
+     * Share the published run of show with an external wedding vendor.
+     *
+     * Not the crew path: no offer, no pay, no seat. The vendor gets a read-only
+     * link to the parts of the timeline that concern them and a way to confirm.
+     * The message is composed and approved by the operator (Cue drafts a
+     * starting point client-side) — the command only carries what a human
+     * approved.
+     */
+    type: z.literal("shareRunOfShow"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      vendorContactId: z.string().min(1),
+      scope: z.enum(["vendor", "full"]).default("vendor"),
+      message: z.string().max(4000),
+    }),
+  }),
+  z.object({
+    type: z.literal("revokeRunOfShowShare"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      vendorContactId: z.string().min(1),
     }),
   }),
 ]);
@@ -828,6 +858,99 @@ export const planningCommand = onRequest(
           vendorId: parsed.input.vendorId,
           archived: !parsed.input.restore,
         };
+      } else if (parsed.type === "shareRunOfShow") {
+        if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
+        // The vendor must be real and ours. Resolve here so the share record
+        // can denormalize company/type for display without a second read on the
+        // public page (which runs with admin credentials and no tenant scope).
+        const vendor = await db
+          .doc(`vendors/${parsed.input.vendorContactId}`)
+          .get();
+        if (
+          !vendor.exists ||
+          vendor.get("tenantId") !== parsed.tenantId ||
+          vendor.get("archivedAt")
+        ) {
+          throw new Error("VENDOR_NOT_FOUND");
+        }
+        // Share the current run of show — the highest version for the project.
+        const schedules = await db
+          .collection("schedules")
+          .where("tenantId", "==", parsed.tenantId)
+          .where("projectId", "==", parsed.input.projectId)
+          .orderBy("version", "desc")
+          .limit(1)
+          .get();
+        const current = schedules.docs[0];
+        if (!current || current.get("status") !== "published") {
+          // Nothing to send until a run of show is actually published.
+          throw new Error("NO_PUBLISHED_RUN_OF_SHOW");
+        }
+        const minted = mintRunOfShowShare({
+          tenantId: parsed.tenantId,
+          projectId: parsed.input.projectId,
+          vendorContactId: parsed.input.vendorContactId,
+          appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com",
+        });
+        // Re-sharing reuses the same document (one per vendor) but rotates the
+        // token, so a newer run of show cannot be read through an older link and
+        // the vendor always confirms against what the studio last sent.
+        const priorShare = await db.doc(`scheduleShares/${minted.shareId}`).get();
+        const sendCount = Number(priorShare.get("sendCount") ?? 0) + 1;
+        await db.doc(`scheduleShares/${minted.shareId}`).set({
+          id: minted.shareId,
+          tenantId: parsed.tenantId,
+          projectId: parsed.input.projectId,
+          scheduleId: current.id,
+          sharedVersion: Number(current.get("version")),
+          vendorContactId: parsed.input.vendorContactId,
+          vendorCompany: String(vendor.get("company") ?? ""),
+          vendorType: String(vendor.get("type") ?? "other"),
+          scope: parsed.input.scope,
+          message: parsed.input.message,
+          tokenHash: minted.tokenHash,
+          status: "sent",
+          sentAt: now,
+          viewedAt: null,
+          viewedVersion: null,
+          acknowledgedAt: null,
+          acknowledgedVersion: null,
+          revokedAt: null,
+          expiresAt: minted.expiresAt,
+          sendCount,
+          createdAt: priorShare.get("createdAt") ?? now,
+          updatedAt: now,
+          createdBy: priorShare.get("createdBy") ?? identity.uid,
+          updatedBy: identity.uid,
+          archivedAt: null,
+        });
+        result = {
+          shareId: minted.shareId,
+          shareUrl: minted.shareUrl,
+          sharedVersion: Number(current.get("version")),
+          status: "sent",
+          sendCount,
+          expiresAt: minted.expiresAt,
+        };
+      } else if (parsed.type === "revokeRunOfShowShare") {
+        if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
+        const shareId = shareIdFor(
+          parsed.tenantId,
+          parsed.input.projectId,
+          parsed.input.vendorContactId,
+        );
+        const reference = db.doc(`scheduleShares/${shareId}`);
+        const share = await reference.get();
+        if (!share.exists || share.get("tenantId") !== parsed.tenantId) {
+          throw new Error("SHARE_NOT_FOUND");
+        }
+        await reference.update({
+          status: "revoked",
+          revokedAt: now,
+          updatedAt: now,
+          updatedBy: identity.uid,
+        });
+        result = { shareId, status: "revoked" };
       } else if (parsed.type === "createCoiRequest") {
         if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
         const requirementId = stable(

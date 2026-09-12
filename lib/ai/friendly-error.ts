@@ -23,6 +23,9 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "We couldn't read this conversation, so there's nothing to base a reply on. Refresh and try again — the draft would have missed what they actually asked.",
   AI_QUOTA_EXCEEDED:
     "Your workspace has used its included AI drafts for this period. Review your plan to add more.",
+  NO_PUBLISHED_RUN_OF_SHOW:
+    "Publish the run of show first, then you can share it with vendors.",
+  SHARE_NOT_FOUND: "There's no active share for this vendor yet.",
   ENTITLEMENT_EXCEEDED:
     "Your workspace has used its included AI drafts for this period. Review your plan to add more.",
   INVALID_REQUEST:

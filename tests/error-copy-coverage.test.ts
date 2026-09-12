@@ -57,6 +57,7 @@ const USER_FACING_API_ROUTES = [
   "integrations/status/route.ts",
   "public/places/route.ts",
   "reply-approval/route.ts",
+  "share-ack/route.ts",
   "studio/places/route.ts",
   "studio/records/route.ts",
   "workspace/bootstrap/route.ts",

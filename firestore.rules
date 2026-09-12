@@ -520,6 +520,17 @@ service cloud.firestore {
         );
       allow write: if false;
     }
+    // Run-of-show shares to external vendors. The studio reads them to see who
+    // has viewed/acknowledged; the token holder (the vendor) never touches
+    // Firestore — the public route resolves the token with admin credentials.
+    match /scheduleShares/{shareId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+        || (
+          isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+          && hasRole(resource.data.tenantId, ["studio_coordinator","staff_photographer"])
+        );
+      allow write: if false;
+    }
     match /crewScheduleViews/{viewId} {
       allow read: if (
         hasRole(resource.data.tenantId, ["subcontractor"])

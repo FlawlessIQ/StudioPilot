@@ -6,6 +6,7 @@ import { ArchiveToggle } from "@/components/records/archive-toggle";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
+import { VendorShareActions } from "@/components/planning/vendor-share-actions";
 
 /**
  * Correcting and archiving a vendor or venue.
@@ -59,6 +60,7 @@ export function VendorRecordActions({
   }
 
   return (
+    <>
     <details className="ds-people-invite record-edit">
       <summary>
         <PencilLine aria-hidden="true" size={14} /> Edit or archive
@@ -157,5 +159,14 @@ export function VendorRecordActions({
         ) : null}
       </div>
     </details>
+    <VendorShareActions
+      vendor={{
+        id: vendor.id,
+        company: vendor.company,
+        contactName: vendor.contactName,
+        type: vendor.type,
+      }}
+    />
+    </>
   );
 }
