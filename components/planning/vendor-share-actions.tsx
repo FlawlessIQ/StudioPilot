@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Check, Copy, Link2, LoaderCircle } from "lucide-react";
 import { collection, getDocs, limit, query, where } from "firebase/firestore";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { activeMembership } from "@/lib/firebase/active-membership";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { draftVendorShareMessage } from "@/features/schedules/vendor-share";
 import { formatEventDate } from "@/lib/format/event-date";
@@ -72,10 +73,17 @@ export function VendorShareActions({
     let cancelled = false;
     void (async () => {
       try {
-        const { firestore } = getFirebaseClient();
+        const { auth, firestore } = getFirebaseClient();
+        const user = auth.currentUser;
+        if (!user) return;
+        // Firestore rejects a query it can't prove is within the caller's read
+        // scope, so this must be tenant-scoped — the rule keys off tenantId.
+        const membership = await activeMembership(firestore, user.uid);
+        const tenantId = membership.data().tenantId as string;
         const snapshot = await getDocs(
           query(
             collection(firestore, "scheduleShares"),
+            where("tenantId", "==", tenantId),
             where("vendorContactId", "==", vendor.id),
             limit(20),
           ),

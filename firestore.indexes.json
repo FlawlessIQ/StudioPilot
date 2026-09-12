@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "scheduleShares",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tenantId", "order": "ASCENDING" },
+        { "fieldPath": "vendorContactId", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "projects",
       "queryScope": "COLLECTION",
       "fields": [
