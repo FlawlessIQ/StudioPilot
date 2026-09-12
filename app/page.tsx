@@ -88,16 +88,16 @@ export default function MarketingHome() {
             <StatusBadge tone="info" dot>
               Meet Cue — it prepares, you approve.
             </StatusBadge>
+            <p className="hero-eyebrow">For wedding photographers</p>
             <h1>
-              The next step is
+              Run every wedding without
               <br />
-              already drafted.
+              the admin eating your week.
             </h1>
             <p>
-              StudioCue turns a booking into a run of prepared steps: the consultation
-              a client picked from slots that genuinely suit you, the proposal built
-              from your own package, the follow-up already written. You read it and
-              press send.
+              StudioCue turns every booking into a run of prepared steps — proposal,
+              follow-ups, crew, timeline — each one drafted by Cue and waiting for your
+              yes. The next move is always already written; you read it and press send.
             </p>
             <div className="hero-actions">
               <Link className="button button-dark" href="/auth/register">
@@ -212,7 +212,24 @@ export default function MarketingHome() {
           </div>
         </section>
 
-        <section className="readiness-story" id="cue">
+        <section className="proof-band" aria-label="Why it matters">
+          <div className="proof-inner">
+            <span className="section-kicker">The Sunday-night test</span>
+            <p className="proof-quote">
+              It&rsquo;s 9pm on a Sunday. Three couples are waiting on replies, a
+              second shooter still hasn&rsquo;t confirmed, and one contract is
+              unsigned.
+            </p>
+            <p className="proof-answer">
+              With StudioCue the three replies are already drafted, the crew offer has
+              cascaded to the next name on your list, and the unsigned contract is the
+              one item on your readiness board&mdash;named, owned, waiting. You spend ten
+              minutes approving, not two hours chasing.
+            </p>
+          </div>
+        </section>
+
+        <section className="readiness-story readiness-story--dark" id="cue">
           <div className="story-copy">
             <span className="section-kicker">Meet Cue</span>
             <h2>Your studio&rsquo;s second brain.</h2>
@@ -371,6 +388,35 @@ export default function MarketingHome() {
             services are billed separately. StudioCue does not charge a percentage of
             client payments.
           </p>
+        </section>
+
+        <section className="closing-cta" aria-label="Get started">
+          <div className="closing-inner">
+            <h2>Your next wedding is already being prepared.</h2>
+            <p>
+              Start free today. Cue drafts the first move before you&rsquo;ve finished
+              your coffee&mdash;you decide whether it sends.
+            </p>
+            <div className="closing-actions">
+              <Link className="button button-dark" href="/auth/register">
+                Start your free trial <ArrowRight size={17} />
+              </Link>
+              <Link className="button button-ghost" href="/studio-preview">
+                Explore the live product
+              </Link>
+            </div>
+            <div className="closing-proof">
+              <span>
+                <Check size={15} /> 14-day trial
+              </span>
+              <span>
+                <Check size={15} /> No charge until it renews
+              </span>
+              <span>
+                <Check size={15} /> Guided setup
+              </span>
+            </div>
+          </div>
         </section>
       </main>
 

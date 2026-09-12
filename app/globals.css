@@ -12938,3 +12938,202 @@ form:has(> .address-field) > .address-field,
    task surfaced ahead of a client-blocked step doesn't read as skipping it. */
 .thread-next-meanwhile{display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:color-mix(in srgb,var(--paper) 78%,var(--muted));opacity:.9}
 .thread-next-meanwhile svg{flex:none;opacity:.85}
+
+/* ============================================================
+   Marketing homepage — 2026-09-12 warmth + contrast pass.
+   Outcome-led hero, editorial serif for the reflective
+   headings, a dark "Meet Cue" band for light/shade rhythm,
+   a Sunday-night proof beat, and a closing call.
+   ============================================================ */
+
+/* Audience eyebrow above the hero headline. Specific enough to beat
+   `.hero-copy > p` (0,1,1), which otherwise makes it 18px grey body text. */
+.hero-copy p.hero-eyebrow {
+  color: var(--amber-dark);
+  font-size: 12px;
+  font-weight: 680;
+  letter-spacing: 0.14em;
+  margin: 18px 0 -6px;
+  max-width: none;
+  text-transform: uppercase;
+}
+
+/* Warm the hero ground so it reads like a studio, not a spreadsheet */
+.hero {
+  background:
+    radial-gradient(120% 90% at 84% 6%, rgb(217 244 234 / 55%) 0, rgb(251 251 250 / 0%) 55%),
+    radial-gradient(96% 82% at 4% 96%, rgb(234 221 192 / 48%) 0, rgb(251 251 250 / 0%) 60%);
+  min-height: 648px;
+}
+
+.hero-glow {
+  background: radial-gradient(circle, rgb(234 221 192 / 72%) 0, rgb(251 251 250 / 0%) 70%);
+}
+
+/* Editorial serif for the reflective headings — not the punchy grotesque hero */
+.platform-section .section-intro h2,
+.readiness-story h2 {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-weight: 460;
+  letter-spacing: -0.02em;
+}
+
+/* --- The dark "Meet Cue" band: contrast + breaks the twin-story monotony --- */
+.readiness-story--dark {
+  background: #14201b;
+  color: #eef2ee;
+}
+
+.readiness-story--dark .section-kicker {
+  color: #cdb98a;
+}
+
+.readiness-story--dark h2 {
+  color: #fff;
+}
+
+.readiness-story--dark p {
+  color: #c3ccc4;
+}
+
+.readiness-story--dark li {
+  color: #e6ece7;
+}
+
+.readiness-story--dark li svg {
+  color: #46c79a;
+}
+
+.readiness-story--dark .story-visual {
+  background: #1c2b24;
+  border-color: rgb(255 255 255 / 10%);
+  box-shadow: none;
+}
+
+.readiness-story--dark .signal-row {
+  border-bottom-color: rgb(255 255 255 / 9%);
+}
+
+.readiness-story--dark .signal-row span {
+  color: #c3ccc4;
+}
+
+.readiness-story--dark .signal-good {
+  color: #46c79a;
+}
+
+.readiness-story--dark .signal-warn {
+  color: #e2b866;
+}
+
+/* --- Sunday-night proof beat --- */
+.proof-band {
+  margin: 0 auto 112px;
+  max-width: 1180px;
+  padding: 0 24px;
+}
+
+.proof-inner {
+  background: var(--cream);
+  border: 1px solid #e8e1d2;
+  border-radius: 24px;
+  margin: 0 auto;
+  max-width: 980px;
+  padding: 66px 72px;
+}
+
+.proof-quote {
+  color: var(--ink);
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-size: clamp(24px, 3.1vw, 34px);
+  font-weight: 430;
+  letter-spacing: -0.01em;
+  line-height: 1.28;
+  margin: 12px 0 0;
+  max-width: 26ch;
+}
+
+.proof-answer {
+  color: var(--ink-soft);
+  font-size: 17px;
+  line-height: 1.7;
+  margin: 24px 0 0;
+  max-width: 62ch;
+}
+
+/* --- Closing call --- */
+.closing-cta {
+  margin: 0 auto 96px;
+  max-width: 1180px;
+  padding: 0 24px;
+}
+
+.closing-inner {
+  background: linear-gradient(150deg, #14201b, #1f3129);
+  border-radius: 28px;
+  color: #fff;
+  padding: 82px 40px 86px;
+  text-align: center;
+}
+
+.closing-inner h2 {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-size: clamp(30px, 4vw, 46px);
+  font-weight: 460;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+  margin: 0 auto;
+  max-width: 18ch;
+}
+
+.closing-inner > p {
+  color: #c3ccc4;
+  font-size: 18px;
+  line-height: 1.6;
+  margin: 20px auto 0;
+  max-width: 46ch;
+}
+
+.closing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 34px;
+}
+
+.button-ghost {
+  background: transparent;
+  border: 1px solid rgb(255 255 255 / 26%);
+  color: #fff;
+}
+
+.button-ghost:hover {
+  border-color: rgb(255 255 255 / 55%);
+}
+
+.closing-proof {
+  color: #9fb0a6;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 12px;
+  gap: 20px;
+  justify-content: center;
+  margin-top: 26px;
+}
+
+.closing-proof span {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+}
+
+@media (max-width: 720px) {
+  .proof-inner {
+    padding: 44px 26px;
+  }
+
+  .closing-inner {
+    padding: 54px 22px 58px;
+  }
+}
