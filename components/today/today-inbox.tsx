@@ -6,7 +6,6 @@ import {
   ArrowRight,
   CalendarDays,
   Check,
-  ChevronDown,
   CircleAlert,
   Clock3,
   LoaderCircle,
@@ -14,6 +13,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { KindGlyph } from "@/components/library/kind-glyph";
+import { SheetDialog } from "@/components/ui/sheet-dialog";
+import { AiQueueCard } from "@/components/ai/ai-approval-queue";
 import { countdownPhrase } from "@/lib/format/event-date";
 import { formatCents } from "@/lib/format/money";
 import { AppShell } from "@/components/layout/app-shell";
@@ -94,12 +95,19 @@ const BAND_LABEL: Record<TodayBand, string> = {
  */
 export function TodayInbox() {
   const workspace = useWorkspace();
-  const { inbox, metrics, booked, handled, journeys, loading, setup } =
+  const { inbox, metrics, booked, handled, journeys, loading, setup, aiActions } =
     useTodayInbox();
   const [cleared, setCleared] = useState<Set<string>>(new Set());
   const [showHandled, setShowHandled] = useState(false);
   const [showAllPrepared, setShowAllPrepared] = useState(false);
+  // The AI action being reviewed in the sheet — the whole point of the rethink:
+  // review this exact prepared task in context, without leaving Today.
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
   const isPhone = useIsPhone();
+  const reviewingAction =
+    reviewingId != null
+      ? (aiActions ?? []).find((record) => record.id === reviewingId) ?? null
+      : null;
 
   const visible = (items: TodayItem[]) =>
     items.filter((item) => !cleared.has(item.id));
@@ -479,6 +487,7 @@ export function TodayInbox() {
                         item={item}
                         key={item.id}
                         onCleared={() => clear(item.id)}
+                        onReview={setReviewingId}
                         tone="approve"
                       />
                     ))}
@@ -573,6 +582,27 @@ export function TodayInbox() {
           upcoming={inbox.upcoming}
         />
       </div>
+
+      {/* Review the specific prepared task in context — the full "why, with
+          what confidence, and exactly what happens on approval" plus the
+          draft and Approve/Edit/Reject — without leaving Today. On a phone
+          this rises as a bottom sheet. */}
+      <SheetDialog
+        label="Review prepared action"
+        onClose={() => setReviewingId(null)}
+        open={reviewingAction != null}
+        width="wide"
+      >
+        {reviewingAction ? (
+          <AiQueueCard
+            action={reviewingAction}
+            onDecision={(id) => {
+              clear(id);
+              setReviewingId(null);
+            }}
+          />
+        ) : null}
+      </SheetDialog>
     </AppShell>
   );
 }
@@ -672,17 +702,19 @@ function TodayCard({
   item,
   tone,
   onCleared,
+  onReview,
   showEvidence = true,
 }: {
   item: TodayItem;
   tone: "act" | "approve" | "fyi";
   onCleared?: () => void;
+  /** Opens the full review sheet for this prepared action, in context. */
+  onReview?: (actionId: string) => void;
   /** False on all but the first card of a band — see the call site. */
   showEvidence?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
 
   async function approveInPlace() {
     if (item.action.kind !== "approve") return;
@@ -701,8 +733,6 @@ function TodayCard({
       setBusy(false);
     }
   }
-
-  const preview = item.action.kind === "approve" ? item.action.preview : null;
 
   return (
     <article
@@ -735,12 +765,6 @@ function TodayCard({
               </li>
             ))}
           </ul>
-        ) : null}
-        {preview && open ? (
-          <div className="today-card-preview">
-            {preview.subject ? <strong>{preview.subject}</strong> : null}
-            <p>{preview.body}</p>
-          </div>
         ) : null}
         {item.evidence && showEvidence ? (
           <span className="today-card-evidence">
@@ -777,24 +801,19 @@ function TodayCard({
               )}
               {busy ? "Approving…" : item.action.label}
             </button>
-            {preview ? (
-              <button
-                aria-expanded={open}
-                className="today-card-secondary"
-                onClick={() => setOpen((value) => !value)}
-                type="button"
-              >
-                {open ? "Hide" : "Read it"}
-                <ChevronDown
-                  size={12}
-                  style={open ? { transform: "rotate(180deg)" } : undefined}
-                />
-              </button>
-            ) : (
-              <Link className="today-card-secondary" href={item.action.href}>
-                Review first
-              </Link>
-            )}
+            {/* Review this exact prepared task in context — the full why /
+                confidence / what-happens-on-approve plus the draft — in a
+                sheet, instead of being sent to the general queue. */}
+            <button
+              className="today-card-secondary"
+              onClick={() => {
+                if (item.action.kind === "approve")
+                  onReview?.(item.action.actionId);
+              }}
+              type="button"
+            >
+              Review
+            </button>
           </>
         ) : item.action.kind === "link" ? (
           <>

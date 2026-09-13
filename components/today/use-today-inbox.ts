@@ -15,6 +15,7 @@ import {
   todayInbox,
   type TodayInbox,
   type TodayJourneyPosition,
+  type TodayRecord,
 } from "@/features/today/inbox";
 
 const text = (value: unknown): string =>
@@ -47,6 +48,8 @@ export function useTodayInbox(): {
    * same next step Today names, instead of keeping its own opinion.
    */
   journeys: TodayJourneyPosition[];
+  /** Raw AI action records, for opening a specific review in a sheet. */
+  aiActions: TodayRecord[];
   loading: boolean;
 } {
   const workspace = useWorkspace();
@@ -241,6 +244,9 @@ export function useTodayInbox(): {
   return {
     inbox,
     journeys,
+    // The raw AI action records, so Today can open a specific prepared action's
+    // full review in a sheet without re-fetching.
+    aiActions: aiActions.records ?? [],
     /**
      * How far through the four setup questions this studio is, and whether it
      * has any real work yet.

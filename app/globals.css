@@ -12581,12 +12581,18 @@ form:has(> .address-field) > .address-field,
 }
 
 /* The panel inside is already a card; a second border around it would read
-   as two boxes. */
-.sheet-dialog > .panel {
+   as two boxes. Same for the AI review card opened from Today. */
+.sheet-dialog > .panel,
+.sheet-dialog > .ai-queue-card {
   border: 0;
   border-radius: inherit;
   box-shadow: none;
   margin: 0;
+}
+
+/* Room for the sheet's own close button above the card's header. */
+.sheet-dialog > .ai-queue-card {
+  padding: 30px 20px 20px;
 }
 
 .sheet-close {
