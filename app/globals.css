@@ -13583,3 +13583,26 @@ label {
     padding-bottom: calc(154px + env(safe-area-inset-bottom, 0px));
   }
 }
+
+/* ============================================================
+   Job-detail tab strip on phones. The four fixed tabs (Overview,
+   Booking, Plan, Delivery) were a hair wider than the viewport,
+   so overflow-x:auto let the strip scroll and clipped "Overview"
+   off the left edge. Lay them out as four even columns that
+   always fit — no scroll, no clip, centered and aligned.
+   ============================================================ */
+@media (max-width: 640px) {
+  .project-workspace-nav {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    overflow-x: visible;
+  }
+  .project-workspace-nav a {
+    justify-content: center;
+    gap: 5px;
+    padding: 0 4px;
+    font-size: 11.5px;
+    white-space: nowrap;
+    min-width: 0;
+  }
+}

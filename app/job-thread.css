@@ -1128,3 +1128,40 @@
 .thread-next.is-interrupted small {
   color: var(--muted, #6b7570);
 }
+
+/* ============================================================
+   Job-detail composer — phone overhaul. The mode buttons were
+   a fit-content pill that wrapped its three buttons onto a
+   second line (the lumpy blob). Make it a clean, full-width
+   segmented control aligned with the input below, and stack the
+   foot so chips and a full-width Send read as one intentional
+   layout rather than a wrap.
+   ============================================================ */
+@media (max-width: 640px) {
+  .thread-composer-modes {
+    width: 100%;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: 4px;
+  }
+  .thread-composer-modes button {
+    justify-content: center;
+    padding: 0 6px;
+    min-height: 36px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .thread-composer-foot {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .thread-send {
+    margin-left: 0;
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
+  }
+}
