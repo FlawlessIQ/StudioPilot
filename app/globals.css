@@ -13613,71 +13613,111 @@ label {
 }
 
 /* ============================================================
-   Job-detail header on phones. It stayed a space-between row
-   (title left, readiness ring right) with a 42px+ project name,
-   so the readiness summary got squished beside a giant heading
-   and bled under the sticky bar. Stack it, shrink the heading,
-   and left-align the readiness block.
+   Job-detail header on phones — a calm, left-aligned hero.
+   The old top scattered a huge centred title, a floating badge,
+   and a red "error"-looking readiness block across a lot of dead
+   space. This groups it: a tight title block with the badge inline,
+   then one designed readiness card (arc + one number + a quiet
+   blocker line).
    ============================================================ */
 @media (max-width: 760px) {
+  .ds-root .project-detail-header,
   .project-detail-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
+    align-items: start;
+    display: grid;
+    gap: 13px;
     min-height: 0;
-    padding: 4px 0 16px 15px;
-    margin-bottom: 12px;
+    margin: 0 0 14px;
+    padding: 2px 0 16px 15px;
+  }
+  .project-detail-header::before {
+    top: 5px;
+    height: 30px;
+  }
+  .project-detail-header > div:first-child {
+    display: grid;
+    gap: 7px;
+  }
+  .project-detail-header > div:first-child > .eyebrow {
+    margin-bottom: 0;
+  }
+  /* Title and status on one left-aligned line, wrapping if the name is long —
+     never centred. */
+  .project-title-line {
+    align-items: center;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 9px 11px;
+    justify-content: flex-start;
   }
   .project-title-line h1 {
-    font-size: clamp(26px, 7vw, 32px);
+    font-size: clamp(27px, 7.4vw, 33px);
+    letter-spacing: -0.03em;
   }
-  /* A clean readiness band: the arc on the left, the number and one blocker
-     line beside it. The ring's inner "15" and the "15%" text were the same
-     number twice — drop the one inside the ring — and calm the blocker link
-     from a red underline into a quiet, tappable line. */
+  .project-detail-header > div:first-child > p:last-child {
+    font-size: 13px;
+    margin-top: 0;
+  }
+
+  /* The readiness card: a pure arc on the left, the number once, and a warm,
+     faint brass wash tying it to the "THE JOB" eyebrow. */
   .project-readiness-summary {
     align-items: center;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 14px;
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--ds-brass, #b0894a) 7%, var(--surface)),
+      var(--surface) 72%
+    );
+    border: 1px solid var(--ds-line, var(--line));
+    border-radius: 16px;
+    box-shadow: var(--ds-shadow-sm, 0 1px 2px rgb(24 34 28 / 4%));
+    display: flex;
     flex-direction: row;
-    gap: 13px;
-    justify-content: flex-start;
-    padding: 11px 14px;
+    gap: 14px;
+    justify-content: space-between;
+    padding: 14px 16px;
     width: 100%;
   }
   .project-readiness-summary .readiness-meter {
-    order: -1;
     flex: 0 0 auto;
-    height: 54px;
-    width: 54px;
+    height: 58px;
+    width: 58px;
   }
   .project-readiness-summary .readiness-meter strong {
     display: none;
   }
   .project-readiness-summary > span {
-    gap: 3px;
+    display: grid;
+    gap: 2px;
     text-align: left;
   }
   .project-readiness-summary > span > small:first-child {
     color: var(--muted);
-    font-size: 10.5px;
-    letter-spacing: 0.06em;
+    font-size: 10px;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
   }
   .project-readiness-summary strong {
-    font-size: 21px;
-    line-height: 1;
+    font: 640 22px / 1 var(--font-display);
+    letter-spacing: -0.03em;
   }
-  .project-readiness-gap {
-    color: var(--muted);
-    font-size: 12.5px;
+  /* Calm the blocker line — legacy-bridge paints it danger-red + underline,
+     which reads as an error on a job that is merely early. Out-specify it. */
+  .ds-root .project-readiness-summary .project-readiness-gap {
+    color: var(--ds-brass-deep, #8a6a2e);
+    font-size: 12px;
     font-weight: 600;
+    margin-top: 2px;
     text-decoration: none;
   }
-  .project-readiness-gap::after {
+  .ds-root .project-readiness-summary .project-readiness-gap::after {
     content: " ›";
-    color: var(--muted);
+  }
+  .ds-root .project-readiness-summary .project-readiness-clear {
+    color: var(--ds-accent-deep, #0b6e4f);
+    font-size: 12px;
+    margin-top: 2px;
   }
 }
 
