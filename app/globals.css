@@ -12609,11 +12609,47 @@ form:has(> .address-field) > .address-field,
 .sheet-close:hover { background: var(--line, #e2e7e2); color: var(--ink); }
 
 @media (max-width: 640px) {
-  .sheet-backdrop { padding: 0; }
+  .sheet-backdrop {
+    padding: 0;
+    animation: sheet-backdrop-in 0.2s ease both;
+  }
   .sheet-dialog {
-    border-radius: 18px 18px 0 0;
+    border-radius: 20px 20px 0 0;
     margin-top: auto;
     max-height: 92vh;
+    /* Content clears the home bar when it runs to the bottom edge. */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    /* Rise from the bottom like a native sheet, rather than blinking in. */
+    animation: sheet-rise 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  /* Grab handle — the affordance that says "this is a sheet you can pull down". */
+  .sheet-dialog::before {
+    content: "";
+    display: block;
+    width: 38px;
+    height: 4px;
+    margin: 9px auto 2px;
+    border-radius: 99px;
+    background: var(--line-strong, #d0d4c9);
+  }
+  /* The close button clears the handle row. */
+  .sheet-close { top: 12px; }
+}
+
+@keyframes sheet-rise {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes sheet-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-backdrop,
+  .sheet-dialog {
+    animation: none !important;
   }
 }
 
@@ -13430,5 +13466,36 @@ label {
   /* Content scrolls without chaining into the browser's own bounce. */
   .ds-content {
     overscroll-behavior-y: contain;
+  }
+}
+
+/* Touch press-feedback: native apps respond to a press; a web page doesn't.
+   With the tap-highlight flash removed, a subtle press-scale restores the
+   tactile "I registered your tap" that makes taps feel native. Mobile only;
+   transform is compositor-only so it never reflows. */
+@media (max-width: 860px) {
+  .ds-tabbar a:active,
+  .ds-tabbar button:active {
+    transform: scale(0.94);
+    transition: transform 0.08s ease;
+  }
+
+  .button:active,
+  .ds-btn:active,
+  .ds-action:active,
+  .today-card-primary:active,
+  .today-card-secondary:active,
+  .sheet-dialog button:active {
+    transform: scale(0.975);
+    transition: transform 0.08s ease;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-tabbar a:active,
+  .ds-tabbar button:active,
+  .button:active,
+  .ds-btn:active {
+    transform: none;
   }
 }
