@@ -3336,7 +3336,13 @@
    loaded. These overrides intentionally live last so the drawer controls are
    not reset by the base interactive-chrome declarations above. */
 @media (max-width: 860px) {
-  .ds-root .ds-mobile-menu,
+  /* The bottom "More" tab now opens the drawer, so the topbar hamburger is
+     redundant — drop it for a clean app header. The drawer's own close (X)
+     stays. */
+  .ds-root .ds-mobile-menu {
+    display: none;
+  }
+
   .ds-root .ds-sidebar-close {
     display: inline-grid;
   }
@@ -3362,6 +3368,16 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    /* A clean app title, not a breadcrumb. */
+    font-size: 18px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    color: var(--ds-ink);
+  }
+
+  /* Drop the "Workspace ·" prefix — the title alone is the header. */
+  .ds-root .ds-crumb b {
+    display: none;
   }
 
   .ds-root .saas-page,
