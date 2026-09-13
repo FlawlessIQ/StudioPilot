@@ -13611,3 +13611,56 @@ label {
     min-width: 0;
   }
 }
+
+/* ============================================================
+   Job-detail header on phones. It stayed a space-between row
+   (title left, readiness ring right) with a 42px+ project name,
+   so the readiness summary got squished beside a giant heading
+   and bled under the sticky bar. Stack it, shrink the heading,
+   and left-align the readiness block.
+   ============================================================ */
+@media (max-width: 760px) {
+  .project-detail-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+    min-height: 0;
+    padding: 4px 0 18px 15px;
+    margin-bottom: 14px;
+  }
+  .project-title-line h1 {
+    font-size: clamp(26px, 7vw, 34px);
+  }
+  .project-readiness-summary {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 14px;
+  }
+  .project-readiness-summary > span {
+    text-align: left;
+  }
+}
+
+/* ============================================================
+   Cue (copilot) on phones. The compose card carries 26px
+   padding and a 150px textarea — heavy on a 375px screen —
+   and the prompt chips wrap into a tall block. Tighten the
+   card, shrink the textarea, and let the chips scroll on one
+   row instead of stacking.
+   ============================================================ */
+@media (max-width: 640px) {
+  .copilot-workspace { gap: 16px; }
+  .copilot-compose form { padding: 16px; border-radius: 16px; gap: 13px; }
+  .copilot-compose textarea { min-height: 108px; }
+  .copilot-prompts {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-inline: -2px;
+    padding-inline: 2px;
+  }
+  .copilot-prompts::-webkit-scrollbar { display: none; }
+  .copilot-prompts button { flex: 0 0 auto; white-space: nowrap; }
+  .copilot-result h2 { font-size: 22px; }
+  .copilot-turn-user { max-width: 88%; }
+}
