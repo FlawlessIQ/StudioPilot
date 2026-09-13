@@ -19,6 +19,22 @@ purpose-built mobile layout — and nothing legacy is carried along.
     they now render inside a real app shell. The per-screen `[ ]` boxes below are for
     **device-verified polish** (thumb ergonomics, sheet conversion of deep panels),
     which needs testing on a phone to prioritize — not a rewrite.
+- **2026-09-13 — Device-verified polish + systematic sweep (increments 3–6).**
+  - `[x]` **Today** — compact phone cards, prepared lane collapsed to a preview,
+    and the review flow rethought: "Review" opens the *specific* action's full
+    context (why/confidence/what-happens + draft + Approve/Edit/Reject) in a
+    bottom sheet, in place — no more dumping you on the general queue.
+  - `[x]` **Clean app header** — redundant hamburger dropped (the More tab opens
+    the drawer); crumb promoted to a title.
+  - `[x]` **Jobs list** — mobile row rebuilt as a complete card (State + Next-action
+    were being hidden).
+  - `[x]` **Grid audit** — 96%+ of the app's ~103 multi-column grids already stack
+    on mobile; the rest confirmed responsive (false positives from minified CSS).
+    People lists (Clients/Crew/Team/Vendors) collapse cleanly via `.ds-people-row`.
+  - **Conclusion:** Track 1's *code-detectable* mobile work is essentially done.
+    What remains is **device-verified per-screen polish** (Job-detail density, chat
+    composer pinning, the review sheet's button ergonomics) — refined from
+    screenshots as they come — not blind rewrites.
 
 **Scope, locked 2026-09-13:**
 - **Track 1 (now): the studio app** — Section 1 below (~57 screens). This is the
