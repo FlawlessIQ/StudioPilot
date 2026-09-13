@@ -13,6 +13,29 @@ launch readiness before adding more broad product surface area.
 Detailed provider-console and business-owner steps are maintained in
 [`manual-launch-checklist.md`](./manual-launch-checklist.md).
 
+## Backlog — deferred, awaiting input
+
+- **Vendor coordination, phase 2 (blocked on GR Productions' answers).** The
+  outbound run-of-show share shipped 2026-09-12 (see
+  [`../memory`](../../.claude) note `vendor-coordination-model`). Two follow-ups
+  are parked until the pilot (Gabe) replies to the four-question text:
+  1. **Two-way constraint collection** — collect vendor timing constraints
+     (hair's minutes-per-person, DJ's reception order) that feed the run of
+     show. Reuses the questionnaire engine. Gated on: does he work one-way or
+     two-way?
+  2. **Planner timeline reconcile** — import/cross-check against a planner's
+     master timeline vs. StudioCue being the source of truth. Gated on: whose
+     timeline is authoritative when there's a planner?
+  Do not start either until his answers land; the outbound slice stands alone.
+
+- **Native mobile app (under evaluation, 2026-09-13).** A ground-up mobile
+  experience so a studio can operate without a browser — same functionality and
+  flow as web, re-designed for touch. Platform strategy under discussion
+  (Expo/React Native recommended, to reuse the framework-neutral `features/`
+  domain layer and the same private Cloud Function commands). Approach: design
+  the mobile IA from scratch, then a thin end-to-end spike (auth + one
+  approve-to-send flow) before committing to full parity.
+
 ## Phase 1 — Credential and environment safety
 
 Status: Secret Manager architecture and runtime bindings implemented. Rotation of
