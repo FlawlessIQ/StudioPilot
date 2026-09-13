@@ -4,6 +4,13 @@ Every UI screen in the app today (127 routes), as a checklist for the mobile
 build. Goal: every screen a studio, client, or crew member touches gets a
 purpose-built mobile layout — and nothing legacy is carried along.
 
+**Scope, locked 2026-09-13:**
+- **Track 1 (now): the studio app** — Section 1 below (~57 screens). This is the
+  mobile initiative's first and current scope.
+- **Track 2 (after): the crew portal** — Section 3. Sequenced after the studio app.
+- **Track 3 (after): the client portal** — Section 2. Sequenced after the studio app.
+- **Platform admin: desktop-only** — Section 7. Out of mobile scope.
+
 **How to read this:**
 - `[ ]` = needs a mobile design/build · `[x]` = done · `[–]` = no mobile work (alias/redirect, or desktop-only by decision)
 - **P0** flagship/first · **P1** core parity · **P2** deep/occasional
@@ -148,11 +155,10 @@ Not part of the "app" — but should still feel good on mobile. Mostly done.
 - [–] `/reply/sent` — confirmation (tiny)
 - [ ] `/offline` — offline fallback (part of the PWA work)
 
-## 7. Platform admin (internal Flawless/ops — DECISION NEEDED)
-Not a studio-facing surface. **Decision:** is the mobile app expected to cover
-platform-admin, or is desktop-only acceptable here? Recommend desktop-only.
+## 7. Platform admin (internal ops — DESKTOP-ONLY, out of scope)
+**Decided 2026-09-13: desktop-only.** Not part of the mobile initiative.
 - [–] `/platform-admin` and its 9 sub-pages (audit-logs, failed-jobs, feature-flags,
-  integrations, subscriptions, support, system-health, tenants, users) — desktop-only unless decided otherwise.
+  integrations, subscriptions, support, system-health, tenants, users) — desktop-only.
 
 ---
 
@@ -161,7 +167,7 @@ platform-admin, or is desktop-only acceptable here? Recommend desktop-only.
   **~11 auth**, **~16 public/marketing**, **5 utility**, **10 platform-admin**.
 - **No dead legacy screens.** Only non-builds: `/studio/insights` (redirect alias) and
   `/studio-preview` (marketing demo, confirm if still used).
-- **Two tracks are as mobile-critical as the studio app:** the **crew portal** (on-site, offline)
-  and the **client portal** (couples on phones). Worth deciding if they're in the same mobile
-  initiative or sequenced after the studio app.
-- **Open decisions:** (1) platform-admin desktop-only? (2) client + crew portals in-scope now or later?
+- **Sequencing (locked 2026-09-13):** Track 1 = **studio app** (now) → Track 2 = **crew portal**
+  → Track 3 = **client portal**. Platform admin is **desktop-only**, out of scope.
+- Crew and client portals remain genuinely mobile-critical (on-site/offline crew; couples on
+  phones) — they are deferred, not deprioritized, and pick up once the studio app lands.
