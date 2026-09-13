@@ -38,6 +38,17 @@ import { clientAreaItems } from "@/features/client/portal-navigation";
 
 const PortalShellContext = createContext(false);
 
+// The couple's mobile bottom tab bar. Four fixed destinations they reach for
+// most; "More" opens the drawer for the phase-specific areas (proposal,
+// contract, schedule, questionnaire, delivery, reviews) that come and go.
+const clientTabs = [
+  { label: "Home", href: "/client", icon: Home },
+  { label: "Files", href: "/client/documents", icon: FolderOpen },
+  { label: "Payments", href: "/client/payments", icon: CircleDollarSign },
+  { label: "Messages", href: "/client/messages", icon: MessageCircle },
+] as const;
+const clientPrimaryHrefs = new Set<string>(clientTabs.map((tab) => tab.href));
+
 const clientRouteLabels: Record<string, string> = {
   contract: "Contract",
   delivery: "Delivery",
@@ -316,6 +327,41 @@ function ClientPortalShell({
           </div>
         </aside>
 
+        {/* The couple's primary nav, in the thumb zone. "More" opens the drawer
+            for the phase-specific areas. */}
+        <nav aria-label="Primary" className="ds-tabbar">
+          {clientTabs.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                data-active={pathname === item.href ? "true" : "false"}
+                href={item.href}
+                key={item.href}
+                onClick={closeNavigation}
+              >
+                <Icon aria-hidden="true" size={20} />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+          <button
+            aria-controls="portal-navigation"
+            aria-expanded={navigationOpen}
+            className="ds-tabbar-more"
+            data-active={
+              navigationOpen || !clientPrimaryHrefs.has(pathname)
+                ? "true"
+                : "false"
+            }
+            onClick={() => setNavigationOpen(true)}
+            ref={menuButton}
+            type="button"
+          >
+            <Menu aria-hidden="true" size={20} />
+            <span>More</span>
+          </button>
+        </nav>
+
         <div className="ds-main">
           <header className="ds-topbar">
             <button
@@ -324,7 +370,6 @@ function ClientPortalShell({
               aria-label="Open client navigation"
               className="ds-mobile-menu"
               onClick={() => setNavigationOpen(true)}
-              ref={menuButton}
               type="button"
             >
               <Menu size={20} />
