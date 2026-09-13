@@ -13389,3 +13389,46 @@ form:has(> .address-field) > .address-field,
   padding: 0;
   text-decoration: underline;
 }
+
+/* ============================================================
+   Mobile-native feel — the small tells that separate an app
+   from a web page. Global, low-risk, desktop-safe.
+   ============================================================ */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* The grey flash on every tap is the most web-feeling thing there is. */
+a,
+button,
+[role="button"],
+summary,
+label {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 860px) {
+  /* App chrome shouldn't select like a document when held. */
+  .ds-tabbar,
+  .ds-topbar,
+  .ds-sidebar,
+  .ds-nav {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* iOS zooms the whole page when a focused control's text is under 16px —
+     the single most jarring "this is a website" moment in any form. Keep
+     controls at 16px on mobile so focus never triggers it. */
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  /* Content scrolls without chaining into the browser's own bounce. */
+  .ds-content {
+    overscroll-behavior-y: contain;
+  }
+}
