@@ -13505,3 +13505,60 @@ label {
     transform: none;
   }
 }
+
+/* ============================================================
+   Jobs list — mobile card. The responsive rules dropped State
+   and Next-action on phones, which is exactly what a jobs list
+   is for ("what each one needs next"). Rebuild each row as a
+   compact, complete card; the whole card stays tappable via the
+   existing link overlay.
+   ============================================================ */
+@media (max-width: 660px) {
+  .crm-projects-table article {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding: 13px 40px 13px 15px;
+    position: relative;
+  }
+
+  /* Show every column again, stacked (beats the nth-child display:none maze). */
+  .crm-projects-table article > span {
+    display: flex !important;
+    flex-direction: column;
+    gap: 0;
+    min-width: 0;
+  }
+
+  .crm-projects-table article > .crm-primary strong {
+    font-size: 15px;
+    letter-spacing: -0.01em;
+  }
+  .crm-projects-table article > span > strong {
+    font-size: 13px;
+  }
+  .crm-projects-table article > span small {
+    font-size: 12px;
+    color: var(--muted, #6b7570);
+  }
+
+  /* State: the badge and its phase track sit on one line above the value. */
+  .crm-projects-table article > .state-cell {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 2px;
+  }
+
+  /* The link overlay already makes the whole card tappable; show its chevron
+     pinned to the right, vertically centered. */
+  .crm-projects-table article > a {
+    position: absolute;
+    top: 50%;
+    right: 13px;
+    transform: translateY(-50%);
+    color: var(--muted, #98a09a);
+  }
+}
