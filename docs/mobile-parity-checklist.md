@@ -43,6 +43,30 @@ purpose-built mobile layout — and nothing legacy is carried along.
     What remains is **device-verified per-screen polish** (Job-detail density, chat
     composer pinning, the review sheet's button ergonomics) — refined from
     screenshots as they come — not blind rewrites.
+- **2026-09-13 — "Do the rest of the studio screens" — exhaustive grid sweep (increment 7).**
+  Went screen-by-screen across *every* studio surface, verified structurally (per-class
+  `grid-template-columns` collapse audit over all `app/*.css`, not the minified false-positive
+  heuristic). Fixes shipped this pass:
+  - `[x]` **Job-detail header** — was a `space-between` row cramming a 42–58px project
+    name against the `lg` readiness ring; on phones it now stacks, heading shrinks to
+    ~26–34px, readiness block left-aligns (no more bleed under the sticky topbar).
+  - `[x]` **Cue (/studio/copilot)** — the current two-pane `.cue-shell` already collapses
+    at 1000px (rail reflows to a row, then a column at 640px); tightened the legacy compose
+    card padding and made prompt chips scroll on one row.
+  - **Verified already-responsive (no change needed):** Messages (`.msg-inbox` → 1-col at
+    900px, capped thread scroll), all People screens (`.ds-people-row` at 760px), every
+    multi-column **form** (crew-availability, team-invite, timing-rule, schedule-generator,
+    questionnaire-editor, delivery-release, coi-request, vendor-create — all → 1-col),
+    every **table** (crm-projects, crm-leads, project-table, team-list, proposal-center,
+    live-domain, planning — collapse or horizontal-scroll), all proposal/contract/COI
+    builder grids, all stat/card grids `repeat(2–4)`, and the low-coverage CSS files
+    (integration-diagnostics, project-intake, questionnaire-intelligence, schedule-impact).
+  - **Intentionally horizontal (correct as-is):** `.readiness-counts` (3 count tiles),
+    `.coi-status-track` (4-seg), `.album-status-track` (5-seg) — segmented progress strips
+    of thin pills; stacking them would be wrong.
+  - **Conclusion:** No broken multi-column studio layouts remain. Every studio screen is
+    structurally responsive inside the mobile app shell. Remaining work is genuinely
+    visual/ergonomic and needs on-device screenshots to catch (can't be seen from CSS).
 
 **Scope, locked 2026-09-13:**
 - **Track 1 (now): the studio app** — Section 1 below (~57 screens). This is the
