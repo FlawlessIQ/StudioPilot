@@ -13562,3 +13562,24 @@ label {
     color: var(--muted, #98a09a);
   }
 }
+
+/* ============================================================
+   Crew portal + the new bottom tab bar. The crew screens have
+   their own contextual action bar (accept/decline) pinned to
+   bottom:0; the tab bar (higher z-index) was covering it. Lift
+   the action bar to sit ABOVE the tab bar, and clear both from
+   scrolling content.
+   ============================================================ */
+@media (max-width: 760px) {
+  .crew-mobile-action-bar {
+    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: 12px;
+  }
+  .crew-mobile-page {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  }
+  /* Screens that carry the action bar need room for it too. */
+  .crew-mobile-page:has(.crew-mobile-action-bar) {
+    padding-bottom: calc(154px + env(safe-area-inset-bottom, 0px));
+  }
+}
