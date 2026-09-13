@@ -1127,3 +1127,50 @@
     animation: none;
   }
 }
+
+/* ============================================================
+   Phone density — the desktop cards were far too tall on a
+   phone, turning the queue into endless scroll. Compress every
+   dimension into a dense, native list while keeping one-tap
+   Approve. Phones only (<=640px); the mid-width layout is
+   unchanged.
+   ============================================================ */
+@media (max-width: 640px) {
+  .today-lane { gap: 7px; }
+  .today-band { gap: 7px; }
+  .today-lane-heading h2 { font-size: 16px; }
+
+  .today-card {
+    padding: 12px 14px;
+    gap: 6px;
+    border-radius: 13px;
+  }
+  .today-card.has-glyph {
+    column-gap: 10px;
+    grid-template-columns: 26px minmax(0, 1fr);
+  }
+  .today-card:hover { transform: none; box-shadow: 0 1px 2px rgb(29 36 32 / 4%); }
+
+  .today-card-body { gap: 2px; }
+  .today-card-title strong { font-size: 14.5px; line-height: 1.25; }
+  .today-card-title em { font-size: 11.5px; }
+  .today-card-body > p { font-size: 12.5px; line-height: 1.45; }
+
+  .today-card-facts { gap: 5px; margin-top: 3px; }
+  .today-card-facts li { padding: 2px 8px; font-size: 11px; }
+
+  /* "StudioCue prepared this — you decide" under every one of 13 approve
+     cards is pure repetition of the "Prepared for you" heading above them.
+     Drop it on phones. The act cards keep theirs ("stopped safely — needs
+     you"), which says something the heading doesn't. */
+  .today-card.is-approve .today-card-evidence { display: none; }
+  .today-card-evidence { font-size: 11px; margin-top: 1px; }
+
+  .today-card-actions { gap: 6px 12px; margin-top: 2px; }
+  .today-card-primary {
+    min-height: 36px;
+    padding: 0 15px;
+    font-size: 12.5px;
+  }
+  .today-card-secondary { font-size: 12.5px; }
+}
