@@ -81,6 +81,18 @@ const navSections = [
   },
 ] as const;
 
+// The five destinations that live in the mobile bottom tab bar. The first four
+// are direct; "More" opens the full drawer (every other section). Kept explicit
+// rather than sliced from navSections so the phone's primary nav is a decision,
+// not a side effect of section order.
+const mobileTabs = [
+  { label: "Today", href: "/studio", icon: CircleGauge },
+  { label: "Jobs", href: "/studio/projects", icon: FolderKanban },
+  { label: "Cue", href: "/studio/copilot", icon: Sparkles },
+  { label: "People", href: "/studio/clients", icon: UsersRound },
+] as const;
+const primaryTabGroups = new Set(["Today", "Jobs", "Cue", "People"]);
+
 const activeGroups: Record<string, string[]> = {
   Today: ["Today", "Dashboard", "Notifications", "Leads", "Inquiries"],
   Cue: ["Cue", "Copilot"],
@@ -367,19 +379,35 @@ function StudioShell({
             during an event, burying navigation behind a hamburger costs a tap
             every time. */}
         <nav aria-label="Primary" className="ds-tabbar">
-          {visibleSections[0]?.items.slice(0, 5).map((item) => {
+          {mobileTabs.filter((item) => canSee(item)).map((item) => {
             const Icon = item.icon;
             return (
               <Link
                 data-active={item.label === currentGroup ? "true" : "false"}
                 href={item.href}
                 key={item.href}
+                onClick={() => setNavigationOpen(false)}
               >
-                <Icon aria-hidden="true" size={19} />
+                <Icon aria-hidden="true" size={20} />
                 <span>{item.label}</span>
               </Link>
             );
           })}
+          <button
+            aria-controls="studio-navigation"
+            aria-expanded={navigationOpen}
+            className="ds-tabbar-more"
+            data-active={
+              navigationOpen || !primaryTabGroups.has(currentGroup)
+                ? "true"
+                : "false"
+            }
+            onClick={() => setNavigationOpen(true)}
+            type="button"
+          >
+            <Menu aria-hidden="true" size={20} />
+            <span>More</span>
+          </button>
         </nav>
         <div className="ds-main">
           <header className="ds-topbar">

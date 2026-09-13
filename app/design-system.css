@@ -1411,6 +1411,10 @@
   .ds-mobile-menu { display: inline-grid; }
   .ds-sidebar-close { display: inline-grid; }
   .ds-content, .ds-topbar { padding-left: 20px; padding-right: 20px; }
+  /* Installed (standalone), the topbar sits under the status bar / notch unless
+     it is pushed down by the safe-area inset. Zero in a browser tab. */
+  .ds-topbar { padding-top: env(safe-area-inset-top, 0px); }
+  .ds-sidebar { padding-top: env(safe-area-inset-top, 0px); }
   .ds-hero { flex-direction: column; align-items: flex-start; }
 }
 

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Fraunces, Instrument_Sans } from "next/font/google";
 import { RegisterServiceWorker } from "@/components/pwa/register-service-worker";
 import { ErrorReporter } from "@/components/observability/error-reporter";
@@ -33,6 +33,16 @@ const instrumentSans = Instrument_Sans({
 
 const faviconVersion = "cue-mark-20260818";
 
+// viewport-fit=cover is what actually lets env(safe-area-inset-*) resolve to the
+// notch/home-bar insets the mobile shell pads against — without it the bottom tab
+// bar and topbar would sit under the device chrome when installed.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#1E2521",
+};
+
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
@@ -43,6 +53,12 @@ export const metadata: Metadata = {
     "StudioCue coordinates clients, payments, documents, schedules, crew, and event readiness for professional photography teams.",
   applicationName: "StudioCue",
   manifest: "/manifest.webmanifest",
+  // Installed to the home screen, StudioCue runs standalone (no browser chrome).
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "StudioCue",
+  },
   openGraph: {
     title: "StudioCue · From inquiry to gallery.",
     description:
