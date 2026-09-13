@@ -31,6 +31,14 @@ purpose-built mobile layout — and nothing legacy is carried along.
   - `[x]` **Grid audit** — 96%+ of the app's ~103 multi-column grids already stack
     on mobile; the rest confirmed responsive (false positives from minified CSS).
     People lists (Clients/Crew/Team/Vendors) collapse cleanly via `.ds-people-row`.
+  - `[x]` **Regression repair** — a global hamburger-hide had broken client/admin
+    mobile nav; scoped it to tab-bar shells (`:has(.ds-tabbar)`).
+  - `[x]` **Crew portal (Track 2)** — its own bottom tab bar (Today · Jobs · Prep ·
+    Account); screens were already mobile-first; fixed the tab-bar overlapping the
+    crew accept/decline action bar.
+  - `[x]` **Client portal (Track 3)** — bottom tab bar (Home · Files · Payments ·
+    Messages · More→drawer). All three portals (studio, crew, client) are now
+    bottom-tab mobile apps.
   - **Conclusion:** Track 1's *code-detectable* mobile work is essentially done.
     What remains is **device-verified per-screen polish** (Job-detail density, chat
     composer pinning, the review sheet's button ergonomics) — refined from
