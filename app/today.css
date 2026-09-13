@@ -1174,3 +1174,20 @@
   }
   .today-card-secondary { font-size: 12.5px; }
 }
+
+/* "Show N more prepared" — only rendered on phones, where the prepared lane is
+   collapsed to a short preview so the queue stops being an endless scroll. */
+.today-lane-more {
+  width: 100%;
+  min-height: 42px;
+  margin-top: 1px;
+  border: 1px solid var(--line, #e6eae4);
+  border-radius: 12px;
+  background: var(--panel, #fff);
+  color: var(--accent-deep, #0b6e4f);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.today-lane-more:active { transform: scale(0.99); }

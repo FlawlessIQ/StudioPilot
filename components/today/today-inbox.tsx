@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -57,6 +57,27 @@ function Stat({
   );
 }
 
+/**
+ * True on a phone-width viewport. Starts false so SSR and the first client
+ * render agree (no hidden content, no hydration mismatch); collapses after
+ * mount if the screen is small.
+ */
+function useIsPhone() {
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 640px)");
+    const sync = () => setPhone(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
+  return phone;
+}
+
+// How many prepared cards a phone shows before "show more". A queue of 13
+// full cards is the endless scroll; a short preview with a count is not.
+const PREPARED_PHONE_PREVIEW = 4;
+
 const BAND_LABEL: Record<TodayBand, string> = {
   overdue: "Already late",
   soon: "This fortnight",
@@ -77,6 +98,8 @@ export function TodayInbox() {
     useTodayInbox();
   const [cleared, setCleared] = useState<Set<string>>(new Set());
   const [showHandled, setShowHandled] = useState(false);
+  const [showAllPrepared, setShowAllPrepared] = useState(false);
+  const isPhone = useIsPhone();
 
   const visible = (items: TodayItem[]) =>
     items.filter((item) => !cleared.has(item.id));
@@ -441,14 +464,37 @@ export function TodayInbox() {
                 <h2>Prepared for you</h2>
                 <span>{laneApprove.length} · one tap each</span>
               </div>
-              {laneApprove.map((item) => (
-                <TodayCard
-                  item={item}
-                  key={item.id}
-                  onCleared={() => clear(item.id)}
-                  tone="approve"
-                />
-              ))}
+              {(() => {
+                const collapse =
+                  isPhone &&
+                  !showAllPrepared &&
+                  laneApprove.length > PREPARED_PHONE_PREVIEW;
+                const shown = collapse
+                  ? laneApprove.slice(0, PREPARED_PHONE_PREVIEW)
+                  : laneApprove;
+                return (
+                  <>
+                    {shown.map((item) => (
+                      <TodayCard
+                        item={item}
+                        key={item.id}
+                        onCleared={() => clear(item.id)}
+                        tone="approve"
+                      />
+                    ))}
+                    {collapse ? (
+                      <button
+                        className="today-lane-more"
+                        onClick={() => setShowAllPrepared(true)}
+                        type="button"
+                      >
+                        Show {laneApprove.length - PREPARED_PHONE_PREVIEW} more
+                        prepared
+                      </button>
+                    ) : null}
+                  </>
+                );
+              })()}
             </section>
           ) : null}
 
