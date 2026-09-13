@@ -32,6 +32,16 @@ const navSections = [
   },
 ] as const;
 
+// The crew portal's mobile bottom tab bar — the four sections, with short
+// labels that fit a thumb tab. Crew live on their phones at venues, so this is
+// their primary nav (the studio's hamburger is hidden on mobile app-wide).
+const crewTabs = [
+  { label: "Today", short: "Today", href: "/crew", icon: Home },
+  { label: "Jobs", short: "Jobs", href: "/crew/jobs", icon: BriefcaseBusiness },
+  { label: "Schedule & prep", short: "Prep", href: "/crew/prep", icon: CalendarDays },
+  { label: "Account", short: "Account", href: "/crew/account", icon: UserRound },
+] as const;
+
 const CrewShellContext = createContext(false);
 
 /**
@@ -182,6 +192,25 @@ function CrewShell({
             </div>
           </div>
         </aside>
+
+        {/* Crew live on their phones at venues; the bottom tab bar is their
+            primary navigation (the drawer is the fallback). */}
+        <nav aria-label="Primary" className="ds-tabbar">
+          {crewTabs.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                data-active={item.label === resolvedActive ? "true" : "false"}
+                href={item.href}
+                key={item.href}
+                onClick={() => setNavigationOpen(false)}
+              >
+                <Icon aria-hidden="true" size={20} />
+                <span>{item.short}</span>
+              </Link>
+            );
+          })}
+        </nav>
 
         <div className="ds-main">
           <header className="ds-topbar">

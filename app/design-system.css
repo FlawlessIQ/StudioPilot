@@ -3336,10 +3336,11 @@
    loaded. These overrides intentionally live last so the drawer controls are
    not reset by the base interactive-chrome declarations above. */
 @media (max-width: 860px) {
-  /* The bottom "More" tab now opens the drawer, so the topbar hamburger is
-     redundant — drop it for a clean app header. The drawer's own close (X)
-     stays. */
-  .ds-root .ds-mobile-menu {
+  /* Hide the topbar hamburger only in shells that have a bottom tab bar
+     (studio, crew) — the tabs are the nav there, so the hamburger is
+     redundant. The client portal and admin shell have no tab bar and still
+     rely on the hamburger to open their drawer, so it must stay for them. */
+  .ds-shell:has(.ds-tabbar) .ds-mobile-menu {
     display: none;
   }
 
