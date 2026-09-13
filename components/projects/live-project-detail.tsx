@@ -64,6 +64,7 @@ import { dataIsLive } from "@/lib/runtime-mode";
 import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
 import { ProjectWorkspaceNav } from "@/components/projects/project-workspace-nav";
 import { ProjectPreparedTray } from "@/components/projects/project-prepared-tray";
+import { ProjectJobPlan } from "@/components/projects/project-job-plan";
 import { ProjectPlanningCopilot } from "@/components/projects/project-planning-copilot";
 import { crmProjects } from "@/config/crm-demo-data";
 import { friendlyError } from "@/lib/ai/friendly-error";
@@ -78,6 +79,22 @@ import {
   MINIMUM_INTERRUPTION_REASON,
   type Interruption,
 } from "@/features/projects/interruptions";
+
+// The job page collapses its three overlapping "what's left" sections — the
+// prepared-decisions queue, "everything outstanding by who owes it", and the
+// journey map — into one prioritized plan on phones. Desktop keeps the wider
+// two-column layout, which has the room for all three.
+function useIsPhone() {
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 760px)");
+    const sync = () => setPhone(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
+  return phone;
+}
 
 type ProjectRecord = Record<string, unknown> & { id: string };
 type CheckpointRecord = Record<string, unknown> & { id: string };
@@ -632,6 +649,7 @@ function ProjectLifecycleLanes({
 
 export function LiveProjectDetail({ projectId }: { projectId: string }) {
   const workspace = useWorkspace();
+  const isPhone = useIsPhone();
   const [project, setProject] = useState<ProjectRecord | null>(
     dataIsLive ? null : mockProject(projectId),
   );
@@ -836,6 +854,73 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
     setProject((value) =>
       value ? { ...value, state: nextState, stateVersion: version } : value,
     );
+
+  // Shared between the phone and desktop layouts. On desktop the thread sits
+  // beside a rail; on the phone the consolidated plan leads and the thread —
+  // the conversation and its composer — follows it.
+  const threadEl = (
+    <ProjectThread
+      consultationId={thread.openConsultationId}
+      current={current}
+      waitingOnClient={waitingOnClient}
+      studioOpenWork={studioOpenWork}
+      entries={thread.entries}
+      interruption={
+        ["POSTPONED", "CANCELLED"].includes(state)
+          ? {
+              state,
+              reason:
+                typeof project.interruptionReason === "string"
+                  ? project.interruptionReason
+                  : null,
+            }
+          : null
+      }
+      onChanged={(nextState, version) => {
+        if (nextState && typeof version === "number")
+          onTransition(nextState, version);
+      }}
+      projectId={projectId}
+      stateVersion={Number(project.stateVersion ?? 0)}
+    />
+  );
+  const leadInviteEl =
+    state === "LEAD" &&
+    Array.isArray(project.clientContactIds) &&
+    typeof project.clientContactIds[0] === "string" ? (
+      <aside className="job-rail-card">
+        <p className="eyebrow">Let the client pick</p>
+        <ConsultationInviteAction
+          contactId={project.clientContactIds[0]}
+          projectId={projectId}
+        />
+      </aside>
+    ) : null;
+  const stageControlEl = (
+    <ProjectStageControl
+      journeyAdvance={
+        journey.current?.advance
+          ? {
+              targetState: journey.current.advance.targetState,
+              label: journey.current.advance.label,
+            }
+          : null
+      }
+      onTransition={onTransition}
+      projectId={projectId}
+      state={state}
+      stateVersion={Number(project.stateVersion ?? 0)}
+    />
+  );
+  const interruptionEl = (
+    <ProjectInterruptionControl
+      onTransition={onTransition}
+      projectId={projectId}
+      state={state}
+      stateVersion={Number(project.stateVersion ?? 0)}
+    />
+  );
+
   return (
     <div className="project-detail-page">
       <Link className="back-link" href="/studio/projects">
@@ -924,76 +1009,40 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
         </span>
       </div>
       {/* Phase 2 of "Today & Jobs": the job is one thread, with the next
-          step composing at the bottom. The journey rail is the minimap. */}
-      <div className="job-page-grid">
-        <ProjectThread
-          consultationId={thread.openConsultationId}
-          current={current}
-          waitingOnClient={waitingOnClient}
-          studioOpenWork={studioOpenWork}
-          entries={thread.entries}
-          interruption={
-            ["POSTPONED", "CANCELLED"].includes(state)
-              ? {
-                  state,
-                  reason:
-                    typeof project.interruptionReason === "string"
-                      ? project.interruptionReason
-                      : null,
-                }
-              : null
-          }
-          onChanged={(nextState, version) => {
-            if (nextState && typeof version === "number")
-              onTransition(nextState, version);
-          }}
-          projectId={projectId}
-          stateVersion={Number(project.stateVersion ?? 0)}
-        />
-        <div className="job-rail">
-          <ThreadMinimap steps={journey.steps} />
-          {state === "LEAD" &&
-          Array.isArray(project.clientContactIds) &&
-          typeof project.clientContactIds[0] === "string" ? (
-            <aside className="job-rail-card">
-              <p className="eyebrow">Let the client pick</p>
-              <ConsultationInviteAction
-                contactId={project.clientContactIds[0]}
-                projectId={projectId}
-              />
-            </aside>
-          ) : null}
-          <ProjectStageControl
-            journeyAdvance={
-              journey.current?.advance
-                ? {
-                    targetState: journey.current.advance.targetState,
-                    label: journey.current.advance.label,
-                  }
-                : null
-            }
-            onTransition={onTransition}
-            projectId={projectId}
-            state={state}
-            stateVersion={Number(project.stateVersion ?? 0)}
-          />
-          <ProjectInterruptionControl
-            onTransition={onTransition}
-            projectId={projectId}
-            state={state}
-            stateVersion={Number(project.stateVersion ?? 0)}
-          />
+          step composing at the bottom. The journey rail is the minimap.
+          On phones the three "what's left" sections — prepared decisions,
+          "everything outstanding", and the journey — collapse into one
+          ProjectJobPlan that leads, with the thread following it. */}
+      {isPhone ? (
+        <div className="job-mobile">
+          <ProjectJobPlan steps={journey.steps} projectId={projectId} />
+          {leadInviteEl}
+          {stageControlEl}
+          {interruptionEl}
+          {threadEl}
         </div>
-      </div>
-      <section className="project-now-next" aria-label="Project work summary">
-        <ProjectLifecycleLanes
-          checkpoints={checkpoints}
-          evidence={journey.readinessEvidence}
-          project={project}
-          related={related}
-        />
-        <ProjectPreparedTray projectId={projectId} />
-      </section>
+      ) : (
+        <>
+          <div className="job-page-grid">
+            {threadEl}
+            <div className="job-rail">
+              <ThreadMinimap steps={journey.steps} />
+              {leadInviteEl}
+              {stageControlEl}
+              {interruptionEl}
+            </div>
+          </div>
+          <section className="project-now-next" aria-label="Project work summary">
+            <ProjectLifecycleLanes
+              checkpoints={checkpoints}
+              evidence={journey.readinessEvidence}
+              project={project}
+              related={related}
+            />
+            <ProjectPreparedTray projectId={projectId} />
+          </section>
+        </>
+      )}
       <details className="project-detail-disclosure">
         <summary>
           <span>

@@ -558,6 +558,191 @@
   transform: scale(0.99);
 }
 
+/* The unified mobile job plan: prepared decisions (above, via the tray) then
+   the journey as one prioritized list — open steps tappable and tagged by who
+   owes them, done steps ticked. Replaces the separate minimap + "everything
+   outstanding" lanes on phones. */
+.ds-root .project-job-plan {
+  display: grid;
+  gap: 14px;
+}
+
+.ds-root .job-plan-journey {
+  background: var(--ds-paper-raised);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-r-md, 16px);
+  overflow: hidden;
+  padding: 4px 0 6px;
+}
+
+.ds-root .job-plan-head {
+  align-items: baseline;
+  display: flex;
+  justify-content: space-between;
+  padding: 14px 16px 8px;
+}
+
+.ds-root .job-plan-head span {
+  color: var(--ds-ink-soft);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.ds-root .job-plan-head span em {
+  color: var(--ds-brass-deep, var(--ds-ink-soft));
+  font-style: normal;
+}
+
+.ds-root .job-plan-phase {
+  padding: 6px 16px 10px;
+  border-top: 1px solid var(--ds-line-soft, var(--ds-line));
+}
+
+.ds-root .job-plan-phase:first-of-type {
+  border-top: 0;
+}
+
+.ds-root .job-plan-phase.is-active {
+  background: var(--ds-forest-soft, rgb(46 87 60 / 5%));
+}
+
+.ds-root .job-plan-phase-label {
+  align-items: baseline;
+  color: var(--ds-ink-soft);
+  display: flex;
+  font-size: 10.5px;
+  font-weight: 700;
+  gap: 8px;
+  justify-content: space-between;
+  letter-spacing: 0.09em;
+  margin: 4px 0 6px;
+  text-transform: uppercase;
+}
+
+.ds-root .job-plan-phase-label em {
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+.ds-root .job-plan-missed {
+  color: var(--ds-amber-deep, #9a6a12);
+}
+
+.ds-root .job-plan-phase ol {
+  display: grid;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ds-root .job-plan-step,
+.ds-root .job-plan-step.is-link a {
+  align-items: center;
+  color: var(--ds-ink);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 16px minmax(0, 1fr) auto auto;
+  padding: 8px 4px;
+  text-decoration: none;
+}
+
+.ds-root .job-plan-step.is-link {
+  padding: 0;
+}
+
+.ds-root .job-plan-step.is-link a {
+  border-radius: 8px;
+}
+
+.ds-root .job-plan-step.is-link a:active {
+  background: var(--ds-hover, rgb(0 0 0 / 3%));
+}
+
+.ds-root .job-plan-mark {
+  align-items: center;
+  color: var(--ds-forest, #2e573c);
+  display: flex;
+  height: 16px;
+  justify-content: center;
+  width: 16px;
+}
+
+.ds-root .job-plan-step.is-upcoming .job-plan-mark::before,
+.ds-root .job-plan-step.is-current .job-plan-mark::before,
+.ds-root .job-plan-step.is-waiting_other .job-plan-mark::before {
+  background: var(--ds-line-strong, #c7cdc5);
+  border-radius: 999px;
+  content: "";
+  height: 7px;
+  width: 7px;
+}
+
+.ds-root .job-plan-step.is-current .job-plan-mark::before {
+  background: var(--ds-forest, #2e573c);
+  box-shadow: 0 0 0 3px var(--ds-forest-soft, rgb(46 87 60 / 15%));
+}
+
+.ds-root .job-plan-step-body {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.ds-root .job-plan-step-title {
+  font-size: 14px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-root .job-plan-step.is-current .job-plan-step-title {
+  font-weight: 700;
+}
+
+.ds-root .job-plan-step.is-complete .job-plan-step-title,
+.ds-root .job-plan-step.is-passed .job-plan-step-title {
+  color: var(--ds-ink-soft);
+}
+
+.ds-root .job-plan-step.is-passed .job-plan-step-title {
+  text-decoration: line-through;
+  text-decoration-color: var(--ds-line-strong, #c7cdc5);
+}
+
+.ds-root .job-plan-step-body small {
+  color: var(--ds-ink-soft);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+.ds-root .job-plan-owner {
+  background: var(--ds-chip, rgb(0 0 0 / 4%));
+  border-radius: 999px;
+  color: var(--ds-ink-soft);
+  flex-shrink: 0;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+
+.ds-root .job-plan-step.is-waiting_client .job-plan-owner {
+  background: var(--ds-brass-soft, rgb(176 137 74 / 14%));
+  color: var(--ds-brass-deep, #8a6a2e);
+}
+
+.ds-root .job-plan-step-chevron {
+  color: var(--ds-ink-faint, var(--ds-ink-soft));
+  flex-shrink: 0;
+}
+
 .ds-root .project-prepared-empty {
   align-items: center;
   background: var(--ds-forest-soft);
@@ -3531,4 +3716,11 @@
   min-height: 30px;
   padding: 0 10px;
   font-size: 11.5px;
+}
+
+/* The phone job layout stacks: the consolidated plan, the advance controls,
+   then the thread. */
+.ds-root .job-mobile {
+  display: grid;
+  gap: 16px;
 }
