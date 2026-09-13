@@ -8718,6 +8718,10 @@ textarea:focus-visible {
   font-style: normal;
   font-weight: 600;
   letter-spacing: .01em;
+  /* Sit under the date (column 2), not under the icon — otherwise its width
+     widens column 1 and pushes the Event-date label out of line with the
+     Venue and Lead-photographer rows below. */
+  grid-column: 2;
 }
 
 .project-detail-grid {
@@ -13543,12 +13547,13 @@ label {
     color: var(--muted, #6b7570);
   }
 
-  /* State: the badge and its phase track sit on one line above the value. */
+  /* State: restore the base grid stack (badge over phase track, both flush
+     left) — forcing it to a flex row is what left the badge floating in the
+     centre of the card, out of line with everything else. */
   .crm-projects-table article > .state-cell {
-    flex-direction: row;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
+    display: grid !important;
+    justify-items: start;
+    gap: 6px;
     margin-top: 2px;
   }
 
