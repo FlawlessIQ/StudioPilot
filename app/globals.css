@@ -13623,21 +13623,61 @@ label {
   .project-detail-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 14px;
+    gap: 12px;
     min-height: 0;
-    padding: 4px 0 18px 15px;
-    margin-bottom: 14px;
+    padding: 4px 0 16px 15px;
+    margin-bottom: 12px;
   }
   .project-title-line h1 {
-    font-size: clamp(26px, 7vw, 34px);
+    font-size: clamp(26px, 7vw, 32px);
   }
+  /* A clean readiness band: the arc on the left, the number and one blocker
+     line beside it. The ring's inner "15" and the "15%" text were the same
+     number twice — drop the one inside the ring — and calm the blocker link
+     from a red underline into a quiet, tappable line. */
   .project-readiness-summary {
-    width: 100%;
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    flex-direction: row;
+    gap: 13px;
     justify-content: flex-start;
-    gap: 14px;
+    padding: 11px 14px;
+    width: 100%;
+  }
+  .project-readiness-summary .readiness-meter {
+    order: -1;
+    flex: 0 0 auto;
+    height: 54px;
+    width: 54px;
+  }
+  .project-readiness-summary .readiness-meter strong {
+    display: none;
   }
   .project-readiness-summary > span {
+    gap: 3px;
     text-align: left;
+  }
+  .project-readiness-summary > span > small:first-child {
+    color: var(--muted);
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .project-readiness-summary strong {
+    font-size: 21px;
+    line-height: 1;
+  }
+  .project-readiness-gap {
+    color: var(--muted);
+    font-size: 12.5px;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .project-readiness-gap::after {
+    content: " ›";
+    color: var(--muted);
   }
 }
 

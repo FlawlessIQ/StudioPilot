@@ -47,9 +47,14 @@ function ownerChip(step: JourneyStep): string | null {
 }
 
 function StepRow({ step }: { step: JourneyStep }) {
-  const href = OPEN.includes(step.status) ? stepHref(step) : step.record?.href ?? null;
+  const open = OPEN.includes(step.status);
+  const href = open ? stepHref(step) : step.record?.href ?? null;
   const chip = ownerChip(step);
   const showDetail = step.status === "current" || step.explain;
+  // The chevron marks the rows that are work to do; completed steps still link
+  // to their evidence but stay quiet — the original journey the studio liked
+  // had no chevrons at all.
+  const showChevron = open && href != null;
   const inner = (
     <>
       <span className="job-plan-mark" aria-hidden="true">
@@ -64,7 +69,9 @@ function StepRow({ step }: { step: JourneyStep }) {
         {showDetail ? <small>{step.detail}</small> : null}
       </span>
       {chip ? <span className="job-plan-owner">{chip}</span> : null}
-      {href ? <ChevronRight size={16} className="job-plan-step-chevron" /> : null}
+      {showChevron ? (
+        <ChevronRight size={16} className="job-plan-step-chevron" />
+      ) : null}
     </>
   );
   if (href) {
