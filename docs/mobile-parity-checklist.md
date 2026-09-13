@@ -4,6 +4,22 @@ Every UI screen in the app today (127 routes), as a checklist for the mobile
 build. Goal: every screen a studio, client, or crew member touches gets a
 purpose-built mobile layout — and nothing legacy is carried along.
 
+**Progress log:**
+- **2026-09-13 — Foundation shipped & live (Track 1, increments 1–2).** These
+  apply to *every* studio screen at once:
+  - 5-tab bottom app-shell (Today · Jobs · Cue · People · More→drawer), replacing
+    the hamburger. `[x]` shell
+  - Installable **standalone PWA** — viewport-fit=cover, appleWebApp meta,
+    safe-area insets, existing offline SW. Add-to-Home-Screen launches full-screen. `[x]` install
+  - Native-feel polish — no tap-flash, no iOS focus-zoom, non-selectable chrome,
+    contained overscroll. `[x]`
+  - Native **bottom sheets** — the shared `SheetDialog` now rises from the bottom
+    with a grab handle, eased slide, and safe-area; touch press-feedback on taps. `[x]`
+  - Finding: the screens were already mobile-first (responsive CSS throughout), so
+    they now render inside a real app shell. The per-screen `[ ]` boxes below are for
+    **device-verified polish** (thumb ergonomics, sheet conversion of deep panels),
+    which needs testing on a phone to prioritize — not a rewrite.
+
 **Scope, locked 2026-09-13:**
 - **Track 1 (now): the studio app** — Section 1 below (~57 screens). This is the
   mobile initiative's first and current scope.
