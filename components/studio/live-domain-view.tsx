@@ -880,6 +880,11 @@ export function LiveDomainView({
                 </strong>
               </span>
             ))}
+            {/* Zero-size flex line-break: on phones the row is a wrapping flex
+                strip, and this drops the status + arrow onto their own line so
+                the badge is never squeezed inline. Hidden (display:none) on the
+                desktop grid, so it is not a stray grid cell there. */}
+            <span className="live-domain-break" aria-hidden="true" />
             <StatusBadge tone={tone(status)}>
               {display(status, undefined, record.currency)}
             </StatusBadge>

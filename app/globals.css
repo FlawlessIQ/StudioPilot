@@ -14386,3 +14386,41 @@ label {
     justify-self: end;
   }
 }
+
+/* Domain list pages (documents, tasks, invoices, packages … — every
+   StudioDomainPage) on phones. The hero duplicates the top bar's title, so
+   hide the hero TEXT — but keep the "New …" action button, which is the only
+   way to create a record on some of these pages. A header with no action
+   collapses entirely. The row list below already has its phone treatment. */
+@media (max-width: 640px) {
+  .live-domain-page > .page-heading {
+    min-height: 0;
+    padding-bottom: 0;
+  }
+  .live-domain-page > .page-heading > div {
+    display: none;
+  }
+  /* No action button → nothing left worth showing; collapse the header. */
+  .live-domain-page > .page-heading:not(:has(> a)) {
+    display: none;
+  }
+  /* Action-only header: let the button sit at the start on its own line. */
+  .live-domain-page > .page-heading > a {
+    margin-left: 0;
+  }
+}
+
+/* Flex line-break inside a domain-list row on phones (see live-domain-view):
+   forces the status badge + arrow onto their own line so the badge stays a
+   compact pill instead of squeezing inline. display:none on the desktop grid
+   so it never becomes a stray grid cell. */
+.live-domain-break {
+  display: none;
+}
+@media (max-width: 560px) {
+  .live-domain-table .live-domain-break {
+    display: block;
+    flex: 0 0 100%;
+    height: 0;
+  }
+}
