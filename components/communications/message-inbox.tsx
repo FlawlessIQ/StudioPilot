@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   collection,
   doc,
@@ -85,6 +85,29 @@ function deliveryLabel(status: string | null): string | null {
   return null;
 }
 
+// Clock time inside a chat bubble (e.g. "2:14 PM").
+function clockLabel(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.valueOf())
+    ? ""
+    : date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+// A day separator label for the transcript (Today / Yesterday / Mon, Sep 8).
+function dayLabel(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.valueOf())) return "";
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+  if (sameDay(date, today)) return "Today";
+  if (sameDay(date, yesterday)) return "Yesterday";
+  return date.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
 function whenLabel(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.valueOf())) return "";
@@ -738,26 +761,41 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
                   This conversation has no stored messages yet.
                 </p>
               ) : (
-                messages.map((message) => {
+                messages.map((message, index) => {
                   const status = deliveryLabel(message.deliveryStatus);
+                  const previous = index > 0 ? messages[index - 1] : undefined;
+                  // A date separator when the day changes (or on the first).
+                  const newDay =
+                    !previous ||
+                    new Date(previous.createdAt).toDateString() !==
+                      new Date(message.createdAt).toDateString();
+                  // Name only at the start of an inbound run — grouped like a
+                  // chat, not repeated "You · time" on every bubble.
+                  const showWho =
+                    message.direction === "inbound" &&
+                    (newDay || previous?.direction !== "inbound");
                   return (
-                    <article
-                      key={message.id}
-                      className={`msg-bubble is-${message.direction}`}
-                    >
-                      <header>
-                        <strong>
-                          {message.direction === "inbound"
-                            ? (activeThread.participant.name ?? "Client")
-                            : "You"}
+                    <Fragment key={message.id}>
+                      {newDay ? (
+                        <div className="msg-day">
+                          <span>{dayLabel(message.createdAt)}</span>
+                        </div>
+                      ) : null}
+                      {showWho ? (
+                        <strong className="msg-bubble-who">
+                          {activeThread.participant.name ?? "Client"}
                         </strong>
-                        <time dateTime={message.createdAt}>
-                          {whenLabel(message.createdAt)}
-                        </time>
-                      </header>
-                      <p>{message.body ?? message.bodyPreview ?? ""}</p>
-                      {status ? <footer>{status}</footer> : null}
-                    </article>
+                      ) : null}
+                      <article className={`msg-bubble is-${message.direction}`}>
+                        <p>{message.body ?? message.bodyPreview ?? ""}</p>
+                        <span className="msg-bubble-meta">
+                          <time dateTime={message.createdAt}>
+                            {clockLabel(message.createdAt)}
+                          </time>
+                          {status ? <em>· {status}</em> : null}
+                        </span>
+                      </article>
+                    </Fragment>
                   );
                 })
               )}

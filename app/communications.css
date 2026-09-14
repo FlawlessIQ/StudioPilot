@@ -523,3 +523,114 @@
     display: none;
   }
 }
+
+/* ============================================================
+   Thread transcript — a real chat, not an email thread. Bubbles
+   were bordered cards each repeating "You · time"; grouped like a
+   messaging app instead: solid fills, a name only at the start of
+   an inbound run, a small time under each bubble, and a centered
+   date separator between days. Reads at 20–100 messages.
+   ============================================================ */
+.msg-stream {
+  gap: 4px;
+  scroll-behavior: smooth;
+}
+.msg-bubble {
+  max-width: 82%;
+  padding: 9px 13px;
+  border: 0;
+  border-radius: 16px;
+}
+.msg-bubble.is-inbound {
+  align-self: flex-start;
+  background: var(--soft, #f1ece1);
+  border-bottom-left-radius: 5px;
+}
+.msg-bubble.is-outbound {
+  align-self: flex-end;
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface));
+  border-bottom-right-radius: 5px;
+}
+/* group spacing: a bubble that follows the opposite speaker gets air */
+.msg-bubble.is-inbound + .msg-bubble.is-outbound {
+  margin-top: 8px;
+}
+.msg-bubble p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.msg-bubble-meta {
+  display: block;
+  margin-top: 3px;
+  font-size: 10.5px;
+  color: var(--muted);
+  text-align: right;
+}
+.msg-bubble.is-inbound .msg-bubble-meta {
+  text-align: left;
+}
+.msg-bubble-meta em {
+  font-style: normal;
+}
+.msg-bubble-who {
+  align-self: flex-start;
+  margin: 10px 0 1px 3px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.msg-day {
+  align-self: center;
+  margin: 10px 0 6px;
+}
+.msg-day span {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: var(--soft, #f1ece1);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+/* The AI draft is a quiet suggestion above the composer, not a hero card. */
+.msg-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
+}
+.msg-suggestion-text strong {
+  font-size: 12.5px;
+}
+.msg-suggestion-text small {
+  display: none;
+}
+.msg-suggestion-use {
+  margin-left: auto;
+  grid-column: auto;
+  white-space: nowrap;
+  padding: 6px 11px;
+  font-size: 12px;
+}
+
+/* Phones: the open thread fills the screen and the composer stays put at the
+   bottom while the transcript scrolls above it. */
+@media (max-width: 900px) {
+  .msg-inbox[data-detail="open"] .msg-thread-view {
+    min-height: calc(100dvh - 210px);
+  }
+  .msg-inbox[data-detail="open"] .msg-stream {
+    max-height: none;
+  }
+  .msg-inbox[data-detail="open"] .msg-reply {
+    position: sticky;
+    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+    background: var(--surface);
+  }
+}
