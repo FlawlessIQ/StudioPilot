@@ -13902,3 +13902,46 @@ label {
     width: 100%;
   }
 }
+
+/* ============================================================
+   Record detail pages (crew profile/assignment, and the other
+   live-detail records) on phones. The facts grid dropped to a
+   single column below 480px, so a crew record's 11 facts became
+   11 full-width panels. Keep two compact columns instead, and
+   right-size the detail heading.
+   ============================================================ */
+@media (max-width: 640px) {
+  .live-detail-page .page-heading h1 {
+    font-size: clamp(26px, 7vw, 31px);
+  }
+  .live-detail-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+    margin-top: 16px;
+  }
+  .live-detail-grid article {
+    padding: 11px 12px;
+    gap: 3px;
+    border-radius: 12px;
+  }
+  .live-detail-grid small {
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .live-detail-grid strong {
+    font-size: 15px;
+  }
+}
+
+/* Detail list rows that carry a trailing status badge (requirements, steps,
+   automations) stay horizontal on phones — content left, badge right — instead
+   of stacking the badge under the name. Scoped by :has so schedule-item rows
+   (time / title / end, no badge) keep their own stacked layout. */
+@media (max-width: 760px) {
+  .live-detail-list > article:has(> .status-badge) {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+  }
+}
