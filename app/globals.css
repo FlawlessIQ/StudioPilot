@@ -13945,3 +13945,114 @@ label {
     align-items: center;
   }
 }
+
+/* ============================================================
+   Crew record — bespoke screen (CrewRecordLayout). Replaces the
+   generic 11-cell fact grid: an identity header (avatar, name,
+   role · job, status), a compact hairline fact grid of only the
+   facts actually present, then the studio operations block.
+   ============================================================ */
+.crew-record {
+  display: grid;
+  gap: 16px;
+  max-width: 940px;
+  margin: 0 auto;
+}
+.crew-record-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.crew-record-avatar {
+  flex: 0 0 auto;
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: #fdf4ef;
+  font: 600 18px/1 var(--font-display);
+  background: linear-gradient(150deg, var(--ds-brass, #b0894a), var(--ds-brass-deep, #8a6a3a));
+}
+.crew-record-id {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.crew-record-id .eyebrow {
+  margin: 0 0 1px;
+}
+.crew-record-id h1 {
+  margin: 0;
+  font: 560 clamp(24px, 6vw, 30px) / 1.1 var(--font-display);
+  letter-spacing: -0.03em;
+  color: #17201a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.crew-record-id > p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+.crew-record-head .status-badge {
+  flex: 0 0 auto;
+  align-self: flex-start;
+}
+/* Hairline fact grid: 1px gaps over a line-coloured ground read as dividers. */
+.crew-record-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--line);
+}
+.crew-record-facts > div {
+  background: var(--surface);
+  padding: 12px 14px;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.crew-record-facts dt {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.crew-record-facts dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+@media (min-width: 720px) {
+  .crew-record-facts {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* A long free-text fact (email, service areas) spans the full width so it
+   doesn't break mid-word in a half cell. */
+.crew-record-facts > .crew-fact-wide {
+  grid-column: 1 / -1;
+}
+.crew-record-facts > .crew-fact-wide dd {
+  overflow-wrap: normal;
+  word-break: break-word;
+}
+/* The studio-controls heading is a display serif; keep it calm on phones. */
+@media (max-width: 640px) {
+  .crew-studio-operations {
+    padding: 16px;
+  }
+  .crew-studio-operations > header h2 {
+    font-size: 18px;
+  }
+}

@@ -391,6 +391,106 @@ function CrewStudioOperations({
   );
 }
 
+/**
+ * The crew record, rebuilt as a purpose-built screen instead of the generic
+ * 11-cell fact grid + form stack. A crew record is one person and (usually)
+ * their assignment to one job: lead with who they are, show only the facts
+ * that are actually present, and make the paperwork/closeout/payment the
+ * operational heart. Reuses CrewStudioOperations for the actionable parts.
+ */
+function CrewRecordLayout({
+  record,
+  selected,
+  status,
+  onChanged,
+}: {
+  record: RecordValue;
+  selected: { back: string; backLabel: string; boundary: string; facts: Array<[string, string[]]> };
+  status: string;
+  onChanged: () => void;
+}) {
+  const isAssignment =
+    typeof record.projectId === "string" && record.projectId.length > 0;
+  const personName = String(record.name ?? "").trim();
+  const projectName = String(record.projectName ?? "").trim();
+  const heading = personName || projectName || "Crew record";
+  const role = typeof record.role === "string" ? statusLabel(record.role) : "";
+  const initials =
+    heading
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part.charAt(0))
+      .join("")
+      .toUpperCase() || "CR";
+  const subParts = [role || null, isAssignment && projectName ? projectName : null].filter(
+    (part): part is string => Boolean(part),
+  );
+  const factValue = (fields: string[], label: string) => {
+    const raw = nested(record, fields);
+    if (Array.isArray(raw))
+      return raw.map((entry) => statusLabel(String(entry))).join(", ") || "—";
+    return show(raw, label);
+  };
+  // Only the facts that are present, and never Role (it's the subtitle) or the
+  // Requirements count (the requirements are shown, actionable, below).
+  const facts = selected.facts
+    .filter(
+      ([label, fields]) =>
+        label !== "Role" &&
+        label !== "Requirements" &&
+        nested(record, fields) !== null,
+    )
+    .map(([label, fields]) => {
+      const value = factValue(fields, label);
+      // Long free-text values (email, service areas) span the full width so
+      // they don't break mid-word in a half cell.
+      const wide =
+        label === "Email" || label === "Service areas" || value.length > 22;
+      return { label, value, wide };
+    });
+  // A hairline 2-up grid shows an empty divider cell when the number of
+  // half-width facts is odd — widen the last one so the grid stays flush.
+  const narrow = facts.filter((fact) => !fact.wide);
+  if (narrow.length % 2 === 1) narrow[narrow.length - 1]!.wide = true;
+  const done = /approved|complete|published|active|accepted|paid/i.test(status);
+  return (
+    <div className="live-detail-page crew-record">
+      <Link className="back-link" href={selected.back}>
+        <ArrowLeft /> Back to {selected.backLabel}
+      </Link>
+      <header className="crew-record-head">
+        <span className="crew-record-avatar">{initials}</span>
+        <div className="crew-record-id">
+          <p className="eyebrow">Crew</p>
+          <h1>{heading}</h1>
+          {subParts.length ? <p>{subParts.join(" · ")}</p> : null}
+        </div>
+        <StatusBadge tone={done ? "success" : "warning"}>{status}</StatusBadge>
+      </header>
+      {facts.length ? (
+        <dl className="crew-record-facts">
+          {facts.map(({ label, value, wide }) => (
+            <div key={label} className={wide ? "crew-fact-wide" : undefined}>
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+      {isAssignment ? (
+        <CrewStudioOperations assignment={record} onChanged={onChanged} />
+      ) : null}
+      <section className="panel live-detail-boundary">
+        <ShieldCheck />
+        <span>
+          <strong>How this record works</strong>
+          <small>{selected.boundary}</small>
+        </span>
+      </section>
+    </div>
+  );
+}
+
 export function LiveRecordDetail({
   id,
   kind,
@@ -486,6 +586,17 @@ export function LiveRecordDetail({
           Boolean(item) && typeof item === "object",
       )
     : [];
+  // The crew record is a bespoke screen, not the generic fact-grid layout.
+  if (kind === "crew") {
+    return (
+      <CrewRecordLayout
+        record={record}
+        selected={selected}
+        status={status}
+        onChanged={() => setRefreshVersion((value) => value + 1)}
+      />
+    );
+  }
   return (
     <div className="live-detail-page">
       <Link className="back-link" href={selected.back}><ArrowLeft /> Back to {selected.backLabel}</Link>
@@ -572,7 +683,7 @@ export function LiveRecordDetail({
           ))}
         </section>
       ) : null}
-      {kind === "crew" && typeof record.projectId === "string" ? <CrewStudioOperations assignment={record} onChanged={() => setRefreshVersion((value) => value + 1)} /> : null}
+      {/* Crew records render via CrewRecordLayout above and never reach here. */}
       <section className="panel live-detail-boundary"><ShieldCheck /><span><strong>How this record works</strong><small>{selected.boundary}</small></span></section>
     </div>
   );
