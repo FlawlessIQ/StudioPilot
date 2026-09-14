@@ -14122,3 +14122,204 @@ label {
     display: none;
   }
 }
+
+/* ============================================================================
+   Studio settings — phone. A native hub of grouped rows that drill into a
+   full-screen detail. Rendered by components/settings/settings-shell.tsx only
+   below 760px; desktop keeps the stacked panels untouched.
+   ========================================================================== */
+.settings-mobile {
+  display: block;
+}
+
+.settings-mobile-head {
+  padding: 4px 2px 6px;
+}
+
+.settings-mobile-head h1 {
+  font-size: 26px;
+  font-weight: 680;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.settings-mobile-head p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 6px 0 0;
+  max-width: 34ch;
+}
+
+.settings-group {
+  margin-top: 22px;
+}
+
+.settings-group-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 640;
+  letter-spacing: 0.06em;
+  margin: 0 0 8px 4px;
+  text-transform: uppercase;
+}
+
+.settings-group-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.settings-row {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  gap: 13px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 14px 15px;
+  text-align: left;
+  text-decoration: none;
+  width: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Hairline between rows, drawn on all but the first — inset past the icon so it
+   reads as one grouped card, the way iOS/Android settings lists do. */
+.settings-row + .settings-row {
+  border-top: 1px solid var(--border);
+}
+
+.settings-row:active {
+  background: var(--soft);
+}
+
+.settings-row-icon {
+  align-items: center;
+  background: var(--soft);
+  border-radius: 10px;
+  color: var(--accent);
+  display: flex;
+  height: 36px;
+  justify-content: center;
+  width: 36px;
+}
+
+.settings-row-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settings-row-text strong {
+  font-size: 15px;
+  font-weight: 620;
+}
+
+.settings-row-text small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.settings-row-chev {
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+/* Full-screen detail — sits above the app shell's bottom nav, like the Messages
+   thread view, so a section reads as its own screen with a single way back. */
+.settings-detail {
+  background: var(--background);
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  left: 0;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 60;
+}
+
+.settings-detail-head {
+  align-items: center;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 6px;
+  flex: none;
+  padding: 12px 14px;
+  padding-top: max(12px, env(safe-area-inset-top));
+}
+
+.settings-detail-head h2 {
+  font-size: 17px;
+  font-weight: 650;
+  margin: 0;
+}
+
+.settings-back {
+  align-items: center;
+  background: var(--soft);
+  border: 0;
+  border-radius: 999px;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.settings-detail-body {
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 15px calc(28px + env(safe-area-inset-bottom));
+}
+
+/* Normalise the reused panels inside the detail: drop the card chrome (the
+   detail IS the card now) and collapse every two-up form grid to one column,
+   so no panel has to be fixed one by one. */
+.ds-root .settings-detail-body .panel,
+.ds-root .settings-detail-body .studio-identity,
+.ds-root .settings-detail-body .email-designer,
+.ds-root .settings-detail-body .communications-lifecycle-pack,
+.ds-root .settings-detail-body .data-control-card {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  margin: 0;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0;
+}
+
+/* The danger card (account deletion) keeps a visible boundary. */
+.ds-root .settings-detail-body .data-control-danger {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  margin-top: 18px;
+  padding: 16px;
+}
+
+.ds-root .settings-detail-body .studio-identity form,
+.ds-root .settings-detail-body .email-branding-layout,
+.ds-root .settings-detail-body .email-branding-fields,
+.ds-root .settings-detail-body .email-branding-form {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 1fr;
+}
+
+.ds-root .settings-detail-body input,
+.ds-root .settings-detail-body textarea,
+.ds-root .settings-detail-body select {
+  max-width: 100%;
+  width: 100%;
+}
