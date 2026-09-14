@@ -14445,3 +14445,18 @@ label {
   justify-content: flex-start;
   gap: 10px;
 }
+
+/* Domain rows with a trailing arrow (documents, invoices, packages …) on
+   phones: the refined stat-strip gives the status badge order:5, so without
+   ordering the arrow (order:0) it rendered BEFORE the badge ("→ Paid"). Order
+   the break, badge, and arrow explicitly so it is always badge → arrow,
+   dropped onto their own line by the break. Only plain-link rows have the
+   arrow, so crew/vendor/task action rows are unaffected. */
+@media (max-width: 560px) {
+  .live-domain-table .live-domain-break {
+    order: 4;
+  }
+  .live-domain-table > a > svg {
+    order: 6;
+  }
+}
