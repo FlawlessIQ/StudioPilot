@@ -14395,7 +14395,12 @@ label {
 @media (max-width: 640px) {
   .live-domain-page > .page-heading {
     min-height: 0;
-    padding-bottom: 0;
+    padding: 0;
+    border-bottom: 0;
+  }
+  /* Drop the hero's accent bar and text so only the action button remains. */
+  .live-domain-page > .page-heading::before {
+    display: none;
   }
   .live-domain-page > .page-heading > div {
     display: none;
