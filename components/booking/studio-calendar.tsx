@@ -497,6 +497,17 @@ export function StudioCalendar() {
               >
                 <time dateTime={dateKey}>{format(day, "d")}</time>
                 {blocked ? <Lock size={11} aria-hidden="true" className="ds-cal-day-lock" /> : null}
+                {/* Phones can't fit the event text in a 48px cell, so it clips.
+                    A compact dot per category present is the native-calendar
+                    convention; the full detail is one tap away in the panel
+                    below. Shown only on small screens (CSS toggles it). */}
+                <span className="ds-cal-day-dots" aria-hidden="true">
+                  {dayProjects.length > 0 ? <i className="ds-cal-dot is-project" /> : null}
+                  {bookedCount > 0 ? <i className="ds-cal-dot is-booked" /> : null}
+                  {!blocked && !closed && openCount > 0 ? (
+                    <i className="ds-cal-dot is-open" />
+                  ) : null}
+                </span>
                 {dayProjects.length > 0 ? (
                   <div className="ds-cal-day-events">
                     {dayProjects.slice(0, 2).map((project) => (

@@ -2629,22 +2629,50 @@
   }
 }
 
+/* The per-category dot row. Hidden on desktop (the cells show rich text);
+   shown on phones in place of that text. */
+.ds-cal-day-dots {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  margin-top: auto;
+}
+.ds-cal-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.ds-cal-dot.is-project {
+  background: var(--ds-brass-deep);
+}
+.ds-cal-dot.is-booked {
+  background: var(--ds-amber);
+}
+.ds-cal-dot.is-open {
+  background: var(--ds-forest);
+}
+
 @media (max-width: 560px) {
   .ds-cal-weekdays span {
     font-size: 9px;
     padding-inline: 3px;
   }
   .ds-cal-day {
-    min-height: 64px;
-    padding: 5px;
+    min-height: 54px;
+    padding: 6px 5px 7px;
     gap: 3px;
   }
-  .ds-cal-day-projects {
+  /* Replace the clipping in-cell text with dots. */
+  .ds-cal-day-events,
+  .ds-cal-day-pills {
     display: none;
   }
-  .ds-cal-pill {
-    font-size: 9px;
-    padding: 1px 6px;
+  .ds-cal-day-dots {
+    display: flex;
+  }
+  .ds-cal-grid {
+    gap: 3px;
   }
 }
 
