@@ -335,34 +335,33 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
           ),
         );
         if (!active) return;
-        // TEMP probe.
+        const mapped = snapshot.docs
+          .filter((document) => !document.data().archivedAt)
+          .map((document): ThreadMessage => {
+            const value = document.data();
+            return {
+              id: document.id,
+              direction:
+                value.direction === "inbound" ? "inbound" : "outbound",
+              channel: (value.channel ?? "email") as MessageChannel,
+              subject: (value.subject as string | null) ?? null,
+              body: (value.body as string | null) ?? null,
+              bodyPreview: (value.bodyPreview as string | null) ?? null,
+              createdAt: String(value.createdAt ?? value.sentAt ?? ""),
+              deliveryStatus: (value.deliveryStatus as string | null) ?? null,
+              preparedReply: (value.preparedReply ?? null) as
+                | { body: string; basedOn?: string[] }
+                | null,
+            };
+          })
+          .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+        // TEMP probe: raw = docs from server, kept = after archivedAt filter.
         setProbe(
-          `size=${snapshot.size} cache=${snapshot.metadata.fromCache} conv=${String(
+          `raw=${snapshot.size} kept=${mapped.length} cache=${snapshot.metadata.fromCache} conv=${String(
             openThreadId,
-          ).slice(-6)} t=${String(tenantId).slice(-6)}`,
+          ).slice(-6)}`,
         );
-        setMessages(
-          snapshot.docs
-            .filter((document) => !document.data().archivedAt)
-            .map((document): ThreadMessage => {
-              const value = document.data();
-              return {
-                id: document.id,
-                direction:
-                  value.direction === "inbound" ? "inbound" : "outbound",
-                channel: (value.channel ?? "email") as MessageChannel,
-                subject: (value.subject as string | null) ?? null,
-                body: (value.body as string | null) ?? null,
-                bodyPreview: (value.bodyPreview as string | null) ?? null,
-                createdAt: String(value.createdAt ?? value.sentAt ?? ""),
-                deliveryStatus: (value.deliveryStatus as string | null) ?? null,
-                preparedReply: (value.preparedReply ?? null) as
-                  | { body: string; basedOn?: string[] }
-                  | null,
-              };
-            })
-            .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
-        );
+        setMessages(mapped);
         setLoadError(null);
         setLoadedThreadId(openThreadId);
       } catch (error) {
