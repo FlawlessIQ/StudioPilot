@@ -303,16 +303,20 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
   const messagesLoading = openThreadId !== loadedThreadId;
 
   useEffect(() => {
-    if (!openThreadId) return;
+    if (!openThreadId || !tenantId) return;
     const { firestore } = getFirebaseClient();
     const unsubscribe = onSnapshot(
-      // Deliberately a single-field equality with NO orderBy: that needs only
-      // Firestore's automatic index, so the listen can never fail on a missing
-      // or still-building composite index (which surfaced as a permanently
-      // empty thread even though the messages existed). Sorting and the
-      // archived filter run client-side below.
+      // MUST filter by tenantId: firestore.rules gates message reads on
+      // `hasRole(resource.data.tenantId, …)`, and Firestore validates a LISTEN
+      // by proving the rule from the query's constraints — a conversationId-only
+      // query can't prove the tenant rule, so the whole listen was rejected and
+      // the thread rendered empty even though the messages existed and the user
+      // owned the tenant. (Every query in this app is tenant-scoped for exactly
+      // this reason.) Two equalities + no orderBy use the automatic single-field
+      // indexes; sorting and the archived filter run client-side below.
       query(
         collection(firestore, "messages"),
+        where("tenantId", "==", tenantId),
         where("conversationId", "==", openThreadId),
         limit(MESSAGE_LIMIT),
       ),
@@ -355,7 +359,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
       },
     );
     return unsubscribe;
-  }, [openThreadId]);
+  }, [openThreadId, tenantId]);
 
   // Opening a thread clears its badge. Fire-and-forget: failing to clear a
   // count must not stop the studio reading the message.
