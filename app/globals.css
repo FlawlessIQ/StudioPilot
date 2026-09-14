@@ -14518,20 +14518,20 @@ label {
    list than a stack of chunky cards. Scoped by data-domain so the operational
    lists (tasks, invoices, …) keep their roomier rows. */
 @media (max-width: 560px) {
-  .ds-root .live-domain-table:is([data-domain="documents"], [data-domain="workflows"], [data-domain="questionnaires"], [data-domain="packages"], [data-domain="crew_profiles"], [data-domain="crew_assignments"]) > :is(a, article) {
+  .ds-root .live-domain-table:is([data-domain="documents"], [data-domain="workflows"], [data-domain="questionnaires"], [data-domain="packages"], [data-domain="crew_profiles"], [data-domain="crew_assignments"], [data-domain="vendors"]) > :is(a, article) {
     gap: 6px 16px;
     padding: 11px 14px;
   }
-  .ds-root .live-domain-table:is([data-domain="documents"], [data-domain="workflows"], [data-domain="questionnaires"], [data-domain="packages"], [data-domain="crew_profiles"], [data-domain="crew_assignments"]) .live-domain-primary strong {
+  .ds-root .live-domain-table:is([data-domain="documents"], [data-domain="workflows"], [data-domain="questionnaires"], [data-domain="packages"], [data-domain="crew_profiles"], [data-domain="crew_assignments"], [data-domain="vendors"]) .live-domain-primary strong {
     font-size: 15px;
   }
-  .ds-root .live-domain-table:is([data-domain="documents"], [data-domain="workflows"], [data-domain="questionnaires"], [data-domain="packages"], [data-domain="crew_profiles"], [data-domain="crew_assignments"]) .live-domain-primary small {
+  .ds-root .live-domain-table:is([data-domain="documents"], [data-domain="workflows"], [data-domain="questionnaires"], [data-domain="packages"], [data-domain="crew_profiles"], [data-domain="crew_assignments"], [data-domain="vendors"]) .live-domain-primary small {
     font-size: 11.5px;
   }
-  .ds-root .live-domain-table:is([data-domain="documents"], [data-domain="workflows"], [data-domain="questionnaires"], [data-domain="packages"], [data-domain="crew_profiles"], [data-domain="crew_assignments"]) > :is(a, article) > span:not(.live-domain-primary) > small {
+  .ds-root .live-domain-table:is([data-domain="documents"], [data-domain="workflows"], [data-domain="questionnaires"], [data-domain="packages"], [data-domain="crew_profiles"], [data-domain="crew_assignments"], [data-domain="vendors"]) > :is(a, article) > span:not(.live-domain-primary) > small {
     font-size: 9.5px;
   }
-  .ds-root .live-domain-table:is([data-domain="documents"], [data-domain="workflows"], [data-domain="questionnaires"], [data-domain="packages"], [data-domain="crew_profiles"], [data-domain="crew_assignments"]) > :is(a, article) > span:not(.live-domain-primary) > strong {
+  .ds-root .live-domain-table:is([data-domain="documents"], [data-domain="workflows"], [data-domain="questionnaires"], [data-domain="packages"], [data-domain="crew_profiles"], [data-domain="crew_assignments"], [data-domain="vendors"]) > :is(a, article) > span:not(.live-domain-primary) > strong {
     font-size: 12.5px;
   }
 }
