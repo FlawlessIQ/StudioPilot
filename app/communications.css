@@ -619,18 +619,48 @@
   font-size: 12px;
 }
 
-/* Phones: the open thread fills the screen and the composer stays put at the
-   bottom while the transcript scrolls above it. */
+/* Phones: an open conversation takes over the whole screen, like a chat app —
+   a fixed overlay above the app chrome, with the transcript scrolling between
+   a pinned header (back button) and a pinned composer. The earlier attempt
+   left the thread embedded below the hero in a scrolling page, which squashed
+   the transcript to a sliver. */
 @media (max-width: 900px) {
+  /* Hide the marketing hero while reading a conversation. */
+  .live-domain-page:has(.msg-inbox[data-detail="open"]) .page-heading {
+    display: none;
+  }
+  .msg-inbox[data-detail="open"] {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: block;
+    background: var(--canvas, var(--surface));
+  }
   .msg-inbox[data-detail="open"] .msg-thread-view {
-    min-height: calc(100dvh - 210px);
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    max-height: none;
+    min-height: 0;
+  }
+  .msg-inbox[data-detail="open"] .msg-thread-header {
+    flex: 0 0 auto;
+    padding-top: calc(14px + env(safe-area-inset-top, 0px));
   }
   .msg-inbox[data-detail="open"] .msg-stream {
+    flex: 1 1 auto;
+    min-height: 0;
     max-height: none;
+    overflow-y: auto;
   }
   .msg-inbox[data-detail="open"] .msg-reply {
-    position: sticky;
-    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
-    background: var(--surface);
+    flex: 0 0 auto;
+    position: static;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
   }
 }

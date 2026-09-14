@@ -14091,3 +14091,23 @@ label {
     line-height: 1.08;
   }
 }
+
+/* The domain-page hero (.live-domain-page .page-heading — Messages etc.) kept a
+   48px title on phones: the generic ".page-heading h1 { font-size: 28px }"
+   mobile rule lost on source order to later base .page-heading h1 rules. Scope
+   it to .live-domain-page (0,2,1) so it wins, and tighten the description. */
+@media (max-width: 560px) {
+  .live-domain-page .page-heading h1 {
+    font-size: clamp(26px, 7vw, 30px);
+    line-height: 1.08;
+  }
+  .live-domain-page .page-heading > div > p:last-child {
+    font-size: 13px;
+    line-height: 1.5;
+    margin-top: 6px;
+  }
+  .live-domain-page .page-heading {
+    padding-bottom: 16px;
+    min-height: 0;
+  }
+}
