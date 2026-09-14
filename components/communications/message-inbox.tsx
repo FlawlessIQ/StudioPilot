@@ -534,8 +534,12 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
     0,
   );
 
+  // Master-detail is driven by the EXPLICIT selection (activeId), not
+  // openThreadId, which falls back to the first thread for the desktop
+  // two-pane — that would make the phone always show a thread, never the list,
+  // and stop Back from closing it.
   return (
-    <div className="msg-inbox" data-detail={openThreadId ? "open" : undefined}>
+    <div className="msg-inbox" data-detail={activeId ? "open" : undefined}>
       <aside className="msg-threads">
         <div className="msg-threads-head">
           <label className="msg-search">
