@@ -657,6 +657,8 @@
     min-height: 0;
     max-height: none;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
   .msg-inbox[data-detail="open"] .msg-reply {
     flex: 0 0 auto;

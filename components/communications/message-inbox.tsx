@@ -429,19 +429,42 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
     async (event: React.FormEvent) => {
       event.preventDefault();
       if (!activeThread || !reply.trim() || sending) return;
+      const body = reply.trim();
       setSending(true);
       setNotice(null);
       try {
         const result = await sendCommunicationsCommand({
           type: "replyToConversation",
           idempotencyKey: `reply_${activeThread.id}_${Date.now()}`,
-          input: { conversationId: activeThread.id, body: reply.trim() },
+          input: { conversationId: activeThread.id, body },
         });
+        const previewOnly = "mode" in result && result.mode === "preview";
         setReply("");
         setDraftIsAi(false);
         setDraftNotes([]);
+        // The reply is queued as an emailJob; a background worker sends it and
+        // only then writes the `messages` doc the thread subscribes to — so the
+        // sent message would be invisible for seconds. Show it immediately
+        // (optimistically). When the worker's real doc arrives, the snapshot
+        // replaces the whole list, swapping this local copy for the stored one.
+        if (!previewOnly) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `local_${Date.now()}`,
+              direction: "outbound",
+              channel: "email",
+              subject: null,
+              body,
+              bodyPreview: null,
+              createdAt: new Date().toISOString(),
+              deliveryStatus: "queued",
+              preparedReply: null,
+            },
+          ]);
+        }
         setNotice(
-          "mode" in result && result.mode === "preview"
+          previewOnly
             ? "Preview mode — nothing was sent."
             : "Reply queued for delivery.",
         );
