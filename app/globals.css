@@ -14056,3 +14056,14 @@ label {
     font-size: 18px;
   }
 }
+
+/* Crew portal hero title on phones. Every crew screen shares .crew-portal-hero;
+   its h1 floored at 35px, larger than the ~30px the rest of the app's mobile
+   headers settled on. Bring it in line so the welcome/section titles feel
+   sized for a phone, not shouted. */
+@media (max-width: 640px) {
+  .crew-portal-hero h1 {
+    font-size: clamp(27px, 7vw, 31px);
+    letter-spacing: -0.03em;
+  }
+}
