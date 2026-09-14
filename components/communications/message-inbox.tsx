@@ -306,40 +306,53 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
     if (!openThreadId) return;
     const { firestore } = getFirebaseClient();
     const unsubscribe = onSnapshot(
+      // Deliberately a single-field equality with NO orderBy: that needs only
+      // Firestore's automatic index, so the listen can never fail on a missing
+      // or still-building composite index (which surfaced as a permanently
+      // empty thread even though the messages existed). Sorting and the
+      // archived filter run client-side below.
       query(
         collection(firestore, "messages"),
         where("conversationId", "==", openThreadId),
-        orderBy("createdAt", "asc"),
         limit(MESSAGE_LIMIT),
       ),
       (snapshot) => {
         setMessages(
           snapshot.docs
-            // Archived messages stay hidden — but filter client-side, not with
-            // `where archivedAt == null`: that Firestore clause silently drops
-            // any message doc MISSING the field (older messages, other flows),
-            // which made whole threads read as "no stored messages yet".
+            // Archived messages stay hidden — filtered client-side, not with
+            // `where archivedAt == null`, which silently drops docs MISSING the
+            // field.
             .filter((document) => !document.data().archivedAt)
-            .map((document) => {
-            const value = document.data();
-            return {
-              id: document.id,
-              direction: value.direction === "inbound" ? "inbound" : "outbound",
-              channel: (value.channel ?? "email") as MessageChannel,
-              subject: (value.subject as string | null) ?? null,
-              body: (value.body as string | null) ?? null,
-              bodyPreview: (value.bodyPreview as string | null) ?? null,
-              createdAt: String(value.createdAt ?? value.sentAt ?? ""),
-              deliveryStatus: (value.deliveryStatus as string | null) ?? null,
-              preparedReply: (value.preparedReply ?? null) as
-                | { body: string; basedOn?: string[] }
-                | null,
-            };
-          }),
+            .map((document): ThreadMessage => {
+              const value = document.data();
+              return {
+                id: document.id,
+                direction:
+                  value.direction === "inbound" ? "inbound" : "outbound",
+                channel: (value.channel ?? "email") as MessageChannel,
+                subject: (value.subject as string | null) ?? null,
+                body: (value.body as string | null) ?? null,
+                bodyPreview: (value.bodyPreview as string | null) ?? null,
+                createdAt: String(value.createdAt ?? value.sentAt ?? ""),
+                deliveryStatus: (value.deliveryStatus as string | null) ?? null,
+                preparedReply: (value.preparedReply ?? null) as
+                  | { body: string; basedOn?: string[] }
+                  | null,
+              };
+            })
+            .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
         );
         setLoadedThreadId(openThreadId);
       },
-      () => setLoadedThreadId(openThreadId),
+      // Surface a real failure instead of the misleading "no stored messages".
+      (error) => {
+        setLoadedThreadId(openThreadId);
+        setNotice(
+          `Couldn't load this conversation's messages${
+            error?.message ? ` (${error.message})` : ""
+          }.`,
+        );
+      },
     );
     return unsubscribe;
   }, [openThreadId]);
