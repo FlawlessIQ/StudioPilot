@@ -2653,25 +2653,30 @@
   background: var(--ds-forest);
 }
 
+/* Phones: compact dotted month cells. legacy-bridge.css loads AFTER this file
+   and sets `.ds-root .ds-cal-day { min-height:112px }` / `.ds-root
+   .ds-cal-day-events { display:grid }` at the same (0,2,0) specificity, so it
+   would win on source order — these selectors go one level deeper
+   (`.ds-cal-grid .ds-cal-day…`, 0,3,0) to win outright on mobile. */
 @media (max-width: 560px) {
-  .ds-cal-weekdays span {
+  .ds-root .ds-cal-weekdays span {
     font-size: 9px;
     padding-inline: 3px;
   }
-  .ds-cal-day {
-    min-height: 54px;
+  .ds-root .ds-cal-grid .ds-cal-day {
+    min-height: 46px;
     padding: 6px 5px 7px;
     gap: 3px;
   }
   /* Replace the clipping in-cell text with dots. */
-  .ds-cal-day-events,
-  .ds-cal-day-pills {
+  .ds-root .ds-cal-grid .ds-cal-day-events,
+  .ds-root .ds-cal-grid .ds-cal-day-pills {
     display: none;
   }
-  .ds-cal-day-dots {
+  .ds-root .ds-cal-grid .ds-cal-day-dots {
     display: flex;
   }
-  .ds-cal-grid {
+  .ds-root .ds-cal-grid {
     gap: 3px;
   }
 }
