@@ -14116,22 +14116,9 @@ label {
    already shows, so on phones drop the eyebrow, title, and accent bar and keep
    only the one-line intro — the conversations start right under the top bar. */
 @media (max-width: 640px) {
-  .page-heading-echo > div > .eyebrow,
-  .page-heading-echo h1 {
-    display: none;
-  }
-  .page-heading-echo::before {
-    display: none;
-  }
+  /* The top bar already names the screen, so hide the whole hero on phones —
+     eyebrow, title, accent bar, and intro — and go straight to the content. */
   .page-heading-echo {
-    padding: 4px 0 12px;
-    margin-bottom: 4px;
-    min-height: 0;
-    border-bottom: 0;
-  }
-  .page-heading-echo > div > p:last-child {
-    margin: 0;
-    font-size: 13px;
-    line-height: 1.5;
+    display: none;
   }
 }
