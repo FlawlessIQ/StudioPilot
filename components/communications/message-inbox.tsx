@@ -821,10 +821,9 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
                   {/* Temporary diagnostic — remove once resolved. Reveals the
                       exact id/tenant the client is querying vs what loaded. */}
                   <br />
-                  <small style={{ opacity: 0.55, fontSize: 10 }}>
-                    dbg conv={String(openThreadId).slice(0, 22)} · t=
-                    {String(tenantId).slice(-6)} · loaded=
-                    {String(loadedThreadId).slice(0, 10)} · n={messages.length}
+                  <small style={{ opacity: 0.55, fontSize: 10, wordBreak: "break-all" }}>
+                    dbg ws={String(tenantId)} · convT=
+                    {String(activeThread.tenantId)} · conv={String(openThreadId)}
                   </small>
                 </p>
               ) : (
