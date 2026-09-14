@@ -14460,3 +14460,13 @@ label {
     order: 6;
   }
 }
+
+/* Record detail fact grid (schedule/proposal/workflow … detail pages) on
+   phones: force a single column. The existing max-width:480 rule was losing to
+   the max-width:760 two-column rule after bundling, so long values (a timezone,
+   a full name) clipped in a squeezed 2-up cell. .ds-root wins deterministically. */
+@media (max-width: 560px) {
+  .ds-root .live-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
