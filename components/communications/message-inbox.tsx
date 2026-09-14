@@ -6,6 +6,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  getDocsFromServer,
   limit,
   onSnapshot,
   orderBy,
@@ -167,6 +168,9 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
   const [draftIsAi, setDraftIsAi] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // TEMP probe: raw server-fetch size for a thread that renders empty. Remove
+  // once the empty-thread cause is confirmed.
+  const [probe, setProbe] = useState<string | null>(null);
   // Bumped after a send so the transcript re-fetches from the server.
   const [messageRefresh, setMessageRefresh] = useState(0);
   const streamRef = useRef<HTMLDivElement | null>(null);
@@ -318,7 +322,11 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
         // server read that resolves correctly and throws clearly on any denial.
         // MUST filter by tenantId — firestore.rules proves message-read access
         // from `resource.data.tenantId`, so an unscoped query is rejected.
-        const snapshot = await getDocs(
+        // getDocsFromServer, not getDocs: a thread the studio explicitly opens
+        // must always be fetched fresh from the server, never served from a
+        // possibly-stale client cache (which, under experimentalForceLongPolling,
+        // could return an empty snapshot with no error).
+        const snapshot = await getDocsFromServer(
           query(
             collection(firestore, "messages"),
             where("tenantId", "==", tenantId),
@@ -327,6 +335,12 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
           ),
         );
         if (!active) return;
+        // TEMP probe.
+        setProbe(
+          `size=${snapshot.size} cache=${snapshot.metadata.fromCache} conv=${String(
+            openThreadId,
+          ).slice(-6)} t=${String(tenantId).slice(-6)}`,
+        );
         setMessages(
           snapshot.docs
             .filter((document) => !document.data().archivedAt)
@@ -354,7 +368,9 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
       } catch (error) {
         if (!active) return;
         setLoadedThreadId(openThreadId);
-        setLoadError(error instanceof Error ? error.message : String(error));
+        const message = error instanceof Error ? error.message : String(error);
+        setLoadError(message);
+        setProbe(`THREW: ${message}`); // TEMP probe
       }
     })();
     return () => {
@@ -833,6 +849,15 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
                   {loadError
                     ? "Couldn't load this conversation's messages. Try again in a moment."
                     : "This conversation has no stored messages yet."}
+                  {/* TEMP probe — remove once the empty-thread cause is confirmed. */}
+                  {probe ? (
+                    <>
+                      <br />
+                      <small style={{ opacity: 0.5, fontSize: 10, wordBreak: "break-all" }}>
+                        {probe}
+                      </small>
+                    </>
+                  ) : null}
                 </p>
               ) : (
                 messages.map((message, index) => {
