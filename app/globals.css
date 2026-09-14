@@ -14470,3 +14470,44 @@ label {
     grid-template-columns: 1fr;
   }
 }
+
+/* ============================================================================
+   Booking workspace on phones. None of these grids had any mobile treatment,
+   so their fixed multi-column layouts (with 280–380px min columns) overflowed
+   the screen. Collapse each to a single column and tighten hero padding.
+   ========================================================================== */
+@media (max-width: 760px) {
+  .booking-autopilot-hero,
+  .booking-consultation-capture,
+  .booking-ai-brief,
+  .booking-package-options,
+  .booking-proposal-release {
+    grid-template-columns: 1fr;
+  }
+  .booking-autopilot-hero {
+    padding: 24px 20px;
+    gap: 20px;
+  }
+  .booking-autopilot-hero h1 {
+    font-size: 32px;
+  }
+  /* The stage chips: 2×2 instead of a squeezed row of four. */
+  .booking-autopilot-hero aside {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .booking-consultation-capture,
+  .booking-ai-brief,
+  .booking-package-review,
+  .booking-proposal-release {
+    padding: 18px;
+  }
+  /* The proposal-release CTA drops below its copy rather than beside it. */
+  .booking-proposal-release > button {
+    justify-self: start;
+  }
+  /* Project context bar: wrap the facts instead of one overflowing row. */
+  .project-context-bar {
+    flex-wrap: wrap;
+    gap: 10px 16px;
+  }
+}
