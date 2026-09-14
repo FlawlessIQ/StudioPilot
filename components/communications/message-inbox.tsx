@@ -166,6 +166,9 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
   const [draftNotes, setDraftNotes] = useState<string[]>([]);
   const [draftIsAi, setDraftIsAi] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // Bumped after a send so the transcript re-fetches from the server.
+  const [messageRefresh, setMessageRefresh] = useState(0);
   const streamRef = useRef<HTMLDivElement | null>(null);
   // Only the drafted case needs state — it arrives from a subscription. The
   // prepared-from-facts case is already on the message, so it is derived.
@@ -304,28 +307,28 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
 
   useEffect(() => {
     if (!openThreadId || !tenantId) return;
-    const { firestore } = getFirebaseClient();
-    const unsubscribe = onSnapshot(
-      // MUST filter by tenantId: firestore.rules gates message reads on
-      // `hasRole(resource.data.tenantId, …)`, and Firestore validates a LISTEN
-      // by proving the rule from the query's constraints — a conversationId-only
-      // query can't prove the tenant rule, so the whole listen was rejected and
-      // the thread rendered empty even though the messages existed and the user
-      // owned the tenant. (Every query in this app is tenant-scoped for exactly
-      // this reason.) Two equalities + no orderBy use the automatic single-field
-      // indexes; sorting and the archived filter run client-side below.
-      query(
-        collection(firestore, "messages"),
-        where("tenantId", "==", tenantId),
-        where("conversationId", "==", openThreadId),
-        limit(MESSAGE_LIMIT),
-      ),
-      (snapshot) => {
+    let active = true;
+    void (async () => {
+      try {
+        const { firestore } = getFirebaseClient();
+        // One-time getDocs, not onSnapshot: a real-time listener on this
+        // two-equality query (with experimentalForceLongPolling) was returning
+        // an empty result set with no error, even though the identical
+        // server-side query returns the messages. A getDocs is a plain
+        // server read that resolves correctly and throws clearly on any denial.
+        // MUST filter by tenantId — firestore.rules proves message-read access
+        // from `resource.data.tenantId`, so an unscoped query is rejected.
+        const snapshot = await getDocs(
+          query(
+            collection(firestore, "messages"),
+            where("tenantId", "==", tenantId),
+            where("conversationId", "==", openThreadId),
+            limit(MESSAGE_LIMIT),
+          ),
+        );
+        if (!active) return;
         setMessages(
           snapshot.docs
-            // Archived messages stay hidden — filtered client-side, not with
-            // `where archivedAt == null`, which silently drops docs MISSING the
-            // field.
             .filter((document) => !document.data().archivedAt)
             .map((document): ThreadMessage => {
               const value = document.data();
@@ -346,20 +349,18 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
             })
             .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
         );
+        setLoadError(null);
         setLoadedThreadId(openThreadId);
-      },
-      // Surface a real failure instead of the misleading "no stored messages".
-      (error) => {
+      } catch (error) {
+        if (!active) return;
         setLoadedThreadId(openThreadId);
-        setNotice(
-          `Couldn't load this conversation's messages${
-            error?.message ? ` (${error.message})` : ""
-          }.`,
-        );
-      },
-    );
-    return unsubscribe;
-  }, [openThreadId, tenantId]);
+        setLoadError(error instanceof Error ? error.message : String(error));
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [openThreadId, tenantId, messageRefresh]);
 
   // Opening a thread clears its badge. Fire-and-forget: failing to clear a
   // count must not stop the studio reading the message.
@@ -485,6 +486,10 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
             ? "Preview mode — nothing was sent."
             : "Reply queued for delivery.",
         );
+        // Re-fetch from the server so the stored copy replaces the optimistic
+        // one (the worker writes the messages doc a moment after the send).
+        if (!previewOnly)
+          window.setTimeout(() => setMessageRefresh((value) => value + 1), 2500);
       } catch (caught: unknown) {
         setNotice(readableFailure(caught));
       } finally {
@@ -817,13 +822,14 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
                 </p>
               ) : messages.length === 0 ? (
                 <p className="msg-empty">
-                  This conversation has no stored messages yet.
-                  {/* Temporary diagnostic — remove once resolved. Reveals the
-                      exact id/tenant the client is querying vs what loaded. */}
+                  {loadError
+                    ? `Couldn't load this conversation's messages.`
+                    : "This conversation has no stored messages yet."}
+                  {/* Temporary diagnostic — remove once resolved. */}
                   <br />
                   <small style={{ opacity: 0.55, fontSize: 10, wordBreak: "break-all" }}>
-                    dbg ws={String(tenantId)} · convT=
-                    {String(activeThread.tenantId)} · conv={String(openThreadId)}
+                    {loadError ? `ERR: ${loadError} · ` : ""}dbg n={messages.length}{" "}
+                    · conv={String(openThreadId)}
                   </small>
                 </p>
               ) : (
