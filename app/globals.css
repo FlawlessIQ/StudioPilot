@@ -13999,10 +13999,13 @@ label {
   flex: 0 0 auto;
   align-self: flex-start;
 }
-/* Hairline fact grid: 1px gaps over a line-coloured ground read as dividers. */
+/* Hairline fact grid: 1px gaps over a line-coloured ground read as dividers.
+   `dense` backfills half-width facts into any gap a full-width fact would
+   otherwise leave, so no empty divider cell is ever shown. */
 .crew-record-facts {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  grid-auto-flow: dense;
   gap: 1px;
   margin: 0;
   border: 1px solid var(--line);
@@ -14031,11 +14034,6 @@ label {
   font-weight: 600;
   color: var(--ink);
   overflow-wrap: anywhere;
-}
-@media (min-width: 720px) {
-  .crew-record-facts {
-    grid-template-columns: repeat(3, 1fr);
-  }
 }
 
 /* A long free-text fact (email, service areas) spans the full width so it

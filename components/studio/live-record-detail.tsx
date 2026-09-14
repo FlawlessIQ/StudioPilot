@@ -442,10 +442,11 @@ function CrewRecordLayout({
     )
     .map(([label, fields]) => {
       const value = factValue(fields, label);
-      // Long free-text values (email, service areas) span the full width so
-      // they don't break mid-word in a half cell.
-      const wide =
-        label === "Email" || label === "Service areas" || value.length > 22;
+      // A fact is full-width only when its value is genuinely too long for a
+      // half cell — a short value like "Weddings" or "New Jersey" pairs up.
+      // (Marking a whole label wide regardless of value is what stranded the
+      // short ones next to an empty grey divider cell.)
+      const wide = value.length > 18;
       return { label, value, wide };
     });
   // A hairline 2-up grid shows an empty divider cell when the number of
