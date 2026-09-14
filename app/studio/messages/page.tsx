@@ -12,7 +12,10 @@ export default async function MessagesPage({
   return (
     <AppShell active="Communications">
       <div className="live-domain-page">
-        <header className="page-heading">
+        {/* `page-heading-echo`: on phones the top bar already says "Messages",
+            so the eyebrow + title are hidden and only the one-line intro
+            remains — the header stops repeating the screen name. */}
+        <header className="page-heading page-heading-echo">
           <div>
             <p className="eyebrow">Client communication</p>
             <h1>Client messages</h1>
