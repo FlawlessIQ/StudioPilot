@@ -818,6 +818,14 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
               ) : messages.length === 0 ? (
                 <p className="msg-empty">
                   This conversation has no stored messages yet.
+                  {/* Temporary diagnostic — remove once resolved. Reveals the
+                      exact id/tenant the client is querying vs what loaded. */}
+                  <br />
+                  <small style={{ opacity: 0.55, fontSize: 10 }}>
+                    dbg conv={String(openThreadId).slice(0, 22)} · t=
+                    {String(tenantId).slice(-6)} · loaded=
+                    {String(loadedThreadId).slice(0, 10)} · n={messages.length}
+                  </small>
                 </p>
               ) : (
                 messages.map((message, index) => {
