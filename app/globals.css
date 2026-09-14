@@ -14317,9 +14317,54 @@ label {
   grid-template-columns: 1fr;
 }
 
-.ds-root .settings-detail-body input,
-.ds-root .settings-detail-body textarea,
-.ds-root .settings-detail-body select {
+/* Block form fields fill the width; selects are left to their own CSS, since
+   some (the lifecycle duration dropdown) are inline controls beside a label
+   and 100% width would crush the label next to them. */
+.ds-root .settings-detail-body input:not([type="color"]):not([type="checkbox"]):not([type="radio"]),
+.ds-root .settings-detail-body textarea {
   max-width: 100%;
   width: 100%;
+}
+
+/* Per-panel mobile fixes for the settings detail views. Each was checked at
+   375px; these are the rows that a media query didn't already collapse. */
+
+/* Automatic drafts: text + its toggle/duration controls stack, not squeeze. */
+.ds-root .settings-detail-body .communications-lifecycle-list li {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+.ds-root .settings-detail-body .communications-lifecycle-controls {
+  flex-wrap: wrap;
+}
+/* Keep the on/off label on one line, and let the duration select take the rest
+   of the row rather than the full width (which would break the label). */
+.ds-root .settings-detail-body .communications-lifecycle-controls label {
+  white-space: nowrap;
+}
+.ds-root .settings-detail-body .communications-lifecycle-controls select {
+  flex: 1;
+  min-width: 140px;
+}
+
+/* Consultation: the "mark unavailable" date + add button wrap on a phone. */
+.ds-root .settings-detail-body .consultation-availability-blocked-add {
+  flex-wrap: wrap;
+}
+
+/* Email templates: the token cheat-sheet is monospace and can be one long
+   string — wrap it instead of pushing the page sideways. */
+.ds-root .settings-detail-body .email-designer-tokens {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Data & account: the export history row (label + size + button) stacks. */
+.ds-root .settings-detail-body .data-controls li {
+  grid-template-columns: 1fr auto;
+}
+
+/* Nothing in a detail view may scroll the page horizontally. */
+.ds-root .settings-detail-body {
+  overflow-wrap: anywhere;
 }
