@@ -14067,3 +14067,14 @@ label {
     letter-spacing: -0.03em;
   }
 }
+
+/* Auth form heading on phones. Every auth screen shares .auth-form-wrap; its
+   h1 was a fixed 35px, which oversized and awkwardly wrapped the longer
+   headings ("Sign in to open your project", "Create your studio account").
+   Size it for a phone. */
+@media (max-width: 640px) {
+  .auth-form-wrap h1 {
+    font-size: clamp(26px, 7vw, 29px);
+    line-height: 1.08;
+  }
+}
