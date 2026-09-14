@@ -249,7 +249,9 @@ textarea:focus-visible {
 }
 
 .readiness-risk .meter-value {
-  stroke: #b25c55;
+  /* Warm amber, not red. Below 50% is usually just an early job, not one at
+     risk — a red arc read as an alarm on a freshly booked wedding. */
+  stroke: #c68a4a;
 }
 
 .readiness-meter strong {
