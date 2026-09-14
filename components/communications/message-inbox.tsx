@@ -396,6 +396,9 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
     const unsubscribe = onSnapshot(
       query(
         collection(firestore, "aiActions"),
+        // tenantId first: firestore.rules proves aiActions read access from
+        // resource.data.tenantId, so an unscoped listen is rejected outright.
+        where("tenantId", "==", tenantId),
         where("conversationId", "==", openThreadId),
         where("status", "==", "review_required"),
         limit(1),
@@ -415,7 +418,12 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
             : null,
         );
       },
-      () => undefined,
+      (error) => {
+        // Don't hide a rejected listen behind a silent no-op — a missing
+        // tenant filter or index shows up here, not as a thrown error.
+        console.warn("aiActions draft-waiting listen failed", error);
+        setDrafted(null);
+      },
     );
     return unsubscribe;
   }, [openThreadId, tenantId, preparedFromFacts]);
@@ -823,14 +831,8 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
               ) : messages.length === 0 ? (
                 <p className="msg-empty">
                   {loadError
-                    ? `Couldn't load this conversation's messages.`
+                    ? "Couldn't load this conversation's messages. Try again in a moment."
                     : "This conversation has no stored messages yet."}
-                  {/* Temporary diagnostic — remove once resolved. */}
-                  <br />
-                  <small style={{ opacity: 0.55, fontSize: 10, wordBreak: "break-all" }}>
-                    {loadError ? `ERR: ${loadError} · ` : ""}dbg n={messages.length}{" "}
-                    · conv={String(openThreadId)}
-                  </small>
                 </p>
               ) : (
                 messages.map((message, index) => {
