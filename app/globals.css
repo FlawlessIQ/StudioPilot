@@ -14429,3 +14429,19 @@ label {
     height: 0;
   }
 }
+
+/* A checkbox/radio inside a .form-grid must not inherit the text-field sizing
+   (.form-grid input { width:100%; min-height:41px }) — that blew the
+   create-task "Affects readiness" box up into a huge square. Give them their
+   natural size and keep the check-control row left-aligned. */
+.form-grid input[type="checkbox"],
+.form-grid input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  flex: 0 0 auto;
+}
+.form-grid .check-control {
+  justify-content: flex-start;
+  gap: 10px;
+}
