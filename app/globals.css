@@ -14368,3 +14368,21 @@ label {
 .ds-root .settings-detail-body {
   overflow-wrap: anywhere;
 }
+
+/* Library shelves on a phone: keep each card a compact native row — glyph,
+   text, and a right-aligned arrow — instead of the default hub treatment that
+   drops the arrow onto its own line and leaves it floating under a tall card.
+   Scoped to .library-shelf so other hub grids keep their own mobile layout. */
+@media (max-width: 760px) {
+  .library-shelf .hub-grid > a {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    min-height: 0;
+    padding: 15px 16px;
+  }
+  .library-shelf .hub-grid > a > svg {
+    grid-column: auto;
+    align-self: center;
+    justify-self: end;
+  }
+}

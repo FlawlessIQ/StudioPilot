@@ -9,7 +9,9 @@ export default function LibraryPage() {
   return (
     <AppShell active="Library">
       <div className="hub-page">
-        <header className="page-heading">
+        {/* The top bar already says "Library" on phones, so the echo class
+            hides this hero there and goes straight to the shelves. */}
+        <header className="page-heading page-heading-echo">
           <div>
             <p className="eyebrow">Reusable studio resources</p>
             <h1>Library</h1>
