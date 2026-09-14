@@ -14579,3 +14579,33 @@ label {
     order: 5;
   }
 }
+
+/* Document viewer (/studio/documents/[id]). Reuses .live-detail-page /
+   .page-heading / .live-detail-grid; adds the open button row and the inline
+   file frame. */
+.document-viewer-open {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.document-viewer-frame {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.document-viewer-frame iframe {
+  border: 0;
+  display: block;
+  height: min(70vh, 760px);
+  width: 100%;
+}
+.document-viewer-frame > a {
+  align-items: center;
+  color: var(--accent);
+  display: flex;
+  font-weight: 650;
+  gap: 8px;
+  padding: 22px;
+  text-decoration: none;
+}

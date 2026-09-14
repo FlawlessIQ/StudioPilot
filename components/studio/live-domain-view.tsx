@@ -380,6 +380,7 @@ const configurations: Record<Domain, DomainConfig> = {
       { label: "Visibility", fields: ["visibility"] },
       { label: "Updated", fields: ["updatedAt"], kind: "date" },
     ],
+    href: (record) => `/studio/documents/${record.id}`,
   },
   messages: {
     collection: "messages",
