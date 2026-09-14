@@ -6,7 +6,6 @@ import {
   doc,
   getDoc,
   getDocs,
-  getDocsFromServer,
   limit,
   onSnapshot,
   orderBy,
@@ -168,11 +167,13 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
   const [draftIsAi, setDraftIsAi] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  // TEMP probe: raw server-fetch size for a thread that renders empty. Remove
-  // once the empty-thread cause is confirmed.
-  const [probe, setProbe] = useState<string | null>(null);
   // Bumped after a send so the transcript re-fetches from the server.
   const [messageRefresh, setMessageRefresh] = useState(0);
+  // selectThread runs on a click, before openThreadId/visibleThreads are
+  // recomputed for that click, so it reads their current values through refs
+  // (assigned in render, below) rather than a stale closure.
+  const openThreadIdRef = useRef<string | null>(null);
+  const visibleThreadsRef = useRef<Conversation[]>([]);
   const streamRef = useRef<HTMLDivElement | null>(null);
   // Only the drafted case needs state — it arrives from a subscription. The
   // prepared-from-facts case is already on the message, so it is derived.
@@ -194,10 +195,19 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
   // Switching conversations must NOT carry the previous client's messages or
   // half-written draft across — showing one client's private draft under
   // another client's name is a real risk. Reset every thread-scoped piece of
-  // state on each switch (and on Back). Done here, not in an effect, to satisfy
+  // state on a switch. Done here, not in an effect, to satisfy
   // react-hooks/set-state-in-effect and to reset synchronously with the click.
+  //
+  // But ONLY reset when the DISPLAYED thread actually changes. The newest thread
+  // is the fallback-active thread (activeThread ?? visibleThreads[0]), so it is
+  // already open before any tap — tapping it (or Back-ing to it) must not wipe
+  // its already-loaded messages, because openThreadId would not change and the
+  // loader (keyed on openThreadId) would never re-run to repopulate them.
   const selectThread = useCallback((id: string | null) => {
+    const current = openThreadIdRef.current;
+    const nextId = id ?? visibleThreadsRef.current[0]?.id ?? null;
     setActiveId(id);
+    if (nextId === current) return;
     setMessages([]);
     setReply("");
     setDraftNotes([]);
@@ -308,6 +318,13 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
   );
   const openThreadId = activeThread?.id ?? null;
   const messagesLoading = openThreadId !== loadedThreadId;
+  // Keep the refs selectThread reads in sync with the rendered values. Written
+  // in an effect (not during render) so a click, which happens after commit,
+  // always sees the latest values.
+  useEffect(() => {
+    openThreadIdRef.current = openThreadId;
+    visibleThreadsRef.current = visibleThreads;
+  });
 
   useEffect(() => {
     if (!openThreadId || !tenantId) return;
@@ -316,17 +333,12 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
       try {
         const { firestore } = getFirebaseClient();
         // One-time getDocs, not onSnapshot: a real-time listener on this
-        // two-equality query (with experimentalForceLongPolling) was returning
-        // an empty result set with no error, even though the identical
-        // server-side query returns the messages. A getDocs is a plain
-        // server read that resolves correctly and throws clearly on any denial.
-        // MUST filter by tenantId — firestore.rules proves message-read access
-        // from `resource.data.tenantId`, so an unscoped query is rejected.
-        // getDocsFromServer, not getDocs: a thread the studio explicitly opens
-        // must always be fetched fresh from the server, never served from a
-        // possibly-stale client cache (which, under experimentalForceLongPolling,
-        // could return an empty snapshot with no error).
-        const snapshot = await getDocsFromServer(
+        // two-equality query (with experimentalForceLongPolling) returned an
+        // empty result set with no error. A getDocs is a plain server read that
+        // resolves correctly and throws clearly on any denial. MUST filter by
+        // tenantId — firestore.rules proves message-read access from
+        // `resource.data.tenantId`, so an unscoped query is rejected.
+        const snapshot = await getDocs(
           query(
             collection(firestore, "messages"),
             where("tenantId", "==", tenantId),
@@ -355,21 +367,13 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
             };
           })
           .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-        // TEMP probe: raw = docs from server, kept = after archivedAt filter.
-        setProbe(
-          `raw=${snapshot.size} kept=${mapped.length} cache=${snapshot.metadata.fromCache} conv=${String(
-            openThreadId,
-          ).slice(-6)}`,
-        );
         setMessages(mapped);
         setLoadError(null);
         setLoadedThreadId(openThreadId);
       } catch (error) {
         if (!active) return;
         setLoadedThreadId(openThreadId);
-        const message = error instanceof Error ? error.message : String(error);
-        setLoadError(message);
-        setProbe(`THREW: ${message}`); // TEMP probe
+        setLoadError(error instanceof Error ? error.message : String(error));
       }
     })();
     return () => {
@@ -848,15 +852,6 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
                   {loadError
                     ? "Couldn't load this conversation's messages. Try again in a moment."
                     : "This conversation has no stored messages yet."}
-                  {/* TEMP probe — remove once the empty-thread cause is confirmed. */}
-                  {probe ? (
-                    <>
-                      <br />
-                      <small style={{ opacity: 0.5, fontSize: 10, wordBreak: "break-all" }}>
-                        {probe}
-                      </small>
-                    </>
-                  ) : null}
                 </p>
               ) : (
                 messages.map((message, index) => {
