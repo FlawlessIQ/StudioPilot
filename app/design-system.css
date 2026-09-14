@@ -3208,17 +3208,50 @@
 }
 
 @media (max-width: 760px) {
+  /* People rows (clients, team) on phones. The grid collapse stacked the
+     badge, the message button and each action disclosure on its own line, so
+     every card ran five or six lines tall. Flow them instead: identity and
+     badge on the first line, then the message / edit / invite controls as a
+     horizontal chip row that wraps. An opened disclosure takes the full width
+     so its form still has room. */
   .ds-people-row {
-    grid-template-columns: 36px minmax(0, 1fr);
-    row-gap: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 9px 10px;
+    padding: 13px 16px;
+  }
+  .ds-people-avatar {
+    flex: 0 0 auto;
+  }
+  .ds-people-copy {
+    flex: 1 1 130px;
+    order: 0;
   }
   .ds-people-stat {
     display: none;
   }
-  .ds-people-row > .status-badge,
+  .ds-people-row > .status-badge {
+    flex: 0 0 auto;
+    order: 1;
+  }
   .ds-people-message {
-    grid-column: 2;
-    justify-self: start;
+    order: 3;
+  }
+  .ds-people-row > .ds-people-invite {
+    flex: 0 0 auto;
+    order: 4;
+    grid-column: auto;
+    padding: 7px 12px;
+    border: 1px solid var(--ds-line);
+    border-radius: 9px;
+    line-height: 1;
+  }
+  .ds-people-row > .ds-people-invite > summary {
+    font-size: 12px;
+  }
+  .ds-people-row > .ds-people-invite[open] {
+    flex: 1 1 100%;
   }
 }
 .project-planning-copilot {

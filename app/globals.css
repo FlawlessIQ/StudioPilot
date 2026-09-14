@@ -13513,60 +13513,97 @@ label {
 }
 
 /* ============================================================
-   Jobs list — mobile card. The responsive rules dropped State
-   and Next-action on phones, which is exactly what a jobs list
-   is for ("what each one needs next"). Rebuild each row as a
-   compact, complete card; the whole card stays tappable via the
-   existing link overlay.
+   Jobs list — mobile card. The 660px rule dropped State and
+   Next-action (what a jobs list is FOR), and an earlier fix that
+   restored them stacked every field on its own line, so each card
+   ran very tall. Rebuild each row as a compact card: identity and
+   date/venue full-width, the state chip + phase track on one line,
+   and Next-action / Value paired side by side. nth-child selectors
+   match the stacking rule's specificity so this cleanly wins.
    ============================================================ */
 @media (max-width: 660px) {
   .crm-projects-table article {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 4px;
-    padding: 13px 40px 13px 15px;
+    display: grid;
+    grid-auto-flow: dense;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 14px;
+    row-gap: 8px;
+    align-items: start;
+    padding: 14px 38px 14px 16px;
     position: relative;
   }
-
-  /* Show every column again, stacked (beats the nth-child display:none maze). */
-  .crm-projects-table article > span {
-    display: flex !important;
+  /* Re-show the columns the stacking rule hid; lay the card out. */
+  .crm-projects-table article > span:nth-child(1),
+  .crm-projects-table article > span:nth-child(2),
+  .crm-projects-table article > span:nth-child(3),
+  .crm-projects-table article > span:nth-child(4),
+  .crm-projects-table article > span:nth-child(5) {
+    display: flex;
     flex-direction: column;
     gap: 0;
     min-width: 0;
   }
-
-  .crm-projects-table article > .crm-primary strong {
-    font-size: 15px;
+  .crm-projects-table article > span:nth-child(1) {
+    grid-column: 1 / -1;
+    gap: 1px;
+  }
+  .crm-projects-table article > span:nth-child(1) strong {
+    font-size: 16px;
     letter-spacing: -0.01em;
   }
-  .crm-projects-table article > span > strong {
-    font-size: 13px;
+  .crm-projects-table article > span:nth-child(1) small {
+    color: var(--muted);
+    font-size: 12.5px;
   }
-  .crm-projects-table article > span small {
+  .crm-projects-table article > span:nth-child(2) {
+    grid-column: 1 / -1;
+  }
+  .crm-projects-table article > span:nth-child(2) strong {
+    font-size: 13.5px;
+    font-weight: 600;
+  }
+  .crm-projects-table article > span:nth-child(2) small {
+    color: var(--muted);
+    font-size: 12.5px;
+  }
+  /* State chip + phase track on one line. */
+  .crm-projects-table article > span:nth-child(3) {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    margin-top: 1px;
+  }
+  /* Next action (left) and Value (right), paired above a divider. */
+  .crm-projects-table article > span:nth-child(5) {
+    grid-column: 1;
+    grid-row: auto;
+    border-top: 1px solid var(--line);
+    padding-top: 9px;
+  }
+  .crm-projects-table article > span:nth-child(4) {
+    grid-column: 2;
+    grid-row: auto;
+    align-items: flex-end;
+    text-align: right;
+    border-top: 1px solid var(--line);
+    padding-top: 9px;
+  }
+  .crm-projects-table article > span:nth-child(4) strong,
+  .crm-projects-table article > span:nth-child(5) strong {
+    font-size: 14px;
+  }
+  .crm-projects-table article > span:nth-child(4) small,
+  .crm-projects-table article > span:nth-child(5) small {
     font-size: 12px;
-    color: var(--muted, #6b7570);
+    color: var(--muted);
   }
-
-  /* State: restore the base grid stack (badge over phase track, both flush
-     left) — forcing it to a flex row is what left the badge floating in the
-     centre of the card, out of line with everything else. */
-  .crm-projects-table article > .state-cell {
-    display: grid !important;
-    justify-items: start;
-    gap: 6px;
-    margin-top: 2px;
-  }
-
-  /* The link overlay already makes the whole card tappable; show its chevron
-     pinned to the right, vertically centered. */
   .crm-projects-table article > a {
     position: absolute;
-    top: 50%;
-    right: 13px;
-    transform: translateY(-50%);
-    color: var(--muted, #98a09a);
+    top: 20px;
+    right: 14px;
+    transform: none;
+    color: var(--muted);
   }
 }
 
@@ -13745,4 +13782,67 @@ label {
   .copilot-prompts button { flex: 0 0 auto; white-space: nowrap; }
   .copilot-result h2 { font-size: 22px; }
   .copilot-turn-user { max-width: 88%; }
+}
+
+/* ============================================================
+   Domain list cards (crew, vendors, tasks — .live-domain-table)
+   on phones. The row grid collapsed to a single column at 560px,
+   so every fact (Specialties / W-9 / Insurance …) stacked on its
+   own line and each card ran 8–9 lines tall. Lay the facts out as
+   a horizontal stat strip instead; the row's actions drop to their
+   own line. Comes after the 560px stacking rule so it wins.
+   ============================================================ */
+@media (max-width: 560px) {
+  .live-domain-table > a,
+  .live-domain-table > article {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 11px 20px;
+    padding: 15px 17px;
+  }
+  .live-domain-table .live-domain-primary {
+    flex: 1 1 100%;
+    gap: 2px;
+  }
+  .live-domain-table .live-domain-primary strong {
+    font-size: 17px;
+    letter-spacing: -0.01em;
+  }
+  /* Facts flow horizontally — a compact stat strip, not one per line. */
+  .live-domain-table > a > span:not(.live-domain-primary),
+  .live-domain-table > article > span:not(.live-domain-primary) {
+    flex: 0 0 auto;
+    gap: 1px;
+  }
+  .live-domain-table > a > span:not(.live-domain-primary) > small,
+  .live-domain-table > article > span:not(.live-domain-primary) > small {
+    font-size: 10.5px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+  .live-domain-table > a > span:not(.live-domain-primary) > strong,
+  .live-domain-table > article > span:not(.live-domain-primary) > strong {
+    font-size: 14px;
+  }
+  .live-domain-table .status-badge {
+    order: 5;
+    justify-self: start;
+  }
+  .live-domain-table > a > svg {
+    margin-left: auto;
+  }
+  .live-domain-table .live-domain-row-open {
+    margin-left: auto;
+    order: 4;
+  }
+  /* The row's edit/remove disclosure takes its own full-width line. */
+  .live-domain-table > article > .record-edit,
+  .live-domain-table > article > .ds-people-invite {
+    flex: 1 1 100%;
+    order: 9;
+    margin-top: 3px;
+    padding-top: 11px;
+    border-top: 1px solid var(--line);
+  }
 }
