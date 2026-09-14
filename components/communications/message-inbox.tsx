@@ -309,18 +309,18 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
       query(
         collection(firestore, "messages"),
         where("conversationId", "==", openThreadId),
-        // Every server repository filters `archivedAt == null` — it is this
-        // product's delete semantics — and this reader was the only one of
-        // fifteen that ignored it, so nothing could ever be archived out of a
-        // client thread. All three message writers set the field, so no existing
-        // document disappears by adding the filter.
-        where("archivedAt", "==", null),
         orderBy("createdAt", "asc"),
         limit(MESSAGE_LIMIT),
       ),
       (snapshot) => {
         setMessages(
-          snapshot.docs.map((document) => {
+          snapshot.docs
+            // Archived messages stay hidden — but filter client-side, not with
+            // `where archivedAt == null`: that Firestore clause silently drops
+            // any message doc MISSING the field (older messages, other flows),
+            // which made whole threads read as "no stored messages yet".
+            .filter((document) => !document.data().archivedAt)
+            .map((document) => {
             const value = document.data();
             return {
               id: document.id,
