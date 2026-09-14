@@ -3004,11 +3004,26 @@ textarea:focus-visible {
 .dashboard-heading h1,
 .portal-hero h1,
 .crew-welcome h1,
-.admin-content h1 {
+.admin-content h1,
+.page-heading h1 {
   font-size: 28px;
   font-weight: 610;
   letter-spacing: -0.045em;
   margin: 0;
+}
+
+/* Domain-page heros (Messages, and the other .page-heading pages) led with a
+   48px title over a three-line description, pushing the actual content off a
+   phone screen. Compact the title (above) and tighten the description so the
+   list/content starts near the top. */
+.page-heading {
+  padding-bottom: 18px;
+  min-height: 0;
+}
+.page-heading > div > p:last-child {
+  font-size: 13px;
+  line-height: 1.5;
+  margin-top: 6px;
 }
 
 .dashboard-heading > div > p:last-child,

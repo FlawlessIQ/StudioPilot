@@ -13,6 +13,7 @@ import {
   where,
 } from "firebase/firestore";
 import {
+  ChevronLeft,
   Inbox,
   Loader2,
   Mail,
@@ -511,7 +512,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
   );
 
   return (
-    <div className="msg-inbox">
+    <div className="msg-inbox" data-detail={openThreadId ? "open" : undefined}>
       <aside className="msg-threads">
         <div className="msg-threads-head">
           <label className="msg-search">
@@ -683,6 +684,15 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
         ) : (
           <>
             <header className="msg-thread-header">
+              {/* Phone master-detail: return to the conversation list. */}
+              <button
+                type="button"
+                className="msg-back"
+                onClick={() => setActiveId(null)}
+                aria-label="Back to conversations"
+              >
+                <ChevronLeft size={18} aria-hidden />
+              </button>
               <div>
                 <h2>
                   {activeThread.participant.name ??

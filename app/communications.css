@@ -477,3 +477,49 @@
   .msg-suggestion { grid-template-columns: auto minmax(0, 1fr); }
   .msg-suggestion-use { grid-column: 1 / -1; }
 }
+
+/* ============================================================
+   Messages on phones — master-detail, not a stacked two-pane.
+   The inbox collapsed to one column and stacked the whole thread
+   list (in a 340px inner-scroll box — the clipped bar) on top of
+   the open conversation. Instead show ONE pane at a time: the
+   list, or the tapped thread with a back button. Also strip the
+   iOS native search-field chrome (its rounded inset box read as a
+   second box inside the search field).
+   ============================================================ */
+.msg-search input {
+  -webkit-appearance: none;
+  appearance: none;
+}
+.msg-back {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  margin: -3px 4px -3px -6px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.msg-back:hover {
+  background: var(--soft);
+}
+
+@media (max-width: 900px) {
+  .msg-threads {
+    max-height: none;
+  }
+  .msg-back {
+    display: inline-flex;
+  }
+  .msg-inbox[data-detail="open"] .msg-threads {
+    display: none;
+  }
+  .msg-inbox:not([data-detail="open"]) .msg-thread-view {
+    display: none;
+  }
+}
