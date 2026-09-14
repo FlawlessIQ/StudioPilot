@@ -13,7 +13,8 @@ export default function TeamPage() {
   return (
     <AppShell active="Team">
       <div className="saas-page">
-        <header className="page-heading">
+        {/* The top bar already says "Team"; hide this hero on phones. */}
+        <header className="page-heading page-heading-echo">
           <div>
             <p className="eyebrow">People & permissions</p>
             <h1>Team</h1>

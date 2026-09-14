@@ -14609,3 +14609,58 @@ label {
   padding: 22px;
   text-decoration: none;
 }
+
+/* ============================================================================
+   People section (Clients / Crew / Team / Vendors) on phones.
+   - Drop the hero that repeats the top-bar title (Clients + Team; Crew/Vendors
+     are already handled by the .live-domain-page rule).
+   - Section nav collapses to a single row.
+   - The person cards pack tighter — smaller action pills, less padding.
+   ========================================================================== */
+@media (max-width: 640px) {
+  /* Clients heading holds the nav + "Add client" button, so hide only its
+     hero text, not the whole heading. */
+  .crm-page > .dashboard-heading > div {
+    display: none;
+  }
+  .crm-page > .dashboard-heading {
+    gap: 12px;
+    margin-bottom: 4px;
+  }
+
+  /* Clients / Crew / Team / Vendors — one row. */
+  .ds-root .section-nav {
+    width: 100%;
+    flex-wrap: nowrap;
+    margin-bottom: 14px;
+  }
+  .ds-root .section-nav a {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+    gap: 5px;
+    padding: 8px 6px;
+    font-size: 12.5px;
+  }
+
+  /* Client cards: condense to two lines — identity + status on line one, the
+     actions on line two. The copy no longer grows to fill the row, and the
+     badge is pushed to the right of line one, so message / edit / invite pack
+     together on line two instead of stacking. */
+  .ds-root .ds-people-row {
+    padding: 11px 14px;
+    gap: 7px 8px;
+  }
+  .ds-root .ds-people-copy {
+    flex: 1 1 0;
+  }
+  .ds-root .ds-people-row > .status-badge {
+    margin-left: auto;
+  }
+  .ds-root .ds-people-row > .ds-people-invite {
+    padding: 5px 10px;
+  }
+  .ds-root .ds-people-row > .ds-people-invite > summary {
+    font-size: 11.5px;
+  }
+}

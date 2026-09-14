@@ -618,7 +618,7 @@ export function LiveClientCards({
             />
             {!client.portalUserId && email ? (
               <details className="ds-people-invite">
-                <summary>Invite to client portal</summary>
+                <summary>Invite to portal</summary>
                 <div>
                   <ClientPortalInvite
                     contactId={client.id}
