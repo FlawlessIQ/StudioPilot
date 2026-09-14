@@ -70,8 +70,8 @@
   position: relative;
   width: 100%;
   display: grid;
-  gap: 4px;
-  padding: 14px;
+  gap: 3px;
+  padding: 11px 14px;
   border: 0;
   border-bottom: 1px solid var(--border, var(--line));
   background: none;

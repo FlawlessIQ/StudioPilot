@@ -184,6 +184,21 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
   const [draftSubject, setDraftSubject] = useState("");
   const [draftBody, setDraftBody] = useState("");
 
+  // Switching conversations must NOT carry the previous client's messages or
+  // half-written draft across — showing one client's private draft under
+  // another client's name is a real risk. Reset every thread-scoped piece of
+  // state on each switch (and on Back). Done here, not in an effect, to satisfy
+  // react-hooks/set-state-in-effect and to reset synchronously with the click.
+  const selectThread = useCallback((id: string | null) => {
+    setActiveId(id);
+    setMessages([]);
+    setReply("");
+    setDraftNotes([]);
+    setDraftIsAi(false);
+    setDrafted(null);
+    setNotice(null);
+  }, []);
+
   // Live, not one-shot: an open tab has to notice a client writing in.
   useEffect(() => {
     if (!tenantId) return;
@@ -668,7 +683,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
                   <button
                     type="button"
                     className={`msg-thread${thread.id === openThreadId ? " is-active" : ""}${unread ? " is-unread" : ""}`}
-                    onClick={() => setActiveId(thread.id)}
+                    onClick={() => selectThread(thread.id)}
                     aria-current={thread.id === openThreadId}
                   >
                     <span className="msg-thread-top">
@@ -715,7 +730,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
               <button
                 type="button"
                 className="msg-back"
-                onClick={() => setActiveId(null)}
+                onClick={() => selectThread(null)}
                 aria-label="Back to conversations"
               >
                 <ChevronLeft size={18} aria-hidden />
@@ -862,6 +877,10 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
                   // Once edited it is the studio's words, not a draft awaiting
                   // review, and the banner should stop claiming otherwise.
                   if (draftIsAi) setDraftIsAi(false);
+                  // Clearing the field dismisses the draft entirely — the
+                  // "notes on this draft" panel should go with it.
+                  if (!event.target.value.trim() && draftNotes.length)
+                    setDraftNotes([]);
                 }}
                 placeholder={`Reply to ${activeThread.participant.name ?? "your client"}…`}
                 rows={3}
