@@ -14535,3 +14535,47 @@ label {
     font-size: 12.5px;
   }
 }
+
+/* Proposals list on phones: keep the amount and expiry (they were display:none
+   under 820px) as a compact strip instead of dropping them — the money and the
+   expiry are the two facts a studio scans this list for. Re-lay the row as a
+   wrapping flex: icon + title + arrow on line one, Total / Expires / status on
+   line two. */
+@media (max-width: 820px) {
+  .ds-root .proposal-center-list > a {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 18px;
+  }
+  .ds-root .proposal-center-list-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    order: 1;
+  }
+  .ds-root .proposal-center-list-icon {
+    order: 0;
+  }
+  .ds-root .proposal-center-list > a > svg {
+    order: 2;
+    margin-left: auto;
+  }
+  .ds-root .proposal-center-list-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    flex: 0 0 auto;
+    order: 4;
+  }
+  .ds-root .proposal-center-list-meta small {
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .ds-root .proposal-center-list-meta strong {
+    font-size: 13px;
+  }
+  .ds-root .proposal-center-list .status-badge {
+    order: 5;
+  }
+}
