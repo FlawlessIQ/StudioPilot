@@ -837,7 +837,7 @@ export function LiveDomainView({
     : liveRecords;
 
   return (
-    <section className="panel live-domain-table">
+    <section className="panel live-domain-table" data-domain={domain}>
       {archivedRecords.length > 0 ? (
         <div className="live-domain-archived-toggle">
           <button

@@ -14511,3 +14511,27 @@ label {
     gap: 10px 16px;
   }
 }
+
+/* Library/setup domain lists (Documents, Workflow templates, Questionnaires,
+   Packages) on phones: same facts, just a denser row — less padding, smaller
+   type, tighter gaps — so these long reference lists scan more like a compact
+   list than a stack of chunky cards. Scoped by data-domain so the operational
+   lists (tasks, invoices, …) keep their roomier rows. */
+@media (max-width: 560px) {
+  .ds-root .live-domain-table:is([data-domain="documents"], [data-domain="workflows"], [data-domain="questionnaires"], [data-domain="packages"]) > :is(a, article) {
+    gap: 6px 16px;
+    padding: 11px 14px;
+  }
+  .ds-root .live-domain-table:is([data-domain="documents"], [data-domain="workflows"], [data-domain="questionnaires"], [data-domain="packages"]) .live-domain-primary strong {
+    font-size: 15px;
+  }
+  .ds-root .live-domain-table:is([data-domain="documents"], [data-domain="workflows"], [data-domain="questionnaires"], [data-domain="packages"]) .live-domain-primary small {
+    font-size: 11.5px;
+  }
+  .ds-root .live-domain-table:is([data-domain="documents"], [data-domain="workflows"], [data-domain="questionnaires"], [data-domain="packages"]) > :is(a, article) > span:not(.live-domain-primary) > small {
+    font-size: 9.5px;
+  }
+  .ds-root .live-domain-table:is([data-domain="documents"], [data-domain="workflows"], [data-domain="questionnaires"], [data-domain="packages"]) > :is(a, article) > span:not(.live-domain-primary) > strong {
+    font-size: 12.5px;
+  }
+}
