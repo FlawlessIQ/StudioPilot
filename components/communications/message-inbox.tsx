@@ -447,28 +447,42 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
     return unsubscribe;
   }, [openThreadId, tenantId, preparedFromFacts]);
 
-  const waiting =
-    preparedFromFacts ??
-    (drafted && drafted.threadId === openThreadId
-      ? { body: drafted.body, basedOn: drafted.basedOn, source: "draft" as const }
-      : null);
+  const waiting = useMemo(
+    () =>
+      preparedFromFacts ??
+      (drafted && drafted.threadId === openThreadId
+        ? { body: drafted.body, basedOn: drafted.basedOn, source: "draft" as const }
+        : null),
+    [preparedFromFacts, drafted, openThreadId],
+  );
 
   // Open a thread at its newest message. Without this the stream sat at the top,
   // so a client's short reply under a long invoice email was below the fold — the
   // thread list showed "How do I pay ?" while the panel showed only the studio's
   // own message, which reads as the reply having vanished.
+  //
+  // Keyed on openThreadId/activeId too, not just messages: the newest thread is
+  // already loaded before it is opened (activeThread ?? visibleThreads[0]), so
+  // tapping it does not change `messages` — without the open signal the stream
+  // would stay pinned at the top. Also re-runs when the prepared-reply panel
+  // appears, because it changes the stream's height after the messages render.
   useEffect(() => {
     const stream = streamRef.current;
     if (!stream || !messages.length) return;
-    // Also re-run when the prepared-reply panel appears, because it changes the
-    // stream's height after the messages render — the first version scrolled to
-    // the bottom and was then pushed back up, which looked exactly like a reply
-    // that had not arrived.
-    const settle = requestAnimationFrame(() => {
-      stream.scrollTop = stream.scrollHeight;
+    // Two frames: the first lets the (mobile full-screen) thread view lay out,
+    // the second scrolls once its real scrollHeight is known. A single frame
+    // fires while height is still 0/partial and lands at the top.
+    let inner = 0;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => {
+        stream.scrollTop = stream.scrollHeight;
+      });
     });
-    return () => cancelAnimationFrame(settle);
-  }, [messages, waiting]);
+    return () => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+    };
+  }, [openThreadId, activeId, messages, waiting]);
 
   const submitReply = useCallback(
     async (event: React.FormEvent) => {
