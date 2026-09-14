@@ -14664,3 +14664,44 @@ label {
     font-size: 11.5px;
   }
 }
+
+/* Inquiries (leads) table on phones. Unlike the Jobs table, the leads rows had
+   no mobile layout — the 5-column grid stayed put and squeezed. Lay each row
+   out as a card: name + open arrow on line one, event/venue on line two, source
+   and status on line three. .ds-root beats the base .crm-leads-table grid. */
+@media (max-width: 660px) {
+  .ds-root .crm-leads-table article {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px 14px;
+    padding: 14px 16px;
+    min-height: auto;
+    font-size: 12px;
+  }
+  .ds-root .crm-leads-table article > .crm-primary {
+    flex: 1 1 60%;
+    min-width: 0;
+  }
+  .ds-root .crm-leads-table article > a {
+    order: 1;
+    margin-left: auto;
+    align-self: start;
+  }
+  /* The old mobile design hid every cell but the name; bring back the event
+     and the status (the two a studio triages on). display:flex overrides that
+     display:none. Source stays hidden to keep the card compact. */
+  .ds-root .crm-leads-table article > span:nth-of-type(2) {
+    display: flex;
+    flex: 1 1 100%;
+    order: 2;
+  }
+  .ds-root .crm-leads-table article > span:nth-of-type(4) {
+    display: flex;
+    flex: 0 0 auto;
+    order: 3;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+}
