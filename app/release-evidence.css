@@ -262,3 +262,84 @@
     width: 100%;
   }
 }
+
+/* Phones: a short heading (the long explanation clamps to two lines), a
+   slimmer verdict, and the supporting signals as two-up tiles. */
+@media (max-width: 640px) {
+  .ds-root .release-evidence-page > .page-heading {
+    border: 0;
+    display: grid;
+    gap: 8px;
+    margin: 0 0 4px;
+    min-height: 0;
+    padding: 0;
+  }
+  .ds-root .release-evidence-page > .page-heading::before,
+  .ds-root .release-evidence-page > .page-heading .eyebrow {
+    display: none;
+  }
+  .ds-root .release-evidence-page > .page-heading h1 {
+    font-size: 23px;
+    margin: 0;
+  }
+  .ds-root .release-evidence-page > .page-heading > div > p:not(.eyebrow) {
+    -webkit-box-orient: vertical;
+    display: -webkit-box;
+    font-size: 13px;
+    -webkit-line-clamp: 3;
+    line-height: 1.45;
+    margin: 4px 0 0;
+    overflow: hidden;
+  }
+  .ds-root .release-evidence-page > .page-heading > .button {
+    justify-self: start;
+    min-height: 34px;
+  }
+  .ds-root .release-verdict {
+    align-items: center;
+    gap: 8px 12px;
+    padding: 14px;
+  }
+  .ds-root .release-verdict-icon {
+    height: 34px;
+    width: 34px;
+  }
+  .ds-root .release-verdict-copy {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .ds-root .release-gate {
+    padding: 12px 14px;
+  }
+  .ds-root .release-supporting .section-heading-row .eyebrow {
+    display: none;
+  }
+  .ds-root .release-signal-grid {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ds-root .release-signal {
+    display: block;
+    padding: 10px 12px;
+  }
+  .ds-root .release-signal > svg {
+    display: none;
+  }
+  .ds-root .release-signal > span {
+    display: grid;
+    gap: 2px;
+  }
+  .ds-root .release-signal small {
+    font-size: 10.5px;
+    line-height: 1.25;
+  }
+  .ds-root .release-signal strong {
+    font-size: 19px;
+  }
+  .ds-root .release-signal p {
+    font-size: 11px;
+    line-height: 1.3;
+    margin: 0;
+  }
+}
