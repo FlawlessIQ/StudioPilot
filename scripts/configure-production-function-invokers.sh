@@ -146,6 +146,7 @@ app_services=(
 
 scheduler_services=(
   albumreminderscheduler
+  autopayscheduler
   automationretryscheduler
   coichasescheduler
   crewcascadeexpiryscheduler
