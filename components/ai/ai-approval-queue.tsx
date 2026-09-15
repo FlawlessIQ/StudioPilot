@@ -39,6 +39,8 @@ import {
   StructuredContentPreview,
 } from "@/components/ai/structured-content-fields";
 import { sendCommunicationsCommand } from "@/lib/communications/command-client";
+import { SheetDialog } from "@/components/ui/sheet-dialog";
+import { PreparedCompactRow } from "@/components/ai/prepared-compact-row";
 
 type RecordValue = Record<string, unknown> & { id: string };
 
@@ -616,6 +618,22 @@ export function AiApprovalQueue() {
   const receiptState = useTenantDocuments("actionReceipts");
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [filter, setFilter] = useState<"review" | "receipts">("review");
+  /**
+   * Compact rows on a phone, one full card at a time in a sheet.
+   *
+   * The review page stacked every card fully expanded — preview, why, and the
+   * approve / edit / reject controls — which is the endless scroll already
+   * removed from Today and the job page. Same cards, opened one at a time.
+   */
+  const [isPhone, setIsPhone] = useState(false);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 760px)");
+    const sync = () => setIsPhone(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
   const [now, setNow] = useState(0);
   useEffect(() => {
     const timer = window.setTimeout(() => setNow(Date.now()), 0);
@@ -695,8 +713,14 @@ export function AiApprovalQueue() {
     aiState.loading || approvalState.loading || receiptState.loading;
   const error =
     aiState.error ?? approvalState.error ?? receiptState.error ?? null;
-  const onDecision = (id: string, status: string) =>
+  const onDecision = (id: string, status: string) => {
     setOverrides((current) => ({ ...current, [id]: status }));
+    setReviewingId((current) => (current === id ? null : current));
+  };
+  const reviewingAction = aiActions.find((action) => action.id === reviewingId);
+  const reviewingApproval = approvals.find(
+    (approval) => approval.id === reviewingId,
+  );
 
   return (
     <div className="ai-queue-page">
@@ -732,13 +756,34 @@ export function AiApprovalQueue() {
       {loading ? (
         <div className="ai-queue-empty"><LoaderCircle className="spin" /><strong>Loading review work…</strong></div>
       ) : filter === "review" ? (
-        <section className="ai-queue-list">
-          {aiActions.map((action) => (
-            <AiQueueCard action={action} key={action.id} onDecision={onDecision} />
-          ))}
-          {approvals.map((approval) => (
-            <AutomationApprovalCard approval={approval} key={approval.id} onDecision={onDecision} />
-          ))}
+        <section className={isPhone ? "ai-queue-list is-compact" : "ai-queue-list"}>
+          {isPhone ? (
+            <>
+              {aiActions.map((action) => (
+                <PreparedCompactRow
+                  item={{ kind: "ai", record: action }}
+                  key={action.id}
+                  onOpen={() => setReviewingId(action.id)}
+                />
+              ))}
+              {approvals.map((approval) => (
+                <PreparedCompactRow
+                  item={{ kind: "automation", record: approval }}
+                  key={approval.id}
+                  onOpen={() => setReviewingId(approval.id)}
+                />
+              ))}
+            </>
+          ) : (
+            <>
+              {aiActions.map((action) => (
+                <AiQueueCard action={action} key={action.id} onDecision={onDecision} />
+              ))}
+              {approvals.map((approval) => (
+                <AutomationApprovalCard approval={approval} key={approval.id} onDecision={onDecision} />
+              ))}
+            </>
+          )}
           {!aiActions.length && !approvals.length ? (
             <div className="ai-queue-empty">
               <Check size={22} />
@@ -759,6 +804,22 @@ export function AiApprovalQueue() {
           ) : null}
         </section>
       )}
+      <SheetDialog
+        label="Review prepared decision"
+        onClose={() => setReviewingId(null)}
+        open={Boolean(reviewingAction ?? reviewingApproval)}
+      >
+        {reviewingAction ? (
+          <AiQueueCard action={reviewingAction} onDecision={onDecision} />
+        ) : reviewingApproval ? (
+          <AutomationApprovalCard
+            approval={reviewingApproval}
+            onDecision={onDecision}
+          />
+        ) : (
+          <span />
+        )}
+      </SheetDialog>
     </div>
   );
 }
