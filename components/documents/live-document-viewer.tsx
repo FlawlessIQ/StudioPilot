@@ -9,6 +9,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatDueDate } from "@/lib/format/event-date";
+import { statusLabel } from "@/features/format/status-label";
 
 type DocRecord = Record<string, unknown> & { id: string };
 
@@ -124,7 +125,7 @@ export function LiveDocumentViewer({ id }: { id: string }) {
         </div>
         {str(record.status) ? (
           <div className="live-detail-header-actions">
-            <StatusBadge>{String(record.status)}</StatusBadge>
+            <StatusBadge>{statusLabel(record.status)}</StatusBadge>
           </div>
         ) : null}
       </header>

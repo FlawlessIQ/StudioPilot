@@ -242,11 +242,45 @@ export function CopilotWorkspace() {
     !workspace.loading && rawName !== "" && rawName !== "Signed-in user";
   const firstName = hasRealName ? rawName.split(/\s+/)[0] : "";
   const greeting = `${dayPart}${firstName ? `, ${firstName}` : ""}.`;
-  const dateLabel = now.toLocaleDateString(undefined, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
+
+  // On phones Cue is pinned between the app's top bar and bottom tab bar
+  // (position: fixed in CSS). Their real heights vary — safe-area insets, an
+  // error banner, the browser's own chrome — so measure them instead of
+  // guessing, and hand the offsets to CSS as variables.
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const shell = shellRef.current;
+    if (!shell) return;
+    const topbar = document.querySelector<HTMLElement>(".ds-topbar");
+    const tabbar = document.querySelector<HTMLElement>(".ds-tabbar");
+    const sync = () => {
+      const top = topbar ? Math.max(0, topbar.getBoundingClientRect().bottom) : 0;
+      const bottom =
+        tabbar && getComputedStyle(tabbar).display !== "none"
+          ? tabbar.getBoundingClientRect().height
+          : 0;
+      shell.style.setProperty("--cue-top", `${top}px`);
+      shell.style.setProperty("--cue-bottom", `${bottom}px`);
+    };
+    sync();
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(sync);
+    if (topbar) observer?.observe(topbar);
+    if (tabbar) observer?.observe(tabbar);
+    window.addEventListener("resize", sync);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", sync);
+    };
+  }, []);
+
+  // Keep the newest message in view as the conversation grows or streams.
+  const threadRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const thread = threadRef.current;
+    if (!thread || turns.length === 0) return;
+    thread.scrollTop = thread.scrollHeight;
+  }, [turns.length, streamingText, busy]);
 
   // The composer is shared between the empty (hero) state and the docked
   // in-conversation state — built once, placed in whichever wrapper applies.
@@ -271,6 +305,7 @@ export function CopilotWorkspace() {
       ) : null}
       <form onSubmit={(event) => void submit(event)}>
         <textarea
+          rows={1}
           aria-label={started ? "Ask a follow-up" : "Ask Cue"}
           required
           minLength={3}
@@ -280,7 +315,7 @@ export function CopilotWorkspace() {
           placeholder={
             started
               ? "Ask a follow-up — it keeps the conversation's context"
-              : "What is blocking my next wedding?"
+              : "Message Cue"
           }
         />
         <div className="cue-composer-row">
@@ -321,7 +356,7 @@ export function CopilotWorkspace() {
   );
 
   return (
-    <div className="cue-shell">
+    <div className="cue-shell" ref={shellRef}>
       <div className="cue-main">
         <header className="cue-topline">
           <span className="cue-id">
@@ -338,53 +373,46 @@ export function CopilotWorkspace() {
           </span>
           <span className="cue-topline-spacer" />
           {started || threads.length > 0 ? (
-            <button type="button" className="cue-new" onClick={newConversation}>
-              <Plus size={15} /> New conversation
+            <button
+              type="button"
+              className="cue-new"
+              onClick={newConversation}
+              aria-label="New conversation"
+            >
+              <Plus size={15} /> <span>New conversation</span>
             </button>
           ) : null}
         </header>
 
-        {!started ? (
-          <div className="cue-empty">
-            <div className="cue-greeting">
-              <p className="cue-eyebrow">{dateLabel}</p>
-              <h1>
-                {greeting}
-                <br />
-                What can I <em>prepare</em> for you?
-              </h1>
-              <p>
-                {brandNew
-                  ? "New here? Ask me how anything works or how to get set up, and I'll walk you through it — then prepare the work for you to approve."
-                  : "Ask about operations, payments, crew, contracts or readiness — I'll do the legwork and hand you the next step to approve."}
-              </p>
+        {/* One conversation surface for both states. The greeting is Cue's
+            first message rather than a static hero, so an empty chat and an
+            ongoing one read as the same place. */}
+        <section
+          className="cue-thread"
+          aria-live="polite"
+          aria-label="Conversation"
+          ref={threadRef}
+        >
+          <div className="cue-thread-inner">
+            <div className="cue-welcome">
+              <span className="cue-avatar" aria-hidden="true">
+                <CueMark size={20} />
+              </span>
+              <div className="cue-welcome-body">
+                <p className="cue-welcome-hello">
+                  {greeting} What can I prepare for you?
+                </p>
+                <p>
+                  {brandNew
+                    ? "New here? Ask me how anything works or how to get set up, and I'll walk you through it — then prepare the work for you to approve."
+                    : "Ask about operations, payments, crew, contracts or readiness — I'll do the legwork and hand you the next step to approve."}
+                </p>
+                <p className="cue-welcome-promise">
+                  <ShieldCheck size={13} aria-hidden="true" /> I prepare — you
+                  approve. Nothing sends on its own.
+                </p>
+              </div>
             </div>
-            {composer}
-            <div className="cue-starters" aria-label="Suggested questions">
-              {heroPrompts.slice(0, 4).map((prompt) => (
-                <button
-                  key={prompt}
-                  type="button"
-                  onClick={() => setQuestion(prompt)}
-                >
-                  <Sparkles size={14} /> {prompt}
-                </button>
-              ))}
-            </div>
-            <p className="cue-promise">
-              <ShieldCheck size={15} aria-hidden="true" />
-              Cue prepares — you approve. Nothing sends or changes status on its
-              own.
-            </p>
-          </div>
-        ) : (
-          <>
-            <section
-              className="cue-thread"
-              aria-live="polite"
-              aria-label="Conversation"
-            >
-              <div className="cue-thread-inner">
                 {turns.map((turn, index) =>
                   turn.role === "user" ? (
                     <div className="copilot-turn-user" key={`u-${index}`}>
@@ -430,13 +458,26 @@ export function CopilotWorkspace() {
                     {statusText || "Reviewing records…"}
                   </p>
                 ) : null}
+          </div>
+        </section>
+        <div className="cue-dock">
+          <div className="cue-dock-inner">
+            {!started ? (
+              <div className="cue-starters" aria-label="Suggested questions">
+                {heroPrompts.slice(0, 4).map((prompt) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    onClick={() => setQuestion(prompt)}
+                  >
+                    <Sparkles size={13} /> {prompt}
+                  </button>
+                ))}
               </div>
-            </section>
-            <div className="cue-dock">
-              <div className="cue-dock-inner">{composer}</div>
-            </div>
-          </>
-        )}
+            ) : null}
+            {composer}
+          </div>
+        </div>
 
         {error ? (
           <section className="panel copilot-error cue-error" role="alert">

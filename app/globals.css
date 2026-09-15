@@ -14706,156 +14706,271 @@ label {
   }
 }
 
-/* Cue on phones: a ChatGPT-style, edge-to-edge chat assistant — full-bleed
-   surface, no page gutter or card chrome, a docked pill composer, clean message
-   bubbles, and no desktop context rail. */
+/* ============================================================================
+   Cue — a Claude/ChatGPT-style chat. One conversation surface: the greeting is
+   Cue's first message, suggestions sit above a single docked input, and on
+   phones the whole thing is pinned between the top bar and the tab bar (their
+   heights are measured in copilot-workspace and passed as --cue-top/bottom).
+   ========================================================================== */
+.cue-welcome {
+  align-items: start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+.cue-avatar {
+  align-items: center;
+  background: var(--soft);
+  border-radius: 999px;
+  display: flex;
+  flex: none;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
+}
+.cue-welcome-body {
+  display: grid;
+  gap: 6px;
+  padding-top: 3px;
+}
+.cue-welcome-body p {
+  color: var(--ink-soft);
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 0;
+}
+.cue-welcome-body .cue-welcome-hello {
+  color: var(--ink);
+  font-weight: 600;
+}
+.cue-welcome-body .cue-welcome-promise {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 12.5px;
+  gap: 6px;
+}
+.cue-dock .cue-starters {
+  margin-bottom: 10px;
+}
+
 @media (max-width: 760px) {
   .ds-content:has(.cue-shell) {
     padding: 0;
   }
-  .cue-shell {
+  .ds-root .cue-shell {
     background: var(--surface);
     border: 0;
     border-radius: 0;
+    bottom: var(--cue-bottom, 64px);
     box-shadow: none;
+    display: flex;
+    flex-direction: column;
+    left: 0;
+    margin: 0;
     max-width: none;
-    grid-template-columns: 1fr;
+    position: fixed;
+    right: 0;
+    top: var(--cue-top, 72px);
+    z-index: 10;
   }
-  /* Fill the space between the top bar and the bottom nav; the thread scrolls
-     inside and the composer stays docked at the bottom. */
-  .cue-main {
-    height: calc(100dvh - 134px);
-    min-height: 0;
-  }
-
-  /* One clean chat — hide the desktop context rail. */
-  .cue-rail {
-    display: none;
-  }
-
-  /* Minimal header: the top bar already says "Cue", so drop the identity block
-     and keep only a compact new-chat action. */
-  .cue-topline {
-    background: var(--surface);
-    border-bottom: 0;
-    min-height: 0;
-    padding: 6px 10px;
-  }
-  .cue-topline .cue-id {
-    display: none;
-  }
-  .cue-new {
-    margin-left: auto;
-    font-size: 13px;
-    padding: 7px 12px;
-  }
-
-  /* Empty state: greeting fills the space; chips + composer sit at the bottom. */
-  .cue-empty {
-    gap: 0;
-    justify-content: flex-start;
-    max-width: none;
-    padding: 0;
-  }
-  .cue-empty .cue-greeting {
+  .ds-root .cue-main {
     display: flex;
     flex: 1;
     flex-direction: column;
-    justify-content: center;
-    order: 0;
-    padding: 18px 18px 8px;
+    height: auto;
+    min-height: 0;
+    position: relative;
   }
-  .cue-empty .cue-greeting h1 {
-    font-size: clamp(23px, 6.4vw, 29px);
-  }
-  .cue-empty .cue-greeting > p {
-    font-size: 15px;
-    margin-top: 12px;
-  }
-  .cue-empty .cue-starters {
-    flex-wrap: nowrap;
-    gap: 8px;
-    order: 1;
-    overflow-x: auto;
-    padding: 0 12px 10px;
-    scrollbar-width: none;
-  }
-  .cue-empty .cue-starters::-webkit-scrollbar {
-    display: none;
-  }
-  .cue-empty .cue-starters button {
-    flex: 0 0 auto;
-  }
-  .cue-empty > .cue-composer {
-    order: 2;
-  }
-  .cue-empty .cue-promise {
+  .ds-root .cue-rail {
     display: none;
   }
 
-  /* Composer: a rounded pill docked at the bottom, edge to edge. */
-  .cue-empty > .cue-composer,
-  .cue-dock {
-    background: var(--surface);
-    border-top: 0;
-    padding: 6px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+  /* No header bar: a single floating new-chat button. */
+  .ds-root .cue-topline {
+    background: transparent;
+    border: 0;
+    min-height: 0;
+    padding: 0;
+    position: absolute;
+    right: 10px;
+    top: 10px;
+    z-index: 2;
   }
-  .cue-dock-inner {
-    max-width: none;
-  }
-  .cue-composer {
-    border: 1px solid var(--line-strong);
-    border-radius: 24px;
-    box-shadow: 0 2px 10px rgb(19 30 23 / 6%);
-    padding: 8px 8px 8px 16px;
-  }
-  .cue-composer textarea {
-    font-size: 16px;
-  }
-  .cue-slashhint {
+  .ds-root .cue-topline .cue-id,
+  .ds-root .cue-topline-spacer {
     display: none;
   }
-  .cue-composer-row {
-    margin-top: 8px;
-  }
-  .cue-send {
+  .ds-root .cue-new {
+    backdrop-filter: blur(10px);
+    background: color-mix(in srgb, var(--surface) 86%, transparent);
     border-radius: 999px;
+    height: 36px;
+    justify-content: center;
+    padding: 0;
+    width: 36px;
+  }
+  .ds-root .cue-new span {
+    display: none;
   }
 
-  /* Messages, ChatGPT-style. */
-  .cue-thread {
-    padding: 16px 14px 8px;
+  /* The conversation. */
+  .ds-root .cue-thread {
+    -webkit-overflow-scrolling: touch;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 18px 16px 14px;
   }
-  .cue-thread-inner {
-    gap: 16px;
+  .ds-root .cue-thread-inner {
+    gap: 22px;
     max-width: none;
   }
-  /* User turn: a right-aligned neutral bubble. */
-  .copilot-turn-user {
+  /* Flush left like every other Cue reply; the label, not an avatar, is the
+     byline. */
+  .ds-root .cue-welcome {
+    grid-template-columns: minmax(0, 1fr);
+    padding-right: 42px;
+  }
+  .ds-root .cue-avatar {
+    display: none;
+  }
+  .ds-root .cue-thread .copilot-result > header {
+    gap: 6px;
+  }
+  .ds-root .cue-thread .copilot-result > header svg {
+    height: 14px;
+    width: 14px;
+  }
+  .ds-root .cue-thread .copilot-result > header .eyebrow {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0;
+    margin: 0;
+    text-transform: none;
+  }
+  .ds-root .copilot-turn-user {
     background: var(--soft);
     border: 0;
-    border-radius: 20px;
-    max-width: 85%;
-    padding: 10px 15px;
+    border-radius: 20px 20px 6px 20px;
+    justify-self: end;
+    max-width: 84%;
+    padding: 10px 14px;
   }
-  .copilot-turn-user p {
-    font-size: 15px;
+  .ds-root .copilot-turn-user p {
+    color: var(--ink);
+    font-size: 15.5px;
+    line-height: 1.5;
+    margin: 0;
   }
-  /* Assistant turn: plain full-width text, not a card. (.ds-root to beat the
-     design-system card + heading rules.) */
   .ds-root .cue-thread .copilot-result.panel {
     background: transparent;
     border: 0;
     border-radius: 0;
     box-shadow: none;
+    gap: 12px;
     padding: 0;
   }
-  /* The answer is an <h2> in the markup — on a phone it should read as chat
-     body text, not a headline. (h3 sub-headings inside keep their weight.) */
+  .ds-root .cue-thread .copilot-result > header small {
+    display: none;
+  }
   .ds-root .cue-thread .copilot-result > h2 {
-    font-size: 16px;
+    font-size: 15.5px;
     font-weight: 450;
     letter-spacing: 0;
-    line-height: 1.6;
+    line-height: 1.62;
+  }
+
+  /* Dock: suggestions + one input, edge to edge. */
+  .ds-root .cue-dock {
+    background: var(--surface);
+    border: 0;
+    flex: none;
+    padding: 6px 12px 10px;
+    position: relative;
+  }
+  .ds-root .cue-dock::before {
+    background: linear-gradient(to top, var(--surface), transparent);
+    content: "";
+    height: 18px;
+    left: 0;
+    pointer-events: none;
+    position: absolute;
+    right: 0;
+    top: -18px;
+  }
+  .ds-root .cue-dock-inner {
+    max-width: none;
+  }
+  .ds-root .cue-dock .cue-starters {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+    margin: 0 -12px 8px;
+    overflow-x: auto;
+    padding: 0 12px;
+    scrollbar-width: none;
+  }
+  .ds-root .cue-dock .cue-starters::-webkit-scrollbar {
+    display: none;
+  }
+  .ds-root .cue-dock .cue-starters button {
+    background: var(--soft);
+    border: 0;
+    border-radius: 999px;
+    flex: none;
+    font-size: 13px;
+    padding: 8px 13px;
+    white-space: nowrap;
+  }
+  .ds-root .cue-dock .cue-composer {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 26px;
+    box-shadow: 0 1px 3px rgb(19 30 23 / 6%);
+    padding: 5px 5px 5px 16px;
+  }
+  .ds-root .cue-composer form {
+    align-items: flex-end;
+    display: flex;
+    gap: 8px;
+  }
+  .ds-root .cue-shell .cue-composer textarea {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    field-sizing: content;
+    flex: 1;
+    font-size: 16px;
+    line-height: 1.4;
+    margin: 0;
+    max-height: 140px;
+    min-height: 24px;
+    outline: 0;
+    padding: 9px 0;
+    resize: none;
+  }
+  .ds-root .cue-composer-row {
+    align-items: center;
+    display: flex;
+    flex: none;
+    gap: 6px;
+    margin: 0;
+  }
+  .ds-root .cue-composer-row .cue-scope.is-static,
+  .ds-root .cue-slashhint,
+  .ds-root .cue-composer-spacer {
+    display: none;
+  }
+  .ds-root .cue-send {
+    border-radius: 999px;
+    height: 38px;
+    width: 38px;
+  }
+  .ds-root .cue-error {
+    margin: 0 12px 8px;
   }
 }
