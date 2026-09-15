@@ -21,6 +21,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
+import { actionsPerWedding } from "@/features/reporting/actions-per-wedding";
 import { workflowScorecard } from "@/features/operations/workflow-scorecard";
 import { formatCents } from "@/lib/format/money";
 import { analyseFunnel } from "@/features/operations/funnel";
@@ -366,6 +367,32 @@ export function LiveReports() {
             <p>Completed work, approvals, exceptions, and measured results from the selected period.</p>
           </div>
         </div>
+        {(() => {
+          const effort = actionsPerWedding({
+            projects: projects as Array<Record<string, unknown> & { id: string }>,
+            events: productEventsState.records ?? [],
+          });
+          return (
+            <article className="panel report-effort">
+              <span>
+                <small>Your actions per delivered wedding</small>
+                <strong>{loading ? "—" : effort.deliveredMedian ?? "Needs data"}</strong>
+              </span>
+              <p>
+                {effort.deliveredMedian === null
+                  ? "Once a wedding is delivered, this counts every approval, tick and send it took from your side. Lower is better."
+                  : `The typical wedding across ${effort.deliveredCount} delivered took this many approvals, ticks and sends from your side. Lower is better.`}
+                {effort.most ? (
+                  <>
+                    {" "}The most was{" "}
+                    <a href={`/studio/projects/${encodeURIComponent(effort.most.projectId)}`}>{effort.most.name}</a>
+                    {` (${effort.most.actions}).`}
+                  </>
+                ) : null}
+              </p>
+            </article>
+          );
+        })()}
         <div className="report-performance-grid">
           <article className="panel">
             <Bot />

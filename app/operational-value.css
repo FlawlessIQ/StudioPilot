@@ -504,3 +504,38 @@
     height: 6px;
   }
 }
+
+/* Reports: what a wedding still asks of the studio. */
+.report-effort {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 22px;
+  margin-bottom: 12px;
+}
+
+.report-effort > span {
+  display: grid;
+  gap: 4px;
+}
+
+.report-effort small {
+  color: var(--muted, #667);
+  font-size: 11px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.report-effort strong {
+  font-size: 28px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.report-effort p {
+  flex: 1 1 280px;
+  margin: 0;
+  color: var(--muted, #667);
+  font-size: 13px;
+  line-height: 1.5;
+}
