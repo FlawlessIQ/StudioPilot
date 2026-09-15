@@ -53,3 +53,16 @@ export function pastConsultation(state: string): boolean {
 export function pastProposal(state: string): boolean {
   return stageAtLeast(state, "PROPOSAL");
 }
+
+/**
+ * The client has said yes to the proposal.
+ *
+ * `pastProposal` is true from PROPOSAL onward, because from there a proposal
+ * exists and preparing one is no longer the studio's move. It does not mean
+ * the proposal is settled: at PROPOSAL it is out with the couple. The booking
+ * page used it to announce "Chen Wedding is past the proposal" on a job whose
+ * proposal nobody had accepted, above a contract step that could not start.
+ */
+export function proposalAccepted(state: string): boolean {
+  return stageAtLeast(state, "CONTRACT_PENDING");
+}

@@ -156,15 +156,23 @@ export function AgreementTemplate() {
           <LoaderCircle className="spin" size={15} /> Loading your templates…
         </p>
       ) : state === "unavailable" ? (
-        <p className="agreement-template-state is-attention">
-          <TriangleAlert size={15} />
+        <p
+          className={
+            signingApp
+              ? "agreement-template-state is-attention"
+              : "agreement-template-state"
+          }
+        >
+          {/* Not a warning when no signing app is offered: there is nothing
+              the studio has failed to connect. */}
+          {signingApp ? <TriangleAlert size={15} /> : null}
           {/* These named Dropbox Sign outright and told the reader to
               "connect it above" — pointing at a card that is no longer on the
               page, because neither signing app is offered while their
               subscriptions wait on revenue. Named only when one is actually
               offered. See features/integrations/schema.ts. */}
           {!signingApp
-            ? "No signing app is connected, so StudioCue does not send agreements for you. Send your own and record the signature on each booking."
+            ? "StudioCue does not send agreements for signature yet. Send your own the way you usually do, and record the signature on each booking."
             : reason === "PREVIEW_MODE"
               ? "Connect a signing provider to choose an agreement."
               : reason?.startsWith("SIGNING_")

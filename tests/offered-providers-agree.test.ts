@@ -62,7 +62,7 @@ test("a capability with no offered provider offers no remedy", () => {
     connections: [],
     selections: null,
   });
-  assert.equal(signing.state, "none_connected");
+  assert.equal(signing.state, "manual");
   assert.equal(signing.remedy, null, "signing offers a remedy with nothing to connect");
   assert.match(signing.summary, /record the signature/);
 

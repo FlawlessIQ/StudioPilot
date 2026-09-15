@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   pastConsultation,
   pastProposal,
+  proposalAccepted,
   stageAtLeast,
   stageRank,
 } from "@/features/projects/stage-progress";
@@ -53,4 +54,13 @@ test("every state the machine knows has a rank", () => {
       `${state} has no rank and would read as a lead`,
     );
   }
+});
+
+test("a proposal that is out is not an accepted one", () => {
+  // The booking page read "past the proposal" at PROPOSAL, while the couple
+  // had not answered and the contract step could not start.
+  assert.equal(pastProposal("PROPOSAL"), true);
+  assert.equal(proposalAccepted("PROPOSAL"), false);
+  assert.equal(proposalAccepted("CONTRACT_PENDING"), true);
+  assert.equal(proposalAccepted("POSTPONED"), true);
 });

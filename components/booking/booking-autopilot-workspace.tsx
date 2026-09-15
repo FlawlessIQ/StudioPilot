@@ -42,6 +42,7 @@ import { friendlyError } from "@/lib/ai/friendly-error";
 import {
   pastConsultation,
   pastProposal,
+  proposalAccepted,
 } from "@/features/projects/stage-progress";
 import { addCalendarDays, todayLocalIso } from "@/lib/format/event-date";
 
@@ -297,6 +298,8 @@ export function BookingAutopilotWorkspace({
     text(projectRecords?.find((entry) => entry.id === projectId)?.state) ||
     text(project?.state);
   const laterBookingState = pastProposal(liveState);
+  // PROPOSAL is past preparing one, not past the couple's answer.
+  const proposalSettled = proposalAccepted(liveState);
   /**
    * The consultation already happened, whatever this page can see of it.
    *
@@ -539,11 +542,27 @@ export function BookingAutopilotWorkspace({
             <p className="eyebrow">
               <Check size={14} /> {projectStateLabel(liveState)}
             </p>
-            <h1>{text(project?.name) || "This job"} is past the proposal.</h1>
-            <p>
-              The agreement, the retainer and the balance for this job are
-              below. Nothing here needs the consultation flow any more.
-            </p>
+            {/* "Chen Wedding is past the proposal" was shown at Proposal out,
+                on a job whose couple had not answered — above a contract step
+                that could not start until they did. */}
+            {proposalSettled ? (
+              <>
+                <h1>{text(project?.name) || "This job"} is past the proposal.</h1>
+                <p>
+                  The agreement, the retainer and the balance for this job are
+                  below.
+                </p>
+              </>
+            ) : (
+              <>
+                <h1>The proposal is with the client.</h1>
+                <p>
+                  Once they accept it, the agreement and the retainer are the
+                  next steps. Already have their yes by email or on a call?
+                  Record it in the contract step below.
+                </p>
+              </>
+            )}
           </div>
         </header>
       ) : (
@@ -576,7 +595,21 @@ export function BookingAutopilotWorkspace({
          * — that's fine. Prepare the proposal directly." A job past this stage
          * needs to know what StudioCue holds, not to be sold the flow again.
          */
-        proposalId ? null : (
+        proposalId ? (
+          // The way to the accepted proposal. Before acceptance the contract
+          // step below carries the link, with what it is waiting on.
+          proposalSettled ? (
+          <section className="booking-autopilot-empty is-quiet">
+            <Check />
+            <span>
+              <strong>The proposal they accepted is on file.</strong>
+            </span>
+            <Link href={`/studio/proposals/${proposalId}`}>
+              Open proposal <ArrowRight />
+            </Link>
+          </section>
+          ) : null
+        ) : (
           <section className="booking-autopilot-empty">
             <Check />
             <span>
@@ -690,21 +723,6 @@ export function BookingAutopilotWorkspace({
             <small>Comparing the notes only with active packages and approved terms.</small>
           </span>
         </section>
-      ) : laterBookingState ? (
-        // The hero above already states that this job is past the proposal;
-        // repeating it here as a banner was the screen saying one thing
-        // twice. Only the way onward is kept.
-        proposalId ? (
-          <section className="booking-autopilot-empty is-quiet">
-            <Check />
-            <span>
-              <strong>The proposal they accepted is on file.</strong>
-            </span>
-            <Link href={`/studio/proposals/${proposalId}`}>
-              Open proposal <ArrowRight />
-            </Link>
-          </section>
-        ) : null
       ) : summaryAction && packageAction && proposalAction ? (
         <>
           <section className="booking-ai-brief">

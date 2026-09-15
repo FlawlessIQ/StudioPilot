@@ -47,8 +47,9 @@ test("a connected signing app that is not offered still does not resolve", () =>
     connections: [connected("dropbox_sign")],
     selections: null,
   });
-  assert.equal(readiness.ok, false);
-  assert.equal(readiness.state, "none_connected");
+  // Not routed to: it reads as the manual path, never as ready.
+  assert.equal(readiness.state, "manual");
+  assert.equal(readiness.provider, null);
   assert.match(readiness.summary, /record the signature/);
 });
 
@@ -60,9 +61,12 @@ test("nothing connected to sign points at the path that still works", () => {
     connections: [],
     selections: null,
   });
-  assert.equal(readiness.ok, false);
-  assert.equal(readiness.state, "none_connected");
-  assert.match(readiness.summary, /Nothing is connected/);
+  // Not a warning. No signing app is offered, so there is nothing the studio
+  // failed to connect: "Nothing is connected to send the agreement" read as
+  // an error on the booking page, on the only path the product supports.
+  assert.equal(readiness.state, "manual");
+  assert.equal(readiness.ok, true);
+  assert.doesNotMatch(readiness.summary, /Nothing is connected/);
   // The point of the sentence. A studio deciding whether it can work
   // without Dropbox Sign is told yes, and how.
   assert.match(readiness.summary, /record the signature/);
@@ -227,17 +231,18 @@ test("a provider StudioCue does not offer cannot win the routing", () => {
     connections: [connected("docusign"), connected("dropbox_sign")],
     selections: null,
   });
-  assert.equal(readiness.state, "none_connected");
+  // "manual": with nothing offered, the studio's own agreement is the path.
+  assert.equal(readiness.state, "manual");
   assert.equal(readiness.provider, null);
 });
 
-test("with only an unoffered provider connected, nothing is connected", () => {
+test("with only an unoffered provider connected, signing stays manual", () => {
   const readiness = capabilityReadiness({
     capability: "signing",
     connections: [connected("docusign")],
     selections: null,
   });
-  assert.equal(readiness.state, "none_connected");
+  assert.equal(readiness.state, "manual");
 });
 
 test("the offered set is the same in features/ and functions/", () => {

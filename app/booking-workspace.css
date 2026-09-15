@@ -325,3 +325,44 @@
   justify-self: start;
   width: auto;
 }
+
+/* Contract step while the proposal is still out with the client: what it is
+   waiting on, the way to the proposal, and recording a yes given elsewhere. */
+.booking-waiting-proposal {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.booking-waiting-proposal > .booking-complete-message {
+  color: var(--ink);
+  margin-top: 0;
+}
+
+.booking-waiting-proposal > .booking-complete-message strong {
+  font-size: 0.95rem;
+}
+
+.booking-waiting-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.booking-waiting-actions .button {
+  justify-content: center;
+}
+
+/* The manual signing path. Unstyled, it inherited body copy at full size and
+   ink, and outweighed the heading of the card it sat in. */
+.booking-signing-absent {
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.55;
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .booking-waiting-actions .button {
+    flex: 1 1 100%;
+  }
+}

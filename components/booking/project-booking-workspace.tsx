@@ -6,10 +6,12 @@ import { CapabilityNote } from "@/components/integrations/capability-note";
 import { InfoHint } from "@/components/ui/info-hint";
 import { RecordSignedAgreement } from "@/components/booking/record-signed-agreement";
 import { RecordRetainerPayment } from "@/components/booking/record-retainer-payment";
+import { RecordProposalAcceptance } from "@/components/booking/record-proposal-acceptance";
 import Link from "next/link";
 import {
   ArrowRight,
   Check,
+  Clock3,
   FlaskConical,
   CircleAlert,
   FileSignature,
@@ -97,6 +99,14 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   const gate = useWorkspaceGate();
   const [project, setProject] = useState<RecordValue | null>(null);
   const [proposal, setProposal] = useState<RecordValue | null>(null);
+  /**
+   * The proposal still out with the client, when none is accepted yet.
+   *
+   * Only the accepted one used to be read, so a job at "Proposal out" showed a
+   * contract step with nothing to do and nothing to say about why — no link to
+   * the proposal it was waiting on, and no way to record a yes given by email.
+   */
+  const [openProposal, setOpenProposal] = useState<RecordValue | null>(null);
   const [contract, setContract] = useState<RecordValue | null>(null);
   const [invoice, setInvoice] = useState<RecordValue | null>(null);
   // The retainer is only one of a job's invoices. The final balance lives
@@ -197,14 +207,21 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           () => null,
         ),
       ]);
+      const proposalsByVersion = proposals.docs
+        .map((item): RecordValue => ({ id: item.id, ...item.data() }))
+        .sort(
+          (left, right) =>
+            Number(right.version ?? 0) - Number(left.version ?? 0),
+        );
       const proposalValue =
-        proposals.docs
-          .map((item): RecordValue => ({ id: item.id, ...item.data() }))
-          .sort(
-            (left, right) =>
-              Number(right.version ?? 0) - Number(left.version ?? 0),
-          )
-          .find((item) => item.status === "accepted") ?? null;
+        proposalsByVersion.find((item) => item.status === "accepted") ?? null;
+      const openProposalValue = proposalValue
+        ? null
+        : (proposalsByVersion.find((item) =>
+            ["draft", "internal_review", "approved", "sent", "viewed"].includes(
+              String(item.status),
+            ),
+          ) ?? null);
       const contractValue =
         contracts.docs
           .map((item): RecordValue => ({ id: item.id, ...item.data() }))
@@ -306,6 +323,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
         String(signingConnection?.get("selectedResourceId") ?? "");
       setProject(projectValue);
       setProposal(proposalValue);
+      setOpenProposal(openProposalValue);
       setContract(contractValue);
       setInvoice(invoiceValue);
       setOrchestration(
@@ -448,7 +466,9 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           ? statusLabel(String(contract.status))
           : bookingComplete
             ? "Not recorded here"
-            : "Not sent",
+            : proposal
+              ? "Ready to send"
+              : "Waits for the proposal",
     },
     {
       number: 2,
@@ -708,14 +728,22 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   contractComplete ? "success" : contract ? "info" : "neutral"
                 }
               >
-                {contract ? statusLabel(contract.status) : "Not created"}
+                {contract
+                  ? statusLabel(contract.status)
+                  : proposal
+                    ? "Not created"
+                    : "Waiting"}
               </StatusBadge>
             </div>
+            {proposal || contract ? (
             <p>
-              The accepted proposal supplies the exact package and price.{" "}
-              {signingProviderSentence} remains the authority for signature
-              completion.
+              Built from the accepted proposal, so the package and price are
+              already set.
+              {signingOffered
+                ? ` ${signingProviderSentence} remains the authority for signature completion.`
+                : null}
             </p>
+            ) : null}
             {contractFailed ? (
               // A refused contract is not evidence of anything, and hiding
               // the send form behind "a contract exists" left the booking
@@ -798,17 +826,84 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   </strong>
                 </span>
               </div>
+            ) : !proposal && !bookingComplete ? (
+              /**
+               * Waiting on the proposal, said as that.
+               *
+               * This branch used to render the send form regardless: a paragraph
+               * about having no signing app, two provider notes and, in faint
+               * type at the bottom, "The client's accepted proposal is required
+               * first". Nothing on it could be pressed. A job at "Proposal out"
+               * is waiting on the couple, and the studio's moves are to look at
+               * the proposal or record a yes they already have.
+               */
+              <div className="booking-waiting-proposal">
+                <div className="booking-complete-message">
+                  <Clock3 aria-hidden="true" size={18} />
+                  <span>
+                    <strong>
+                      {!openProposal
+                        ? "There is no proposal for this job yet"
+                        : ["sent", "viewed"].includes(String(openProposal.status))
+                          ? "Waiting for the client to accept the proposal"
+                          : openProposal.status === "approved"
+                            ? "The proposal is approved but not sent yet"
+                            : "The proposal is still a draft"}
+                    </strong>
+                    <small>
+                      {!openProposal
+                        ? "The agreement is built from an accepted proposal, so that comes first."
+                        : openProposal.status === "viewed"
+                          ? "They have opened it. The agreement is next once they accept."
+                          : openProposal.status === "sent"
+                            ? "The agreement is next once they accept."
+                            : openProposal.status === "approved"
+                              ? "Send it from the proposal, or record the yes if they have already agreed."
+                              : "Finish and send it — the agreement is next once they accept."}
+                    </small>
+                  </span>
+                </div>
+                <div className="booking-waiting-actions">
+                  <Link
+                    className="button button-dark"
+                    href={
+                      openProposal
+                        ? `/studio/proposals/${openProposal.id}`
+                        : `/studio/proposals/new?project=${projectId}`
+                    }
+                  >
+                    {openProposal ? "Open the proposal" : "Prepare the proposal"}
+                    <ArrowRight size={15} />
+                  </Link>
+                </div>
+                {openProposal &&
+                ["approved", "sent", "viewed"].includes(
+                  String(openProposal.status),
+                ) ? (
+                  <RecordProposalAcceptance
+                    onRecorded={(message) => {
+                      setNotice(message);
+                      refreshTenantRecords(
+                        "projects",
+                        "proposals",
+                        "checkpoints",
+                        "readinessAssessments",
+                      );
+                      void load();
+                    }}
+                    proposalId={String(openProposal.id)}
+                  />
+                ) : null}
+              </div>
             ) : (
               <div className="booking-action-form">
                 {!signingOffered ? (
                   /* No signing app to send through. Say what happens instead,
                      and let the record control below be the action. */
                   <p className="booking-signing-absent">
-                    StudioCue has no signing app connected, so you send the
-                    agreement yourself and record the signature here. The
-                    booking proceeds exactly as it would through a provider —
-                    the retainer follows, and the gate reports this as your
-                    attestation.
+                    Send your agreement the way you usually do — by email or in
+                    person — then record the signature below. The retainer
+                    follows, exactly as it would through a signing app.
                   </p>
                 ) : templateConfigured ? (
                   // Provider internals stay out of the flow: a configured
@@ -897,8 +992,9 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     </span>
                   </p>
                 ) : null}
-                <CapabilityNote capability="signing" />
-                <CapabilityNote capability="invoicing" />
+                {/* Said once. With no signing app offered, the paragraph above
+                    already describes the path, and this note repeated it. */}
+                {signingOffered ? <CapabilityNote capability="signing" /> : null}
                 {proposal ? (
                   <RecordSignedAgreement
                     onRecorded={(message) => {
@@ -1166,6 +1262,9 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   <small>Retainer due</small>
                   <strong>{dueDate}</strong>
                 </span>
+                {/* Moved from the contract step, where it described a step
+                    that had not started. */}
+                <CapabilityNote capability="invoicing" />
                 <button
                   className="button"
                   disabled={

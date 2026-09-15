@@ -29,7 +29,13 @@ export type CapabilityReadiness = {
   capability: IntegrationCapability;
   /** The provider that will handle it, when one is resolvable. */
   provider: IntegrationProvider | null;
-  state: "ready" | "degraded" | "none_connected" | "ambiguous" | "selection_broken";
+  state:
+    | "ready"
+    | "degraded"
+    | "none_connected"
+    | "ambiguous"
+    | "selection_broken"
+    | "manual";
   /** One line naming what will happen, for the surface about to do it. */
   summary: string;
   /** What to do about it, when something needs doing. */
@@ -90,7 +96,7 @@ const CAPABILITY_WORK: Record<IntegrationCapability, string> = {
  */
 const CAPABILITY_WITHOUT_PROVIDER: Record<IntegrationCapability, string> = {
   signing:
-    "Send your own agreement and record the signature on the booking — StudioCue books the job either way.",
+    "You send the agreement yourself and record the signature on the booking.",
   invoicing:
     "Raise your own invoice and record the payment on the booking — StudioCue books the job either way.",
   calendar: "Events stay in your own calendar and StudioCue will not add them.",
@@ -198,15 +204,33 @@ export function capabilityReadiness(input: {
     };
   }
 
+  const candidates = candidatesFor(capability);
+  /**
+   * Nothing to connect, so nothing is missing.
+   *
+   * With no offered app for this work — signing today, both signing apps being
+   * deferred on subscription cost — "Nothing is connected to send the agreement
+   * for signature" told a studio they had skipped a setup step that does not
+   * exist. It read as an error on the booking page, in warning colours, on the
+   * one path the product supports. The manual path is simply how this is done,
+   * so it is said as that, and it is not a warning.
+   */
+  if (!candidates) {
+    return {
+      capability,
+      provider: null,
+      state: "manual",
+      summary: CAPABILITY_WITHOUT_PROVIDER[capability],
+      remedy: null,
+      ok: true,
+    };
+  }
   return {
     capability,
     provider: null,
     state: "none_connected",
     summary: `Nothing is connected to ${work}. ${CAPABILITY_WITHOUT_PROVIDER[capability]}`,
-    remedy: (() => {
-      const candidates = candidatesFor(capability);
-      return candidates ? `Connect ${candidates}` : null;
-    })(),
+    remedy: `Connect ${candidates}`,
     ok: false,
   };
 }

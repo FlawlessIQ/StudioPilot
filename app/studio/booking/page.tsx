@@ -26,9 +26,8 @@ export default async function BookingPage({
             <p className="eyebrow">Agreement and payment</p>
             <h2>Getting them booked</h2>
             <p>
-              A booking is only confirmed once the signature and the payment
-              are real — verified with your signing and accounting tools, not
-              assumed by StudioCue.
+              The job is booked once the agreement is signed and the retainer
+              is paid — confirmed by a connected app, or recorded by you.
             </p>
           </section>
           <ProjectBookingWorkspace projectId={project} />
