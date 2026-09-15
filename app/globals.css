@@ -16849,3 +16849,106 @@ label {
     font-size: 12.5px;
   }
 }
+
+/* ============================================================================
+   Import studio on phones. The hero was a full screen of display type before
+   the first control: it becomes a title and one line. Source choices are one
+   row of three, the step headings lose their eyebrows, and the main action
+   spans the width.
+   ========================================================================== */
+@media (max-width: 640px) {
+  .ds-root .template-import-page {
+    gap: 12px;
+  }
+  .ds-root .template-import-page > .template-import-hero {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    color: inherit;
+    display: block;
+    height: auto;
+    margin: 0;
+    min-height: 0;
+    overflow: visible;
+    padding: 0;
+  }
+  .ds-root .template-import-hero > aside,
+  .ds-root .template-import-hero .template-import-kicker {
+    display: none;
+  }
+  .ds-root .template-import-hero h1 {
+    color: var(--ink);
+    font-size: 23px;
+    letter-spacing: -0.02em;
+    line-height: 1.18;
+    margin: 0;
+  }
+  .ds-root .template-import-hero h1 + p {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.45;
+    margin: 4px 0 0;
+  }
+  .ds-root .template-import-layout {
+    gap: 12px;
+  }
+  .ds-root .template-import-layout > section {
+    gap: 12px;
+    padding: 16px;
+  }
+  .ds-root .template-step-heading {
+    align-items: center;
+    gap: 10px;
+  }
+  .ds-root .template-step-heading .eyebrow {
+    display: none;
+  }
+  .ds-root .template-step-heading > span:first-child {
+    font-size: 12px;
+    height: 26px;
+    width: 26px;
+  }
+  .ds-root .template-step-heading h2 {
+    font-size: 17px;
+    margin: 0;
+  }
+  .ds-root .template-step-heading .template-review-badge {
+    margin-left: auto;
+  }
+  .ds-root .template-source-tabs {
+    display: grid;
+    gap: 3px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 3px;
+  }
+  .ds-root .template-source-tabs button {
+    align-items: center;
+    flex-direction: column;
+    gap: 3px;
+    justify-content: center;
+    min-height: 56px;
+    padding: 6px 4px;
+    text-align: center;
+  }
+  .ds-root .template-source-tabs button small {
+    display: none;
+  }
+  .ds-root .template-source-tabs button strong {
+    font-size: 12px;
+    line-height: 1.2;
+  }
+  .ds-root .template-dropzone {
+    gap: 6px;
+    padding: 18px 14px;
+  }
+  .ds-root .template-analyze-button {
+    justify-content: center;
+    width: 100%;
+  }
+  .ds-root .template-plan-empty {
+    padding: 8px 4px;
+  }
+  .ds-root .template-plan-empty ul {
+    display: none;
+  }
+}
