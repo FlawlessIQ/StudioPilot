@@ -15398,3 +15398,137 @@ label {
     white-space: nowrap;
   }
 }
+
+/* ============================================================================
+   Project context bar on phones (every job sub-page: Plan, Booking, Delivery,
+   Crew, Vendors, Contracts, Questionnaires, Insurance, Event day). Two lines:
+   back + name ........ status + small ring
+   date · countdown · type · venue
+   and the section tabs as four equal, icon-free segments.
+   ========================================================================== */
+@media (max-width: 640px) {
+  .ds-root .project-context-bar.is-detailed {
+    gap: 6px 10px;
+    grid-template-areas:
+      "id status"
+      "facts facts";
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 10px 12px;
+  }
+  .ds-root .project-context-bar.is-detailed > .project-context-identity {
+    grid-area: id;
+  }
+  .ds-root .project-context-bar.is-detailed .project-context-identity small {
+    display: none;
+  }
+  .ds-root .project-context-bar.is-detailed .project-context-identity strong {
+    font-size: 15.5px;
+  }
+  .ds-root .project-context-bar.is-detailed > .project-context-status {
+    gap: 8px;
+    grid-area: status;
+  }
+  /* The ring's SVG has no viewBox, so it is scaled rather than resized. */
+  .ds-root .project-context-bar.is-detailed .project-context-readiness .ds-ring {
+    margin: -6px;
+    transform: scale(0.72);
+  }
+  .ds-root .project-context-bar.is-detailed > .project-context-facts {
+    align-items: baseline;
+    display: flex;
+    gap: 6px;
+    grid-area: facts;
+    min-width: 0;
+    padding-left: 25px;
+  }
+  .ds-root .project-context-bar.is-detailed .project-context-when {
+    flex: none;
+    font-size: 12.5px;
+  }
+  .ds-root .project-context-bar.is-detailed .project-context-when > svg {
+    display: none;
+  }
+  .ds-root .project-context-bar.is-detailed .project-context-facts small {
+    font-size: 12px;
+    letter-spacing: 0;
+    min-width: 0;
+    text-transform: none;
+  }
+  .ds-root .project-context-bar.is-detailed .project-context-facts small::before {
+    content: "· ";
+  }
+  .ds-root .project-context-stack > .project-workspace-nav {
+    display: grid;
+    gap: 2px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding: 3px;
+  }
+  .ds-root .project-context-stack > .project-workspace-nav a {
+    font-size: 12.5px;
+    justify-content: center;
+    min-height: 34px;
+    padding: 0 4px;
+  }
+  .ds-root .project-context-stack > .project-workspace-nav a svg {
+    display: none;
+  }
+
+  /* Plan areas: a tight list — icon, title with its status flag, one line of
+     detail. */
+  .ds-root .project-plan-grid {
+    gap: 6px;
+  }
+  .ds-root .project-plan-grid > a {
+    align-items: center;
+    column-gap: 12px;
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    min-height: 0;
+    row-gap: 0;
+    padding: 11px 12px;
+  }
+  .ds-root .project-plan-grid > a > span {
+    border-radius: 10px;
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    height: 34px;
+    width: 34px;
+  }
+  .ds-root .project-plan-grid > a > span svg {
+    height: 17px;
+    width: 17px;
+  }
+  .ds-root .project-plan-grid > a > div {
+    display: contents;
+  }
+  .ds-root .project-plan-grid > a > div > strong {
+    font-size: 14.5px;
+    grid-column: 2;
+    align-self: end;
+    grid-row: 1;
+    line-height: 1.25;
+  }
+  .ds-root .project-plan-grid > a > div > small {
+    font-size: 12px;
+    grid-column: 2 / -1;
+    align-self: start;
+    grid-row: 2;
+    line-height: 1.35;
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ds-root .project-plan-grid > a > em,
+  .ds-root .project-plan-grid > a > svg {
+    align-self: center;
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+  }
+  .ds-root .project-plan-grid > a > em {
+    font-size: 10px;
+    padding: 2px 8px;
+    white-space: nowrap;
+  }
+}

@@ -13,7 +13,7 @@ export default async function PlanningPage({ searchParams }: { searchParams: Pro
   return (
     <AppShell active="Planning">
       <div className="project-plan-hub">
-        <header className="page-heading">
+        <header className="page-heading page-heading-echo">
           <div>
             <p className="eyebrow">The job</p>
             <h1>Plan</h1>
