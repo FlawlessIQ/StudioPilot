@@ -6,6 +6,21 @@ import { AppShell } from "@/components/layout/app-shell";
 
 export const metadata: Metadata = { title: "New project" };
 
-export default function NewProjectPage() {
-  return <AppShell active="Jobs"><div className="crm-form-page"><Link className="back-link" href="/studio/projects"><ArrowLeft size={15} /> Back to jobs</Link><div className="dashboard-heading"><div><p className="eyebrow">New project</p><h1>Create a project</h1><p>Start from the client&rsquo;s message, confirm the details, and the journey takes it from there.</p></div></div><CreateProjectForm /></div></AppShell>;
+/**
+ * Also the phone's share target (public/manifest.webmanifest): sharing a DM,
+ * a text or an email to StudioCue opens here with it already pasted, and the
+ * copilot reads it straight away.
+ */
+export default async function NewProjectPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ title?: string; text?: string; url?: string }>;
+}) {
+  const { title = "", text = "", url = "" } = await searchParams;
+  const shared = [title, text, url]
+    .map((part) => part.trim())
+    .filter((part, index, all) => part && all.indexOf(part) === index)
+    .join("\n\n")
+    .slice(0, 8000);
+  return <AppShell active="Jobs"><div className="crm-form-page"><Link className="back-link" href="/studio/projects"><ArrowLeft size={15} /> Back to jobs</Link><div className="dashboard-heading"><div><p className="eyebrow">New project</p><h1>Create a project</h1><p>Start from the client&rsquo;s message, confirm the details, and the journey takes it from there.</p></div></div><CreateProjectForm sharedMessage={shared || null} /></div></AppShell>;
 }

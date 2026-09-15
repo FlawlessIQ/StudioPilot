@@ -17678,3 +17678,46 @@ label {
     width: 100%;
   }
 }
+
+/* Leads: the studio's inquiry forwarding address. */
+.inquiry-forwarding {
+  align-items: center;
+  background: var(--ds-paper-raised, #fff);
+  border: 1px solid var(--ds-line, var(--line));
+  border-radius: 14px;
+  display: grid;
+  gap: 8px 12px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+}
+.inquiry-forwarding > svg {
+  color: var(--accent, #2f6b55);
+}
+.inquiry-forwarding > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.inquiry-forwarding strong {
+  font-size: 14px;
+}
+.inquiry-forwarding small {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.inquiry-forwarding code {
+  color: var(--ink);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 640px) {
+  .inquiry-forwarding {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .inquiry-forwarding > .button {
+    grid-column: 1 / -1;
+    justify-content: center;
+  }
+}

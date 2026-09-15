@@ -13,6 +13,13 @@ import {
   stripQuotedReply,
 } from "./inbound-email.js";
 import { conversationIdFromReplyToken } from "./reply-address.js";
+import {
+  inquirySignatureMatches,
+  inquiryTokenFromRecipients,
+  parseForwardedInquiry,
+} from "./forwarded-inquiry.js";
+import { createForwardedLead } from "../crm/forwarded-lead.js";
+import { findTenantBySlug } from "../crm/tenant-by-slug.js";
 import { gatherAnswerFacts } from "./answer-facts.js";
 import { studioNotificationAddress } from "./notify-address.js";
 import { prepareAnswerFor } from "./prepared-answers.js";
@@ -47,6 +54,8 @@ function equal(a: string | undefined, b: string | undefined) {
 type ParsedInbound = {
   messageId: string;
   token: string | null;
+  /** `inquiries+<slug>.<signature>` when forwarded to the studio's inquiry address. */
+  inquiry: { slug: string; signature: string } | null;
   from: string;
   fromName: string | null;
   subject: string;
@@ -97,6 +106,9 @@ function parseMultipart(request: Request) {
         resolve({
           messageId,
           token: replyTokenFromRecipients(
+            fields.to ?? fields.envelope ?? headers.To ?? "",
+          ),
+          inquiry: inquiryTokenFromRecipients(
             fields.to ?? fields.envelope ?? headers.To ?? "",
           ),
           from: sender.email,
@@ -185,6 +197,41 @@ export const sendgridInboundMessage = onRequest(
     if (isAutomatedEmail(parsed.headers)) {
       await quarantine("AUTOMATED", parsed, rawHash);
       response.status(200).json({ status: "ignored", reason: "AUTOMATED" });
+      return;
+    }
+
+    // Forwarded to the studio's inquiry address: a new lead, not a reply.
+    if (parsed.inquiry) {
+      const tenantDocument = await findTenantBySlug(db, parsed.inquiry.slug);
+      if (
+        !tenantDocument ||
+        !inquirySignatureMatches(tenantDocument.id, parsed.inquiry.signature)
+      ) {
+        await quarantine("INQUIRY_ADDRESS_INVALID", parsed, rawHash);
+        response.status(200).json({ status: "quarantined", reason: "UNMATCHED" });
+        return;
+      }
+      const inquiry = parseForwardedInquiry({
+        text: parsed.text,
+        forwarderEmail: parsed.from,
+        today: now.slice(0, 10),
+      });
+      if (!inquiry.message) {
+        await quarantine("EMPTY_BODY", parsed, rawHash);
+        response.status(200).json({ status: "quarantined", reason: "EMPTY_BODY" });
+        return;
+      }
+      const lead = await createForwardedLead({
+        db,
+        tenantId: tenantDocument.id,
+        inquiry,
+        subject: parsed.subject,
+        providerMessageId: parsed.messageId,
+        now,
+      });
+      response
+        .status(200)
+        .json({ status: lead.duplicate ? "duplicate" : "lead_created", id: lead.leadId });
       return;
     }
 

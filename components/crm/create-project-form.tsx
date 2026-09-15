@@ -128,7 +128,12 @@ function FilledTag() {
   );
 }
 
-export function CreateProjectForm() {
+export function CreateProjectForm({
+  sharedMessage = null,
+}: {
+  /** Text shared to StudioCue from another app; read as soon as it arrives. */
+  sharedMessage?: string | null;
+} = {}) {
   const workspace = useWorkspace();
   /**
    * A studio with no clients should not land on the tab that cannot work.
@@ -153,7 +158,8 @@ export function CreateProjectForm() {
     name: string;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(sharedMessage ?? "");
+  const sharedRead = useRef(false);
   const [reading, setReading] = useState(false);
   const [intake, setIntake] = useState<ProjectIntakeResult | null>(null);
   const [filled, setFilled] = useState<Partial<Record<FillableField, boolean>>>(
@@ -258,6 +264,16 @@ export function CreateProjectForm() {
    * beside them rather than replacing them, so choosing an address
    * improves every one of those without any of them changing.
    */
+  // Shared from another app: read it once the workspace is known, the same as
+  // pressing "Prepare the project".
+  useEffect(() => {
+    if (!sharedMessage || !workspace.tenantId || sharedRead.current) return;
+    sharedRead.current = true;
+    void Promise.resolve().then(runCopilot);
+    // runCopilot reads the latest message state; it is not a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sharedMessage, workspace.tenantId]);
+
   function applyVenue(place: CapturedPlace | null) {
     setVenue(place);
     setValue("venueName", place ? placeLabel(place).slice(0, 160) : "", {

@@ -4,6 +4,7 @@ import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { z } from "zod";
+import { inquiryAddressFor } from "./forwarded-inquiry.js";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { emailTemplateKeys } from "./email-templates.js";
@@ -83,6 +84,13 @@ const commandSchema = z.discriminatedUnion("type", [
     input: z.object({ templateId: z.string().min(1).max(200) }),
   }),
   z.object({
+    // Read-only: the studio's private address for forwarding inquiries.
+    type: z.literal("getInquiryForwardingAddress"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({}).default({}),
+  }),
+  z.object({
     type: z.literal("sendTemplateTest"),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
@@ -108,7 +116,8 @@ function canApprove(role: string) {
 }
 
 export const communicationsCommand = onRequest(
-  { cors: studioHubCors, invoker: "private" },
+  // The signing secret mints the studio's inquiry forwarding address.
+  { cors: studioHubCors, invoker: "private", secrets: ["INBOUND_REPLY_SIGNING_SECRET"] },
   async (request, response) => {
     if (request.method !== "POST") {
       response.status(405).json({ error: "METHOD_NOT_ALLOWED" });
@@ -132,6 +141,14 @@ export const communicationsCommand = onRequest(
       }
       // Whole-product billing gate (studio commands require a live subscription).
       await requireActiveSubscription(db, command.tenantId);
+      if (command.type === "getInquiryForwardingAddress") {
+        const tenant = await db.doc(`tenants/${command.tenantId}`).get();
+        const slug = String(tenant.get("publicSlug") ?? "");
+        response.status(200).json({
+          address: slug ? inquiryAddressFor(command.tenantId, slug) : null,
+        });
+        return;
+      }
       const executionId = stableId(
         "communications",
         command.tenantId,
