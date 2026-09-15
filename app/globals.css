@@ -15995,3 +15995,213 @@ label {
     font-size: 17px;
   }
 }
+
+/* ============================================================================
+   Create / edit forms on phones (new job, client, package, workflow, crew,
+   schedule; package detail). A short title instead of a desktop hero, one
+   inset on the form, "Required" beside its label rather than on a line of its
+   own, names paired side by side, and a full-width submit. The new-job copilot
+   stops being sticky: on one column it pinned over the form while scrolling.
+   ========================================================================== */
+@media (max-width: 640px) {
+  .ds-root :is(.crm-form-page, .crew-ops-page, .planning-page) > .back-link {
+    font-size: 12.5px;
+    margin: 0 0 6px;
+  }
+  .ds-root :is(.crm-form-page, .crew-ops-page, .planning-page) > :is(.dashboard-heading, .page-heading) {
+    border: 0;
+    margin: 0 0 12px;
+    min-height: 0;
+    padding: 0;
+  }
+  .ds-root :is(.crm-form-page, .crew-ops-page, .planning-page) > :is(.dashboard-heading, .page-heading)::before,
+  .ds-root :is(.crm-form-page, .crew-ops-page, .planning-page) > :is(.dashboard-heading, .page-heading) > div::before {
+    display: none;
+  }
+  .ds-root :is(.crm-form-page, .crew-ops-page, .planning-page) > :is(.dashboard-heading, .page-heading) .eyebrow {
+    display: none;
+  }
+  .ds-root :is(.crm-form-page, .crew-ops-page, .planning-page) > :is(.dashboard-heading, .page-heading) h1 {
+    font-size: 24px;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    margin: 0;
+  }
+  .ds-root :is(.crm-form-page, .crew-ops-page, .planning-page) > :is(.dashboard-heading, .page-heading) p {
+    font-size: 13px;
+    line-height: 1.45;
+    margin: 4px 0 0;
+  }
+  .ds-root :is(.crm-form-page, .crew-ops-page, .planning-page) > :is(.dashboard-heading, .page-heading) > svg {
+    display: none;
+  }
+
+  /* One inset. */
+  .ds-root :is(.crm-form-page, .crew-ops-page, .planning-page) :is(.command-form, .intake-form).panel,
+  .ds-root .crm-form-page form.panel {
+    border-radius: 16px;
+    gap: 16px;
+    padding: 16px;
+  }
+  .ds-root :is(.crm-form-page, .crew-ops-page, .planning-page) .form-grid {
+    gap: 12px 10px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .ds-root :is(.crm-form-page, .crew-ops-page, .planning-page) .form-grid > * {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+  /* Short pairs stay side by side: first/last name, type/date, city/timezone. */
+  .ds-root :is(.crm-form-page, .crew-ops-page, .planning-page) .form-grid > label:has(> input[name$="irstName" i]),
+  .ds-root :is(.crm-form-page, .crew-ops-page, .planning-page) .form-grid > label:has(> input[name$="astName" i]),
+  .ds-root :is(.crm-form-page, .crew-ops-page, .planning-page) .form-grid > label:has(> input[type="date"]):has(+ label > input[type="date"]),
+  .ds-root .intake-section .form-grid > label:has(> select[name="eventType"]),
+  .ds-root .intake-section .form-grid > label:has(> select[name="eventType"]) + label,
+  .ds-root :is(.crm-form-page, .crew-ops-page, .planning-page) .form-grid > label:has(> input[type="date"]) + label:has(> input[type="date"]) {
+    grid-column: auto;
+  }
+  .ds-root :is(.crm-form-page, .crew-ops-page, .planning-page) .form-grid label {
+    font-size: 13px;
+    gap: 6px;
+  }
+  .ds-root :is(.crm-form-page, .crew-ops-page, .planning-page) .form-grid label > small:empty {
+    display: none;
+  }
+  /* Labels are flex columns, so the mark shares a wrapping first line with
+     the label text and everything after it takes a full line. */
+  .ds-root :is(.crm-form-page, .crew-ops-page, .planning-page) label:has(> .required-mark) {
+    align-items: baseline;
+    flex-flow: row wrap;
+    row-gap: 6px;
+  }
+  .ds-root :is(.crm-form-page, .crew-ops-page, .planning-page) label:has(> .required-mark) > :not(.required-mark):not(.intake-filled-tag) {
+    flex: 1 1 100%;
+    margin-left: 0;
+  }
+  .ds-root :is(.crm-form-page, .crew-ops-page, .planning-page) .required-mark {
+    font-size: 9.5px;
+    letter-spacing: 0.06em;
+    margin-left: 6px;
+    vertical-align: 1px;
+  }
+  .ds-root :is(.crm-form-page, .crew-ops-page, .planning-page) :is(input, select, textarea) {
+    font-size: 16px;
+  }
+  .ds-root :is(.crm-form-page, .crew-ops-page, .planning-page) form > .button-dark,
+  .ds-root :is(.crm-form-page, .crew-ops-page, .planning-page) .intake-submit > .button-dark {
+    justify-content: center;
+    width: 100%;
+  }
+
+  /* New job: copilot flows with the page, and each section is tighter. */
+  .ds-root .intake-workspace {
+    gap: 12px;
+  }
+  .ds-root .intake-copilot {
+    border-radius: 16px;
+    gap: 10px;
+    padding: 16px;
+    position: static;
+  }
+  .ds-root .intake-copilot h2 {
+    font-size: 19px;
+  }
+  .ds-root .intake-copilot > p {
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .ds-root .intake-copilot textarea {
+    min-height: 88px;
+  }
+  .ds-root .intake-form {
+    gap: 20px;
+  }
+  .ds-root .intake-section legend {
+    font-size: 16px;
+    gap: 9px;
+    margin-bottom: 2px;
+  }
+  .ds-root .intake-section legend::before {
+    border-radius: 8px;
+    font-size: 12px;
+    height: 26px;
+    width: 26px;
+  }
+  .ds-root .intake-section .segmented-control {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .ds-root .intake-section .segmented-control button {
+    justify-content: center;
+  }
+  .ds-root .intake-submit {
+    display: grid;
+    gap: 8px;
+    justify-items: stretch;
+    text-align: center;
+  }
+
+  /* New crew member. */
+  .ds-root .crew-ops-page.crew-ops-page-single {
+    gap: 0;
+  }
+  .ds-root .crew-form-preview {
+    gap: 14px;
+    padding: 16px;
+  }
+  .ds-root .crew-form-preview form {
+    padding: 0;
+    gap: 12px 10px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .ds-root .crew-form-preview form > * {
+    grid-column: 1 / -1;
+  }
+  .ds-root .crew-form-preview form > label:has(> select[name="rateType"]),
+  .ds-root .crew-form-preview form > label:has(> input[name="rateDollars"]) {
+    grid-column: auto;
+  }
+  .ds-root .crew-form-preview form > .button {
+    justify-content: center;
+    justify-self: stretch;
+  }
+
+  /* Package detail: the edit form had no card at all. */
+  .ds-root .crm-form-page > .crm-form {
+    background: var(--ds-paper-raised, #fff);
+    border: 1px solid var(--ds-line, var(--line));
+    border-radius: 16px;
+    display: grid;
+    gap: 16px;
+    padding: 16px;
+  }
+  .ds-root .crm-form-page > .crm-form > .crm-form-grid {
+    display: grid;
+    gap: 12px;
+  }
+  .ds-root .crm-form-page > .crm-form label {
+    font-size: 13px;
+    font-weight: 620;
+  }
+  .ds-root .crm-form-page > .crm-form > .button-dark {
+    justify-content: center;
+    width: 100%;
+  }
+
+  /* Workflow checkpoints: the tag moves under the name instead of
+     squeezing it into three lines. */
+  .ds-root .checkpoint-picker > label {
+    align-items: start;
+    column-gap: 10px;
+    grid-template-columns: 18px minmax(0, 1fr);
+    row-gap: 4px;
+  }
+  .ds-root .checkpoint-picker > label > input {
+    margin-top: 2px;
+  }
+  .ds-root .checkpoint-picker > label > i {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
