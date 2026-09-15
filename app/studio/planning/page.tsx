@@ -4,6 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ProjectContextBar } from "@/components/studio/live-domain-view";
 import { PlanAreas } from "@/components/projects/plan-areas";
+import { WeddingBrief } from "@/components/projects/wedding-brief";
 
 export const metadata: Metadata = { title: "Project planning" };
 
@@ -22,7 +23,14 @@ export default async function PlanningPage({ searchParams }: { searchParams: Pro
         </header>
         {project ? <ProjectContextBar projectId={project} /> : null}
         {project ? (
-          <PlanAreas projectId={project} />
+          <>
+            {/* The brief leads: what needs you, what is out with others, and
+                the day as the couple described it. The six areas stay below as
+                the way into each record. */}
+            <WeddingBrief projectId={project} />
+            <h2 className="plan-areas-heading">Planning areas</h2>
+            <PlanAreas projectId={project} />
+          </>
         ) : (
           <section className="panel project-plan-empty">
             <h2>Choose a project first</h2>
