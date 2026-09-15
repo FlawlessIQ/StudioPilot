@@ -13527,98 +13527,215 @@ label {
   }
 }
 
-/* ============================================================
-   Jobs list — mobile card. The 660px rule dropped State and
-   Next-action (what a jobs list is FOR), and an earlier fix that
-   restored them stacked every field on its own line, so each card
-   ran very tall. Rebuild each row as a compact card: identity and
-   date/venue full-width, the state chip + phase track on one line,
-   and Next-action / Value paired side by side. nth-child selectors
-   match the stacking rule's specificity so this cleanly wins.
-   ============================================================ */
+/* ============================================================================
+   Jobs list on phones — dense rows, three lines each:
+     name ........................ value
+     date · venue
+     state chip + phase track .... owed / paid up
+     → next action · owner
+   The whole row is the tap target (the arrow link is stretched over it), the
+   type filter is a row of chips, and "New" sits on the tab row. Base (desktop)
+   hides the phone-only controls. .ds-root beats the .crm-table grid rules.
+   ========================================================================== */
+.crm-toolbar-new,
+.crm-type-chips {
+  display: none;
+}
 @media (max-width: 660px) {
-  .crm-projects-table article {
+  .ds-root .crm-page:has(.crm-projects-table) > .dashboard-heading {
+    display: none;
+  }
+  .ds-root .crm-table-panel:has(.crm-projects-table) {
+    padding: 0;
+    border-radius: 18px;
+  }
+  .ds-root .crm-table-panel:has(.crm-projects-table) > .crm-toolbar {
     display: grid;
-    grid-auto-flow: dense;
-    grid-template-columns: 1fr 1fr;
-    column-gap: 14px;
-    row-gap: 8px;
-    align-items: start;
-    padding: 14px 38px 14px 16px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px 8px;
+    min-height: 0;
+    padding: 12px 12px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .ds-root .crm-table-panel:has(.crm-projects-table) .crm-search-form {
+    display: none;
+  }
+  .ds-root .crm-toolbar-new {
+    align-items: center;
+    background: var(--ink);
+    border-radius: 999px;
+    color: var(--surface, #fff);
+    display: inline-flex;
+    font-size: 13px;
+    font-weight: 650;
+    gap: 5px;
+    height: 34px;
+    padding: 0 14px 0 11px;
+    text-decoration: none;
+  }
+  .ds-root .crm-type-chips {
+    display: flex;
+    gap: 6px;
+    grid-column: 1 / -1;
+    margin: 0 -12px;
+    overflow-x: auto;
+    padding: 0 12px;
+    scrollbar-width: none;
+  }
+  .ds-root .crm-type-chips::-webkit-scrollbar {
+    display: none;
+  }
+  .ds-root .crm-type-chips a {
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    flex: none;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 5px 12px;
+    text-decoration: none;
+  }
+  .ds-root .crm-type-chips a.active {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--surface, #fff);
+  }
+
+  .ds-root .crm-projects-table .crm-table-head {
+    display: none;
+  }
+  .ds-root .crm-projects-table article {
+    display: grid;
+    grid-template-areas:
+      "name value"
+      "when when"
+      "state owed"
+      "next next";
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 3px 12px;
+    align-items: center;
+    min-height: 0;
+    padding: 12px 14px 13px;
     position: relative;
   }
-  /* Re-show the columns the stacking rule hid; lay the card out. */
-  .crm-projects-table article > span:nth-child(1),
-  .crm-projects-table article > span:nth-child(2),
-  .crm-projects-table article > span:nth-child(3),
-  .crm-projects-table article > span:nth-child(4),
-  .crm-projects-table article > span:nth-child(5) {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
+  .ds-root .crm-projects-table article > span:nth-child(1) {
+    display: block;
+    grid-area: name;
     min-width: 0;
   }
-  .crm-projects-table article > span:nth-child(1) {
-    grid-column: 1 / -1;
-    gap: 1px;
-  }
-  .crm-projects-table article > span:nth-child(1) strong {
-    font-size: 16px;
+  .ds-root .crm-projects-table article > span:nth-child(1) strong {
+    display: block;
+    font-size: 15px;
     letter-spacing: -0.01em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  .crm-projects-table article > span:nth-child(1) small {
+  /* The event type is what the chips filter on; the row doesn't repeat it. */
+  .ds-root .crm-projects-table article > span:nth-child(1) small {
+    display: none;
+  }
+  .ds-root .crm-projects-table article > span:nth-child(2) {
+    display: block;
+    grid-area: when;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     color: var(--muted);
     font-size: 12.5px;
   }
-  .crm-projects-table article > span:nth-child(2) {
-    grid-column: 1 / -1;
-  }
-  .crm-projects-table article > span:nth-child(2) strong {
-    font-size: 13.5px;
-    font-weight: 600;
-  }
-  .crm-projects-table article > span:nth-child(2) small {
+  .ds-root .crm-projects-table article > span:nth-child(2) strong,
+  .ds-root .crm-projects-table article > span:nth-child(2) small {
+    display: inline;
     color: var(--muted);
     font-size: 12.5px;
+    font-weight: 500;
   }
-  /* State chip + phase track on one line. */
-  .crm-projects-table article > span:nth-child(3) {
-    grid-column: 1 / -1;
+  .ds-root .crm-projects-table article > span:nth-child(2) small::before {
+    content: " · ";
+  }
+  .ds-root .crm-projects-table article > span:nth-child(3) {
+    display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 10px;
-    margin-top: 1px;
+    gap: 9px;
+    grid-area: state;
+    margin-top: 5px;
+    min-width: 0;
   }
-  /* Next action (left) and Value (right), paired above a divider. */
-  .crm-projects-table article > span:nth-child(5) {
-    grid-column: 1;
-    grid-row: auto;
-    border-top: 1px solid var(--line);
-    padding-top: 9px;
+  .ds-root .crm-projects-table article > span:nth-child(3) .status-badge {
+    font-size: 11.5px;
+    padding: 2px 9px;
   }
-  .crm-projects-table article > span:nth-child(4) {
-    grid-column: 2;
-    grid-row: auto;
-    align-items: flex-end;
+  /* Value and what's owed split across the right column of lines 1 and 3. */
+  .ds-root .crm-projects-table article > span:nth-child(4) {
+    display: contents;
+  }
+  .ds-root .crm-projects-table article > span:nth-child(4) strong {
+    font-size: 14.5px;
+    font-variant-numeric: tabular-nums;
+    grid-area: value;
     text-align: right;
-    border-top: 1px solid var(--line);
-    padding-top: 9px;
   }
-  .crm-projects-table article > span:nth-child(4) strong,
-  .crm-projects-table article > span:nth-child(5) strong {
-    font-size: 14px;
-  }
-  .crm-projects-table article > span:nth-child(4) small,
-  .crm-projects-table article > span:nth-child(5) small {
+  .ds-root .crm-projects-table article > span:nth-child(4) small {
+    color: var(--muted);
     font-size: 12px;
-    color: var(--muted);
+    grid-area: owed;
+    margin-top: 5px;
+    text-align: right;
+    white-space: nowrap;
   }
-  .crm-projects-table article > a {
-    position: absolute;
-    top: 20px;
-    right: 14px;
-    transform: none;
+  .ds-root .crm-projects-table article > span:nth-child(4) small.is-overdue {
+    color: var(--danger, #a63c3a);
+    font-weight: 600;
+  }
+  .ds-root .crm-projects-table article > span:nth-child(5) {
+    display: block;
+    grid-area: next;
+    border-top: 0;
+    margin-top: 7px;
+    padding-top: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+  }
+  .ds-root .crm-projects-table article > span:nth-child(5)::before {
+    content: "→ ";
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .ds-root .crm-projects-table article > span:nth-child(5) strong {
+    display: inline;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .ds-root .crm-projects-table article > span:nth-child(5) small {
+    display: inline;
     color: var(--muted);
+    font-size: 12.5px;
+  }
+  .ds-root .crm-projects-table article > span:nth-child(5) small::before {
+    content: " · ";
+  }
+  /* The whole row opens the job; the arrow itself isn't needed. */
+  .ds-root .crm-projects-table article > a {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    transform: none;
+    width: auto;
+    height: auto;
+  }
+  .ds-root .crm-projects-table article > a svg {
+    display: none;
+  }
+  .ds-root .crm-projects-table article:active {
+    background: var(--soft, #f3f1ec);
   }
 }
 
