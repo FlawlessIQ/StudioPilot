@@ -16320,3 +16320,68 @@ label {
     width: 100%;
   }
 }
+
+/* ============================================================================
+   Plan the day (new schedule) on phones: lighter panel headers, the derived
+   coverage length on one line, and each draft item's sources and Remove
+   sharing a line.
+   ========================================================================== */
+@media (max-width: 640px) {
+  .ds-root .planning-page :is(.schedule-generator > .panel, .timing-rule-editor) {
+    padding: 16px;
+  }
+  .ds-root .planning-page :is(.schedule-generator > .panel, .timing-rule-editor) > .panel-heading {
+    margin-bottom: 12px;
+  }
+  .ds-root .planning-page :is(.schedule-generator > .panel, .timing-rule-editor) > .panel-heading > svg {
+    display: none;
+  }
+  .ds-root .planning-page :is(.schedule-generator > .panel, .timing-rule-editor) > .panel-heading h2 {
+    font-size: 17px;
+  }
+  .ds-root .planning-page :is(.schedule-generator > .panel, .timing-rule-editor) > .panel-heading p:not(.eyebrow) {
+    font-size: 12.5px;
+  }
+  .ds-root .schedule-generator-form label:has(> .schedule-derived-field) {
+    align-items: baseline;
+    display: flex;
+    justify-content: space-between;
+  }
+  .ds-root .schedule-generate-actions {
+    display: grid;
+    gap: 8px;
+    justify-self: stretch;
+    width: 100%;
+  }
+  .ds-root .schedule-generate-actions .button {
+    justify-content: center;
+    width: 100%;
+  }
+  .ds-root .schedule-draft-items article {
+    align-items: center;
+    gap: 8px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 12px 0;
+  }
+  .ds-root .schedule-draft-items article > input {
+    grid-column: 1 / -1;
+  }
+  .ds-root .schedule-draft-items article > input:first-child {
+    font-weight: 650;
+  }
+  .ds-root .schedule-draft-items article > .schedule-item-sources {
+    grid-column: 1;
+    grid-row: 5;
+    min-width: 0;
+  }
+  .ds-root .schedule-draft-items article > .schedule-item-remove {
+    grid-column: 2;
+    grid-row: 5;
+    justify-self: end;
+  }
+  .ds-root .timing-rule-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
