@@ -36,7 +36,12 @@ export async function POST(request: Request): Promise<Response> {
     const recipients = `${envelope}\n${to}`;
     if (/gallery\+[A-Za-z0-9_-]{20,300}@/i.test(recipients)) {
       functionName = "sendgridInboundGallery";
-    } else if (/reply\+[A-Za-z0-9_.-]{16,400}@/i.test(recipients)) {
+    } else if (
+      /reply\+[A-Za-z0-9_.-]{16,400}@/i.test(recipients) ||
+      // A studio forwarding an inquiry to its private address. The message
+      // function reads `inquiries+<slug>.<signature>` and verifies it.
+      /inquiries\+[a-z0-9-]{2,80}\.[A-Za-z0-9_-]{11}@/i.test(recipients)
+    ) {
       // A client replying to a studio message. Checked after gallery so the
       // narrower prefixes keep priority, and the COI default stays the fallback
       // for anything unrecognised.
