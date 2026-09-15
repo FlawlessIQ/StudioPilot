@@ -1458,3 +1458,35 @@
     white-space: nowrap;
   }
 }
+
+/* Setup on phones: "Done" sits beside a finished question instead of on a
+   line of its own, and the rows are a little tighter. */
+@media (max-width: 640px) {
+  .setup-questions li {
+    gap: 4px 12px;
+    grid-template-columns: 26px minmax(0, 1fr) auto;
+    padding: 14px;
+  }
+  .setup-questions li > .setup-question-body {
+    grid-column: 2 / -1;
+  }
+  .setup-questions li.is-done > .setup-question-body {
+    grid-column: 2;
+  }
+  .setup-questions li > .setup-question-done {
+    align-self: start;
+    grid-column: 3;
+    grid-row: 1;
+    margin: 3px 0 0;
+  }
+  .setup-questions li > .button {
+    font-size: 13px;
+    grid-column: 2 / -1;
+    justify-self: start;
+    margin-top: 8px;
+    min-height: 36px;
+  }
+  .setup-question-body strong {
+    font-size: 16px;
+  }
+}
