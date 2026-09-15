@@ -15091,3 +15091,310 @@ label {
     margin: 0 12px 8px;
   }
 }
+/* ============================================================================
+   Job page on phones — the first screen answers "what is this job and what do
+   I do next". A tight identity header, the facts as one wrapping chip line,
+   readiness as a single slim row, the section tabs full width, then the next
+   move leads the page (the thread's children are ordered into .job-mobile so
+   the next-move card sits above the plan, and history + composer follow it).
+   The rail controls — move forward, something changed — drop to the bottom
+   as quiet rows.
+   ========================================================================== */
+@media (max-width: 640px) {
+  .ds-root .project-detail-page {
+    gap: 12px;
+  }
+  .ds-root .project-detail-page > .back-link {
+    font-size: 12.5px;
+    margin: -4px 0 -4px;
+  }
+  .ds-root .project-detail-page > .project-detail-header {
+    border: 0;
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+  }
+  .ds-root .project-detail-header .eyebrow,
+  .ds-root .project-detail-page > .project-detail-header::before {
+    display: none;
+  }
+  .ds-root .project-detail-header .project-title-line {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+  }
+  .ds-root .project-detail-header h1 {
+    font-size: 24px;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    margin: 0;
+  }
+  .ds-root .project-detail-header .project-title-line + p {
+    color: var(--muted);
+    font-size: 13px;
+    margin: 3px 0 0;
+  }
+  /* Readiness: meter, number and the blocker sentence on one slim row. */
+  .ds-root .project-detail-header .project-readiness-summary {
+    align-items: center;
+    border-radius: 14px;
+    box-shadow: none;
+    display: grid;
+    gap: 10px;
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 8px 12px 8px 8px;
+  }
+  .ds-root .project-readiness-summary > .readiness-meter {
+    grid-column: 1;
+    grid-row: 1;
+    height: 38px;
+    width: 38px;
+  }
+  .ds-root .project-readiness-summary > .readiness-meter svg {
+    height: 38px;
+    width: 38px;
+  }
+  .ds-root .project-readiness-summary > .readiness-meter strong {
+    font-size: 11px;
+  }
+  .ds-root .project-readiness-summary > span {
+    display: grid;
+    gap: 0;
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+  }
+  .ds-root .project-readiness-summary > span > small:first-child {
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    text-transform: none;
+  }
+  .ds-root .project-readiness-summary > span > strong {
+    display: none;
+  }
+  .ds-root .project-readiness-summary .project-readiness-gap,
+  .ds-root .project-readiness-summary .project-readiness-clear {
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ds-root .project-detail-page > .project-workspace-nav {
+    display: grid;
+    gap: 2px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0;
+    padding: 3px;
+    border-radius: 12px;
+  }
+  .ds-root .project-detail-page > .project-workspace-nav a {
+    font-size: 12.5px;
+    justify-content: center;
+    min-height: 34px;
+    padding: 0 4px;
+  }
+  .ds-root .project-detail-page > .project-workspace-nav a svg {
+    display: none;
+  }
+
+  /* Facts: one wrapping line of chips instead of three stacked rows. */
+  .ds-root .project-detail-page > .project-facts {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+  }
+  .ds-root .project-detail-page > .project-facts > span {
+    align-items: center;
+    background: var(--ds-paper-raised, #fff);
+    border: 1px solid var(--ds-line, var(--line));
+    border-radius: 999px;
+    display: inline-flex;
+    gap: 6px;
+    max-width: 100%;
+    min-height: 0;
+    min-width: 0;
+    padding: 5px 11px 5px 9px;
+  }
+  .ds-root .project-detail-page > .project-facts > span svg {
+    color: var(--muted);
+    flex: none;
+    height: 14px;
+    width: 14px;
+  }
+  .ds-root .project-detail-page > .project-facts small {
+    display: none;
+  }
+  .ds-root .project-detail-page > .project-facts strong {
+    font-size: 12.5px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ds-root .project-detail-page > .project-facts .project-fact-countdown {
+    color: var(--muted);
+    font-size: 12px;
+    font-style: normal;
+    margin: 0;
+    white-space: nowrap;
+  }
+  .ds-root .project-detail-page > .project-facts .project-fact-countdown::before {
+    content: "· ";
+  }
+
+  /* Order: next move → plan (prepared + journey) → history → composer →
+     the advance / interruption controls. */
+  .ds-root .job-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .ds-root .job-mobile > .job-thread {
+    display: contents;
+  }
+  .ds-root .job-mobile > .job-thread > .thread-next-slot {
+    order: 0;
+  }
+  .ds-root .job-mobile > .project-job-plan {
+    order: 1;
+  }
+  .ds-root .job-mobile > .job-thread > .job-history-strip {
+    order: 2;
+  }
+  .ds-root .job-mobile > .job-thread > :not(.thread-next-slot):not(.job-history-strip) {
+    order: 3;
+  }
+  .ds-root .job-mobile > .job-rail-card {
+    order: 4;
+  }
+
+  /* Next move: same card, less air. */
+  .ds-root .job-mobile .thread-next {
+    border-radius: 18px;
+    gap: 12px;
+    padding: 16px;
+  }
+  .ds-root .job-mobile .thread-next-copy strong {
+    font-size: 18px;
+    line-height: 1.25;
+  }
+  .ds-root .job-mobile .thread-next-copy small {
+    font-size: 13px;
+  }
+  .ds-root .job-mobile .thread-next-actions {
+    display: grid;
+    gap: 8px;
+    justify-content: stretch;
+    width: 100%;
+  }
+  .ds-root .job-mobile .thread-next-go {
+    justify-content: space-between;
+    min-height: 42px;
+    width: 100%;
+  }
+
+  /* Prepared for you: header on one line, each decision a two-line row. */
+  .ds-root .job-mobile .project-prepared-tray {
+    padding: 14px;
+  }
+  .ds-root .job-mobile .project-prepared-tray > header {
+    align-items: baseline;
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .ds-root .job-mobile .project-prepared-tray > header > span,
+  .ds-root .job-mobile .project-prepared-tray > header p {
+    display: none;
+  }
+  .ds-root .job-mobile .project-prepared-tray > header h2 {
+    font-size: 16px;
+    margin: 0;
+  }
+  .ds-root .job-mobile .project-prepared-compact {
+    display: grid;
+    gap: 6px;
+  }
+  .ds-root .job-mobile .prepared-compact-row {
+    align-items: center;
+    display: grid;
+    gap: 10px;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    padding: 9px 8px 9px 10px;
+  }
+  .ds-root .job-mobile .prepared-compact-icon {
+    border-radius: 9px;
+    height: 30px;
+    width: 30px;
+  }
+  .ds-root .job-mobile .prepared-compact-body {
+    display: grid;
+    gap: 1px;
+    min-width: 0;
+  }
+  .ds-root .job-mobile .prepared-compact-body > small {
+    display: none;
+  }
+  .ds-root .job-mobile .prepared-compact-body > strong,
+  .ds-root .job-mobile .prepared-compact-body > em {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ds-root .job-mobile .prepared-compact-body > strong {
+    font-size: 13.5px;
+    line-height: 1.3;
+  }
+  .ds-root .job-mobile .prepared-compact-body > em {
+    font-size: 12px;
+  }
+  .ds-root .job-mobile .prepared-compact-row > .ai-confidence {
+    font-size: 11px;
+    grid-column: 3;
+    grid-row: 1;
+    margin: 0;
+    padding: 2px 7px;
+  }
+  .ds-root .job-mobile .prepared-compact-more {
+    min-height: 36px;
+  }
+
+  /* Composer: a shorter box. */
+  .ds-root .job-mobile .thread-composer-input textarea {
+    min-height: 64px;
+  }
+
+  /* Rail controls at the bottom, quiet. */
+  .ds-root .job-mobile > .job-rail-card {
+    padding: 0;
+  }
+  .ds-root .job-mobile > .job-rail-card > details {
+    margin: 0;
+    padding: 0;
+  }
+  .ds-root .job-mobile > .job-rail-card > details > summary {
+    font-size: 13.5px;
+    padding: 13px 14px;
+  }
+  .ds-root .job-mobile > .job-rail-card > details > form {
+    margin: 0 14px 14px;
+  }
+
+  .ds-root .project-detail-page > .project-detail-disclosure > summary {
+    align-items: center;
+    gap: 12px;
+  }
+  .ds-root .project-detail-page > .project-detail-disclosure > summary em {
+    flex: none;
+    font-size: 12.5px;
+    white-space: nowrap;
+  }
+}
