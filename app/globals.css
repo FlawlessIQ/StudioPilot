@@ -16952,3 +16952,115 @@ label {
     display: none;
   }
 }
+
+/* ============================================================================
+   Insights (reports) on phones. The title repeats the top bar, so the header
+   is just its three actions on one row; the range filter is dates side by
+   side; metrics and outcomes are two-up tiles instead of a tall card each.
+   ========================================================================== */
+@media (max-width: 640px) {
+  .ds-root .report-page {
+    gap: 12px;
+  }
+  .ds-root .report-page > .page-heading {
+    border: 0;
+    display: block;
+    margin: 0;
+    min-height: 0;
+    padding: 0;
+  }
+  .ds-root .report-page > .page-heading::before,
+  .ds-root .report-page > .page-heading > div:first-child {
+    display: none;
+  }
+  .ds-root .report-page .report-actions {
+    display: grid;
+    gap: 6px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .ds-root .report-page .report-actions .button {
+    font-size: 12px;
+    gap: 5px;
+    justify-content: center;
+    min-height: 36px;
+    padding: 0 6px;
+    white-space: nowrap;
+  }
+  .ds-root .report-page .report-actions .button svg {
+    height: 14px;
+    width: 14px;
+  }
+  .ds-root .report-page > .report-filters {
+    display: grid;
+    gap: 8px 10px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    padding: 12px;
+  }
+  .ds-root .report-page > .report-filters > .report-filter-heading {
+    display: none;
+  }
+  .ds-root .report-page > .report-filters > label {
+    font-size: 12px;
+    min-width: 0;
+  }
+  .ds-root .report-page > .report-filters > label:last-child {
+    grid-column: 1 / -1;
+  }
+  .ds-root .report-page > .report-filters input {
+    font-size: 14px;
+    min-width: 0;
+    width: 100%;
+  }
+  .ds-root .report-page > .report-metrics,
+  .ds-root .report-page .report-performance-grid {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ds-root .report-page > .report-metrics > .report-metric-card,
+  .ds-root .report-page .report-performance-grid > article {
+    border-radius: 12px;
+    display: block;
+    min-height: 0;
+    padding: 10px 12px;
+  }
+  .ds-root .report-page .report-metric-icon,
+  .ds-root .report-page .report-performance-grid > article > svg,
+  .ds-root .report-page .report-performance-grid > article p {
+    display: none;
+  }
+  .ds-root .report-page :is(.report-metric-copy, .report-performance-grid > article > span) {
+    display: grid;
+    gap: 2px;
+  }
+  .ds-root .report-page :is(.report-metric-copy, .report-performance-grid > article > span) small {
+    font-size: 10.5px;
+    letter-spacing: 0.02em;
+    line-height: 1.25;
+  }
+  .ds-root .report-page :is(.report-metric-copy, .report-performance-grid > article > span) strong {
+    font-size: 19px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+  }
+  .ds-root .report-page .report-metric-copy > span {
+    font-size: 11px;
+    line-height: 1.3;
+  }
+  .ds-root .report-page .report-layout {
+    gap: 10px;
+  }
+  .ds-root .report-page .report-chart-card {
+    padding: 14px 16px;
+  }
+  .ds-root .report-page .report-chart-card .panel-heading h2,
+  .ds-root .report-page .report-performance-section .section-heading-row h2 {
+    font-size: 17px;
+  }
+  .ds-root .report-page .report-performance-section .section-heading-row .eyebrow {
+    display: none;
+  }
+  .ds-root .report-page .report-performance-grid + .report-performance-grid {
+    margin-top: 8px;
+  }
+}
