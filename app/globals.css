@@ -16660,3 +16660,115 @@ label {
     grid-row: 1;
   }
 }
+
+/* ============================================================================
+   Subscription on phones: once the trial is running the heading repeats the top
+   bar, so only the plan status stays (before it, the heading says "Start your
+   14-day trial" and is kept); usage becomes one card of slim rows; plan cards lose some air.
+   ========================================================================== */
+@media (max-width: 640px) {
+  .ds-root .saas-page:has(> .usage-grid:not([hidden])) > .page-heading {
+    border: 0;
+    margin: 0 0 12px;
+    min-height: 0;
+    padding: 0;
+  }
+  .ds-root .saas-page:has(> .usage-grid:not([hidden])) > .page-heading::before,
+  .ds-root .saas-page:has(> .usage-grid:not([hidden])) > .page-heading > div:first-child {
+    display: none;
+  }
+  .ds-root .saas-page .subscription-status {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+  }
+  .ds-root .saas-page > .usage-grid:not([hidden]) {
+    background: var(--ds-paper-raised, #fff);
+    border: 1px solid var(--ds-line, var(--line));
+    border-radius: 16px;
+    display: grid;
+    gap: 0;
+    margin-bottom: 16px;
+    padding: 4px 14px;
+  }
+  .ds-root .saas-page > .usage-grid > .usage-card {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    border-top: 1px solid var(--ds-line, var(--line));
+    box-shadow: none;
+    display: grid;
+    gap: 12px;
+    grid-template-columns: 30px minmax(0, 1fr);
+    min-height: 0;
+    padding: 10px 0;
+  }
+  .ds-root .saas-page > .usage-grid > .usage-card:first-child {
+    border-top: 0;
+  }
+  .ds-root .saas-page .usage-card-icon {
+    border-radius: 9px;
+    height: 30px;
+    width: 30px;
+  }
+  .ds-root .saas-page .usage-card-icon svg {
+    height: 15px;
+    width: 15px;
+  }
+  .ds-root .saas-page .usage-card > span:last-child {
+    align-items: baseline;
+    column-gap: 10px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 4px;
+  }
+  .ds-root .saas-page .usage-card small {
+    font-size: 12.5px;
+  }
+  .ds-root .saas-page .usage-card strong {
+    font-family: inherit;
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 650;
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .ds-root .saas-page .usage-card em {
+    display: none;
+  }
+  .ds-root .saas-page .usage-card i {
+    grid-column: 1 / -1;
+    margin: 0;
+  }
+  .ds-root .subscription-plan-section .section-heading-row h2 {
+    font-size: 18px;
+  }
+  .ds-root .subscription-plan-section .section-heading-row .eyebrow {
+    display: none;
+  }
+  .ds-root .plan-grid {
+    gap: 10px;
+  }
+  .ds-root .plan-grid > .plan-card {
+    gap: 10px;
+    padding: 16px;
+  }
+  .ds-root .plan-grid > .plan-card > strong {
+    font-size: 30px;
+  }
+  .ds-root .plan-grid > .plan-card li {
+    font-size: 13.5px;
+    padding: 3px 0;
+  }
+  .ds-root .plan-grid > .plan-card .plan-billing-actions {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: 1fr 1fr;
+  }
+  .ds-root .plan-grid > .plan-card .plan-billing-actions .button {
+    font-size: 13px;
+    padding: 0 8px;
+  }
+}
