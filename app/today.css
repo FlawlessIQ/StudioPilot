@@ -1191,3 +1191,270 @@
   cursor: pointer;
 }
 .today-lane-more:active { transform: scale(0.99); }
+
+/* ============================================================================
+   Today on phones — second pass. The hero is a slim banner (the lead item, a
+   compact go button, and the countdown + stats as one strip), each queue card
+   reads in three lines with its facts and actions sharing the last one, and
+   the rail below becomes quiet rows — its "In this queue" jump list repeats
+   the band labels directly above it, so it steps aside.
+   ========================================================================== */
+@media (max-width: 640px) {
+  .ds-root .today-hero {
+    border-radius: 18px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px 0;
+    padding: 16px 16px 14px;
+  }
+  .ds-root .today-hero-copy {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+  .ds-root .today-hero-eyebrow {
+    font-size: 10.5px;
+    margin-bottom: 6px;
+  }
+  .ds-root .today-hero h1,
+  .ds-root .today-hero h1.is-long {
+    font-size: 20px;
+    letter-spacing: -0.015em;
+    line-height: 1.22;
+  }
+  .ds-root .today-hero-sub {
+    font-size: 13px;
+    line-height: 1.4;
+    margin-top: 4px;
+  }
+  .ds-root .today-hero-go {
+    font-size: 13.5px;
+    margin-top: 12px;
+    min-height: 38px;
+    padding: 0 16px;
+    display: inline-flex;
+    justify-self: start;
+    width: auto;
+  }
+  /* Countdown and stats share one strip under a hairline. */
+  .ds-root .today-hero > .today-countdown,
+  .ds-root .today-hero > .today-hero-stats {
+    border-top: 1px solid rgb(255 255 255 / 14%);
+    margin: 0;
+    padding-top: 12px;
+  }
+  .ds-root .today-hero > .today-countdown {
+    align-items: baseline;
+    display: flex;
+    flex-wrap: nowrap;
+    grid-column: 1;
+    gap: 5px;
+    min-width: 0;
+  }
+  .ds-root .today-hero > .today-countdown .today-countdown-number {
+    font-size: 24px;
+  }
+  .ds-root .today-hero > .today-countdown .today-countdown-unit {
+    font-size: 10px;
+    white-space: nowrap;
+  }
+  .ds-root .today-hero > .today-countdown strong {
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ds-root .today-hero > .today-hero-stats {
+    display: flex;
+    gap: 16px;
+    grid-column: 2;
+    padding-left: 12px;
+  }
+  /* No countdown: the stats take the whole strip. */
+  .ds-root .today-hero > .today-hero-copy + .today-hero-stats {
+    grid-column: 1 / -1;
+    padding-left: 0;
+  }
+  .ds-root .today-hero-stats .today-stat {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 1px;
+    padding: 0;
+    border: 0;
+  }
+  .ds-root .today-hero-stats .today-stat dd {
+    font-size: 20px;
+    line-height: 1;
+    margin: 0;
+  }
+  .ds-root .today-hero-stats .today-stat dt {
+    font-size: 9.5px;
+    white-space: nowrap;
+  }
+  .ds-root .today-hero-stats .today-stat small {
+    display: none;
+  }
+
+  .ds-root .today-main {
+    gap: 18px;
+  }
+  .ds-root .today-lane-heading {
+    margin-bottom: 2px;
+  }
+
+  /* Cards: title (+ job), one-line detail, then facts ··· actions. */
+  .ds-root .today-card {
+    gap: 4px;
+    padding: 11px 12px 11px 13px;
+  }
+  /* The body's lines join the card grid so facts (left) and actions (right)
+     can share the last row. */
+  .ds-root .today-card.has-glyph {
+    align-items: center;
+    column-gap: 10px;
+    display: grid;
+    grid-template-columns: 26px minmax(0, 1fr) auto;
+    row-gap: 3px;
+  }
+  .ds-root .today-card.has-glyph > .kind-glyph {
+    align-self: start;
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+  .ds-root .today-card.has-glyph > .today-card-body {
+    display: contents;
+  }
+  .ds-root .today-card.has-glyph .today-card-body > :not(.today-card-facts) {
+    grid-column: 2 / -1;
+  }
+  .ds-root .today-card.has-glyph .today-card-facts {
+    grid-column: 2;
+    margin-top: 5px;
+    min-width: 0;
+  }
+  .ds-root .today-card.has-glyph > .today-card-actions {
+    grid-column: 3;
+    grid-row: auto / span 1;
+    justify-content: flex-end;
+    margin-top: 5px;
+  }
+  /* Act cards carry a longer action pair ("Open timeline" + "Open the job"),
+     so their facts keep a line of their own and the actions sit under them. */
+  .ds-root .today-card.is-act.has-glyph .today-card-facts {
+    grid-column: 2 / -1;
+  }
+  .ds-root .today-card.is-act.has-glyph > .today-card-actions,
+  .ds-root .today-card.has-glyph:not(:has(.today-card-facts)) > .today-card-actions {
+    grid-column: 2 / -1;
+    justify-content: flex-start;
+  }
+  .ds-root .today-card .kind-glyph {
+    height: 26px !important;
+    width: 26px !important;
+  }
+  .ds-root .today-card-title {
+    align-items: baseline;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 8px;
+  }
+  .ds-root .today-card-title strong {
+    font-size: 14.5px;
+  }
+  .ds-root .today-card-title em {
+    font-size: 12px;
+  }
+  .ds-root .today-card-body > p {
+    font-size: 12.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ds-root .today-card .today-card-evidence {
+    display: none;
+  }
+  .ds-root .today-card-facts {
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+  .ds-root .today-card-facts li {
+    min-width: 0;
+  }
+  .ds-root .today-card-actions {
+    align-items: center;
+    display: flex;
+    gap: 4px 12px;
+    margin-top: 4px;
+  }
+  .ds-root .today-card-primary {
+    font-size: 12.5px;
+    min-height: 32px;
+    padding: 0 13px;
+  }
+  .ds-root .today-card-secondary {
+    font-size: 12.5px;
+  }
+
+  /* Rail: no jump list, upcoming as tight rows, in-motion as one line. */
+  .ds-root .today-rail {
+    gap: 10px;
+  }
+  .ds-root .today-rail-card:has(.today-rail-jump) {
+    display: none;
+  }
+  .ds-root .today-rail-card {
+    border-radius: 14px;
+    padding: 12px 14px;
+  }
+  .ds-root .today-rail-card .eyebrow {
+    margin-bottom: 4px;
+  }
+  .ds-root .today-upcoming li a {
+    align-items: baseline;
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+    padding: 7px 0;
+  }
+  .ds-root .today-upcoming li a strong {
+    font-size: 14px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ds-root .today-upcoming li a small {
+    flex: none;
+    font-size: 12px;
+    margin: 0;
+  }
+  .ds-root .today-rail-card.is-quiet {
+    align-items: center;
+    display: grid;
+    gap: 0 10px;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .ds-root .today-rail-card.is-quiet .eyebrow {
+    grid-column: 2;
+    grid-row: 1;
+    margin: 0;
+  }
+  .ds-root .today-rail-card.is-quiet .today-rail-count {
+    font-size: 22px;
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    line-height: 1;
+    margin: 0;
+  }
+  .ds-root .today-rail-card.is-quiet small {
+    font-size: 12px;
+    grid-column: 2;
+    grid-row: 2;
+    line-height: 1.35;
+  }
+  .ds-root .today-rail-card.is-quiet > a {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    margin: 0;
+    white-space: nowrap;
+  }
+}
