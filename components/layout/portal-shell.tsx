@@ -377,7 +377,10 @@ function ClientPortalShell({
             <span className="ds-crumb">
               <b>Portal ·</b> {resolvedActive}
             </span>
-            <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--ds-muted)" }}>
+            <span
+              className="ds-topbar-tenant"
+              style={{ marginLeft: "auto", fontSize: 13, color: "var(--ds-muted)" }}
+            >
               {workspace.tenantName}
             </span>
             <SignOutButton className="ds-btn ds-btn-ghost ds-btn-sm" />

@@ -17126,3 +17126,157 @@ label {
     padding: 12px 14px;
   }
 }
+
+/* ============================================================================
+   Client portal, crew portal and public pages on phones.
+   - Portal top bars: the studio name crowded the page title ("Questionnair…")
+     beside Sign out; on a phone the title and Sign out are enough.
+   - Client portal pages: a smaller serif title with less air above it, the
+     proposal's event facts as a two-up grid, and full-width actions.
+   - Public inquiry form: short fields paired, no empty hint rows, a smaller
+     intro. Sign-up: "Required" beside its label, not on a line of its own.
+   ========================================================================== */
+@media (max-width: 640px) {
+  .ds-root .ds-topbar .ds-topbar-tenant {
+    display: none;
+  }
+  .ds-root .ds-topbar .ds-crumb {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ds-root .ds-topbar .ds-crumb + .ds-topbar-tenant + * {
+    margin-left: auto;
+  }
+
+  /* Client portal pages. */
+  .ds-root .client-booking-page {
+    gap: 12px;
+    padding-top: 0;
+  }
+  .ds-root .client-booking-page > .eyebrow {
+    margin-bottom: 0;
+  }
+  .ds-root :is(.client-proposal-heading, .client-post-event, .portal-hero) h1 {
+    font-size: 30px;
+    letter-spacing: -0.02em;
+    line-height: 1.08;
+    margin-bottom: 6px;
+  }
+  .ds-root .crew-portal-hero h1 {
+    font-size: 26px;
+    line-height: 1.1;
+  }
+  .ds-root .client-booking-page > h1 {
+    font-size: 28px;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    margin: 2px 0 0;
+  }
+  .ds-root .client-booking-page > h1 + p {
+    font-size: 14px;
+    line-height: 1.45;
+    margin: 4px 0 0;
+  }
+  .ds-root .client-proposal-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ds-root .client-proposal-summary > span {
+    min-width: 0;
+    padding: 12px 14px;
+  }
+  .ds-root .client-proposal-summary > span strong {
+    font-size: 14.5px;
+    overflow-wrap: anywhere;
+  }
+  .ds-root .client-booking-page .panel :is(.button-dark, .button-light):not(.button-sm) {
+    justify-content: center;
+    width: 100%;
+  }
+  .ds-root .client-post-event {
+    padding-top: 0;
+  }
+  .ds-root .client-post-event .gallery-art {
+    min-height: 0;
+    height: 120px;
+  }
+  .ds-root .client-document-list > article {
+    align-items: center;
+    column-gap: 12px;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .ds-root .client-document-list > article > :last-child:is(a, button) {
+    grid-column: 3;
+    grid-row: 1;
+    white-space: nowrap;
+  }
+
+  /* Public inquiry form. */
+  .inquiry-page .inquiry-intro h1 {
+    font-size: 30px;
+    line-height: 1.08;
+  }
+  .inquiry-page .inquiry-intro > p {
+    font-size: 14px;
+  }
+  .inquiry-form .form-grid {
+    gap: 12px 10px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .inquiry-form .form-grid > * {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+  .inquiry-form .form-grid > label:has(> input[name="firstName"]),
+  .inquiry-form .form-grid > label:has(> input[name="lastName"]),
+  .inquiry-form .form-grid > label:has(> input[name="eventDate"]),
+  .inquiry-form .form-grid > label:has(> select[name="eventType"]),
+  .inquiry-form .form-grid > label:has(> input[name="estimatedGuestCount"]),
+  .inquiry-form .form-grid > label:has(> select[name="budgetRange"]) {
+    grid-column: auto;
+  }
+  .inquiry-form .form-grid label > small:empty {
+    display: none;
+  }
+  .inquiry-form :is(input, select, textarea) {
+    font-size: 16px;
+  }
+
+  /* Sign-in / sign-up. */
+  .sign-in-form label:has(> .required-mark) {
+    align-items: baseline;
+    flex-flow: row wrap;
+    row-gap: 6px;
+  }
+  .sign-in-form label:has(> .required-mark) > :not(.required-mark) {
+    flex: 1 1 100%;
+  }
+  .sign-in-form .required-mark {
+    display: inline;
+    font-size: 9.5px;
+    margin-left: 6px;
+  }
+}
+
+/* The venue picker drew a bordered input inside its own bordered box: form
+   input rules (.form-grid input, and .ds-root input:not(...) at 0,4,1) out-rank
+   .address-field-input input, so this matches their specificity. The wrapper is the field; the input inside it stays bare. */
+.address-field .address-field-input input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.ds-root .address-field .address-field-input input:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  min-height: 42px;
+  padding: 0;
+}
+
+/* An icon inside a text field (reset-password email): the field's padding was
+   overridden by the .ds-root input rule, so the envelope sat on top of the
+   placeholder. Match that rule's specificity to keep the room for the icon. */
+.input-with-icon > input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.ds-root .input-with-icon > input:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
+  padding-left: 40px;
+}
