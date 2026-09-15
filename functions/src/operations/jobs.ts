@@ -32,6 +32,11 @@ import {
   reconcileQuickBooksInvoice,
   uploadDropboxDocument,
 } from "./provider-runtime.js";
+import {
+  chargeSavedCard,
+  removeQuickBooksCard,
+  saveQuickBooksCard,
+} from "../billing/autopay.js";
 
 type Result = Record<string, unknown>;
 
@@ -349,6 +354,9 @@ async function providerJob(document: DocumentSnapshot) {
     return uploadDropboxDocument(document);
   if (type === "add_crew_calendar_invite")
     return addCrewCalendarInvite(document);
+  if (type === "save_quickbooks_card") return saveQuickBooksCard(document);
+  if (type === "remove_quickbooks_card") return removeQuickBooksCard(document);
+  if (type === "charge_saved_card") return chargeSavedCard(document);
   throw new Error("UNSUPPORTED_PROVIDER_JOB");
 }
 

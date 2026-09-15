@@ -7,6 +7,12 @@
  */
 
 const FRIENDLY_BY_CODE: Record<string, string> = {
+  QUICKBOOKS_PAYMENTS_NOT_GRANTED:
+    "QuickBooks hasn't given StudioCue permission to take payments yet. Reconnect QuickBooks for payments first. Your QuickBooks Payments application needs to be approved before that works.",
+  AUTOPAY_UNAVAILABLE:
+    "Saving a card isn't available for this booking right now. You can still pay with the invoice link.",
+  PAYMENT_METHOD_NOT_FOUND:
+    "That card is no longer saved. Refresh the page to see your payment details.",
   ACTIVE_SUBSCRIPTION_REQUIRED:
     "Your trial hasn't started yet. Add a card under Studio settings → Subscription to start it, then try again. If your subscription lapsed, update your card there to reactivate.",
   AI_OUTPUT_INVALID:

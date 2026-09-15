@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { FinalInvoiceReconciliation } from "@/components/planning/final-invoice-reconciliation";
 import { StudioDomainPage } from "@/components/studio/live-domain-view";
+import { AutopayHint } from "@/components/integrations/autopay-hint";
 
 export default async function InvoicesPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
   const { project } = await searchParams;
@@ -13,6 +14,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
         description="See retainer and final invoice status synced from QuickBooks."
         projectId={project}
       />
+      <AutopayHint />
       <FinalInvoiceReconciliation projectId={project} />
     </AppShell>
   );

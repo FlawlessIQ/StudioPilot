@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 export type ProductEventName =
   | "handling.session_started"
+  | "billing.autopay_charged"
   | "handling.session_completed"
   | "studio_import.session_created"
   | "studio_import.review_completed"

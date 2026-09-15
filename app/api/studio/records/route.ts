@@ -12,7 +12,7 @@ const collections = [
   "deliveryDrafts", "deliveryRecords", "documents", "emailJobs",
   "galleryInboxes", "insuranceRequests", "integrationConnections",
   "invoiceReferences", "leads", "memberships", "messages", "packages",
-  "packageSnapshots", "postProductionRecords", "productEvents", "projects",
+  "packageSnapshots", "paymentMethods", "autopayCharges", "postProductionRecords", "productEvents", "projects",
   "projectCloseouts", "proposals", "providerJobs", "questionnaireResponses",
   "questionnaireTemplates", "readinessAssessments", "reviewRequests",
   "schedules", "studioAssetVersions", "studioImportSessions", "tasks",

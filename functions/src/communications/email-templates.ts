@@ -56,6 +56,9 @@ export const emailTemplateKeys = [
   "client_message_received",
   // Studio-facing: a booking completed itself (signed, retainer paid).
   "studio_booking_confirmed",
+  // Client-facing autopay: the saved card was charged, or declined.
+  "autopay_charged",
+  "autopay_charge_failed",
   // Studio-facing: the owner's own morning brief. Not a client note — it gets
   // its own framing rather than the "note from your studio" shell.
   "daily_digest",
@@ -722,6 +725,34 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     // Studio-facing, unlike almost everything else here. A client writing in
     // used to produce an in-app task and nothing else, so the studio only found
     // out by logging in and looking.
+    case "autopay_charged":
+      return {
+        subject: `Your final balance is paid${project}`,
+        preheader: "Your saved card was charged for the final balance.",
+        eyebrow: "Payment received",
+        heading: "Your final balance is paid",
+        paragraphs: [
+          greeting,
+          `As you arranged, ${brand.studioName} charged ${stringValue(values, "cardText") || "your saved card"} ${stringValue(values, "amountText")} for your final balance${project}.`,
+          "Nothing else is needed from you. Your receipt is in your client portal.",
+        ],
+        action: portalUrl ? { label: "Open your portal", url: portalUrl } : undefined,
+      };
+    case "autopay_charge_failed":
+      return {
+        subject: `Your card was declined for the final balance${project}`,
+        preheader: "You can pay with the invoice link instead.",
+        eyebrow: "Payment declined",
+        heading: "We couldn't charge your saved card",
+        paragraphs: [
+          greeting,
+          `Your saved card was declined for the final balance${project}.`,
+          values.willRetry === true
+            ? "We'll try it once more in 3 days. If you'd rather not wait, or want to use a different card, you can pay with the secure invoice link below."
+            : "You can pay with the secure invoice link below, whenever you're ready.",
+        ],
+        action: invoiceUrl ? { label: "Pay the invoice", url: invoiceUrl } : undefined,
+      };
     case "studio_booking_confirmed":
       return {
         subject: `You're booked${project}`,

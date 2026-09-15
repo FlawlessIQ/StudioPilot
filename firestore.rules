@@ -401,6 +401,21 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Autopay: saved cards (brand, last four, consent — never card data) and
+    // the charges made against them. Written only by functions and the portal
+    // route; the studio reads them to see where autopay stands.
+    match /paymentMethods/{paymentMethodId} {
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
+      allow write: if false;
+    }
+
+    match /autopayCharges/{chargeId} {
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
+      allow write: if false;
+    }
+
     match /integrationConnections/{connectionId} {
       allow read: if isPlatformAdmin()
         || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);

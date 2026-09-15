@@ -539,3 +539,225 @@
   font-size: 13px;
   line-height: 1.5;
 }
+
+/* Autopay — studio settings card (components/integrations/autopay-settings.tsx). */
+.autopay-settings header h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.autopay-requirement {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--amber, #f2e3c5);
+  color: var(--amber-dark, #6f4a12);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.autopay-requirement > svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.autopay-requirement p {
+  margin: 4px 0 6px;
+}
+
+.autopay-requirement-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: inherit;
+  font-weight: 600;
+}
+
+.autopay-steps {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: autopay-step;
+}
+
+.autopay-steps li {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px 10px 40px;
+  position: relative;
+  border: 1px solid var(--line, #e6eae4);
+  border-radius: 12px;
+  color: var(--muted, #667);
+  font-size: 13px;
+  counter-increment: autopay-step;
+}
+
+.autopay-steps li::before {
+  content: counter(autopay-step);
+  position: absolute;
+  left: 12px;
+  top: 10px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.autopay-steps li > span {
+  font-weight: 600;
+}
+
+.autopay-steps li.is-current {
+  color: var(--ink, #1c231e);
+  border-color: #477254;
+}
+
+.autopay-steps li.is-done {
+  color: #477254;
+}
+
+.autopay-steps li.is-done::before {
+  content: "✓";
+  background: #477254;
+  border-color: #477254;
+  color: #fff;
+}
+
+.autopay-steps .button {
+  justify-self: start;
+}
+
+.autopay-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Autopay — the couple's payments page (components/client/client-autopay.tsx). */
+.client-autopay {
+  display: grid;
+  gap: 12px;
+}
+
+.client-autopay > header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.client-autopay > header > svg {
+  flex: none;
+  width: 20px;
+  margin-top: 2px;
+}
+
+.client-autopay > header > span {
+  display: grid;
+  gap: 4px;
+}
+
+.client-autopay > header small {
+  color: var(--muted, #667);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.client-autopay > .button {
+  justify-self: start;
+}
+
+.client-autopay-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+  color: #477254;
+}
+
+.client-autopay-state.is-attention {
+  color: var(--amber-dark, #8b5b17);
+}
+
+.client-autopay-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.client-autopay-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.client-autopay-form label {
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.client-autopay-form .is-wide {
+  grid-column: 1 / -1;
+}
+
+.client-autopay-form .client-autopay-consent {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-weight: 400;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.client-autopay-consent input {
+  flex: none;
+  margin-top: 3px;
+}
+
+.client-autopay-secure {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--muted, #667);
+  font-size: 12px;
+}
+
+@media (max-width: 560px) {
+  .client-autopay-form {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.autopay-hint {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 12px 0;
+  padding: 10px 14px;
+  border: 1px solid var(--line, #e6eae4);
+  border-radius: 12px;
+  color: var(--muted, #667);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.autopay-hint svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.autopay-hint a {
+  font-weight: 600;
+}

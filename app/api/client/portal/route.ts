@@ -81,6 +81,27 @@ const requestSchema = z.discriminatedUnion("type", [
     projectId: z.string().min(1).max(160),
   }),
   z.object({
+    type: z.literal("autopay_status"),
+    tenantId: z.string().min(1).max(160),
+    projectId: z.string().min(1).max(160),
+  }),
+  z.object({
+    type: z.literal("save_card"),
+    tenantId: z.string().min(1).max(160),
+    projectId: z.string().min(1).max(160),
+    /** Intuit's single-use card token. Card details never reach StudioCue. */
+    cardToken: z.string().min(8).max(400),
+    /** The couple ticked the consent shown by autopay_status. */
+    consent: z.literal(true),
+    idempotencyKey: z.string().min(8).max(160),
+  }),
+  z.object({
+    type: z.literal("remove_card"),
+    tenantId: z.string().min(1).max(160),
+    projectId: z.string().min(1).max(160),
+    paymentMethodId: z.string().min(1).max(160),
+  }),
+  z.object({
     type: z.literal("select_package"),
     tenantId: z.string().min(1).max(160),
     projectId: z.string().min(1).max(160),
@@ -1105,6 +1126,241 @@ async function decideProposal({
   return result;
 }
 
+const QUICKBOOKS_PAYMENTS_SCOPE = "com.intuit.quickbooks.payment";
+
+/**
+ * Autopay, as the couple sees it. Server-side so the consent wording and the
+ * amount come from records, never from the browser. See
+ * functions/src/billing/autopay-core.ts for the charging rules; the consent
+ * text here must stay in step with autopayConsentText there.
+ */
+async function autopayStatus(tenantId: string, projectId: string) {
+  const [tenant, connection, project, invoices, methods] = await Promise.all([
+    adminFirestore.doc(`tenants/${tenantId}`).get(),
+    adminFirestore.doc(`integrationConnections/${tenantId}_quickbooks`).get(),
+    adminFirestore.doc(`projects/${projectId}`).get(),
+    adminFirestore
+      .collection("invoiceReferences")
+      .where("tenantId", "==", tenantId)
+      .where("projectId", "==", projectId)
+      .limit(20)
+      .get(),
+    adminFirestore
+      .collection("paymentMethods")
+      .where("tenantId", "==", tenantId)
+      .where("projectId", "==", projectId)
+      .limit(20)
+      .get(),
+  ]);
+  const autopay = (tenant.get("autopay") ?? {}) as { enabled?: unknown };
+  const mock = connection.get("mockMode") === true;
+  const scopes = connection.get("scopes");
+  const granted =
+    connection.exists &&
+    connection.get("status") === "connected" &&
+    (mock || (Array.isArray(scopes) && scopes.includes(QUICKBOOKS_PAYMENTS_SCOPE)));
+  const rows = invoices.docs.map((document) => ({ id: document.id, ...document.data() }) as Record<string, unknown> & { id: string });
+  const final = rows.find((row) => row.kind === "final" && isStandingInvoice(row.status));
+  const retainer = rows.find((row) => row.kind === "retainer" && isStandingInvoice(row.status));
+  const snapshotId = safeString(project.get("packageSnapshotId"));
+  const snapshot = snapshotId ? await adminFirestore.doc(`packageSnapshots/${snapshotId}`).get() : null;
+  const currency = String(final?.currency ?? retainer?.currency ?? snapshot?.get("currency") ?? "USD");
+  const amountCents = final
+    ? Number(final.balanceCents ?? 0)
+    : Math.max(0, Number(snapshot?.get("totalCents") ?? 0) - Number(retainer?.amountCents ?? 0));
+  const eventDate = safeString(project.get("eventDate"));
+  let dueDate = safeString(final?.dueDate);
+  if (!dueDate && eventDate) {
+    const due = new Date(`${eventDate.slice(0, 10)}T00:00:00Z`);
+    due.setUTCDate(due.getUTCDate() - 14);
+    dueDate = due.toISOString().slice(0, 10);
+  }
+  const studioName = safeString(tenant.get("name")) ?? "Your studio";
+  const amount = new Intl.NumberFormat("en-US", { style: "currency", currency }).format(amountCents / 100);
+  const dueText = dueDate
+    ? new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "UTC" }).format(new Date(`${dueDate}T00:00:00Z`))
+    : null;
+  const method = methods.docs
+    .map((document) => ({ id: document.id, ...document.data() }) as Record<string, unknown> & { id: string })
+    .filter((row) => ["saving", "active", "failed"].includes(String(row.status)))
+    .sort((left, right) => String(right.updatedAt ?? "").localeCompare(String(left.updatedAt ?? "")))[0];
+  const finalPaid = final ? Number(final.balanceCents ?? 0) <= 0 : false;
+  return {
+    // Offered from the deposit onward: before a deposit invoice exists there
+    // is no agreed balance to consent to.
+    available: autopay.enabled === true && granted && Boolean(retainer) && amountCents > 0 && !finalPaid,
+    mock,
+    tokenUrl: mock
+      ? null
+      : process.env.QUICKBOOKS_PAYMENTS_TOKEN_URL ?? "https://api.intuit.com/quickbooks/v4/payments/tokens",
+    amountCents,
+    currency,
+    dueDate,
+    consentText: `I authorise ${studioName} to charge this card ${amount} for my final balance ${dueText ? `on ${dueText}` : "when it falls due"}, and to try once more 3 days later if that charge is declined. I can remove the card before then.`,
+    method: method
+      ? {
+          id: method.id,
+          status: String(method.status),
+          brand: safeString(method.brand),
+          last4: safeString(method.last4),
+          expMonth: safeString(method.expMonth),
+          expYear: safeString(method.expYear),
+          failureCode: safeString(method.failureCode),
+        }
+      : null,
+  };
+}
+
+async function saveCard(input: {
+  tenantId: string;
+  projectId: string;
+  cardToken: string;
+  idempotencyKey: string;
+  actorId: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+}) {
+  const status = await autopayStatus(input.tenantId, input.projectId);
+  if (!status.available) throw new Error("AUTOPAY_UNAVAILABLE");
+  const project = await adminFirestore.doc(`projects/${input.projectId}`).get();
+  const contactIds = project.get("clientContactIds");
+  const contactId = Array.isArray(contactIds) ? contactIds.find((value): value is string => typeof value === "string") ?? null : null;
+  const id = `pm_${createHash("sha256").update(`${input.tenantId}:${input.projectId}:${input.idempotencyKey}`).digest("hex").slice(0, 28)}`;
+  const reference = adminFirestore.doc(`paymentMethods/${id}`);
+  const existing = await reference.get();
+  if (existing.exists) return { paymentMethodId: id, status: String(existing.get("status")) };
+  const now = new Date().toISOString();
+  const previous = await adminFirestore
+    .collection("paymentMethods")
+    .where("tenantId", "==", input.tenantId)
+    .where("projectId", "==", input.projectId)
+    .where("status", "in", ["active", "failed", "saving"])
+    .limit(10)
+    .get();
+  const batch = adminFirestore.batch();
+  // One card per wedding: a new card replaces the old one.
+  for (const document of previous.docs) {
+    batch.update(document.ref, { status: "replaced", updatedAt: now, updatedBy: input.actorId });
+    if (document.get("providerCardId"))
+      batch.set(adminFirestore.doc(`providerJobs/card_remove_${document.id}`), {
+        id: `card_remove_${document.id}`,
+        tenantId: input.tenantId,
+        projectId: input.projectId,
+        type: "remove_quickbooks_card",
+        paymentMethodId: document.id,
+        idempotencyKey: `card-remove-${document.id}`,
+        status: "queued",
+        attempts: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+  }
+  batch.create(reference, {
+    id,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    contactId,
+    provider: "quickbooks",
+    status: "saving",
+    brand: null,
+    last4: null,
+    expMonth: null,
+    expYear: null,
+    providerCardId: null,
+    providerCustomerId: null,
+    failureCode: null,
+    consent: {
+      text: status.consentText,
+      amountCents: status.amountCents,
+      currency: status.currency,
+      dueDate: status.dueDate,
+      acceptedAt: now,
+      acceptedBy: input.actorId,
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent,
+    },
+    createdAt: now,
+    updatedAt: now,
+    createdBy: input.actorId,
+    updatedBy: input.actorId,
+  });
+  batch.create(adminFirestore.doc(`providerJobs/card_save_${id}`), {
+    id: `card_save_${id}`,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    type: "save_quickbooks_card",
+    paymentMethodId: id,
+    // Single-use and short-lived; the worker deletes it before using it.
+    cardToken: input.cardToken,
+    idempotencyKey: `card-save-${id}`,
+    status: "queued",
+    attempts: 0,
+    createdAt: now,
+    updatedAt: now,
+  });
+  batch.create(adminFirestore.doc(`auditEvents/autopay_consent_${id}`), {
+    id: `autopay_consent_${id}`,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    actorId: input.actorId,
+    actorType: "client",
+    action: "billing.autopay_consent_given",
+    entityType: "paymentMethod",
+    entityId: id,
+    timestamp: now,
+    before: null,
+    after: { consentText: status.consentText, amountCents: status.amountCents, dueDate: status.dueDate },
+    ipAddress: input.ipAddress,
+    userAgent: input.userAgent,
+    correlationId: input.idempotencyKey,
+    automationRunId: null,
+    providerEventId: null,
+  });
+  await batch.commit();
+  return { paymentMethodId: id, status: "saving" };
+}
+
+async function removeCard(input: { tenantId: string; projectId: string; paymentMethodId: string; actorId: string }) {
+  const reference = adminFirestore.doc(`paymentMethods/${input.paymentMethodId}`);
+  const method = await reference.get();
+  if (!method.exists || method.get("tenantId") !== input.tenantId || method.get("projectId") !== input.projectId)
+    throw new Error("PAYMENT_METHOD_NOT_FOUND");
+  const now = new Date().toISOString();
+  const batch = adminFirestore.batch();
+  batch.update(reference, { status: "removed", removedAt: now, updatedAt: now, updatedBy: input.actorId });
+  batch.set(adminFirestore.doc(`providerJobs/card_remove_${method.id}`), {
+    id: `card_remove_${method.id}`,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    type: "remove_quickbooks_card",
+    paymentMethodId: method.id,
+    idempotencyKey: `card-remove-${method.id}`,
+    status: "queued",
+    attempts: 0,
+    createdAt: now,
+    updatedAt: now,
+  });
+  batch.create(adminFirestore.collection("auditEvents").doc(), {
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    actorId: input.actorId,
+    actorType: "client",
+    action: "billing.autopay_card_removed",
+    entityType: "paymentMethod",
+    entityId: method.id,
+    timestamp: now,
+    before: { status: method.get("status") },
+    after: { status: "removed" },
+    ipAddress: null,
+    userAgent: null,
+    correlationId: `remove_${method.id}`,
+    automationRunId: null,
+    providerEventId: null,
+  });
+  await batch.commit();
+  return { paymentMethodId: method.id, status: "removed" };
+}
+
 export async function POST(request: Request) {
   try {
     const identity = await verifyRequest(request);
@@ -1136,6 +1392,36 @@ export async function POST(request: Request) {
           identity.uid,
         ),
       });
+    }
+
+    if (parsed.type === "autopay_status") {
+      return Response.json(await autopayStatus(parsed.tenantId, parsed.projectId));
+    }
+
+    if (parsed.type === "save_card") {
+      return Response.json(
+        await saveCard({
+          tenantId: parsed.tenantId,
+          projectId: parsed.projectId,
+          cardToken: parsed.cardToken,
+          idempotencyKey: parsed.idempotencyKey,
+          actorId: identity.uid,
+          ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+          userAgent: request.headers.get("user-agent"),
+        }),
+        { status: 201 },
+      );
+    }
+
+    if (parsed.type === "remove_card") {
+      return Response.json(
+        await removeCard({
+          tenantId: parsed.tenantId,
+          projectId: parsed.projectId,
+          paymentMethodId: parsed.paymentMethodId,
+          actorId: identity.uid,
+        }),
+      );
     }
 
     if (parsed.type === "available_packages") {
@@ -1417,6 +1703,12 @@ export async function POST(request: Request) {
       error === "PACKAGE_ALREADY_SELECTED"
     ) {
       return Response.json({ error }, { status: 409 });
+    }
+    if (error === "AUTOPAY_UNAVAILABLE") {
+      return Response.json({ error }, { status: 409 });
+    }
+    if (error === "PAYMENT_METHOD_NOT_FOUND") {
+      return Response.json({ error }, { status: 404 });
     }
     console.error("Client portal request failed", caught);
     return Response.json({ error: "PORTAL_REQUEST_FAILED" }, { status: 500 });

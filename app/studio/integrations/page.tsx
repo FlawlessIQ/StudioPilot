@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { IntegrationManager } from "@/components/integrations/integration-manager";
 import { AgreementTemplate } from "@/components/integrations/agreement-template";
+import { AutopaySettings } from "@/components/integrations/autopay-settings";
 
 export default function IntegrationsPage() {
   return (
@@ -21,6 +22,7 @@ export default function IntegrationsPage() {
         </header>
         <IntegrationManager />
         <AgreementTemplate />
+        <AutopaySettings />
       </div>
     </AppShell>
   );

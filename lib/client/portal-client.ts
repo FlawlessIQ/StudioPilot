@@ -202,3 +202,79 @@ export function selectClientPackage(
     idempotencyKey: crypto.randomUUID(),
   });
 }
+
+export type ClientAutopayStatus = {
+  available: boolean;
+  mock: boolean;
+  tokenUrl: string | null;
+  amountCents: number;
+  currency: string;
+  dueDate: string | null;
+  consentText: string;
+  method: {
+    id: string;
+    status: string;
+    brand: string | null;
+    last4: string | null;
+    expMonth: string | null;
+    expYear: string | null;
+    failureCode: string | null;
+  } | null;
+};
+
+export function getClientAutopayStatus(tenantId: string, projectId: string) {
+  return portalRequest<ClientAutopayStatus>({ type: "autopay_status", tenantId, projectId });
+}
+
+export function saveClientAutopayCard(tenantId: string, projectId: string, cardToken: string) {
+  return portalRequest<{ paymentMethodId: string; status: string }>({
+    type: "save_card",
+    tenantId,
+    projectId,
+    cardToken,
+    consent: true,
+    idempotencyKey: crypto.randomUUID(),
+  });
+}
+
+export function removeClientAutopayCard(tenantId: string, projectId: string, paymentMethodId: string) {
+  return portalRequest<{ paymentMethodId: string; status: string }>({
+    type: "remove_card",
+    tenantId,
+    projectId,
+    paymentMethodId,
+  });
+}
+
+/**
+ * Tokenise card details with Intuit directly from the browser.
+ *
+ * The card number goes to Intuit and nowhere else; StudioCue only ever sees
+ * the single-use token that comes back.
+ */
+export async function tokenizeCardWithIntuit(
+  tokenUrl: string,
+  card: { number: string; expMonth: string; expYear: string; cvc: string; name: string; postalCode: string },
+): Promise<string> {
+  const response = await withTimeout(
+    fetch(tokenUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({
+        card: {
+          number: card.number.replace(/\D/g, ""),
+          expMonth: card.expMonth.padStart(2, "0"),
+          expYear: card.expYear.length === 2 ? `20${card.expYear}` : card.expYear,
+          cvc: card.cvc,
+          name: card.name,
+          address: { postalCode: card.postalCode },
+        },
+      }),
+    }),
+    15_000,
+    "The card check took too long. Try again.",
+  );
+  const body = (await response.json().catch(() => ({}))) as { value?: string };
+  if (!response.ok || !body.value) throw new Error("CARD_DETAILS_REJECTED");
+  return body.value;
+}

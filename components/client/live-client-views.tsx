@@ -31,6 +31,7 @@ import { ClientQuestionnaireForm } from "@/components/planning/client-questionna
 import { PostEventAction } from "@/components/post-event/post-event-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { ClientAutopay } from "@/components/client/client-autopay";
 import {
   portalPastNotice,
   portalStageIsBehind,
@@ -2174,6 +2175,7 @@ export function LiveClientPayments() {
       <Link className="client-context-message-link" href="/client/messages?context=Payments">
         <MessageCircle /> Ask your studio a payment question
       </Link>
+      <ClientAutopay />
       {invoices.value
         // A replaced or refused invoice is not the client's to see. One was
         // being listed above the real one, badged "Replaced", saying $569.70

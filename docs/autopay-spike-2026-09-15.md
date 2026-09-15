@@ -4,8 +4,9 @@
 (and any instalments) are charged on their due date, without the studio chasing?
 
 **Answer:** yes through QuickBooks Payments, with a scheduler we own and one
-extra OAuth scope. It is a real build (2–3 weeks) and cannot be verified without
-a studio that has a QuickBooks Payments merchant account. Not built in this pass.
+extra OAuth scope. **Built on 2026-09-15** (see "What was built" below); it
+cannot be verified end to end until a studio has an approved QuickBooks Payments
+merchant account and StudioCue's Intuit app is approved for the payments scope.
 
 ## What exists today
 
@@ -73,3 +74,40 @@ on QuickBooks; revisit Stripe only for studios without it.
 - A QuickBooks company with QuickBooks Payments enabled (sandbox for development,
   a real merchant account for the pilot).
 - Re-authorising the QuickBooks connection with the payments scope.
+
+## What was built (2026-09-15)
+
+- **Rules** — `functions/src/billing/autopay-core.ts` (charge timing, one retry
+  after 3 days, max 2 attempts, failure codes, consent wording) and
+  `features/billing/autopay.ts` (studio setup state). Tests: `tests/autopay.test.ts`.
+- **Permission** — `integrationOAuth` accepts `payments: true` for QuickBooks and
+  adds `com.intuit.quickbooks.payment`; the connection records the scopes it
+  actually requested. Normal QuickBooks connects are unchanged.
+- **Studio** — Integrations → Autopay (`components/integrations/autopay-settings.tsx`)
+  leads with "You need QuickBooks Payments first" and how to apply, then three
+  steps: connect QuickBooks, reconnect for payments, offer autopay
+  (`setAutopay` command; refuses without the payments scope). Invoices shows a
+  one-line pointer (`autopay-hint.tsx`) until autopay is on.
+- **Couple** — payments page card (`components/client/client-autopay.tsx`),
+  offered once a deposit invoice exists. Card details are tokenised in the
+  browser directly with Intuit; the portal route (`autopay_status`, `save_card`,
+  `remove_card`) stores the server-written consent text, amount, date, IP and
+  user agent on `paymentMethods/{id}` and an audit event.
+- **Jobs** — `save_quickbooks_card` (Intuit wallet `createFromToken`),
+  `remove_quickbooks_card`, `charge_saved_card` (Payments charge with Request-Id
+  idempotency, then a QBO `Payment` linked to the invoice, then the existing
+  reconcile job). Records in `autopayCharges/{jobId}`.
+- **Scheduler** — `autopayScheduler`, daily 15:00 UTC.
+- **Emails** — `autopay_charged` (receipt) and `autopay_charge_failed` (with the
+  invoice link; says whether a retry is coming). Studio notifications on declines
+  and on "QuickBooks Payments isn't active".
+- **Config** — `QUICKBOOKS_PAYMENTS_TOKEN_URL` (app, default production tokens
+  endpoint) and `QUICKBOOKS_PAYMENTS_BASE_URL` (functions, optional override;
+  sandbox is inferred from a sandbox accounting base URL).
+
+### Still to verify with Intuit sandbox / a pilot
+
+- That Intuit's tokens endpoint accepts the browser request (CORS) from
+  studio-cue.com. If not, tokenise through Intuit's JS library instead.
+- The charge → Payment → reconcile path against a real sandbox company.
+- Intuit app approval for the payments scope in production.

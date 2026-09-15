@@ -215,3 +215,58 @@ export async function setProviderTestMode(
   }
   return { persisted: true, result: { provider, testMode } };
 }
+
+/** Turns autopay on or off for the studio's couples. */
+export async function setAutopay(
+  enabled: boolean,
+  tenantId: string,
+): Promise<{ persisted: boolean }> {
+  const endpoint = process.env.NEXT_PUBLIC_INTEGRATION_FUNCTIONS_URL;
+  if (!endpoint) return { persisted: false };
+  const { auth } = getFirebaseClient();
+  const user = auth.currentUser;
+  if (!user) throw new Error("Sign in before changing autopay.");
+  const appCheckToken = await getOptionalAppCheckToken();
+  const response = await fetch(`${endpoint.replace(/\/$/, "")}/integrationsCommand`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${await user.getIdToken()}`,
+      ...(appCheckToken ? { "x-firebase-appcheck": appCheckToken } : {}),
+    },
+    body: JSON.stringify({
+      type: "setAutopay",
+      tenantId,
+      idempotencyKey: crypto.randomUUID(),
+      input: { enabled },
+    }),
+  });
+  const payload = (await response.json()) as Record<string, unknown>;
+  if (!response.ok) throw new Error(String(payload.error ?? "Autopay could not be changed."));
+  return { persisted: true };
+}
+
+/**
+ * Reconnects QuickBooks asking for the payments permission as well, and
+ * returns the Intuit URL to send the studio to.
+ */
+export async function startQuickBooksPaymentsConnect(tenantId: string): Promise<string> {
+  const endpoint = process.env.NEXT_PUBLIC_INTEGRATION_FUNCTIONS_URL;
+  if (!endpoint) throw new Error("OAuth is not configured for this environment.");
+  const { auth } = getFirebaseClient();
+  const user = auth.currentUser;
+  if (!user) throw new Error("Sign in before reconnecting QuickBooks.");
+  const appCheckToken = await getOptionalAppCheckToken();
+  const response = await fetch(`${endpoint.replace(/\/$/, "")}/integrationOAuth`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${await user.getIdToken()}`,
+      ...(appCheckToken ? { "x-firebase-appcheck": appCheckToken } : {}),
+    },
+    body: JSON.stringify({ provider: "quickbooks", tenantId, action: "connect", payments: true }),
+  });
+  const payload = (await response.json()) as { url?: string; error?: string };
+  if (!response.ok || !payload.url) throw new Error(payload.error ?? "QuickBooks could not be reconnected.");
+  return payload.url;
+}

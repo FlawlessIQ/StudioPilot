@@ -10,6 +10,7 @@ import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { studioHubCors } from "../security/cors.js";
 import { capabilitySchema, providerSchema, providerCapabilities, type Provider } from "./capability-resolution.js";
 import { invalidCommandResponse } from "../security/invalid-command.js";
+import { hasPaymentsScope } from "../billing/autopay-core.js";
 
 const allowedRoles = ["studio_owner", "studio_admin"];
 
@@ -71,6 +72,20 @@ const commandSchema = z.discriminatedUnion("type", [
       provider: providerSchema,
       testMode: z.boolean(),
     }),
+  }),
+  z.object({
+    /**
+     * Offer autopay to this studio's couples.
+     *
+     * Turning it on needs a QuickBooks connection that granted the payments
+     * permission. Whether Intuit has approved the studio's QuickBooks Payments
+     * application is only known when a card is saved; that refusal is recorded
+     * on the card and surfaced back here.
+     */
+    type: z.literal("setAutopay"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ enabled: z.boolean() }),
   }),
 ]);
 
@@ -261,6 +276,60 @@ export const integrationsCommand = onRequest(
           });
 
           const output = { templateId, templateName: templateId ? templateName : null };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        if (command.type === "setAutopay") {
+          const { enabled } = command.input;
+          const tenantReference = db.doc(`tenants/${command.tenantId}`);
+          const connectionReference = db.doc(
+            `integrationConnections/${command.tenantId}_quickbooks`,
+          );
+          const [tenant, connection] = await Promise.all([
+            transaction.get(tenantReference),
+            transaction.get(connectionReference),
+          ]);
+          if (!tenant.exists) throw new Error("TENANT_NOT_FOUND");
+          if (
+            enabled &&
+            (!connection.exists ||
+              connection.get("status") !== "connected" ||
+              (connection.get("mockMode") !== true &&
+                !hasPaymentsScope(connection.get("scopes"))))
+          ) {
+            throw new Error("QUICKBOOKS_PAYMENTS_NOT_GRANTED");
+          }
+          transaction.update(tenantReference, {
+            autopay: { enabled, updatedAt: timestamp, updatedBy: identity.uid },
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          const auditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${auditId}`), {
+            id: auditId,
+            tenantId: command.tenantId,
+            projectId: null,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "billing.autopay_set",
+            entityType: "tenant",
+            entityId: command.tenantId,
+            timestamp,
+            before: { enabled: tenant.get("autopay.enabled") === true },
+            after: { enabled },
+            ipAddress: request.ip ?? null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          const output = { enabled };
           transaction.create(commandReference, {
             tenantId: command.tenantId,
             idempotencyKey: command.idempotencyKey,

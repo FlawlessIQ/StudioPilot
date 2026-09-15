@@ -18,7 +18,7 @@ import { autoInstantiateWorkflow } from "../workflow/commands.js";
 import { productEvent } from "./product-events.js";
 
 export type Provider="google_calendar"|"zoom"|"dropbox"|"docusign"|"dropbox_sign"|"quickbooks"|"stripe";
-type Credential={
+export type Credential={
   accessToken:string;
   refreshToken?:string;
   expiresAt?:string;
@@ -309,7 +309,7 @@ export async function getCalendarBusyIntervals(
  * to work out why. Detail is the field that says what was actually wrong.
  */
 function providerErrorMessage(body:Record<string,unknown>):string{const fault=asRecord(body.Fault);const errors=Array.isArray(fault.Error)?fault.Error:[];const first=asRecord(errors[0]);const detail=text(first.Detail)||text(first.Message);if(detail)return detail.replace(/\s+/g," ").slice(0,300);return text(asRecord(body.error).message)||text(body.message)||"PROVIDER_ERROR"}
-async function providerJson(url:string,init:RequestInit,code:string):Promise<Json>{const response=await fetch(url,init);const body=asRecord(await response.json().catch(()=>({})));if(!response.ok)throw new Error(`${code}:${response.status}:${providerErrorMessage(body)}`);return body}
+export async function providerJson(url:string,init:RequestInit,code:string):Promise<Json>{const response=await fetch(url,init);const body=asRecord(await response.json().catch(()=>({})));if(!response.ok)throw new Error(`${code}:${response.status}:${providerErrorMessage(body)}`);return body}
 const mockId=(scope:string,id:string)=>`mock_${scope}_${createHash("sha256").update(id).digest("hex").slice(0,16)}`;
 
 // Cancel and reschedule are the write-back half of the calendar integration.
@@ -622,7 +622,7 @@ export async function createDropboxSignRequest(job:DocumentSnapshot){const db=ge
     const value=await providerJson("https://api.hellosign.com/v3/signature_request/send_with_template",{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/json"},body:JSON.stringify({template_ids:[contract.get("templateId")],subject:"Please sign your StudioCue contract",...(testMode?{test_mode:1}:{}),signers:signers.map(signer=>({role:text(signer.role),name:text(signer.name),email_address:text(signer.email)}))})},"DROPBOX_SIGN_CREATE_FAILED");signatureRequestId=text(asRecord(value.signature_request).signature_request_id)}
   if(!signatureRequestId)throw new Error("DROPBOX_SIGN_REQUEST_ID_MISSING");await reference.update({providerEnvelopeId:signatureRequestId,status:"sent",sentAt:new Date().toISOString(),providerState:"completed",testMode:provider.mock?false:provider.document.get("testMode")===true,updatedAt:new Date().toISOString(),updatedBy:"provider-worker"});return{contractId,envelopeId:signatureRequestId}}
 
-async function quickBooksCustomerId(
+export async function quickBooksCustomerId(
   tenantId:string,
   projectId:string,
   invoice:DocumentSnapshot,

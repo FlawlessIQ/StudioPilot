@@ -10,6 +10,7 @@ import {
 import { studioHubCors } from "../security/cors.js";
 import { checkProviderConnection } from "../operations/provider-runtime.js";
 import { providerUsesPkce } from "./oauth-strategy.js";
+import { QUICKBOOKS_PAYMENTS_SCOPE } from "../billing/autopay-core.js";
 import {
   docusignOAuthBaseUrl,
   docusignUserInfoUrl,
@@ -29,6 +30,12 @@ const startSchema = z.object({
   provider: providerSchema,
   tenantId: z.string().min(1),
   action: z.enum(["connect", "health", "disconnect"]).default("connect"),
+  /**
+   * QuickBooks only: also ask for the payments permission, for autopay.
+   * Opt-in, because a studio without QuickBooks Payments has no use for it
+   * and should not be asked to grant access to take card payments.
+   */
+  payments: z.boolean().default(false),
 });
 type Config = {
   clientId: string;
@@ -458,7 +465,11 @@ export const integrationOAuth = onRequest(
           response.status(200).json({ provider: input.provider, status: "disconnected" });
           return;
         }
-        const current = config(input.provider);
+        const base = config(input.provider);
+        const current =
+          input.provider === "quickbooks" && input.payments
+            ? { ...base, scopes: [...base.scopes, QUICKBOOKS_PAYMENTS_SCOPE] }
+            : base;
         const redirectUri = redirectUriFor(input.provider, defaultRedirectUri);
         const verifier = providerUsesPkce(input.provider)
           ? base64url(randomBytes(48))
@@ -476,6 +487,7 @@ export const integrationOAuth = onRequest(
             provider: input.provider,
             verifier,
             redirectUri,
+            scopes: current.scopes,
             expiresAt: new Date(now.valueOf() + 10 * 60000).toISOString(),
             createdAt: now.toISOString(),
           });
@@ -674,7 +686,11 @@ export const integrationOAuth = onRequest(
           displayName,
           encryptedCredentialRef: credentialReference,
           selectedResourceId: null,
-          scopes: config(provider).scopes,
+          // What this authorization actually asked for — a QuickBooks
+          // connection made for autopay also carries the payments scope.
+          scopes: Array.isArray(saved.get("scopes"))
+            ? (saved.get("scopes") as string[])
+            : config(provider).scopes,
           connectedAt: now,
           // A fresh authorization proves the provider issued a token; it does
           // not prove the credential can do any work, and this write must not
