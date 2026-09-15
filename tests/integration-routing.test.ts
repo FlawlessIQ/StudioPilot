@@ -256,22 +256,20 @@ test("by default, a provider the product does not offer is never eligible", () =
   // connected. Settings filtered DocuSign out of its own private copy of
   // the list; nothing else did. The default now does it for everyone.
   //
-  // Both signing apps have since been withdrawn on subscription cost, so this
-  // case has gone from "only the offered one is eligible" to "neither is". Same
-  // rule, applied to a set that has emptied — which is the stronger assertion,
-  // because a connection sitting there is exactly what used to leak through.
+  // DocuSign is withdrawn on cost; Dropbox Sign is offered. Only the offered
+  // one is eligible, and a leftover DocuSign connection never leaks through.
   assert.deepEqual(
     eligibleProvidersFor("signing", [
       connection("docusign"),
       connection("dropbox_sign"),
     ]),
-    [],
+    ["dropbox_sign"],
   );
   assert.deepEqual(
     resolveActiveProvider({
       capability: "signing",
       routing: null,
-      connections: [connection("docusign"), connection("dropbox_sign")],
+      connections: [connection("docusign")],
     }),
     { outcome: "unresolved", reason: "no_connected_provider" },
   );

@@ -30,8 +30,8 @@ export type Provider = z.infer<typeof providerSchema>;
 
 /**
  * Providers StudioCue offers today. Mirrors offeredProviders in
- * features/integrations/schema.ts — see the reasoning there. Neither signing
- * app is offered: both cost money that waits on revenue. Stripe Connect is
+ * features/integrations/schema.ts — see the reasoning there. Dropbox Sign is
+ * offered; DocuSign is not, on cost. Stripe Connect is
  * absent for a different reason. A leftover connection for any of them must
  * not decide which provider signs a contract or raises an invoice.
  */
@@ -40,6 +40,7 @@ export const offeredProviders: ReadonlySet<Provider> = new Set<Provider>([
   "zoom",
   "quickbooks",
   "dropbox",
+  "dropbox_sign",
 ]);
 
 export const providerCapabilities: Readonly<Record<Provider, readonly Capability[]>> = {

@@ -229,7 +229,12 @@ export function capabilityReadiness(input: {
     capability,
     provider: null,
     state: "none_connected",
-    summary: `Nothing is connected to ${work}. ${CAPABILITY_WITHOUT_PROVIDER[capability]}`,
+    // Signing is the one capability where connecting is an upgrade to a path
+    // that already works, not a fix; "Nothing is connected" read as an error.
+    summary:
+      capability === "signing"
+        ? `Couples can sign online once ${candidates} is connected. Until then, send your own agreement and record the signature on the booking.`
+        : `Nothing is connected to ${work}. ${CAPABILITY_WITHOUT_PROVIDER[capability]}`,
     remedy: `Connect ${candidates}`,
     ok: false,
   };

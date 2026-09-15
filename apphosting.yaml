@@ -167,7 +167,7 @@ env:
     # features/integrations/schema.ts is the authority on what is *offered* —
     # this list only controls what can start an OAuth flow, and the two
     # disagreeing is how a hidden provider gets named at a studio anyway.
-    value: dropbox,google_calendar,quickbooks,zoom
+    value: dropbox,dropbox_sign,google_calendar,quickbooks,zoom
     availability:
       - BUILD
       - RUNTIME

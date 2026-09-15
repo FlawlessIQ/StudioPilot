@@ -133,7 +133,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
    */
   const [signingProvider, setSigningProvider] = useState<
     "docusign" | "dropbox_sign" | null
-  >(() => (offeredSigningProvider() as "docusign" | "dropbox_sign" | null));
+  >(null);
   const [signingTestMode, setSigningTestMode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -310,11 +310,14 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
       });
       // Unresolved means unresolved. Falling back to a fixed provider is how
       // the workspace came to name DocuSign at a studio that has none.
+      // Offered is not connected. Only a signing app this studio has actually
+      // connected turns on the send-for-signature path; otherwise the studio
+      // records its own signature and is told it can connect one.
       const resolvedSigningProvider =
         signingResolution.outcome === "resolved" &&
         ["docusign", "dropbox_sign"].includes(signingResolution.provider)
           ? (signingResolution.provider as "docusign" | "dropbox_sign")
-          : (offeredSigningProvider() as "docusign" | "dropbox_sign" | null);
+          : null;
       const signingConnection = connections.docs.find(
         (item) => item.get("provider") === resolvedSigningProvider,
       );
@@ -395,6 +398,13 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
    * a signing app is offered — nothing here is deleted, only branched.
    */
   const signingOffered = signingProvider !== null;
+  /** The signing app a studio could connect, for the "connect it" hint. */
+  const connectableSigningApp =
+    offeredSigningProvider() === "dropbox_sign"
+      ? "Dropbox Sign"
+      : offeredSigningProvider() === "docusign"
+        ? "Docusign"
+        : null;
   const signingProviderLabel =
     signingProvider === "dropbox_sign"
       ? "Dropbox Sign"
@@ -904,6 +914,15 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     Send your agreement the way you usually do — by email or in
                     person — then record the signature below. The retainer
                     follows, exactly as it would through a signing app.
+                    {connectableSigningApp ? (
+                      <>
+                        {" "}
+                        <Link href="/studio/integrations">
+                          Connect {connectableSigningApp}
+                        </Link>{" "}
+                        to have couples sign online instead.
+                      </>
+                    ) : null}
                   </p>
                 ) : templateConfigured ? (
                   // Provider internals stay out of the flow: a configured
