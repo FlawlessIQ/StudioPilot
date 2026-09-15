@@ -31,7 +31,6 @@ import {
 import { useProjectThread } from "@/components/projects/use-project-thread";
 import { useProjectJourney } from "@/components/projects/use-project-journey";
 import { ReadinessCheckpoints } from "@/components/projects/readiness-checkpoints";
-import { ReadinessMeter } from "@/components/ui/readiness-meter";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { stateTone } from "@/lib/status-tone";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -57,6 +56,8 @@ import {
   projectStateLabel,
 } from "@/features/projects/state-label";
 import { readinessSummary } from "@/features/projects/readiness-summary";
+import { journeyPhaseLabel, journeyPhaseOrder } from "@/features/journey/phases";
+import { projectPhaseIndex } from "@/features/projects/lifecycle";
 import { describeEventProximity } from "@/lib/format/event-date";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
@@ -804,7 +805,6 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
     new Date(),
     journey.readinessEvidence,
   );
-  const readiness = readinessView.percent;
   const outstanding = readinessView.blocking;
   /**
    * The studio's own open checkpoints, soonest first.
@@ -931,41 +931,58 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           <p className="eyebrow">The job</p>
           <div className="project-title-line">
             <h1>{String(project.name)}</h1>
-            <StatusBadge tone={stateTone(state)} dot>
-              {stateLabel(state)}
-            </StatusBadge>
           </div>
           <p>
             {String(project.eventType)} photography ·{" "}
             {displayDate(project.eventDate)}
           </p>
-        </div>
-        {/* Readiness appears only when something backs it. A job with no
-            required checkpoints is not 0% ready and not "—" ready; it simply
-            is not being tracked yet, and the header stays quiet about it. */}
-        {readinessView.tracked ? (
-          <div className="project-readiness-summary">
-            <span>
-              <small>Event readiness</small>
-              <strong>{readiness}%</strong>
-              {/* A bare percentage says nothing about the gap. Name what the
-                  remainder actually is, and point at the list that holds it. */}
-              {outstanding.length ? (
-                <a className="project-readiness-gap" href="#project-checkpoints">
-                  {outstanding.length} blocker
-                  {outstanding.length === 1 ? "" : "s"}: {outstanding[0]}
-                  {outstanding.length > 1
-                    ? ` +${outstanding.length - 1} more`
-                    : ""}
-                </a>
-              ) : (
-                <small className="project-readiness-clear">
-                  Nothing blocking — every required checkpoint is complete.
-                </small>
-              )}
-            </span>
-            <ReadinessMeter value={readiness} size="lg" />
+          {/* The five arcs, not fifteen states — the same model as the Jobs
+              table's track (features/journey/phases.ts). The precise state is
+              the small print. */}
+          <div className="project-phase" aria-label={`Stage: ${stateLabel(state)}`}>
+            {projectPhaseIndex(state) === 0 ? (
+              <StatusBadge tone={stateTone(state)} dot>
+                {stateLabel(state)}
+              </StatusBadge>
+            ) : null}
+            {projectPhaseIndex(state) > 0 ? (
+            <ol className="project-phase-track">
+              {journeyPhaseOrder.map((phase, index) => {
+                const reached = projectPhaseIndex(state);
+                const finished = state === "CLOSED" || state === "ARCHIVED";
+                const position =
+                  index + 1 < reached || (finished && index + 1 === reached)
+                    ? "done"
+                    : index + 1 === reached
+                      ? "current"
+                      : "ahead";
+                return (
+                  <li
+                    aria-current={position === "current" ? "step" : undefined}
+                    className={`is-${position}`}
+                    key={phase}
+                  >
+                    <span aria-hidden="true" />
+                    {journeyPhaseLabel[phase]}
+                  </li>
+                );
+              })}
+            </ol>
+            ) : null}
+            {projectPhaseIndex(state) > 0 ? (
+              <small>{stateLabel(state)}</small>
+            ) : null}
           </div>
+        </div>
+        {/* What stands between the job and the day, named rather than scored.
+            The percentage and "blockers" belong to the readiness engine; a
+            photographer needs to know what is left. */}
+        {readinessView.tracked && outstanding.length ? (
+          <a className="project-readiness-gap" href="#project-checkpoints">
+            {outstanding.length === 1
+              ? `Before the day: ${outstanding[0]}`
+              : `${outstanding.length} things before the day: ${outstanding[0]} +${outstanding.length - 1} more`}
+          </a>
         ) : null}
       </header>
       <ProjectWorkspaceNav projectId={projectId} />
@@ -1049,9 +1066,6 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
             <small>More detail</small>
             <strong>Planning checks and automation</strong>
           </span>
-          {/* Only ever the same number the header shows, and only when the
-              header is showing one. */}
-          {readinessView.tracked ? <em>{readiness}% ready</em> : null}
         </summary>
         <div className="project-detail-disclosure-body">
           <ProjectPlanningCopilot

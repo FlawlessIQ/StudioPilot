@@ -353,7 +353,7 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
           ))}
         </select>
         {projectId ? <input name="projectId" type="hidden" value={projectId} /> : null}
-        <small>Delivery stays attached to one project and its verified completion gate.</small>
+        <small>The gallery is released to this job&rsquo;s couple.</small>
       </label>
       {selectedProjectId ? (
       <>

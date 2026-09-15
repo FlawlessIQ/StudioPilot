@@ -37,7 +37,7 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
         </div>
         <Calculator aria-hidden="true" />
       </header>
-      {loading ? <p className="panel">Loading final-invoice evidence…</p> : null}
+      {loading ? <p className="panel">Loading the final invoice…</p> : null}
       {!loading && !finalInvoices.length ? (
         <article className="panel final-invoice-empty">
           <ShieldCheck />
@@ -90,7 +90,7 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
                 <div className="invoice-discrepancies">
                   <CircleAlert />
                   <span>
-                    <strong>Provider evidence needs attention</strong>
+                    <strong>The final invoice needs a look</strong>
                     {discrepancies.map((issue) => (
                       <small key={issue}>
                         {issue.replaceAll("_", " ").toLocaleLowerCase()}

@@ -740,7 +740,7 @@ export function BookingAutopilotWorkspace({
               <small>Source</small>
               <strong>Consultation notes + project facts</strong>
               <span><ShieldCheck /> No inferred price, availability, or agreement</span>
-              <Link href="/studio/ai-queue">Inspect full AI evidence <ArrowRight /></Link>
+              <Link href="/studio/ai-queue">See what Cue based this on <ArrowRight /></Link>
             </aside>
           </section>
 

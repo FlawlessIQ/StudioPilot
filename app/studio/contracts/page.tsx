@@ -28,7 +28,7 @@ export default async function ContractsPage({ searchParams }: { searchParams: Pr
           </section>
         )}
         <section>
-          <div className="section-heading-row"><div><p className="eyebrow">Evidence history</p><h2>Contracts</h2></div></div>
+          <div className="section-heading-row"><div><p className="eyebrow">Agreements</p><h2>Contracts</h2></div></div>
           <LiveDomainView domain="contracts" projectId={project} />
         </section>
         <section>

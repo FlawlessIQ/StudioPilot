@@ -593,7 +593,7 @@ function ReceiptCard({ receipt }: { receipt: RecordValue }) {
         <strong>{text(receipt.title)}</strong>
         <p>{text(receipt.summary)}</p>
         {receipt.providerEvidence ? (
-          <em><ShieldCheck size={12} /> Provider evidence recorded</em>
+          <em><ShieldCheck size={12} /> Confirmed by the provider</em>
         ) : null}
       </span>
       <span className={`receipt-status is-${status}`}>{readable(status)}</span>

@@ -1446,7 +1446,7 @@ export function LiveCrewRequirements() {
       <AssignmentPicker data={data} assignments={selection.candidates} selected={assignment} onSelect={selection.select} />
       <header className="crew-portal-hero">
         <div>
-          <p className="eyebrow">Assignment evidence</p>
+          <p className="eyebrow">Your assignment</p>
           <h1>Requirements</h1>
           <p>
             {/* Said "before the assignment is confirmed" on an assignment that

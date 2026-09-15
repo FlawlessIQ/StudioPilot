@@ -2080,7 +2080,7 @@ export function LiveClientContract() {
                 <LockKeyhole />
                 <span>
                   <strong>You’re opening {signingProvider ?? "the signing page"}</strong>
-                  <small>Sign there, then return to this page. StudioCue will check for the provider’s completion evidence.</small>
+                  <small>Sign there, then return to this page. It updates here once you've signed.</small>
                 </span>
               </div>
               <a
