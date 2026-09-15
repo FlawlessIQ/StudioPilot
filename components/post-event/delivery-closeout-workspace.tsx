@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Archive,
   CheckCircle2,
@@ -68,6 +68,27 @@ export function DeliveryCloseoutWorkspace({
     }
   }
   const [notice, setNotice] = useState<string | null>(null);
+  const reconciledFor = useRef<string | null>(null);
+  const projectState = text(
+    projects?.find((item) => item.id === projectId)?.state,
+  );
+  /**
+   * Reconcile on arrival instead of behind a button.
+   *
+   * Closing a job was "Reconcile evidence", read eight rows, "Approve
+   * closeout", then "Complete archive handoff" — four decisions to learn that
+   * nothing was wrong. The check is read-only, so run it once a delivered job
+   * is opened; the studio then sees either one line and one button, or only
+   * what is actually open.
+   */
+  useEffect(() => {
+    if (!projectId || reconciledFor.current === projectId) return;
+    if (!["DELIVERED", "REVIEW_REQUESTED"].includes(projectState)) return;
+    reconciledFor.current = projectId;
+    void sendPostEventCommand("prepareCloseout", { projectId })
+      .then(() => refreshTenantRecords("projectCloseouts", "projects"))
+      .catch(() => undefined);
+  }, [projectId, projectState]);
   if (!projectId) return null;
   const project = projects?.find((item) => item.id === projectId);
   const packageSnapshotId = text(project?.packageSnapshotId);
@@ -122,7 +143,8 @@ export function DeliveryCloseoutWorkspace({
 
   async function runCloseout(
     type: "prepareCloseout" | "closeProject" | "archiveProject",
-  ) {
+    options: { quiet?: boolean } = {},
+  ): Promise<boolean> {
     setBusy(type);
     setNotice(null);
     try {
@@ -179,6 +201,7 @@ export function DeliveryCloseoutWorkspace({
         ),
       );
       const stillBlocked = unmet.length > 0;
+      if (options.quiet) return true;
       setNotice(
         type === "prepareCloseout"
           ? stillBlocked
@@ -186,16 +209,34 @@ export function DeliveryCloseoutWorkspace({
             : "Closeout evidence is complete and ready for owner approval."
           : type === "closeProject"
             ? "Project closed and the summary was queued."
-            : "Archive handoff completed with retention review preserved.",
+            : "Archived. The job is closed and its records are kept for the retention review.",
       );
+      return true;
     } catch (caught: unknown) {
       setNotice(
         friendlyError(caught, "Closeout action failed."),
       );
+      return false;
     } finally {
       setBusy(null);
     }
   }
+
+  async function closeAndArchive() {
+    if (await runCloseout("closeProject", { quiet: true })) {
+      await runCloseout("archiveProject");
+    }
+  }
+
+  const requirementRows = list(closeout?.requirements).map((value) => {
+    const requirement = record(value);
+    const vouched = Boolean(text(record(requirement.attestation).attestedAt));
+    return { requirement, met: requirement.complete === true || vouched };
+  });
+  const openRows = requirementRows.filter((row) => !row.met);
+  const closed = text(project?.state) === "CLOSED";
+  const archived = Boolean(text(project?.archivedAt));
+  const readyToClose = closeout?.status === "ready" && !closed;
 
   return (
     <section className="delivery-closeout-workspace">
@@ -284,17 +325,30 @@ export function DeliveryCloseoutWorkspace({
         <header className="panel-heading">
           <div>
             <p className="eyebrow">Closing the job</p>
-            <h2>Closeout assistant</h2>
+            <h2>
+              {archived
+                ? "Archived"
+                : closed
+                  ? "Closed"
+                  : readyToClose
+                    ? "Everything reconciles"
+                    : "Wrap up"}
+            </h2>
             <p>
-              Reconcile contract, QuickBooks balance, final schedule, delivery,
-              album, review ask, crew, and insurance before closing.
+              {archived
+                ? "This job is closed and archived."
+                : readyToClose
+                  ? "The agreement, balance, gallery, crew and insurance all check out. Close and archive this job?"
+                  : closeout && openRows.length
+                    ? `${requirementRows.length - openRows.length} of ${requirementRows.length} are settled. What's left is below.`
+                    : "StudioCue checks the agreement, balance, gallery, album, review ask, crew and insurance once the gallery is delivered."}
             </p>
           </div>
           <Archive aria-hidden="true" />
         </header>
-        {closeout ? (
+        {closeout && openRows.length ? (
           <div className="closeout-requirements">
-            {list(closeout.requirements).map((requirementValue) => {
+            {openRows.map(({ requirement: requirementValue }) => {
               const requirement = record(requirementValue);
               const key = text(requirement.key);
               const attestation = record(requirement.attestation);
@@ -401,40 +455,52 @@ export function DeliveryCloseoutWorkspace({
               );
             })}
           </div>
-        ) : (
-          <p className="closeout-empty">
-            Run the evidence check when delivery and final provider updates are
-            recorded.
-          </p>
-        )}
+        ) : null}
+        {closeout && requirementRows.length > openRows.length ? (
+          <details className="closeout-settled">
+            <summary>What was checked</summary>
+            <ul>
+              {requirementRows
+                .filter((row) => row.met)
+                .map(({ requirement }) => (
+                  <li key={text(requirement.key)}>
+                    <CheckCircle2 aria-hidden="true" size={14} />
+                    {text(requirement.label)}
+                    {requirement.complete !== true ? " (you vouched for this)" : ""}
+                  </li>
+                ))}
+            </ul>
+          </details>
+        ) : null}
         <footer>
-          <button
-            className="button button-light"
-            disabled={busy !== null}
-            onClick={() => void runCloseout("prepareCloseout")}
-            type="button"
-          >
-            <RefreshCw /> Reconcile evidence
-          </button>
-          {closeout?.status === "ready" &&
-          !["CLOSED"].includes(text(project?.state)) ? (
+          {readyToClose ? (
             <button
               className="button button-dark"
               disabled={busy !== null}
-              onClick={() => void runCloseout("closeProject")}
+              onClick={() => void closeAndArchive()}
               type="button"
             >
-              <CheckCircle2 /> Approve closeout
+              <Archive /> Close and archive
             </button>
           ) : null}
-          {closeout?.status === "completed" && project?.state === "CLOSED" ? (
+          {!closed ? (
+            <button
+              className="button button-light"
+              disabled={busy !== null}
+              onClick={() => void runCloseout("prepareCloseout")}
+              type="button"
+            >
+              <RefreshCw /> Check again
+            </button>
+          ) : null}
+          {closeout?.status === "completed" && closed && !archived ? (
             <button
               className="button button-dark"
               disabled={busy !== null}
               onClick={() => void runCloseout("archiveProject")}
               type="button"
             >
-              <Archive /> Complete archive handoff
+              <Archive /> Archive
             </button>
           ) : null}
         </footer>

@@ -15,8 +15,14 @@
  * shape of fault as PLANNING → READY having no performer, and the same shape of
  * fix: the state change is the occasion, and nothing is claimed on the studio's
  * behalf.
+ *
+ * The gallery inbox opens here too. It used to open only when the studio
+ * ticked "Gallery ready" — so the address that lets the gallery provider's
+ * email tick editing and gallery-ready by itself arrived after the studio had
+ * already ticked them by hand. See functions/src/post-event/inbound.ts.
  */
 
+import { createHash, randomBytes } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 
@@ -59,11 +65,35 @@ export const postProductionOnProjectEditing = onDocumentWritten(
 
     const db = getFirestore();
     const reference = db.doc(`postProductionRecords/${projectId}`);
-    const existing = await reference.get();
+    const inboxReference = db.doc(`galleryInboxes/${projectId}`);
+    const [existing, inbox] = await Promise.all([
+      reference.get(),
+      inboxReference.get(),
+    ]);
+    const now = new Date().toISOString();
+    if (!inbox.exists) {
+      const token = randomBytes(24).toString("base64url");
+      const inboundDomain = process.env.SENDGRID_INBOUND_DOMAIN;
+      await inboxReference
+        .create({
+          id: projectId,
+          tenantId,
+          projectId,
+          inboundAddress: inboundDomain ? `gallery+${token}@${inboundDomain}` : null,
+          tokenHash: createHash("sha256").update(token).digest("hex"),
+          status: inboundDomain ? "active" : "configuration_required",
+          lastReceivedAt: null,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: "post-production-opener",
+          updatedBy: "post-production-opener",
+          archivedAt: null,
+        })
+        .catch(() => undefined);
+    }
     // A record from an earlier pass through editing is the studio's work.
     if (existing.exists) return;
 
-    const now = new Date().toISOString();
     const steps = Object.fromEntries(
       STEP_KEYS.map((key) => [key, emptyStep()]),
     );

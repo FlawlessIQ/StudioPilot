@@ -3,6 +3,7 @@ import Busboy from "busboy";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest, type Request } from "firebase-functions/v2/https";
 import { productEvent } from "../operations/product-events.js";
+import { galleryEvidenceUpdates } from "./gallery-evidence.js";
 
 type InboundFields = Record<string, string>;
 
@@ -131,7 +132,26 @@ export const sendgridInboundGallery = onRequest(
       const projectId = String(inbox.get("projectId"));
       const draftId = `gallery_draft_${eventId}`;
       const now = new Date().toISOString();
+      const productionReference = db.doc(`postProductionRecords/${projectId}`);
+      const production = await productionReference.get();
       const batch = db.batch();
+      // The email is proof the gallery was culled, edited and published; record
+      // that against the job rather than asking the studio to tick it.
+      if (production.exists && production.get("tenantId") === tenantId) {
+        const evidence = galleryEvidenceUpdates({
+          steps: production.get("steps") as Record<string, { complete?: boolean }> | undefined,
+          evidenceId: draftId,
+          receivedAt: now,
+        });
+        if (evidence.marked.length) {
+          batch.update(productionReference, {
+            ...evidence.updates,
+            currentStep: evidence.currentStep,
+            updatedAt: now,
+            updatedBy: "sendgrid-gallery-inbound",
+          });
+        }
+      }
       batch.create(eventReference, {
         tenantId,
         projectId,

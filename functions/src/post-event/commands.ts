@@ -243,7 +243,9 @@ export const postEventCommand = onRequest(
             updatedAt: now,
             updatedBy: identity.uid,
           });
-          if (parsed.input.step === "gallery_ready" && !galleryInbox.exists) {
+          // Jobs that entered post-production before the opener created the
+          // inbox get one on their first tick.
+          if (!galleryInbox.exists) {
             const inboundDomain = process.env.SENDGRID_INBOUND_DOMAIN;
             transaction.create(galleryInboxReference, {
               id: parsed.input.projectId,

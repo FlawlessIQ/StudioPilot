@@ -154,6 +154,36 @@
   line-height: 1.45;
 }
 
+.post-production-inbox {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line, #e6eae4);
+  border-radius: 12px;
+  background: var(--surface-muted, #f6f7f5);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.post-production-inbox p {
+  margin: 0;
+}
+
+.post-production-inbox > span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.post-production-inbox code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
 /* ── Readiness checkpoints ─────────────────────────────────────────────
    Built when the re-audit of 2026-08-27 found /studio/readiness listing every
    outstanding item with not one button on the page. Same visual language as the
@@ -350,4 +380,34 @@
     grid-column: 2;
     margin-top: 4px;
   }
+}
+
+/* Closeout: the settled requirements fold away behind one line. */
+.closeout-settled {
+  font-size: 13px;
+  color: var(--muted, #667);
+}
+
+.closeout-settled summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.closeout-settled ul {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.closeout-settled li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.closeout-settled svg {
+  flex: none;
+  color: var(--success, #2f7a4f);
 }

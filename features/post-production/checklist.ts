@@ -81,7 +81,7 @@ export const POST_PRODUCTION_META: Record<PostProductionStepKey, Meta> = {
   gallery_ready: {
     label: "Gallery ready",
     detail:
-      "Uploaded and ready to release. StudioCue opens a private address so your gallery provider's email files itself against this job.",
+      "Uploaded and ready to release. Your gallery provider's email to this job's address marks this and the editing steps for you.",
     owner: "You",
   },
   album_proof_ready: {
@@ -127,7 +127,11 @@ export type PostProductionRow = {
   actionable: boolean;
   /** What has to happen first, when it has not. */
   waitingOn: string | null;
+  /** Recorded from the gallery provider's email rather than a tick. */
+  fromGalleryEmail: boolean;
 };
+
+type StepState = { complete?: boolean; completedBy?: unknown } | undefined;
 
 const isComplete = (
   steps: Record<string, { complete?: boolean } | undefined>,
@@ -135,7 +139,7 @@ const isComplete = (
 ): boolean => steps[key]?.complete === true;
 
 export function postProductionRows(
-  steps: Record<string, { complete?: boolean } | undefined>,
+  steps: Record<string, StepState>,
 ): PostProductionRow[] {
   return POST_PRODUCTION_ORDER.map((key) => {
     const complete = isComplete(steps, key);
@@ -151,6 +155,7 @@ export function postProductionRows(
         !complete && studios && !ready && dependency
           ? POST_PRODUCTION_META[dependency].label
           : null,
+      fromGalleryEmail: complete && steps[key]?.completedBy === "gallery-inbound-email",
     };
   });
 }

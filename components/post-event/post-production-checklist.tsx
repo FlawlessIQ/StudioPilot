@@ -45,6 +45,7 @@ export function PostProductionChecklist({
   const { records: galleryInboxes } = useTenantDocuments("galleryInboxes");
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const production = (productionRecords ?? []).find(
     (item) => item.projectId === projectId,
@@ -81,15 +82,16 @@ export function PostProductionChecklist({
 
   const steps = record(production.steps) as Record<
     string,
-    { complete?: boolean } | undefined
+    { complete?: boolean; completedBy?: unknown } | undefined
   >;
   const rows = postProductionRows(steps);
   const inbox = (galleryInboxes ?? []).find(
     (item) => item.projectId === projectId,
   );
-  const inboxNeedsSetup =
-    steps.gallery_ready?.complete === true &&
-    inbox?.status === "configuration_required";
+  const inboxNeedsSetup = inbox?.status === "configuration_required";
+  const inboxAddress =
+    typeof inbox?.inboundAddress === "string" ? inbox.inboundAddress : "";
+
   const cleared = deliveryGateCleared(steps);
   const done = rows.filter((row) => row.complete).length;
 
@@ -135,6 +137,27 @@ export function PostProductionChecklist({
           email, and it cannot always deliver one: without an inbound domain
           configured the inbox is created in `configuration_required` with no
           address. Saying so beats a promise the studio will wait on. */}
+      {inboxAddress && steps.gallery_ready?.complete !== true ? (
+        <div className="post-production-inbox">
+          <p>
+            <strong>Skip the ticking.</strong> Add this address when your gallery
+            provider emails the couple (or forward that email here). Editing and
+            gallery-ready mark themselves, and the release is prepared for you.
+          </p>
+          <span>
+            <code>{inboxAddress}</code>
+            <button
+              className="button button-sm"
+              onClick={() => {
+                void navigator.clipboard?.writeText(inboxAddress).then(() => setCopied(true));
+              }}
+              type="button"
+            >
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </span>
+        </div>
+      ) : null}
       {inboxNeedsSetup ? (
         <p className="post-production-inbox-warning" role="status">
           The gallery inbox has no address yet — inbound email is not configured
@@ -174,7 +197,11 @@ export function PostProductionChecklist({
                   Required for release
                 </span>
               ) : null}
-              <small>{row.detail}</small>
+              <small>
+                {row.fromGalleryEmail
+                  ? "Marked from your gallery provider's email."
+                  : row.detail}
+              </small>
               {/* Whose step it is, when it is not the studio's. Saying it
                   outright is what stops "why can I not tick this?". */}
               {!row.complete && !row.actionable ? (
