@@ -16772,3 +16772,80 @@ label {
     padding: 0 8px;
   }
 }
+
+/* ============================================================================
+   Integrations on phones: a short heading, the privacy note folded into the
+   status bar's line, and each provider row as icon + copy with its actions
+   aligned under the copy rather than under the icon.
+   ========================================================================== */
+@media (max-width: 640px) {
+  .ds-root .integrations-page > .integrations-heading {
+    border: 0;
+    display: grid;
+    gap: 6px;
+    margin: 0 0 12px;
+    padding: 0;
+  }
+  .ds-root .integrations-page > .integrations-heading .eyebrow {
+    display: none;
+  }
+  .ds-root .integrations-page > .integrations-heading h1 {
+    font-size: 23px;
+    letter-spacing: -0.02em;
+    line-height: 1.18;
+    margin: 0;
+  }
+  .ds-root .integrations-page > .integrations-heading p {
+    font-size: 13px;
+    margin: 2px 0 0;
+  }
+  .ds-root .integrations-page > .integrations-heading .integrations-heading-note {
+    display: none;
+  }
+  .ds-root .integration-statusbar {
+    column-gap: 8px;
+    padding: 10px 12px;
+  }
+  .ds-root .integration-statusbar > span {
+    font-size: 12px;
+  }
+  .ds-root .ds-int-row {
+    align-items: start;
+    column-gap: 12px;
+    grid-template-columns: 34px minmax(0, 1fr);
+    padding: 12px 14px;
+    row-gap: 8px;
+  }
+  .ds-root .ds-int-row > .ds-int-icon {
+    border-radius: 10px;
+    height: 34px;
+    width: 34px;
+  }
+  .ds-root .ds-int-copy p {
+    display: -webkit-box;
+    font-size: 12.5px;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    white-space: normal;
+  }
+  .ds-root .ds-int-name {
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+  .ds-root .ds-int-row > .ds-int-actions {
+    display: flex;
+    gap: 8px;
+    grid-column: 2;
+    justify-self: start;
+  }
+  .ds-root .ds-int-row > :is(.ds-int-pending, .ds-int-detail) {
+    grid-column: 2;
+  }
+  .ds-root .integrations-page > .agreement-template {
+    padding: 14px 16px;
+  }
+  .ds-root .integrations-page > .agreement-template header p:not(.eyebrow) {
+    font-size: 12.5px;
+  }
+}
