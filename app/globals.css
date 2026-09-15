@@ -15532,3 +15532,212 @@ label {
     white-space: nowrap;
   }
 }
+
+/* ============================================================================
+   Delivery on phones. Post-production is a checklist, so it reads as one:
+   rows inside a single card with the "Mark done" button on the row. The gallery
+   form loses its double inset, and closeout requirements are quiet rows with
+   "Mark as done" at the end instead of a column of bold chips.
+   ========================================================================== */
+@media (max-width: 640px) {
+  .ds-root .post-production-checklist {
+    gap: 10px;
+    padding: 14px;
+  }
+  .ds-root .post-production-checklist > header {
+    align-items: center;
+    display: grid;
+    gap: 2px 12px;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .ds-root .post-production-checklist > header .eyebrow {
+    display: none;
+  }
+  .ds-root .post-production-checklist > header h2 {
+    font-size: 17px;
+    margin: 0;
+  }
+  .ds-root .post-production-checklist > header p {
+    font-size: 12.5px;
+    line-height: 1.4;
+    margin: 3px 0 0;
+  }
+  .ds-root .post-production-checklist > header .post-production-count {
+    align-self: start;
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .ds-root .post-production-checklist > ol {
+    gap: 0;
+  }
+  .ds-root .post-production-checklist > ol > li {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    border-top: 1px solid var(--ds-line, var(--line));
+    box-shadow: none;
+    display: grid;
+    gap: 0 10px;
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    min-height: 0;
+    padding: 10px 0;
+  }
+  .ds-root .post-production-checklist > ol > li:first-child {
+    border-top: 0;
+  }
+  .ds-root .post-production-checklist .post-production-mark {
+    align-self: start;
+    margin-top: 1px;
+  }
+  .ds-root .post-production-checklist .post-production-copy {
+    display: block;
+    min-width: 0;
+  }
+  .ds-root .post-production-checklist .post-production-copy strong {
+    font-size: 14px;
+    margin-right: 6px;
+  }
+  .ds-root .post-production-checklist .post-production-gates {
+    background: transparent;
+    display: inline;
+    font-size: 10px;
+    padding: 0;
+    white-space: nowrap;
+  }
+  .ds-root .post-production-checklist .post-production-copy small,
+  .ds-root .post-production-checklist .post-production-copy em {
+    display: block;
+    font-size: 12px;
+    line-height: 1.35;
+    margin-top: 2px;
+  }
+  .ds-root .post-production-checklist > ol > li > .button {
+    grid-column: 3;
+    grid-row: 1;
+    margin: 0;
+    font-size: 12.5px;
+    min-height: 32px;
+    padding: 0 12px;
+  }
+
+  /* Record gallery: one inset, not three. */
+  .ds-root .live-domain-page > .panel:has(.delivery-release-form) {
+    padding: 14px;
+  }
+  .ds-root .live-domain-page > .panel:has(.delivery-release-form) > .panel-heading {
+    margin-bottom: 10px;
+  }
+  .ds-root .live-domain-page > .panel:has(.delivery-release-form) > .panel-heading h2 {
+    font-size: 17px;
+  }
+  .ds-root .delivery-release-form {
+    gap: 12px;
+  }
+  .ds-root .delivery-release-form > .delivery-project-first {
+    background: transparent;
+    border: 0;
+    padding: 0;
+  }
+  .ds-root .delivery-release-form > .delivery-project-first > small {
+    display: none;
+  }
+  .ds-root .delivery-release-form > .delivery-announcement-import {
+    gap: 10px;
+    padding: 12px;
+  }
+  .ds-root .delivery-announcement-import > div strong {
+    font-size: 14.5px;
+  }
+  .ds-root .delivery-announcement-import > div small {
+    font-size: 12px;
+  }
+  .ds-root .delivery-announcement-import textarea {
+    font-size: 14px;
+    min-height: 76px;
+  }
+  .ds-root .delivery-announcement-import > .button {
+    font-size: 13px;
+    min-height: 38px;
+  }
+  .ds-root .delivery-release-form > .delivery-gate-notice {
+    font-size: 12.5px;
+    line-height: 1.45;
+    padding: 10px 12px;
+  }
+  .ds-root .delivery-release-form > .button-dark {
+    width: 100%;
+    justify-content: center;
+  }
+  .ds-root .delivery-release-form > .form-notice {
+    background: transparent;
+    border: 0;
+    font-size: 11.5px;
+    line-height: 1.45;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Closeout: quiet requirement rows. */
+  .ds-root .closeout-assistant {
+    padding: 14px;
+  }
+  .ds-root .closeout-assistant > .panel-heading {
+    margin: 0 0 6px;
+    padding: 0;
+  }
+  .ds-root .closeout-assistant > .panel-heading > svg {
+    display: none;
+  }
+  .ds-root .closeout-assistant > .panel-heading h2 {
+    font-size: 17px;
+  }
+  .ds-root .closeout-assistant > .panel-heading p {
+    font-size: 12.5px;
+  }
+  .ds-root .closeout-requirements {
+    gap: 0;
+  }
+  .ds-root .closeout-requirements > span {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    border-top: 1px solid var(--ds-line, var(--line));
+    display: flex;
+    flex-wrap: wrap;
+    font-size: 13.5px;
+    gap: 4px 8px;
+    min-height: 0;
+    padding: 9px 0;
+  }
+  .ds-root .closeout-requirements > span:first-child {
+    border-top: 0;
+  }
+  .ds-root .closeout-requirements > span > svg {
+    flex: none;
+    height: 16px;
+    width: 16px;
+  }
+  .ds-root .closeout-requirements > span > strong {
+    flex: 1 1 0;
+    font-size: 13.5px;
+    font-weight: 600;
+    min-width: 0;
+  }
+  .ds-root .closeout-requirements > span > .closeout-attest {
+    font-size: 12.5px;
+    margin-left: auto;
+  }
+  .ds-root .closeout-requirements > span > :is(.closeout-vouched, form, div) {
+    flex: 1 1 100%;
+  }
+  .ds-root .closeout-assistant > footer {
+    margin-top: 10px;
+  }
+
+  .ds-root .live-domain-page .live-domain-state {
+    min-height: 0;
+    padding: 18px;
+  }
+}
