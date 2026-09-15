@@ -155,6 +155,9 @@ export const lifecycleMessageScheduler = onSchedule(
           projectId: project.id,
           actorId: "lifecycle-message-scheduler",
           title: `Review ${item.trigger.replaceAll("_", " ")}`,
+          // Which lifecycle message this is, for the trust dial
+          // (features/messaging/trust-dial.ts), without parsing the title.
+          lifecycleTrigger: item.trigger,
           capability: "delivery_message_draft",
           authorityBoundary: "draft_requires_review",
           status: autoSend ? "executed" : "review_required",

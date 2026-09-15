@@ -41,6 +41,7 @@ import {
 import { sendCommunicationsCommand } from "@/lib/communications/command-client";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { PreparedCompactRow } from "@/components/ai/prepared-compact-row";
+import { TrustDialOffers } from "@/components/communications/trust-dial-offers";
 
 type RecordValue = Record<string, unknown> & { id: string };
 
@@ -749,6 +750,8 @@ export function AiApprovalQueue() {
           <ReceiptText /> Action receipts <span>{receipts.length}</span>
         </button>
       </nav>
+
+      {filter === "review" ? <TrustDialOffers /> : null}
 
       {error ? (
         <p className="ai-queue-page-error" role="alert"><CircleAlert /> {error}</p>

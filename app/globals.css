@@ -17405,3 +17405,54 @@ label {
 .client-booking-page > .reserve-your-date {
   margin-bottom: 10px;
 }
+
+/* Trust dial: offer to send a message type automatically, where approvals happen. */
+.trust-dial-offers {
+  display: grid;
+  gap: 8px;
+}
+.trust-dial-offer {
+  align-items: center;
+  background: var(--ds-paper-raised, #fff);
+  border: 1px solid var(--ds-line, var(--line));
+  border-radius: 14px;
+  display: grid;
+  gap: 10px 14px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 12px 14px;
+}
+.trust-dial-icon {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent, #2f6b55) 14%, transparent);
+  border-radius: 10px;
+  color: var(--accent, #2f6b55);
+  display: inline-flex;
+  height: 32px;
+  justify-content: center;
+  width: 32px;
+}
+.trust-dial-offer > div:not(.trust-dial-actions) {
+  display: grid;
+  gap: 2px;
+}
+.trust-dial-offer strong {
+  font-size: 14.5px;
+}
+.trust-dial-offer small {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.trust-dial-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+@media (max-width: 640px) {
+  .trust-dial-offer {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .trust-dial-actions {
+    grid-column: 1 / -1;
+  }
+}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type CSSProperties } from "react";
 import Link from "next/link";
+import { TrustDialOffers } from "@/components/communications/trust-dial-offers";
 import {
   ArrowRight,
   CalendarDays,
@@ -391,6 +392,8 @@ export function TodayInbox() {
               </dl>
             ) : null}
           </header>
+
+          {!loading ? <TrustDialOffers /> : null}
 
           {!loading && !setup.complete && !(setup.brandNew && waiting > 0) ? (
             /**
