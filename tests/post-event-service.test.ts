@@ -18,6 +18,29 @@ test("gallery provider email becomes a reviewable delivery draft", () => {
   );
 });
 
+test("a gallery notice forwarded from Gmail yields the real link and password", () => {
+  // The production test of 2026-09-15: Gmail wrapped the link and "View
+  // gallery: https://…" was read as the access code "https".
+  const forwarded = [
+    "Fwd: Your gallery is ready",
+    "Your gallery is ready to share.",
+    "View gallery: https://www.google.com/url?q=https://flawlessiq.pixieset.com/questionnaireflowtest/&source=gmail&ust=1789592791071000&sa=E",
+    "Password: TEST2027",
+    "Expires: 2027-12-31",
+  ].join("\n");
+  assert.deepEqual(parseInboundGalleryAnnouncement(forwarded), {
+    provider: "pixieset",
+    galleryUrl: "https://flawlessiq.pixieset.com/questionnaireflowtest/",
+    accessCode: "TEST2027",
+    expirationDate: "2027-12-31",
+  });
+  const outlook = "Gallery: https://nam02.safelinks.protection.outlook.com/?url=https%3A%2F%2Fstudio.pic-time.com%2F-smith%2Fgallery&data=x PIN 4411";
+  const parsed = parseInboundGalleryAnnouncement(outlook);
+  assert.equal(parsed.provider, "pic_time");
+  assert.equal(parsed.galleryUrl, "https://studio.pic-time.com/-smith/gallery");
+  assert.equal(parsed.accessCode, "4411");
+});
+
 const audit = { createdAt:"2026-07-01T12:00:00.000Z",updatedAt:"2026-07-01T12:00:00.000Z",createdBy:"owner",updatedBy:"owner" };
 const emptyStep = { complete:false,completedAt:null,completedBy:null,evidenceId:null,notes:null };
 const record = postProductionRecordSchema.parse({ ...audit,id:"post-a",tenantId:"tenant-a",projectId:"project-a",steps:{
@@ -91,4 +114,9 @@ test("report aggregates are deterministic and use integer cents", () => {
     {type:"Wedding",leadSource:"Referral",booked:true,valueCents:600000,ready:true,coiTurnaroundDays:2,crewAccepted:true,scheduleRevisions:3},
     {type:"Corporate",leadSource:"Organic",booked:false,valueCents:0,ready:false,coiTurnaroundDays:null,crewAccepted:false,scheduleRevisions:0},
   ]),{inquiries:2,bookings:1,bookingConversionPercent:50,bookedValueCents:600000,readyPercent:100,crewAcceptancePercent:100,averageScheduleRevisions:3});
+});
+
+test("prose near a password label is not read as the code", () => {
+  const parsed = parseInboundGalleryAnnouncement("Your gallery is password protected. View it at https://a.pixieset.com/x/");
+  assert.equal(parsed.accessCode, "");
 });
