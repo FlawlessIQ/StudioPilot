@@ -16498,3 +16498,88 @@ label {
     font-size: 12px;
   }
 }
+
+/* ============================================================================
+   Inquiry (lead) detail on phones: the status badge stays a pill, the actions
+   are an even two-up grid, and the contact and event cards read as label /
+   value rows instead of stacked label-over-value blocks.
+   ========================================================================== */
+@media (max-width: 640px) {
+  .ds-root .lead-detail-page > .page-heading > .status-badge {
+    justify-self: start;
+  }
+  .ds-root .lead-detail-page > .lead-action-row {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ds-root .lead-detail-page > .lead-action-row > :is(.button, a.button) {
+    font-size: 13px;
+    justify-content: center;
+    min-height: 40px;
+    padding: 0 10px;
+    width: 100%;
+  }
+  .ds-root .lead-detail-page > .lead-action-row > :is(small, p) {
+    grid-column: 1 / -1;
+  }
+  .ds-root .lead-detail-page > .lead-detail-grid {
+    gap: 10px;
+  }
+  .ds-root .lead-detail-page :is(.lead-detail-card, .lead-message-card, .lead-insight-card) {
+    padding: 14px 16px;
+  }
+  .ds-root .lead-detail-page :is(.lead-detail-card, .lead-message-card) > .panel-heading {
+    margin-bottom: 6px;
+  }
+  .ds-root .lead-detail-page :is(.lead-detail-card, .lead-message-card) > .panel-heading h2,
+  .ds-root .lead-detail-page .lead-insight-card h2 {
+    font-size: 16px;
+    margin: 0;
+  }
+  .ds-root .lead-detail-page :is(.lead-detail-card, .lead-message-card) > .panel-heading p {
+    display: none;
+  }
+  .ds-root .lead-detail-page .lead-detail-card dl {
+    display: grid;
+    gap: 0;
+    margin: 0;
+  }
+  .ds-root .lead-detail-page .lead-detail-card dl > div {
+    align-items: baseline;
+    border-top: 1px solid var(--ds-line, var(--line));
+    display: grid;
+    gap: 12px;
+    grid-template-columns: 96px minmax(0, 1fr);
+    padding: 8px 0;
+  }
+  .ds-root .lead-detail-page .lead-detail-card dl > div:first-child {
+    border-top: 0;
+  }
+  .ds-root .lead-detail-page .lead-detail-card dt {
+    font-size: 11.5px;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  .ds-root .lead-detail-page .lead-detail-card dd {
+    font-size: 14px;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+  .ds-root .lead-detail-page .lead-detail-card dd > svg {
+    display: none;
+  }
+  .ds-root .lead-detail-page .lead-message-card > p {
+    font-size: 14px;
+    line-height: 1.55;
+    margin: 0;
+  }
+  .ds-root .lead-detail-page .lead-insight-card ul {
+    margin: 6px 0 0;
+    padding-left: 18px;
+  }
+  .ds-root .lead-detail-page .lead-insight-card li {
+    font-size: 13.5px;
+    padding: 2px 0;
+  }
+}
