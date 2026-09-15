@@ -548,3 +548,41 @@
     transition: none;
   }
 }
+
+/* Example tour on phones: a short heading, and each readiness row's note drops
+   under its label instead of squeezing it from the right. */
+@media (max-width: 640px) {
+  .ds-root .example-tour > .page-heading {
+    border: 0;
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    min-height: 0;
+    padding: 0;
+  }
+  .ds-root .example-tour > .page-heading::before,
+  .ds-root .example-tour > .page-heading .eyebrow {
+    display: none;
+  }
+  .ds-root .example-tour > .page-heading h1 {
+    font-size: 23px;
+    margin: 0;
+  }
+  .ds-root .example-tour > .page-heading > div > p {
+    font-size: 13px;
+    line-height: 1.45;
+    margin: 4px 0 0;
+  }
+  .ds-root .example-tour > .page-heading > .button {
+    justify-self: start;
+    min-height: 34px;
+  }
+  .example-checks li {
+    grid-template-columns: auto minmax(0, 1fr);
+    row-gap: 2px;
+  }
+  .example-check-note {
+    grid-column: 2;
+    text-align: left;
+  }
+}
