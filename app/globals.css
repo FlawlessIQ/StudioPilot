@@ -15928,55 +15928,65 @@ label {
 }
 
 /* ============================================================================
-   Contracts & invoices lists on phones: three lines, not four. The status
+   Contracts, invoices, post-production, reviews, delivery and audit lists on
+   phones: three lines, not four. The status
    badge moves up beside the name (reordered in the wrapping flex row, ahead of
    the line break), the provider line sits under it, and the stat strip closes
    the row. Section headings drop their eyebrow.
    ========================================================================== */
 @media (max-width: 560px) {
-  .ds-root .live-domain-table:is([data-domain="contracts"], [data-domain="invoices"]) > :is(a, article) {
+  .ds-root .live-domain-table:is([data-domain="contracts"], [data-domain="invoices"], [data-domain="post_production"], [data-domain="reviews"], [data-domain="delivery"], [data-domain="audit"]) > :is(a, article) {
     align-items: center;
     gap: 6px 14px;
     padding: 12px 14px;
   }
-  .ds-root .live-domain-table:is([data-domain="contracts"], [data-domain="invoices"]) > :is(a, article) > .live-domain-primary {
+  .ds-root .live-domain-table:is([data-domain="contracts"], [data-domain="invoices"], [data-domain="post_production"], [data-domain="reviews"], [data-domain="delivery"], [data-domain="audit"]) > :is(a, article) > .live-domain-primary {
     flex: 1 1 0;
     min-width: 0;
     order: 0;
   }
-  .ds-root .live-domain-table:is([data-domain="contracts"], [data-domain="invoices"]) .live-domain-primary strong {
+  .ds-root .live-domain-table:is([data-domain="contracts"], [data-domain="invoices"], [data-domain="post_production"], [data-domain="reviews"], [data-domain="delivery"], [data-domain="audit"]) .live-domain-primary strong {
     font-size: 15px;
   }
-  .ds-root .live-domain-table:is([data-domain="contracts"], [data-domain="invoices"]) .live-domain-primary small {
+  .ds-root .live-domain-table:is([data-domain="contracts"], [data-domain="invoices"], [data-domain="post_production"], [data-domain="reviews"], [data-domain="delivery"], [data-domain="audit"]) .live-domain-primary small {
     font-size: 12px;
   }
-  .ds-root .live-domain-table:is([data-domain="contracts"], [data-domain="invoices"]) > :is(a, article) > .status-badge {
+  .ds-root .live-domain-table:is([data-domain="contracts"], [data-domain="invoices"], [data-domain="post_production"], [data-domain="reviews"], [data-domain="delivery"], [data-domain="audit"]) > :is(a, article) > .status-badge {
     align-self: flex-start;
     display: inline-flex;
     margin-top: 2px;
     order: 1;
   }
-  .ds-root .live-domain-table:is([data-domain="contracts"], [data-domain="invoices"]) > :is(a, article) > svg {
+  .ds-root .live-domain-table:is([data-domain="contracts"], [data-domain="invoices"], [data-domain="post_production"], [data-domain="reviews"], [data-domain="delivery"], [data-domain="audit"]) > :is(a, article) > svg {
     align-self: flex-start;
     margin-top: 4px;
     order: 1;
   }
-  .ds-root .live-domain-table:is([data-domain="contracts"], [data-domain="invoices"]) .live-domain-break {
+  .ds-root .live-domain-table:is([data-domain="contracts"], [data-domain="invoices"], [data-domain="post_production"], [data-domain="reviews"], [data-domain="delivery"], [data-domain="audit"]) .live-domain-break {
     display: block;
     flex: 0 0 100%;
     height: 0;
     order: 2;
   }
-  .ds-root .live-domain-table:is([data-domain="contracts"], [data-domain="invoices"]) > :is(a, article) > span:not(.live-domain-primary):not(.live-domain-break):not(.status-badge) {
+  .ds-root .live-domain-table:is([data-domain="contracts"], [data-domain="invoices"], [data-domain="post_production"], [data-domain="reviews"], [data-domain="delivery"], [data-domain="audit"]) > :is(a, article) > span:not(.live-domain-primary):not(.live-domain-break):not(.status-badge) {
     flex: 0 1 auto;
     order: 3;
   }
-  .ds-root .live-domain-table:is([data-domain="contracts"], [data-domain="invoices"]) > :is(a, article) > span:not(.live-domain-primary) > small {
+  .ds-root .live-domain-table:is([data-domain="contracts"], [data-domain="invoices"], [data-domain="post_production"], [data-domain="reviews"], [data-domain="delivery"], [data-domain="audit"]) > :is(a, article) > span:not(.live-domain-primary) > small {
     font-size: 9.5px;
   }
-  .ds-root .live-domain-table:is([data-domain="contracts"], [data-domain="invoices"]) > :is(a, article) > span:not(.live-domain-primary) > strong {
+  .ds-root .live-domain-table:is([data-domain="contracts"], [data-domain="invoices"], [data-domain="post_production"], [data-domain="reviews"], [data-domain="delivery"], [data-domain="audit"]) > :is(a, article) > span:not(.live-domain-primary) > strong {
     font-size: 13px;
     font-variant-numeric: tabular-nums;
+  }
+  .ds-root .live-domain-table:is([data-domain="post_production"], [data-domain="audit"]) > :is(a, article) > span:not(.live-domain-primary):not(.live-domain-break):not(.status-badge) {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .ds-root .live-domain-table:is([data-domain="post_production"], [data-domain="audit"]) > :is(a, article) > span:not(.live-domain-primary) > strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .ds-root .live-domain-page section > .section-heading-row .eyebrow {
     display: none;
