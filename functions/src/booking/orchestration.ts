@@ -5,8 +5,12 @@ import { logger } from "firebase-functions/v2";
 import { agreedRetainerCents } from "./agreed-retainer.js";
 import { isStandingInvoice } from "./invoice-standing.js";
 import { bookingGateRequirements } from "./gate-requirements.js";
-import { resolveProviderForTenant } from "../integrations/capability-resolution.js";
+import {
+  requireProviderForTenant,
+  resolveProviderForTenant,
+} from "../integrations/capability-resolution.js";
 import { productEvent } from "../operations/product-events.js";
+import { studioNotificationAddress } from "../communications/notify-address.js";
 
 function stableId(scope: string, ...parts: string[]) {
   return `${scope}_${createHash("sha256")
@@ -73,6 +77,232 @@ function strings(value: unknown): string[] {
  * does not exist, so `before?.get(...)` is undefined and reads as "was not
  * previously complete", which is exactly right.
  */
+/**
+ * The couple accepted; the agreement goes out.
+ *
+ * Accepting a proposal used to create a "Prepare client agreement" task, so
+ * the studio had to open the booking page, confirm a template and press
+ * "Approve sequence & send" — three steps for a decision already made when
+ * the studio chose its default agreement. When the studio has opted in
+ * (`defaultContractSettings.sendOnAcceptance`, set beside that choice), this
+ * does what that button does: creates the contract, queues the signature
+ * request and starts the booking sequence, so the retainer follows the
+ * signature and the job books itself when the retainer is paid.
+ *
+ * Deliberately narrow. It acts only on a transition to accepted, only with a
+ * connected signing app, a default template, a client with an email and a
+ * project waiting at CONTRACT_PENDING, and never when a contract already
+ * exists. Anything missing leaves the studio's existing task in place — the
+ * manual path is unchanged. Ids derive from the proposal, so a retried
+ * trigger cannot send twice.
+ */
+export const bookingProposalAccepted = onDocumentWritten(
+  "proposals/{proposalId}",
+  async (event) => {
+    const before = event.data?.before;
+    const proposal = event.data?.after;
+    if (!proposal?.exists) return;
+    if (proposal.get("status") !== "accepted" || before?.get("status") === "accepted")
+      return;
+
+    const db = getFirestore();
+    const tenantId = String(proposal.get("tenantId") ?? "");
+    const projectId = String(proposal.get("projectId") ?? "");
+    if (!tenantId || !projectId) return;
+
+    const tenant = await db.doc(`tenants/${tenantId}`).get();
+    const settings = (tenant.get("defaultContractSettings") ?? {}) as {
+      templateId?: string | null;
+      sendOnAcceptance?: boolean;
+    };
+    const templateId =
+      typeof settings.templateId === "string" ? settings.templateId : "";
+    if (settings.sendOnAcceptance !== true || !templateId) return;
+
+    const skip = (reason: string) =>
+      logger.info("bookingProposalAcceptedSkipped", { tenantId, projectId, reason });
+
+    let signingProvider: string;
+    try {
+      signingProvider = await requireProviderForTenant(db, tenantId, "signing");
+    } catch (caught: unknown) {
+      skip(caught instanceof Error ? caught.message : "SIGNING_UNRESOLVED");
+      return;
+    }
+
+    const projectReference = db.doc(`projects/${projectId}`);
+    const [project, existingContracts, plan] = await Promise.all([
+      projectReference.get(),
+      db.collection("contracts")
+        .where("tenantId", "==", tenantId)
+        .where("projectId", "==", projectId)
+        .limit(10)
+        .get(),
+      db.doc(`bookingOrchestrations/${projectId}`).get(),
+    ]);
+    if (!project.exists || project.get("tenantId") !== tenantId) return;
+    // Acceptance moves the job to CONTRACT_PENDING in the same write as the
+    // proposal, but a studio-recorded acceptance from CONSULTATION hops two
+    // states; anything else means the booking is already past this point.
+    if (project.get("state") !== "CONTRACT_PENDING") {
+      skip(`project_${String(project.get("state"))}`);
+      return;
+    }
+    if (existingContracts.docs.some((contract) => contract.get("status") !== "failed")) {
+      skip("contract_exists");
+      return;
+    }
+    if (plan.exists && plan.get("status") === "active") {
+      skip("plan_active");
+      return;
+    }
+    const contactIds = strings(project.get("clientContactIds"));
+    const contact = contactIds[0] ? await db.doc(`contacts/${contactIds[0]}`).get() : null;
+    const email = String(contact?.get("email") ?? "").trim();
+    if (!contact?.exists || contact.get("tenantId") !== tenantId || !email.includes("@")) {
+      skip("client_email_missing");
+      return;
+    }
+    const name =
+      String(contact.get("displayName") ?? "").trim() ||
+      [contact.get("firstName"), contact.get("lastName")].filter(Boolean).join(" ").trim() ||
+      email;
+
+    const now = new Date().toISOString();
+    const idempotencyKey = stableId("accept_send", tenantId, proposal.id);
+    const contractId = stableId("contract", tenantId, idempotencyKey);
+    const retainerDueDays = 7;
+    const startedEvent = productEvent({
+      tenantId,
+      projectId,
+      actorId: "booking-orchestrator",
+      actorType: "system",
+      name: "booking.sequence_approved",
+      occurredAt: now,
+      correlationId: idempotencyKey,
+      sourceEntityType: "bookingOrchestration",
+      sourceEntityId: projectId,
+      properties: {
+        proposalId: proposal.id,
+        contractId,
+        retainerDueDays,
+        trigger: "proposal_accepted",
+      },
+    });
+
+    await db.runTransaction(async (transaction) => {
+      const contractReference = db.doc(`contracts/${contractId}`);
+      const [existing, currentProject] = await Promise.all([
+        transaction.get(contractReference),
+        transaction.get(projectReference),
+      ]);
+      if (existing.exists) return;
+      if (currentProject.get("state") !== "CONTRACT_PENDING") return;
+      for (const stale of existingContracts.docs) {
+        transaction.update(stale.ref, {
+          status: "superseded",
+          supersededAt: now,
+          supersededBy: contractId,
+          updatedAt: now,
+          updatedBy: "booking-orchestrator",
+        });
+      }
+      transaction.create(contractReference, {
+        id: contractId,
+        tenantId,
+        projectId,
+        proposalId: proposal.id,
+        status: "queued",
+        provider: signingProvider,
+        providerEnvelopeId: `envelope_${idempotencyKey}`,
+        templateId,
+        signers: [{ name, email, role: "Client", order: 1, status: "queued" }],
+        sentAt: null,
+        completedAt: null,
+        signedDocumentId: null,
+        certificateDocumentId: null,
+        completionEvidence: null,
+        fileHash: null,
+        lastProviderEventId: null,
+        providerState: "queued",
+        // Who approved this send: the studio, in advance, by opting in.
+        sentOnStudioPolicy: "send_on_acceptance",
+        createdAt: now,
+        updatedAt: now,
+        createdBy: "booking-orchestrator",
+        updatedBy: "booking-orchestrator",
+        archivedAt: null,
+      });
+      transaction.create(db.doc(`providerJobs/contract_${contractId}`), {
+        tenantId,
+        projectId,
+        type: signingProvider === "dropbox_sign"
+          ? "create_dropbox_sign_request"
+          : "create_docusign_envelope",
+        contractId,
+        idempotencyKey,
+        status: "queued",
+        attempts: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+      transaction.set(db.doc(`bookingOrchestrations/${projectId}`), {
+        id: projectId,
+        tenantId,
+        projectId,
+        proposalId: proposal.id,
+        contractId,
+        invoiceId: null,
+        status: "active",
+        currentStep: "wait_for_signature",
+        policy: {
+          createRetainerAfterSignature: true,
+          completeBookingAfterPayment: true,
+          retainerDueDays,
+        },
+        approvedBy: "studio_policy:send_on_acceptance",
+        approvedAt: now,
+        lastError: null,
+        completedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      }, { merge: false });
+      // The task acceptance created is done: nobody needs to prepare anything.
+      transaction.set(db.doc(`tasks/proposal_decision_${proposal.id}`), {
+        status: "completed",
+        completedAt: now,
+        completedBy: "booking-orchestrator",
+        updatedAt: now,
+        updatedBy: "booking-orchestrator",
+      }, { merge: true });
+      transaction.create(db.doc(`productEvents/${startedEvent.id}`), startedEvent);
+      transaction.set(db.doc(`actionReceipts/booking_agreement_${projectId}`), {
+        id: `booking_agreement_${projectId}`,
+        tenantId,
+        projectId,
+        title: "Agreement sent automatically",
+        summary: `The couple accepted their proposal, so the agreement went to ${name} for signature. The retainer follows the signature.`,
+        status: "completed",
+        source: "booking_orchestrator",
+        affectedEntityType: "contract",
+        affectedEntityId: contractId,
+        providerEvidence: { proposalId: proposal.id, provider: signingProvider },
+        reversible: false,
+        retryable: true,
+        canCancel: false,
+        canRetry: true,
+        attempts: 1,
+        completedAt: now,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: "booking-orchestrator",
+        updatedBy: "booking-orchestrator",
+        archivedAt: null,
+      }, { merge: true });
+    });
+  },
+);
+
 export const bookingContractCompleted = onDocumentWritten(
   "contracts/{contractId}",
   async (event) => {
@@ -386,6 +616,11 @@ export const bookingRetainerPaid = onDocumentWritten(
       sourceEntityId: projectId,
       properties: { invoiceId: invoice.id, blockers },
     });
+    // The studio hears that it booked. A booking that completes itself is
+    // otherwise invisible until someone opens the app.
+    const studioAddress = blockers.length
+      ? null
+      : await studioNotificationAddress(db, tenantId).catch(() => null);
 
     await db.runTransaction(async (transaction) => {
       const [currentPlan, currentProject] = await Promise.all([
@@ -464,6 +699,20 @@ export const bookingRetainerPaid = onDocumentWritten(
         createdAt: now,
         updatedAt: now,
       }, { merge: true });
+      if (studioAddress) {
+        transaction.set(db.doc(`emailJobs/studio_booked_${projectId}`), {
+          id: `studio_booked_${projectId}`,
+          tenantId,
+          projectId,
+          type: "studio_booking_confirmed",
+          recipient: studioAddress,
+          actionUrl: `${(process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com").replace(/\/$/, "")}/studio/projects/${projectId}`,
+          status: "queued",
+          attempts: 0,
+          createdAt: now,
+          updatedAt: now,
+        }, { merge: false });
+      }
       transaction.set(db.doc(`actionReceipts/booking_complete_${projectId}`), {
         id: `booking_complete_${projectId}`,
         tenantId,

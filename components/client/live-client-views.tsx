@@ -64,6 +64,7 @@ import {
   type ClientMessageAttachment,
 } from "@/lib/client/message-upload";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { bookingSteps, type BookingStepsView } from "@/features/client/booking-steps";
 import { statusLabel } from "@/features/format/status-label";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
@@ -420,7 +421,10 @@ function PortalPageState({
   milestones,
   emptyArea,
   eventDate = null,
+  lead = null,
 }: {
+  /** Shown above the page title — the booking stepper, while booking. */
+  lead?: React.ReactNode;
   eyebrow: string;
   title: string;
   description: string;
@@ -451,6 +455,7 @@ function PortalPageState({
   const notice = past ?? dayNotice;
   return (
     <div className="client-booking-page">
+      {lead}
       <p className="eyebrow">{eyebrow}</p>
       <h1>{title}</h1>
       <p>{description}</p>
@@ -506,6 +511,97 @@ const statusTone = (status: unknown) =>
       ? ("danger" as const)
       : ("warning" as const);
 
+/**
+ * Where the couple is in reserving their date, or null outside booking.
+ *
+ * Null before any proposal is shared and once the date is booked: the
+ * stepper is for the three steps in between, not a permanent fixture. While a
+ * step is with the studio or a provider (agreement on its way, invoice
+ * syncing), it checks again every 20 seconds so the next step appears without
+ * the couple reloading.
+ */
+function useReserveYourDate(): BookingStepsView | null {
+  const proposals = useProjectRecords("proposals");
+  const contracts = useProjectRecords("contracts");
+  const invoices = useProjectRecords("invoiceReferences");
+  const proposal = [...proposals.value].sort(
+    (a, b) => number(b.version) - number(a.version),
+  )[0];
+  const contract = [...contracts.value]
+    .filter((entry) => !["superseded", "failed"].includes(text(entry.status)))
+    .sort((a, b) => text(b.updatedAt).localeCompare(text(a.updatedAt)))[0];
+  const retainer = invoices.value.find(
+    (invoice) => text(invoice.kind) === "retainer" && isStandingInvoice(invoice.status),
+  );
+  const view =
+    proposal && !proposals.loading
+      ? bookingSteps({
+          proposalStatus: text(proposal.status) || null,
+          contractStatus: contract ? text(contract.status) || null : null,
+          retainer: retainer
+            ? {
+                status: text(retainer.status),
+                balanceCents: number(retainer.balanceCents),
+                hostedUrl:
+                  typeof retainer.hostedUrl === "string" ? retainer.hostedUrl : null,
+              }
+            : null,
+        })
+      : null;
+  const waiting = Boolean(
+    view && !view.booked && view.next.href === null && proposal?.status === "accepted",
+  );
+  const refreshContracts = contracts.refresh;
+  const refreshInvoices = invoices.refresh;
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = window.setInterval(() => {
+      refreshContracts?.();
+      refreshInvoices?.();
+    }, 20_000);
+    return () => window.clearInterval(timer);
+  }, [waiting, refreshContracts, refreshInvoices]);
+  if (!view || view.booked) return null;
+  return view;
+}
+
+function ReserveYourDate({
+  view,
+  here,
+}: {
+  view: BookingStepsView;
+  /** The page this is shown on, so its own link is not offered back. */
+  here?: string;
+}) {
+  const offerLink = view.next.href && view.next.href !== here;
+  return (
+    <section className="panel reserve-your-date" aria-label="Reserve your date">
+      <p className="eyebrow">Reserve your date</p>
+      <ol>
+        {view.steps.map((step, index) => (
+          <li className={`is-${step.state}`} key={step.key}>
+            <span aria-hidden="true">
+              {step.state === "done" ? <CheckCircle2 size={16} /> : index + 1}
+            </span>
+            <small>{step.label}</small>
+          </li>
+        ))}
+      </ol>
+      <div className="reserve-your-date-next">
+        <span>
+          <strong>{view.next.title}</strong>
+          <small>{view.next.detail}</small>
+        </span>
+        {offerLink && view.next.actionLabel ? (
+          <Link className="button button-dark" href={view.next.href!}>
+            {view.next.actionLabel} <ArrowRight size={15} />
+          </Link>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 export function LiveClientHome() {
   const workspace = useWorkspace();
   const project = useProject();
@@ -515,6 +611,7 @@ export function LiveClientHome() {
   const documents = useProjectRecords("documents");
   const deliveries = useProjectRecords("deliveryRecords");
   const albums = useProjectRecords("albumWorkflows");
+  const reserve = useReserveYourDate();
   const [renderedAt] = useState(() => Date.now());
   if (project.loading || project.error || !project.value)
     return (
@@ -701,6 +798,8 @@ export function LiveClientHome() {
           </span>
         </div>
       </div>
+      {reserve ? <ReserveYourDate view={reserve} here="/client" /> : null}
+      {reserve ? null : (
       <section
         className={
           studioIsWorking
@@ -728,6 +827,7 @@ export function LiveClientHome() {
           {nextAction.actionLabel}
         </Link>
       </section>
+      )}
       <section className="panel client-artifact-hub">
         <div className="panel-heading">
           <div>
@@ -1299,6 +1399,7 @@ export function LiveClientProposal() {
   const portalProject = useProject();
   const workspace = useWorkspace();
   const proposals = useProjectRecords("proposals");
+  const reserve = useReserveYourDate();
   const proposal = useMemo(
     () =>
       [...proposals.value].sort(
@@ -1386,6 +1487,7 @@ export function LiveClientProposal() {
 
   return (
     <div className="client-booking-page client-proposal-page">
+      {reserve ? <ReserveYourDate view={reserve} here="/client/proposal" /> : null}
       <div className="client-proposal-heading">
         <div>
           <p className="eyebrow">Proposal · version {number(proposal.version)}</p>
@@ -1520,14 +1622,14 @@ export function LiveClientProposal() {
           <BadgeCheck />
           <div>
             <p className="eyebrow">Accepted</p>
-            <h2>Your studio can prepare the agreement.</h2>
+            <h2>Next, sign your agreement.</h2>
             <p>
-              You’ll receive a separate secure signature request when the
-              contract is ready.
+              Your agreement arrives by email with a secure signing link. Once
+              it’s signed, your deposit is the last step to reserve your date.
             </p>
           </div>
           <Link className="button button-light" href="/client/contract">
-            Contract status <ArrowRight />
+            Agreement status <ArrowRight />
           </Link>
         </section>
       ) : status === "declined" ? (
@@ -1885,6 +1987,7 @@ export function LiveClientPackage() {
 export function LiveClientContract() {
   const portalProject = useProject();
   const contracts = useProjectRecords("contracts");
+  const reserve = useReserveYourDate();
   const [providerOpened, setProviderOpened] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const refreshContracts = contracts.refresh;
@@ -1911,7 +2014,7 @@ export function LiveClientContract() {
     };
   }, [providerOpened, refreshContracts]);
   if (contracts.error || !contract)
-    return <PortalPageState eyebrow="Agreement" title="Your contract" description="Review signature progress and open your secure signing request." loading={contracts.loading} error={contracts.error} empty={!contracts.loading && !contracts.error ? "Your agreement will appear after the studio sends it for signature." : undefined} area="contract" milestones={portalProject.value?.milestones ?? null} />;
+    return <PortalPageState lead={reserve ? <ReserveYourDate view={reserve} here="/client/contract" /> : null} eyebrow="Agreement" title="Your contract" description="Review signature progress and open your secure signing request." loading={contracts.loading} error={contracts.error} empty={!contracts.loading && !contracts.error ? "Your agreement will appear after the studio sends it for signature." : undefined} area="contract" milestones={portalProject.value?.milestones ?? null} />;
   /**
    * Who actually witnessed this signature.
    *
@@ -1936,6 +2039,7 @@ export function LiveClientContract() {
   const complete = ["completed", "signed"].includes(contractStatus);
   return (
     <div className="client-booking-page">
+      {reserve ? <ReserveYourDate view={reserve} here="/client/contract" /> : null}
       <p className="eyebrow">Agreement</p>
       <h1>Photography services agreement</h1>
       <p>
@@ -2041,6 +2145,7 @@ export function LiveClientContract() {
 export function LiveClientPayments() {
   const portalProject = useProject();
   const invoices = useProjectRecords("invoiceReferences");
+  const reserve = useReserveYourDate();
   const [openedInvoiceId, setOpenedInvoiceId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const refreshInvoices = invoices.refresh;
@@ -2059,9 +2164,10 @@ export function LiveClientPayments() {
     };
   }, [openedInvoiceId, refreshInvoices]);
   if (invoices.error || invoices.value.length === 0)
-    return <PortalPageState eyebrow="Payments" title="Your payment schedule" description="Review amounts, due dates, and secure payment links." loading={invoices.loading} error={invoices.error} empty={!invoices.loading && !invoices.error ? "Invoices will appear here when your studio creates them." : undefined} emptyArea="payments" eventDate={portalProject.value?.eventDate ?? null} />;
+    return <PortalPageState lead={reserve ? <ReserveYourDate view={reserve} here="/client/payments" /> : null} eyebrow="Payments" title="Your payment schedule" description="Review amounts, due dates, and secure payment links." loading={invoices.loading} error={invoices.error} empty={!invoices.loading && !invoices.error ? "Invoices will appear here when your studio creates them." : undefined} emptyArea="payments" eventDate={portalProject.value?.eventDate ?? null} />;
   return (
     <div className="client-booking-page">
+      {reserve ? <ReserveYourDate view={reserve} here="/client/payments" /> : null}
       <p className="eyebrow">Payments</p>
       <h1>Your payment schedule</h1>
       <p>Every payment and its status, kept in one place.</p>

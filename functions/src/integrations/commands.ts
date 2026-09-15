@@ -44,6 +44,13 @@ const commandSchema = z.discriminatedUnion("type", [
       templateId: z.string().min(1).max(200).nullable(),
       /** Shown instead of the id once chosen; the id stays authoritative. */
       templateName: z.string().max(200).nullable().default(null),
+      /**
+       * Send this agreement automatically when a couple accepts a proposal.
+       *
+       * The studio's standing approval for one outward step, given once here
+       * rather than per booking. Explicit: absent means off.
+       */
+      sendOnAcceptance: z.boolean().default(false),
     }),
   }),
   z.object({
@@ -212,7 +219,7 @@ export const integrationsCommand = onRequest(
         }
 
         if (command.type === "setContractTemplate") {
-          const { templateId, templateName } = command.input;
+          const { templateId, templateName, sendOnAcceptance } = command.input;
           const tenantReference = db.doc(`tenants/${command.tenantId}`);
           const tenant = await transaction.get(tenantReference);
           if (!tenant.exists) throw new Error("TENANT_NOT_FOUND");
@@ -225,6 +232,7 @@ export const integrationsCommand = onRequest(
             defaultContractSettings: {
               templateId,
               templateName: templateId ? templateName : null,
+              sendOnAcceptance: templateId ? sendOnAcceptance : false,
               updatedAt: timestamp,
               updatedBy: identity.uid,
             },

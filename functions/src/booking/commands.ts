@@ -914,12 +914,57 @@ export const bookingCommand = onRequest(
         const orchestration = await orchestrationReference.get();
         const orchestrationActive =
           orchestration.exists && orchestration.get("status") === "active";
+        // Without an approved sequence, a recorded signature used to stop
+        // there: the studio raised the retainer by hand and ran the booking
+        // check by hand. Start the same sequence the signing app starts. The
+        // retainer is raised automatically only when an accounting app is
+        // connected to raise it; either way, a retainer that reaches paid —
+        // through QuickBooks or recorded by the studio — books the job.
+        let invoicingConnected = false;
+        if (!orchestrationActive) {
+          try {
+            await requireProviderForTenant(
+              firestore,
+              command.tenantId,
+              "invoicing",
+            );
+            invoicingConnected = true;
+          } catch {
+            invoicingConnected = false;
+          }
+        }
         const batch = firestore.batch();
         if (orchestrationActive) {
           batch.update(orchestrationReference, {
             contractId,
             updatedAt: timestamp,
           });
+        } else if (!orchestration.exists || orchestration.get("status") !== "completed") {
+          batch.set(
+            orchestrationReference,
+            {
+              id: command.input.projectId,
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              proposalId: command.input.proposalId,
+              contractId,
+              invoiceId: null,
+              status: "active",
+              currentStep: invoicingConnected ? "wait_for_signature" : "wait_for_payment",
+              policy: {
+                createRetainerAfterSignature: invoicingConnected,
+                completeBookingAfterPayment: true,
+                retainerDueDays: 7,
+              },
+              approvedBy: identity.uid,
+              approvedAt: timestamp,
+              lastError: null,
+              completedAt: null,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            },
+            { merge: false },
+          );
         }
         batch.create(firestore.doc(`contracts/${contractId}`), {
           id: contractId,

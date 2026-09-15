@@ -129,7 +129,11 @@ export type ContractTemplateResult = {
 
 /** Saves the studio-wide default agreement template. */
 export async function setContractTemplate(
-  input: { templateId: string | null; templateName: string | null },
+  input: {
+    templateId: string | null;
+    templateName: string | null;
+    sendOnAcceptance?: boolean;
+  },
   tenantId: string,
 ): Promise<{ persisted: boolean; result: ContractTemplateResult }> {
   const endpoint = process.env.NEXT_PUBLIC_INTEGRATION_FUNCTIONS_URL;

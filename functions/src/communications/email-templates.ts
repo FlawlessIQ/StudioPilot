@@ -54,6 +54,8 @@ export const emailTemplateKeys = [
   "manual_message",
   // Studio-facing: a client wrote in and someone needs to know.
   "client_message_received",
+  // Studio-facing: a booking completed itself (signed, retainer paid).
+  "studio_booking_confirmed",
   // Studio-facing: the owner's own morning brief. Not a client note — it gets
   // its own framing rather than the "note from your studio" shell.
   "daily_digest",
@@ -720,6 +722,18 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     // Studio-facing, unlike almost everything else here. A client writing in
     // used to produce an in-app task and nothing else, so the studio only found
     // out by logging in and looking.
+    case "studio_booking_confirmed":
+      return {
+        subject: `You're booked${project}`,
+        preheader: "The agreement is signed and the retainer is paid.",
+        eyebrow: "New booking",
+        heading: "The date is yours",
+        paragraphs: [
+          `The agreement is signed and the retainer is paid${project}, so StudioCue confirmed the booking.`,
+          "The client portal, planning checklist, calendar entry and job folder are being set up now. Nothing else is needed from you.",
+        ],
+        action: actionUrl ? { label: "Open the job", url: actionUrl } : undefined,
+      };
     case "client_message_received": {
       const senderName = stringValue(values, "senderName") || "A client";
       const messageSubject = stringValue(values, "messageSubject");

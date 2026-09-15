@@ -49,7 +49,8 @@ export function AgreementTemplate() {
   const tenant = tenants?.find((entry) => entry.id === tenantId);
   const saved =
     (tenant?.defaultContractSettings as
-      { templateId?: string; templateName?: string } | undefined) ?? {};
+      | { templateId?: string; templateName?: string; sendOnAcceptance?: boolean }
+      | undefined) ?? {};
 
   const { records: connections } = useTenantDocuments("integrationConnections");
   const signingConnection = connections?.find(
@@ -71,6 +72,13 @@ export function AgreementTemplate() {
   // An override only exists once someone has chosen something.
   const [override, setOverride] = useState<string | null>(null);
   const choice = override ?? saved.templateId ?? "";
+  // Checked for a first choice: the point of choosing a default agreement is
+  // that it goes out without anyone preparing it. A studio that saved one
+  // before this setting existed keeps what it had until it ticks the box.
+  const [autoSendEdit, setAutoSendEdit] = useState<boolean | null>(null);
+  const autoSend =
+    autoSendEdit ??
+    (saved.templateId ? saved.sendOnAcceptance === true : true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -103,7 +111,7 @@ export function AgreementTemplate() {
     };
   }, [tenantId]);
 
-  async function save(templateId: string) {
+  async function save(templateId: string, sendOnAcceptance = autoSend) {
     if (!tenantId) return;
     setSaving(true);
     setNotice(null);
@@ -112,17 +120,23 @@ export function AgreementTemplate() {
       const response = await setContractTemplate(
         {
           templateId: templateId || null,
-          templateName: picked?.name ?? null,
+          templateName:
+            picked?.name ??
+            (templateId === saved.templateId ? saved.templateName ?? null : null),
+          sendOnAcceptance: Boolean(templateId) && sendOnAcceptance,
         },
         tenantId,
       );
       setOverride(templateId);
+      setAutoSendEdit(sendOnAcceptance);
       setNotice(
         !response.persisted
           ? "Development preview: the choice was not saved."
-          : templateId
-            ? "Saved. New contracts use this agreement unless a project overrides it."
-            : "Cleared. Each project will ask for a template.",
+          : !templateId
+            ? "Cleared. Each project will ask for a template."
+            : sendOnAcceptance
+              ? "Saved. When a couple accepts their proposal, this agreement goes out for signature automatically."
+              : "Saved. New contracts use this agreement unless a project overrides it.",
       );
     } catch (caught: unknown) {
       setNotice(
@@ -202,6 +216,24 @@ export function AgreementTemplate() {
               ))}
             </select>
           </label>
+          {choice ? (
+            <label className="agreement-template-autosend">
+              <input
+                checked={autoSend}
+                disabled={saving}
+                onChange={(event) => void save(choice, event.target.checked)}
+                type="checkbox"
+              />
+              <span>
+                <strong>Send it automatically when a couple accepts</strong>
+                <small>
+                  The agreement goes out for signature the moment they accept
+                  their proposal. Once they sign, the retainer invoice follows,
+                  and the job books itself when it is paid.
+                </small>
+              </span>
+            </label>
+          ) : null}
           {choice ? (
             <span className="agreement-template-current">
               <CheckCircle2 size={15} />

@@ -9,7 +9,11 @@ export { crmCommand } from "./crm/commands.js";
 export { publicLeadIntake } from "./crm/public-lead.js";
 export { workflowCommand } from "./workflow/commands.js";
 export { bookingCommand } from "./booking/commands.js";
-export { bookingContractCompleted, bookingRetainerPaid } from "./booking/orchestration.js";
+export {
+  bookingContractCompleted,
+  bookingProposalAccepted,
+  bookingRetainerPaid,
+} from "./booking/orchestration.js";
 export { postProductionOnProjectEditing } from "./post-event/post-production-start.js";
 export {
   readinessOnCheckpointWritten,
