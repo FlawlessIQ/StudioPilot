@@ -16205,3 +16205,118 @@ label {
     justify-self: start;
   }
 }
+
+/* ============================================================================
+   New proposal on phones. A short title, the section number beside its
+   heading instead of on a row of its own, and a tighter offer snapshot.
+   ========================================================================== */
+@media (max-width: 640px) {
+  .ds-root .proposal-composer-page {
+    gap: 12px;
+  }
+  .ds-root .proposal-composer-heading {
+    border: 0;
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+  }
+  .ds-root .proposal-composer-heading .eyebrow {
+    display: none;
+  }
+  .ds-root .proposal-composer-heading h1 {
+    font-size: 23px;
+    letter-spacing: -0.02em;
+    line-height: 1.18;
+    margin: 0;
+  }
+  .ds-root .proposal-composer-heading > div:first-child > p:last-child {
+    font-size: 13px;
+    line-height: 1.45;
+    margin: 4px 0 0;
+  }
+  .ds-root .proposal-composer-heading > div:last-child {
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+  }
+  .ds-root .proposal-composer-heading > div:last-child small {
+    font-size: 11.5px;
+  }
+  .ds-root .proposal-composer-grid {
+    gap: 12px;
+  }
+  .ds-root .proposal-composer-section {
+    column-gap: 10px;
+    display: grid;
+    grid-template-columns: 26px minmax(0, 1fr);
+    padding: 16px 14px;
+  }
+  .ds-root .proposal-composer-section-number {
+    font-size: 11px;
+    height: 26px;
+    margin: 0;
+    width: 26px;
+  }
+  .ds-root .proposal-composer-section-body {
+    gap: 12px;
+    min-width: 0;
+  }
+  .ds-root .proposal-composer-section-body > div:first-child .eyebrow {
+    display: none;
+  }
+  .ds-root .proposal-composer-section-body > div:first-child h2 {
+    font-size: 17px;
+    line-height: 1.25;
+    margin: 2px 0 0;
+  }
+  .ds-root .proposal-composer-section-body > div:first-child p {
+    font-size: 12.5px;
+    line-height: 1.4;
+    margin: 3px 0 0;
+  }
+  .ds-root .proposal-selected-project > span {
+    padding: 8px 10px;
+  }
+  .ds-root .proposal-selected-project strong {
+    font-size: 13.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ds-root .proposal-field textarea {
+    font-size: 15px;
+    min-height: 96px;
+  }
+  .ds-root .proposal-field-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Offer snapshot: one column (an !important rule above holds it there),
+     with less air between its parts. */
+  .ds-root .proposal-composer-preview {
+    border-radius: 18px;
+    gap: 10px;
+    padding: 16px;
+  }
+  .ds-root .proposal-composer-preview > .proposal-composer-price {
+    margin: 0;
+    padding: 10px 0;
+  }
+  .ds-root .proposal-composer-preview > .proposal-composer-price strong {
+    font-size: 22px;
+  }
+  .ds-root .proposal-composer-preview > .proposal-composer-retainer {
+    padding: 10px 12px;
+  }
+  .ds-root .proposal-composer-preview > .proposal-composer-retainer input {
+    font-size: 16px;
+    max-width: 140px;
+  }
+  .ds-root .proposal-composer-preview > .button {
+    justify-content: center;
+    width: 100%;
+  }
+}
