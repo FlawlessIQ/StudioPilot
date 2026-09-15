@@ -32,35 +32,39 @@ import { capabilityReadiness } from "@/features/integrations/capability-readines
 
 const REPO = process.cwd();
 
-test("Dropbox Sign is the offered signing app; DocuSign stays a cost decision", () => {
-  // Dropbox Sign returned so couples can sign inside the booking flow (and the
-  // reference studio already uses it). DocuSign is implemented but deferred.
+test("neither signing app is offered, and that is a cost decision", () => {
+  // Both cost real money and both wait on revenue. Neither is a readiness
+  // problem: both are implemented and both webhooks are certified. Restoring
+  // either is one entry in offeredProviders plus one in apphosting.yaml.
   assert.equal(isOfferedProvider("docusign"), false);
-  assert.equal(isOfferedProvider("dropbox_sign"), true);
+  assert.equal(isOfferedProvider("dropbox_sign"), false);
   assert.equal(isOfferedProvider("stripe"), false);
-  assert.equal(offeredSigningProvider(), "dropbox_sign");
 });
 
-test("an unconnected capability points at the offered app to connect", () => {
+test("with no signing app offered, nothing pretends there is one", () => {
   /**
-   * The remedy names only an offered provider — "Connect a provider" pointing
-   * at a settings page with no such card is worse than saying nothing. With
-   * nothing offered for a capability, capabilityReadiness returns the "manual"
-   * state and no remedy (see features/integrations/capability-readiness.ts).
+   * The state the product is actually in. A studio sends its own agreement and
+   * records the signature on the booking; `RecordSignedAgreement` renders on any
+   * proposal, independent of providers, and the walk of 2026-08-27 drove a job
+   * from inquiry to CLOSED that way.
    */
-  const meetings = capabilityReadiness({
-    capability: "meetings",
-    connections: [],
-    selections: null,
-  });
-  assert.match(meetings.remedy ?? "", /Connect Zoom/);
+  assert.equal(offeredSigningProvider(), null);
+});
+
+test("a capability with no offered provider offers no remedy", () => {
+  /**
+   * "Connect a provider" pointing at a settings page with no such card is worse
+   * than saying nothing — the summary already gives the honest path. This became
+   * reachable the moment signing had no offered provider at all.
+   */
   const signing = capabilityReadiness({
     capability: "signing",
     connections: [],
     selections: null,
   });
-  assert.match(signing.remedy ?? "", /Connect Dropbox Sign/);
-  assert.doesNotMatch(signing.remedy ?? "", /DocuSign/);
+  assert.equal(signing.state, "manual");
+  assert.equal(signing.remedy, null, "signing offers a remedy with nothing to connect");
+  assert.match(signing.summary, /record the signature/);
 
   // Invoicing still has QuickBooks, so it must still point somewhere.
   const invoicing = capabilityReadiness({

@@ -77,9 +77,6 @@ export const offeredProviders: ReadonlySet<IntegrationProvider> = new Set([
   "zoom",
   "quickbooks",
   "dropbox",
-  // Offered again (2026-09-15) so a couple can sign inside the booking flow.
-  // DocuSign stays deferred on cost.
-  "dropbox_sign",
 ]);
 
 export function isOfferedProvider(provider: IntegrationProvider): boolean {

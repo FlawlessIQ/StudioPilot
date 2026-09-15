@@ -38,28 +38,19 @@ test("one connected provider needs no choosing", () => {
 test("a connected signing app that is not offered still does not resolve", () => {
   /**
    * The semantics `offeredProviders` exists for: not offered means not routed
-   * to, even when a connection is sitting there. DocuSign is implemented but
-   * not offered; a leftover connection must not send contracts through a plan
-   * nobody is paying for.
+   * to, even when a connection is sitting there. A studio that connected
+   * Dropbox Sign while it was offered must not have contracts quietly continue
+   * through a plan nobody is paying for.
    */
-  const readiness = capabilityReadiness({
-    capability: "signing",
-    connections: [connected("docusign")],
-    selections: null,
-  });
-  assert.notEqual(readiness.state, "ready");
-  assert.equal(readiness.provider, null);
-  assert.match(readiness.summary, /record the signature/);
-});
-
-test("a connected Dropbox Sign signs", () => {
   const readiness = capabilityReadiness({
     capability: "signing",
     connections: [connected("dropbox_sign")],
     selections: null,
   });
-  assert.equal(readiness.state, "ready");
-  assert.equal(readiness.provider, "dropbox_sign");
+  // Not routed to: it reads as the manual path, never as ready.
+  assert.equal(readiness.state, "manual");
+  assert.equal(readiness.provider, null);
+  assert.match(readiness.summary, /record the signature/);
 });
 
 test("nothing connected to sign points at the path that still works", () => {
@@ -70,14 +61,19 @@ test("nothing connected to sign points at the path that still works", () => {
     connections: [],
     selections: null,
   });
-  // Not an error: "Nothing is connected to send the agreement" read as one on
-  // the booking page. Connecting Dropbox Sign is an upgrade to a path that
-  // already works, so it is said as that.
-  assert.equal(readiness.state, "none_connected");
+  // Not a warning. No signing app is offered, so there is nothing the studio
+  // failed to connect: "Nothing is connected to send the agreement" read as
+  // an error on the booking page, on the only path the product supports.
+  assert.equal(readiness.state, "manual");
+  assert.equal(readiness.ok, true);
   assert.doesNotMatch(readiness.summary, /Nothing is connected/);
-  // A studio deciding whether it can work without Dropbox Sign is told yes.
+  // The point of the sentence. A studio deciding whether it can work
+  // without Dropbox Sign is told yes, and how.
   assert.match(readiness.summary, /record the signature/);
-  assert.match(readiness.remedy ?? "", /Connect Dropbox Sign/);
+  // And no remedy at all now: with neither signing app offered there is
+  // nothing to send anyone to, and "Connect a provider" would point at a
+  // settings page with no signing row on it. The summary is the answer.
+  assert.equal(readiness.remedy, null);
 });
 
 test("nothing connected to invoice names the manual path it has", () => {
@@ -146,8 +142,8 @@ test("an explicit choice cannot revive an unoffered app", () => {
   // Choosing it in settings is not a licence either.
   const readiness = capabilityReadiness({
     capability: "signing",
-    connections: [connected("docusign")],
-    selections: { signing: "docusign" },
+    connections: [connected("dropbox_sign")],
+    selections: { signing: "dropbox_sign" },
   });
   assert.equal(readiness.ok, false);
 });
@@ -227,23 +223,26 @@ test("a provider StudioCue does not offer cannot win the routing", () => {
   // back to DocuSign and queued a signature request through a provider the
   // studio cannot see, has not chosen, and could not have connected.
   //
+  // Both signing apps are now unoffered, so the case has gone from "the
+  // offered one wins" to "neither does" — which is the same rule, applied to a
+  // set that has since emptied.
   const readiness = capabilityReadiness({
     capability: "signing",
     connections: [connected("docusign"), connected("dropbox_sign")],
     selections: null,
   });
-  // The offered one wins, unambiguously.
-  assert.equal(readiness.state, "ready");
-  assert.equal(readiness.provider, "dropbox_sign");
+  // "manual": with nothing offered, the studio's own agreement is the path.
+  assert.equal(readiness.state, "manual");
+  assert.equal(readiness.provider, null);
 });
 
-test("with only an unoffered provider connected, signing is not connected", () => {
+test("with only an unoffered provider connected, signing stays manual", () => {
   const readiness = capabilityReadiness({
     capability: "signing",
     connections: [connected("docusign")],
     selections: null,
   });
-  assert.equal(readiness.state, "none_connected");
+  assert.equal(readiness.state, "manual");
 });
 
 test("the offered set is the same in features/ and functions/", () => {
