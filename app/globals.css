@@ -14705,3 +14705,25 @@ label {
     gap: 8px;
   }
 }
+
+/* Cue is a chat — on phones it should feel like a full-screen conversation,
+   not a card floating in a padded page. Drop the page gutter around it and the
+   shell's card chrome so the thread and composer run edge to edge. */
+@media (max-width: 760px) {
+  .ds-content:has(.cue-shell) {
+    padding: 0;
+  }
+  .cue-shell {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    max-width: none;
+  }
+  /* Fixed to the space between the top bar (~56px) and the bottom nav (~78px)
+     so the thread scrolls inside and the composer stays docked at the bottom
+     of the screen — a real full-screen chat, not a long scrolling page. */
+  .cue-main {
+    height: calc(100dvh - 134px);
+    min-height: 0;
+  }
+}
