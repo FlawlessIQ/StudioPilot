@@ -31,7 +31,7 @@ const CHECKPOINTS = [
   { label: "Retainer paid", done: true, note: "$1,200 · Jun 2" },
   { label: "Second photographer accepted", done: true, note: "Jordan Reyes" },
   { label: "Questionnaire complete", done: false, note: "Waiting on the couple" },
-  { label: "Shot list approved", done: false, note: "Not started" },
+  { label: "Final run of show approved", done: false, note: "Waiting on the couple" },
   { label: "Final balance paid", done: false, note: "Due Jun 6" },
 ];
 
