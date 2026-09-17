@@ -17846,3 +17846,4 @@ label {
 .sheet-import-quickbooks input{margin-top:3px;accent-color:var(--accent)}
 .sheet-import-quickbooks span{display:grid;gap:2px}
 .sheet-import-quickbooks small{font-weight:500;color:var(--muted);font-size:12.5px}
+.book-without-retainer{margin-top:12px}

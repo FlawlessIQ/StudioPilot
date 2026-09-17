@@ -37,6 +37,26 @@ import {
 import { studioVouchedAuthorities } from "../imports/existing-booking.js";
 
 const commandSchema = z.discriminatedUnion("type", [
+  z.object({
+    /**
+     * Book without the retainer, on a named person's decision.
+     *
+     * The booking gate has always accepted an approved retainer exception —
+     * ADR 0003's "auditable exceptions" — and nothing could approve one:
+     * nothing wrote bookingExceptions and the page always sent null. A studio
+     * that waives the retainer for a returning client or a friend had no way
+     * to confirm the booking. This records the decision, with the reason, and
+     * the gate then reads it for exactly what it is: the money has not
+     * arrived and the studio is going ahead anyway.
+     */
+    type: z.literal("approveRetainerException"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      reason: z.string().trim().min(10).max(500),
+    }),
+  }),
   // Importing bookings a studio already has — see ../imports/commands.ts.
   z.object({
     type: z.literal("previewExistingBookings"),
@@ -2116,6 +2136,69 @@ export const bookingCommand = onRequest(
           providerEventId: null,
         });
         result = { tenantId: command.tenantId, ...command.input };
+      } else if (command.type === "approveRetainerException") {
+        if (!["studio_owner", "studio_admin"].includes(String(membership.role)))
+          throw new Error("RETAINER_EXCEPTION_PERMISSION_REQUIRED");
+        const [project, completedContracts] = await Promise.all([
+          firestore.doc(`projects/${command.input.projectId}`).get(),
+          firestore
+            .collection("contracts")
+            .where("tenantId", "==", command.tenantId)
+            .where("projectId", "==", command.input.projectId)
+            .where("status", "==", "completed")
+            .limit(1)
+            .get(),
+        ]);
+        if (!project.exists || project.get("tenantId") !== command.tenantId)
+          throw new Error("PROJECT_NOT_FOUND");
+        // The only states the gate books from.
+        if (!["RETAINER_PENDING", "POSTPONED"].includes(String(project.get("state"))))
+          throw new Error("RETAINER_EXCEPTION_NOT_READY");
+        // Waiving the retainer is not waiving the contract.
+        if (completedContracts.empty) throw new Error("SIGNED_CONTRACT_REQUIRED");
+        const exceptionId = stableId(
+          "retainer_exception",
+          command.tenantId,
+          command.idempotencyKey,
+        );
+        const exceptionBatch = firestore.batch();
+        exceptionBatch.create(firestore.doc(`bookingExceptions/${exceptionId}`), {
+          id: exceptionId,
+          tenantId: command.tenantId,
+          projectId: command.input.projectId,
+          type: "retainer",
+          status: "approved",
+          reason: command.input.reason,
+          approvedBy: identity.uid,
+          approvedAt: timestamp,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        });
+        const exceptionAuditId = stableId(
+          "audit_retainer_exception",
+          command.tenantId,
+          command.idempotencyKey,
+        );
+        exceptionBatch.create(firestore.doc(`auditEvents/${exceptionAuditId}`), {
+          id: exceptionAuditId,
+          tenantId: command.tenantId,
+          projectId: command.input.projectId,
+          actorId: identity.uid,
+          actorType: "user",
+          action: "booking.retainer_exception_approved",
+          entityType: "bookingException",
+          entityId: exceptionId,
+          timestamp,
+          before: null,
+          after: { type: "retainer", status: "approved", reason: command.input.reason },
+          ipAddress: request.ip ?? null,
+          userAgent: request.header("user-agent") ?? null,
+          correlationId: command.idempotencyKey,
+          automationRunId: null,
+          providerEventId: null,
+        });
+        await exceptionBatch.commit();
+        result = { exceptionId, status: "approved" };
       } else if (command.type === "previewExistingBookings") {
         result = await previewExistingBookings({
           tenantId: command.tenantId,

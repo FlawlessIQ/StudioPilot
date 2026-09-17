@@ -416,3 +416,57 @@ test("no requirement is an authority flag, and either authority satisfies it", (
   // The requirements are the five real ones — never an authority flag.
   assert.deepEqual(Object.keys(provider).filter((key) => /Manually|Approved/.test(key)), []);
 });
+
+test("an approved exception books a job that never had a retainer invoice", () => {
+  // The case the exception exists for: a studio going ahead without a
+  // retainer at all. No invoice was raised and none was paid. The fold
+  // accepted the exception for the payment but still demanded the invoice,
+  // so this passed nothing — the exception was unreachable in practice.
+  const requirements = bookingGateRequirements({
+    contractCompleted: false,
+    contractAttestedManually: true,
+    retainerInvoiceCreated: false,
+    retainerAttestedManually: false,
+    retainerSatisfied: false,
+    retainerExceptionApproved: true,
+    eventDateAvailable: true,
+    requiredContactsComplete: true,
+  });
+  assert.deepEqual(
+    Object.entries(requirements).filter(([, met]) => !met),
+    [],
+  );
+  // And without the exception, the same job is rightly short of both.
+  const without = bookingGateRequirements({
+    contractCompleted: false,
+    contractAttestedManually: true,
+    retainerInvoiceCreated: false,
+    retainerAttestedManually: false,
+    retainerSatisfied: false,
+    retainerExceptionApproved: false,
+    eventDateAvailable: true,
+    requiredContactsComplete: true,
+  });
+  assert.equal(without.retainerInvoiceCreated, false);
+  assert.equal(without.retainerSatisfied, false);
+});
+
+test("a retainer can be waived only on the record, and the gate is actually told", () => {
+  const commands = readFileSync("functions/src/booking/commands.ts", "utf8");
+  const start = commands.indexOf('command.type === "approveRetainerException"');
+  assert.ok(start >= 0, "nothing can approve a retainer exception");
+  const handler = commands.slice(start, commands.indexOf("} else if (command.type ===", start + 20));
+  // The owner's decision, not anyone's.
+  assert.match(handler, /\["studio_owner", "studio_admin"\]/);
+  // Waiving the retainer is not waiving the contract.
+  assert.match(handler, /SIGNED_CONTRACT_REQUIRED/);
+  assert.match(handler, /RETAINER_PENDING/);
+  // On the record, with the reason.
+  assert.match(handler, /bookingExceptions\//);
+  assert.match(handler, /reason: command\.input\.reason/);
+  assert.match(handler, /booking\.retainer_exception_approved/);
+
+  // The failure this replaces: the page always told the gate "no exception".
+  const waiver = readFileSync("components/booking/book-without-retainer.tsx", "utf8");
+  assert.match(waiver, /approvedRetainerExceptionId: exceptionId/);
+});

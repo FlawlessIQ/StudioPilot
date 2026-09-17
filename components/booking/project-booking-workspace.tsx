@@ -5,6 +5,7 @@ import { offeredSigningProvider } from "@/features/integrations/schema";
 import { CapabilityNote } from "@/components/integrations/capability-note";
 import { InfoHint } from "@/components/ui/info-hint";
 import { RecordSignedAgreement } from "@/components/booking/record-signed-agreement";
+import { BookWithoutRetainer } from "@/components/booking/book-without-retainer";
 import { RecordRetainerPayment } from "@/components/booking/record-retainer-payment";
 import { RecordProposalAcceptance } from "@/components/booking/record-proposal-acceptance";
 import Link from "next/link";
@@ -1326,6 +1327,23 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 ) : null}
               </div>
             )}
+            {!invoicePaid &&
+            ["RETAINER_PENDING", "POSTPONED"].includes(String(project?.state)) ? (
+              <BookWithoutRetainer
+                onBooked={(message) => {
+                  setNotice(message);
+                  refreshTenantRecords(
+                    "projects",
+                    "invoiceReferences",
+                    "checkpoints",
+                    "readinessAssessments",
+                  );
+                  void load();
+                }}
+                projectId={projectId}
+                projectVersion={Number(project?.stateVersion ?? 0)}
+              />
+            ) : null}
           </article>
         ) : null}
         {activeStep === 3 ? (

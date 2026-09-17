@@ -36,6 +36,10 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "Cue couldn't match that file to your upload. Attach it again.",
   SIGNATURE_ATTESTATION_PERMISSION_REQUIRED:
     "Only a studio owner or admin can record a signature. Ask one of them to record it.",
+  RETAINER_EXCEPTION_PERMISSION_REQUIRED:
+    "Only a studio owner or admin can waive a retainer, because it goes on record as their decision.",
+  RETAINER_EXCEPTION_NOT_READY:
+    "A retainer can only be waived once the contract is signed and the booking is waiting on the retainer.",
   QUICKBOOKS_NOT_CONNECTED:
     "QuickBooks isn't connected. Connect it in Integrations to fill payments from it, or enter them yourself.",
   BOOKING_IMPORT_PERMISSION_REQUIRED:

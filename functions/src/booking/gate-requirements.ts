@@ -32,8 +32,14 @@ export function bookingGateRequirements(
   return {
     contractCompleted:
       evidence.contractCompleted || evidence.contractAttestedManually,
+    // An approved exception is the decision to book without the retainer, so
+    // it stands in for the invoice as well as the payment. It used to satisfy
+    // only the payment — and with no retainer invoice ever raised, a studio
+    // that approved one still could not pass the gate.
     retainerInvoiceCreated:
-      evidence.retainerInvoiceCreated || evidence.retainerAttestedManually,
+      evidence.retainerInvoiceCreated ||
+      evidence.retainerAttestedManually ||
+      evidence.retainerExceptionApproved,
     retainerSatisfied:
       evidence.retainerSatisfied ||
       evidence.retainerAttestedManually ||
