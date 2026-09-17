@@ -160,6 +160,9 @@ scheduler_services=(
   lifecyclemessagescheduler
   operationshealthscheduler
   operationsjobscheduler
+  # Sends the questionnaire reminders templates always promised. Missing here,
+  # it would 403 after the next invoker reset and reminders would stop again.
+  questionnairereminderscheduler
   relativedatescheduler
   reviewrequestscheduler
   scheduledemailrelease

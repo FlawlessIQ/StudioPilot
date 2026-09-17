@@ -74,6 +74,11 @@ const guarded: Array<[string, string, RegExp]> = [
     /if \(clientAutomationsPaused\(project\.data\(\)\)\) continue;/,
   ],
   [
+    "questionnaire reminders skip a quiet booking",
+    "functions/src/planning/questionnaire-reminder-scheduler.ts",
+    /if \(clientAutomationsPaused\(project\.data\(\)\)\) continue;/,
+  ],
+  [
     "the email sender holds automated mail for a quiet booking",
     "functions/src/operations/jobs.ts",
     /clientAutomationEmailTypes\.includes\(type\)/,
