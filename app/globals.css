@@ -17812,3 +17812,32 @@ label {
 .imported-booking-hint{font-style:italic}
 .cue-signed-agreement-offer{display:grid;gap:8px;justify-items:start;padding:12px;border:1px dashed var(--line);border-radius:12px}
 .cue-signed-agreement-import{display:grid;gap:12px}
+
+/* A spreadsheet of bookings: columns to confirm, then a compact row per booking. */
+.booking-import-stack{display:grid;gap:18px}
+.sheet-import-pick{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
+.sheet-import-pick>label{position:relative;cursor:pointer}
+.sheet-import-file{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+.sheet-import-pick small{color:var(--muted);font-size:12.5px}
+.sheet-import-template{display:inline-flex;gap:6px;align-items:center;font-size:13px;font-weight:600;color:var(--accent);text-decoration:none}
+.sheet-import-mapping{display:grid;gap:14px}
+.sheet-import-mapping>.button{justify-self:start}
+.sheet-import-columns{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.sheet-import-columns label{display:grid;gap:5px;font-size:12px;font-weight:600;min-width:0}
+.sheet-import-columns select{border:1px solid var(--line);border-radius:9px;padding:7px 9px;background:var(--background);color:var(--ink);font:inherit;font-size:13px;width:100%;min-width:0}
+.sheet-import-review{display:grid;gap:12px}
+.sheet-import-rows{display:grid;margin:0;padding:0;list-style:none;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.sheet-import-row{display:grid;gap:4px;padding:10px 12px;border-top:1px solid var(--line)}
+.sheet-import-row:first-child{border-top:0}
+.sheet-import-row-main{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;cursor:pointer}
+.sheet-import-row-main input{accent-color:var(--accent);width:16px;height:16px}
+.sheet-import-row-main span{display:grid;gap:1px;min-width:0}
+.sheet-import-row-main strong{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sheet-import-row-main small{color:var(--muted);font-size:12px}
+.sheet-import-row-main em{display:inline-flex;gap:5px;align-items:center;font-style:normal;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--background);border:1px solid var(--line);white-space:nowrap}
+.sheet-import-row.is-ready em,.sheet-import-row.is-imported em{color:var(--success);border-color:color-mix(in srgb,var(--success) 35%,var(--line))}
+.sheet-import-row.is-problems em,.sheet-import-row.is-blocked em,.sheet-import-row.is-failed em{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 35%,var(--line))}
+.sheet-import-row.is-duplicate em{color:var(--muted)}
+.sheet-import-detail{margin:0 0 0 26px;font-size:12.5px;color:var(--muted)}
+.sheet-import-detail ul,ul.sheet-import-detail{margin:4px 0 0;padding-left:18px;display:grid;gap:2px}
+.sheet-import-detail summary{cursor:pointer;font-weight:600}

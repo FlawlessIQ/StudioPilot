@@ -3,9 +3,14 @@
 import { useState } from "react";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { ExistingBookingForm } from "@/components/imports/existing-booking-form";
+import { SpreadsheetBookingImport } from "@/components/imports/spreadsheet-booking-import";
 
 /**
  * Where a studio brings in the weddings it booked before StudioCue.
+ *
+ * A spreadsheet first, because a studio switching tools has dozens of these,
+ * and one at a time below it for the few a sheet doesn't cover — or for a
+ * studio that only has a handful.
  *
  * Owners and admins only, because an import is the studio's word that a
  * contract was signed and money was paid — the same permission as recording
@@ -29,22 +34,25 @@ export function ImportBookingsWorkspace() {
     );
 
   return (
-    <section className="panel booking-import-panel">
-      <header>
-        <h2>One booking</h2>
-        <p>
-          The couple, the date, what the contract says and what they&rsquo;ve
-          paid. Nothing is sent to them.
-        </p>
-      </header>
-      <ExistingBookingForm key={formKey} source="form" />
-      <button
-        className="booking-import-another"
-        onClick={() => setFormKey((value) => value + 1)}
-        type="button"
-      >
-        Start another booking
-      </button>
-    </section>
+    <div className="booking-import-stack">
+      <SpreadsheetBookingImport />
+      <section className="panel booking-import-panel">
+        <header>
+          <h2>One booking</h2>
+          <p>
+            The couple, the date, what the contract says and what they&rsquo;ve
+            paid. Nothing is sent to them.
+          </p>
+        </header>
+        <ExistingBookingForm key={formKey} source="form" />
+        <button
+          className="booking-import-another"
+          onClick={() => setFormKey((value) => value + 1)}
+          type="button"
+        >
+          Start another booking
+        </button>
+      </section>
+    </div>
   );
 }
