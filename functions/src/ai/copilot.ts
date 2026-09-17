@@ -13,6 +13,11 @@ import { studioHubCors } from "../security/cors.js";
 import { consumeAiQuota } from "../saas/usage.js";
 import { productEvent } from "../operations/product-events.js";
 import { deterministicIntakeExtraction } from "./intake-prefill.js";
+import { cloudAccessToken } from "./vertex-token.js";
+import {
+  readSignedAgreement,
+  readSignedAgreementRequestSchema,
+} from "./signed-agreement.js";
 
 type Json = Record<string, unknown>;
 
@@ -225,18 +230,6 @@ function resolveFlowProjectId(
   });
   if (named.length === 1) return named[0] ?? null;
   return null;
-}
-
-async function cloudAccessToken() {
-  const response = await fetch(
-    "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
-    { headers: { "Metadata-Flavor": "Google" } },
-  );
-  if (!response.ok) throw new Error("GOOGLE_RUNTIME_IDENTITY_UNAVAILABLE");
-  const body = asRecord(await response.json());
-  if (typeof body.access_token !== "string")
-    throw new Error("GOOGLE_RUNTIME_IDENTITY_UNAVAILABLE");
-  return body.access_token;
 }
 
 function compact(document: DocumentSnapshot): Json & { id: string } {
@@ -1467,6 +1460,66 @@ export const aiCopilotCommand = onRequest(
           createdAt: now,
         });
         response.status(200).json({ extraction, mode, interactionId });
+        return;
+      }
+
+      /**
+       * Reading a signed agreement dropped into Cue.
+       *
+       * Held to the permission of the thing it leads to: only an owner or
+       * admin may record a signature, so only they may have one read for
+       * them. The reading prefills that form and records nothing — see
+       * ./signed-agreement.ts.
+       */
+      if (asRecord(request.body).kind === "read_signed_agreement") {
+        const readRequest = readSignedAgreementRequestSchema.parse(request.body);
+        const db = getFirestore();
+        const readerMembership = await db
+          .doc(`memberships/${readRequest.tenantId}_${identity.uid}`)
+          .get();
+        if (
+          !readerMembership.exists ||
+          readerMembership.get("status") !== "active"
+        )
+          throw new Error("FORBIDDEN");
+        if (
+          !["studio_owner", "studio_admin"].includes(
+            String(readerMembership.get("role")),
+          )
+        )
+          throw new Error("SIGNATURE_ATTESTATION_PERMISSION_REQUIRED");
+        await requireActiveSubscription(db, readRequest.tenantId);
+        const now = new Date().toISOString();
+        const { interaction, ...result } = await readSignedAgreement({
+          tenantId: readRequest.tenantId,
+          userId: identity.uid,
+          attachmentPath: readRequest.attachmentPath,
+          consumeQuota: () =>
+            db.runTransaction((transaction) =>
+              consumeAiQuota(transaction, db, readRequest.tenantId, now),
+            ),
+        });
+        if (result.status === "read" && interaction) {
+          const interactionId = `ai_${randomUUID()}`;
+          // What was concluded, not what the document said: no names, no
+          // dates — the signed copy is kept on the project if it is recorded,
+          // and nowhere if it is not.
+          await db.doc(`aiInteractions/${interactionId}`).create({
+            id: interactionId,
+            tenantId: readRequest.tenantId,
+            projectId: null,
+            userId: identity.uid,
+            type: "signed_agreement_reading",
+            result: interaction,
+            mode: result.mode,
+            model:
+              result.mode === "ai"
+                ? process.env.VERTEX_AI_EXTRACTION_MODEL
+                : "none",
+            createdAt: now,
+          });
+        }
+        response.status(200).json(result);
         return;
       }
 

@@ -81,6 +81,10 @@ const USER_FACING_HANDLERS = [
   "ai/copilot.ts",
   "ai/message-draft.ts",
   "ai/schedule.ts",
+  // Not a handler: a module aiCopilotCommand calls. Its refusals reach a
+  // studio through copilot.ts all the same, and a list of handler files alone
+  // could not see them — which is how three codes first shipped with no copy.
+  "ai/signed-agreement.ts",
   "ai/timing-rules.ts",
   "auth/emails.ts",
   "booking/commands.ts",
@@ -295,7 +299,6 @@ const KNOWN_GAPS: Record<string, string> = {
   SECRET_MANAGER_WRITE_FAILED: "integrations",
   SEND_PERMISSION_REQUIRED: "booking",
   SERVICE_IDENTITY_UNAVAILABLE: "functions-proxy",
-  SIGNATURE_ATTESTATION_PERMISSION_REQUIRED: "booking",
   SIGNING_TEMPLATE_LIST_FAILED: "integrations",
   STUDIO_UNAVAILABLE: "public",
   SUBCONTRACTOR_LIMIT_REACHED: "crew",

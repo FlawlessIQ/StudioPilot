@@ -3,6 +3,16 @@
 import { friendlyAiError } from "@/lib/ai/friendly-error";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import {
+  connectStorageEmulator,
+  getStorage,
+  ref,
+  uploadBytes,
+} from "firebase/storage";
+import type {
+  SignedAgreementAssessment,
+  SignedAgreementReading,
+} from "@/features/booking/signed-agreement-match";
 
 export type CopilotAttentionItem = {
   name: string;
@@ -110,7 +120,10 @@ export async function askCopilot(input: {
   return result;
 }
 
-async function postCopilot<T>(body: Record<string, unknown>): Promise<T> {
+async function postCopilot<T>(
+  body: Record<string, unknown>,
+  fallback = "Couldn't load your conversations. Try again.",
+): Promise<T> {
   const endpoint = process.env.NEXT_PUBLIC_AI_FUNCTIONS_URL;
   if (!endpoint) throw new Error("AI Copilot is not configured.");
   const { auth } = getFirebaseClient();
@@ -131,7 +144,7 @@ async function postCopilot<T>(body: Record<string, unknown>): Promise<T> {
     throw new Error(
       friendlyAiError(
         new Error((payload as { error?: string }).error ?? ""),
-        "Couldn't load your conversations. Try again.",
+        fallback,
       ),
     );
   return payload;
@@ -258,4 +271,98 @@ export async function askCopilotStream(
   if (buffer.trim()) handleFrame(buffer);
   if (!done) throw new Error("The assistant's answer ended unexpectedly. Try again.");
   return done;
+}
+
+export type SignedAgreementReadResult = {
+  status: "read";
+  /** "unavailable" when no model is configured: nothing was read, nothing guessed. */
+  mode: "ai" | "unavailable";
+  reading: SignedAgreementReading;
+  assessment: SignedAgreementAssessment;
+  candidates: Array<{
+    projectId: string;
+    projectName: string;
+    proposalId: string | null;
+  }>;
+};
+
+let cueStorageEmulatorConnected = false;
+
+const readableAttachment = /^(application\/pdf|image\/jpeg|image\/png)$/;
+const maxAttachmentBytes = 25 * 1024 * 1024;
+
+/**
+ * Hand a signed agreement to Cue and get back what it read.
+ *
+ * Stages the file in the owner's own Cue folder, then asks Cue to read it. The
+ * malware scan runs on upload and Cue refuses to read before it clears, so
+ * "scanning" is a normal answer: this waits and asks again, briefly. The
+ * staged copy is deleted by the server once read.
+ *
+ * Nothing is recorded. The result prefills the "Record the signature" form,
+ * which uploads the signed copy to the project when a person submits it.
+ */
+export async function readSignedAgreementAttachment(input: {
+  tenantId: string;
+  file: File;
+  onScanning?: () => void;
+}): Promise<SignedAgreementReadResult> {
+  if (!readableAttachment.test(input.file.type))
+    throw new Error("Cue can read a PDF, JPEG or PNG. Attach the signed agreement in one of those.");
+  if (input.file.size >= maxAttachmentBytes)
+    throw new Error("That file is over 25 MB. Attach a smaller copy of the signed agreement.");
+  if (!process.env.NEXT_PUBLIC_AI_FUNCTIONS_URL)
+    throw new Error("AI Copilot is not configured.");
+  const client = getFirebaseClient();
+  const user = client.auth.currentUser;
+  if (!user) throw new Error("Sign in before attaching a file.");
+  const storage = getStorage(client.app);
+  if (
+    process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true" &&
+    !cueStorageEmulatorConnected
+  ) {
+    connectStorageEmulator(storage, "127.0.0.1", 9199);
+    cueStorageEmulatorConnected = true;
+  }
+  const safeName = input.file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-120);
+  const attachmentPath = `tenants/${input.tenantId}/cueAttachments/${user.uid}/${crypto.randomUUID()}-${safeName}`;
+  await uploadBytes(ref(storage, attachmentPath), input.file, {
+    contentType: input.file.type,
+    customMetadata: { scanStatus: "pending", visibility: "studio" },
+  });
+
+  // The scan usually clears in seconds. Wait a little longer each time, and
+  // give up well before anyone wonders whether it is still working.
+  const delays = [1500, 2000, 3000, 4000, 5000, 6000, 8000, 10000, 12000];
+  for (let attempt = 0; ; attempt += 1) {
+    const result = await postCopilot<
+      | SignedAgreementReadResult
+      | { status: "scanning" }
+      | { status: "blocked"; reason: "unsafe" | "scanner_unavailable" | "unsupported" }
+    >(
+      {
+        kind: "read_signed_agreement",
+        tenantId: input.tenantId,
+        attachmentPath,
+      },
+      "Cue couldn't read that file. Try attaching it again.",
+    );
+    if (result.status === "read") return result;
+    if (result.status === "blocked") {
+      throw new Error(
+        result.reason === "unsafe"
+          ? "That file didn't pass the safety scan, so Cue won't open it."
+          : result.reason === "unsupported"
+            ? "Cue can read a PDF, JPEG or PNG. Attach the signed agreement in one of those."
+            : "File scanning is unavailable right now, so Cue can't open attachments. You can still record the signature on the job.",
+      );
+    }
+    const delay = delays[attempt];
+    if (delay === undefined)
+      throw new Error(
+        "The file is still being scanned. Try attaching it again in a minute.",
+      );
+    input.onScanning?.();
+    await new Promise((resolve) => setTimeout(resolve, delay));
+  }
 }

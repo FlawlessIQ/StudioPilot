@@ -12834,6 +12834,37 @@ form:has(> .address-field) > .address-field,
 .cue-scope input{margin:0;width:13px;height:13px;accent-color:var(--accent)}
 .cue-scope.is-static{cursor:default;color:var(--muted)}
 .cue-slashhint{font-size:12.5px;color:var(--muted)}
+/* Attaching a signed agreement. Same pill as the scope control beside it; the
+   file input is the whole hit area but never shown. The label text drops away
+   on a phone, where the paperclip carries it. */
+.cue-attach{position:relative;display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--ink);background:var(--background);border:1px solid var(--line);padding:6px 11px;border-radius:999px;cursor:pointer}
+.cue-attach svg{opacity:.7}
+.cue-attach:hover{border-color:var(--accent)}
+.cue-attach:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.cue-attach input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+@media (max-width:640px){.cue-attach-label{display:none}}
+.copilot-turn-user p svg{vertical-align:-2px}
+
+/* The reading, as a form a person still submits. Doubts come first and read as
+   warnings, because they are the part that has to be looked at before the
+   button. */
+.cue-signed-agreement{display:grid;gap:14px;padding:18px}
+.cue-signed-agreement>header{display:flex;gap:10px;align-items:center}
+.cue-signed-agreement>header>svg{color:var(--accent);flex:none}
+.cue-signed-agreement>header span{display:grid;gap:2px;min-width:0}
+.cue-signed-agreement>header small{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cue-signed-agreement form{display:grid;gap:12px}
+.cue-signed-agreement label{display:grid;gap:6px;font-size:12.5px;font-weight:600}
+.cue-signed-agreement input,.cue-signed-agreement select{border:1px solid var(--line);border-radius:10px;padding:9px 11px;background:var(--background);color:var(--ink);font:inherit;font-size:14px;width:100%;min-width:0}
+.cue-signed-agreement .button{justify-self:start}
+.cue-signed-agreement-status{display:flex;gap:8px;align-items:center;margin:0;color:var(--muted);font-size:13px}
+.cue-signed-agreement-note{margin:0;color:var(--muted);font-size:12.5px;line-height:1.5}
+.cue-signed-agreement-flags{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.cue-signed-agreement-flags li{display:flex;gap:8px;align-items:flex-start;padding:10px 12px;border-radius:10px;font-size:13px;line-height:1.45;background:color-mix(in srgb,var(--amber) 55%,var(--surface));border:1px solid color-mix(in srgb,var(--amber-dark) 30%,var(--line))}
+.cue-signed-agreement-flags li svg{flex:none;margin-top:2px;color:var(--amber-dark)}
+.cue-signed-agreement-done{display:grid;gap:10px;justify-items:start}
+.cue-signed-agreement-done p{display:flex;gap:8px;align-items:flex-start;margin:0;font-size:13.5px}
+.cue-signed-agreement-done p svg{flex:none;margin-top:3px;color:var(--success)}
 .cue-slashhint kbd{font-family:inherit;font-size:11px;font-weight:600;background:var(--background);border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:var(--ink)}
 .cue-send{width:40px;height:40px;border-radius:12px;border:0;cursor:pointer;background:var(--accent);color:#fff;display:grid;place-items:center;transition:background .15s,transform .1s}
 .cue-send:hover:not(:disabled){background:color-mix(in srgb,var(--accent) 82%,#000)}

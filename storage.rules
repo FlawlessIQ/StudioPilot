@@ -143,6 +143,31 @@ service firebase.storage {
         && request.resource.metadata.visibility == "crew";
     }
 
+    /**
+     * A file dropped into Cue, staged for one reading and nothing else.
+     *
+     * Cue reads it server-side with the Admin SDK and deletes it once read, so
+     * no browser ever needs it back: `read` is denied outright. The signed copy
+     * a studio keeps is uploaded again to the project when they record it, where
+     * every other contract lives under that rule.
+     *
+     * Only owners and admins, into their own folder, because the only thing a
+     * reading can lead to is recording a signature, which only they may do. The
+     * scanner clears it before any model sees it, the same as every upload
+     * under tenants/, and nothing overwrites or deletes from the browser.
+     */
+    match /tenants/{tenantId}/cueAttachments/{userId}/{fileName} {
+      allow read: if false;
+      allow create: if activeMember(tenantId)
+        && request.auth.uid == userId
+        && membership(tenantId).role in ["studio_owner", "studio_admin"]
+        && resource == null
+        && safeUpload()
+        // Nobody else's to see: not the couple's, not the crew's.
+        && request.resource.metadata.visibility == "studio";
+      allow update, delete: if false;
+    }
+
     match /tenants/{tenantId}/projects/{projectId}/clients/{userId}/questionnaires/{responseId}/{fileName} {
       allow read: if resource.metadata.scanStatus == "clean"
         && activeMember(tenantId)

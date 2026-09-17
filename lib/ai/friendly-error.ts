@@ -27,6 +27,15 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
    */
   CONVERSATION_HISTORY_UNAVAILABLE:
     "We couldn't read this conversation, so there's nothing to base a reply on. Refresh and try again — the draft would have missed what they actually asked.",
+  // Cue reading a signed agreement. The attachment is read once and deleted,
+  // so a missing one almost always means it was already read — attaching it
+  // again is the fix either way.
+  ATTACHMENT_NOT_FOUND:
+    "Cue couldn't find that file — it may already have been read. Attach it again.",
+  ATTACHMENT_PATH_MISMATCH:
+    "Cue couldn't match that file to your upload. Attach it again.",
+  SIGNATURE_ATTESTATION_PERMISSION_REQUIRED:
+    "Only a studio owner or admin can record a signature. Ask one of them to record it.",
   AI_QUOTA_EXCEEDED:
     "Your workspace has used its included AI drafts for this period. Review your plan to add more.",
   NO_PUBLISHED_RUN_OF_SHOW:

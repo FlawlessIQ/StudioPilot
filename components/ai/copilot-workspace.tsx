@@ -12,6 +12,7 @@ import {
   FolderPlus,
   Mail,
   LoaderCircle,
+  Paperclip,
   Plus,
   Send,
   ShieldCheck,
@@ -21,6 +22,7 @@ import { CueMark } from "@/components/brand/logo";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { AiQueueCard } from "@/components/ai/ai-approval-queue";
 import { FlowRunner } from "@/components/ai/flow-runner";
+import { SignedAgreementCard } from "@/components/ai/signed-agreement-card";
 import {
   refreshTenantRecords,
   useTenantDocuments,
@@ -34,6 +36,7 @@ import {
   type CopilotResult,
   type CopilotJobObject,
   type CopilotThreadSummary,
+  type CopilotTurn,
 } from "@/lib/ai/copilot-client";
 import {
   requestMessageDraft,
@@ -72,7 +75,11 @@ const SLASH_COMMANDS: Array<{ cmd: string; desc: string; question: string }> = [
 
 type ChatTurn =
   | { role: "user"; text: string }
-  | { role: "assistant"; result: CopilotResult };
+  | { role: "assistant"; result: CopilotResult }
+  // A file dropped into Cue. Rendered as its own card, and kept out of the
+  // question history: it is not something said, and its reading never reaches
+  // the model that answers questions.
+  | { role: "attachment"; id: string; file: File };
 
 export function CopilotWorkspace() {
   const workspace = useWorkspace();
@@ -86,6 +93,8 @@ export function CopilotWorkspace() {
   const [streamingText, setStreamingText] = useState("");
   const [statusText, setStatusText] = useState("");
   const started = turns.length > 0;
+  const canRecordSignatures =
+    workspace.role === "studio_owner" || workspace.role === "studio_admin";
   // A studio with no projects is new: its first prompts teach the product, and
   // the empty-account auto-brief (a data query) is suppressed since it would
   // return nothing. Undefined while loading — treat as "not yet known".
@@ -149,10 +158,12 @@ export function CopilotWorkspace() {
     // an empty answer would fail its per-turn min-length check — so a long
     // thread never ships an oversized (or invalid) history payload.
     const history = turns
-      .map((turn) =>
+      .flatMap((turn): CopilotTurn[] =>
         turn.role === "user"
-          ? { role: "user" as const, text: turn.text }
-          : { role: "assistant" as const, text: turn.result.answer },
+          ? [{ role: "user", text: turn.text }]
+          : turn.role === "assistant"
+            ? [{ role: "assistant", text: turn.result.answer }]
+            : [],
       )
       .filter((turn) => turn.text.trim().length > 0)
       .slice(-12);
@@ -334,6 +345,29 @@ export function CopilotWorkspace() {
               <FolderKanban size={13} aria-hidden="true" /> All projects
             </span>
           )}
+          {canRecordSignatures ? (
+            // Owners and admins only: the one thing Cue does with an attachment
+            // so far is prefill recording a signature, which only they may do.
+            // The server refuses anyone else either way.
+            <label className="cue-attach" title="Attach a signed agreement">
+              <Paperclip size={14} aria-hidden="true" />
+              <span className="cue-attach-label">Signed agreement</span>
+              <input
+                accept="application/pdf,image/jpeg,image/png"
+                aria-label="Attach a signed agreement"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (!file) return;
+                  setTurns((prior) => [
+                    ...prior,
+                    { role: "attachment", id: crypto.randomUUID(), file },
+                  ]);
+                }}
+                type="file"
+              />
+            </label>
+          ) : null}
           <span className="cue-slashhint">
             Type <kbd>/</kbd> for a command
           </span>
@@ -414,7 +448,21 @@ export function CopilotWorkspace() {
               </div>
             </div>
                 {turns.map((turn, index) =>
-                  turn.role === "user" ? (
+                  turn.role === "attachment" ? (
+                    <Fragment key={turn.id}>
+                      <div className="copilot-turn-user">
+                        <p>
+                          <Paperclip size={13} aria-hidden="true" /> {turn.file.name}
+                        </p>
+                      </div>
+                      {workspace.tenantId ? (
+                        <SignedAgreementCard
+                          file={turn.file}
+                          tenantId={workspace.tenantId}
+                        />
+                      ) : null}
+                    </Fragment>
+                  ) : turn.role === "user" ? (
                     <div className="copilot-turn-user" key={`u-${index}`}>
                       <p>{turn.text}</p>
                     </div>

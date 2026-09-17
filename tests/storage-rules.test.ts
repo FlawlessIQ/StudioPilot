@@ -317,3 +317,102 @@ test(
     }
   },
 );
+
+/**
+ * A file dropped into Cue is staged for one server-side reading, then deleted.
+ *
+ * It is usually a signed client agreement, so the folder is as narrow as the
+ * one thing a reading can lead to — recording a signature, which only owners
+ * and admins may do — and no browser may read it back at all.
+ */
+test(
+  "Storage rules stage Cue attachments for owners and admins, write-once and unreadable",
+  { skip: !firestoreHost || !storageHost },
+  async () => {
+    const [firestoreAddress, firestorePortValue] = (firestoreHost ?? "127.0.0.1:8080").split(":");
+    const [storageAddress, storagePortValue] = (storageHost ?? "127.0.0.1:9199").split(":");
+    const environment = await initializeTestEnvironment({
+      projectId: "studiohub-dev",
+      firestore: {
+        host: firestoreAddress,
+        port: Number(firestorePortValue),
+        rules: await readFile(new URL("../firestore.rules", import.meta.url), "utf8"),
+      },
+      storage: {
+        host: storageAddress,
+        port: Number(storagePortValue),
+        rules: await readFile(new URL("../storage.rules", import.meta.url), "utf8"),
+      },
+    });
+    const pdf = new Uint8Array([37, 80, 68, 70]);
+    const staged = (visibility = "studio") => ({
+      contentType: "application/pdf",
+      customMetadata: { scanStatus: "pending", visibility },
+    });
+    try {
+      await environment.withSecurityRulesDisabled(async (context) => {
+        for (const [userId, role] of [
+          ["owner-a", "studio_owner"],
+          ["admin-a", "studio_admin"],
+          ["coordinator-a", "studio_coordinator"],
+          ["crew-a", "subcontractor"],
+          ["client-a", "client"],
+        ] as const) {
+          await setDoc(doc(context.firestore(), `memberships/tenant-a_${userId}`), {
+            tenantId: "tenant-a", userId, status: "active", role, projectIds: ["project-a"],
+          });
+        }
+        await setDoc(doc(context.firestore(), "memberships/tenant-b_owner-b"), {
+          tenantId: "tenant-b", userId: "owner-b", status: "active",
+          role: "studio_owner", projectIds: [],
+        });
+        await uploadBytes(
+          ref(context.storage(), "tenants/tenant-a/cueAttachments/owner-a/cleared.pdf"),
+          pdf,
+          { contentType: "application/pdf", customMetadata: { scanStatus: "clean", visibility: "studio" } },
+        );
+      });
+
+      const owner = environment.authenticatedContext("owner-a").storage();
+      const admin = environment.authenticatedContext("admin-a").storage();
+      const folder = "tenants/tenant-a/cueAttachments";
+
+      // Owners and admins stage into their own folder.
+      await assertSucceeds(uploadBytes(ref(owner, `${folder}/owner-a/signed.pdf`), pdf, staged()));
+      await assertSucceeds(uploadBytes(ref(admin, `${folder}/admin-a/signed.pdf`), pdf, staged()));
+
+      // Never into somebody else's, which the reader would then act on.
+      await assertFails(uploadBytes(ref(owner, `${folder}/admin-a/planted.pdf`), pdf, staged()));
+      // Nor across tenants.
+      await assertFails(uploadBytes(
+        ref(environment.authenticatedContext("owner-b").storage(), `${folder}/owner-b/signed.pdf`),
+        pdf,
+        staged(),
+      ));
+
+      // Nobody who cannot record a signature can stage one to be read.
+      for (const userId of ["coordinator-a", "crew-a", "client-a"]) {
+        await assertFails(uploadBytes(
+          ref(environment.authenticatedContext(userId).storage(), `${folder}/${userId}/signed.pdf`),
+          pdf,
+          staged(),
+        ));
+      }
+
+      // It is studio-only: filed as shared, the couple or the crew could be meant to see it.
+      await assertFails(uploadBytes(ref(owner, `${folder}/owner-a/shared.pdf`), pdf, staged("shared")));
+      // It cannot skip the scan.
+      await assertFails(uploadBytes(ref(owner, `${folder}/owner-a/unscanned.pdf`), pdf, {
+        contentType: "application/pdf",
+        customMetadata: { scanStatus: "clean", visibility: "studio" },
+      }));
+      // Write-once: no overwriting a staged file in place.
+      await assertFails(uploadBytes(ref(owner, `${folder}/owner-a/cleared.pdf`), pdf, staged()));
+
+      // And nobody reads it back — not even whoever staged it, once cleared.
+      await assertFails(getBytes(ref(owner, `${folder}/owner-a/cleared.pdf`)));
+    } finally {
+      await environment.cleanup();
+    }
+  },
+);
