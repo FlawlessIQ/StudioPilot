@@ -36,6 +36,41 @@ Detailed provider-console and business-owner steps are maintained in
   the mobile IA from scratch, then a thin end-to-end spike (auth + one
   approve-to-send flow) before committing to full parity.
 
+- **Launch follow-ups from the 2026-09-15/17 ship (owner in brackets).**
+  1. [Conor] Reconnect Zoom for FlawlessIQ — production now uses the Zoom
+     Production Client ID; development-era connections will stop refreshing.
+  2. [Conor] Check the Zoom Production Secret Token (Features → Access); if it
+     differs from Development, update `ZOOM_WEBHOOK_SECRET_TOKEN` so meeting
+     summaries keep arriving.
+  3. [Zoom] App review resubmitted 2026-09-17 (reviewer studio "Zoom test",
+     conor+zoomtest@flawlessiq.com). Until approved, only our own Zoom account
+     can connect — Gabe cannot.
+  4. [Gabe] Retry Dropbox — "Development users" limit raised to 500.
+     Later: rename the app folder "Studiopilot" → "StudioCue"; apply for
+     production before 500 linked studios.
+  5. [Conor/Intuit] Autopay go-live: pilot studio applies for QuickBooks
+     Payments; StudioCue's Intuit app approved for
+     `com.intuit.quickbooks.payment`; then reconnect for payments and run the
+     first charge together. Unverified: Intuit tokens endpoint accepting the
+     browser request from studio-cue.com (else switch to Intuit's JS library).
+  6. [Claude, on OK] Delete inbound test data: "Maya Test" lead/contact
+     (FlawlessIQ) and the test post-production record, gallery inbox and
+     delivery draft on "Questionnaire Flow Test".
+  7. [Claude, on OK] Backfill gallery inbox addresses for jobs already in
+     post-production.
+  8. [Conor] Signing app (Dropbox Sign) — deferred by choice; send-on-acceptance
+     is built and dormant.
+  9. [Conor/Gabe] Acceptance pilot — a full real wedding end to end.
+
+- **Crew requirements per package (requested by Gabe, 2026-09-17 — confirm
+  before building).** A package should say who it needs on the day (e.g. two
+  photographers; photographer + videographer), and booking it should invite
+  that crew by role automatically, with each invite labelled photographer or
+  video. Today `includedPhotographers` exists but is not editable on Edit
+  package (imported packages default to 1), there is no videographer count,
+  and crew offers are started by hand from the crew cascade with free-text
+  roles.
+
 ## Phase 1 — Credential and environment safety
 
 Status: Secret Manager architecture and runtime bindings implemented. Rotation of
