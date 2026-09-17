@@ -83,6 +83,7 @@ export function dueLifecycleMessages(input: {
     tenantId: string;
     state: string;
     eventDate: string | null;
+    clientAutomationsPausedAt?: string | null;
   };
   settings: LifecycleMessagingSettings;
   today: string;
@@ -94,6 +95,10 @@ export function dueLifecycleMessages(input: {
   dueOn: string;
 }> {
   const { project, settings, today } = input;
+  // An imported booking is quiet until the studio brings the couple in.
+  // Without this, a wedding imported ten days out would be handed its
+  // thirty-days-before messages on its first morning, because this catches up.
+  if (typeof project.clientAutomationsPausedAt === "string") return [];
   if (!project.eventDate || !ACTIVE_STATES.has(project.state)) return [];
   if (today >= project.eventDate) return [];
   const due: Array<{

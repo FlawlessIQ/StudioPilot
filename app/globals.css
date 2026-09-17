@@ -17752,3 +17752,63 @@ label {
     justify-content: center;
   }
 }
+
+/* ------------------------------------------------------------------------
+   Importing bookings a studio already has.
+   A long form read top to bottom on a phone and in two columns on a desk;
+   the review sits between the details and the button, because that is when
+   it has to be read.
+   ------------------------------------------------------------------------ */
+.dashboard-heading-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.booking-import-panel{display:grid;gap:18px;padding:22px}
+.booking-import-panel>header{display:grid;gap:4px}
+.booking-import-panel>header h2{margin:0;font-size:18px}
+.booking-import-panel>header p{margin:0;color:var(--muted);font-size:13.5px}
+.booking-import{display:grid;gap:18px}
+.booking-import fieldset{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0;padding:16px;border:1px solid var(--line);border-radius:14px}
+.booking-import legend{padding:0 6px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.booking-import label{display:grid;gap:6px;font-size:12.5px;font-weight:600;min-width:0}
+.booking-import label small{font-weight:500;color:var(--muted)}
+.booking-import input,.booking-import select,.booking-import textarea{border:1px solid var(--line);border-radius:10px;padding:9px 11px;background:var(--background);color:var(--ink);font:inherit;font-size:14px;width:100%;min-width:0}
+.booking-import input[type="file"]{padding:7px}
+.booking-import .booking-import-span{grid-column:1/-1}
+.booking-import>fieldset>.button{justify-self:start}
+.booking-import-payment{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.2fr) auto;gap:10px;align-items:end}
+.booking-import-remove{display:grid;place-items:center;width:38px;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--muted);cursor:pointer}
+.booking-import-remove:hover{color:var(--danger);border-color:var(--danger)}
+.booking-import-review{display:grid;gap:8px}
+.booking-import-issue,.booking-import-note{display:flex;gap:8px;align-items:flex-start;margin:0;padding:10px 12px;border-radius:10px;font-size:13px;line-height:1.45}
+.booking-import-issue{background:color-mix(in srgb,var(--amber) 55%,var(--surface));border:1px solid color-mix(in srgb,var(--amber-dark) 30%,var(--line))}
+.booking-import-issue svg{flex:none;margin-top:2px;color:var(--amber-dark)}
+.booking-import-issue.is-error{background:color-mix(in srgb,var(--danger) 8%,var(--surface));border-color:color-mix(in srgb,var(--danger) 32%,var(--line))}
+.booking-import-issue.is-error svg{color:var(--danger)}
+.booking-import-note{color:var(--muted);padding:0}
+.booking-import-note svg{flex:none;margin-top:2px;color:var(--success)}
+.booking-import-summary{margin:0;font-size:13.5px;line-height:1.5}
+.booking-import-actions{display:flex;flex-wrap:wrap;gap:10px}
+.booking-import-another{justify-self:start;border:0;background:none;padding:0;color:var(--accent);font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.booking-import-done{display:grid;gap:10px;justify-items:start}
+.booking-import-done-title{display:flex;gap:8px;align-items:center;margin:0;font-weight:700}
+.booking-import-done-title svg{color:var(--success)}
+.booking-import-done ul{margin:0;padding-left:20px;display:grid;gap:4px;color:var(--muted);font-size:13.5px}
+.booking-import.is-compact fieldset{padding:12px}
+@media (max-width:640px){
+  .booking-import fieldset{grid-template-columns:minmax(0,1fr)}
+  .booking-import-payment{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto}
+  .booking-import-payment label:nth-child(3){grid-column:1/-1;grid-row:2}
+}
+
+/* The quiet imported job, and the choice to end the quiet. */
+.imported-booking-banner{display:flex;gap:14px;align-items:flex-start;padding:16px 18px;margin:0 0 16px;border:1px solid color-mix(in srgb,var(--accent) 22%,var(--line));background:color-mix(in srgb,var(--accent) 5%,var(--surface))}
+.imported-booking-banner>svg{flex:none;margin-top:2px;color:var(--accent)}
+.imported-booking-banner>div{display:grid;gap:8px;min-width:0}
+.imported-booking-banner p{margin:0;font-size:13.5px;line-height:1.5;color:var(--muted)}
+.imported-booking-banner.is-live{align-items:center}
+.imported-booking-banner.is-live>svg{color:var(--success)}
+.imported-booking-banner.is-live p{color:var(--ink)}
+.imported-booking-choices{display:grid;gap:8px;justify-items:start}
+.imported-booking-choices label{display:flex;gap:8px;align-items:center;font-size:13.5px}
+.imported-booking-choices input{accent-color:var(--accent)}
+.imported-booking-hint{font-style:italic}
+.cue-signed-agreement-offer{display:grid;gap:8px;justify-items:start;padding:12px;border:1px dashed var(--line);border-radius:12px}
+.cue-signed-agreement-import{display:grid;gap:12px}

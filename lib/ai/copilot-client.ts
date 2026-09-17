@@ -278,6 +278,19 @@ export type SignedAgreementReadResult = {
   /** "unavailable" when no model is configured: nothing was read, nothing guessed. */
   mode: "ai" | "unavailable";
   reading: SignedAgreementReading;
+  /** What else the contract states, for importing it as an existing booking. */
+  details: {
+    clientEmails: string[];
+    clientPhones: string[];
+    packageName: string | null;
+    contractTotal: number | null;
+    taxAmount: number | null;
+    coverageHours: number | null;
+    photographers: number | null;
+    venueName: string | null;
+    city: string | null;
+    retainerAmount: number | null;
+  };
   assessment: SignedAgreementAssessment;
   candidates: Array<{
     projectId: string;

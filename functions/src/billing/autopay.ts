@@ -1,3 +1,4 @@
+import { clientAutomationsPaused } from "../imports/existing-booking.js";
 import { createHash } from "node:crypto";
 import { FieldValue, getFirestore, type DocumentSnapshot } from "firebase-admin/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
@@ -364,6 +365,9 @@ export const autopayScheduler = onSchedule(
       const projectId = text(method.get("projectId"));
       const tenant = await db.doc(`tenants/${tenantId}`).get();
       if (asRecord(tenant.get("autopay")).enabled !== true) continue;
+      // Never charge a card on a booking the studio hasn't brought in yet.
+      const project = await db.doc(`projects/${projectId}`).get();
+      if (clientAutomationsPaused(project.data())) continue;
       const invoices = await db
         .collection("invoiceReferences")
         .where("tenantId", "==", tenantId)

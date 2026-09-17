@@ -36,6 +36,16 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "Cue couldn't match that file to your upload. Attach it again.",
   SIGNATURE_ATTESTATION_PERMISSION_REQUIRED:
     "Only a studio owner or admin can record a signature. Ask one of them to record it.",
+  BOOKING_IMPORT_PERMISSION_REQUIRED:
+    "Only a studio owner or admin can import bookings, because importing one records that its contract was signed and its payments made.",
+  NOT_AN_IMPORTED_BOOKING:
+    "This job wasn't imported, so there's nothing to bring in — it's already live in StudioCue.",
+  IMPORTED_CONTRACT_NOT_FOUND:
+    "This job has no imported contract to attach a signed copy to.",
+  SIGNED_COPY_ALREADY_ATTACHED:
+    "A signed copy is already attached to this booking.",
+  SIGNED_COPY_PATH_MISMATCH:
+    "That file couldn't be attached to this booking. Upload it again from the job.",
   AI_QUOTA_EXCEEDED:
     "Your workspace has used its included AI drafts for this period. Review your plan to add more.",
   NO_PUBLISHED_RUN_OF_SHOW:
@@ -300,6 +310,14 @@ const PREFIX_FALLBACKS: Array<[RegExp, string]> = [
 const DETAILED_BY_CODE: Record<string, (detail: string) => string> = {
   // Every command endpoint returns this for any schema failure, so it is the
   // most-hit error in the product and had no entry at all.
+  // Importing existing bookings: both carry the sentence the server wrote,
+  // naming the couple and the date, which is more useful than any generic one.
+  BOOKING_IMPORT_INVALID: (detail) =>
+    detail || "Something about this booking needs fixing before it can be imported.",
+  BOOKING_ALREADY_IN_STUDIOCUE: (detail) =>
+    detail
+      ? `${detail} Open that job instead of importing it again.`
+      : "This booking is already in StudioCue. Open that job instead of importing it again.",
   INVALID_COMMAND: (detail) =>
     detail
       ? `Check ${detail} — that value wasn't accepted.`

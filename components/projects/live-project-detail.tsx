@@ -1,5 +1,6 @@
 "use client";
 
+import { ImportedBookingBanner } from "@/components/imports/imported-booking-banner";
 import { type FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import {
@@ -985,6 +986,15 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           </a>
         ) : null}
       </header>
+      <ImportedBookingBanner
+        onChanged={() =>
+          setProject((value) =>
+            value ? { ...value, clientAutomationsPausedAt: null } : value,
+          )
+        }
+        project={project}
+        projectId={projectId}
+      />
       <ProjectWorkspaceNav projectId={projectId} />
       <div className="project-facts">
         <span>

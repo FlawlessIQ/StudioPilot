@@ -1,5 +1,6 @@
 import { getFirestore } from "firebase-admin/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { clientAutomationsPaused } from "../imports/existing-booking.js";
 
 const date = (value: Date) => value.toISOString().slice(0, 10);
 
@@ -22,6 +23,9 @@ export const finalInvoiceScheduler = onSchedule(
       .get();
 
     for (const project of projects.docs) {
+      // A quiet imported booking is usually billed elsewhere already; raising
+      // and emailing a final invoice would be a second bill for one wedding.
+      if (clientAutomationsPaused(project.data())) continue;
       await db.runTransaction(async (transaction) => {
         const invoiceReference = db.doc(
           `invoiceReferences/final_${project.id}`,

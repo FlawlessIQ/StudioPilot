@@ -22,8 +22,44 @@ import { bookingGateRequirements } from "./gate-requirements.js";
 import { consultationBookingAdvancesTo } from "./consultation-advance.js";
 import { isStandingInvoice } from "./invoice-standing.js";
 import { planRetainerAttestation } from "./retainer-attestation.js";
+import {
+  attachImportedSignedCopy,
+  attachImportedSignedCopyInput,
+  bringImportedBookingLive,
+  bringImportedBookingLiveInput,
+  importExistingBooking,
+  importExistingBookingInput,
+  previewExistingBookings,
+  previewExistingBookingsInput,
+} from "../imports/commands.js";
+import { studioVouchedAuthorities } from "../imports/existing-booking.js";
 
 const commandSchema = z.discriminatedUnion("type", [
+  // Importing bookings a studio already has — see ../imports/commands.ts.
+  z.object({
+    type: z.literal("previewExistingBookings"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: previewExistingBookingsInput,
+  }),
+  z.object({
+    type: z.literal("importExistingBooking"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: importExistingBookingInput,
+  }),
+  z.object({
+    type: z.literal("attachImportedSignedCopy"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: attachImportedSignedCopyInput,
+  }),
+  z.object({
+    type: z.literal("bringImportedBookingLive"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: bringImportedBookingLiveInput,
+  }),
   z.object({
     type: z.literal("scheduleConsultation"),
     tenantId: z.string().min(1),
@@ -1895,7 +1931,9 @@ export const bookingCommand = onRequest(
           );
           const attestedManually = contracts.docs.some(
             (contract) =>
-              contract.get("completionAuthority") === "manual_attested",
+              studioVouchedAuthorities.includes(
+                String(contract.get("completionAuthority")),
+              ),
           );
           // A retainer the studio recorded rather than a provider
           // confirmed. Read from the record's own authority, so a payment
@@ -1903,7 +1941,9 @@ export const bookingCommand = onRequest(
           // it.
           const retainerAttestedManually = liveInvoices.some(
             (invoice) =>
-              invoice.get("completionAuthority") === "manual_attested",
+              studioVouchedAuthorities.includes(
+                String(invoice.get("completionAuthority")),
+              ),
           );
           const checks = {
             contractCompleted: !contracts.empty && !attestedManually,
@@ -2068,6 +2108,43 @@ export const bookingCommand = onRequest(
           providerEventId: null,
         });
         result = { tenantId: command.tenantId, ...command.input };
+      } else if (command.type === "previewExistingBookings") {
+        result = await previewExistingBookings({
+          tenantId: command.tenantId,
+          membership,
+          bookings: command.input.bookings,
+        });
+      } else if (command.type === "importExistingBooking") {
+        result = await importExistingBooking({
+          tenantId: command.tenantId,
+          membership,
+          actorId: identity.uid,
+          timestamp,
+          userAgent: request.header("user-agent") ?? null,
+          booking: command.input.booking,
+          source: command.input.source,
+          batchId: command.input.batchId,
+        });
+      } else if (command.type === "attachImportedSignedCopy") {
+        result = await attachImportedSignedCopy({
+          tenantId: command.tenantId,
+          membership,
+          actorId: identity.uid,
+          timestamp,
+          projectId: command.input.projectId,
+          documentPath: command.input.documentPath,
+        });
+      } else if (command.type === "bringImportedBookingLive") {
+        result = await bringImportedBookingLive({
+          tenantId: command.tenantId,
+          membership,
+          actorId: identity.uid,
+          timestamp,
+          userAgent: request.header("user-agent") ?? null,
+          idempotencyKey: command.idempotencyKey,
+          projectId: command.input.projectId,
+          calendarAndFolders: command.input.calendarAndFolders,
+        });
       } else {
         throw new Error("UNKNOWN_COMMAND");
       }

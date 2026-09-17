@@ -1043,7 +1043,10 @@ export async function completeBookingResources(job:DocumentSnapshot){const db=ge
       updatedBy: "provider-worker",
     });
   }
-  batch.set(db.doc(`emailJobs/booking_confirmation_${projectId}`),{id:`booking_confirmation_${projectId}`,tenantId,projectId,type:"booking_confirmation",status:"queued",attempts:0,createdAt:now,updatedAt:now},{merge:false});await batch.commit();return{projectId,folderIds,eventId,workflow}}
+  // An imported booking was booked long before StudioCue, so it never gets
+  // "You're booked" — whether this runs while it is quiet or after the studio
+  // brings the couple in and asks for the calendar and folders.
+  if(!project.get("importedAt"))batch.set(db.doc(`emailJobs/booking_confirmation_${projectId}`),{id:`booking_confirmation_${projectId}`,tenantId,projectId,type:"booking_confirmation",status:"queued",attempts:0,createdAt:now,updatedAt:now},{merge:false});await batch.commit();return{projectId,folderIds,eventId,workflow}}
 
 export async function uploadDropboxDocument(job:DocumentSnapshot){
   const db=getFirestore();const tenantId=String(job.get("tenantId"));const projectId=String(job.get("projectId"));const documentId=String(job.get("documentId"));

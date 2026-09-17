@@ -1,3 +1,4 @@
+import { studioVouchedAuthorities } from "../imports/existing-booking.js";
 import { createHash } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
@@ -571,10 +572,15 @@ export const bookingRetainerPaid = onDocumentWritten(
      * rather than assumed.
      */
     const contractAttestedManually = contracts.docs.some(
-      (contract) => contract.get("completionAuthority") === "manual_attested",
+      (contract) =>
+        studioVouchedAuthorities.includes(
+          String(contract.get("completionAuthority")),
+        ),
     );
     const retainerAttestedManually =
-      invoice.get("completionAuthority") === "manual_attested";
+      studioVouchedAuthorities.includes(
+        String(invoice.get("completionAuthority")),
+      );
     const checks = {
       contractCompleted: !contracts.empty && !contractAttestedManually,
       contractAttestedManually,

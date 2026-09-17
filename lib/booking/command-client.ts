@@ -10,6 +10,10 @@ import {
 } from "firebase/storage";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { activeMembership } from "@/lib/firebase/active-membership";
+import type {
+  ExistingBooking,
+  ExistingBookingIssue,
+} from "@/features/imports/existing-booking";
 
 export async function sendBookingCommand(input: Record<string, unknown>) {
   const endpoint = process.env.NEXT_PUBLIC_BOOKING_FUNCTIONS_URL;
@@ -214,5 +218,119 @@ export async function recordFinalPayment(input: {
       reference: input.reference,
       attestation: true,
     },
+  });
+}
+
+/* ---------------------------------------------------------------------------
+ * Importing bookings a studio already has.
+ *
+ * Owner/admin commands on bookingCommand; the server decides everything that
+ * matters (see functions/src/imports/commands.ts). These only carry the call.
+ * ------------------------------------------------------------------------- */
+
+export type ExistingBookingPreview = {
+  key: string;
+  issues: ExistingBookingIssue[];
+  knownClients: Array<{ contactId: string; displayName: string } | null>;
+  alreadyImported: { projectId: string; name: string; state: string } | null;
+  sameDayBookings: Array<{ projectId: string; name: string }>;
+};
+
+export type ImportedBookingResult = {
+  projectId: string;
+  name: string;
+  state: string;
+  contactsCreated: number;
+  contactsMatched: number;
+  paidCents: number;
+  workflow: { started: boolean; checkpointCount?: number; reason?: string };
+  warnings: string[];
+};
+
+export async function previewExistingBookings(
+  bookings: ExistingBooking[],
+): Promise<{ today: string; bookings: ExistingBookingPreview[] } | null> {
+  const result = await sendBookingCommand({
+    type: "previewExistingBookings",
+    idempotencyKey: crypto.randomUUID(),
+    input: { bookings },
+  });
+  if (result.mode === "preview") return null;
+  return result.payload as { today: string; bookings: ExistingBookingPreview[] };
+}
+
+/**
+ * Import one booking, then file its signed copy when there is one.
+ *
+ * The copy goes in after the project exists, because a contract lives in its
+ * project's folder. It is filed as client-visible — the couple can see their
+ * own signed contract in their portal — and not "shared", which would also
+ * open it to crew, fee and all. If filing the copy fails the booking is still
+ * imported, and the result says so rather than reporting a failure that
+ * isn't one.
+ */
+export async function importExistingBooking(input: {
+  booking: ExistingBooking;
+  source: "form" | "cue" | "spreadsheet";
+  batchId: string | null;
+  signedCopy: File | null;
+  /** Stable per booking, so a retry never imports it twice. */
+  idempotencyKey?: string;
+}): Promise<
+  | { mode: "preview" }
+  | { mode: "live"; result: ImportedBookingResult; signedCopyAttached: boolean }
+> {
+  const imported = await sendBookingCommand({
+    type: "importExistingBooking",
+    idempotencyKey: input.idempotencyKey ?? crypto.randomUUID(),
+    input: {
+      booking: input.booking,
+      source: input.source,
+      batchId: input.batchId,
+    },
+  });
+  if (imported.mode === "preview") return { mode: "preview" };
+  const result = imported.payload as ImportedBookingResult;
+  if (!input.signedCopy) return { mode: "live", result, signedCopyAttached: false };
+
+  try {
+    const client = getFirebaseClient();
+    const user = getAuth(client.app).currentUser;
+    if (!user) throw new Error("Sign in before attaching a signed copy.");
+    const membership = await activeMembership(client.firestore, user.uid);
+    const tenantId = membership.data().tenantId as string;
+    const storage = getStorage(client.app);
+    if (
+      process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true" &&
+      !signedAgreementEmulatorConnected
+    ) {
+      connectStorageEmulator(storage, "127.0.0.1", 9199);
+      signedAgreementEmulatorConnected = true;
+    }
+    const safeName = input.signedCopy.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-120);
+    const documentPath = `tenants/${tenantId}/projects/${result.projectId}/contracts/${crypto.randomUUID()}-${safeName}`;
+    await uploadBytes(ref(storage, documentPath), input.signedCopy, {
+      contentType: input.signedCopy.type,
+      customMetadata: { visibility: "client", scanStatus: "pending" },
+    });
+    await sendBookingCommand({
+      type: "attachImportedSignedCopy",
+      idempotencyKey: crypto.randomUUID(),
+      input: { projectId: result.projectId, documentPath },
+    });
+    return { mode: "live", result, signedCopyAttached: true };
+  } catch {
+    return { mode: "live", result, signedCopyAttached: false };
+  }
+}
+
+export async function bringImportedBookingLive(input: {
+  projectId: string;
+  calendarAndFolders: boolean;
+}) {
+  return sendBookingCommand({
+    type: "bringImportedBookingLive",
+    idempotencyKey: crypto.randomUUID(),
+    input,
   });
 }

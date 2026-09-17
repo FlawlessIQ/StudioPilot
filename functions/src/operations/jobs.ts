@@ -1,4 +1,8 @@
 import {
+  clientAutomationEmailTypes,
+  clientAutomationsPaused,
+} from "../imports/existing-booking.js";
+import {
   getFirestore,
   type DocumentSnapshot,
 } from "firebase-admin/firestore";
@@ -575,9 +579,17 @@ async function emailContext(
 }
 
 async function sendEmail(document: DocumentSnapshot): Promise<Result> {
-  const recipient = await recipientFor(document);
   const type = String(document.get("type"));
   const projectId = String(document.get("projectId") ?? "");
+  // The last line for a quiet imported booking. The schedulers above should
+  // never have queued one of these for it; if something did, it is held here
+  // rather than sent. Deliberate messages a studio writes are not on the list.
+  if (projectId && clientAutomationEmailTypes.includes(type)) {
+    const project = await getFirestore().doc(`projects/${projectId}`).get();
+    if (clientAutomationsPaused(project.data()))
+      return { held: "client_automations_paused", type };
+  }
+  const recipient = await recipientFor(document);
   const context = await emailContext(document, recipient);
   const rendered = renderEmailTemplate({
     key: type,

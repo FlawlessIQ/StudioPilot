@@ -1,3 +1,4 @@
+import { clientAutomationsPaused } from "../imports/existing-booking.js";
 import { createHash } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
 import {
@@ -566,6 +567,17 @@ async function processDomainEventRecord(eventId: string) {
     }
 
     const db = getFirestore();
+    // A quiet imported booking fires no workflow rules. Its import writes a
+    // completed contract and a paid invoice, which raise exactly the events a
+    // rule would answer with a thank-you or a welcome email. Held events are
+    // not replayed later: they describe the import, not anything new.
+    const project = await db.doc(`projects/${projectId}`).get();
+    if (clientAutomationsPaused(project.data())) {
+      await eventSnapshot.ref.update({
+        processingStatus: "held_client_automations_paused",
+      });
+      return;
+    }
     const runs = await db
       .collection("workflowRuns")
       .where("tenantId", "==", tenantId)

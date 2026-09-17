@@ -1393,6 +1393,17 @@ export async function autoInstantiateWorkflow(input: {
   tenantId: string;
   projectId: string;
   actorId: string;
+  /**
+   * An imported booking: when it was really booked, and when it was imported.
+   *
+   * A live booking is booked today, so today anchors every "days after
+   * booking" rule. An imported one was booked months ago, and dating its
+   * workflow from today would push every such step into the future. And any
+   * step already due before the import happened before StudioCue — the
+   * contract got signed, the retainer got paid — so it is recorded as done
+   * rather than left to arrive on day one as a wall of overdue work.
+   */
+  imported?: { bookingDate: string; importedOn: string };
 }): Promise<
   | {
       workflowRunId: string;
@@ -1468,7 +1479,7 @@ export async function autoInstantiateWorkflow(input: {
     checkpointTemplates: parsedTemplates.data,
     automationRules: templateSnapshot.get("automationRules") ?? [],
   };
-  const bookingDate = timestamp.slice(0, 10);
+  const bookingDate = input.imported?.bookingDate ?? timestamp.slice(0, 10);
 
   return db.runTransaction(async (transaction) => {
     const again = await transaction.get(activeRunQuery);
@@ -1541,6 +1552,40 @@ export async function autoInstantiateWorkflow(input: {
           archivedAt: null,
         };
       });
+    if (input.imported) {
+      const importedOn = input.imported.importedOn;
+      const done = new Set<string>();
+      for (const checkpoint of checkpointDocuments) {
+        if (
+          checkpoint.resolvedDueDate &&
+          checkpoint.resolvedDueDate < importedOn
+        ) {
+          done.add(checkpoint.id);
+          checkpoint.status = "complete";
+          checkpoint.completionTimestamp = timestamp;
+          checkpoint.completionActorId = input.actorId;
+          checkpoint.evidence = [
+            {
+              type: "manual_note",
+              referenceId: input.projectId,
+              label: "Done before StudioCue",
+              recordedAt: timestamp,
+              recordedBy: input.actorId,
+            },
+          ];
+          checkpoint.notes =
+            "Due before this booking was imported, so recorded as done before StudioCue.";
+        }
+      }
+      // A step whose prerequisites were all done before the import is ready
+      // now, not waiting on work that already happened.
+      for (const checkpoint of checkpointDocuments) {
+        if (done.has(checkpoint.id)) continue;
+        checkpoint.status = checkpoint.dependencyIds.every((id) => done.has(id))
+          ? "ready"
+          : "not_started";
+      }
+    }
     transaction.create(db.doc(`workflowRuns/${runId}`), {
       id: runId,
       tenantId: input.tenantId,
@@ -1601,7 +1646,7 @@ export async function autoInstantiateWorkflow(input: {
           workflowVersion: template.version,
           checkpointCount: checkpointDocuments.length,
           readinessScore: projection.score,
-          trigger: "booking_completed",
+          trigger: input.imported ? "booking_imported" : "booking_completed",
         },
         correlationId: `booking_workflow_${input.projectId}`,
         userAgent: null,

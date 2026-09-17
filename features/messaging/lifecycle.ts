@@ -17,6 +17,8 @@ export type LifecycleProject = {
   tenantId: string;
   state: string;
   eventDate: string | null; // YYYY-MM-DD
+  /** Set while an imported booking is being held quiet. */
+  clientAutomationsPausedAt?: string | null;
 };
 
 export type DueLifecycleMessage = {
@@ -62,6 +64,10 @@ export function dueLifecycleMessages(input: {
   today: string; // YYYY-MM-DD
 }): DueLifecycleMessage[] {
   const { project, settings, today } = input;
+  // An imported booking is quiet until the studio brings the couple in.
+  // Without this, a wedding imported ten days out would be handed its
+  // thirty-days-before messages on its first morning, because this catches up.
+  if (typeof project.clientAutomationsPausedAt === "string") return [];
   if (!project.eventDate || !ACTIVE_STATES.has(project.state)) return [];
   if (today >= project.eventDate) return [];
   const due: DueLifecycleMessage[] = [];

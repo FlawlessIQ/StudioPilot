@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Filter, Plus } from "lucide-react";
+import { Filter, Plus, Upload } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { LiveProjectRows } from "@/components/live/tenant-records";
 
@@ -17,7 +17,11 @@ export default async function ProjectsPage({
       <div className="crm-page">
         <div className="dashboard-heading">
           <div><p className="eyebrow">Your work</p><h1>Jobs</h1><p>Every wedding and event you are working on, and what each one needs next.</p></div>
-          <Link className="button button-dark" href="/studio/projects/new"><Plus size={16} /> Create project</Link>
+          <span className="dashboard-heading-actions">
+            {/* Studios arrive with a year of weddings already booked. */}
+            <Link className="button button-light" href="/studio/projects/import"><Upload size={16} /> Import bookings</Link>
+            <Link className="button button-dark" href="/studio/projects/new"><Plus size={16} /> Create project</Link>
+          </span>
         </div>
         <section className="panel crm-table-panel">
           <div className="crm-toolbar">

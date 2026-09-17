@@ -37,6 +37,26 @@ export const readSignedAgreementRequestSchema = z.object({
   attachmentPath: z.string().min(1).max(1024),
 });
 
+/**
+ * The rest of what a contract states, for importing it as a booking the studio
+ * already has.
+ *
+ * Only ever a prefill for a form a person checks and submits; nothing here is
+ * recorded. Amounts are as the document writes them, in its own currency.
+ */
+export type SignedAgreementDetails = {
+  clientEmails: string[];
+  clientPhones: string[];
+  packageName: string | null;
+  contractTotal: number | null;
+  taxAmount: number | null;
+  coverageHours: number | null;
+  photographers: number | null;
+  venueName: string | null;
+  city: string | null;
+  retainerAmount: number | null;
+};
+
 export type ReadSignedAgreementResult =
   | { status: "scanning" }
   | { status: "blocked"; reason: "unsafe" | "scanner_unavailable" | "unsupported" }
@@ -44,6 +64,7 @@ export type ReadSignedAgreementResult =
       status: "read";
       mode: "ai" | "unavailable";
       reading: SignedAgreementReading;
+      details: SignedAgreementDetails;
       assessment: SignedAgreementAssessment;
       candidates: Array<{
         projectId: string;
@@ -67,6 +88,35 @@ const readingSchema = z.object({
   signedDate: z.string().nullable().catch(null),
   eventDate: z.string().nullable().catch(null),
 });
+
+const money = z.number().nonnegative().max(1_000_000).nullable().catch(null);
+const detailsSchema = z
+  .object({
+    clientEmails: z.array(z.string().max(254)).max(4).catch([]),
+    clientPhones: z.array(z.string().max(40)).max(4).catch([]),
+    packageName: z.string().max(160).nullable().catch(null),
+    contractTotal: money,
+    taxAmount: money,
+    coverageHours: z.number().positive().max(24).nullable().catch(null),
+    photographers: z.number().int().positive().max(10).nullable().catch(null),
+    venueName: z.string().max(160).nullable().catch(null),
+    city: z.string().max(120).nullable().catch(null),
+    retainerAmount: money,
+  })
+  .catch({
+    clientEmails: [],
+    clientPhones: [],
+    packageName: null,
+    contractTotal: null,
+    taxAmount: null,
+    coverageHours: null,
+    photographers: null,
+    venueName: null,
+    city: null,
+    retainerAmount: null,
+  });
+
+const emptyDetails: SignedAgreementDetails = detailsSchema.parse({});
 
 const emptyReading: SignedAgreementReading = {
   isSignedAgreement: false,
@@ -108,7 +158,7 @@ export function attachmentReadiness(input: {
 async function readWithVertex(input: {
   fileUri: string;
   contentType: string;
-}): Promise<SignedAgreementReading | null> {
+}): Promise<{ reading: SignedAgreementReading; details: SignedAgreementDetails } | null> {
   if (process.env.PROVIDER_MOCK_MODE === "true") return null;
   const project = process.env.VERTEX_AI_PROJECT_ID;
   const location = process.env.VERTEX_AI_LOCATION ?? "us-east4";
@@ -128,7 +178,7 @@ async function readWithVertex(input: {
           parts: [
             {
               text:
-                "You read one document a wedding photography studio believes is a signed client agreement. Report only what is visibly on the page — never infer, complete or correct it. isSignedAgreement: true only if it is an agreement between the studio and a client. signatureVisible: true only if a handwritten, drawn or typed-and-attested client signature is actually present, not merely a signature line. signerNames: the names of the clients who signed, as written. clientNames: every client the agreement is made with, as written. signedDate: the date the client signed, as YYYY-MM-DD, or null if not stated. eventDate: the date of the event the agreement covers, as YYYY-MM-DD, or null. Do not judge whether the agreement is valid, enforceable or complete. Return JSON only.",
+                "You read one document a wedding photography studio believes is a signed client agreement. Report only what is visibly on the page — never infer, complete or correct it. isSignedAgreement: true only if it is an agreement between the studio and a client. signatureVisible: true only if a handwritten, drawn or typed-and-attested client signature is actually present, not merely a signature line. signerNames: the names of the clients who signed, as written. clientNames: every client the agreement is made with, as written. signedDate: the date the client signed, as YYYY-MM-DD, or null if not stated. eventDate: the date of the event the agreement covers, as YYYY-MM-DD, or null. details, each only if the document states it and otherwise null or empty: clientEmails and clientPhones as written; packageName as the agreement names the package or collection; contractTotal as the total price as a plain number including any tax; taxAmount as a plain number; coverageHours as the number of hours of coverage; photographers as the number of photographers included; venueName and city of the event; retainerAmount as the retainer or deposit amount as a plain number. Never compute a figure the document does not state. Do not judge whether the agreement is valid, enforceable or complete. Return JSON only.",
             },
           ],
         },
@@ -153,6 +203,21 @@ async function readWithVertex(input: {
               clientNames: { type: "ARRAY", items: { type: "STRING" } },
               signedDate: { type: "STRING", nullable: true },
               eventDate: { type: "STRING", nullable: true },
+              details: {
+                type: "OBJECT",
+                properties: {
+                  clientEmails: { type: "ARRAY", items: { type: "STRING" } },
+                  clientPhones: { type: "ARRAY", items: { type: "STRING" } },
+                  packageName: { type: "STRING", nullable: true },
+                  contractTotal: { type: "NUMBER", nullable: true },
+                  taxAmount: { type: "NUMBER", nullable: true },
+                  coverageHours: { type: "NUMBER", nullable: true },
+                  photographers: { type: "NUMBER", nullable: true },
+                  venueName: { type: "STRING", nullable: true },
+                  city: { type: "STRING", nullable: true },
+                  retainerAmount: { type: "NUMBER", nullable: true },
+                },
+              },
             },
             required: [
               "isSignedAgreement",
@@ -173,7 +238,12 @@ async function readWithVertex(input: {
   if (!text) throw new Error("VERTEX_AI_EMPTY_RESPONSE");
   // Schema failure rejects rather than guessing a shape — AI output that does
   // not parse is not evidence of anything.
-  return readingSchema.parse(JSON.parse(text));
+  const raw = JSON.parse(text) as { details?: unknown };
+  return {
+    reading: readingSchema.parse(raw),
+    // A details section that doesn't parse costs the prefill, never the reading.
+    details: detailsSchema.parse(raw.details ?? {}),
+  };
 }
 
 /** Today in the studio's own calendar, so "dated in the future" means theirs. */
@@ -285,6 +355,7 @@ export async function readSignedAgreement(input: {
     ]);
 
     let reading: SignedAgreementReading | null = null;
+    let details: SignedAgreementDetails = emptyDetails;
     // No model configured means no reading — it does not mean a guess. The
     // card says so and the studio fills the form from the document.
     const configured =
@@ -293,10 +364,12 @@ export async function readSignedAgreement(input: {
       Boolean(process.env.VERTEX_AI_EXTRACTION_MODEL);
     if (configured) {
       await input.consumeQuota();
-      reading = await readWithVertex({
+      const read = await readWithVertex({
         fileUri: `gs://${bucket.name}/${input.attachmentPath}`,
         contentType: String(metadata.contentType),
       });
+      reading = read?.reading ?? null;
+      details = read?.details ?? emptyDetails;
     }
 
     const mode = reading ? ("ai" as const) : ("unavailable" as const);
@@ -312,6 +385,7 @@ export async function readSignedAgreement(input: {
       status: "read",
       mode,
       reading: reading ?? emptyReading,
+      details,
       assessment,
       candidates: candidates.map((candidate) => ({
         projectId: candidate.projectId,

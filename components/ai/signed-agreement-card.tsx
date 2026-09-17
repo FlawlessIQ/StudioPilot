@@ -15,6 +15,10 @@ import {
   type SignedAgreementReadResult,
 } from "@/lib/ai/copilot-client";
 import { recordSignedAgreement } from "@/lib/booking/command-client";
+import {
+  ExistingBookingForm,
+  type ExistingBookingFormValues,
+} from "@/components/imports/existing-booking-form";
 
 /**
  * A signed agreement dropped into Cue, read and ready for a person to record.
@@ -70,7 +74,20 @@ export function SignedAgreementCard({
       });
   }, [file, tenantId]);
 
+  const [importing, setImporting] = useState(false);
   const jobs = result?.candidates.filter((candidate) => candidate.proposalId) ?? [];
+  // A signed contract that belongs to no job waiting on a signature is, far
+  // more often than not, a booking the studio made before StudioCue. Offer to
+  // bring it in as one — prefilled, with this same PDF attached — rather than
+  // leave the studio at a dead end.
+  const flagCodes = result?.assessment.flags.map((flag) => flag.code) ?? [];
+  const offerImport =
+    result !== null &&
+    !result.assessment.suggestion &&
+    !flagCodes.includes("NOT_A_SIGNED_AGREEMENT") &&
+    (jobs.length === 0 ||
+      flagCodes.includes("NO_MATCHING_JOB") ||
+      result.mode === "unavailable");
   const job = jobs.find((candidate) => candidate.projectId === projectId) ?? null;
 
   async function record() {
@@ -136,7 +153,29 @@ export function SignedAgreementCard({
         </div>
       ) : null}
 
-      {phase === "ready" && result ? (
+      {phase === "ready" && result && importing ? (
+        <div className="cue-signed-agreement-import">
+          <p className="cue-signed-agreement-note">
+            Importing it as a booking you already have. Cue filled in what the
+            contract states — check everything, and add what it doesn&rsquo;t say.
+          </p>
+          <ExistingBookingForm
+            compact
+            initial={prefillFromReading(result)}
+            signedCopy={file}
+            source="cue"
+          />
+          <button
+            className="booking-import-another"
+            onClick={() => setImporting(false)}
+            type="button"
+          >
+            Back to recording a signature
+          </button>
+        </div>
+      ) : null}
+
+      {phase === "ready" && result && !importing ? (
         <form
           onSubmit={(event) => {
             event.preventDefault();
@@ -162,13 +201,23 @@ export function SignedAgreementCard({
             </ul>
           ) : null}
 
-          {jobs.length === 0 ? (
-            <p className="cue-signed-agreement-note">
-              No job is waiting on a signature, so there is nothing to record
-              this against yet. A contract can be recorded once its proposal has
-              been accepted.
-            </p>
-          ) : (
+          {offerImport ? (
+            <div className="cue-signed-agreement-offer">
+              <p className="cue-signed-agreement-note">
+                {jobs.length === 0
+                  ? "No job is waiting on a signature. If this is a wedding you booked before StudioCue, import it — nothing will be sent to the couple."
+                  : "If this is a wedding you booked before StudioCue, import it instead — nothing will be sent to the couple."}
+              </p>
+              <button
+                className="button button-light button-sm"
+                onClick={() => setImporting(true)}
+                type="button"
+              >
+                Import as a booking you already have
+              </button>
+            </div>
+          ) : null}
+          {jobs.length === 0 ? null : (
             <>
               <label>
                 Job
@@ -233,4 +282,44 @@ export function SignedAgreementCard({
       ) : null}
     </section>
   );
+}
+
+/** The reading as the import form's starting values. Only what the page stated. */
+function prefillFromReading(
+  result: SignedAgreementReadResult,
+): Partial<ExistingBookingFormValues> {
+  const split = (name: string | undefined) => {
+    const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+    return { first: parts[0] ?? "", last: parts.slice(1).join(" ") };
+  };
+  const { reading, details } = result;
+  const primary = split(reading.clientNames[0] ?? reading.signerNames[0]);
+  const partner = split(reading.clientNames[1]);
+  const amount = (value: number | null) =>
+    value === null ? "" : String(Math.round(value * 100) / 100);
+  return {
+    firstName: primary.first,
+    lastName: primary.last,
+    email: details.clientEmails[0] ?? "",
+    phone: details.clientPhones[0] ?? "",
+    partnerFirstName: partner.first,
+    partnerLastName: partner.last,
+    partnerEmail: details.clientEmails[1] ?? "",
+    eventDate: reading.eventDate ?? "",
+    venueName: details.venueName ?? "",
+    city: details.city ?? "",
+    packageName: details.packageName ?? "",
+    total: amount(details.contractTotal),
+    tax: details.taxAmount === null ? "0" : amount(details.taxAmount),
+    coverageHours: details.coverageHours === null ? "8" : String(details.coverageHours),
+    photographers: details.photographers === null ? "1" : String(details.photographers),
+    signedOn: reading.signedDate ?? "",
+    signerName: reading.signerNames[0] ?? "",
+    // The contract says what the retainer is, not when it arrived: the date
+    // is left for the studio, who knows.
+    payments:
+      details.retainerAmount !== null
+        ? [{ amount: amount(details.retainerAmount), paidOn: "", method: "Retainer" }]
+        : undefined,
+  };
 }
