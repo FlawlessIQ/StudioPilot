@@ -7,6 +7,7 @@ import {
 } from "firebase-admin/firestore";
 import { z } from "zod";
 import { promoteContactTypesToClient } from "../contacts/promotion.js";
+import { quickBooksPaymentHistory } from "../operations/provider-runtime.js";
 import { autoInstantiateWorkflow } from "../workflow/commands.js";
 import {
   assessExistingBooking,
@@ -57,6 +58,10 @@ export const bringImportedBookingLiveInput = z.object({
   projectId: z.string().min(1),
   /** Create the production calendar event and the Dropbox folders now. */
   calendarAndFolders: z.boolean(),
+});
+
+export const lookupQuickBooksPaymentsInput = z.object({
+  emails: z.array(z.string().trim().toLowerCase().email()).min(1).max(200),
 });
 
 const bookedStates = ["BOOKED", "PLANNING", "READY", "EVENT_COMPLETE"];
@@ -489,4 +494,21 @@ export async function bringImportedBookingLive(input: {
     return { projectId: input.projectId, alreadyLive: false };
   });
   return { ...result, calendarAndFolders: input.calendarAndFolders };
+}
+
+/**
+ * What QuickBooks shows each client has paid, to prefill an import.
+ *
+ * Read-only, and only ever a prefill: the payments come back to the form or
+ * the spreadsheet review, where the studio sees them before anything is
+ * imported. Held to the import permission, because what a couple has paid is
+ * not something every team member needs to be able to pull.
+ */
+export async function lookupQuickBooksPayments(input: {
+  tenantId: string;
+  membership: Record<string, unknown>;
+  emails: string[];
+}) {
+  requireImportRole(input.membership);
+  return quickBooksPaymentHistory(input.tenantId, input.emails);
 }

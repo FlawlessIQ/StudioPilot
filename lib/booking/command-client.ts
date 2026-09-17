@@ -14,6 +14,7 @@ import type {
   ExistingBooking,
   ExistingBookingIssue,
 } from "@/features/imports/existing-booking";
+import type { QuickBooksClientHistory } from "@/features/imports/quickbooks-prefill";
 
 export async function sendBookingCommand(input: Record<string, unknown>) {
   const endpoint = process.env.NEXT_PUBLIC_BOOKING_FUNCTIONS_URL;
@@ -333,4 +334,17 @@ export async function bringImportedBookingLive(input: {
     idempotencyKey: crypto.randomUUID(),
     input,
   });
+}
+
+/** What QuickBooks shows these clients have paid. Read-only; a prefill. */
+export async function lookupQuickBooksPayments(
+  emails: string[],
+): Promise<{ mock: boolean; clients: QuickBooksClientHistory[] } | null> {
+  const result = await sendBookingCommand({
+    type: "lookupQuickBooksPayments",
+    idempotencyKey: crypto.randomUUID(),
+    input: { emails },
+  });
+  if (result.mode === "preview") return null;
+  return result.payload as { mock: boolean; clients: QuickBooksClientHistory[] };
 }

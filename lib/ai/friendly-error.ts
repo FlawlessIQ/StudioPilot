@@ -36,6 +36,8 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "Cue couldn't match that file to your upload. Attach it again.",
   SIGNATURE_ATTESTATION_PERMISSION_REQUIRED:
     "Only a studio owner or admin can record a signature. Ask one of them to record it.",
+  QUICKBOOKS_NOT_CONNECTED:
+    "QuickBooks isn't connected. Connect it in Integrations to fill payments from it, or enter them yourself.",
   BOOKING_IMPORT_PERMISSION_REQUIRED:
     "Only a studio owner or admin can import bookings, because importing one records that its contract was signed and its payments made.",
   NOT_AN_IMPORTED_BOOKING:

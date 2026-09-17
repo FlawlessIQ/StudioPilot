@@ -48,6 +48,12 @@ const QUERYABLE: Record<string, Set<string>> = {
     "MetaData.CreateTime",
     "MetaData.LastUpdatedTime",
   ]),
+  // Only Id, on purpose. The payment lookup for importing existing bookings
+  // (quickBooksPaymentHistory) reaches payments through the ids an invoice
+  // links to, precisely so it never depends on a Payment filter that isn't
+  // verified. Id filters on every QuickBooks entity. Add another field here
+  // only with evidence that QuickBooks accepts it.
+  Payment: new Set(["Id", "MetaData.CreateTime", "MetaData.LastUpdatedTime"]),
   Account: new Set([
     "Id",
     "Name",

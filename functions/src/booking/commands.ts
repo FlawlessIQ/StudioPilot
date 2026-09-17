@@ -29,6 +29,8 @@ import {
   bringImportedBookingLiveInput,
   importExistingBooking,
   importExistingBookingInput,
+  lookupQuickBooksPayments,
+  lookupQuickBooksPaymentsInput,
   previewExistingBookings,
   previewExistingBookingsInput,
 } from "../imports/commands.js";
@@ -53,6 +55,12 @@ const commandSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: attachImportedSignedCopyInput,
+  }),
+  z.object({
+    type: z.literal("lookupQuickBooksPayments"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: lookupQuickBooksPaymentsInput,
   }),
   z.object({
     type: z.literal("bringImportedBookingLive"),
@@ -2133,6 +2141,12 @@ export const bookingCommand = onRequest(
           timestamp,
           projectId: command.input.projectId,
           documentPath: command.input.documentPath,
+        });
+      } else if (command.type === "lookupQuickBooksPayments") {
+        result = await lookupQuickBooksPayments({
+          tenantId: command.tenantId,
+          membership,
+          emails: command.input.emails,
         });
       } else if (command.type === "bringImportedBookingLive") {
         result = await bringImportedBookingLive({

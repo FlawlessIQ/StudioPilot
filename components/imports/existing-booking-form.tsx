@@ -17,7 +17,12 @@ import {
 } from "@/features/imports/existing-booking";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import {
+  findQuickBooksHistory,
+  quickBooksPaymentNotes,
+} from "@/features/imports/quickbooks-prefill";
+import {
   importExistingBooking,
+  lookupQuickBooksPayments,
   previewExistingBookings,
   type ExistingBookingPreview,
   type ImportedBookingResult,
@@ -192,6 +197,10 @@ export function ExistingBookingForm({
   const [problem, setProblem] = useState("");
   const [review, setReview] = useState<{ booking: ExistingBooking; preview: ExistingBookingPreview } | null>(null);
   const [done, setDone] = useState<{ result: ImportedBookingResult; signedCopyAttached: boolean } | null>(null);
+  const [quickBooks, setQuickBooks] = useState<{ busy: boolean; notes: string[] }>({
+    busy: false,
+    notes: [],
+  });
   // One key per checked booking: a retry of the same import is the same import.
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
 
@@ -208,6 +217,47 @@ export function ExistingBookingForm({
     }));
     if (phase === "reviewing") setPhase("editing");
   };
+
+  /**
+   * Replace the payment rows with what QuickBooks recorded for this couple.
+   * Their rows, not a merge: typed amounts and QuickBooks amounts for the same
+   * payment would otherwise both count.
+   */
+  async function fillFromQuickBooks() {
+    const emails = [values.email, partner ? values.partnerEmail : ""]
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean);
+    if (!emails.length) {
+      setQuickBooks({ busy: false, notes: ["Add the client's email first — that's how QuickBooks finds them."] });
+      return;
+    }
+    setQuickBooks({ busy: true, notes: [] });
+    try {
+      const lookup = await lookupQuickBooksPayments(emails);
+      if (!lookup) {
+        setQuickBooks({ busy: false, notes: ["Development preview: QuickBooks isn't available here."] });
+        return;
+      }
+      const history = findQuickBooksHistory(emails, lookup.clients);
+      if (history?.customer && history.payments.length) {
+        setValues((prior) => ({
+          ...prior,
+          payments: history.payments.map((payment) => ({
+            amount: (payment.amountCents / 100).toFixed(2),
+            paidOn: payment.paidOn,
+            method: "QuickBooks payment",
+          })),
+        }));
+        if (phase === "reviewing") setPhase("editing");
+      }
+      setQuickBooks({ busy: false, notes: quickBooksPaymentNotes(history) });
+    } catch (caught: unknown) {
+      setQuickBooks({
+        busy: false,
+        notes: [friendlyError(caught, "QuickBooks couldn't be reached. Enter the payments yourself.")],
+      });
+    }
+  }
 
   async function check() {
     setProblem("");
@@ -442,6 +492,22 @@ export function ExistingBookingForm({
 
       <fieldset>
         <legend>Paid so far</legend>
+        <div className="booking-import-span booking-import-quickbooks">
+          <button
+            className="button button-light button-sm"
+            disabled={quickBooks.busy || busy}
+            onClick={() => void fillFromQuickBooks()}
+            type="button"
+          >
+            {quickBooks.busy ? <LoaderCircle className="spin" size={14} aria-hidden="true" /> : null}
+            Fill from QuickBooks
+          </button>
+          {quickBooks.notes.map((note) => (
+            <p className="booking-import-note" key={note}>
+              <CircleAlert size={14} aria-hidden="true" /> {note}
+            </p>
+          ))}
+        </div>
         {values.payments.map((payment, index) => (
           <div className="booking-import-payment booking-import-span" key={index}>
             <label>

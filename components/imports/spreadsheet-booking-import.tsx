@@ -20,9 +20,14 @@ import {
   spreadsheetTemplateCsv,
   type SpreadsheetField,
 } from "@/features/imports/spreadsheet";
+import {
+  applyQuickBooksPayments,
+  type QuickBooksClientHistory,
+} from "@/features/imports/quickbooks-prefill";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import {
   importExistingBooking,
+  lookupQuickBooksPayments,
   previewExistingBookings,
   type ExistingBookingPreview,
 } from "@/lib/booking/command-client";
@@ -90,6 +95,7 @@ export function SpreadsheetBookingImport() {
   const [phase, setPhase] = useState<"empty" | "mapping" | "checking" | "reviewing" | "importing" | "finished">("empty");
   const [problem, setProblem] = useState("");
   const [batchId, setBatchId] = useState("");
+  const [useQuickBooks, setUseQuickBooks] = useState(false);
 
   const templateHref = useMemo(
     () => `data:text/csv;charset=utf-8,${encodeURIComponent(spreadsheetTemplateCsv)}`,
@@ -146,10 +152,50 @@ export function SpreadsheetBookingImport() {
     });
   }
 
+  /**
+   * Swap each row's paid figure for the payments QuickBooks recorded, before
+   * the server checks anything — so the check judges what will actually be
+   * imported. If QuickBooks can't be reached the sheet's figures stand and the
+   * studio is told, rather than the whole check failing.
+   */
+  async function withQuickBooks(read: Row[]): Promise<Row[]> {
+    const emails = [
+      ...new Set(
+        read.flatMap((row) =>
+          (row.booking?.clients ?? []).map((client) => client.email ?? "").filter(Boolean),
+        ),
+      ),
+    ];
+    if (!emails.length) return read;
+    const histories: QuickBooksClientHistory[] = [];
+    try {
+      for (let start = 0; start < emails.length; start += 20) {
+        const lookup = await lookupQuickBooksPayments(emails.slice(start, start + 20));
+        if (!lookup) return read;
+        histories.push(...lookup.clients);
+      }
+    } catch (caught: unknown) {
+      setProblem(
+        `${friendlyError(caught, "QuickBooks couldn't be reached.")} What's been paid comes from the sheet instead.`,
+      );
+      return read;
+    }
+    return read.map((row) => {
+      if (!row.booking) return row;
+      const applied = applyQuickBooksPayments(row.booking, histories);
+      return { ...row, booking: applied.booking, notes: [...applied.notes, ...row.notes] };
+    });
+  }
+
   async function check() {
     setProblem("");
-    const read = readRows();
+    let read = readRows();
     setRows(read);
+    if (useQuickBooks) {
+      setPhase("checking");
+      read = await withQuickBooks(read);
+      setRows(read);
+    }
     const toCheck = read.filter((row) => row.booking);
     if (!toCheck.length) {
       setPhase("reviewing");
@@ -300,6 +346,17 @@ export function SpreadsheetBookingImport() {
               </label>
             ))}
           </div>
+          <label className="sheet-import-quickbooks">
+            <input
+              checked={useQuickBooks}
+              onChange={(event) => setUseQuickBooks(event.target.checked)}
+              type="checkbox"
+            />
+            <span>
+              Take what&rsquo;s been paid from QuickBooks instead of the sheet
+              <small>Matched by each client&rsquo;s email. Read only — nothing is changed in QuickBooks.</small>
+            </span>
+          </label>
           <button className="button button-dark" disabled={phase === "checking"} onClick={() => void check()} type="button">
             {phase === "checking" ? <LoaderCircle className="spin" size={15} aria-hidden="true" /> : null}
             {phase === "checking" ? "Checking…" : `Check ${cells.length} booking${cells.length === 1 ? "" : "s"}`}

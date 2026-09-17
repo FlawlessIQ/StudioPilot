@@ -1163,3 +1163,113 @@ export async function addCrewCalendarInvite(job: DocumentSnapshot) {
   });
   return { assignmentId, calendarEventId };
 }
+
+/**
+ * What QuickBooks already knows a couple has paid, for importing a booking
+ * made before StudioCue.
+ *
+ * Read-only: finds each client by email, reads their invoices, and reads the
+ * payments those invoices link to. Nothing is created in QuickBooks and
+ * nothing is recorded in StudioCue — the result prefills the import, which a
+ * studio member checks and submits.
+ *
+ * Every filter is one QuickBooks is known to accept, because a query on one it
+ * doesn't answers 400 and the whole lookup fails silently for the studio:
+ * Customer by PrimaryEmailAddr and Invoice by CustomerRef are already relied
+ * on above, and a Payment is fetched by Id, which every entity filters on.
+ * tests/quickbooks-query-fields.test.ts holds all three to that list.
+ *
+ * A returning client's QuickBooks history includes every job they ever booked,
+ * so the caller must say these payments need checking against this booking.
+ */
+export async function quickBooksPaymentHistory(
+  tenantId: string,
+  emails: readonly string[],
+): Promise<{
+  mock: boolean;
+  clients: Array<{
+    email: string;
+    customer: { id: string; name: string } | null;
+    invoicedCents: number;
+    openCents: number;
+    invoiceCount: number;
+    payments: Array<{ id: string; amountCents: number; paidOn: string }>;
+  }>;
+}> {
+  const provider = await connection(tenantId, "quickbooks");
+  const unique = [...new Set(emails.map((email) => email.trim().toLowerCase()).filter(Boolean))].slice(0, 200);
+  if (provider.mock || !provider.credential)
+    return {
+      mock: true,
+      clients: unique.map((email) => ({
+        email,
+        customer: null,
+        invoicedCents: 0,
+        openCents: 0,
+        invoiceCount: 0,
+        payments: [],
+      })),
+    };
+  const credential = provider.credential;
+  const realmId = credential.realmId ?? String(provider.document.get("providerAccountId") ?? "");
+  if (!realmId) throw new Error("QUICKBOOKS_REALM_MISSING");
+  const base = quickBooksApiBaseUrl(credential.baseUrl);
+  const headers = { authorization: `Bearer ${credential.accessToken}`, accept: "application/json" };
+  const query = async (statement: string, failure: string) =>
+    asRecord(
+      (
+        await providerJson(
+          `${base}/v3/company/${encodeURIComponent(realmId)}/query?query=${encodeURIComponent(statement)}&minorversion=75`,
+          { headers },
+          failure,
+        )
+      ).QueryResponse,
+    );
+  const cents = (value: unknown) => Math.round(Number(value ?? 0) * 100);
+  const quote = (value: string) => value.replaceAll("'", "\\'");
+
+  const clients = [];
+  for (const email of unique) {
+    const customers = (await query(`select * from Customer where PrimaryEmailAddr = '${quote(email)}' maxresults 1`, "QUICKBOOKS_CUSTOMER_SEARCH_FAILED")).Customer;
+    const customer = Array.isArray(customers) ? asRecord(customers[0]) : {};
+    const customerId = text(customer.Id);
+    if (!customerId) {
+      clients.push({ email, customer: null, invoicedCents: 0, openCents: 0, invoiceCount: 0, payments: [] });
+      continue;
+    }
+    const invoiceRows = (await query(`select * from Invoice where CustomerRef = '${quote(customerId)}' maxresults 100`, "QUICKBOOKS_INVOICE_SEARCH_FAILED")).Invoice;
+    const invoices = Array.isArray(invoiceRows) ? invoiceRows.map(asRecord) : [];
+    const paymentIds = [
+      ...new Set(
+        invoices.flatMap((invoice) =>
+          (Array.isArray(invoice.LinkedTxn) ? invoice.LinkedTxn : [])
+            .map(asRecord)
+            .filter((linked) => text(linked.TxnType) === "Payment")
+            .map((linked) => text(linked.TxnId))
+            .filter(Boolean),
+        ),
+      ),
+    ].slice(0, 50);
+    let payments: Array<{ id: string; amountCents: number; paidOn: string }> = [];
+    if (paymentIds.length) {
+      const paymentRows = (await query(`select * from Payment where Id in (${paymentIds.map((id) => `'${quote(id)}'`).join(",")}) maxresults 50`, "QUICKBOOKS_PAYMENT_SEARCH_FAILED")).Payment;
+      payments = (Array.isArray(paymentRows) ? paymentRows.map(asRecord) : [])
+        .map((payment) => ({
+          id: text(payment.Id),
+          amountCents: cents(payment.TotalAmt),
+          paidOn: text(payment.TxnDate).slice(0, 10),
+        }))
+        .filter((payment) => payment.id && payment.amountCents > 0 && /^\d{4}-\d{2}-\d{2}$/.test(payment.paidOn))
+        .sort((left, right) => left.paidOn.localeCompare(right.paidOn));
+    }
+    clients.push({
+      email,
+      customer: { id: customerId, name: text(customer.DisplayName) || email },
+      invoicedCents: invoices.reduce((sum, invoice) => sum + cents(invoice.TotalAmt), 0),
+      openCents: invoices.reduce((sum, invoice) => sum + cents(invoice.Balance), 0),
+      invoiceCount: invoices.length,
+      payments,
+    });
+  }
+  return { mock: false, clients };
+}
