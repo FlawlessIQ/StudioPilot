@@ -196,7 +196,7 @@ export function AgreementTemplate() {
       ) : templates && templates.length === 0 ? (
         <p className="agreement-template-state is-attention">
           <TriangleAlert size={15} />
-          {signingApp ?? "Your signing app"} has no templates yet. Create one
+          {signingApp ?? "Your signing app"}{" "} has no templates yet. Create one
           there, then reload this page.
         </p>
       ) : (

@@ -668,7 +668,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           <ReceiptText aria-hidden="true" size={18} />
           <span>
             <strong>
-              {currency(outstanding.cents, invoice?.currency)} still owed
+              {currency(outstanding.cents, invoice?.currency)}{" "} still owed
             </strong>
             <small>
               {outstanding.overdue
@@ -740,7 +740,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
             <p>
               Built from the accepted proposal, so the package and price are
               already set.
-              {signingOffered
+              {" "}{signingOffered
                 ? ` ${signingProviderSentence} remains the authority for signature completion.`
                 : null}
             </p>
@@ -911,7 +911,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   // template needs no raw ID pasted mid-booking.
                   <details className="booking-template-configured">
                     <summary>
-                      Using your approved {signingProviderLabel} agreement
+                      Using your approved {signingProviderLabel}{" "} agreement
                       template.
                     </summary>
                     <label>
@@ -942,10 +942,10 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     </small>
                     <details>
                       <summary>
-                        Or paste a {signingProviderLabel} template ID
+                        Or paste a {signingProviderLabel}{" "} template ID
                       </summary>
                       <label>
-                        {signingProviderLabel} template ID
+                        {signingProviderLabel}{" "} template ID
                         <input
                           onChange={(event) =>
                             setTemplateId(event.target.value)
@@ -1048,7 +1048,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 <small>
                   Import the current agreement once. StudioCue preserves its
                   wording and signer fields, then reuses the approved{" "}
-                  {signingProviderLabel} template so you do not place fields
+                  {signingProviderLabel}{" "} template so you do not place fields
                   for every client.
                 </small>
               </aside>
@@ -1191,7 +1191,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     <span>
                       The invoice exists in QuickBooks but the client was not
                       emailed
-                      {invoice.deliveryError === "NO_CLIENT_EMAIL"
+                      {" "}{invoice.deliveryError === "NO_CLIENT_EMAIL"
                         ? " \u2014 this job has no client email address."
                         : ". Send it from QuickBooks, or fix the connection and try again."}
                     </span>
@@ -1253,7 +1253,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   <strong>Waiting for verified signature</strong>
                   <small>
                     StudioCue will create this retainer automatically after{" "}
-                    {signingProviderLabel} confirms completion.
+                    {signingProviderLabel}{" "} confirms completion.
                   </small>
                 </span>
               </div>

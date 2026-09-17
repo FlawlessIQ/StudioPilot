@@ -194,7 +194,7 @@ export function WeddingBrief({ projectId }: { projectId: string }) {
         <div className="wedding-brief-block">
           <h3>
             The day
-            {schedule ? (
+            {" "}{schedule ? (
               <small>
                 {" "}
                 · version {Number(schedule.version ?? 1)} · {statusLabel(schedule.status)}
@@ -257,7 +257,7 @@ export function WeddingBrief({ projectId }: { projectId: string }) {
       <div className="wedding-brief-block">
         <h3>
           <Sparkles aria-hidden="true" size={15} /> From the couple
-          {response ? (
+          {" "}{response ? (
             <small>
               {" "}
               · {response.status === "submitted" || response.status === "locked" ? "submitted" : "in progress"}

@@ -124,3 +124,27 @@ test("vendors and crew are told when the planner keeps the timeline", () => {
   // And on the copy saved for a venue with no signal.
   assert.match(crew, /\{brief\.plannerLed \? <PlannerLedNote\/> : null\}/);
 });
+
+/**
+ * Live dry run: our "Reception Start & Details" matched the planner's
+ * "Photographers arrive, detail shots" on the word "detail", and the panel
+ * announced the reception had moved five hours.
+ */
+test("one shared word doesn't marry two unrelated rows", () => {
+  const differences = compareTimelines({
+    ours: [{ title: "Reception Start & Details", startAt: "2027-05-15T22:45:00.000Z" }],
+    timezone: "America/New_York",
+    planner: parsePlannerTimeline("1:30 PM Photographers arrive, detail shots"),
+  });
+  assert.deepEqual(differences.map((d) => d.kind).sort(), ["only_ours", "only_planner"]);
+});
+
+test("a single-word title still matches its longer twin", () => {
+  const differences = compareTimelines({
+    ours: [{ title: "Ceremony", startAt: "2027-05-15T20:00:00.000Z" }],
+    timezone: "America/New_York",
+    planner: parsePlannerTimeline("5:00 PM Ceremony begins"),
+  });
+  assert.equal(differences.length, 1);
+  assert.equal(differences[0]?.kind, "moved");
+});

@@ -982,7 +982,7 @@ export function LiveLeadRows({ view, q }: { view: string; q: string }) {
             </StatusBadge>
             {lead.missing > 0 ? (
               <small>
-                {lead.missing} detail{lead.missing > 1 ? "s" : ""} missing
+                {lead.missing} detail{lead.missing > 1 ? "s" : ""}{" "} missing
               </small>
             ) : null}
           </span>

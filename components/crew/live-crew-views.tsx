@@ -718,7 +718,7 @@ export function LiveCrewHome() {
           <p className="eyebrow">Crew workspace</p>
           <h1>
             Welcome
-            {greetingName(workspace.userName, workspace.tenantName)
+            {" "}{greetingName(workspace.userName, workspace.tenantName)
               ? `, ${greetingName(workspace.userName, workspace.tenantName)}`
               : ""}
             .
@@ -1490,7 +1490,7 @@ export function LiveCrewRequirements() {
         <ShieldCheck />
         <span>
           <strong>
-            {complete} of {requirements.length} complete
+            {complete} of {requirements.length}{" "} complete
           </strong>
           <small>What you have sent, and where each one stands.</small>
         </span>
@@ -1720,7 +1720,7 @@ export function LiveCrewProfile() {
               </dt>
               <dd>
                 {areas.join(", ") || "Not provided"} ·{" "}
-                {number(profile.travelRadiusMiles)} miles
+                {number(profile.travelRadiusMiles)}{" "} miles
               </dd>
             </div>
             <div>

@@ -370,7 +370,7 @@ export function TodayInbox() {
                 </span>
                 {countdown.days > 0 ? (
                   <span className="today-countdown-unit">
-                    {countdown.unit} to
+                    {countdown.unit}{" "} to
                   </span>
                 ) : null}
                 <strong>{countdown.name}</strong>
@@ -435,7 +435,7 @@ export function TodayInbox() {
                     : "Finish setting up your studio."}
                 </strong>
                 <small>
-                  {setup.answered} of 4 answered — your prices, your agreement,
+                  {setup.answered}{" "} of 4 answered — your prices, your agreement,
                   your details form, and when you take consultations. Your
                   inquiry form is already live either way.
                 </small>
@@ -500,7 +500,7 @@ export function TodayInbox() {
                         onClick={() => setShowAllPrepared(true)}
                         type="button"
                       >
-                        Show {laneApprove.length - PREPARED_PHONE_PREVIEW} more
+                        Show {laneApprove.length - PREPARED_PHONE_PREVIEW}{" "} more
                         prepared
                       </button>
                     ) : null}
@@ -560,7 +560,7 @@ export function TodayInbox() {
                 type="button"
               >
                 <ShieldCheck size={15} />
-                {inbox.fyi.length} handled for you
+                {inbox.fyi.length}{" "} handled for you
                 <em>{showHandled ? "Hide" : "Show"}</em>
               </button>
               {showHandled ? (
@@ -689,7 +689,7 @@ function TodayRail({
         <p className="eyebrow">In motion</p>
         <p className="today-rail-count">{inMotion}</p>
         <small>
-          {inMotion === 1 ? "job is" : "jobs are"} waiting on a client, a
+          {inMotion === 1 ? "job is" : "jobs are"}{" "} waiting on a client, a
           provider, or a date — nothing for you to do.
         </small>
         <Link href="/studio/projects">

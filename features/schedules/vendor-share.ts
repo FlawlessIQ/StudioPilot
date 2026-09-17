@@ -76,12 +76,30 @@ export const shareLinkPath = (token: string) => `/share/${token}`;
  * else; `vendor` narrows to the rows tagged to this vendor plus anything the
  * studio explicitly marked shareable.
  */
+/**
+ * Notes and descriptions are the studio's own working text, and a vendor is not
+ * on the studio's side of that line.
+ *
+ * Found in a live dry run: the AI run of show had written the couple's answer
+ * to "anything we should handle carefully" into the item notes — divorced
+ * parents who must not appear together, a grandmother who tires easily, a
+ * cousin who asked not to be photographed at all — and the planner's share page
+ * printed every word of it. The planner is one link; the DJ and the florist get
+ * the same page. A vendor needs to know when and where they are standing beside
+ * us, not what a family asked us to handle gently.
+ */
+function withoutStudioProse(item: ScheduleItem): ScheduleItem {
+  return { ...item, description: "", notes: "" };
+}
+
 export function vendorVisibleItems(
   items: readonly ScheduleItem[],
   vendorContactId: string,
   scope: ScheduleShareScope,
 ): ScheduleItem[] {
-  const shareable = items.filter((item) => item.visibility !== "studio");
+  const shareable = items
+    .filter((item) => item.visibility !== "studio")
+    .map(withoutStudioProse);
   if (scope === "full") return shareable.slice();
   return shareable.filter(
     (item) =>

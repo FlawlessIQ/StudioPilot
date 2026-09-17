@@ -434,7 +434,7 @@ export function CopilotWorkspace() {
               </span>
               <div className="cue-welcome-body">
                 <p className="cue-welcome-hello">
-                  {greeting} What can I prepare for you?
+                  {greeting}{" "} What can I prepare for you?
                 </p>
                 <p>
                   {brandNew
@@ -1013,7 +1013,7 @@ function PreparedActions({
           ) : (
             <Sparkles size={14} />
           )}
-          Prepare all {visibleActionOptions.length} next steps
+          Prepare all {visibleActionOptions.length}{" "} next steps
         </button>
       ) : null}
       {showManualDrafts ? (
@@ -1131,7 +1131,7 @@ function CopilotVoiceSetting() {
           disabled={busy}
           type="button"
         >
-          {busy ? <LoaderCircle className="spin" size={14} /> : null} Save voice
+          {busy ? <LoaderCircle className="spin" size={14} /> : null}{" "} Save voice
         </button>
         {saved ? <span role="status">Saved.</span> : null}
       </div>

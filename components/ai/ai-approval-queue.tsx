@@ -329,7 +329,7 @@ export function AiQueueCard({
               : "Written from what is already in this job."}{" "}
             StudioCue can never take a payment, sign anything, or mark a job
             ready on its own.
-            {text(affected.entityType)
+            {" "}{text(affected.entityType)
               ? ` Affects the ${readable(text(affected.entityType)).toLowerCase()}.`
               : ""}
           </p>
@@ -559,7 +559,7 @@ export function AutomationApprovalCard({
       <StructuredContentPreview value={object(approval.configuration)} />
       <footer>
         <button className="is-primary" disabled={Boolean(busy)} onClick={() => void decide("approved")} type="button">
-          {busy === "approved" ? <LoaderCircle className="spin" /> : <Check />} Approve
+          {busy === "approved" ? <LoaderCircle className="spin" /> : <Check />}{" "} Approve
         </button>
         <button disabled={Boolean(busy)} onClick={() => void decide("rejected")} type="button">
           <X /> Reject

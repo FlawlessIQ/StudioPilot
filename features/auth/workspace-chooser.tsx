@@ -129,7 +129,7 @@ export function WorkspaceChooser() {
           <span>
             <strong>{workspace.tenantName}</strong>
             <small>
-              {workspace.role.replaceAll("_", " ")} workspace
+              {workspace.role.replaceAll("_", " ")}{" "} workspace
             </small>
           </span>
           <span aria-hidden="true">→</span>

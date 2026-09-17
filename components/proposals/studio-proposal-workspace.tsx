@@ -1063,7 +1063,7 @@ export function StudioProposalComposer() {
                               hours ·{" "}
                               {number(studioPackage.includedPhotographers) || 1}{" "}
                               photographer
-                              {number(studioPackage.includedPhotographers) > 1
+                              {" "}{number(studioPackage.includedPhotographers) > 1
                                 ? "s"
                                 : ""}
                               {number(studioPackage.includedPhotographers) > 1 ? (

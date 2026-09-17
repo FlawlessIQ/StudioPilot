@@ -75,7 +75,7 @@ export function AcceptInvitation({ token }: { token: string }) {
     return (
       <div className="invite-actions">
         <p className="form-error">
-          This invitation is no longer open. Ask {preview.studioName} to send a
+          This invitation is no longer open. Ask {preview.studioName}{" "} to send a
           new one.
         </p>
       </div>
@@ -101,7 +101,7 @@ export function AcceptInvitation({ token }: { token: string }) {
         <p>
           <Users />
           <strong>{preview.studioName}</strong> invited you to their workspace
-          {roleNames[preview.role] ? ` as ${roleNames[preview.role]}` : ""}.
+          {" "}{roleNames[preview.role] ? ` as ${roleNames[preview.role]}` : ""}.
         </p>
       }
       onAccept={async () => {

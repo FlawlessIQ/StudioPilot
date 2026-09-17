@@ -14,7 +14,7 @@ const item = (over: Partial<ScheduleItem>): ScheduleItem => ({
   startAt: "2026-08-15T14:00:00.000Z",
   endAt: "2026-08-15T15:00:00.000Z",
   title: over.title ?? "Segment",
-  description: "",
+  description: over.description ?? "",
   location: null,
   address: null,
   travelMinutes: 0,
@@ -22,7 +22,7 @@ const item = (over: Partial<ScheduleItem>): ScheduleItem => ({
   participants: [],
   vendorContactIds: over.vendorContactIds ?? [],
   equipment: [],
-  notes: null,
+  notes: over.notes ?? null,
   visibility: over.visibility ?? "shared",
   blockingIssues: [],
   sourceReferences: [],
@@ -147,4 +147,39 @@ test("the share schema round-trips a complete record", () => {
   });
   assert.equal(parsed.status, "viewed");
   assert.equal(parsed.sharedVersion, 2);
+});
+
+/**
+ * A vendor gets the shape of the day, not the studio's notes about a family.
+ * The AI run of show writes the couple's "handle carefully" answer into item
+ * notes and descriptions; the planner's share page was printing it verbatim.
+ */
+test("the vendor view carries no studio prose", () => {
+  const shared = vendorVisibleItems(
+    [
+      item({
+        id: "ceremony",
+        title: "Ceremony",
+        visibility: "shared",
+        description: "Avoid Harper's cousin Sam.",
+        notes: "Devin's parents are divorced and must not appear together.",
+      }),
+    ],
+    "vendor-1",
+    "vendor",
+  );
+  assert.equal(shared.length, 1);
+  assert.equal(shared[0]?.title, "Ceremony");
+  assert.equal(shared[0]?.description, "");
+  assert.equal(shared[0]?.notes, "");
+  assert.doesNotMatch(JSON.stringify(shared), /cousin|divorced/i);
+});
+
+test("a full-scope share is no exception", () => {
+  const full = vendorVisibleItems(
+    [item({ id: "prep", visibility: "crew", notes: "Grandmother tires easily." })],
+    "vendor-1",
+    "full",
+  );
+  assert.doesNotMatch(JSON.stringify(full), /Grandmother/);
 });

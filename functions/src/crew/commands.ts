@@ -1558,6 +1558,121 @@ export const crewCommand = onRequest(
             )
               throw new Error("ASSIGNMENT_OFFER_EXPIRED");
             const cascadeId = String(current.get("cascadeId") ?? "");
+            /**
+             * The run of show this person is accepting into.
+             *
+             * Read before any write, because a transaction must. Two ways the
+             * assignment's own `currentScheduleId` is empty at this moment:
+             * the schedule was published while the offer was still out (the
+             * publish only writes views for crew who had already accepted), or
+             * the offer was made directly rather than through a cascade, which
+             * never stamps one. Both were real: a second shooter accepted an
+             * hour after publication and his brief read "Not published yet —
+             * waiting on the studio" while the studio saw a published schedule
+             * and an accepted photographer. So fall back to the project's
+             * current published schedule.
+             */
+            const stampedScheduleId = String(
+              current.get("currentScheduleId") ?? "",
+            );
+            const stamped = stampedScheduleId
+              ? await transaction.get(db.doc(`schedules/${stampedScheduleId}`))
+              : null;
+            const published =
+              stamped?.exists || parsed.input.decision !== "accepted"
+                ? null
+                : await transaction.get(
+                    db
+                      .collection("schedules")
+                      .where("tenantId", "==", parsed.tenantId)
+                      .where("projectId", "==", parsed.input.projectId)
+                      .where("status", "==", "published")
+                      .limit(50),
+                  );
+            const acceptedSchedule = stamped?.exists
+              ? stamped
+              : (published?.docs ?? [])
+                  .slice()
+                  .sort(
+                    (left, right) =>
+                      Number(right.get("version") ?? 0) -
+                      Number(left.get("version") ?? 0),
+                  )[0] ?? null;
+            /**
+             * What acceptance owes the crew member: the segments they are on,
+             * and a calendar hold. Shared by both offer paths — it used to live
+             * only in the cascade branch, so anyone hired with "I know who I
+             * want" got neither.
+             */
+            const completeAcceptance = () => {
+              transaction.set(
+                db.doc(`providerJobs/crew_calendar_${reference.id}`),
+                {
+                  id: `crew_calendar_${reference.id}`,
+                  tenantId: parsed.tenantId,
+                  projectId: parsed.input.projectId,
+                  assignmentId: reference.id,
+                  type: "add_crew_calendar_invite",
+                  idempotencyKey: `crew_calendar_${reference.id}`,
+                  status: "queued",
+                  attempts: 0,
+                  createdAt: now,
+                  updatedAt: now,
+                },
+                { merge: true },
+              );
+              if (
+                !acceptedSchedule?.exists ||
+                acceptedSchedule.get("tenantId") !== parsed.tenantId ||
+                acceptedSchedule.get("projectId") !== parsed.input.projectId
+              )
+                return;
+              const allowedIds = Array.isArray(current.get("scheduleItemIds"))
+                ? new Set(
+                    (current.get("scheduleItemIds") as unknown[]).map(String),
+                  )
+                : new Set<string>();
+              const scopedItems = Array.isArray(acceptedSchedule.get("items"))
+                ? (
+                    acceptedSchedule.get("items") as Array<
+                      Record<string, unknown>
+                    >
+                  ).filter(
+                    (item) =>
+                      ["crew", "shared"].includes(String(item.visibility)) &&
+                      (allowedIds.size === 0 ||
+                        allowedIds.has(String(item.id))),
+                  )
+                : [];
+              const viewId = `${acceptedSchedule.id}_${reference.id}`;
+              transaction.set(
+                db.doc(`crewScheduleViews/${viewId}`),
+                {
+                  id: viewId,
+                  tenantId: parsed.tenantId,
+                  projectId: parsed.input.projectId,
+                  assignmentId: reference.id,
+                  userId: identity.uid,
+                  crewProfileId: current.get("crewProfileId"),
+                  sourceScheduleId: acceptedSchedule.id,
+                  version: acceptedSchedule.get("version"),
+                  status: "published",
+                  timezone: acceptedSchedule.get("timezone"),
+                  items: scopedItems,
+                  publishedAt: acceptedSchedule.get("publishedAt"),
+                  createdAt: now,
+                  updatedAt: now,
+                },
+                { merge: false },
+              );
+              // The prep screen reads the version off the assignment.
+              transaction.update(reference, {
+                currentScheduleId: acceptedSchedule.id,
+                currentScheduleVersion: Number(
+                  acceptedSchedule.get("version") ?? 0,
+                ),
+              });
+            };
             if (!cascadeId) {
               transaction.update(reference, {
                 status: parsed.input.decision,
@@ -1569,6 +1684,7 @@ export const crewCommand = onRequest(
                 updatedAt: now,
                 updatedBy: identity.uid,
               });
+              if (parsed.input.decision === "accepted") completeAcceptance();
             } else {
               const cascadeReference = db.doc(`crewCascades/${cascadeId}`);
               const cascade = await transaction.get(cascadeReference);
@@ -1579,14 +1695,6 @@ export const crewCommand = onRequest(
               )
                 throw new Error("CASCADE_OFFER_IS_NOT_CURRENT");
               if (parsed.input.decision === "accepted") {
-                const currentScheduleId = String(
-                  current.get("currentScheduleId") ?? "",
-                );
-                const currentSchedule = currentScheduleId
-                  ? await transaction.get(
-                      db.doc(`schedules/${currentScheduleId}`),
-                    )
-                  : null;
                 transaction.update(reference, {
                   status: "accepted",
                   respondedAt: now,
@@ -1660,77 +1768,9 @@ export const crewCommand = onRequest(
                   },
                   { merge: false },
                 );
-                // Close the loop: queue the Google Calendar invite for the
-                // accepted crew member. Mock connections resolve locally.
-                transaction.set(
-                  db.doc(`providerJobs/crew_calendar_${reference.id}`),
-                  {
-                    id: `crew_calendar_${reference.id}`,
-                    tenantId: parsed.tenantId,
-                    projectId: parsed.input.projectId,
-                    assignmentId: reference.id,
-                    type: "add_crew_calendar_invite",
-                    idempotencyKey: `crew_calendar_${reference.id}`,
-                    status: "queued",
-                    attempts: 0,
-                    createdAt: now,
-                    updatedAt: now,
-                  },
-                  { merge: true },
-                );
-                if (
-                  currentSchedule?.exists &&
-                  currentSchedule.get("tenantId") === parsed.tenantId &&
-                  currentSchedule.get("projectId") === parsed.input.projectId
-                ) {
-                  const allowedIds = Array.isArray(
-                    current.get("scheduleItemIds"),
-                  )
-                    ? new Set(
-                        (current.get("scheduleItemIds") as unknown[]).map(
-                          String,
-                        ),
-                      )
-                    : new Set<string>();
-                  const scopedItems = Array.isArray(
-                    currentSchedule.get("items"),
-                  )
-                    ? (
-                        currentSchedule.get("items") as Array<
-                          Record<string, unknown>
-                        >
-                      ).filter(
-                        (item) =>
-                          ["crew", "shared"].includes(
-                            String(item.visibility),
-                          ) &&
-                          (allowedIds.size === 0 ||
-                            allowedIds.has(String(item.id))),
-                      )
-                    : [];
-                  transaction.set(
-                    db.doc(
-                      `crewScheduleViews/${currentScheduleId}_${reference.id}`,
-                    ),
-                    {
-                      id: `${currentScheduleId}_${reference.id}`,
-                      tenantId: parsed.tenantId,
-                      projectId: parsed.input.projectId,
-                      assignmentId: reference.id,
-                      userId: identity.uid,
-                      crewProfileId: current.get("crewProfileId"),
-                      sourceScheduleId: currentScheduleId,
-                      version: currentSchedule.get("version"),
-                      status: "published",
-                      timezone: currentSchedule.get("timezone"),
-                      items: scopedItems,
-                      publishedAt: currentSchedule.get("publishedAt"),
-                      createdAt: now,
-                      updatedAt: now,
-                    },
-                    { merge: false },
-                  );
-                }
+                // The same two things every accepted offer owes: a calendar hold
+                // and the segments this person is on.
+                completeAcceptance();
               } else {
                 const candidateIds = Array.isArray(
                   cascade.get("candidateIds"),

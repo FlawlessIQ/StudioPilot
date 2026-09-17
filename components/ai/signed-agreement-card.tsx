@@ -145,7 +145,7 @@ export function SignedAgreementCard({
         <div className="cue-signed-agreement-done">
           <p>
             <ShieldCheck size={14} aria-hidden="true" /> Signature recorded
-            against your name. {job.projectName} is now waiting on the retainer.
+            against your name. {job.projectName}{" "} is now waiting on the retainer.
           </p>
           <Link className="button button-light button-sm" href={`/studio/projects/${job.projectId}`}>
             Open {job.projectName}

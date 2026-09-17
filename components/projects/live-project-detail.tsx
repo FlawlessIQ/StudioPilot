@@ -565,7 +565,7 @@ function ProjectLifecycleLanes({
               Everything on it stays on file. Nothing is outstanding for the
               studio, the client, or crew while it is{" "}
               {cancelled ? "cancelled" : "on hold"}.
-              {reason ? ` Reason: ${reason}` : ""}
+              {" "}{reason ? ` Reason: ${reason}` : ""}
             </p>
           </div>
         </header>

@@ -76,7 +76,7 @@ export function AcceptCrewInvitation({ token }: { token: string }) {
     return (
       <div className="invite-actions">
         <p className="form-error">
-          This invitation has expired. Ask {preview.studioName} to resend it.
+          This invitation has expired. Ask {preview.studioName}{" "} to resend it.
         </p>
       </div>
     );

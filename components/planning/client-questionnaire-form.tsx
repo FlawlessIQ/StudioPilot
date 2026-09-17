@@ -421,7 +421,7 @@ export function ClientQuestionnaireForm({
                     />
                     {record(answers[field.id]).name ? (
                       <small>
-                        <CheckCircle2 size={13} /> {String(record(answers[field.id]).name)} uploaded
+                        <CheckCircle2 size={13} /> {String(record(answers[field.id]).name)}{" "} uploaded
                       </small>
                     ) : null}
                     {uploadingField === field.id ? <small>Uploading securely…</small> : null}

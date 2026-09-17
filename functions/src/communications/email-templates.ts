@@ -150,19 +150,49 @@ const safeUrl = (value: string): string => {
   }
 };
 
-const humanDate = (value: string): string => {
+/**
+ * A date or time as the reader's own clock shows it.
+ *
+ * The zone is not decoration. Without it, `Intl` formats a timestamp in the
+ * host's zone — and the host is Cloud Functions, which runs in UTC. A couple
+ * who picked 10:00 AM in New York was emailed "2:00 PM", and a second shooter
+ * offered 1:00 PM to 11:30 PM was told "5:00 PM through 3:30 AM" the next
+ * morning. The app itself was right all along; only the mail was wrong, which
+ * is the worst way to be wrong — nobody opens the app to check a time they
+ * have already been told.
+ *
+ * So every timestamp is formatted in the event's own zone, and says which zone
+ * that is, because a crew member may be reading it in another one.
+ */
+const humanDate = (value: string, timeZone?: string | null): string => {
   const date = new Date(value);
   if (Number.isNaN(date.valueOf())) return value;
   // A date-only string (YYYY-MM-DD) parses as UTC midnight; formatting it in
-  // the server's local zone can slip it to the day before. Pin such values to
-  // UTC so the calendar date is what was meant, on any host. Full timestamps
-  // (with a "T") keep local formatting and show a time.
+  // any other zone can slip it to the day before. Pin such values to UTC so the
+  // calendar date is what was meant, on any host.
   const dateOnly = !value.includes("T");
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "long",
-    timeStyle: dateOnly ? undefined : "short",
-    timeZone: dateOnly ? "UTC" : undefined,
-  }).format(date);
+  const format = (zone: string) => {
+    const day = new Intl.DateTimeFormat("en-US", {
+      dateStyle: "long",
+      timeZone: zone,
+    }).format(date);
+    if (dateOnly) return day;
+    // Note: `timeZoneName` cannot be combined with `timeStyle` — Intl throws —
+    // so the clock is formatted on its own and joined here.
+    const clock = new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      timeZoneName: "short",
+      timeZone: zone,
+    }).format(date);
+    return `${day} at ${clock}`;
+  };
+  try {
+    return format(dateOnly ? "UTC" : (timeZone ?? "UTC"));
+  } catch {
+    // An unknown zone must never cost the reader their email.
+    return format("UTC");
+  }
 };
 
 const projectReference = (
@@ -217,6 +247,8 @@ function customizedCopy(
 
 function copyFor(input: RenderEmailInput): EmailCopy {
   const { brand, values } = input;
+  // The event's own zone, put on the job by the sender (see emailContext).
+  const zone = stringValue(values, "timezone") || null;
   const recipient = input.recipientName?.trim();
   const greeting = recipient ? `Hi ${firstNameOf(recipient)},` : "Hello,";
   const project = projectReference(input.projectName);
@@ -287,18 +319,18 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         const details = [
           role ? `Role: ${role}` : "",
           arrivalAt && departureAt
-            ? `Time: ${humanDate(arrivalAt)} through ${humanDate(departureAt)}`
+            ? `Time: ${humanDate(arrivalAt, zone)} through ${humanDate(departureAt, zone)}`
             : "",
           locationName
             ? `Location: ${locationName}${locationAddress ? ` — ${locationAddress}` : ""}`
             : "",
           `Compensation: ${compensation}`,
-          respondBy ? `Please respond by ${humanDate(respondBy)}.` : "",
+          respondBy ? `Please respond by ${humanDate(respondBy, zone)}.` : "",
         ].filter(Boolean);
       return {
         subject: `${role ? `${role} — ` : ""}Photography assignment from ${brand.studioName}`,
         preheader: respondBy
-          ? `Review the job details and respond by ${humanDate(respondBy)}.`
+          ? `Review the job details and respond by ${humanDate(respondBy, zone)}.`
           : "Review and respond to your assignment.",
         eyebrow: "Crew assignment",
         heading: `A new assignment is ready`,
@@ -405,7 +437,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       };
     case "consultation_confirmation":
     case "consultation_reminder": {
-      const startsAt = humanDate(stringValue(values, "startsAt"));
+      const startsAt = humanDate(stringValue(values, "startsAt"), zone);
       const isReminder = input.key === "consultation_reminder";
       return {
         subject: `${isReminder ? "Reminder: " : ""}Consultation with ${brand.studioName}`,
@@ -551,7 +583,9 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         eyebrow: "Insurance document request",
         heading: "Please prepare a certificate of insurance",
         paragraphs: [
-          greeting,
+          // Not `greeting`: this one goes to the studio's insurance agent, and
+          // the project greeting opened it "Hi Harper," — the couple's name.
+          "Hello,",
           `We need a certificate for ${String(requirement.venueLegalName ?? "the venue")} on ${requirement.eventDate ? humanDate(String(requirement.eventDate)) : "the event date"}.`,
           `Certificate holder: ${String(requirement.certificateHolder ?? "See the attached requirements")}. Due: ${requirement.dueDate ? humanDate(String(requirement.dueDate)) : "as soon as possible"}.`,
           "Reply to this email with one PDF attachment. We'll review the certificate before sending it to the venue.",
@@ -661,7 +695,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           `We've finished your delivery${project}. Use the secure link below and keep any access code private.`,
           ...(accessCode ? [`Gallery access code: ${accessCode}`] : []),
           ...(expirationDate
-            ? [`Please download and back up your photographs before ${humanDate(expirationDate)}.`]
+            ? [`Please download and back up your photographs before ${humanDate(expirationDate, zone)}.`]
             : []),
         ],
         action: galleryUrl

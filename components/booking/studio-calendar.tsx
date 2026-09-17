@@ -445,7 +445,7 @@ export function StudioCalendar() {
                         ))}
                         {bookedCount > 0 ? (
                           <small>
-                            {bookedCount} consultation{bookedCount === 1 ? "" : "s"} booked
+                            {bookedCount} consultation{bookedCount === 1 ? "" : "s"}{" "} booked
                           </small>
                         ) : null}
                       </span>
@@ -523,7 +523,7 @@ export function StudioCalendar() {
                     ))}
                     {dayProjects.length > 2 ? (
                       <span className="ds-cal-day-dot-more">
-                        +{dayProjects.length - 2} more
+                        +{dayProjects.length - 2}{" "} more
                       </span>
                     ) : null}
                   </div>

@@ -118,8 +118,18 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
         input: { token, startsAt: selected },
       });
       setStatus("complete");
+      // Not toLocaleString(): it printed "9/18/2026, 10:00:00 AM" — seconds and
+      // a slash-date — to a couple, in whatever zone their laptop is set to.
+      // The studio's zone is the one the appointment is in.
       setMessage(
-        `Your consultation is confirmed for ${new Date(String(result.startsAt)).toLocaleString()}.`,
+        `Your consultation is confirmed for ${new Intl.DateTimeFormat("en-US", {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+          timeZone: timezone || undefined,
+        }).format(new Date(String(result.startsAt)))}.`,
       );
     } catch (caught: unknown) {
       setStatus("ready");
@@ -185,7 +195,7 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
               <CheckCircle2 />
               <strong>Consultation confirmed</strong>
               <p>{message}</p>
-              <small>A branded confirmation is on its way to your email.</small>
+              <small>We&rsquo;ve emailed you the details.</small>
             </div>
           ) : (
             <>

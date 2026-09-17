@@ -893,14 +893,14 @@ export function AiScheduleGenerator({
             {ungrounded ? (
               <p className="schedule-basis-empty">
                 Nothing yet — every time below is a typical wedding day, not
-                yours. Ask {clientName} the questions below, or add your own
+                yours. Ask {clientName}{" "} the questions below, or add your own
                 timing rules, and the next draft will be built from real
                 answers instead.
               </p>
             ) : (
               <p className="schedule-basis-empty">
                 Built from {groundingSummary}.
-                {draft.sourceTrace.assumptionItemCount > 0
+                {" "}{draft.sourceTrace.assumptionItemCount > 0
                   ? ` ${draft.sourceTrace.assumptionItemCount} of the items below still rest on an assumption — each one is labelled.`
                   : ""}
               </p>

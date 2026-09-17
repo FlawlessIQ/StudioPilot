@@ -353,3 +353,67 @@ test("send worker disables tracking and platform-brands auth mail (source guard)
   assert.match(src, /open_tracking:\s*\{\s*enable:\s*false/, "open tracking off");
   assert.match(src, /isAuthEmailType\(templateKey\)/, "brand override keyed on auth type");
 });
+
+/**
+ * Times in email are the reader's times, not the server's.
+ *
+ * Found in a live dry run: a couple chose 10:00 AM in New York and was emailed
+ * "2:00 PM"; a second shooter offered 1:00 PM–11:30 PM was told "5:00 PM
+ * through 3:30 AM". Cloud Functions runs in UTC, and the renderer was using the
+ * host zone. The app screens were right the whole time, which is why nobody
+ * caught it.
+ */
+test("a consultation time is rendered in the event's zone, not the host's", () => {
+  const rendered = renderEmailTemplate({
+    key: "consultation_confirmation",
+    brand,
+    recipientName: "Harper",
+    projectName: "Lane wedding",
+    values: { ...values, startsAt: "2026-09-18T14:00:00.000Z", timezone: "America/New_York" },
+    template: null,
+  });
+  assert.match(rendered.text, /10:00 AM|10:00 AM/);
+  assert.doesNotMatch(rendered.text, /2:00 PM|2:00 PM/);
+  // And it says which clock, for anyone reading in another zone.
+  assert.match(rendered.text, /EDT|EST|GMT-/);
+});
+
+test("a crew call time is rendered in the event's zone", () => {
+  const rendered = renderEmailTemplate({
+    key: "crew_invitation",
+    brand,
+    recipientName: "Sam",
+    projectName: "Lane wedding",
+    values: {
+      ...values,
+      arrivalAt: "2027-05-15T17:00:00.000Z",
+      departureAt: "2027-05-16T03:30:00.000Z",
+      respondBy: "2026-09-24T20:55:00.000Z",
+      timezone: "America/New_York",
+    },
+    template: null,
+  });
+  assert.match(rendered.text, /1:00 PM|1:00 PM/);
+  assert.match(rendered.text, /11:30 PM|11:30 PM/);
+  // The departure must stay on the wedding day, not spill to the next morning.
+  assert.doesNotMatch(rendered.text, /May 16/);
+});
+
+test("an unknown zone falls back instead of failing the send", () => {
+  const rendered = renderEmailTemplate({
+    key: "consultation_confirmation",
+    brand,
+    recipientName: "Harper",
+    projectName: "Lane wedding",
+    values: { ...values, startsAt: "2026-09-18T14:00:00.000Z", timezone: "Mars/Olympus" },
+    template: null,
+  });
+  assert.match(rendered.text, /September 18, 2026/);
+});
+
+test("the email job carries the event's zone into the renderer", () => {
+  const jobs = readFileSync(`${process.cwd()}/functions/src/operations/jobs.ts`, "utf8");
+  assert.match(jobs, /timezone:\s*\n?\s*firstString\(\s*\n?\s*document\.get\("timezone"\),/);
+  assert.match(jobs, /project\?\.get\("timezone"\),/);
+  assert.match(jobs, /tenant\?\.get\("timezone"\),/);
+});

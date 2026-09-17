@@ -309,7 +309,7 @@ export function SpreadsheetBookingImport() {
         <p className="booking-import-issue">
           <CircleAlert size={14} aria-hidden="true" />
           <span>
-            Only the first {MAX_ROWS} rows are read. Import these, then split the remaining {tooMany} into
+            Only the first {MAX_ROWS} rows are read. Import these, then split the remaining {tooMany}{" "} into
             another file.
           </span>
         </p>
@@ -437,8 +437,8 @@ export function SpreadsheetBookingImport() {
                   {status?.kind === "ready" && (status.warnings.length || row.notes.length) ? (
                     <details className="sheet-import-detail">
                       <summary>
-                        {status.warnings.length + row.notes.length} thing
-                        {status.warnings.length + row.notes.length === 1 ? "" : "s"} to know
+                        {status.warnings.length + row.notes.length}{" "} thing
+                        {" "}{status.warnings.length + row.notes.length === 1 ? "" : "s"}{" "} to know
                       </summary>
                       <ul>
                         {[...status.warnings, ...row.notes].map((message) => (
@@ -480,7 +480,7 @@ export function SpreadsheetBookingImport() {
           {phase === "finished" && counts.imported ? (
             <p className="booking-import-note">
               <CircleCheck size={14} aria-hidden="true" />
-              {counts.imported} booking{counts.imported === 1 ? " is" : "s are"} in StudioCue, all quiet —
+              {counts.imported} booking{counts.imported === 1 ? " is" : "s are"}{" "} in StudioCue, all quiet —
               nothing has gone to any couple. Bring each in from its job when you&rsquo;re ready.
             </p>
           ) : null}

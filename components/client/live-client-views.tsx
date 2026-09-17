@@ -1677,7 +1677,7 @@ export function LiveClientProposal() {
               <span>
                 <strong>Accept proposal version {number(proposal.version)}?</strong>
                 <small>
-                  You are approving the coverage and {money(pricing.totalCents, pricing.currency)} project total shown above.
+                  You are approving the coverage and {money(pricing.totalCents, pricing.currency)}{" "} project total shown above.
                 </small>
               </span>
               <button
@@ -1844,11 +1844,11 @@ export function LiveClientPackage() {
                 <ul>
                   <li>
                     <CircleCheck />{" "}
-                    {number(studioPackage.includedCoverageMinutes) / 60} hours
+                    {number(studioPackage.includedCoverageMinutes) / 60}{" "} hours
                   </li>
                   <li>
                     <CircleCheck />{" "}
-                    {number(studioPackage.includedPhotographers)} photographer(s)
+                    {number(studioPackage.includedPhotographers)}{" "} photographer(s)
                   </li>
                   {(Array.isArray(studioPackage.includedDeliverables)
                     ? studioPackage.includedDeliverables
@@ -1962,10 +1962,10 @@ export function LiveClientPackage() {
         <ul>
           <li>
             <CircleCheck />{" "}
-            {number(value.includedCoverageMinutes) / 60} coverage hours
+            {number(value.includedCoverageMinutes) / 60}{" "} coverage hours
           </li>
           <li>
-            <CircleCheck /> {number(value.includedPhotographers)} photographer(s)
+            <CircleCheck /> {number(value.includedPhotographers)}{" "} photographer(s)
           </li>
           {included.map((item) => (
             <li key={String(item)}>
@@ -2441,7 +2441,7 @@ export function LiveClientSchedule() {
       </p>
       {orderedSchedules.length > 1 ? (
         <p className="client-schedule-history">
-          <Clock3 /> Version {number(schedule.version)} is current · {orderedSchedules.length - 1} earlier {orderedSchedules.length === 2 ? "version" : "versions"} preserved
+          <Clock3 /> Version {number(schedule.version)} is current · {orderedSchedules.length - 1} earlier {orderedSchedules.length === 2 ? "version" : "versions"}{" "} preserved
         </p>
       ) : null}
       {/* Items with no usable start time are left out rather than rendered as

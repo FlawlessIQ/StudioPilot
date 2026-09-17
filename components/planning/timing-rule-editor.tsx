@@ -159,13 +159,13 @@ export function TimingRuleEditor() {
               <strong>{String(rule.name)}</strong>
               <small>
                 {String(rule.anchor)} · {number(rule.offsetMinutes)} min offset ·{" "}
-                {number(rule.durationMinutes)} min duration
+                {number(rule.durationMinutes)}{" "} min duration
               </small>
             </span>
             <em>
               {rule.active === true ? <Check size={13} /> : null}
               {rule.active === true ? "Approved" : "Draft"} · v
-              {number(rule.version)}
+              {" "}{number(rule.version)}
             </em>
           </button>
         ))}

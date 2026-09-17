@@ -148,7 +148,7 @@ export default async function RunOfShowSharePage({
           to a copy the planner has already moved on from. */}
       {project.timelineAuthority === "planner" ? (
         <p className="ros-planner-led">
-          {project.plannerName ? String(project.plannerName) : "The planner"} keeps the
+          {project.plannerName ? String(project.plannerName) : "The planner"}{" "} keeps the
           timeline for this wedding. This is {studioName}&rsquo;s photography plan — where
           the two differ, follow the planner&rsquo;s.
         </p>
@@ -203,7 +203,7 @@ export default async function RunOfShowSharePage({
         {acknowledged ? (
           <p className="ros-confirmed">
             ✓ Confirmed
-            {share.acknowledgedAt
+            {" "}{share.acknowledgedAt
               ? ` on ${dayFmt.format(new Date(String(share.acknowledgedAt)))}`
               : ""}
             . Thank you — the studio has been notified.
@@ -216,7 +216,7 @@ export default async function RunOfShowSharePage({
               Confirm it works
             </button>
             <span className="ros-confirm-hint">
-              Need a change? Reply to {studioName} directly.
+              Need a change? Reply to {studioName}{" "} directly.
             </span>
           </form>
         )}

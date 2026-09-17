@@ -317,7 +317,7 @@ export function ExistingBookingForm({
     return (
       <section className="booking-import-done" aria-live="polite">
         <p className="booking-import-done-title">
-          <CircleCheck size={18} aria-hidden="true" /> {result.name} is in StudioCue.
+          <CircleCheck size={18} aria-hidden="true" /> {result.name}{" "} is in StudioCue.
         </p>
         <ul>
           <li>
@@ -585,7 +585,7 @@ export function ExistingBookingForm({
             <p className="booking-import-issue">
               <CircleAlert size={14} aria-hidden="true" />
               <span>
-                You already have {review.preview.sameDayBookings.map((job) => job.name).join(" and ")} on
+                You already have {review.preview.sameDayBookings.map((job) => job.name).join(" and ")}{" "} on
                 this date.
               </span>
             </p>
@@ -597,14 +597,14 @@ export function ExistingBookingForm({
                 .filter(Boolean)
                 .map((client) => client!.displayName)
                 .join(" and ")}{" "}
-              {review.preview.knownClients.filter(Boolean).length === 1 ? "is" : "are"} already in
+              {review.preview.knownClients.filter(Boolean).length === 1 ? "is" : "are"}{" "} already in
               your clients, and will be linked rather than added twice.
             </p>
           ) : null}
           {canImport ? (
             <p className="booking-import-summary">
               {money(review.booking.totalCents)} contract,{" "}
-              {money(review.booking.payments.reduce((sum, payment) => sum + payment.amountCents, 0))} paid
+              {money(review.booking.payments.reduce((sum, payment) => sum + payment.amountCents, 0))}{" "} paid
               before StudioCue. Importing records this as your word that the booking predates
               StudioCue, and keeps it quiet until you bring the couple in.
             </p>

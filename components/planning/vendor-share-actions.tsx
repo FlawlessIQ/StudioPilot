@@ -205,7 +205,7 @@ export function VendorShareActions({
     <details className="ds-people-invite record-edit vendor-share">
       <summary>
         <Link2 aria-hidden="true" size={14} /> Share run of show
-        {active ? <span className="vendor-share-dot" aria-hidden="true" /> : null}
+        {" "}{active ? <span className="vendor-share-dot" aria-hidden="true" /> : null}
       </summary>
       <div>
         {share ? (

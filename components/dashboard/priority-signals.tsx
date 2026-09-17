@@ -130,7 +130,7 @@ export function OwnerAutomationSignal() {
         <strong>Automation operations need review</strong>
         <small>
           {failures.length} failed runs · {pendingApprovals.length} approvals ·{" "}
-          {integrationIssues.length} integration issues
+          {integrationIssues.length}{" "} integration issues
         </small>
       </span>
       <Link href="/studio/automations">

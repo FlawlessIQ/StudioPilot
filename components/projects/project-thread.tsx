@@ -871,7 +871,7 @@ export function ThreadMinimap({ steps }: { steps: JourneyStep[] }) {
                 // the event and undoable; the phase heading has to say so.
                 <span className="thread-phase-missed">
                   {" "}
-                  · {group.missed} missed
+                  · {group.missed}{" "} missed
                 </span>
               ) : null}
             </em>

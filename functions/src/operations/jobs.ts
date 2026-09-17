@@ -569,6 +569,15 @@ async function emailContext(
     values: {
       ...objectValue(document.data()),
       recipient,
+      // Every time in this email is formatted in the event's own zone. Without
+      // it the renderer falls back to the host zone (UTC on Cloud Functions),
+      // which is how a 10:00 AM consultation was emailed as "2:00 PM".
+      timezone:
+        firstString(
+          document.get("timezone"),
+          project?.get("timezone"),
+          tenant?.get("timezone"),
+        ) ?? "UTC",
       portalUrl:
         firstString(document.get("portalUrl")) ??
         (projectId

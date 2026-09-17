@@ -233,6 +233,13 @@ export function AcceptClientInvitation({
       }
     }
     if (authIsLive) await signOut(getFirebaseClient().auth);
+    // Someone who has never set a password has nothing to sign in with, so the
+    // login form is a dead end: "Forgot password" and "Email me a link" both
+    // stay silent for an address with no account (deliberately — no
+    // enumeration), and there is no way back to this page's own "Set a
+    // password" step. Signing out is enough; this page then renders it.
+    // Hit for real on a shared laptop where the studio owner was signed in.
+    if (preview?.hasAccount === false) return;
     router.replace(loginHref);
   }
 
@@ -325,7 +332,7 @@ export function AcceptClientInvitation({
               <h2>Request a fresh invitation</h2>
               <p>
                 For your security, invitation links expire and can be revoked.
-                Ask {preview.studioName} to send a new one.
+                Ask {preview.studioName}{" "} to send a new one.
               </p>
             </div>
           ) : activation === "connecting" ? (
@@ -365,7 +372,9 @@ export function AcceptClientInvitation({
                 onClick={() => void switchAccount()}
                 type="button"
               >
-                Sign in with another account
+                {preview.hasAccount === false
+                  ? "Continue and set your password"
+                  : "Sign in with another account"}
               </button>
             </div>
           ) : !user ? (

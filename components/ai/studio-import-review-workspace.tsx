@@ -435,7 +435,7 @@ export function StudioImportReviewWorkspace({
                 {source.duplicate ? (
                   <span className="is-duplicate">
                     <ArrowLeftRight size={13} /> Exact file already imported
-                    {source.duplicate.activationBlocked === true
+                    {" "}{source.duplicate.activationBlocked === true
                       ? " and activated"
                       : " — only one session can be activated"}
                   </span>

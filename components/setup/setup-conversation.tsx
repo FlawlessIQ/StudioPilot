@@ -80,7 +80,7 @@ export function SetupConversation() {
           </p>
           {!loading ? (
             <p className="setup-progress">
-              {answered} of {QUESTIONS.length} answered
+              {answered} of {QUESTIONS.length}{" "} answered
             </p>
           ) : null}
         </header>

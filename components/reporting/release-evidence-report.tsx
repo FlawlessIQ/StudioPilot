@@ -197,7 +197,7 @@ export function ReleaseEvidenceReport() {
               </strong>
               <p>
                 {summary.automation.completed} completed ·{" "}
-                {summary.automation.failed} failed
+                {summary.automation.failed}{" "} failed
               </p>
             </span>
           </article>
@@ -213,8 +213,8 @@ export function ReleaseEvidenceReport() {
                     : `${Math.round(summary.crew.medianMinutes)}m`}
               </strong>
               <p>
-                {summary.crew.completedCascades} completed cascade
-                {summary.crew.completedCascades === 1 ? "" : "s"} measured
+                {summary.crew.completedCascades}{" "} completed cascade
+                {" "}{summary.crew.completedCascades === 1 ? "" : "s"}{" "} measured
               </p>
             </span>
           </article>
@@ -230,8 +230,8 @@ export function ReleaseEvidenceReport() {
                     : "Needs data"}
               </strong>
               <p>
-                {summary.verifiedHandlingEventCount} measured event
-                {summary.verifiedHandlingEventCount === 1 ? "" : "s"}
+                {summary.verifiedHandlingEventCount}{" "} measured event
+                {" "}{summary.verifiedHandlingEventCount === 1 ? "" : "s"}
                 {summary.ownerEstimatedMinutesSaved
                   ? ` · ${summary.ownerEstimatedMinutesSaved}m owner-estimated`
                   : ""}
@@ -257,8 +257,8 @@ export function ReleaseEvidenceReport() {
                     : `${summary.providers.failures} failing`}
             </strong>
             <p>
-              {summary.providers.jobs} provider job
-              {summary.providers.jobs === 1 ? "" : "s"} tracked. Failures here
+              {summary.providers.jobs}{" "} provider job
+              {" "}{summary.providers.jobs === 1 ? "" : "s"}{" "} tracked. Failures here
               usually mean an integration (e-signature, accounting, calendar)
               has not completed production OAuth and certification.
             </p>

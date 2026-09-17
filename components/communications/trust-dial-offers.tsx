@@ -138,7 +138,7 @@ export function TrustDialOffers() {
           <div>
             <strong>Send {LABELS[trigger]} automatically?</strong>
             <small>
-              You approved the last {TRUST_DIAL_THRESHOLD} without changing a
+              You approved the last {TRUST_DIAL_THRESHOLD}{" "} without changing a
               word. StudioCue can send them on schedule; anything with missing
               details still waits for you.
             </small>

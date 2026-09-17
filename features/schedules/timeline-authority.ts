@@ -122,12 +122,22 @@ function words(title: string): Set<string> {
   );
 }
 
+/**
+ * How much two row titles agree.
+ *
+ * Dividing by the shorter title is what lets "Ceremony" match "Ceremony
+ * begins". It also let "Reception Start & Details" match "Photographers arrive,
+ * detail shots" on the single word "detail", and the panel duly reported the
+ * reception as moved five hours. So one shared word is only enough when one of
+ * the titles is a single word.
+ */
 function similarity(left: string, right: string): number {
   const a = words(left);
   const b = words(right);
   if (!a.size || !b.size) return 0;
   let shared = 0;
   for (const word of a) if (b.has(word)) shared += 1;
+  if (shared < 2 && Math.min(a.size, b.size) > 1) return 0;
   return shared / Math.min(a.size, b.size);
 }
 
@@ -155,10 +165,15 @@ export function compareTimelines(input: {
     });
   });
   candidates.sort((left, right) => right.score - left.score || left.gap - right.gap);
+  // Half a day apart is two different moments that happen to share a word, not
+  // one moment that moved — unless the titles are all but identical.
+  const plausible = candidates.filter(
+    (candidate) => candidate.gap <= 180 || candidate.score >= 0.8,
+  );
   const matchedOurs = new Set<number>();
   const matchedPlanner = new Set<number>();
   const differences: Array<{ at: number; difference: TimelineDifference }> = [];
-  for (const candidate of candidates) {
+  for (const candidate of plausible) {
     if (matchedOurs.has(candidate.ourIndex) || matchedPlanner.has(candidate.plannerIndex)) continue;
     matchedOurs.add(candidate.ourIndex);
     matchedPlanner.add(candidate.plannerIndex);

@@ -547,7 +547,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
                   <strong>Recommended order</strong>
                   <small>
                     {included.length} available ·{" "}
-                    {ruledOut.length} ruled out
+                    {ruledOut.length}{" "} ruled out
                   </small>
                 </span>
                 <StatusBadge tone={included.length ? "success" : "warning"}>
@@ -711,7 +711,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
               {ruledOut.length ? (
                 <details className="crew-ruled-out">
                   <summary>
-                    {ruledOut.length} ruled out — not offerable for this role
+                    {ruledOut.length}{" "} ruled out — not offerable for this role
                   </summary>
                   <div className="crew-recommendation-list">
                     {ruledOut.map((candidate) => (
@@ -755,7 +755,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
                       ? "day"
                       : "days"}{" "}
                     to fill.
-                    {daysToEvent !== null
+                    {" "}{daysToEvent !== null
                       ? ` The event is in ${daysToEvent} ${daysToEvent === 1 ? "day" : "days"}.`
                       : ""}
                   </small>

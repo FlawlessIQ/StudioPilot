@@ -84,7 +84,7 @@ export function RecordFinalPayment({
           StudioCue records this as your attestation, not a confirmed payment.
           It closes the job on your word, and the audit log will show that you
           vouched for it.
-          {balanceLabel
+          {" "}{balanceLabel
             ? ` Records ${balanceLabel} — the balance on the package the couple accepted.`
             : " The amount comes from the proposal they accepted."}
         </p>

@@ -80,7 +80,7 @@ export function QuestionnaireQuickSend({ projectId }: { projectId: string }) {
         <p>
           <strong>{String(template.name)}</strong> — the active form for a{" "}
           {eventTypeId || "this"} job. It is due{" "}
-          {Number(template.dueDaysBeforeEvent ?? 0)} days before the date, and
+          {Number(template.dueDaysBeforeEvent ?? 0)}{" "} days before the date, and
           StudioCue works out that date from the job.
         </p>
       </div>

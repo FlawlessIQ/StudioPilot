@@ -287,7 +287,7 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
         <form className="coi-request-form" onSubmit={(event) => void create(event)}>
           <label>
             Project
-            {/* Controlled, not `defaultValue`. The options arrive from
+            {" "}{/* Controlled, not `defaultValue`. The options arrive from
                 Firestore after mount, and `defaultValue` only applies at
                 mount — so a URL carrying ?project=… still rendered "Select a
                 project" once the list loaded, on the very page that had been

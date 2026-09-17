@@ -30,7 +30,13 @@ function describe(difference: TimelineDifference): { title: string; detail: stri
   if (difference.kind === "moved") {
     const gap = difference.planner - difference.ours;
     const minutes = Math.abs(gap);
-    const amount = minutes >= 60 && minutes % 60 === 0 ? `${minutes / 60} hr` : `${minutes} min`;
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    const amount = hours
+      ? rest
+        ? `${hours} hr ${rest} min`
+        : `${hours} hr`
+      : `${minutes} min`;
     return {
       title: difference.title,
       detail: `Planner has ${formatMinutes(difference.planner)}, yours says ${formatMinutes(difference.ours)} — ${amount} ${gap > 0 ? "later" : "earlier"} on theirs`,

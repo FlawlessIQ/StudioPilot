@@ -696,7 +696,7 @@ export function TemplateImportStudio({
                 <strong>Drop your working files here</strong>
                 <small>
                   Contracts, email copy, questionnaires, schedules, packages ·{" "}
-                  {STUDIO_IMPORT_MAX_FILE_BYTES / (1024 * 1024)} MB each
+                  {STUDIO_IMPORT_MAX_FILE_BYTES / (1024 * 1024)}{" "} MB each
                 </small>
                 <em>Browse files</em>
               </button>
@@ -1004,7 +1004,7 @@ export function TemplateImportStudio({
                   }
                   type="button"
                 >
-                  Review {review.drafts.length} draft{review.drafts.length === 1 ? "" : "s"} and finish import
+                  Review {review.drafts.length} draft{review.drafts.length === 1 ? "" : "s"}{" "} and finish import
                   <ArrowRight size={16} />
                 </button>
               ) : null}

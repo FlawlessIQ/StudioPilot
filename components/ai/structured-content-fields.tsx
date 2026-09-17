@@ -216,7 +216,7 @@ function StructuredField({
           onClick={() => onChange([...value, defaultListItem(fieldKey)])}
           type="button"
         >
-          <Plus size={14} /> Add {labelFor(fieldKey).toLowerCase()} item
+          <Plus size={14} /> Add {labelFor(fieldKey).toLowerCase()}{" "} item
         </button>
       </fieldset>
     );

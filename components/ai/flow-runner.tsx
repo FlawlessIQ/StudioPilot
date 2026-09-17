@@ -101,7 +101,7 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
       </header>
       {alreadySelected ? (
         <p role="status">
-          {str(project?.name) || "This project"} already has a package selected.
+          {str(project?.name) || "This project"}{" "} already has a package selected.
         </p>
       ) : options.length === 0 ? (
         <p role="status">No active packages to choose from yet.</p>
@@ -211,7 +211,7 @@ function QuestionnaireSelectFlow({ flow }: { flow: CopilotFlow }) {
       </header>
       {alreadyAssigned ? (
         <p role="status">
-          {str(project?.name) || "This project"} already has a questionnaire on
+          {str(project?.name) || "This project"}{" "} already has a questionnaire on
           file. Sending another replaces the current one.
         </p>
       ) : null}
@@ -232,7 +232,7 @@ function QuestionnaireSelectFlow({ flow }: { flow: CopilotFlow }) {
                 {eventTypeId && option.eventTypeId === eventTypeId
                   ? "Matches this event · "
                   : ""}
-                Due {option.dueDays} days before the date
+                Due {option.dueDays}{" "} days before the date
               </small>
             </button>
           ))}
@@ -439,7 +439,7 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
     return (
       <div className="panel copilot-flow">
         <p role="status">
-          {sent} They&rsquo;ll get an email to accept or decline — nothing changes
+          {sent}{" "} They&rsquo;ll get an email to accept or decline — nothing changes
           on the job until they respond.
         </p>
       </div>

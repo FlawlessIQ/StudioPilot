@@ -290,7 +290,7 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
         </div>
         <p className="crew-direct-invite-note">
           This skips candidate ranking and offers the job to{" "}
-          {chosen ? <strong>{text(chosen.name)}</strong> : "one person"} only.
+          {chosen ? <strong>{text(chosen.name)}</strong> : "one person"}{" "} only.
           They get an email with a link to accept, and the offer expires in
           seven days.
         </p>

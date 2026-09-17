@@ -400,7 +400,7 @@ export function CreateProjectForm({
                 ))}
                 {intake.extraction.guestCount ? (
                   <li>
-                    <Check size={11} /> ~{intake.extraction.guestCount} guests
+                    <Check size={11} /> ~{intake.extraction.guestCount}{" "} guests
                   </li>
                 ) : null}
               </ul>
@@ -512,7 +512,7 @@ export function CreateProjectForm({
               </label>
               <label className={filled.newClientEmail ? "is-filled" : ""}>
                 Email
-                {filled.newClientEmail ? <FilledTag /> : null}
+                {" "}{filled.newClientEmail ? <FilledTag /> : null}
                 <input
                   {...fieldProps("newClientEmail")}
                   inputMode="email"
@@ -522,7 +522,7 @@ export function CreateProjectForm({
               </label>
               <label className={filled.newClientPhone ? "is-filled" : ""}>
                 Phone
-                {filled.newClientPhone ? <FilledTag /> : null}
+                {" "}{filled.newClientPhone ? <FilledTag /> : null}
                 <input
                   {...fieldProps("newClientPhone")}
                   inputMode="tel"
@@ -559,7 +559,7 @@ export function CreateProjectForm({
             </div>
             <label className={filled.city ? "is-filled" : ""}>
               City
-              {filled.city ? <FilledTag /> : null}
+              {" "}{filled.city ? <FilledTag /> : null}
               <input {...fieldProps("city")} placeholder="Event city" />
             </label>
             <label>
