@@ -141,7 +141,13 @@ export async function recordSignedAgreement(input: {
     signedDocumentId = `tenants/${tenantId}/projects/${input.projectId}/contracts/${crypto.randomUUID()}-${safeName}`;
     await uploadBytes(ref(storage, signedDocumentId), input.file, {
       contentType: input.file.type,
-      customMetadata: { visibility: "shared", scanStatus: "pending" },
+      // The couple's to see, not the crew's. This was "shared", which the
+      // project-wide storage rule also opens to every photographer and
+      // subcontractor assigned to the job — a signed contract carries the
+      // couple's fee, and crew are paid from it. Imports already file their
+      // signed copy as "client"; this is the same rule for the hand-recorded
+      // path.
+      customMetadata: { visibility: "client", scanStatus: "pending" },
     });
   }
 

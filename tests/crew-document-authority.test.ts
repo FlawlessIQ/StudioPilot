@@ -66,3 +66,23 @@ test("storage keeps crew paperwork away from clients", () => {
   assert.match(block, /resource == null/);
   assert.match(block, /scanStatus == "clean"/);
 });
+
+/**
+ * A signed contract is the couple's and the studio's, never the crew's.
+ *
+ * It carries the couple's fee, and crew are paid from it. Storage opens any
+ * file under a project marked "shared" to every photographer and
+ * subcontractor assigned to that job, and the hand-recorded signature path
+ * filed its PDF exactly that way. Both ways a contract reaches storage —
+ * recording a signature and importing a booking — must file it for the
+ * couple only.
+ */
+test("no signed contract is filed where crew can open it", () => {
+  const client = readFileSync(`${process.cwd()}/lib/booking/command-client.ts`, "utf8");
+  const uploads = [...client.matchAll(/\/contracts\/[\s\S]*?customMetadata: \{([^}]*)\}/g)];
+  assert.ok(uploads.length >= 2, "expected both contract uploads");
+  for (const [, metadata] of uploads) {
+    assert.match(metadata!, /visibility: "client"/, "a contract upload isn't client-only");
+    assert.doesNotMatch(metadata!, /"shared"|"crew"/);
+  }
+});
