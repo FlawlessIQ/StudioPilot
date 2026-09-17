@@ -375,11 +375,35 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
     "REVIEW_REQUESTED",
     "CLOSED",
   ].includes(projectState);
-  // Seven days out in the studio's own calendar. `toISOString().slice(0, 10)`
-  // after a local `setDate` re-reads the date in UTC, which put this a day
-  // late every evening west of Greenwich — the client twin of the bug already
-  // fixed on the server for the same field.
-  const dueDate = useMemo(() => addCalendarDays(todayLocalIso(), 7), []);
+  /**
+   * When the retainer is due.
+   *
+   * The proposal the couple accepted says so — it is on their portal in
+   * writing, above a line about reserving the date. This used to ignore it and
+   * bill seven days from whenever the studio happened to click, so a couple who
+   * agreed "due 1 October" was invoiced for 24 September. Found by walking a
+   * real booking: the portal and the QuickBooks invoice disagreed, and the
+   * invoice was the one with money attached.
+   *
+   * Seven days out remains the fallback for a booking with no proposal behind
+   * it. `toISOString().slice(0, 10)` after a local `setDate` re-reads the date
+   * in UTC, which put that a day late every evening west of Greenwich, so it
+   * goes through the calendar helpers.
+   */
+  const agreedRetainerDueDate = useMemo(() => {
+    const schedule = Array.isArray(proposal?.paymentSchedule)
+      ? (proposal.paymentSchedule as Array<Record<string, unknown>>)
+      : [];
+    const retainer =
+      schedule.find((item) => String(item.label ?? "").toLowerCase().includes("retainer")) ??
+      schedule[0];
+    const due = String(retainer?.dueDate ?? "").slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(due) ? due : null;
+  }, [proposal]);
+  const dueDate = useMemo(
+    () => agreedRetainerDueDate ?? addCalendarDays(todayLocalIso(), 7),
+    [agreedRetainerDueDate],
+  );
   /**
    * Whether there is a signing app to send through at all.
    *
@@ -1260,8 +1284,12 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
             ) : (
               <div className="booking-action-form">
                 <span>
-                  <small>Retainer due</small>
-                  <strong>{dueDate}</strong>
+                  <small>
+                    {agreedRetainerDueDate
+                      ? "Retainer due, as the couple agreed"
+                      : "Retainer due"}
+                  </small>
+                  <strong>{formatDueDate(dueDate)}</strong>
                 </span>
                 {/* Moved from the contract step, where it described a step
                     that had not started. */}

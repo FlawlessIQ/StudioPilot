@@ -44,6 +44,11 @@ export function InvitationJoin({
   onAccept: () => Promise<void>;
   translateError?: (code: string) => string;
 }) {
+  // This very page, token and all: where a password reset should return to.
+  const returnTo =
+    typeof window === "undefined"
+      ? ""
+      : `${window.location.pathname}${window.location.search}`;
   const [identity, setIdentity] = useState<string | null | undefined>(
     authIsLive ? undefined : null,
   );
@@ -151,7 +156,16 @@ export function InvitationJoin({
             : "Create account and accept"}
       </button>
       {preview.hasAccount && !identity ? (
-        <Link href={`/auth/forgot-password?email=${encodeURIComponent(invited)}`}>
+        <Link
+          href={`/auth/forgot-password?email=${encodeURIComponent(invited)}${
+            // Carry the invitation along, so the reset lands them back on it.
+            // Without this the round trip ends on a generic sign-in page and
+            // the invitation has to be dug out of the inbox again — which is
+            // exactly where a crew member goes when they don't remember
+            // setting a password.
+            returnTo ? `&next=${encodeURIComponent(returnTo)}` : ""
+          }`}
+        >
           Forgot your password?
         </Link>
       ) : null}
