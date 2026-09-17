@@ -51,6 +51,12 @@ import {
 } from "@/features/crew/offer-moment";
 import { crewAttention } from "@/features/crew/attention";
 import { availabilityNeedsFutureWindows } from "@/features/crew/availability-moment";
+import {
+  daysFromWindow,
+  describeAvailability,
+  localDay,
+  windowFromDays,
+} from "@/features/crew/availability-days";
 import { normalizePhone } from "@/features/contacts/schema";
 import { crewCloseoutIsSubmitted } from "@/features/crew/closeout-moment";
 import { greetingName } from "@/features/auth/session-failure";
@@ -280,7 +286,7 @@ function CrewState({
         <LoaderCircle className="spin" />
         <span>
           <strong>Loading your assignments…</strong>
-          <small>Only project-scoped crew records are being read.</small>
+          <small>Just a moment.</small>
         </span>
       </section>
     );
@@ -560,7 +566,7 @@ function CrewProfileEditor({ data, profile }: { data: CrewData; profile: Value }
         actions live together at the end now, in the order they rank, matching
         the availability form.
       */}
-      <header><span><p className="eyebrow">Self-service profile</p><h2>Update your working details</h2></span></header>
+      <header><span><p className="eyebrow">Your details</p><h2>Update your working details</h2></span></header>
       <label>Phone<input name="phone" defaultValue={text(profile.phone, "")} /></label>
       <label>Travel radius (miles)<input name="travelRadiusMiles" type="number" min="0" max="500" defaultValue={number(profile.travelRadiusMiles)} /></label>
       <label className="form-span">Specialties, separated by commas<input name="specialties" defaultValue={csv(profile.specialties)} /></label>
@@ -1675,7 +1681,7 @@ export function LiveCrewProfile() {
             <span className="avatar avatar-sand">{initials(text(profile.name))}</span>
             <span>
               <h2>Professional details</h2>
-              <small>Visible only to permitted studio operators</small>
+              <small>Only the studio sees these</small>
             </span>
           </div>
           <dl>
@@ -1730,7 +1736,7 @@ export function LiveCrewProfile() {
         </article>
         <article className="panel">
           <p className="eyebrow">Equipment</p>
-          <h2>Declared event kit</h2>
+          <h2>What you bring</h2>
           {equipment.length ? (
             <ul>
               {equipment.map((item) => (
@@ -1763,7 +1769,16 @@ export function LiveCrewAvailability() {
   const data = useCrewData();
   const [listRenderedAt] = useState(() => Date.now());
   const [notice, setNotice] = useState<string | null>(null);
-  const [editing, setEditing] = useState<Value | null>(null);
+  const [editing, setEditingValue] = useState<Value | null>(null);
+  // Whole days unless someone says otherwise; restored from the entry being edited.
+  const [partDay, setPartDay] = useState(false);
+  const setEditing = (value: Value | null) => {
+    setEditingValue(value);
+    setPartDay(
+      value ? daysFromWindow(text(value.startsAt), text(value.endsAt))?.startTime != null : false,
+    );
+  };
+  const editingDays = editing ? daysFromWindow(text(editing.startsAt), text(editing.endsAt)) : null;
   const [busy, setBusy] = useState(false);
   if (data.loading || data.error || !data.profile)
     return <CrewPageState eyebrow="Your calendar" title="Availability" description="Tell the studio when you are available for future assignments." data={data} empty={!data.loading && !data.error ? "Link a crew profile before recording availability." : undefined} />;
@@ -1772,12 +1787,17 @@ export function LiveCrewAvailability() {
     const form = event.currentTarget;
     const value = new FormData(form);
     setNotice(null);
-    const startsAt = new Date(String(value.get("startsAt")));
-    const endsAt = new Date(String(value.get("endsAt")));
-    if (Number.isNaN(startsAt.valueOf()) || Number.isNaN(endsAt.valueOf()) || endsAt <= startsAt) {
-      setNotice("Choose an end time after the start time.");
+    const window = windowFromDays({
+      firstDay: String(value.get("firstDay") ?? ""),
+      lastDay: String(value.get("lastDay") ?? "") || String(value.get("firstDay") ?? ""),
+      startTime: partDay ? String(value.get("startTime") ?? "") : null,
+      endTime: partDay ? String(value.get("endTime") ?? "") : null,
+    });
+    if ("problem" in window) {
+      setNotice(window.problem);
       return;
     }
+    const { startsAt, endsAt } = window;
     setBusy(true);
     try {
       const response = await sendCrewCommand(editing ? "updateAvailability" : "setAvailability", {
@@ -1825,14 +1845,33 @@ export function LiveCrewAvailability() {
         </div>
       </header>
       <form key={editing?.id ?? "new"} className="panel crew-availability-form" onSubmit={(event) => void submit(event)}>
+        {/* Days, not minutes: this asked for a start and end to the minute, and
+            stored whatever time the picker opened at. See
+            features/crew/availability-days.ts. */}
         <label>
-          Starts · local time
-          <input name="startsAt" type="datetime-local" defaultValue={dateTimeInput(editing?.startsAt)} required />
+          From
+          <input name="firstDay" type="date" defaultValue={editingDays?.firstDay ?? ""} min={editing ? undefined : localDay(new Date())} required />
         </label>
         <label>
-          Ends · local time
-          <input name="endsAt" type="datetime-local" defaultValue={dateTimeInput(editing?.endsAt)} required />
+          To <small>the last day, same as From for one day</small>
+          <input name="lastDay" type="date" defaultValue={editingDays?.lastDay ?? ""} />
         </label>
+        <label className="crew-availability-partday">
+          <input checked={partDay} onChange={(event) => setPartDay(event.target.checked)} type="checkbox" />
+          Only part of the day
+        </label>
+        {partDay ? (
+          <>
+            <label>
+              From time
+              <input name="startTime" type="time" defaultValue={editingDays?.startTime ?? "09:00"} required />
+            </label>
+            <label>
+              Until
+              <input name="endTime" type="time" defaultValue={editingDays?.endTime ?? "23:00"} required />
+            </label>
+          </>
+        ) : null}
         <label>
           Status
           <select name="status" defaultValue={text(editing?.status, "available")}>
@@ -1882,8 +1921,8 @@ export function LiveCrewAvailability() {
                   <Clock3 />
                 )}
                 <time>
-                  <strong>{dateTime(item.startsAt)}</strong>
-                  <small>to {dateTime(item.endsAt)}</small>
+                  <strong>{describeAvailability(text(item.startsAt), text(item.endsAt)) || dateTime(item.startsAt)}</strong>
+                  {text(item.notes) ? <small>{text(item.notes)}</small> : null}
                 </time>
                 {/* A window that has already gone by was rendered in the same
                     green as a live one, so the only entry on the page — a date
