@@ -106,3 +106,13 @@ test("features/ and functions/ build the crew brief identically", () => {
     readFileSync("features/questionnaires/crew-brief.ts", "utf8"),
   );
 });
+
+test("the offline event-day brief keeps the before-you-shoot list", () => {
+  const views = readFileSync(`${process.cwd()}/components/crew/live-crew-views.tsx`, "utf8");
+  const offline = views.slice(views.indexOf("function OfflineCrewBrief"), views.indexOf("export function LiveCrewSchedule"));
+  assert.match(offline, /<CrewClientBrief projectId=\{brief\.projectId\} compact offline\/>/);
+  assert.match(views, /projectId: text\(assignment\.projectId, ""\),\n\s+projectName/);
+  const component = readFileSync(`${process.cwd()}/components/crew/client-brief.tsx`, "utf8");
+  // Saved under the prefix sign-out sweeps, so a borrowed phone forgets it.
+  assert.match(component, /localStorage\.setItem\(`studiocue:crew-client-brief:/);
+});

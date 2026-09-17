@@ -90,6 +90,8 @@ type CrewData = {
 };
 type CrewDataState = Omit<CrewData, "refresh">;
 type CachedCrewBrief = {
+  /** Absent on copies saved before the client's brief was kept offline. */
+  projectId?: string;
   projectName: string;
   role: string;
   arrivalAt: string;
@@ -1153,6 +1155,7 @@ function OfflineCrewBrief({ brief }: { brief: CachedCrewBrief }) {
         </div>
         <StatusBadge tone="warning">Read-only offline</StatusBadge>
       </header>
+      {brief.projectId ? <CrewClientBrief projectId={brief.projectId} compact offline/> : null}
       <section className="crew-event-timeline">
         {brief.items.map((item) => (
           <article key={text(item.id)}>
@@ -1177,7 +1180,8 @@ function OfflineCrewBrief({ brief }: { brief: CachedCrewBrief }) {
           <strong>Saved copy — you are offline</strong>
           <small>
             Reconnect before acknowledging this version or changing anything.
-            Your fee and the couple&rsquo;s details are not stored in this copy.
+            Your fee isn&rsquo;t stored in this copy, and signing out removes it
+            from this device.
           </small>
         </span>
       </div>
@@ -1254,6 +1258,7 @@ export function LiveCrewSchedule() {
               );
             const project = data.projects[text(assignment.projectId, "")];
             const brief: CachedCrewBrief = {
+              projectId: text(assignment.projectId, ""),
               projectName: text(project?.name),
               role: text(assignment.role),
               arrivalAt: text(assignment.arrivalAt),

@@ -29,19 +29,41 @@ const items = (value: unknown): BriefItem[] =>
  * Crew can't read a questionnaire. When one is submitted, a trigger writes the
  * crew's part of it — the do-not-photograph list first — to `crewBriefs`,
  * which rules let only the people on that job read.
+ *
+ * It is also saved on the crew member's own phone, because the do-not-photograph
+ * list matters most at a venue with no signal — exactly where the event-day
+ * brief already falls back to its saved copy. The key carries the `studiocue:`
+ * prefix, so signing out forgets it.
  */
 export function CrewClientBrief({
   projectId,
   compact = false,
+  offline = false,
 }: {
   projectId: string;
   /** Only the before-you-shoot answers, for the event-day brief. */
   compact?: boolean;
+  /** Render only the saved copy; don't try the network. */
+  offline?: boolean;
 }) {
   const workspace = useWorkspace();
   const [briefs, setBriefs] = useState<Brief[]>([]);
+  const userId = workspace.userId;
   useEffect(() => {
-    if (!dataIsLive || !workspace.tenantId || !projectId) return;
+    if (!userId || !projectId) return;
+    // The saved copy first: offline, the query below can hang rather than fail.
+    const timer = window.setTimeout(() => {
+      try {
+        const saved = window.localStorage.getItem(`studiocue:crew-client-brief:${userId}:${projectId}`);
+        if (saved) setBriefs((current) => (current.length ? current : (JSON.parse(saved) as Brief[])));
+      } catch {
+        // A blocked or malformed copy never replaces the live brief.
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [projectId, userId]);
+  useEffect(() => {
+    if (offline || !dataIsLive || !workspace.tenantId || !userId || !projectId) return;
     let active = true;
     void getDocs(
       query(
@@ -53,8 +75,7 @@ export function CrewClientBrief({
     )
       .then((snapshot) => {
         if (!active) return;
-        setBriefs(
-          snapshot.docs.map((document) => {
+        const live = snapshot.docs.map((document) => {
             const data = document.data();
             return {
               id: document.id,
@@ -62,17 +83,23 @@ export function CrewClientBrief({
               beforeYouShoot: items(data.beforeYouShoot),
               onTheDay: items(data.onTheDay),
             };
-          }),
-        );
+          });
+        setBriefs(live);
+        try {
+          if (live.length)
+            window.localStorage.setItem(`studiocue:crew-client-brief:${userId}:${projectId}`, JSON.stringify(live));
+          // A brief the studio withdrew shouldn't live on in the saved copy.
+          else window.localStorage.removeItem(`studiocue:crew-client-brief:${userId}:${projectId}`);
+        } catch {
+          // Storage full or blocked: the live brief still shows.
+        }
       })
-      // No brief is the ordinary case; a failed read shouldn't take the page with it.
-      .catch(() => {
-        if (active) setBriefs([]);
-      });
+      // No brief is the ordinary case, and a failed read keeps the saved copy.
+      .catch(() => undefined);
     return () => {
       active = false;
     };
-  }, [projectId, workspace.tenantId]);
+  }, [offline, projectId, userId, workspace.tenantId]);
 
   const beforeYouShoot = briefs.flatMap((brief) => brief.beforeYouShoot);
   const onTheDay = compact ? [] : briefs.flatMap((brief) => brief.onTheDay);
