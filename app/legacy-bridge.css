@@ -2459,3 +2459,96 @@
 .crew-client-brief-critical [data-field="no-photo-list"] dd {
   font-weight: 600;
 }
+
+/* Whose timeline is the real one (components/planning/timeline-authority-panel.tsx). */
+.timeline-authority-panel {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.timeline-authority-choice {
+  border: 0;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+}
+
+.timeline-authority-choice label {
+  align-items: start;
+  border: 1px solid var(--line, #e2ded6);
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.timeline-authority-choice label:has(input:checked) {
+  border-color: var(--ink, #1f1d1a);
+}
+
+.timeline-authority-choice span {
+  display: grid;
+  gap: 2px;
+}
+
+.timeline-authority-planner {
+  display: grid;
+  gap: 12px;
+}
+
+.timeline-authority-planner label {
+  display: grid;
+  gap: 5px;
+}
+
+.timeline-authority-planner textarea {
+  font-family: inherit;
+  width: 100%;
+}
+
+.timeline-authority-differences ul {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.timeline-authority-differences li {
+  border-left: 3px solid var(--line, #e2ded6);
+  display: grid;
+  gap: 2px;
+  padding: 4px 0 4px 12px;
+}
+
+.timeline-authority-differences li[data-kind="moved"] {
+  border-left-color: var(--amber-dark, #8b5b17);
+}
+
+.timeline-authority-match,
+.timeline-authority-empty {
+  margin: 0;
+}
+
+@media (max-width: 620px) {
+  .timeline-authority-choice {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The planner, not the studio, keeps this wedding's timeline. */
+.crew-planner-led,
+.ros-planner-led {
+  align-items: center;
+  background: var(--amber, #f2e3c5);
+  border-radius: 10px;
+  color: var(--amber-dark, #8b5b17);
+  display: flex;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+}

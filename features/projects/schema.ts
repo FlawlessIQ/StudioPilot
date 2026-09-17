@@ -53,6 +53,12 @@ export const projectSchema = auditFieldsSchema.extend({
    * "unknown" is the honest default and the state most jobs are in until
    * someone reads the venue contract.
    */
+  /**
+   * Whose timeline is the real one for this wedding. "planner" makes the run
+   * of show the photographers' working copy. See
+   * features/schedules/timeline-authority.ts.
+   */
+  timelineAuthority: z.enum(["studio", "planner"]).default("studio"),
   insuranceRequired: z
     .enum(["unknown", "required", "not_required"])
     .default("unknown"),

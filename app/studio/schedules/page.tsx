@@ -1,10 +1,12 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { StudioDomainPage } from "@/components/studio/live-domain-view";
+import { TimelineAuthorityPanel } from "@/components/planning/timeline-authority-panel";
 
 export default async function SchedulesPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
   const { project } = await searchParams;
   return (
     <AppShell active="Schedules">
+      {project ? <TimelineAuthorityPanel projectId={project} /> : null}
       <StudioDomainPage
         domain="schedules"
         eyebrow="Run of show"

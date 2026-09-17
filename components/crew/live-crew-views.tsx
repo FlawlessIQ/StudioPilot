@@ -92,6 +92,8 @@ type CrewDataState = Omit<CrewData, "refresh">;
 type CachedCrewBrief = {
   /** Absent on copies saved before the client's brief was kept offline. */
   projectId?: string;
+  /** The planner's timeline is the real one for this wedding. */
+  plannerLed?: boolean;
   projectName: string;
   role: string;
   arrivalAt: string;
@@ -1139,6 +1141,16 @@ export function LiveCrewPending() {
   );
 }
 
+/** On a planner-run wedding, this brief is the studio's plan, not the day's. */
+function PlannerLedNote() {
+  return (
+    <p className="crew-planner-led">
+      <AlertTriangle size={14} /> The planner keeps the timeline for this wedding.
+      If the day runs differently, follow the planner and tell the studio.
+    </p>
+  );
+}
+
 function OfflineCrewBrief({ brief }: { brief: CachedCrewBrief }) {
   return (
     <div className="crew-mobile-page crew-event-day">
@@ -1155,6 +1167,7 @@ function OfflineCrewBrief({ brief }: { brief: CachedCrewBrief }) {
         </div>
         <StatusBadge tone="warning">Read-only offline</StatusBadge>
       </header>
+      {brief.plannerLed ? <PlannerLedNote/> : null}
       {brief.projectId ? <CrewClientBrief projectId={brief.projectId} compact offline/> : null}
       <section className="crew-event-timeline">
         {brief.items.map((item) => (
@@ -1259,6 +1272,7 @@ export function LiveCrewSchedule() {
             const project = data.projects[text(assignment.projectId, "")];
             const brief: CachedCrewBrief = {
               projectId: text(assignment.projectId, ""),
+              plannerLed: project?.timelineAuthority === "planner",
               projectName: text(project?.name),
               role: text(assignment.role),
               arrivalAt: text(assignment.arrivalAt),
@@ -1396,6 +1410,7 @@ export function LiveCrewSchedule() {
           <div className="crew-event-contact"><Phone/><span><strong>{text(studioName) || "Your studio"}</strong><small>Studio · no contact set for this job</small><a href={`tel:${normalizePhone(studioPhone)}`}>{studioPhone}</a></span></div>
         ) : <p>No phone number is on file for your studio. Ask them to add one in Settings → Studio identity, and use the secure message below in the meantime.</p>}<StudioContactForm assignment={assignment} eventDay/></article>
       </section>
+      {project?.timelineAuthority === "planner" ? <PlannerLedNote/> : null}
       <CrewClientBrief projectId={text(assignment.projectId, "")} compact/>
       <section className="crew-event-timeline">
         {items.length ? items.map((item) => (

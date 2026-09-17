@@ -143,6 +143,17 @@ export default async function RunOfShowSharePage({
       </h1>
       {venue ? <p className="ros-venue">{venue}</p> : null}
 
+      {/* When the planner owns the day, this page is the photography plan, not
+          the timeline everyone follows. Saying so here stops a vendor working
+          to a copy the planner has already moved on from. */}
+      {project.timelineAuthority === "planner" ? (
+        <p className="ros-planner-led">
+          {project.plannerName ? String(project.plannerName) : "The planner"} keeps the
+          timeline for this wedding. This is {studioName}&rsquo;s photography plan — where
+          the two differ, follow the planner&rsquo;s.
+        </p>
+      ) : null}
+
       {share.message ? (
         <div className="ros-note">
           {String(share.message)

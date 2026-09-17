@@ -10,6 +10,7 @@ import {
 import { productEvent } from "../operations/product-events.js";
 import { studioHubCors } from "../security/cors.js";
 import { mintRunOfShowShare, shareIdFor } from "./share-mint.js";
+import { parsePlannerTimeline } from "./timeline-authority.js";
 
 const item = z.object({
   id: z.string(),
@@ -277,6 +278,23 @@ const command = z.discriminatedUnion("type", [
     input: z.object({
       projectId: z.string(),
       requestId: z.string(),
+    }),
+  }),
+  z.object({
+    /**
+     * Whose timeline is the real one for this wedding, and the planner's
+     * latest version when it's theirs. See
+     * features/schedules/timeline-authority.ts.
+     */
+    type: z.literal("setTimelineAuthority"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      authority: z.enum(["studio", "planner"]),
+      plannerName: z.string().trim().max(120).optional(),
+      /** The planner's timeline as they sent it. Omit to keep the saved one. */
+      plannerTimelineText: z.string().max(20_000).optional(),
     }),
   }),
   z.object({
@@ -1195,6 +1213,64 @@ export const planningCommand = onRequest(
           updatedBy: identity.uid,
         });
         result = { requestId: parsed.input.requestId, status: "sent_to_venue" };
+      } else if (parsed.type === "setTimelineAuthority") {
+        if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
+        const project = db.doc(`projects/${parsed.input.projectId}`);
+        const snapshot = await project.get();
+        if (!snapshot.exists || snapshot.get("tenantId") !== parsed.tenantId) {
+          throw new Error("NOT_FOUND");
+        }
+        const update: Record<string, unknown> = {
+          timelineAuthority: parsed.input.authority,
+          updatedAt: now,
+          updatedBy: identity.uid,
+        };
+        if (parsed.input.plannerName !== undefined) {
+          update.plannerName = parsed.input.plannerName || null;
+        }
+        let plannerItemCount: number | null = null;
+        if (parsed.input.plannerTimelineText !== undefined) {
+          const text = parsed.input.plannerTimelineText.trim();
+          if (!text) {
+            update.plannerTimeline = null;
+          } else {
+            const items = parsePlannerTimeline(text);
+            // Saving text we can't read would show "no differences" — the one
+            // answer that must never be wrong.
+            if (!items.length) throw new Error("PLANNER_TIMELINE_UNREADABLE");
+            update.plannerTimeline = {
+              text,
+              items,
+              receivedAt: now,
+              receivedBy: identity.uid,
+            };
+            plannerItemCount = items.length;
+          }
+        }
+        const auditReference = db.collection("auditEvents").doc();
+        const batch = db.batch();
+        batch.update(project, update);
+        batch.create(auditReference, {
+          id: auditReference.id,
+          tenantId: parsed.tenantId,
+          projectId: parsed.input.projectId,
+          actorId: identity.uid,
+          actorType: "user",
+          action: "project.timeline_authority_set",
+          entityType: "project",
+          entityId: parsed.input.projectId,
+          timestamp: now,
+          before: { timelineAuthority: snapshot.get("timelineAuthority") ?? "studio" },
+          after: { timelineAuthority: parsed.input.authority, plannerItemCount },
+          ipAddress: null,
+          userAgent: request.header("user-agent") ?? null,
+        });
+        await batch.commit();
+        result = {
+          projectId: parsed.input.projectId,
+          authority: parsed.input.authority,
+          plannerItemCount,
+        };
       } else if (parsed.type === "setInsuranceRequirement") {
         if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
         const project = db.doc(`projects/${parsed.input.projectId}`);

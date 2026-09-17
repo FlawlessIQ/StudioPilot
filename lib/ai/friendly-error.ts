@@ -57,6 +57,8 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   NO_PUBLISHED_RUN_OF_SHOW:
     "Publish the run of show first, then you can share it with vendors.",
   SHARE_NOT_FOUND: "There's no active share for this vendor yet.",
+  PLANNER_TIMELINE_UNREADABLE:
+    "We couldn't find any times in that. Paste the planner's timeline with one moment per line, like \"3:30 PM Ceremony\".",
   ENTITLEMENT_EXCEEDED:
     "Your workspace has used its included AI drafts for this period. Review your plan to add more.",
   INVALID_REQUEST:
