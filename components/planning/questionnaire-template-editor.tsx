@@ -30,6 +30,9 @@ type EditableField = {
   label: string;
   type: string;
   required: boolean;
+  internalOnly: boolean;
+  /** Whether the answer reaches crew on the job. */
+  crewVisible: boolean;
   options: string;
 };
 
@@ -122,6 +125,8 @@ export function QuestionnaireTemplateEditor({
                   label: "",
                   type: "text",
                   required: false,
+                  internalOnly: false,
+                  crewVisible: false,
                   options: "",
                 },
               ],
@@ -157,7 +162,8 @@ export function QuestionnaireTemplateEditor({
             type: field.type,
             required: field.required,
             locked: false,
-            internalOnly: false,
+            internalOnly: field.internalOnly,
+            crewVisible: field.crewVisible,
             options: CHOICE_TYPES.includes(field.type)
               ? field.options
                   .split(",")
@@ -274,6 +280,21 @@ export function QuestionnaireTemplateEditor({
                     type="checkbox"
                   />
                   Required
+                </label>
+                <label
+                  className="questionnaire-editor-required"
+                  title="The photographers on this job see the answer in their brief"
+                >
+                  <input
+                    checked={field.crewVisible}
+                    onChange={(event) =>
+                      patchField(section.id, field.id, {
+                        crewVisible: event.target.checked,
+                      })
+                    }
+                    type="checkbox"
+                  />
+                  Crew see it
                 </label>
                 <button
                   aria-label={`Remove ${field.label || "question"}`}

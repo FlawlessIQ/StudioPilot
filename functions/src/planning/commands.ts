@@ -68,6 +68,7 @@ const questionnaireField = z.object({
   required: z.boolean(),
   locked: z.boolean(),
   internalOnly: z.boolean(),
+  crewVisible: z.boolean().optional(),
   options: z.array(z.string()),
   conditionalOn: z
     .object({ fieldId: z.string(), equals: z.unknown() })
@@ -729,6 +730,12 @@ export const planningCommand = onRequest(
           hasPlanningChanges: false,
           completionPercent,
           dueDate: due.toISOString().slice(0, 10),
+          // Snapshotted like the sections, so editing the template later
+          // doesn't change when this client is reminded.
+          reminderDaysBeforeDue: Array.isArray(template.get("reminderDaysBeforeDue"))
+            ? (template.get("reminderDaysBeforeDue") as unknown[]).map(Number)
+            : [],
+          remindersSent: [],
           submittedAt: null,
           createdAt: now,
           updatedAt: now,

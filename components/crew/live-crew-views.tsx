@@ -40,6 +40,7 @@ import {
   where,
 } from "firebase/firestore";
 import { AssignmentActions } from "@/components/crew/assignment-actions";
+import { CrewClientBrief } from "@/components/crew/client-brief";
 import { CrewDocumentUpload } from "@/components/crew/document-upload";
 import { CrewProfileDocumentUpload } from "@/components/crew/profile-document-upload";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -981,6 +982,7 @@ export function LiveCrewPrep() {
         })()}</strong><em>{requirements.filter((item) => ["w9", "insurance", "file"].includes(String(item.kind))).some((item) => incomplete.some((row) => row.id === item.id)) ? "Upload and track review" : "Nothing to upload"}</em></span><ArrowRight/></Link>
         <Link className="panel" href={`/crew/closeout${query}`}><ReceiptText/><span><small>After the event</small><strong>Hours, expenses & deliverables</strong><em>{text(record(assignment.closeout).status, "Not submitted")}</em></span><ArrowRight/></Link>
       </section>
+      <CrewClientBrief projectId={text(assignment.projectId, "")}/>
       <StudioContactForm assignment={assignment}/>
     </div>
   );
@@ -1389,6 +1391,7 @@ export function LiveCrewSchedule() {
           <div className="crew-event-contact"><Phone/><span><strong>{text(studioName) || "Your studio"}</strong><small>Studio · no contact set for this job</small><a href={`tel:${normalizePhone(studioPhone)}`}>{studioPhone}</a></span></div>
         ) : <p>No phone number is on file for your studio. Ask them to add one in Settings → Studio identity, and use the secure message below in the meantime.</p>}<StudioContactForm assignment={assignment} eventDay/></article>
       </section>
+      <CrewClientBrief projectId={text(assignment.projectId, "")} compact/>
       <section className="crew-event-timeline">
         {items.length ? items.map((item) => (
           <article key={text(item.id)} className={item.id === nextItemId ? "is-next" : undefined}>

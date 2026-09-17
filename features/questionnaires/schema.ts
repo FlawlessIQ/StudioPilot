@@ -9,6 +9,8 @@ export const questionnaireFieldTypeSchema = z.enum([
 export const questionnaireFieldSchema = z.object({
   id: z.string().min(1), label: z.string().min(1), type: questionnaireFieldTypeSchema,
   required: z.boolean(), locked: z.boolean(), internalOnly: z.boolean(),
+  // Whether the answer reaches crew. Absent: see features/questionnaires/crew-brief.ts.
+  crewVisible: z.boolean().optional(),
   options: z.array(z.string()), conditionalOn: z.object({ fieldId: z.string(), equals: z.unknown() }).nullable(),
 });
 export const questionnaireTemplateSchema = auditFieldsSchema.extend({

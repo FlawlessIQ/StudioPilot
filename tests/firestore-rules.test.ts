@@ -69,6 +69,20 @@ test(
           role: "subcontractor",
           projectIds: ["project-a"],
         });
+        // The crew's part of a client's brief, for the job crew-a is on and a
+        // job they aren't.
+        await setDoc(doc(adminDb, "crewBriefs/brief-a"), {
+          tenantId: "tenant-a",
+          projectId: "project-a",
+          beforeYouShoot: [{ fieldId: "no-photo-list", label: "Anyone who must not appear", text: "Sam K." }],
+          onTheDay: [],
+        });
+        await setDoc(doc(adminDb, "crewBriefs/brief-other-job"), {
+          tenantId: "tenant-a",
+          projectId: "project-other",
+          beforeYouShoot: [],
+          onTheDay: [],
+        });
         await setDoc(doc(adminDb, "projects/project-a"), {
           tenantId: "tenant-a",
           projectId: "project-a",
@@ -344,6 +358,21 @@ test(
       await assertFails(getDoc(doc(crewDb, "crewMessages/crew-message-private")));
       await assertFails(updateDoc(doc(crewDb, "crewAssignments/assignment-a"), { status: "completed" }));
       await assertFails(getDoc(doc(crewDb, "invoiceReferences/invoice-a")));
+      // Crew read the brief for their job, and nothing else of the client's.
+      await assertSucceeds(getDoc(doc(crewDb, "crewBriefs/brief-a")));
+      await assertFails(getDoc(doc(crewDb, "crewBriefs/brief-other-job")));
+      await assertSucceeds(
+        getDocs(
+          query(
+            collection(crewDb, "crewBriefs"),
+            where("tenantId", "==", "tenant-a"),
+            where("projectId", "==", "project-a"),
+          ),
+        ),
+      );
+      await assertFails(setDoc(doc(crewDb, "crewBriefs/brief-a"), { tenantId: "tenant-a", projectId: "project-a" }));
+      // The client has the original questionnaire; the crew projection isn't theirs.
+      await assertFails(getDoc(doc(clientDb, "crewBriefs/brief-a")));
 
       const ownerDb = environment.authenticatedContext("owner-a").firestore();
       await assertSucceeds(getDoc(doc(ownerDb, "crewMessages/crew-message-a")));

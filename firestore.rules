@@ -489,6 +489,18 @@ service cloud.firestore {
       allow read: if isStudioOperator(resource.data.tenantId);
       allow write: if false;
     }
+    // The crew's part of a client's submitted brief — projected server-side by
+    // crewBriefOnQuestionnaireWrite, because questionnaireResponses holds
+    // billing contacts, approvers and private emails crew must not read. Only
+    // people assigned to the job, and never the client (who has the original).
+    match /crewBriefs/{briefId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+        || (
+          isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+          && hasRole(resource.data.tenantId, ["studio_coordinator","staff_photographer","subcontractor"])
+        );
+      allow write: if false;
+    }
     match /questionnaireResponses/{responseId} {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (

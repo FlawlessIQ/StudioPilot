@@ -2415,3 +2415,47 @@
   }
 
 }
+
+/* The crew's part of a client's brief (components/crew/client-brief.tsx). */
+.crew-client-brief {
+  display: grid;
+  gap: 18px;
+}
+
+.crew-client-brief .eyebrow {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+
+.crew-client-brief dl {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.crew-client-brief dt {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.crew-client-brief dd {
+  margin: 2px 0 0;
+  white-space: pre-line;
+}
+
+.crew-client-brief-critical {
+  background: var(--amber, #f2e3c5);
+  border-radius: 10px;
+  color: var(--amber-dark, #8b5b17);
+  padding: 14px 16px;
+}
+
+.crew-client-brief-critical dd {
+  color: var(--ink, #1f1d1a);
+}
+
+.crew-client-brief-critical [data-field="no-photo-list"] dd {
+  font-weight: 600;
+}

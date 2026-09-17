@@ -17,6 +17,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { QuestionnaireTemplateEditor } from "@/components/planning/questionnaire-template-editor";
+import { fieldReachesCrew } from "@/features/questionnaires/crew-brief";
 
 const fieldTypes = [
   ["text", "Short text"],
@@ -280,6 +281,17 @@ export function QuestionnaireBuilder({
                                         label: String(f.label ?? ""),
                                         type: String(f.type ?? "text"),
                                         required: f.required === true,
+                                        internalOnly: f.internalOnly === true,
+                                        crewVisible: fieldReachesCrew({
+                                          id: String(f.id ?? ""),
+                                          label: String(f.label ?? ""),
+                                          type: String(f.type ?? "text"),
+                                          internalOnly: f.internalOnly === true,
+                                          crewVisible:
+                                            typeof f.crewVisible === "boolean"
+                                              ? f.crewVisible
+                                              : undefined,
+                                        }),
                                         options: Array.isArray(f.options)
                                           ? f.options.map(String).join(", ")
                                           : "",
