@@ -1,6 +1,7 @@
 import { getFirestore } from "firebase-admin/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { productEvent } from "../operations/product-events.js";
+import { clientOutreachStop } from "./client-outreach.js";
 
 export const reviewRequestScheduler = onSchedule(
   { schedule: "every 60 minutes", timeZone: "UTC", retryCount: 3 },
@@ -30,13 +31,32 @@ export const reviewRequestScheduler = onSchedule(
        */
       const notificationReference = db.doc(`notifications/review_${request.id}`);
       const jobReference = db.doc(`emailJobs/review_${request.id}`);
+      // The project comes from the outer snapshot so it can join the read
+      // phase: a request is queued days before it is due, and the job may have
+      // been archived, cancelled or quieted since.
+      const projectReference = db.doc(
+        `projects/${String(request.get("projectId"))}`,
+      );
       await db.runTransaction(async (transaction) => {
-        const [current, prior, existingJob] = await Promise.all([
+        const [current, prior, existingJob, project] = await Promise.all([
           transaction.get(request.ref),
           transaction.get(notificationReference),
           transaction.get(jobReference),
+          transaction.get(projectReference),
         ]);
         if (!current.exists || current.get("status") !== "scheduled") return;
+        const stop = project.exists
+          ? clientOutreachStop(project.data())
+          : "put_away";
+        if (stop) {
+          transaction.update(current.ref, {
+            status: "skipped",
+            stoppedByProject: stop,
+            updatedAt: now,
+            updatedBy: "review-request-scheduler",
+          });
+          return;
+        }
         const event = productEvent({
           tenantId: String(current.get("tenantId")),
           projectId: String(current.get("projectId")),
@@ -118,9 +138,27 @@ export const albumReminderScheduler = onSchedule(
       .limit(100)
       .get();
     for (const reminder of due.docs) {
+      const projectReference = db.doc(
+        `projects/${String(reminder.get("projectId"))}`,
+      );
       await db.runTransaction(async (transaction) => {
         const current = await transaction.get(reminder.ref);
         if (!current.exists || current.get("status") !== "scheduled") return;
+        // Seven and fourteen days is long enough for the job to have been
+        // finished and filed away. Asking an archived wedding's couple to
+        // choose album photographs is the studio's word, sent without them.
+        const project = await transaction.get(projectReference);
+        const stop = project.exists
+          ? clientOutreachStop(project.data())
+          : "put_away";
+        if (stop) {
+          transaction.update(current.ref, {
+            status: "skipped",
+            stoppedByProject: stop,
+            updatedAt: now,
+          });
+          return;
+        }
         const workflow = await transaction.get(
           db.doc(
             `albumWorkflows/${String(current.get("albumWorkflowId"))}`,
