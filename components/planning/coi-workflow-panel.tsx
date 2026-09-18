@@ -20,6 +20,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { todayLocalIso } from "@/lib/format/event-date";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
+import { describeDiscrepancy } from "@/features/insurance/certificate-review";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { statusLabel } from "@/features/format/status-label";
 import { AddressField } from "@/components/forms/address-field";
@@ -482,20 +483,37 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
                       );
                     })}
                   </div>
-                  <ul>
+                  <ul className="coi-discrepancy-list">
                     {discrepancies.map((item, index) => {
                       const value =
                         typeof item === "object" && item !== null
                           ? (item as Record<string, unknown>)
                           : {};
+                      // Field paths and cents are how this is stored, not how a
+                      // person decides whether a certificate is good enough.
+                      const said = describeDiscrepancy({
+                        field: String(value.field ?? ""),
+                        expected: String(value.expected ?? ""),
+                        extracted: String(value.extracted ?? ""),
+                        severity:
+                          value.severity === "blocking" || value.severity === "info"
+                            ? value.severity
+                            : "warning",
+                      });
                       return (
-                        <li key={`${String(value.field)}-${index}`}>
+                        <li
+                          data-severity={said.severity}
+                          key={`${String(value.field)}-${index}`}
+                        >
                           <ShieldCheck size={14} />
-                          {String(value.field)}: expected {String(value.expected)}, extracted {String(value.extracted)}
+                          <span>
+                            <strong>{said.label}</strong>
+                            <small>{said.detail}</small>
+                          </span>
                         </li>
                       );
                     })}
-                    {!discrepancies.length ? <li>No extracted discrepancies were reported. Human review is still required.</li> : null}
+                    {!discrepancies.length ? <li><ShieldCheck size={14} /><span><strong>Nothing flagged</strong><small>Read it yourself before approving — StudioCue never decides whether a certificate is legally sufficient.</small></span></li> : null}
                   </ul>
                   {request.status === "approved" ? (
                     <button className="button button-dark" disabled={busy} type="button" onClick={() => void sendToVenue(request)}>
@@ -506,8 +524,12 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
                     ) ? (
                     <>
                       <label>
-                        Required review reason
-                        <textarea value={reason[request.id] ?? ""} onChange={(event) => setReason((current) => ({ ...current, [request.id]: event.target.value }))} />
+                        Why you are approving or sending it back
+                        <textarea
+                          placeholder="e.g. Holder name is wrong — ask the agent to reissue naming Oak Hill Barn LLC."
+                          value={reason[request.id] ?? ""}
+                          onChange={(event) => setReason((current) => ({ ...current, [request.id]: event.target.value }))}
+                        />
                       </label>
                       <footer>
                         <button className="button button-dark" disabled={busy} type="button" onClick={() => void decide(request, "approved")}>

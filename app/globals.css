@@ -17851,3 +17851,7 @@ label {
 .crew-availability-partday input{width:auto}
 .questionnaire-editor-add{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .questionnaire-editor-known select{font-size:12.5px;max-width:280px}
+.coi-discrepancy-list li{display:flex;gap:9px;align-items:flex-start}
+.coi-discrepancy-list li span{display:grid;gap:2px}
+.coi-discrepancy-list li small{color:var(--muted-ink,#5d665f)}
+.coi-discrepancy-list li[data-severity="blocking"] strong{color:var(--danger,#9a4545)}

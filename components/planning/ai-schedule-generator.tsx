@@ -282,9 +282,19 @@ export function AiScheduleGenerator({
       ),
       ...rawAnswers,
     };
+    /**
+     * The couple answered these on the form the studio sent; nobody should
+     * retype them.
+     *
+     * The lookups below used to name fields no starter questionnaire has —
+     * `ceremony-location`, `coverageEndTime`, `gettingReadyLocation` — so on a
+     * real wedding the generator opened blank while the answers sat in the
+     * project. The starter ids come first; the older aliases stay for studios
+     * whose own forms use them.
+     */
     const ceremony = answer(answers, [
-      "ceremonyTime",
       "ceremony-time",
+      "ceremonyTime",
       "ceremony_time",
     ]);
     const reception = answer(answers, [
@@ -315,6 +325,7 @@ export function AiScheduleGenerator({
         ? shiftLocalMinutes(ceremonyLocal, -120)
         : `${eventDate}T12:00`);
     const configuredEnd = answer(answers, [
+      "end-time",
       "coverageEndsAt",
       "coverageEndTime",
       "photographyEndTime",
@@ -326,17 +337,30 @@ export function AiScheduleGenerator({
       shiftLocalMinutes(start, safeMinutes);
     const venue = String(selectedProject.venueName ?? "").trim();
     const questionnaireLocations = [
-      answer(answers, ["gettingReadyLocation", "getting-ready-location"]),
-      answer(answers, ["ceremonyLocation", "ceremony-location"]),
-      answer(answers, ["receptionLocation", "reception-location"]),
+      answer(answers, ["getting-ready", "gettingReadyLocation", "getting-ready-location"]),
+      answer(answers, ["ceremony-address", "ceremonyLocation", "ceremony-location"]),
+      answer(answers, ["reception-address", "receptionLocation", "reception-location"]),
+      answer(answers, ["venue-address", "address"]),
     ].filter(Boolean);
     const nextLocations = Array.from(
       new Set([...questionnaireLocations, venue].filter(Boolean)),
     );
+    // What shapes the day, in the couple's own words. The last three are the
+    // answers a photographer must have before the first frame — they belong in
+    // the brief the AI writes from, not only in the crew brief.
+    const labelled = (label: string, value: string) => (value ? `${label}: ${value}` : "");
     const nextPreferences = [
-      answer(answers, ["firstLook", "first-look"]),
-      answer(answers, ["familyPhotoList", "family-photo-list"]),
-      answer(answers, ["accessibility", "accessibilityNeeds"]),
+      answer(answers, ["first-look", "firstLook"]) &&
+        `First look: ${answer(answers, ["first-look", "firstLook"])}`,
+      labelled("Must-have groups", answer(answers, ["must-have-groups", "familyPhotoList", "family-photo-list"])),
+      labelled("Sunset portraits", answer(answers, ["sunset-priority"])),
+      labelled("Guest count", answer(answers, ["guest-count", "headcount"])),
+      labelled("Planner", answer(answers, ["planner"])),
+      labelled("Videographer", answer(answers, ["videographer"])),
+      labelled("Do not photograph", answer(answers, ["no-photo-list"])),
+      labelled("Handle carefully", answer(answers, ["sensitivities"])),
+      labelled("Venue restrictions", answer(answers, ["restrictions"])),
+      labelled("Accessibility", answer(answers, ["accessibility", "accessibilityNeeds"])),
       answer(answers, ["timelineNotes", "planningNotes"]),
       ...planningFacts
         .filter((fact) =>

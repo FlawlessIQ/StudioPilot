@@ -5,6 +5,7 @@ import { getFirestore,type DocumentSnapshot } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { runStudioImportAnalysis } from "../studio-import/extraction.js";
 import { productEvent } from "./product-events.js";
+import { limitDollars, sameCalendarDate } from "./certificate-review.js";
 
 type Json=Record<string,unknown>;
 const record=(value:unknown):Json=>typeof value==="object"&&value!==null&&!Array.isArray(value)?value as Json:{};
@@ -648,12 +649,17 @@ export async function runAiJob(job:DocumentSnapshot){if(String(job.get("type"))=
   const discrepancies:Array<Json>=[];
   const compare=(field:string,expected:unknown,actual:unknown,severity:"info"|"warning"|"blocking"="warning")=>{if(normalize(expected)!==normalize(actual))discrepancies.push({field,expected:String(expected??""),extracted:String(actual??""),severity})};
   compare("certificateHolder",requirement.get("certificateHolder"),extraction.certificateHolder,"blocking");
-  compare("eventDate",requirement.get("eventDate"),extraction.eventDate,"blocking");
+  // Not a string compare: "2027-05-15" and "15 May 2027" are the same day, and
+  // flagging that as blocking sends a studio to their agent for nothing.
+  if(!sameCalendarDate(requirement.get("eventDate"),extraction.eventDate))discrepancies.push({field:"eventDate",expected:String(requirement.get("eventDate")??""),extracted:String(extraction.eventDate??""),severity:"blocking"});
   const expectedCoverage=Array.isArray(requirement.get("coverageTypes"))?requirement.get("coverageTypes") as unknown[]:[];
   const actualCoverage=Array.isArray(extraction.coverageTypes)?extraction.coverageTypes:[];
   for(const coverage of expectedCoverage)if(!actualCoverage.some(actual=>normalize(actual)===normalize(coverage)))discrepancies.push({field:"coverageTypes",expected:String(coverage),extracted:actualCoverage.map(String).join(", "),severity:"blocking"});
   const expectedLimits=record(requirement.get("requiredLimits"));const actualLimits=record(extraction.limits);
-  for(const [key,expected] of Object.entries(expectedLimits)){const actual=Number(actualLimits[key]??0);if(!Number.isFinite(actual)||actual<Number(expected))discrepancies.push({field:`requiredLimits.${key}`,expected:String(expected),extracted:String(actualLimits[key]??""),severity:"blocking"})}
+  // Requirements are stored in cents and certificates state dollars, so the
+  // raw comparison could never pass: $1,000,000 of cover read as short of
+  // "200000000". Both sides are read as dollars before they are weighed.
+  for(const [key,expected] of Object.entries(expectedLimits)){const required=limitDollars(expected,true);const carried=limitDollars(actualLimits[key]);if(required!==null&&(carried===null||carried<required))discrepancies.push({field:`requiredLimits.${key}`,expected:String(expected),extracted:String(actualLimits[key]??""),severity:"blocking"})}
   if(requirement.get("additionalInsuredWording")&& !normalize(extraction.additionalInsuredWording).includes(normalize(requirement.get("additionalInsuredWording"))))discrepancies.push({field:"additionalInsuredWording",expected:String(requirement.get("additionalInsuredWording")),extracted:String(extraction.additionalInsuredWording??""),severity:"warning"});
   if(requirement.get("waiverOfSubrogation")===true&&!normalize(extraction.waiverOfSubrogation).includes("yes")&&!normalize(extraction.waiverOfSubrogation).includes("true"))discrepancies.push({field:"waiverOfSubrogation",expected:"Required",extracted:String(extraction.waiverOfSubrogation??""),severity:"warning"});
   if(requirement.get("primaryNoncontributory")===true&&!normalize(extraction.primaryNoncontributory).includes("yes")&&!normalize(extraction.primaryNoncontributory).includes("true"))discrepancies.push({field:"primaryNoncontributory",expected:"Required",extracted:String(extraction.primaryNoncontributory??""),severity:"warning"});
