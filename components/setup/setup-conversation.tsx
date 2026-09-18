@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { useSetupState } from "@/components/setup/use-setup-state";
+import { InquiryForwardingAddress } from "@/components/crm/inquiry-forwarding-address";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import type { SetupGapKey } from "@/features/today/setup-gaps";
 
@@ -123,6 +124,11 @@ export function SetupConversation() {
             );
           })}
         </ol>
+
+        {/* The form is one door in; the forwarding address is the other, and
+            it is the one a studio switching from email actually needs on day
+            one — they already have a mailbox full of inquiries. */}
+        <InquiryForwardingAddress />
 
         <section className="setup-aside">
           <div>

@@ -17753,6 +17753,39 @@ label {
   }
 }
 
+/* The same address in Studio settings, where it is read rather than glanced
+   at: the explanation leads, the address is the object, and the copy button
+   sits under it instead of beside it. */
+.settings-block {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  max-width: 62ch;
+}
+.settings-block > p {
+  color: var(--ink);
+  font-size: 14.5px;
+  line-height: 1.55;
+  margin: 0;
+}
+.settings-block > small {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.inquiry-forwarding-address {
+  background: var(--ds-paper-sunken, var(--surface-muted, #f4f6f4));
+  border: 1px solid var(--ds-line, var(--line));
+  border-radius: 10px;
+  padding: 10px 12px;
+  width: 100%;
+}
+.inquiry-forwarding-address code {
+  color: var(--ink);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
 /* ------------------------------------------------------------------------
    Importing bookings a studio already has.
    A long form read top to bottom on a phone and in two columns on a desk;

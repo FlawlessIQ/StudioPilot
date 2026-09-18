@@ -9,6 +9,7 @@ import {
   ChevronRight,
   CreditCard,
   Database,
+  Forward,
   LayoutTemplate,
   Palette,
   Plug,
@@ -21,6 +22,7 @@ import {
 import { EmailTemplateDesigner } from "@/components/communications/email-template-designer";
 import { LifecyclePackPanel } from "@/components/communications/lifecycle-pack-panel";
 import { ConsultationAvailability } from "@/components/settings/consultation-availability";
+import { InquiryForwardingSettings } from "@/components/crm/inquiry-forwarding-address";
 import { DataControls } from "@/components/settings/data-controls";
 import { EmailBranding } from "@/components/settings/email-branding";
 import { SettingsDestinations } from "@/components/settings/settings-destinations";
@@ -58,6 +60,7 @@ type SectionKey =
   | "availability"
   | "templates"
   | "drafts"
+  | "forwarding"
   | "data";
 
 const SECTION_COMPONENT: Record<SectionKey, ComponentType> = {
@@ -66,6 +69,7 @@ const SECTION_COMPONENT: Record<SectionKey, ComponentType> = {
   availability: ConsultationAvailability,
   templates: EmailTemplateDesigner,
   drafts: LifecyclePackPanel,
+  forwarding: InquiryForwardingSettings,
   data: DataControls,
 };
 
@@ -128,6 +132,13 @@ const GROUPS: Array<{ label: string; items: HubItem[] }> = [
         icon: Sparkles,
         title: "Automatic drafts",
         subtitle: "Which lifecycle emails are drafted for you",
+      },
+      {
+        kind: "section",
+        key: "forwarding",
+        icon: Forward,
+        title: "Inquiry forwarding",
+        subtitle: "Turn emailed inquiries into inquiries here",
       },
     ],
   },

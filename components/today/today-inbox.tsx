@@ -20,6 +20,7 @@ import { countdownPhrase } from "@/lib/format/event-date";
 import { formatCents } from "@/lib/format/money";
 import { AppShell } from "@/components/layout/app-shell";
 import { useTodayInbox } from "@/components/today/use-today-inbox";
+import { InquiryForwardingAddress } from "@/components/crm/inquiry-forwarding-address";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { greetingFor } from "@/features/dashboard/home-metrics";
 import { greetingName } from "@/features/auth/session-failure";
@@ -437,7 +438,8 @@ export function TodayInbox() {
                 <small>
                   {setup.answered}{" "} of 4 answered — your prices, your agreement,
                   your details form, and when you take consultations. Your
-                  inquiry form is already live either way.
+                  inquiry form is already live either way, and you can forward
+                  inquiries you already have from anywhere.
                 </small>
               </div>
               <Link
@@ -450,6 +452,12 @@ export function TodayInbox() {
               </Link>
             </section>
           ) : null}
+          {/* While no inquiry has ever reached StudioCue, the most useful thing
+              Today can do is show the way in. A studio moving over from email
+              has a mailbox full of them and, until now, no route to the
+              forwarding address at all — it lived only on /studio/leads, which
+              has no nav entry and which they had no reason to visit. */}
+          {!loading && setup.noInquiriesEver ? <InquiryForwardingAddress /> : null}
           {!loading && waiting === 0 ? (
             <section className="today-clear">
               <span className="today-clear-icon">

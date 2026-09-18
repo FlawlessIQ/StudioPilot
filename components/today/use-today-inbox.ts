@@ -39,7 +39,12 @@ export function useTodayInbox(): {
   inbox: TodayInbox;
   metrics: HomeMetrics;
   /** Setup progress, and whether this studio has any work at all yet. */
-  setup: { complete: boolean; answered: number; brandNew: boolean };
+  setup: {
+    complete: boolean;
+    answered: number;
+    brandNew: boolean;
+    noInquiriesEver: boolean;
+  };
   /** Value of work actually won — see bookedValueCents. */
   booked: number;
   handled: number;
@@ -272,6 +277,14 @@ export function useTodayInbox(): {
       brandNew:
         (projects.records ?? []).length === 0 &&
         (leads.records ?? []).length === 0,
+      /**
+       * No inquiry has ever reached StudioCue — by form or by forwarding.
+       *
+       * Not "none open": a studio that converted its only inquiry still has a
+       * mailbox full of them, and is still one who has never been told the
+       * forwarding address exists. This is the moment to say so.
+       */
+      noInquiriesEver: (leads.records ?? []).length === 0,
     },
     // The studio's pulse, from the same engine the old dashboard used.
     metrics: homeMetrics({
