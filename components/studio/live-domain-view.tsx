@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
+  jobIsOver,
   taskMomentHasGone,
   workStillMatters,
 } from "@/features/projects/job-moment";
@@ -1096,7 +1097,13 @@ export function ProjectContextBar({ projectId }: { projectId: string }) {
    * in live-project-detail.tsx); the bar did not.
    */
   const readiness = readinessView.percent;
-  const readinessTracked = readinessView.tracked;
+  /**
+   * Readiness is about being ready for the day, so it stops meaning anything
+   * once the day is behind the job and its records are closed. A delivered,
+   * closed wedding wore "38% ready" in this header — a number that can only
+   * read as alarm about work nobody will ever do.
+   */
+  const readinessTracked = readinessView.tracked && !jobIsOver(state);
   const eventDate = project?.eventDate;
   const proximity = describeEventProximity(eventDate);
   const passed = eventDateHasPassed(eventDate);

@@ -3,6 +3,7 @@ import Busboy from "busboy";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest, type Request } from "firebase-functions/v2/https";
 import { productEvent } from "../operations/product-events.js";
+import { calendarDate } from "../operations/calendar-date.js";
 import { galleryEvidenceUpdates } from "./gallery-evidence.js";
 
 type InboundFields = Record<string, string>;
@@ -111,16 +112,16 @@ export function parseInboundGalleryAnnouncement(source: string) {
       ? "pic_time"
       : hostname.includes("shootproof") ? "shootproof" : "manual";
   const accessCode = first(source, ACCESS_CODE_PATTERNS);
+  /**
+   * How long they have to download, however the provider said it. Digits-only
+   * patterns missed "Downloads expire: 20 December 2026" and "available until
+   * December 20, 2026", which is how these notices are actually written;
+   * `calendarDate` reads written months.
+   */
   const expiration = first(source, [
-    /(?:expires?|expiration(?: date)?)\s*(?::|on)?\s*(\d{4}-\d{2}-\d{2})/i,
-    /(?:expires?|expiration(?: date)?)\s*(?::|on)?\s*(\d{1,2}\/\d{1,2}\/\d{4})/i,
+    /(?:expires?|expiration(?: date)?|available until|download(?:s|ing)? (?:until|through|by))\s*(?::|on)?\s*([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4}|[0-9]{1,2}\s+[A-Za-z]+,?\s+[0-9]{4}|[A-Za-z]+\s+[0-9]{1,2},?\s+[0-9]{4})/i,
   ]);
-  const expirationDate = expiration.includes("/")
-    ? (() => {
-        const [month, day, year] = expiration.split("/");
-        return `${year}-${month?.padStart(2, "0")}-${day?.padStart(2, "0")}`;
-      })()
-    : expiration;
+  const expirationDate = calendarDate(expiration) ?? "";
   return { provider, galleryUrl: normalizedUrl, accessCode, expirationDate };
 }
 

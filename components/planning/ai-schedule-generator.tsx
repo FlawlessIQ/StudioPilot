@@ -25,6 +25,7 @@ import {
   nextItemStart,
   seededManualSchedule,
 } from "@/features/planning/manual-run-of-show";
+import { liveProjects } from "@/features/projects/put-away";
 
 type ScheduleItem = {
   id: string;
@@ -691,7 +692,7 @@ export function AiScheduleGenerator({
               onChange={(event) => setProjectId(event.target.value)}
             >
               <option value="">{loading ? "Loading projects…" : "Select a project"}</option>
-              {projects?.map((project) => <option key={project.id} value={project.id}>{String(project.name)}</option>)}
+              {liveProjects(projects).map((project) => <option key={project.id} value={project.id}>{String(project.name)}</option>)}
             </select>
           </label>
           <label>

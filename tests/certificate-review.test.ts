@@ -94,10 +94,13 @@ test("the extractor compares like with like", () => {
 test("features/ and functions/ read certificates identically", () => {
   assert.equal(
     readFileSync("functions/src/operations/certificate-review.ts", "utf8"),
-    readFileSync("features/insurance/certificate-review.ts", "utf8").replace(
-      "Duplicated at functions/src/operations/certificate-review.ts, which the",
-      "Duplicated from features/insurance/certificate-review.ts, used by the",
-    ),
+    readFileSync("features/insurance/certificate-review.ts", "utf8")
+      .replace(
+        "Duplicated at functions/src/operations/certificate-review.ts, which the",
+        "Duplicated from features/insurance/certificate-review.ts, used by the",
+      )
+      // The only other difference is how each side spells the same import.
+      .replace('from "../format/calendar-date"', 'from "./calendar-date.js"'),
   );
 });
 

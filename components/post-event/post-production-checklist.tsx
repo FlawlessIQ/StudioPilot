@@ -43,6 +43,7 @@ export function PostProductionChecklist({
     "postProductionRecords",
   );
   const { records: galleryInboxes } = useTenantDocuments("galleryInboxes");
+  const { records: projects } = useTenantDocuments("projects");
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -63,18 +64,31 @@ export function PostProductionChecklist({
    * was not on the screen. Say why it is not here yet.
    */
   if (!production) {
+    /**
+     * "Opens after the event" names the wrong condition.
+     *
+     * The record is opened when the job reaches POST_PRODUCTION, and a job
+     * that has been shot is not there yet — it gets there when the studio
+     * confirms editing has started. So a studio who had marked the wedding
+     * shot was told to wait for an event that was three weeks behind them,
+     * with the thing that would actually open this sitting on the job page.
+     */
+    const state = String(
+      (projects ?? []).find((item) => item.id === projectId)?.state ?? "",
+    );
+    const shot = ["SHOT", "POST_PRODUCTION"].includes(state);
     return (
       <section className="panel post-production-pending">
         <div className="panel-heading">
           <div>
             <p className="eyebrow">Post-production</p>
-            <h2>Opens after the event</h2>
+            <h2>{shot ? "Opens once editing starts" : "Opens after the event"}</h2>
           </div>
         </div>
         <p>
-          The backup, editing and gallery-ready checks appear here once the
-          event has been covered. The gallery can be released after all three
-          are ticked.
+          {shot
+            ? "The backup, editing and gallery-ready checks appear here as soon as you confirm editing has started on this job. The gallery can be released after all three are ticked."
+            : "The backup, editing and gallery-ready checks appear here once the event has been covered. The gallery can be released after all three are ticked."}
         </p>
       </section>
     );

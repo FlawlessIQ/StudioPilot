@@ -89,3 +89,57 @@ export function outstandingCloseoutLabels(
     .filter((requirement) => !requirementIsSatisfied(requirement))
     .map((requirement) => requirement.label || requirement.key);
 }
+
+/**
+ * Why a requirement is still open, when the answer is "nothing yet, by design".
+ *
+ * Minutes after releasing a gallery, a studio was shown "Gallery delivered and
+ * accessed" and "Review request sent" as outstanding, each with a "Mark as
+ * done" button and no explanation. Both were correct and neither was theirs to
+ * do: the review asks are scheduled for three and ten days out, and the
+ * delivery clears when the couple confirms the download. The only route the
+ * screen offered was to vouch for something that had not happened.
+ *
+ * So say what it is waiting for. The button stays — a couple who never clicks
+ * is exactly why it exists — but it stops being the only thing on the row.
+ */
+export type CloseoutPendingContext = {
+  /** Earliest review ask not yet sent, and where it goes. */
+  reviewScheduledAt?: string | null;
+  reviewChannel?: string | null;
+  /** When the gallery went out, if it has. */
+  deliverySentAt?: string | null;
+  /** The album workflow's status, if this job has one. */
+  albumStatus?: string | null;
+};
+
+const shortDate = (value: string): string => {
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+  }).format(date);
+};
+
+export function closeoutPendingNote(
+  key: string,
+  context: CloseoutPendingContext,
+  formatDate: (value: string) => string = shortDate,
+): string | null {
+  if (key === "delivery" && context.deliverySentAt) {
+    const sent = formatDate(context.deliverySentAt);
+    return `The gallery went out${sent ? ` on ${sent}` : ""}. This settles itself once they open it and confirm the download in their portal.`;
+  }
+  if (key === "review_request" && context.reviewScheduledAt) {
+    const due = formatDate(context.reviewScheduledAt);
+    const where =
+      context.reviewChannel === "portal" ? "in their portal" : "by email";
+    return due
+      ? `Nothing to do yet — the first ask goes out ${where} on ${due}.`
+      : `Nothing to do yet — the first ask is scheduled ${where}.`;
+  }
+  if (key === "album" && context.albumStatus === "instructions_available")
+    return "Waiting on their album selections. Reminders go out a week and a fortnight after delivery.";
+  return null;
+}

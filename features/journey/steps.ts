@@ -394,6 +394,19 @@ export function projectJourney(input: JourneyInput): {
   // lifecycle, with the only remaining action being "Schedule consultation" for
   // a consultation that had already happened.
   const consulted = input.hasConsultation || stateRank >= 1;
+  /**
+   * An enquiry whose date has already gone by.
+   *
+   * Reconciliation deliberately ignores these — an old date on an unbooked
+   * enquiry is a stale enquiry, not an unrecorded wedding (see
+   * features/projects/job-moment.ts). But the journey then went on offering
+   * "Schedule consultation · Find a time that works" as the next move on a
+   * wedding twenty days past, which reads as though nobody had looked at the
+   * date. Later states handle this well ("Did this go ahead? The date passed
+   * 20 days ago"); this is the same courtesy, earlier, without pretending the
+   * enquiry is a job.
+   */
+  const enquiryDatePassed = !consulted && afterEvent;
   push({
     key: "consultation",
     title: "Consultation",
@@ -403,7 +416,9 @@ export function projectJourney(input: JourneyInput): {
       ? "Meeting booked"
       : consulted
         ? "Marked done — no meeting was recorded"
-        : "Find a time that works",
+        : enquiryDatePassed
+          ? `Their date passed ${Math.abs(days ?? 0)} days ago — worth closing this off unless it moved`
+          : "Find a time that works",
     status: consulted ? "complete" : "current",
     action: consulted
       ? null

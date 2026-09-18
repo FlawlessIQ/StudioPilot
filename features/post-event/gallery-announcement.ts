@@ -1,3 +1,5 @@
+import { calendarDate } from "../format/calendar-date";
+
 export type GalleryAnnouncement = {
   provider: "manual" | "pixieset" | "pic_time" | "shootproof";
   galleryUrl: string;
@@ -81,16 +83,19 @@ export function parseGalleryAnnouncement(source: string): GalleryAnnouncement {
         ? "shootproof"
         : "manual";
   const accessCode = firstMatch(source, ACCESS_CODE_PATTERNS);
+  /**
+   * How long they have to download, however the provider said it.
+   *
+   * These patterns once matched digits only, so "Downloads expire: 20 December
+   * 2026" and "available until December 20, 2026" — the wordings Pixieset and
+   * Pic-Time actually use — both yielded nothing, and the form left the field
+   * blank under a panel promising the expiration had been extracted. The date
+   * itself is read by `calendarDate`, which knows written months.
+   */
   const expirationDate = firstMatch(source, [
-    /(?:expires?|expiration(?: date)?)\s*(?::|on)?\s*(\d{4}-\d{2}-\d{2})/i,
-    /(?:expires?|expiration(?: date)?)\s*(?::|on)?\s*(\d{1,2}\/\d{1,2}\/\d{4})/i,
+    /(?:expires?|expiration(?: date)?|available until|download(?:s|ing)? (?:until|through|by))\s*(?::|on)?\s*([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4}|[0-9]{1,2}\s+[A-Za-z]+,?\s+[0-9]{4}|[A-Za-z]+\s+[0-9]{1,2},?\s+[0-9]{4})/i,
   ]);
-  const normalizedExpiration = expirationDate.includes("/")
-    ? (() => {
-        const [month, day, year] = expirationDate.split("/");
-        return `${year}-${month?.padStart(2, "0")}-${day?.padStart(2, "0")}`;
-      })()
-    : expirationDate;
+  const normalizedExpiration = calendarDate(expirationDate) ?? "";
 
   return {
     provider,

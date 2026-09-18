@@ -2,8 +2,12 @@
 
 import { type FormEvent, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Images, ScanText, Send, Sparkles } from "lucide-react";
-import { useTenantDocuments } from "@/components/live/tenant-records";
+import {
+  refreshTenantRecords,
+  useTenantDocuments,
+} from "@/components/live/tenant-records";
 import { splitUpcomingAndPast } from "@/features/ordering/attention";
+import { liveProjects } from "@/features/projects/put-away";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { requestMessageDraft } from "@/lib/ai/message-draft-client";
 import { sendPostEventCommand } from "@/lib/post-event/command-client";
@@ -13,7 +17,8 @@ import {
   DELIVERY_GATE_STEPS,
   POST_PRODUCTION_META,
 } from "@/features/post-production/checklist";
-import { addCalendarDays, todayLocalIso } from "@/lib/format/event-date";
+import { addCalendarDays, formatEventDate, todayLocalIso } from "@/lib/format/event-date";
+import { statusLabel } from "@/features/format/status-label";
 import { friendlyError } from "@/lib/ai/friendly-error";
 
 const record = (value: unknown): Record<string, unknown> =>
@@ -38,7 +43,9 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
   const { records: projects, loading } = useTenantDocuments("projects");
   // Past events first (most recent first), then anything still ahead.
   const deliverableFirst = useMemo(() => {
-    const split = splitUpcomingAndPast(projects ?? [], (p) => p.eventDate);
+    // Archived jobs are not deliverable. This dropdown chooses whose
+    // photographs go out, and it was offering five put-away weddings.
+    const split = splitUpcomingAndPast(liveProjects(projects), (p) => p.eventDate);
     return [...split.past, ...split.upcoming];
   }, [projects]);
   const { records: tenants } = useTenantDocuments("tenants");
@@ -46,6 +53,7 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
     useTenantDocuments("packageSnapshots");
   const { records: galleryInboxes } = useTenantDocuments("galleryInboxes");
   const { records: deliveryDrafts } = useTenantDocuments("deliveryDrafts");
+  const { records: deliveryRecords } = useTenantDocuments("deliveryRecords");
   const { records: productionRecords } = useTenantDocuments(
     "postProductionRecords",
   );
@@ -102,27 +110,35 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
     return DELIVERY_GATE_STEPS.filter((key) => steps[key]?.complete !== true);
   })();
   const gateBlocked = !postProductionOpen || outstandingGateSteps.length > 0;
-  const [provider, setProvider] = useState("manual");
-  const [galleryUrl, setGalleryUrl] = useState("");
-  const [accessCode, setAccessCode] = useState("");
+  /**
+   * Each field is `null` until the studio touches it, and then it is theirs.
+   * The rendered value falls back to the records — see the derivation below.
+   */
+  const [providerEdit, setProvider] = useState<string | null>(null);
+  const [galleryUrlEdit, setGalleryUrl] = useState<string | null>(null);
+  const [accessCodeEdit, setAccessCode] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
-  const [expirationDate, setExpirationDate] = useState("");
-  const [reviewDestinationLabel, setReviewDestinationLabel] =
-    useState("google");
-  const [reviewDestinationUrl, setReviewDestinationUrl] = useState("");
+  const [expirationDateEdit, setExpirationDate] = useState<string | null>(null);
+  const [reviewDestinationLabelEdit, setReviewDestinationLabel] = useState<
+    string | null
+  >(null);
+  const [reviewDestinationUrlEdit, setReviewDestinationUrl] = useState<
+    string | null
+  >(null);
   // The review-URL and other release fields live in a collapsed <details>. A
   // required field inside a closed <details> makes the browser block submit
   // with no visible bubble — "Record and release delivery" looked like a dead
   // button (audit-2 N6). Controlling the section lets us pop it open the moment
   // native validation flags a hidden field, so the studio sees what is missing.
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [albumIncluded, setAlbumIncluded] = useState(false);
-  const [albumInstructionsUrl, setAlbumInstructionsUrl] = useState("");
-  const [studioDefaultsHydrated, setStudioDefaultsHydrated] = useState(false);
-  const [projectDefaultsHydrated, setProjectDefaultsHydrated] = useState("");
+  const [albumIncludedEdit, setAlbumIncluded] = useState<boolean | null>(null);
+  const [albumInstructionsUrlEdit, setAlbumInstructionsUrl] = useState<
+    string | null
+  >(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
-  const [draftHydrated, setDraftHydrated] = useState("");
+  /** Set when the studio deliberately opens the form on an already-delivered job. */
+  const [rereleasing, setRereleasing] = useState(false);
+  const [busy, setBusy] = useState(false);
   const tenant =
     tenants?.find((candidate) => candidate.id === workspace.tenantId) ??
     tenants?.[0];
@@ -131,6 +147,11 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
   const galleryInbox = galleryInboxes?.find(
     (item) => item.projectId === selectedProjectId,
   );
+  const releasedDelivery = (deliveryRecords ?? [])
+    .filter((item) => item.projectId === selectedProjectId)
+    .sort((left, right) =>
+      text(right.sentAt).localeCompare(text(left.sentAt)),
+    )[0];
 
   /**
    * The form is inert until the client has hydrated, so a submit cannot happen
@@ -141,90 +162,65 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
    * cmd-clicked from Today, or restored with a session — showed a permanently
    * disabled "Record and release delivery" with nothing saying why, until the
    * tab was focused. The same rAF pattern was removed from the event-day
-   * copilot for the same reason; this was the other one.
+   * copilot for the same reason.
+   *
+   * It was NOT removed from the three hydration effects below this one, which
+   * is what that sentence used to claim. So in a background tab a studio also
+   * lost their saved provider, expiration and review link; lost the prefill
+   * from a gallery notice they had forwarded, AND the notice saying it had
+   * arrived, so they concluded nothing had and retyped it; and lost the
+   * album-included flag read from the accepted package, which meant no album
+   * workflow and no selection reminders were created at all. Every one of
+   * those failed silently. They are plain effect bodies now.
    *
    * An effect with no dependencies runs on mount whether or not the tab is
    * visible, which is exactly the signal wanted here.
    */
-  useEffect(() => {
-    if (!tenant || studioDefaultsHydrated) return;
-    const preferredReview = [
-      ["google", reviewLinks.google],
-      ["weddingwire", reviewLinks.weddingwire],
-      ["the_knot", reviewLinks.theKnot],
-      ["facebook", reviewLinks.facebook],
-      ["custom", reviewLinks.custom],
-    ].find(([, value]) => text(value));
-    const expirationDays = Number(deliveryDefaults.galleryExpirationDays ?? 90);
-    const frame = requestAnimationFrame(() => {
-      if (preferredReview) {
-        setReviewDestinationLabel(String(preferredReview[0]));
-        setReviewDestinationUrl(text(preferredReview[1]));
-      }
-      setProvider(text(deliveryDefaults.galleryProvider) || "manual");
-      setExpirationDate(
-        dateFromToday(
-          Number.isFinite(expirationDays) && expirationDays >= 0
-            ? expirationDays
-            : 90,
-        ),
-      );
-      setAlbumInstructionsUrl(
-        text(deliveryDefaults.albumInstructionsUrl),
-      );
-      setStudioDefaultsHydrated(true);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [
-    deliveryDefaults,
-    reviewLinks,
-    studioDefaultsHydrated,
-    tenant,
-  ]);
-
-  useEffect(() => {
-    if (!selectedProjectId || !deliveryDrafts || draftHydrated === selectedProjectId)
-      return;
-    const draft = [...deliveryDrafts]
-      .filter(
-        (item) =>
-          item.projectId === selectedProjectId &&
-          item.status === "review_required",
-      )
-      .sort((left, right) =>
-        String(right.receivedAt ?? right.createdAt ?? "").localeCompare(
-          String(left.receivedAt ?? left.createdAt ?? ""),
-        ),
-      )[0];
-    const frame = requestAnimationFrame(() => {
-      if (draft) {
-        setActiveDraftId(draft.id);
-        setProvider(text(draft.provider) || "manual");
-        setGalleryUrl(text(draft.galleryUrl));
-        setAccessCode(text(draft.accessCode));
-        if (text(draft.expirationDate)) setExpirationDate(text(draft.expirationDate));
-        setNotice("StudioCue received the gallery provider notice and prepared these release details for approval.");
-      } else {
-        setActiveDraftId(null);
-      }
-      setDraftHydrated(selectedProjectId);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [deliveryDrafts, draftHydrated, selectedProjectId]);
-
-  useEffect(() => {
-    if (
-      !selectedProjectId ||
-      !projects ||
-      !packageSnapshots ||
-      projectDefaultsHydrated === selectedProjectId
-    ) {
-      return;
-    }
-    const project = projects.find(
+  /**
+   * The defaults are derived, not copied into state.
+   *
+   * Three effects used to push the studio's saved defaults, a forwarded
+   * gallery draft and the album flag into state — each wrapped in a
+   * `requestAnimationFrame` to dodge the "no setState in an effect" rule. In a
+   * background tab Chrome runs no animation frames, so every one of them
+   * silently did nothing: no saved provider, expiration or review link; no
+   * prefill from a notice the studio had forwarded AND no notice saying it had
+   * arrived, so they concluded nothing had and retyped it; and `albumIncluded`
+   * stuck at false even for a package that includes an album, which meant no
+   * album workflow and no selection reminders were created at all.
+   *
+   * Reading them during render is the fix for both problems at once: there is
+   * no frame to miss and no effect to lint. Each field is what the studio
+   * typed, or — until they type — what the records say it should be. Same
+   * shape as the agreed retainer date and the crew offer window.
+   */
+  const preferredReview = [
+    ["google", reviewLinks.google],
+    ["weddingwire", reviewLinks.weddingwire],
+    ["the_knot", reviewLinks.theKnot],
+    ["facebook", reviewLinks.facebook],
+    ["custom", reviewLinks.custom],
+  ].find(([, value]) => text(value));
+  const defaultExpirationDays = Number(
+    deliveryDefaults.galleryExpirationDays ?? 90,
+  );
+  const galleryDraft = [...(deliveryDrafts ?? [])]
+    .filter(
+      (item) =>
+        item.projectId === selectedProjectId &&
+        item.status === "review_required",
+    )
+    .sort((left, right) =>
+      String(right.receivedAt ?? right.createdAt ?? "").localeCompare(
+        String(left.receivedAt ?? left.createdAt ?? ""),
+      ),
+    )[0];
+  const activeDraftId = galleryDraft ? String(galleryDraft.id) : null;
+  const albumInPackage = (() => {
+    const project = (projects ?? []).find(
       (candidate) => candidate.id === selectedProjectId,
     );
-    const snapshot = packageSnapshots.find(
+    const snapshot = (packageSnapshots ?? []).find(
       (candidate) =>
         candidate.id === project?.packageSnapshotId ||
         candidate.projectId === selectedProjectId,
@@ -232,19 +228,51 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
     const deliverables = Array.isArray(snapshot?.includedDeliverables)
       ? snapshot.includedDeliverables.map(String)
       : [];
-    const frame = requestAnimationFrame(() => {
-      setAlbumIncluded(
-        deliverables.some((deliverable) => /album/i.test(deliverable)),
-      );
-      setProjectDefaultsHydrated(selectedProjectId);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [
-    packageSnapshots,
-    projectDefaultsHydrated,
-    projects,
-    selectedProjectId,
-  ]);
+    return deliverables.some((deliverable) => /album/i.test(deliverable));
+  })();
+
+  const provider =
+    providerEdit ??
+    (text(galleryDraft?.provider) ||
+      text(deliveryDefaults.galleryProvider) ||
+      "manual");
+  const galleryUrl = galleryUrlEdit ?? text(galleryDraft?.galleryUrl);
+  const accessCode = accessCodeEdit ?? text(galleryDraft?.accessCode);
+  const expirationDate =
+    expirationDateEdit ??
+    (text(galleryDraft?.expirationDate) ||
+      dateFromToday(
+        Number.isFinite(defaultExpirationDays) && defaultExpirationDays >= 0
+          ? defaultExpirationDays
+          : 90,
+      ));
+  const reviewDestinationLabel =
+    reviewDestinationLabelEdit ??
+    (preferredReview ? String(preferredReview[0]) : "google");
+  const reviewDestinationUrl =
+    reviewDestinationUrlEdit ??
+    (preferredReview ? text(preferredReview[1]) : "");
+  const albumIncluded = albumIncludedEdit ?? albumInPackage;
+  const albumInstructionsUrl =
+    albumInstructionsUrlEdit ?? text(deliveryDefaults.albumInstructionsUrl);
+
+  async function markDownloaded() {
+    if (!releasedDelivery) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      await sendPostEventCommand("markDeliveryDownloaded", {
+        projectId: selectedProjectId,
+        deliveryRecordId: String(releasedDelivery.id),
+      });
+      refreshTenantRecords("deliveryRecords", "projectCloseouts");
+      setNotice("Recorded. The closeout no longer waits on the gallery.");
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "That could not be recorded."));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -357,6 +385,74 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
       </label>
       {selectedProjectId ? (
       <>
+      {/**
+        * A delivery already went out for this job.
+        *
+        * The page went on presenting a blank "Record gallery" form as its main
+        * event for a job that was already delivered — same project, ready to
+        * release a second time — while the delivery that existed was a line of
+        * text at the very bottom of the page under "Delivery records". Say it
+        * here, first, and let the studio open the form deliberately if they
+        * really are re-releasing.
+        */}
+      {releasedDelivery ? (
+        <section className="delivery-already-released form-span">
+          <div>
+            <Images aria-hidden="true" />
+            <span>
+              <strong>
+                This gallery went out{" "}
+                {text(releasedDelivery.deliveryDate)
+                  ? formatEventDate(text(releasedDelivery.deliveryDate))
+                  : "already"}
+              </strong>
+              <small>
+                {text(releasedDelivery.galleryUrl)
+                  ? `${text(releasedDelivery.provider) === "manual" ? "Gallery" : statusLabel(text(releasedDelivery.provider))} · ${text(releasedDelivery.galleryUrl)}`
+                  : "The couple have their gallery."}
+                {text(releasedDelivery.expirationDate)
+                  ? ` · downloads until ${formatEventDate(text(releasedDelivery.expirationDate))}`
+                  : ""}
+              </small>
+            </span>
+          </div>
+          <div className="delivery-already-released-actions">
+            {/**
+              * The one control that closes the loop.
+              *
+              * `markDeliveryDownloaded` existed server-side and only the client
+              * portal ever called it, so a couple who downloaded their
+              * photographs and said so by text left the closeout requirement
+              * "Gallery delivered and accessed" open with no way through but a
+              * free-text attestation. A studio knows when their couple has the
+              * photographs; let them say it here.
+              */}
+            {text(releasedDelivery.status) === "downloaded" ? (
+              <span className="delivery-downloaded-confirmed">
+                They have downloaded it
+              </span>
+            ) : (
+              <button
+                className="button button-secondary"
+                disabled={busy}
+                onClick={() => void markDownloaded()}
+                type="button"
+              >
+                They have downloaded it
+              </button>
+            )}
+            <button
+              className="button button-quiet"
+              onClick={() => setRereleasing((value) => !value)}
+              type="button"
+            >
+              {rereleasing ? "Never mind" : "Release another gallery"}
+            </button>
+          </div>
+        </section>
+      ) : null}
+      {releasedDelivery && !rereleasing ? null : (
+      <>
       {galleryInbox?.inboundAddress ? (
         <section className="delivery-announcement-import form-span">
           <div>
@@ -371,9 +467,13 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
           <code>{text(galleryInbox.inboundAddress)}</code>
         </section>
       ) : null}
+      {/* Derived, not set in an effect: this line and the prefill beneath it
+          are the whole point of forwarding a provider notice, and both used to
+          vanish in a background tab. */}
       {activeDraftId ? (
-        <p className="form-notice form-span">
-          Provider notice captured automatically · Review and release once below.
+        <p className="form-notice form-span" role="status">
+          StudioCue received the gallery provider notice and prepared these
+          release details for approval. Check them and release.
         </p>
       ) : null}
       <section className="delivery-announcement-import form-span">
@@ -564,6 +664,8 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
         Nothing claims a review was posted without confirmation.
       </p>
       {notice ? <p className="form-notice" role="status">{notice}</p> : null}
+      </>
+      )}
       </>
       ) : (
         <section className="delivery-project-empty form-span">

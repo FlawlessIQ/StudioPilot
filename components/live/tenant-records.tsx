@@ -42,6 +42,7 @@ import { stateTone } from "@/lib/status-tone";
 import { projectStateLabel } from "@/features/projects/state-label";
 import { PhaseTrack } from "@/components/projects/phase-track";
 import { compareJobsForList } from "@/features/projects/job-order";
+import { isPutAway, liveProjects } from "@/features/projects/put-away";
 import { formatCents } from "@/lib/format/money";
 import { useTodayInbox } from "@/components/today/use-today-inbox";
 import { ReadinessMeter } from "@/components/ui/readiness-meter";
@@ -101,6 +102,8 @@ const projectScopedCollections = new Set([
   "bookingOrchestrations",
   "galleryInboxes",
   "deliveryDrafts",
+  "deliveryRecords",
+  "reviewRequests",
 ]);
 
 function tenantRecordsKey(
@@ -220,14 +223,21 @@ async function cachedTenantDocuments(
       }) as Promise<TenantDocument[]>;
     })
     .then((records) => {
-      tenantRecordsCache.set(key, {
-        records,
-        expiresAt: Date.now() + tenantRecordsCacheTtlMs,
-      });
+      // Not if a refresh has since dropped this read: these records predate the
+      // write that triggered the refresh, and caching them would put the stale
+      // answer back where the next reader finds it.
+      if (tenantRecordsRequests.get(key) === request)
+        tenantRecordsCache.set(key, {
+          records,
+          expiresAt: Date.now() + tenantRecordsCacheTtlMs,
+        });
       return records;
     })
     .finally(() => {
-      tenantRecordsRequests.delete(key);
+      // Only if it is still ours: a refresh may have dropped this entry and a
+      // newer read may already be registered under the same key.
+      if (tenantRecordsRequests.get(key) === request)
+        tenantRecordsRequests.delete(key);
     });
   tenantRecordsRequests.set(key, request);
   return request;
@@ -266,11 +276,36 @@ export function useTenantRecordsGeneration(): number {
 }
 
 export function refreshTenantRecords(...collectionNames: string[]): void {
+  const stale = (key: string) =>
+    collectionNames.length === 0 ||
+    collectionNames.some((name) => key.startsWith(`${name}:`));
   if (collectionNames.length === 0) tenantRecordsCache.clear();
   else
     for (const key of [...tenantRecordsCache.keys()])
-      if (collectionNames.some((name) => key.startsWith(`${name}:`)))
-        tenantRecordsCache.delete(key);
+      if (stale(key)) tenantRecordsCache.delete(key);
+  /**
+   * Drop the in-flight reads too, not just the cached answers.
+   *
+   * `cachedTenantDocuments` shares one request per key so a page reading a
+   * dozen collections issues a dozen requests, not a hundred. But a read that
+   * is already in flight was started BEFORE the write we are refreshing for,
+   * and sharing it hands that pre-write answer to the refresh whose whole
+   * purpose is to see the write.
+   *
+   * Two commands in a row is all it took: recording a closeout attestation
+   * refreshed (starting a read), then reconciled, then refreshed again — and
+   * the second refresh was served the first read. The panel sat at "6 of 8 are
+   * settled" with the row still listed, while the reconcile line beside it,
+   * which came from the command's own response, already knew there were seven.
+   * Two contradicting counts on one panel, correct again only after a manual
+   * reload. Every "refresh after an action" in the app shares this path.
+   *
+   * Forgetting the promise does not cancel it; whoever is awaiting it still
+   * gets their answer, and its `finally` only clears the entry if it is still
+   * the one registered.
+   */
+  for (const key of [...tenantRecordsRequests.keys()])
+    if (stale(key)) tenantRecordsRequests.delete(key);
   tenantRecordsGeneration += 1;
   for (const listener of tenantRecordsListeners) listener();
 }
@@ -421,7 +456,9 @@ export function LiveClientCards({
     );
   const projects = useMemo<ClientInviteProjectOption[]>(
     () =>
-      (projectRecords ?? [])
+      // `state !== "ARCHIVED"` missed every job put away by `archivedAt`,
+      // which is how the rest of the product archives. One predicate now.
+      liveProjects(projectRecords ?? [])
         .map((project) => ({
           id: project.id,
           name: String(project.name ?? "Untitled project"),
@@ -429,7 +466,6 @@ export function LiveClientCards({
             typeof project.eventDate === "string" ? project.eventDate : null,
           state: String(project.state ?? ""),
         }))
-        .filter((project) => project.state !== "ARCHIVED")
         .sort((left, right) =>
           String(left.eventDate ?? "").localeCompare(
             String(right.eventDate ?? ""),
@@ -734,11 +770,9 @@ export function LiveProjectRows({
         // domain view all read the field). Reading only the state meant a job
         // archived anywhere else stayed on this page for ever, and the
         // Archived tab never showed it.
-        .filter((item) => {
-          const putAway =
-            item.state === "ARCHIVED" || Boolean(item.archivedAt);
-          return view === "archived" ? putAway : !putAway;
-        })
+        .filter((item) =>
+          view === "archived" ? isPutAway(item) : !isPutAway(item),
+        )
         .filter(
           (item) =>
             type === "all" || String(item.eventType).toLowerCase() === type,

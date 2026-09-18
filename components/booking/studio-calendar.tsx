@@ -44,6 +44,7 @@ import {
 import { useTenantDocuments, type TenantDocument } from "@/components/live/tenant-records";
 import { demoTenantDocuments } from "@/features/live/demo-records";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { liveProjects } from "@/features/projects/put-away";
 
 type SettingsShape = Pick<
   ConsultationSettings,
@@ -945,7 +946,7 @@ function BookSlotForm({
           }}
         >
           <option value="">{loading ? "Loading projects…" : "Select a project"}</option>
-          {projects?.map((project) => (
+          {liveProjects(projects).map((project) => (
             <option value={project.id} key={project.id}>
               {String(project.name)}
             </option>

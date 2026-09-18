@@ -20,48 +20,16 @@
  * extraction worker uses; tests/certificate-review.test.ts keeps them equal.
  */
 
+import { calendarDate, sameCalendarDate } from "./calendar-date.js";
+
+export { calendarDate, sameCalendarDate };
+
 export type Discrepancy = {
   field: string;
   expected: string;
   extracted: string;
   severity: "info" | "warning" | "blocking";
 };
-
-const MONTHS = [
-  "january", "february", "march", "april", "may", "june",
-  "july", "august", "september", "october", "november", "december",
-];
-
-/** A date as YYYY-MM-DD, however it was written, or null if it isn't one. */
-export function calendarDate(value: unknown): string | null {
-  const text = String(value ?? "").trim();
-  if (!text) return null;
-  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
-  // "15 May 2027", "May 15, 2027", "15 May 27" — how certificates actually read.
-  const words = text
-    .toLowerCase()
-    .match(/(?:(\d{1,2})\s+([a-z]+)|([a-z]+)\s+(\d{1,2}))[,\s]+(\d{4})/);
-  if (words) {
-    const day = Number(words[1] ?? words[4]);
-    const monthName = (words[2] ?? words[3] ?? "").slice(0, 3);
-    const month = MONTHS.findIndex((name) => name.startsWith(monthName)) + 1;
-    if (month > 0 && day >= 1 && day <= 31)
-      return `${words[5]}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-  }
-  const slashed = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  // Ambiguous by nature; US order, because that is what the certificates say.
-  if (slashed)
-    return `${slashed[3]}-${String(Number(slashed[1])).padStart(2, "0")}-${String(Number(slashed[2])).padStart(2, "0")}`;
-  return null;
-}
-
-/** Whether two written dates are the same day. Unreadable dates never match. */
-export function sameCalendarDate(left: unknown, right: unknown): boolean {
-  const a = calendarDate(left);
-  const b = calendarDate(right);
-  return a !== null && b !== null && a === b;
-}
 
 /**
  * A money amount in dollars.

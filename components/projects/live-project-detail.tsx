@@ -59,6 +59,7 @@ import {
 import { readinessSummary } from "@/features/projects/readiness-summary";
 import { journeyPhaseLabel, journeyPhaseOrder } from "@/features/journey/phases";
 import { projectPhaseIndex } from "@/features/projects/lifecycle";
+import { jobIsOver } from "@/features/projects/job-moment";
 import { describeEventProximity } from "@/lib/format/event-date";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
@@ -806,7 +807,17 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
     new Date(),
     journey.readinessEvidence,
   );
-  const outstanding = readinessView.blocking;
+  /**
+   * Readiness stops being work once the job is over.
+   *
+   * A closed, archived wedding still advertised "8 things before the day:
+   * Questionnaire complete +7 more" and "Primary contacts confirmed and 4
+   * other checks are still yours to confirm — Confirm what you know". They are
+   * checks for a day three weeks past on a job that finished successfully;
+   * scoring it on them reads as a reprimand for work that no longer exists.
+   */
+  const jobOver = jobIsOver(state);
+  const outstanding = jobOver ? [] : readinessView.blocking;
   /**
    * The studio's own open checkpoints, soonest first.
    *
@@ -821,7 +832,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
    * a client, a provider, **or not due yet**" — so the card needs to know
    * whether anything is genuinely the studio's before it claims otherwise.
    */
-  const studioOpenWork = (checkpoints ?? [])
+  const studioOpenWork = (jobOver ? [] : (checkpoints ?? []))
     .filter(
       (checkpoint) =>
         checkpoint.projectId === projectId &&

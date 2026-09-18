@@ -3423,6 +3423,56 @@
 .delivery-announcement-import .button {
   justify-self: start;
 }
+
+/* The delivery a job already has, said before the form that would make another. */
+.delivery-already-released {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--ds-forest) 32%, var(--ds-line));
+  border-radius: var(--ds-r-sm);
+  background: var(--ds-forest-soft);
+}
+
+.delivery-already-released > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--ds-forest);
+}
+
+.delivery-already-released > div span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.delivery-already-released small {
+  color: var(--ds-muted);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.delivery-already-released-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.delivery-downloaded-confirmed {
+  color: var(--ds-forest);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Why a closeout row is still open when it is nobody's move yet. */
+.closeout-pending {
+  color: var(--ds-muted);
+  font-size: 12.5px;
+  font-style: normal;
+  line-height: 1.45;
+}
 .event-day-copilot {
   display: grid;
   gap: 18px;

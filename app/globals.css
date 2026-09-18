@@ -15760,7 +15760,7 @@ label {
     font-size: 12.5px;
     margin-left: auto;
   }
-  .ds-root .closeout-requirements > span > :is(.closeout-vouched, form, div) {
+  .ds-root .closeout-requirements > span > :is(.closeout-vouched, .closeout-pending, form, div) {
     flex: 1 1 100%;
   }
   .ds-root .closeout-assistant > footer {

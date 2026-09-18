@@ -30,6 +30,7 @@ import { AddressField } from "@/components/forms/address-field";
 import type { CapturedPlace } from "@/features/places/schema";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { useReturnToJob } from "@/lib/projects/return-to-job";
+import { liveProjects } from "@/features/projects/put-away";
 
 type RequestRecord = Record<string, unknown> & { id: string };
 
@@ -304,7 +305,7 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
               value={selectedProject}
             >
               <option value="">Select a project</option>
-              {projects?.map((project) => (
+              {liveProjects(projects).map((project) => (
                 <option key={project.id} value={project.id}>
                   {String(project.name)}
                 </option>

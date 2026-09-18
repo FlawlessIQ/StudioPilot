@@ -8,6 +8,7 @@ import { z } from "zod";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { runWorkflowCommand } from "@/lib/workflows/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { liveProjects } from "@/features/projects/put-away";
 
 const schema = z.object({
   projectId: z.string().trim().min(1),
@@ -64,7 +65,7 @@ export function CreateTaskForm({ initialProjectId = "" }: { initialProjectId?: s
   return (
     <form className="command-form panel" onSubmit={submit}>
       <div className="form-grid">
-        <label>Project <span className="required-mark">Required</span><select {...register("projectId")} disabled={projectsLoading} required><option value="">{projectsLoading ? "Loading projects…" : "Select a project"}</option>{(projects ?? []).map((project) => <option key={project.id} value={project.id}>{String(project.name ?? "Project")}</option>)}</select><small>{errors.projectId?.message}</small></label>
+        <label>Project <span className="required-mark">Required</span><select {...register("projectId")} disabled={projectsLoading} required><option value="">{projectsLoading ? "Loading projects…" : "Select a project"}</option>{liveProjects(projects).map((project) => <option key={project.id} value={project.id}>{String(project.name ?? "Project")}</option>)}</select><small>{errors.projectId?.message}</small></label>
         <label>Due date <span className="required-mark">Required</span><input {...register("dueDate")} required type="date" /><small>{errors.dueDate?.message}</small></label>
         <label className="form-span">Task title <span className="required-mark">Required</span><input {...register("title")} placeholder="What needs to be done?" required /><small>{errors.title?.message}</small></label>
         <label className="form-span">Description<textarea {...register("description")} placeholder="Add instructions, context, or expected evidence." rows={3} /></label>

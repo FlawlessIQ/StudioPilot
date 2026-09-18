@@ -19,7 +19,10 @@ import { sendPostEventCommand } from "@/lib/post-event/command-client";
 import { statusLabel } from "@/features/format/status-label";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { RecordFinalPayment } from "@/components/booking/record-final-payment";
+import { finalBalanceFromSchedule } from "@/features/booking/agreed-final-balance";
+import { formatCents } from "@/lib/format/money";
 import {
+  closeoutPendingNote,
   outstandingCloseoutLabels,
   requirementIsAttestable,
 } from "@/features/post-event/closeout-attestation";
@@ -41,6 +44,10 @@ export function DeliveryCloseoutWorkspace({
   const { records: albums } = useTenantDocuments("albumWorkflows");
   const { records: invoices } = useTenantDocuments("invoiceReferences");
   const { records: closeouts } = useTenantDocuments("projectCloseouts");
+  const { records: reviews } = useTenantDocuments("reviewRequests");
+  const { records: proposals } = useTenantDocuments("proposals");
+  const { records: packageSnapshots } = useTenantDocuments("packageSnapshots");
+  const { records: deliveries } = useTenantDocuments("deliveryRecords");
   const [evidenceUrl, setEvidenceUrl] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   /** Which requirement's "how do you know?" form is open, if any. */
@@ -92,6 +99,27 @@ export function DeliveryCloseoutWorkspace({
   if (!projectId) return null;
   const project = projects?.find((item) => item.id === projectId);
   const packageSnapshotId = text(project?.packageSnapshotId);
+  /**
+   * The number the studio is about to vouch for.
+   *
+   * The form said "the amount comes from the proposal they accepted" and then
+   * never said what it was, so a studio recorded a final balance it could not
+   * see. Derived here exactly as the server derives it — the accepted
+   * proposal's payment schedule, with the package snapshot as the fallback —
+   * so the label cannot disagree with what gets written.
+   */
+  const acceptedProposal = (proposals ?? []).find(
+    (item) => item.projectId === projectId && item.status === "accepted",
+  );
+  const snapshotTotalCents = Number(
+    (packageSnapshots ?? []).find((item) => item.id === packageSnapshotId)
+      ?.totalCents ?? 0,
+  );
+  const finalBalanceCents = finalBalanceFromSchedule(
+    acceptedProposal?.paymentSchedule,
+    Number.isFinite(snapshotTotalCents) ? snapshotTotalCents : 0,
+  );
+  const balanceLabel = finalBalanceCents > 0 ? formatCents(finalBalanceCents) : null;
   const standingFinal = invoices?.find(
     (invoice) =>
       invoice.projectId === projectId &&
@@ -234,6 +262,37 @@ export function DeliveryCloseoutWorkspace({
     return { requirement, met: requirement.complete === true || vouched };
   });
   const openRows = requirementRows.filter((row) => !row.met);
+  /**
+   * How many of the eight closed on someone's word rather than on evidence.
+   * "Everything reconciles … all check out" read as though StudioCue had
+   * verified all eight on a job where five were attestations; the panel says
+   * "you vouched for this" on every such row and the headline erased it.
+   */
+  const vouchedCount = requirementRows.filter(
+    (row) =>
+      row.requirement.complete !== true &&
+      Boolean(text(record(row.requirement.attestation).attestedAt)),
+  ).length;
+  /**
+   * What the open rows are waiting on, so the panel can say so rather than
+   * offering "Mark as done" as the only move on something not yet due.
+   */
+  const nextReviewAsk = (reviews ?? [])
+    .filter(
+      (item) => item.projectId === projectId && item.status === "scheduled",
+    )
+    .sort((left, right) =>
+      text(left.scheduledAt).localeCompare(text(right.scheduledAt)),
+    )[0];
+  const sentDelivery = (deliveries ?? []).find(
+    (item) => item.projectId === projectId && text(item.sentAt),
+  );
+  const pendingContext = {
+    reviewScheduledAt: text(nextReviewAsk?.scheduledAt) || null,
+    reviewChannel: text(nextReviewAsk?.channel) || null,
+    deliverySentAt: text(sentDelivery?.sentAt) || null,
+    albumStatus: text(projectAlbums[0]?.status) || null,
+  };
   const closed = text(project?.state) === "CLOSED";
   const archived = Boolean(text(project?.archivedAt));
   const readyToClose = closeout?.status === "ready" && !closed;
@@ -338,7 +397,9 @@ export function DeliveryCloseoutWorkspace({
               {archived
                 ? "This job is closed and archived."
                 : readyToClose
-                  ? "The agreement, balance, gallery, crew and insurance all check out. Close and archive this job?"
+                  ? vouchedCount
+                    ? `Everything is accounted for — ${vouchedCount} of ${requirementRows.length} on your word. Close and archive this job?`
+                    : "The agreement, balance, gallery, album, review ask, crew and insurance all check out. Close and archive this job?"
                   : closeout && openRows.length
                     ? `${requirementRows.length - openRows.length} of ${requirementRows.length} are settled. What's left is below.`
                     : "StudioCue checks the agreement, balance, gallery, album, review ask, crew and insurance once the gallery is delivered."}
@@ -373,6 +434,11 @@ export function DeliveryCloseoutWorkspace({
                     the venue from the photographer's own account. Money and the
                     signed agreement are absent from this list on purpose.
                   */}
+                  {!met && closeoutPendingNote(key, pendingContext) ? (
+                    <em className="closeout-pending">
+                      {closeoutPendingNote(key, pendingContext)}
+                    </em>
+                  ) : null}
                   {!met && requirementIsAttestable(key) ? (
                     <button
                       className="closeout-attest"
@@ -405,6 +471,7 @@ export function DeliveryCloseoutWorkspace({
                         setNotice(message);
                         void runCloseout("prepareCloseout");
                       }}
+                      balanceLabel={balanceLabel}
                       packageSnapshotId={packageSnapshotId}
                       projectId={projectId}
                       providerLabel={finalInvoiceProvider}

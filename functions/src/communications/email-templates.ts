@@ -50,6 +50,7 @@ export const emailTemplateKeys = [
   "event_reminder",
   "thank_you",
   "delivery",
+  "album_selection_reminder",
   "review_request",
   "manual_message",
   // Studio-facing: a client wrote in and someone needs to know.
@@ -100,6 +101,14 @@ type EmailCopy = {
   heading: string;
   paragraphs: string[];
   action?: { label: string; url: string };
+  /**
+   * A second, quieter link under the button.
+   *
+   * One email had to carry two destinations — the gallery a couple wants now
+   * and the portal where the rest of their wedding lives — and giving them two
+   * equal buttons would have made neither the obvious one.
+   */
+  secondaryAction?: { label: string; url: string };
   note?: string;
 };
 
@@ -701,6 +710,45 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         action: galleryUrl
           ? { label: "Open delivery", url: galleryUrl }
           : undefined,
+        // The gallery is what they want; the portal is where the rest of this
+        // wedding lives — the album selections, the download confirmation that
+        // closes the job, how long they have left. An email with only the
+        // provider link leaves every one of those unreachable.
+        secondaryAction: portalUrl
+          ? { label: "Your project portal", url: portalUrl }
+          : undefined,
+      };
+    }
+    case "album_selection_reminder": {
+      /**
+       * The reminder that exists to carry a link.
+       *
+       * This case was missing, so both reminders — day 7 and day 14 — fell to
+       * the `default` below and went out as "There's an update from your
+       * studio" with nothing to click, while the job recorded them as sent.
+       * Same failure as the crew invitation in CLAUDE.md, in another lane.
+       */
+      const instructionsUrl = safeUrl(stringValue(values, "instructionsUrl"));
+      const destination = instructionsUrl || portalUrl;
+      return {
+        subject: `Your album selections for ${brand.studioName}`,
+        preheader: "Choose the photographs for your album.",
+        eyebrow: "Album",
+        heading: "Ready to choose your album photographs?",
+        paragraphs: [
+          greeting,
+          `Whenever you're ready, pick the photographs you'd like in your album${project}. There's no rush — we'll hold your gallery until you are.`,
+          ...(instructionsUrl
+            ? ["The instructions below walk you through it."]
+            : []),
+        ],
+        action: destination
+          ? { label: instructionsUrl ? "Choose your photographs" : "Open your portal", url: destination }
+          : undefined,
+        secondaryAction:
+          instructionsUrl && portalUrl
+            ? { label: "Your project portal", url: portalUrl }
+            : undefined,
       };
     }
     case "review_request":
@@ -716,6 +764,10 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         ],
         action: destinationUrl
           ? { label: "Share your experience", url: destinationUrl }
+          : undefined,
+        // It named the portal and then did not link it.
+        secondaryAction: portalUrl
+          ? { label: "Your project portal", url: portalUrl }
           : undefined,
       };
     case "manual_message": {
@@ -945,6 +997,9 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
   const action = copy.action?.url
     ? `<table role="presentation" cellspacing="0" cellpadding="0" style="margin:28px 0 26px;"><tr><td style="border-radius:10px;background:${accent};"><a href="${escapeHtml(copy.action.url)}" style="display:inline-block;padding:14px 22px;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;line-height:1.2;">${escapeHtml(copy.action.label)}</a></td></tr></table>`
     : "";
+  const secondaryAction = copy.secondaryAction?.url
+    ? `<p style="margin:-14px 0 26px;font-size:14px;line-height:1.6;color:#626a65;"><a href="${escapeHtml(copy.secondaryAction.url)}" style="color:#4f5752;">${escapeHtml(copy.secondaryAction.label)}</a></p>`
+    : "";
   const note = copy.note
     ? `<div style="margin-top:28px;padding:16px 18px;border:1px solid #dde3de;border-radius:12px;background:#f5f7f5;color:#626a65;font-size:13px;line-height:1.6;">${escapeHtml(copy.note)}</div>`
     : "";
@@ -993,6 +1048,7 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
             <h1 class="email-heading" style="margin:0 0 24px;color:#171a18;font-size:31px;line-height:1.18;letter-spacing:-0.025em;">${escapeHtml(copy.heading)}</h1>
             ${copy.paragraphs.map(paragraphHtml).join("")}
             ${action}
+            ${secondaryAction}
             ${note}
           </div>
         </td></tr>
@@ -1015,6 +1071,9 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
     "",
     ...copy.paragraphs,
     ...(copy.action ? ["", `${copy.action.label}: ${copy.action.url}`] : []),
+    ...(copy.secondaryAction
+      ? ["", `${copy.secondaryAction.label}: ${copy.secondaryAction.url}`]
+      : []),
     ...(copy.note ? ["", copy.note] : []),
     "",
     isPlatformSender
@@ -1032,6 +1091,9 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
     "",
     ...copy.paragraphs,
     ...(copy.action ? ["", `${copy.action.label}: ${copy.action.url}`] : []),
+    ...(copy.secondaryAction
+      ? ["", `${copy.secondaryAction.label}: ${copy.secondaryAction.url}`]
+      : []),
     ...(copy.note ? ["", copy.note] : []),
   ]
     .join("\n")
