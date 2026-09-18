@@ -60,6 +60,13 @@ export function assertProposalAction(
   }
 }
 
+/**
+ * The functions copy. features/proposals/eligibility.ts is the source of
+ * truth; functions/ is a separate package with no "@/features" path, so the
+ * rule is duplicated and tests/proposal-stage-eligibility.test.ts asserts the
+ * two agree. The features/ copy also carries the verdict the composer uses to
+ * explain a refusal — this side only ever needs the boolean.
+ */
 export function canCreateProposalForProject(state: string): boolean {
   return state === "CONSULTATION" || state === "PROPOSAL";
 }

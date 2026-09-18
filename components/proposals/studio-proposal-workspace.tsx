@@ -60,6 +60,11 @@ import {
   proposalPdfDetail,
   proposalPdfNotice,
 } from "@/features/proposals/pdf-notice";
+import {
+  proposalStageNotice,
+  proposalStageVerdict,
+  type ProposalStageVerdict,
+} from "@/features/proposals/eligibility";
 
 type Value = Record<string, unknown> & { id: string };
 
@@ -315,6 +320,20 @@ function commandError(error: string): string {
   return looksLikeRawCode ? error.replaceAll("_", " ").toLowerCase() : error;
 }
 
+/**
+ * The two fields the stage rule reads, lifted off a Firestore snapshot.
+ *
+ * `isPutAway` and the verdict are pure functions over a plain record; a
+ * QueryDocumentSnapshot answers `.get()`, not property access, and handing one
+ * straight to them silently reads `undefined` for every field — which is a
+ * "not archived, rank 0" verdict for every job on the list. Lift first.
+ */
+function projectFields(project: {
+  get: (field: string) => unknown;
+}): { state: unknown; archivedAt: unknown } {
+  return { state: project.get("state"), archivedAt: project.get("archivedAt") };
+}
+
 async function loadProjectOptions(tenantId: string): Promise<{
   ready: ProjectOption[];
   needsPackage: ProjectNeedingPackage[];
@@ -346,8 +365,13 @@ async function loadProjectOptions(tenantId: string): Promise<{
       openByProject.set(String(proposal.get("projectId")), proposal.id);
     }
   }
-  const atProposalStage = projects.docs.filter((project) =>
-    ["CONSULTATION", "PROPOSAL"].includes(String(project.get("state"))),
+  // Only jobs that can actually take a proposal, and only live ones. The Jobs
+  // list learned "archived" in d359d7e and the pickers in 066c85d; this one
+  // builds its own list from a query instead of mapping the shared project
+  // records, so it was missed by both — a studio choosing whose wedding to
+  // price was offered one they had filed away, first in the list.
+  const atProposalStage = projects.docs.filter(
+    (project) => proposalStageVerdict(projectFields(project)) === "ready",
   );
   const eligible = atProposalStage.filter(
     (project) => typeof project.get("packageSnapshotId") === "string",
@@ -807,6 +831,19 @@ export function StudioProposalComposer() {
     useState<ProjectNeedingPackage | null>(null);
   const [activePackages, setActivePackages] = useState<Value[] | null>(null);
   const [lockingPackageId, setLockingPackageId] = useState<string | null>(null);
+  /**
+   * A link arrived naming a job this page cannot prepare a proposal for.
+   *
+   * Before, that produced silence: the id matched nothing in the eligible list,
+   * the effect returned, and the studio faced a picker holding other people's
+   * weddings. Arriving from "Add one for the record" on the Smith wedding, the
+   * next screen was ready to price the Chen wedding instead.
+   */
+  const [refusedProject, setRefusedProject] = useState<{
+    id: string;
+    name: string;
+    verdict: Exclude<ProposalStageVerdict, "ready">;
+  } | null>(null);
 
   useEffect(() => {
     if (!dataIsLive || workspace.loading || !workspace.tenantId) return;
@@ -850,7 +887,31 @@ export function StudioProposalComposer() {
           setActivePackages(
             packageDocs.docs.map((item): Value => ({ id: item.id, ...item.data() })),
           );
+          return;
         }
+        if (!requested) return;
+        /**
+         * The link named a job and neither list holds it. Read the job itself
+         * and say why — by id, so the answer does not depend on the capped
+         * list query above having happened to include it.
+         */
+        const asked = await getDoc(
+          doc(getFirebaseClient().firestore, "projects", requested),
+        );
+        if (!active) return;
+        if (!asked.exists() || asked.get("tenantId") !== workspace.tenantId) {
+          setError(
+            "That job could not be opened. Choose one below, or open it from Jobs.",
+          );
+          return;
+        }
+        const verdict = proposalStageVerdict(projectFields(asked));
+        if (verdict === "ready") return;
+        setRefusedProject({
+          id: asked.id,
+          name: text(asked.get("name"), "This job"),
+          verdict,
+        });
       })
       .catch((caught: unknown) => {
         if (!active) return;
@@ -1014,6 +1075,40 @@ export function StudioProposalComposer() {
               {projects === undefined ? (
                 <div className="proposal-inline-loading">
                   <LoaderCircle className="spin" /> Loading eligible projects…
+                </div>
+              ) : refusedProject ? (
+                <div className="proposal-inline-empty">
+                  <Inbox />
+                  <span>
+                    <strong>
+                      {
+                        proposalStageNotice(
+                          refusedProject.verdict,
+                          refusedProject.name,
+                        ).heading
+                      }
+                    </strong>
+                    <small>
+                      {
+                        proposalStageNotice(
+                          refusedProject.verdict,
+                          refusedProject.name,
+                        ).detail
+                      }
+                    </small>
+                  </span>
+                  <span className="proposal-inline-actions">
+                    <Link href={`/studio/projects/${refusedProject.id}`}>
+                      Open {refusedProject.name}
+                    </Link>
+                    <button
+                      className="button button-light"
+                      onClick={() => setRefusedProject(null)}
+                      type="button"
+                    >
+                      Choose a different job
+                    </button>
+                  </span>
                 </div>
               ) : packagePickerFor ? (
                 <div className="proposal-package-picker">

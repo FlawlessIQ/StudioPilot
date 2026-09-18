@@ -38,6 +38,7 @@ import {
   useWorkspaceGate,
 } from "@/components/ui/panel-state";
 import { projectStateLabel } from "@/features/projects/state-label";
+import { canCreateProposalForProject } from "@/features/proposals/eligibility";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import {
   pastConsultation,
@@ -615,14 +616,26 @@ export function BookingAutopilotWorkspace({
             <span>
               <strong>No proposal is on file for this job.</strong>
               <small>
-                It was booked outside StudioCue. The agreement and payments
-                below are what StudioCue holds for it — add a proposal only if
-                you want one on the record.
+                {/**
+                 * `laterBookingState` is true from PROPOSAL onward, so this
+                 * branch covers both a job whose proposal is still the
+                 * studio's move and one booked outside StudioCue entirely.
+                 * It used to offer "Add one for the record" to both, and the
+                 * command refuses anything past PROPOSAL — so on a booked job
+                 * the link opened a composer that dropped the job in silence
+                 * and stood ready to price somebody else's wedding. Offer it
+                 * only where it can be taken.
+                 */}
+                {canCreateProposalForProject(liveState)
+                  ? "Prepare one when you are ready — the agreement and payments below follow from it."
+                  : "It was booked outside StudioCue. The agreement and payments below are what StudioCue holds for it; a proposal is an offer, and this job is past that."}
               </small>
             </span>
-            <Link href={`/studio/proposals/new?project=${projectId}`}>
-              Add one for the record <ArrowRight />
-            </Link>
+            {canCreateProposalForProject(liveState) ? (
+              <Link href={`/studio/proposals/new?project=${projectId}`}>
+                Prepare the proposal <ArrowRight />
+              </Link>
+            ) : null}
           </section>
         )
       ) : !consultation && consultationBehindThem && !proposalId ? (

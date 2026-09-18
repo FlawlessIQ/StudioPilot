@@ -81,7 +81,11 @@ export const journeyStepRequires: Record<
   inquiry: [],
   first_reply: ["inquiry"],
   consultation: [],
-  proposal: [],
+  // The composer refuses a job still at LEAD — `canCreateProposalForProject`
+  // takes CONSULTATION and PROPOSAL only. This used to be declared as needing
+  // nothing, and the journey duly offered "Prepare proposal" on an enquiry
+  // nobody had spoken to yet.
+  proposal: ["consultation"],
   // Both destinations refuse without the step before: /studio/contracts wants
   // an accepted proposal, and the retainer is created after signature.
   contract: ["proposal"],
@@ -471,24 +475,32 @@ export function projectJourney(input: JourneyInput): {
         : "Accepted"
       : proposalWaiting
         ? "With the client to decide"
-        : "Packages and pricing, ready to send",
+        : consulted
+          ? "Packages and pricing, ready to send"
+          : "Starts once the consultation is done",
     status: proposalDone
       ? "complete"
       : proposalWaiting
         ? "waiting_client"
-        : "current",
-    action: proposalDone
-      ? null
-      : {
-          kind: "link",
-          label: proposalWaiting ? "View proposal" : "Prepare proposal",
-          // No proposal yet → straight into the guided composer (which also
-          // locks a package when one is missing). An existing proposal →
-          // the project's proposal list.
-          href: proposalWaiting
-            ? project("/studio/proposals")
-            : project("/studio/proposals/new"),
-        },
+        // A proposal cannot be created before CONSULTATION — the command
+        // refuses it (canCreateProposalForProject). Until this gate was here
+        // the journey led a job still at LEAD to "Prepare proposal", and the
+        // composer had no way to say no. Same shape as contract and retainer
+        // below, which have gated on their own precondition all along.
+        : gate(consulted, "current"),
+    action:
+      proposalDone || !(consulted || proposalWaiting)
+        ? null
+        : {
+            kind: "link",
+            label: proposalWaiting ? "View proposal" : "Prepare proposal",
+            // No proposal yet → straight into the guided composer (which also
+            // locks a package when one is missing). An existing proposal →
+            // the project's proposal list.
+            href: proposalWaiting
+              ? project("/studio/proposals")
+              : project("/studio/proposals/new"),
+          },
   });
 
   const contractDone = input.contractStatus === "completed" || stateRank >= 4;

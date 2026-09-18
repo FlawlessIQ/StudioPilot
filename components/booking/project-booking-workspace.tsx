@@ -52,6 +52,7 @@ import {
   useWorkspaceGate,
 } from "@/components/ui/panel-state";
 import { statusLabel } from "@/features/format/status-label";
+import { canCreateProposalForProject } from "@/features/proposals/eligibility";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
 
 type RecordValue = Record<string, unknown> & { id: string };
@@ -889,17 +890,31 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   </span>
                 </div>
                 <div className="booking-waiting-actions">
-                  <Link
-                    className="button button-dark"
-                    href={
-                      openProposal
-                        ? `/studio/proposals/${openProposal.id}`
-                        : `/studio/proposals/new?project=${projectId}`
-                    }
-                  >
-                    {openProposal ? "Open the proposal" : "Prepare the proposal"}
-                    <ArrowRight size={15} />
-                  </Link>
+                  {/* Without a proposal the only offer is to prepare one, and
+                      the command only takes that at consultation or proposal
+                      stage. A job at CONTRACT_PENDING with no proposal record
+                      was still offered it, and the composer had no way to
+                      refuse out loud. */}
+                  {openProposal ||
+                  canCreateProposalForProject(projectState) ? (
+                    <Link
+                      className="button button-dark"
+                      href={
+                        openProposal
+                          ? `/studio/proposals/${openProposal.id}`
+                          : `/studio/proposals/new?project=${projectId}`
+                      }
+                    >
+                      {openProposal
+                        ? "Open the proposal"
+                        : "Prepare the proposal"}
+                      <ArrowRight size={15} />
+                    </Link>
+                  ) : (
+                    <Link className="button button-light" href={`/studio/projects/${projectId}`}>
+                      Open the job <ArrowRight size={15} />
+                    </Link>
+                  )}
                 </div>
                 {openProposal &&
                 ["approved", "sent", "viewed"].includes(
