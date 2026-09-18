@@ -7,6 +7,7 @@ import {
   fieldLabel,
   limitDollars,
   sameCalendarDate,
+  stillDisagrees,
 } from "@/features/insurance/certificate-review";
 
 /**
@@ -97,5 +98,57 @@ test("features/ and functions/ read certificates identically", () => {
       "Duplicated at functions/src/operations/certificate-review.ts, which the",
       "Duplicated from features/insurance/certificate-review.ts, used by the",
     ),
+  );
+});
+
+/**
+ * Discrepancies are frozen onto the request when the certificate is read, so
+ * fixing the comparison does nothing for the ones already on file. Reading them
+ * back through the same rules retires the ones that were never real.
+ */
+test("a stored date mismatch that was never real is retired", () => {
+  assert.equal(
+    stillDisagrees({
+      field: "eventDate",
+      expected: "2027-05-15",
+      extracted: "15 May 2027",
+      severity: "blocking",
+    }),
+    false,
+  );
+  assert.equal(
+    stillDisagrees({
+      field: "eventDate",
+      expected: "2027-05-15",
+      extracted: "16 May 2027",
+      severity: "blocking",
+    }),
+    true,
+  );
+});
+
+test("a stored limit shortfall stands, and a met limit does not", () => {
+  const limit = (extracted: string) =>
+    stillDisagrees({
+      field: "requiredLimits.generalLiability",
+      expected: "200000000",
+      extracted,
+      severity: "blocking",
+    });
+  assert.equal(limit("1000000"), true);
+  assert.equal(limit("2000000"), false);
+  assert.equal(limit("3000000"), false);
+  assert.equal(limit(""), true);
+});
+
+test("everything else is left standing", () => {
+  assert.equal(
+    stillDisagrees({
+      field: "certificateHolder",
+      expected: "Oak Hill Barn LLC",
+      extracted: "Oakhill Barn Events Inc.",
+      severity: "blocking",
+    }),
+    true,
   );
 });

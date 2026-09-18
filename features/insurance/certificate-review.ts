@@ -137,3 +137,25 @@ export function describeDiscrepancy(discrepancy: Discrepancy): {
     severity: discrepancy.severity,
   };
 }
+
+/**
+ * Whether a stored discrepancy is still a disagreement.
+ *
+ * Discrepancies are frozen onto the request when the certificate is read, so a
+ * comparison fixed today does nothing for the ones already on file: a studio
+ * kept being shown "the certificate says 15 May 2027, the venue asked for
+ * 2027-05-15" — one date, twice — long after the extractor stopped producing
+ * it. Reading them back through the same rules retires those without a
+ * migration, and leaves every real disagreement standing.
+ */
+export function stillDisagrees(discrepancy: Discrepancy): boolean {
+  if (discrepancy.field === "eventDate")
+    return !sameCalendarDate(discrepancy.expected, discrepancy.extracted);
+  if (discrepancy.field.startsWith("requiredLimits.")) {
+    const required = limitDollars(discrepancy.expected, true);
+    const carried = limitDollars(discrepancy.extracted);
+    if (required === null) return true;
+    return carried === null || carried < required;
+  }
+  return true;
+}

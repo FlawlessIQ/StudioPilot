@@ -20,7 +20,10 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { todayLocalIso } from "@/lib/format/event-date";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
-import { describeDiscrepancy } from "@/features/insurance/certificate-review";
+import {
+  describeDiscrepancy,
+  stillDisagrees,
+} from "@/features/insurance/certificate-review";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { statusLabel } from "@/features/format/status-label";
 import { AddressField } from "@/components/forms/address-field";
@@ -436,9 +439,26 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
         <div className="coi-review-list">
           {requests
             .map((request) => {
-              const discrepancies = Array.isArray(request.discrepancies)
-                ? request.discrepancies
-                : [];
+              // Read back through today's rules: what was flagged when the
+              // certificate arrived can include disagreements that were never
+              // real, and those records are frozen.
+              const discrepancies = (
+                Array.isArray(request.discrepancies) ? request.discrepancies : []
+              ).filter((item) => {
+                const value =
+                  typeof item === "object" && item !== null
+                    ? (item as Record<string, unknown>)
+                    : {};
+                return stillDisagrees({
+                  field: String(value.field ?? ""),
+                  expected: String(value.expected ?? ""),
+                  extracted: String(value.extracted ?? ""),
+                  severity:
+                    value.severity === "blocking" || value.severity === "info"
+                      ? value.severity
+                      : "warning",
+                });
+              });
               return (
                 <article className="panel" key={request.id}>
                   <header>
