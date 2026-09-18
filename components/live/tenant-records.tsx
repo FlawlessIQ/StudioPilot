@@ -728,11 +728,17 @@ export function LiveProjectRows({
   }
   const values = records
     ? records
-        .filter((item) =>
-          view === "archived"
-            ? item.state === "ARCHIVED"
-            : item.state !== "ARCHIVED",
-        )
+        // A job is put away either by reaching the ARCHIVED state or by
+        // carrying an `archivedAt` — which is how every other list in the
+        // product decides (leads, contacts, vendors, crew, and the generic
+        // domain view all read the field). Reading only the state meant a job
+        // archived anywhere else stayed on this page for ever, and the
+        // Archived tab never showed it.
+        .filter((item) => {
+          const putAway =
+            item.state === "ARCHIVED" || Boolean(item.archivedAt);
+          return view === "archived" ? putAway : !putAway;
+        })
         .filter(
           (item) =>
             type === "all" || String(item.eventType).toLowerCase() === type,
