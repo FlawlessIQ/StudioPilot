@@ -766,12 +766,15 @@ function ProposalCopyCopilot({
     <div className="proposal-copy-copilot">
       <button
         className="button button-light"
+        // Disabled until the project resolves — which looks identical to a
+        // button that does nothing, and invites a second click.
+        title={projectId ? undefined : "Choose the job first"}
         disabled={busy || !projectId}
         onClick={() => void run()}
         type="button"
       >
         {busy ? <LoaderCircle className="spin" size={14} /> : <Sparkles size={14} />}
-        {busy ? "Drafting…" : "Draft from the consultation"}
+        {busy ? "Drafting…" : "Draft from what they told you"}
       </button>
       {status ? <small role="status">{status}</small> : null}
     </div>

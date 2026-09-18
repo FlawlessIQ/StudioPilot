@@ -1326,10 +1326,23 @@ async function generateIntake(
  * snapshot and the signed agreement stay authoritative, and the studio
  * edits and approves before anything is sent.
  */
+/**
+ * Proposal copy, drafted from what the couple actually said.
+ *
+ * This used to see only a consultation's AI review — and a couple who books
+ * through the scheduler has no review yet, so the model was handed a package
+ * name and an empty priorities list and wrote "we are excited about the
+ * possibility of capturing your special day". Meanwhile the inquiry they typed
+ * said both sets of grandparents were travelling and might not be in one room
+ * again, and asked for two photographers so the ceremony was never left. Their
+ * own words are the point of the letter.
+ */
 async function generateProposalDraft(facts: {
   studioName: string;
   project: Json;
   consultation: Json;
+  /** What they wrote in the inquiry, and what was drawn out of it. */
+  inquiry: Json;
   packageSnapshot: Json;
 }): Promise<{
   draft: z.infer<typeof proposalDraftSchema>;
@@ -1337,14 +1350,20 @@ async function generateProposalDraft(facts: {
 }> {
   const fallback = () => {
     const packageName = String(facts.packageSnapshot.packageName ?? "your coverage");
-    const priorities = Array.isArray(facts.consultation.priorities)
-      ? (facts.consultation.priorities as unknown[]).map(String).slice(0, 3)
-      : [];
+    const priorities = (
+      Array.isArray(facts.consultation.priorities)
+        ? (facts.consultation.priorities as unknown[])
+        : []
+    )
+      .map(String)
+      .slice(0, 3);
     const introduction = [
       "Thank you for sharing what matters most for your celebration.",
       priorities.length
         ? `We heard you clearly on ${priorities.join(", ")}, and this proposal is shaped around exactly that.`
-        : "This proposal reflects the priorities discussed during your consultation.",
+        : String(facts.inquiry.message ?? "").trim()
+          ? "This proposal is shaped around what you told us matters most."
+          : "This proposal reflects the priorities discussed during your consultation.",
       `${packageName} covers your day the way we talked it through — and nothing here changes without your say-so.`,
     ].join(" ");
     const terms = String(facts.packageSnapshot.terms ?? "").trim();
@@ -1379,7 +1398,7 @@ async function generateProposalDraft(facts: {
           systemInstruction: {
             parts: [
               {
-                text: "Write proposal copy for a photography studio, grounded ONLY in the supplied facts. introduction: 2-4 warm, professional sentences addressed to the client, reflecting their stated priorities; never invent prices, dates, discounts, deliverables, or promises not in the facts. termsSummary: restate the package's approved terms in plain client-friendly language; never add, soften, or remove a term, and never write legal language of your own. The studio edits and approves this before anything is sent. Return JSON only.",
+                text: "Write proposal copy for a photography studio, grounded ONLY in the supplied facts. introduction: 2-4 warm, professional sentences addressed to the client. Name at least one specific thing THEY said — in `inquiry.message`, `inquiry.summary` or the consultation priorities — in their terms, not a generic line about capturing their special day; if they mentioned particular people, moments or worries, that is what to reflect back. Call the event what a client calls it (their wedding, their day) and never the studio’s internal job name. Never invent prices, dates, discounts, deliverables, or promises not in the facts. termsSummary: restate the package's approved terms in plain client-friendly language; never add, soften, or remove a term, and never write legal language of your own. The studio edits and approves this before anything is sent. Return JSON only.",
               },
             ],
           },
@@ -1547,7 +1566,7 @@ export const aiCopilotCommand = onRequest(
           throw new Error("PROJECT_NOT_FOUND");
         const snapshotId = String(projectDocument.get("packageSnapshotId") ?? "");
         if (!snapshotId) throw new Error("PACKAGE_SNAPSHOT_REQUIRED");
-        const [snapshotDocument, consultations, tenantDocument] =
+        const [snapshotDocument, consultations, tenantDocument, leads] =
           await Promise.all([
             db.doc(`packageSnapshots/${snapshotId}`).get(),
             db
@@ -1557,6 +1576,13 @@ export const aiCopilotCommand = onRequest(
               .limit(5)
               .get(),
             db.doc(`tenants/${draftRequest.tenantId}`).get(),
+            // What the couple typed themselves, before anyone spoke to them.
+            db
+              .collection("leads")
+              .where("tenantId", "==", draftRequest.tenantId)
+              .where("projectId", "==", draftRequest.projectId)
+              .limit(1)
+              .get(),
           ]);
         if (
           !snapshotDocument.exists ||
@@ -1569,6 +1595,7 @@ export const aiCopilotCommand = onRequest(
             String(right.startsAt ?? "").localeCompare(String(left.startsAt ?? "")),
           )[0];
         const review = asRecord(consultation?.aiReview);
+        const lead = asRecord(leads.docs[0]?.data());
         const now = new Date().toISOString();
         await db.runTransaction((transaction) =>
           consumeAiQuota(transaction, db, draftRequest.tenantId, now),
@@ -1585,6 +1612,10 @@ export const aiCopilotCommand = onRequest(
           consultation: {
             summary: review.summary ?? null,
             priorities: review.priorities ?? [],
+          },
+          inquiry: {
+            message: lead?.message ?? null,
+            summary: lead?.aiSummary ?? null,
           },
           packageSnapshot: {
             packageName: snapshotDocument.get("packageName"),
