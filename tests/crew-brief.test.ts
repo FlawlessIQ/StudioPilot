@@ -5,6 +5,7 @@ import {
   answerText,
   buildCrewBrief,
   crewStarterFieldIds,
+  criticalCrewQuestions,
   fieldReachesCrew,
 } from "../features/questionnaires/crew-brief";
 import { starterQuestionnaires } from "../features/questionnaires/starter-templates";
@@ -131,4 +132,33 @@ test("every starter questionnaire asks who must not be photographed", () => {
     );
     assert.ok(crewStarterFieldIds.has("no-photo-list"));
   }
+});
+
+test("a studio can add the questions their crew read first", () => {
+  // The editor mints a random field id, and the brief sorts by id — so a
+  // hand-written do-not-photograph question reached crew but landed among the
+  // addresses. The known questions carry the ids the brief recognises.
+  const editor = readFileSync(
+    `${process.cwd()}/components/planning/questionnaire-template-editor.tsx`,
+    "utf8",
+  );
+  assert.match(editor, /criticalCrewQuestions/);
+  assert.match(editor, /id: known\?\.id \?\? `field-\$\{crypto\.randomUUID\(\)\.slice\(0, 8\)\}`/);
+  assert.match(editor, /crewVisible: Boolean\(known\)/);
+  // Every offered question is one the brief actually treats as critical.
+  const brief = buildCrewBrief({
+    sections: [
+      {
+        fields: criticalCrewQuestions.map((question) => ({
+          id: question.id,
+          label: question.label,
+          type: question.type,
+        })),
+      },
+    ],
+    answers: Object.fromEntries(criticalCrewQuestions.map((q) => [q.id, "Something"])),
+  });
+  assert.equal(brief.onTheDay.length, 0);
+  assert.equal(brief.beforeYouShoot.length, criticalCrewQuestions.length);
+  assert.equal(brief.beforeYouShoot[0]?.fieldId, "no-photo-list");
 });

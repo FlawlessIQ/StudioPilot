@@ -95,6 +95,30 @@ const beforeYouShootIds: ReadonlySet<string> = new Set([
   "social-consent",
 ]);
 
+/**
+ * The questions whose answers a photographer must read before shooting, offered
+ * to a studio building their own form.
+ *
+ * A studio can already add any question and tick "crew see it" — but the brief
+ * sorts by field id, and the editor mints a random one, so a hand-added
+ * do-not-photograph question landed among the addresses and timings instead of
+ * at the top. These carry the ids the brief knows, so a studio's own form can
+ * ask them and have them read first.
+ */
+export const criticalCrewQuestions: ReadonlyArray<{
+  id: string;
+  label: string;
+  type: string;
+}> = [
+  { id: "no-photo-list", label: "Anyone who must not be photographed", type: "long_text" },
+  { id: "sensitivities", label: "Anything we should handle carefully", type: "long_text" },
+  { id: "restrictions", label: "Any photography restrictions at the venue?", type: "long_text" },
+  { id: "accessibility", label: "Accessibility needs for our team to know about", type: "long_text" },
+  { id: "minors-present", label: "Will under-18s be photographed?", type: "dropdown" },
+  { id: "consent-on-file", label: "Is photo consent on file for everyone?", type: "dropdown" },
+  { id: "social-consent", label: "May we share images on social media?", type: "checkbox" },
+];
+
 export function fieldReachesCrew(field: BriefField): boolean {
   if (field.crewVisible === true) return true;
   if (field.crewVisible === false) return false;

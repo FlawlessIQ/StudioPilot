@@ -17849,3 +17849,5 @@ label {
 .book-without-retainer{margin-top:12px}
 .crew-availability-partday{display:flex!important;flex-direction:row!important;gap:8px;align-items:center}
 .crew-availability-partday input{width:auto}
+.questionnaire-editor-add{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.questionnaire-editor-known select{font-size:12.5px;max-width:280px}

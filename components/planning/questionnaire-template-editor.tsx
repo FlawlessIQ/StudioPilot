@@ -5,6 +5,7 @@ import { LoaderCircle, PencilLine, Plus, Trash2 } from "lucide-react";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
+import { criticalCrewQuestions } from "@/features/questionnaires/crew-brief";
 
 /**
  * Editing a questionnaire template in place.
@@ -112,7 +113,7 @@ export function QuestionnaireTemplateEditor({
     );
   }
 
-  function addField(sectionId: string) {
+  function addField(sectionId: string, known?: (typeof criticalCrewQuestions)[number]) {
     setSections((current) =>
       current.map((section) =>
         section.id === sectionId
@@ -121,13 +122,17 @@ export function QuestionnaireTemplateEditor({
               fields: [
                 ...section.fields,
                 {
-                  id: `field-${crypto.randomUUID().slice(0, 8)}`,
-                  label: "",
-                  type: "text",
+                  // A known question keeps its own id: the crew brief sorts by
+                  // id, so a do-not-photograph question minted as
+                  // `field-9c2f1a0b` is crew-visible but lands among the
+                  // addresses instead of at the top where it is read first.
+                  id: known?.id ?? `field-${crypto.randomUUID().slice(0, 8)}`,
+                  label: known?.label ?? "",
+                  type: known?.type ?? "text",
                   required: false,
                   internalOnly: false,
-                  crewVisible: false,
-                  options: "",
+                  crewVisible: Boolean(known),
+                  options: known?.type === "dropdown" ? "Yes, No, Not sure" : "",
                 },
               ],
             }
@@ -306,13 +311,45 @@ export function QuestionnaireTemplateEditor({
                 </button>
               </div>
             ))}
-            <button
-              className="button button-quiet"
-              onClick={() => addField(section.id)}
-              type="button"
-            >
-              <Plus size={13} /> Add a question here
-            </button>
+            <div className="questionnaire-editor-add">
+              <button
+                className="button button-quiet"
+                onClick={() => addField(section.id)}
+                type="button"
+              >
+                <Plus size={13} /> Add a question here
+              </button>
+              {/* The questions crew read before they lift a camera. Added by
+                  name so the brief can put them first — a hand-written one
+                  reaches crew but sorts with the addresses. */}
+              <label className="questionnaire-editor-known">
+                <span className="sr-only">Add a question your crew read first</span>
+                <select
+                  onChange={(event) => {
+                    const known = criticalCrewQuestions.find(
+                      (question) => question.id === event.target.value,
+                    );
+                    if (known) addField(section.id, known);
+                    event.target.value = "";
+                  }}
+                  value=""
+                >
+                  <option value="">Or add one your crew read first…</option>
+                  {criticalCrewQuestions
+                    .filter(
+                      (question) =>
+                        !sections.some((existing) =>
+                          existing.fields.some((field) => field.id === question.id),
+                        ),
+                    )
+                    .map((question) => (
+                      <option key={question.id} value={question.id}>
+                        {question.label}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            </div>
           </fieldset>
         ))}
         <button
