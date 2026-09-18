@@ -857,13 +857,18 @@ export const bookingCommand = onRequest(
         const decisionTask = await firestore
           .doc(`tasks/proposal_decision_${command.input.proposalId}`)
           .get();
+        // `complete` is the schema's word (features/tasks/schema.ts). This
+        // wrote `completed`, which the enum does not contain, so the list's
+        // "Mark done" button never went away on a task this had closed.
         if (
           decisionTask.exists &&
           decisionTask.get("tenantId") === command.tenantId &&
-          decisionTask.get("status") !== "completed"
+          !["complete", "completed"].includes(
+            String(decisionTask.get("status")),
+          )
         ) {
           batch.update(decisionTask.ref, {
-            status: "completed",
+            status: "complete",
             completedAt: timestamp,
             completedBy: identity.uid,
             updatedAt: timestamp,

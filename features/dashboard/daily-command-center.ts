@@ -1,3 +1,5 @@
+import { taskIsSettled } from "@/features/tasks/schema";
+
 export type DailyRecord = Record<string, unknown> & { id: string };
 
 export type DailyCommandItem = {
@@ -141,7 +143,7 @@ export function dailyCommandProjection(
         return (
           due &&
           due < today &&
-          !["complete", "completed", "cancelled"].includes(text(record.status))
+          !taskIsSettled(record.status)
         );
       })
       .map((record) => ({

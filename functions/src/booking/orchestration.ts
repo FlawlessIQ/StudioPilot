@@ -269,8 +269,10 @@ export const bookingProposalAccepted = onDocumentWritten(
         updatedAt: now,
       }, { merge: false });
       // The task acceptance created is done: nobody needs to prepare anything.
+      // `complete` is the schema's word — `completed` is not in the enum and
+      // left the task's "Mark done" button on screen for ever.
       transaction.set(db.doc(`tasks/proposal_decision_${proposal.id}`), {
-        status: "completed",
+        status: "complete",
         completedAt: now,
         completedBy: "booking-orchestrator",
         updatedAt: now,
@@ -657,16 +659,31 @@ export const bookingRetainerPaid = onDocumentWritten(
           lastError: "BOOKING_GATE_BLOCKED",
           updatedAt: now,
         });
+        /**
+         * Shaped like features/tasks/schema.ts, because it is a task.
+         *
+         * This wrote `status: "open"` and `assignedTo` / `dueAt` — none of
+         * which the task schema has. On the live tasks list the row read
+         * "Resolve booking exception · open · Blocking —" beside tasks reading
+         * "not started · Blocking No", and `blocking` was absent entirely on a
+         * task that by definition blocks the booking.
+         */
         transaction.set(db.doc(`tasks/booking_exception_${projectId}`), {
           id: `booking_exception_${projectId}`,
           tenantId,
           projectId,
+          workflowRunId: null,
+          checkpointId: null,
           title: "Resolve booking exception",
           description: `StudioCue stopped safely: ${blockers.join(", ")}.`,
-          status: "open",
+          status: "not_started",
           priority: "urgent",
-          assignedTo: null,
-          dueAt: now,
+          assignedUserId: null,
+          assignedRole: "studio_owner",
+          dueDate: now.slice(0, 10),
+          blocking: true,
+          completedAt: null,
+          completedBy: null,
           source: "booking_orchestrator",
           createdAt: now,
           updatedAt: now,

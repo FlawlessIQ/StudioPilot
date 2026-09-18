@@ -16,6 +16,7 @@ import {
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { activeProjectStates } from "@/features/dashboard/active-states";
+import { taskIsSettled } from "@/features/tasks/schema";
 
 /**
  * Counted operational signals for the studio home page.
@@ -37,7 +38,7 @@ export function DashboardPriorityStrip() {
   );
   const dueTasks = (tasksState.records ?? []).filter(
     (task) =>
-      !["complete", "completed", "cancelled"].includes(String(task.status)) &&
+      !taskIsSettled(task.status) &&
       String(task.dueDate ?? "").slice(0, 10) <= today,
   );
   const projectsNeedingAction = (projectsState.records ?? []).filter(

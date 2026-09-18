@@ -6,6 +6,7 @@ import {
   type ReadinessEvidence,
 } from "@/features/readiness/checkpoint-evidence";
 import { checkpointWaitingReason } from "@/features/readiness/checkpoint-resolution";
+import { taskIsSettled } from "@/features/tasks/schema";
 
 export type LifecycleRecord = Record<string, unknown> & { id: string };
 
@@ -290,8 +291,7 @@ export function projectLifecycleProjection(input: {
   }
 
   for (const task of input.tasks ?? []) {
-    if (["complete", "completed", "cancelled"].includes(text(task.status)))
-      continue;
+    if (taskIsSettled(task.status)) continue;
     const dueAt = due(task);
     lanes.studio.push(
       item({

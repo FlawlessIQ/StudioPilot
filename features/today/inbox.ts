@@ -36,6 +36,7 @@ import {
 } from "@/features/today/provider-failure";
 import { countdownPhrase, formatDueDate } from "@/lib/format/event-date";
 import { providerName as readable } from "@/lib/format/provider-name";
+import { taskIsSettled } from "@/features/tasks/schema";
 
 export type TodayLane = "act" | "approve" | "fyi";
 
@@ -595,9 +596,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
 
   for (const task of rows(input.tasks)) {
     const due = text(task.dueAt ?? task.dueDate).slice(0, 10);
-    const done = ["complete", "completed", "cancelled"].includes(
-      text(task.status),
-    );
+    const done = taskIsSettled(task.status);
     if (!due || due >= today || done) continue;
     if (!jobStillOpen(task.projectId)) continue;
     /**

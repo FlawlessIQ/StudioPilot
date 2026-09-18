@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CheckCircle2, LoaderCircle } from "lucide-react";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
+import { taskIsSettled } from "@/features/tasks/schema";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { runWorkflowCommand } from "@/lib/workflows/command-client";
 
@@ -24,7 +25,7 @@ export function TaskRecordActions({
 }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const settled = ["complete", "cancelled"].includes(task.status);
+  const settled = taskIsSettled(task.status);
 
   async function complete() {
     setBusy(true);
