@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   answerText,
   buildCrewBrief,
+  crewStarterFieldIds,
   fieldReachesCrew,
 } from "../features/questionnaires/crew-brief";
 import { starterQuestionnaires } from "../features/questionnaires/starter-templates";
@@ -116,4 +117,18 @@ test("the offline event-day brief keeps the before-you-shoot list", () => {
   const component = readFileSync(`${process.cwd()}/components/crew/client-brief.tsx`, "utf8");
   // Saved under the prefix sign-out sweeps, so a borrowed phone forgets it.
   assert.match(component, /localStorage\.setItem\(`studiocue:crew-client-brief:/);
+});
+
+test("every starter questionnaire asks who must not be photographed", () => {
+  // The crew brief sorts this answer to the top and a second shooter reads it
+  // before lifting a camera — but only the corporate and sports forms asked it.
+  // On a wedding the request arrived inside a paragraph about divorced parents.
+  for (const starter of starterQuestionnaires()) {
+    const ids = starter.sections.flatMap((section) => section.fields.map((field) => field.id));
+    assert.ok(
+      ids.includes("no-photo-list"),
+      `${starter.name} never asks who must not be photographed`,
+    );
+    assert.ok(crewStarterFieldIds.has("no-photo-list"));
+  }
 });

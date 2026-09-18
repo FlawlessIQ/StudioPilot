@@ -202,6 +202,10 @@ test(
         await setDoc(doc(adminDb, "crewProfiles/profile-private"), { tenantId: "tenant-a", userId: "crew-private" });
         await setDoc(doc(adminDb, "crewAssignments/assignment-a"), { tenantId: "tenant-a", projectId: "project-a", userId: "crew-a", status: "accepted" });
         await setDoc(doc(adminDb, "crewAssignments/assignment-private"), { tenantId: "tenant-a", projectId: "project-a", userId: "crew-private", status: "accepted" });
+        // An offer on a job they are not yet on: project access comes with
+        // acceptance, so this is the one thing they can read about it.
+        await setDoc(doc(adminDb, "crewAssignments/assignment-offer"), { tenantId: "tenant-a", projectId: "project-unassigned", projectName: "Rivera wedding", userId: "crew-a", status: "invited" });
+        await setDoc(doc(adminDb, "crewAssignments/assignment-offer-other"), { tenantId: "tenant-a", projectId: "project-unassigned", userId: "crew-private", status: "invited" });
         await setDoc(doc(adminDb, "crewAvailability/availability-a"), { tenantId: "tenant-a", crewProfileId: "profile-a", userId: "crew-a" });
         await setDoc(doc(adminDb, "crewMessages/crew-message-a"), { tenantId: "tenant-a", projectId: "project-a", assignmentId: "assignment-a", userId: "crew-a", direction: "crew_to_studio" });
         await setDoc(doc(adminDb, "crewMessages/crew-message-private"), { tenantId: "tenant-a", projectId: "project-a", assignmentId: "assignment-private", userId: "crew-private", direction: "crew_to_studio" });
@@ -343,6 +347,21 @@ test(
       await assertFails(getDoc(doc(crewDb, "crewProfiles/profile-private")));
       await assertSucceeds(getDoc(doc(crewDb, "crewAssignments/assignment-a")));
       await assertFails(getDoc(doc(crewDb, "crewAssignments/assignment-private")));
+      // A pending offer is readable by the person it is addressed to, even
+      // before they are on the project — and by nobody else.
+      await assertSucceeds(getDoc(doc(crewDb, "crewAssignments/assignment-offer")));
+      await assertFails(getDoc(doc(crewDb, "crewAssignments/assignment-offer-other")));
+      // But the job itself stays shut until they accept.
+      await assertFails(getDoc(doc(crewDb, "projects/project-unassigned")));
+      await assertSucceeds(
+        getDocs(
+          query(
+            collection(crewDb, "crewAssignments"),
+            where("tenantId", "==", "tenant-a"),
+            where("userId", "==", "crew-a"),
+          ),
+        ),
+      );
       await assertSucceeds(
         getDocs(
           query(

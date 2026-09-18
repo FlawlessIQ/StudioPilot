@@ -36,6 +36,7 @@ import {
   getDoc,
   getDocs,
   limit,
+  orderBy,
   query,
   where,
 } from "firebase/firestore";
@@ -166,21 +167,25 @@ function useCrewData(): CrewData {
     }
     let active = true;
     const { firestore } = getFirebaseClient();
-    const assignedProjectIds = workspace.projectIds.slice(0, 100);
     void withTimeout(Promise.all([
-      Promise.all(
-        assignedProjectIds.map((projectId) =>
-          getDocs(
-            query(
-              collection(firestore, "crewAssignments"),
-              where("tenantId", "==", workspace.tenantId),
-              where("projectId", "==", projectId),
-              where("userId", "==", workspace.userId),
-              limit(100),
-            ),
-          ),
+      /**
+       * Everything addressed to this person, offered or accepted.
+       *
+       * This used to fan out over the projects their membership names — which
+       * is granted on acceptance, so an outstanding offer was invisible to the
+       * one person it was for. The crew workspace said "nothing needs you right
+       * now" while the offer sat in their email, on a product that measures
+       * whether crew accept within fifteen minutes.
+       */
+      getDocs(
+        query(
+          collection(firestore, "crewAssignments"),
+          where("tenantId", "==", workspace.tenantId),
+          where("userId", "==", workspace.userId),
+          orderBy("arrivalAt", "desc"),
+          limit(100),
         ),
-      ),
+      ).then((snapshot) => [snapshot]),
       getDocs(
         query(
           collection(firestore, "crewProfiles"),
@@ -216,7 +221,11 @@ function useCrewData(): CrewData {
           Promise.all([
             Promise.all(
               projectIds.map((projectId) =>
-                getDoc(doc(firestore, "projects", projectId)),
+                // A job that has only been offered is still closed to them —
+                // the project opens on acceptance. One refusal must not take
+                // the whole workspace down with it; the offer card falls back
+                // to the name carried on the assignment.
+                getDoc(doc(firestore, "projects", projectId)).catch(() => null),
               ),
             ),
             getDoc(doc(firestore, "tenants", String(workspace.tenantId))),
@@ -229,7 +238,8 @@ function useCrewData(): CrewData {
           assignments,
           projects: Object.fromEntries(
             projectDocuments
-              .filter((project) => project.exists())
+              .filter((project) => project !== null && project.exists())
+              .map((project) => project!)
               .map((project) => [
                 project.id,
                 { id: project.id, ...project.data() } as Value,
@@ -371,6 +381,21 @@ function CrewPageState({
   );
 }
 
+/**
+ * What to call a job on screen.
+ *
+ * The project is readable once they have accepted; before that the only name
+ * they have is the one carried on the offer itself.
+ */
+function jobName(data: CrewData, assignment: Value): string {
+  const project = projectFor(data, assignment);
+  return (
+    text(project?.name, "") ||
+    text(assignment.projectName, "") ||
+    "A job from your studio"
+  );
+}
+
 function projectFor(data: CrewData, assignment: Value) {
   return data.projects[text(assignment.projectId, "")];
 }
@@ -453,7 +478,7 @@ function AssignmentPicker({
         <select value={selected.id} onChange={(event) => onSelect(event.target.value)}>
           {assignments.map((assignment) => (
             <option key={assignment.id} value={assignment.id}>
-              {text(projectFor(data, assignment)?.name)} · {text(assignment.role)} · {dateTime(assignment.arrivalAt)}
+              {jobName(data, assignment)} · {text(assignment.role)} · {dateTime(assignment.arrivalAt)}
             </option>
           ))}
         </select>
@@ -904,7 +929,7 @@ export function LiveCrewJobs() {
             <p className="eyebrow crew-past-divider">Finished work</p>
           ) : null}
           <article className="panel crew-job-card-premium" data-status={status}>
-            <header><span><p className="eyebrow">{text(assignment.role)}</p><h2>{text(project?.name)}</h2></span><StatusBadge tone={accepted || assignment.status === "completed" ? "success" : pending ? "warning" : "neutral"}>{status}</StatusBadge></header>
+            <header><span><p className="eyebrow">{text(assignment.role)}</p><h2>{jobName(data, assignment)}</h2></span><StatusBadge tone={accepted || assignment.status === "completed" ? "success" : pending ? "warning" : "neutral"}>{status}</StatusBadge></header>
             <div className="crew-job-decision-grid">
               <span><Clock3/><small>On site</small><strong>{dateTime(assignment.arrivalAt)} – {dateTime(assignment.departureAt)}</strong></span>
               <span><MapPin/><small>{locations.length > 1 ? `${locations.length} locations` : "Location"}</small><strong>{locations.map((item) => text(item.name)).join(" · ") || assignmentPlace(assignment, project)}</strong></span>
@@ -932,7 +957,7 @@ export function LiveCrewJobs() {
               ) : null}
             </div>
             {responsibilities.length ? <section className="crew-responsibilities"><strong>Responsibilities</strong><ul>{responsibilities.map((item) => <li key={item}><CheckCircle2 size={15}/>{item}</li>)}</ul></section> : <p className="crew-missing-detail"><AlertTriangle size={15}/> Responsibilities have not been supplied. Contact the studio before accepting.</p>}
-            {pending ? <CrewOfferActions assignment={assignment} locationName={text(locations[0]?.name)} now={listedAt} onChanged={data.refresh} projectName={text(project?.name)} /> : null}
+            {pending ? <CrewOfferActions assignment={assignment} locationName={text(locations[0]?.name)} now={listedAt} onChanged={data.refresh} projectName={jobName(data, assignment)} /> : null}
             {accepted ? <div className="crew-job-card-actions"><Link className="button button-dark" href={`/crew/prep?assignment=${encodeURIComponent(assignment.id)}`}>Open schedule & prep <ArrowRight size={15}/></Link><StudioContactForm assignment={assignment}/></div> : null}
             {assignment.status === "completed" ? <Link className="button button-light" href={`/crew/closeout?assignment=${encodeURIComponent(assignment.id)}`}>View closeout and payment <ArrowRight size={15}/></Link> : null}
           </article>

@@ -584,9 +584,15 @@ service cloud.firestore {
           hasRole(resource.data.tenantId, ["studio_coordinator"])
           && isAssignedToProject(resource.data.tenantId, resource.data.projectId)
         )
+        // Their own assignment, membership or not. Project access is granted on
+        // acceptance, so an outstanding offer used to be unreadable by the one
+        // person it was addressed to: the crew workspace said "nothing needs
+        // you right now" while an offer sat in their email, on a product whose
+        // headline measure is accepting within fifteen minutes. This document
+        // is the offer — role, times, place, fee — and nothing else about the
+        // job travels with it.
         || (
           hasRole(resource.data.tenantId, ["subcontractor"])
-          && isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && resource.data.userId == request.auth.uid
         );
       allow write: if false;

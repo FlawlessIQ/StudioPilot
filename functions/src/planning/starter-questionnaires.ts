@@ -91,6 +91,12 @@ const WEDDING: readonly StarterSection[] = [
   ]),
   section("family", "Family photographs", [
     ["must-have-groups", "Groups we must photograph", "repeating_group", true],
+    // A field of its own, because it is the first thing a second shooter reads.
+    // Weddings had no equivalent of the corporate and sports "no-photo-list",
+    // so a couple asking that a cousin not appear in any photograph had to bury
+    // it in the middle of a paragraph about divorced parents and a grandmother
+    // who tires easily. Crew briefs sort this to the top; prose does not sort.
+    ["no-photo-list", "Anyone who must not be photographed", "long_text", false],
     ["sensitivities", "Anything we should handle carefully", "long_text", false],
   ]),
   section("timeline", "Timeline", [

@@ -582,6 +582,9 @@ function cascadeAssignment(input: {
       id: input.id,
       tenantId: input.tenantId,
       projectId: input.cascade.projectId,
+      // Named here because an outstanding offer is all the crew member can
+      // read: the project itself stays closed until they accept.
+      projectName: input.cascade.projectName ?? null,
       crewProfileId: input.profile.id,
       userId: input.profile.get("userId") ?? null,
       role: input.cascade.role,
@@ -1058,6 +1061,9 @@ export const crewCommand = onRequest(
         }
 
         const batch = db.batch();
+        const planProject = await db
+          .doc(`projects/${parsed.input.projectId}`)
+          .get();
         const cascadeResults: Array<Record<string, unknown>> = [];
         const planId = stable(
           "crew_plan",
@@ -1072,6 +1078,9 @@ export const crewCommand = onRequest(
             id: cascadeId,
             tenantId: parsed.tenantId,
             ...cascade,
+            projectName: planProject.exists
+              ? (planProject.get("name") ?? null)
+              : null,
             crewPlanId: planId,
             status: "active",
             currentCandidateIndex: 0,
@@ -1228,10 +1237,18 @@ export const crewCommand = onRequest(
         );
         const assignmentId = `${cascadeId}_offer_1`;
         const token = randomBytes(32).toString("base64url");
+        const cascadeProject = await db
+          .doc(`projects/${parsed.input.projectId}`)
+          .get();
         const cascadeRecord = {
           id: cascadeId,
           tenantId: parsed.tenantId,
           ...parsed.input,
+          // Rides onto each offer: an invited crew member cannot read the
+          // project until they accept.
+          projectName: cascadeProject.exists
+            ? (cascadeProject.get("name") ?? null)
+            : null,
           status: "active",
           currentCandidateIndex: 0,
           currentAssignmentId: assignmentId,
@@ -1346,6 +1363,9 @@ export const crewCommand = onRequest(
           .get();
         if (!profile.exists || profile.get("tenantId") !== parsed.tenantId)
           throw new Error("CREW_PROFILE_NOT_FOUND");
+        const invitedProject = await db
+          .doc(`projects/${parsed.input.projectId}`)
+          .get();
         const id = stable(
           "crew_assignment",
           parsed.tenantId,
@@ -1361,6 +1381,9 @@ export const crewCommand = onRequest(
           id,
           tenantId: parsed.tenantId,
           projectId: parsed.input.projectId,
+          projectName: invitedProject.exists
+            ? (invitedProject.get("name") ?? null)
+            : null,
           crewProfileId: parsed.input.crewProfileId,
           userId: parsed.input.userId,
           role: parsed.input.role,
