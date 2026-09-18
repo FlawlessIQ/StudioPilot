@@ -1,15 +1,29 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
+import { formatCents } from "@/lib/format/money";
 
 type StructuredValue = Record<string, unknown>;
 
 const hiddenByDefault = new Set(["sourceText"]);
 
+/**
+ * Machine references, hidden from the *preview* only.
+ *
+ * The review queue is where a studio decides whether to approve AI work, and it
+ * was showing them rows like "Package Id · pkg-signature" and "Base Price Cents
+ * · 650000" — a database key and an unformatted integer, beside the package
+ * name and price they actually describe. The editor still offers every field,
+ * because changing which package is recommended means changing the id.
+ */
+const isMachineReference = (key: string) => /(^|[a-z])Id$/.test(key);
+const isCents = (key: string) => /Cents$/.test(key);
+
 const labels: Record<string, string> = {
   actionLabel: "Button label",
   actionUrl: "Button destination",
-  amountCents: "Amount (cents)",
+  amountCents: "Amount",
+  basePriceCents: "Price",
   body: "Message or document body",
   durationMinutes: "Duration (minutes)",
   lineItems: "Pricing items",
@@ -282,7 +296,8 @@ const isEmpty = (item: unknown) =>
  */
 export function StructuredContentPreview({ value }: { value: StructuredValue }) {
   const entries = Object.entries(value).filter(
-    ([key, item]) => !hiddenByDefault.has(key) && !isEmpty(item),
+    ([key, item]) =>
+      !hiddenByDefault.has(key) && !isMachineReference(key) && !isEmpty(item),
   );
   const prose = entries.filter(([key]) => proseKeys.has(key));
   const facts = entries.filter(([key]) => !proseKeys.has(key));
@@ -300,7 +315,9 @@ export function StructuredContentPreview({ value }: { value: StructuredValue }) 
             <div key={key}>
               <dt>{labelFor(key)}</dt>
               <dd>
-                {Array.isArray(item)
+                {isCents(key) && typeof item === "number"
+                  ? formatCents(item)
+                  : Array.isArray(item)
                   ? `${item.length} ${item.length === 1 ? "item" : "items"}`
                   : isRecord(item)
                     ? Object.entries(item)
