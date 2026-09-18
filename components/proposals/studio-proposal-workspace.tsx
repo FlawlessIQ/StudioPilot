@@ -750,7 +750,7 @@ function ProposalCopyCopilot({
       onDraft(result.introduction, result.termsSummary);
       setStatus(
         result.mode === "ai"
-          ? "Drafted from the consultation — read it over and make it yours."
+          ? "Drafted from what they told you — read it over and make it yours."
           : "Drafted from the package details (AI unavailable right now) — read it over and make it yours.",
       );
     } catch (caught: unknown) {
