@@ -162,3 +162,21 @@ test("a studio can add the questions their crew read first", () => {
   assert.equal(brief.beforeYouShoot.length, criticalCrewQuestions.length);
   assert.equal(brief.beforeYouShoot[0]?.fieldId, "no-photo-list");
 });
+
+test("times read as a photographer says them", () => {
+  const brief = buildCrewBrief({
+    sections: [
+      {
+        fields: [
+          { id: "ceremony-time", label: "Ceremony start time", type: "time" },
+          { id: "end-time", label: "When does coverage end?", type: "time" },
+        ],
+      },
+    ],
+    answers: { "ceremony-time": "17:00", "end-time": "23:30" },
+  });
+  assert.deepEqual(
+    brief.onTheDay.map((item) => item.text),
+    ["5:00 PM", "11:30 PM"],
+  );
+});

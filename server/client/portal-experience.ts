@@ -542,21 +542,39 @@ export function buildClientPortalExperience({
     }
     return fallback;
   })();
+  /**
+   * A checkpoint is the studio's own record of work, and its wording shows it:
+   * the starter templates read "<name> must be verified before event
+   * readiness", and the dates on them are the studio's internal ones. A couple
+   * who had already paid their retainer was told "Retainer paid — Retainer paid
+   * must be verified before event readiness. Due January 15, 2027."
+   *
+   * So the couple is told what is being done, in their words, and never shown
+   * an internal deadline as if it were theirs.
+   */
+  const studioVocabulary = /must be verified before event readiness|readiness|checkpoint|workflow/i;
+  const clientCheckpointAction: ClientNextAction | null = clientCheckpoint
+    ? {
+        name: clientCheckpoint.name,
+        description:
+          clientCheckpoint.description &&
+          !studioVocabulary.test(clientCheckpoint.description)
+            ? clientCheckpoint.description
+            : "Open this step to see what your studio needs from you.",
+        dueDate: studioVocabulary.test(clientCheckpoint.description ?? "")
+          ? null
+          : clientCheckpoint.dueDate,
+        ownerType: clientCheckpoint.ownerType,
+        responsibility: "client",
+        href: destination?.href ?? "/client/project",
+        actionLabel: destination?.actionLabel ?? "View project",
+      }
+    : null;
   const nextClientAction: ClientNextAction =
     scheduleAction ??
-    (clientCheckpoint
-      ? {
-          name: clientCheckpoint.name,
-          description:
-            clientCheckpoint.description ??
-            "Open this step to review what your studio needs from you.",
-          dueDate: clientCheckpoint.dueDate,
-          ownerType: clientCheckpoint.ownerType,
-          responsibility: "client",
-          href: destination?.href ?? "/client/project",
-          actionLabel: destination?.actionLabel ?? "View project",
-        }
-      : proposalNextAction ?? stateFallback);
+    clientCheckpointAction ??
+    proposalNextAction ??
+    stateFallback;
   // An overdue balance is the one thing that outranks the state-derived action.
   // Not merely outstanding — an invoice inside its terms is not yet the client's
   // problem — but past its date, which is when the studio starts chasing.

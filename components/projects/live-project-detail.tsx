@@ -866,6 +866,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
       waitingOnClient={waitingOnClient}
       studioOpenWork={studioOpenWork}
       entries={thread.entries}
+      quiet={typeof project.clientAutomationsPausedAt === "string"}
       interruption={
         ["POSTPONED", "CANCELLED"].includes(state)
           ? {

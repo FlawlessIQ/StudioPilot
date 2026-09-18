@@ -39,7 +39,9 @@ const defaultValues: Omit<PublicLeadIntake, "tenantSlug"> = {
   budgetRange: null,
   referralSource: null,
   message: "",
-  consent: true,
+  // Consent a person actually gave: the box arrived ticked, so the only way to
+  // withhold it was to notice it and untick it. Opt-in is the point of asking.
+  consent: false,
   source: "public_inquiry",
   honeypot: "",
 };

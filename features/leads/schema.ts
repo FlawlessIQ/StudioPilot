@@ -41,7 +41,13 @@ export const publicLeadIntakeSchema = z.object({
   budgetRange: z.string().trim().max(80).nullable().default(null),
   referralSource: z.string().trim().max(120).nullable().default(null),
   message: z.string().trim().min(10).max(5000),
-  consent: z.literal(true),
+  // Ticked by the person, not for them: the box used to arrive checked, so the
+  // only way to withhold consent was to notice it and untick it. The message
+  // matters because it is now reachable — "Invalid literal value" is not
+  // something to show someone enquiring about their wedding.
+  consent: z.boolean().refine((given) => given === true, {
+    message: "Please tick the box so we know we may reply to you.",
+  }),
   source: z.string().trim().max(120).default("public_inquiry"),
   honeypot: z.string().max(0).default(""),
 });

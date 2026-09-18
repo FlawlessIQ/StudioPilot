@@ -282,6 +282,18 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
     ) {
       return;
     }
+    /**
+     * Never hydrate from the fallback date.
+     *
+     * `eventDate` falls back to today so the inputs are never empty, and this
+     * effect used to run the moment a project object existed — including the
+     * pass before its own eventDate had arrived. It then wrote today's date
+     * into arrival and departure and set `defaultsHydrated`, which blocks every
+     * later correction. A wedding eight months out was offered to crew with
+     * today's date on it, under copy reading "Times come from the current
+     * schedule".
+     */
+    if (!text(project.eventDate)) return;
     const items = list(latestSchedule?.items)
       .map(record)
       .filter(

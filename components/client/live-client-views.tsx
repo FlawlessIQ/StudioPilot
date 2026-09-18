@@ -612,6 +612,8 @@ export function LiveClientHome() {
   const documents = useProjectRecords("documents");
   const deliveries = useProjectRecords("deliveryRecords");
   const albums = useProjectRecords("albumWorkflows");
+  // The agreed fee, for money the couple has not been billed for yet.
+  const packageSnapshots = useProjectRecords("packageSnapshots");
   const reserve = useReserveYourDate();
   const [renderedAt] = useState(() => Date.now());
   if (project.loading || project.error || !project.value)
@@ -648,6 +650,27 @@ export function LiveClientHome() {
     (invoice) =>
       invoice.status === "paid" || Number(invoice.balanceCents ?? 1) === 0,
   );
+  /**
+   * What is still to be billed, from the agreement they accepted.
+   *
+   * Invoices only tell you about money already asked for. The final balance is
+   * raised near the date, so between the retainer clearing and that moment the
+   * invoices say "nothing outstanding" while the couple still owes most of the
+   * fee.
+   */
+  const agreedTotalCents = Number(
+    [...packageSnapshots.value].sort((left, right) =>
+      String(right.createdAt ?? "").localeCompare(String(left.createdAt ?? "")),
+    )[0]?.totalCents ?? 0,
+  );
+  const settledCents = invoices.value
+    .filter((invoice) => invoice.status === "paid" || Number(invoice.balanceCents ?? 1) === 0)
+    .reduce((sum, invoice) => sum + Number(invoice.amountCents ?? 0), 0);
+  const billedCents = invoices.value.reduce(
+    (sum, invoice) => sum + Number(invoice.amountCents ?? 0),
+    0,
+  );
+  const balanceToCome = Math.max(0, agreedTotalCents - Math.max(settledCents, billedCents));
   // The largest unsettled invoice, and whether it has gone past its date. A
   // couple needs one number here, not a status word.
   const today = todayLocalIso();
@@ -698,9 +721,16 @@ export function LiveClientHome() {
             outstanding.overdue ? " · overdue" : ""
           }`
         : paidInvoice
-          ? "Paid in full"
+          ? // "Paid in full" while a balance is still to come: the final
+            // invoice is raised close to the date, so between the retainer and
+            // that moment there is nothing outstanding to count — and a couple
+            // who owed $3,219.30 was told they had paid in full. What they have
+            // actually paid is the honest answer until the rest is billed.
+            balanceToCome > 0
+            ? `Retainer paid · ${money(balanceToCome, paidInvoice.currency)} due closer to the day`
+            : "Paid in full"
           : "Check provider status",
-      ready: Boolean(paidInvoice) && !outstanding,
+      ready: Boolean(paidInvoice) && !outstanding && balanceToCome <= 0,
       href: "/client/payments",
       icon: CreditCard,
     },

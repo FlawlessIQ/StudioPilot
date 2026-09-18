@@ -128,8 +128,22 @@ export function fieldReachesCrew(field: BriefField): boolean {
 }
 
 /** An answer as a sentence fragment, or "" when there's nothing to say. */
+/** "17:00" as a photographer reads it at a venue. */
+function clockTime(value: string): string {
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return value;
+  const hour = Number(match[1]);
+  const minute = match[2];
+  if (hour > 23 || Number(minute) > 59) return value;
+  const suffix = hour < 12 ? "AM" : "PM";
+  const twelve = hour % 12 === 0 ? 12 : hour % 12;
+  return `${twelve}:${minute} ${suffix}`;
+}
+
 export function answerText(type: string, value: unknown): string {
   if (value === null || value === undefined) return "";
+  // A brief read on a phone between shots says 5:00 PM, not 17:00.
+  if (type === "time" && typeof value === "string") return clockTime(value);
   if (typeof value === "boolean") {
     if (type === "acknowledgement") return value ? "Confirmed" : "Not confirmed";
     return value ? "Yes" : "No";

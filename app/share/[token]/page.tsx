@@ -131,7 +131,14 @@ export default async function RunOfShowSharePage({
   const studioName = String(
     tenant.brandName ?? tenant.businessName ?? "the studio",
   );
-  const couple = String(project.clientName ?? "the couple");
+  // `clientName` is not always set — the couple's names live on the contacts —
+  // and a planner opening this read "the couple · Saturday, May 15" as though
+  // the studio could not be bothered. The job's own name is the next best
+  // thing a vendor will recognise.
+  const couple =
+    String(project.clientName ?? "").trim() ||
+    String(project.name ?? "").trim() ||
+    "the couple";
   const venue = project.venueName ? String(project.venueName) : null;
 
   return (

@@ -131,8 +131,10 @@ const VENDOR_TYPE_FOCUS: Record<string, string> = {
     "Service and reception timings are highlighted — please confirm your setup and service windows.",
   videographer:
     "The full run of show is here so our coverage lines up — flag anything you'd stage differently.",
+  // Was "Here is our run of show to cross-check…", which followed the opener's
+  // "Here's the run of show for…" and read as two stitched drafts.
   planner:
-    "Here is our run of show to cross-check against the master timeline — flag any conflicts.",
+    "Please cross-check it against your master timeline and flag any conflicts.",
   transportation:
     "Pickup and departure timings are highlighted — please confirm your schedule.",
   venue:

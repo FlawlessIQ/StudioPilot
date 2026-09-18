@@ -93,6 +93,7 @@ export function ProjectThread({
   waitingOnClient = null,
   studioOpenWork = [],
   interruption,
+  quiet = false,
   stateVersion,
   consultationId,
   onChanged,
@@ -120,6 +121,8 @@ export function ProjectThread({
    * wrong thing to say about it.
    */
   interruption: { state: string; reason: string | null } | null;
+  /** An imported booking whose couple has not been brought in yet. */
+  quiet?: boolean;
   stateVersion: number;
   /** An open consultation, when one exists — enables logging notes here. */
   consultationId: string | null;
@@ -134,6 +137,7 @@ export function ProjectThread({
         current={current}
         waitingOnClient={waitingOnClient}
         interruption={interruption}
+        quiet={quiet}
         onChanged={onChanged}
         projectId={projectId}
         stateVersion={stateVersion}
@@ -364,6 +368,7 @@ function ThreadNextMove({
   current,
   waitingOnClient = null,
   interruption,
+  quiet = false,
   onChanged,
   projectId,
   stateVersion,
@@ -372,11 +377,38 @@ function ThreadNextMove({
   current: JourneyStep | null;
   waitingOnClient?: string | null;
   interruption: { state: string; reason: string | null } | null;
+  /** An imported booking whose couple has not been brought in yet. */
+  quiet?: boolean;
   onChanged: (state?: string, version?: number) => void;
   projectId: string;
   stateVersion: number;
   studioOpenWork: string[];
 }) {
+  if (quiet) {
+    /**
+     * An imported booking's banner promises that nothing has been sent to the
+     * couple and nothing will be until the studio brings them in — and the
+     * next move directly beneath it read "Send the form", which would email a
+     * couple who has never heard of StudioCue. The move here is the one the
+     * banner describes.
+     */
+    return (
+      <div className="thread-next-slot">
+        <div className="thread-next is-interrupted">
+          <div className="thread-next-copy">
+            <p className="thread-next-eyebrow">
+              <PauseCircle size={12} /> Quiet
+            </p>
+            <strong>Nothing is being sent to this couple.</strong>
+            <small>
+              They came from your old system. Bring them in above when
+              you&rsquo;re ready, and StudioCue picks the job up from there.
+            </small>
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (interruption) {
     /**
      * On hold or called off, and it says which and why.
