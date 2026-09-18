@@ -58,13 +58,55 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
   const initialEnd = new Date(`${eventDate}T20:00:00`);
   const [rolesText, setRolesText] = useState("Second photographer");
   const [specialty, setSpecialty] = useState("weddings");
-  const [startsAt, setStartsAt] = useState(localDateTime(initialStart));
-  const [endsAt, setEndsAt] = useState(localDateTime(initialEnd));
+  /**
+   * Arrival and departure, derived rather than seeded.
+   *
+   * These were state initialised from `eventDate`, which falls back to today
+   * while the job is still loading — so the first render wrote today's date and
+   * a later effect was supposed to correct it. It did not, and a wedding eight
+   * months out was offered to crew dated today, under copy reading "Times come
+   * from the current schedule". Deriving them each render means the moment the job
+   * (or its run of show) arrives, the field is right; `null` means the studio
+   * has not typed over it yet. Same shape as the direct-invite form beside it,
+   * which never had this bug.
+   */
+  const [startsAtEdit, setStartsAtEdit] = useState<string | null>(null);
+  const [endsAtEdit, setEndsAtEdit] = useState<string | null>(null);
   const [compensationDollars, setCompensationDollars] = useState("800");
   const [responsibilities, setResponsibilities] = useState(
     "Ceremony reactions\nCocktail-hour candids\nBackup primary photographer",
   );
   const [defaultsHydrated, setDefaultsHydrated] = useState(false);
+  const latestSchedule = [...(schedules ?? [])]
+    .filter(
+      (schedule) =>
+        schedule.projectId === projectId &&
+        !["superseded", "archived"].includes(String(schedule.status)),
+    )
+    .sort((left, right) => Number(right.version) - Number(left.version))[0];
+  /** The run of show decides the window as soon as there is one. */
+  const scheduledItems = list(latestSchedule?.items)
+    .map(record)
+    .filter(
+      (item) =>
+        Number.isFinite(Date.parse(text(item.startAt))) &&
+        Number.isFinite(Date.parse(text(item.endAt))),
+    )
+    .sort(
+      (left, right) =>
+        Date.parse(text(left.startAt)) - Date.parse(text(right.startAt)),
+    );
+  const startsAt =
+    startsAtEdit ??
+    (scheduledItems[0]
+      ? localDateTime(new Date(text(scheduledItems[0].startAt)))
+      : localDateTime(new Date(`${eventDate}T12:00:00`)));
+  const endsAt =
+    endsAtEdit ??
+    (scheduledItems.at(-1)
+      ? localDateTime(new Date(text(scheduledItems.at(-1)!.endAt)))
+      : localDateTime(new Date(`${eventDate}T20:00:00`)));
+
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [restartOpen, setRestartOpen] = useState(false);
   const [responseWindowHours, setResponseWindowHours] = useState("24");
@@ -164,13 +206,6 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
     (candidate) =>
       candidate.eligible && !excluded.has(candidate.crewProfileId),
   );
-  const latestSchedule = [...(schedules ?? [])]
-    .filter(
-      (schedule) =>
-        schedule.projectId === projectId &&
-        !["superseded", "archived"].includes(String(schedule.status)),
-    )
-    .sort((left, right) => Number(right.version) - Number(left.version))[0];
   const projectCascades =
     cascades?.filter((cascade) => cascade.projectId === projectId) ?? [];
   // What is already happening on this job. The screen used to open on a
@@ -339,8 +374,6 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
     );
 
     const frame = requestAnimationFrame(() => {
-      setStartsAt(nextStart);
-      setEndsAt(nextEnd);
       if (Number.isFinite(rateCents) && rateCents >= 0) {
         setCompensationDollars(String(rateCents / 100));
       }
@@ -503,7 +536,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
                 <label>
                   Arrival
                   <input
-                    onChange={(event) => setStartsAt(event.target.value)}
+                    onChange={(event) => setStartsAtEdit(event.target.value)}
                     type="datetime-local"
                     value={startsAt}
                   />
@@ -511,7 +544,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
                 <label>
                   Departure
                   <input
-                    onChange={(event) => setEndsAt(event.target.value)}
+                    onChange={(event) => setEndsAtEdit(event.target.value)}
                     type="datetime-local"
                     value={endsAt}
                   />

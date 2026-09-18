@@ -14,15 +14,18 @@ const source = readFileSync(
   "utf8",
 );
 
-test("defaults are never hydrated from the fallback date", () => {
-  const effect = source.slice(
-    source.indexOf("if (\n      defaultsHydrated ||"),
-    source.indexOf("setDefaultsHydrated(true)"),
-  );
-  assert.match(effect, /if \(!text\(project\.eventDate\)\) return;/);
-  // And the guard comes before anything is computed from the date.
-  assert.ok(
-    effect.indexOf("if (!text(project.eventDate)) return;") <
-      effect.indexOf("const nextStart"),
-  );
+test("the offered window is derived, not seeded once", () => {
+  // Seeding state from `eventDate` captured the fallback (today) on the first
+  // render, and the effect meant to correct it never did. Deriving means the
+  // field is right the moment the job — or its run of show — arrives.
+  assert.match(source, /const \[startsAtEdit, setStartsAtEdit\] = useState<string \| null>\(null\)/);
+  assert.match(source, /const startsAt =\s*\n\s*startsAtEdit \?\?/);
+  assert.match(source, /const endsAt =\s*\n\s*endsAtEdit \?\?/);
+  // And the run of show wins over the plain event date when there is one.
+  assert.match(source, /scheduledItems\[0\]/);
+});
+
+test("nothing writes the window back into state behind the studio", () => {
+  assert.doesNotMatch(source, /setStartsAt\(/);
+  assert.doesNotMatch(source, /setEndsAt\(/);
 });
