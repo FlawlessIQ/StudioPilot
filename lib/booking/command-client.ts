@@ -15,6 +15,7 @@ import type {
   ExistingBookingIssue,
 } from "@/features/imports/existing-booking";
 import type { QuickBooksClientHistory } from "@/features/imports/quickbooks-prefill";
+import { markTenantRecordsWritten } from "@/lib/live/record-writes";
 
 export async function sendBookingCommand(input: Record<string, unknown>) {
   const endpoint = process.env.NEXT_PUBLIC_BOOKING_FUNCTIONS_URL;
@@ -45,6 +46,7 @@ export async function sendBookingCommand(input: Record<string, unknown>) {
       String(payload.error ?? "Booking command could not be completed."),
     );
   }
+  markTenantRecordsWritten();
   return { mode: "live" as const, payload };
 }
 

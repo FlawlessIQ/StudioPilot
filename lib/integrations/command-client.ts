@@ -6,6 +6,7 @@ import type {
   IntegrationCapability,
   IntegrationProvider,
 } from "@/features/integrations/schema";
+import { markTenantRecordsWritten } from "@/lib/live/record-writes";
 
 export type SetCapabilityProviderResult = {
   capability: IntegrationCapability;
@@ -64,6 +65,7 @@ export async function setCapabilityProvider(
         : "Could not change the connected provider.",
     );
   }
+  markTenantRecordsWritten();
   return { persisted: true, result };
 }
 
@@ -165,6 +167,7 @@ export async function setContractTemplate(
       String(payload.error ?? "The agreement template could not be saved."),
     );
   }
+  markTenantRecordsWritten();
   return {
     persisted: true,
     result: payload as unknown as ContractTemplateResult,
@@ -213,6 +216,7 @@ export async function setProviderTestMode(
   if (!response.ok) {
     throw new Error(String(payload.error ?? "Test mode could not be changed."));
   }
+  markTenantRecordsWritten();
   return { persisted: true, result: { provider, testMode } };
 }
 
@@ -243,6 +247,7 @@ export async function setAutopay(
   });
   const payload = (await response.json()) as Record<string, unknown>;
   if (!response.ok) throw new Error(String(payload.error ?? "Autopay could not be changed."));
+  markTenantRecordsWritten();
   return { persisted: true };
 }
 

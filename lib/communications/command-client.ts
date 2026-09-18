@@ -4,6 +4,7 @@ import { getAuth } from "firebase/auth";
 import { activeMembership } from "@/lib/firebase/active-membership";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { markTenantRecordsWritten } from "@/lib/live/record-writes";
 
 export async function sendCommunicationsCommand(
   input: Record<string, unknown>,
@@ -41,5 +42,6 @@ export async function sendCommunicationsCommand(
         : "MESSAGE_SEND_FAILED";
     throw new Error(error);
   }
+  markTenantRecordsWritten();
   return { mode: "live" as const, payload };
 }

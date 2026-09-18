@@ -4,6 +4,7 @@ import { connectStorageEmulator, getStorage, ref, uploadBytes } from "firebase/s
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { activeMembership } from "@/lib/firebase/active-membership";
+import { markTenantRecordsWritten } from "@/lib/live/record-writes";
 
 export async function sendCrewCommand(
   type: string,
@@ -30,6 +31,7 @@ export async function sendCrewCommand(
   });
   const result = await response.json() as Record<string, unknown>;
   if (!response.ok) throw new Error(typeof result.error === "string" ? result.error : "Crew command failed.");
+  markTenantRecordsWritten();
   return { persisted: true, result };
 }
 

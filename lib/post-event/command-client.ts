@@ -2,6 +2,7 @@
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { activeMembership } from "@/lib/firebase/active-membership";
+import { markTenantRecordsWritten } from "@/lib/live/record-writes";
 
 export async function sendPostEventCommand(type:string,input:Record<string,unknown>){
   const endpoint=process.env.NEXT_PUBLIC_POST_EVENT_FUNCTIONS_URL;
@@ -13,5 +14,6 @@ export async function sendPostEventCommand(type:string,input:Record<string,unkno
   const response=await fetch(`${endpoint.replace(/\/$/,"")}/postEventCommand`,{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${await user.getIdToken()}`,...(appCheckToken?{"x-firebase-appcheck":appCheckToken}:{})},body:JSON.stringify({type,tenantId:membership.data().tenantId as string,idempotencyKey:crypto.randomUUID(),input})});
   const result=await response.json() as Record<string,unknown>;
   if(!response.ok)throw new Error(typeof result.error==="string"?result.error:"Post-event command failed.");
+  markTenantRecordsWritten();
   return{persisted:true,result};
 }

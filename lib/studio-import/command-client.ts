@@ -10,6 +10,7 @@ import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { activeMembership } from "@/lib/firebase/active-membership";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { validateStudioImportFileCandidate } from "@/features/studio-import/schema";
+import { markTenantRecordsWritten } from "@/lib/live/record-writes";
 
 /**
  * Import failures a person can act on.
@@ -374,6 +375,7 @@ export async function uploadStudioImportFiles(input: {
         items: current.items,
       });
       if (ready || !active) {
+        markTenantRecordsWritten();
         return { persisted: true, result: current, ready };
       }
       await new Promise((resolve) => window.setTimeout(resolve, 1500));
@@ -439,6 +441,7 @@ export async function importStudioTextSource(input: {
     signal: input.signal,
     onReview: input.onReview,
   });
+  markTenantRecordsWritten();
   return { persisted: true, result, review };
 }
 

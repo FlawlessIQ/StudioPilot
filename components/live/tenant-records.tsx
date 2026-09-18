@@ -66,6 +66,7 @@ import { statusLabel } from "@/features/format/status-label";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { leadIntakeGaps } from "@/features/crm/lead-intake";
 import { ClientRecordActions } from "@/components/clients/client-record-actions";
+import { cacheEntryPredatesWrite } from "@/lib/live/record-writes";
 
 // Re-exported so existing importers of this module keep working.
 export { demoTenantDocuments };
@@ -74,7 +75,7 @@ const tenantRecordsCacheTtlMs = 15_000;
 const tenantRecordsRequestTimeoutMs = 12_000;
 const tenantRecordsCache = new Map<
   string,
-  { records: TenantDocument[]; expiresAt: number }
+  { records: TenantDocument[]; cachedAt: number; expiresAt: number }
 >();
 const tenantRecordsRequests = new Map<string, Promise<TenantDocument[]>>();
 const projectScopedCollections = new Set([
@@ -197,6 +198,22 @@ async function tenantDocuments(
   );
 }
 
+/**
+ * A cache entry is usable while it is inside its TTL *and* was taken after the
+ * last command that persisted. See lib/live/record-writes.ts: the second half
+ * is what stops a route that wrote, and then navigated, being served records
+ * read before its own write.
+ */
+function usable(
+  entry: { cachedAt: number; expiresAt: number } | undefined,
+): boolean {
+  return (
+    entry !== undefined &&
+    entry.expiresAt > Date.now() &&
+    !cacheEntryPredatesWrite(entry.cachedAt)
+  );
+}
+
 async function cachedTenantDocuments(
   collectionName: string,
   tenantId: string,
@@ -205,7 +222,7 @@ async function cachedTenantDocuments(
 ): Promise<TenantDocument[]> {
   const key = tenantRecordsKey(collectionName, tenantId, role, projectIds);
   const cached = tenantRecordsCache.get(key);
-  if (cached && cached.expiresAt > Date.now()) return cached.records;
+  if (cached && usable(cached)) return cached.records;
   const pending = tenantRecordsRequests.get(key);
   if (pending) return pending;
 
@@ -229,6 +246,7 @@ async function cachedTenantDocuments(
       if (tenantRecordsRequests.get(key) === request)
         tenantRecordsCache.set(key, {
           records,
+          cachedAt: Date.now(),
           expiresAt: Date.now() + tenantRecordsCacheTtlMs,
         });
       return records;
@@ -355,9 +373,10 @@ export function useTenantDocuments(
     const cached = tenantRecordsCache.get(key);
     void Promise.resolve().then(() => {
       if (!active) return;
-      setRecords(
-        cached && cached.expiresAt > Date.now() ? cached.records : null,
-      );
+      // The same rule as the read below: a warm entry from before the last
+      // write must not be painted, even for the moment before the real read
+      // lands. That flash is the stale list the studio reports.
+      setRecords(usable(cached) ? cached!.records : null);
       setError(null);
     });
     void cachedTenantDocuments(

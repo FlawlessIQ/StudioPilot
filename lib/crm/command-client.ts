@@ -3,6 +3,7 @@
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { activeMembership } from "@/lib/firebase/active-membership";
+import { markTenantRecordsWritten } from "@/lib/live/record-writes";
 
 type CrmCommandResult = Record<string, unknown>;
 
@@ -46,5 +47,6 @@ export async function runCrmCommand(
   if (!response.ok) {
     throw new Error(typeof result.error === "string" ? result.error : "Studio command failed.");
   }
+  markTenantRecordsWritten();
   return { persisted: true, result };
 }

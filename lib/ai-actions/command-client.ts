@@ -3,6 +3,7 @@
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { activeMembership } from "@/lib/firebase/active-membership";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { markTenantRecordsWritten } from "@/lib/live/record-writes";
 
 type AiQueueCommand =
   | {
@@ -82,5 +83,6 @@ export async function runAiQueueCommand(
   };
   if (!response.ok)
     throw new Error(result.error ?? "AI approval could not be updated.");
+  markTenantRecordsWritten();
   return result;
 }

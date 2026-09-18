@@ -2,6 +2,7 @@
 
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { markTenantRecordsWritten } from "@/lib/live/record-writes";
 
 export async function runMembershipCommand(
   body: Record<string, unknown>,
@@ -37,5 +38,6 @@ export async function runMembershipCommand(
         : "The membership request failed.",
     );
   }
+  markTenantRecordsWritten();
   return result;
 }

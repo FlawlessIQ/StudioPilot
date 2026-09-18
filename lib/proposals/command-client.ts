@@ -3,6 +3,7 @@
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { activeMembership } from "@/lib/firebase/active-membership";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { markTenantRecordsWritten } from "@/lib/live/record-writes";
 
 export type ProposalCommandType =
   | "create_draft"
@@ -79,5 +80,6 @@ export async function runProposalCommand(
         : "Proposal command failed.",
     );
   }
+  markTenantRecordsWritten();
   return { persisted: true, result };
 }

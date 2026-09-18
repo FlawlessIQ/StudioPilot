@@ -3,6 +3,7 @@
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { activeMembership } from "@/lib/firebase/active-membership";
+import { markTenantRecordsWritten } from "@/lib/live/record-writes";
 
 export async function runWorkflowCommand(
   type: string,
@@ -41,5 +42,6 @@ export async function runWorkflowCommand(
       typeof result.error === "string" ? result.error : "Workflow command failed.",
     );
   }
+  markTenantRecordsWritten();
   return { persisted: true, result };
 }
