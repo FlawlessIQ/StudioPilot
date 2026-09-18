@@ -128,6 +128,47 @@ else
   note "delivery is not live; SendGrid variables are not required"
 fi
 
+# SendGrid rewrites every link in a tracked email to its click-tracking host.
+# Without link branding on the sending domain that host is the SHARED
+# `u<account>.ct.sendgrid.net`, so a couple asked to accept a priced proposal
+# sees `u57073990.ct.sendgrid.net/ls/click?upn=...` where studio-cue.com should
+# be. Confirmed in a real send on 2026-09-17 (the Harper Lane proposal).
+#
+# Turning click tracking off is not the fix: functions/src/communications/
+# sendgrid-events.ts consumes `click` and `open` to set `clickedAt`/`openedAt`,
+# which is what drives "They have opened it" on the booking workspace. Auth mail
+# already opts out (AUTH_EMAIL_TYPES) precisely because it has no such need.
+#
+# The fix is link branding on the sending domain — two CNAMEs — after which the
+# wrapper reads `url####.studio-cue.com` and tracking still works. Needs the
+# SendGrid API key, so this block is skipped when it is not reachable.
+printf '\nClient-facing link branding\n'
+link_domain="${app_url#https://}"; link_domain="${link_domain%%/*}"
+if [ -z "${link_domain}" ]; then
+  note "NEXT_PUBLIC_APP_URL is unset, so the link domain cannot be checked"
+elif ! sendgrid_key="$(gcloud secrets versions access latest \
+    --secret=SENDGRID_API_KEY --project "${project_id}" 2>/dev/null)"; then
+  note "SENDGRID_API_KEY is not readable here — skipping (run with access to check)"
+else
+  branded="$(curl -fsS -H "Authorization: Bearer ${sendgrid_key}" \
+    https://api.sendgrid.com/v3/whitelabel/links 2>/dev/null \
+    | python3 -c "
+import json,sys
+want=sys.argv[1]
+for d in json.load(sys.stdin):
+    if d.get('domain')==want and d.get('valid'):
+        print(d.get('subdomain',''))
+" "${link_domain}" || true)"
+  unset sendgrid_key
+  if [ -n "${branded}" ]; then
+    pass "links are branded as ${branded}.${link_domain}"
+  else
+    fail "${link_domain} has no validated SendGrid link branding"
+    note "client links ship as u<account>.ct.sendgrid.net — not our domain"
+    note "SendGrid → Sender Authentication → Link Branding, then add both CNAMEs"
+  fi
+fi
+
 printf '\n'
 if [ "${failures}" -gt 0 ]; then
   printf '%s check(s) failed.\n\n' "${failures}"
