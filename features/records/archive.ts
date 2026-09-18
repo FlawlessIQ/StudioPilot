@@ -11,11 +11,17 @@
  * "delete" was the word the studio reached for because "archive" was not
  * offered anywhere.
  *
+ * Jobs were then left out of exactly that fix. The Jobs list has had an
+ * Archived tab since it was built, the job page offers only "put on hold" and
+ * "cancel", and the studio it is validated against asked "how do I
+ * delete/archive a job?" — reaching for "delete" for the same reason, one
+ * entity over.
+ *
  * These are the words and the refusals, in one place, because three entities
  * now share them and a studio should meet the same idea each time.
  */
 
-export type ArchivableKind = "client" | "vendor" | "crew";
+export type ArchivableKind = "client" | "vendor" | "crew" | "job";
 
 const COPY: Record<
   ArchivableKind,
@@ -32,6 +38,16 @@ const COPY: Record<
     restore: "Restore vendor",
     confirm: "Archive this vendor? They stop appearing when you pick a venue.",
     kept: "Insurance requests and project records naming them are kept.",
+  },
+  job: {
+    archive: "Archive job",
+    restore: "Restore job",
+    // Says what it is *not*, because a studio archiving a wedding that is
+    // actually off wants Cancel — which keeps the reason and tells the rest of
+    // the product to stop chasing it.
+    confirm:
+      "Archive this job? It moves to the Archived tab and stops appearing as live work. If the wedding is off, cancel it instead.",
+    kept: "Its proposal, agreement, payments and messages are kept.",
   },
   crew: {
     archive: "Remove from directory",
@@ -68,4 +84,5 @@ export const ARCHIVE_REFUSALS: Record<string, string> = {
   CONTACT_NOT_FOUND: "That client record could not be found.",
   VENDOR_NOT_FOUND: "That vendor record could not be found.",
   CREW_PROFILE_NOT_FOUND: "That collaborator could not be found.",
+  PROJECT_NOT_FOUND: "That job could not be found.",
 };

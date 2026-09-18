@@ -71,6 +71,8 @@ import { ProjectJobPlan } from "@/components/projects/project-job-plan";
 import { ProjectPlanningCopilot } from "@/components/projects/project-planning-copilot";
 import { crmProjects } from "@/config/crm-demo-data";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { ArchiveToggle } from "@/components/records/archive-toggle";
+import { refreshTenantRecords } from "@/components/live/tenant-records";
 import {
   manualAdvanceExample,
   manualAdvanceFor,
@@ -350,6 +352,47 @@ function ProjectStageControl({
  * "Postponed" on its own tells nobody anything. See
  * features/projects/interruptions.ts.
  */
+/**
+ * Taking the job off the working list — bookkeeping, not an outcome.
+ *
+ * The Jobs list has had an Archived tab since it was built and nothing could
+ * put a job in it, so "delete" was the word studios reached for; the studio
+ * this product is validated against asked exactly that. Sits beside hold and
+ * cancel because that is where someone looks when they want a job gone, and
+ * the confirmation points at Cancel when the wedding is genuinely off.
+ *
+ * Owns its own notice, like the control below it.
+ */
+function ProjectArchiveControl({
+  archived,
+  projectId,
+}: {
+  archived: boolean;
+  projectId: string;
+}) {
+  const [notice, setNotice] = useState<string | null>(null);
+  return (
+    <>
+      <ArchiveToggle
+        archived={archived}
+        kind="job"
+        onDone={(message) => {
+          setNotice(message);
+          refreshTenantRecords("projects");
+        }}
+        run={async (restore) => {
+          await runCrmCommand("archiveProject", { projectId, restore });
+        }}
+      />
+      {notice ? (
+        <p className="form-notice" role="status">
+          {notice}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
 function ProjectInterruptionControl({
   projectId,
   state,
@@ -926,12 +969,18 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
     />
   );
   const interruptionEl = (
-    <ProjectInterruptionControl
-      onTransition={onTransition}
-      projectId={projectId}
-      state={state}
-      stateVersion={Number(project.stateVersion ?? 0)}
-    />
+    <>
+      <ProjectInterruptionControl
+        onTransition={onTransition}
+        projectId={projectId}
+        state={state}
+        stateVersion={Number(project.stateVersion ?? 0)}
+      />
+      <ProjectArchiveControl
+        archived={typeof project.archivedAt === "string"}
+        projectId={projectId}
+      />
+    </>
   );
 
   return (

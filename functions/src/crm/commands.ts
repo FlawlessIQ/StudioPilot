@@ -209,6 +209,27 @@ const commandSchema = z.discriminatedUnion("type", [
       restore: z.boolean().default(false),
     }),
   }),
+  z.object({
+    /**
+     * Take a job off the working list.
+     *
+     * Bookkeeping, not an outcome: the Jobs list has always had an Archived
+     * tab and nothing could put a job in it, so "delete" was the word studios
+     * reached for. Deliberately allowed at any stage — a studio archiving a
+     * dead enquiry or a duplicate should not have to cancel a wedding that was
+     * never on — and deliberately distinct from CANCELLED, which records that
+     * the wedding is off and tells the rest of the product to stop chasing it.
+     *
+     * Reversible, and it deletes nothing.
+     */
+    type: z.literal("archiveProject"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      restore: z.boolean().default(false),
+    }),
+  }),
   /**
    * Correct a package that already exists.
    *
@@ -1127,6 +1148,62 @@ export const crmCommand = onRequest(
             createdAt: timestamp,
           });
           return output;
+        }
+
+        if (command.type === "archiveProject") {
+          // Same bar as archiving a client: curating the working list is an
+          // owner/admin decision, not a coordinator's.
+          if (!["studio_owner", "studio_admin"].includes(membershipData.role)) {
+            throw new Error("FORBIDDEN");
+          }
+          const projectReference = db.doc(`projects/${command.input.projectId}`);
+          const project = await transaction.get(projectReference);
+          if (
+            !project.exists ||
+            project.get("tenantId") !== command.tenantId
+          ) {
+            throw new Error("PROJECT_NOT_FOUND");
+          }
+          if (!hasProjectAccess(membershipData, project.id)) {
+            throw new Error("PROJECT_ACCESS_DENIED");
+          }
+          transaction.update(projectReference, {
+            archivedAt: command.input.restore ? null : timestamp,
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          const projectArchiveAuditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${projectArchiveAuditId}`), {
+            id: projectArchiveAuditId,
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorId: identity.uid,
+            actorType: "user",
+            action: command.input.restore
+              ? "project.restored"
+              : "project.archived",
+            entityType: "project",
+            entityId: command.input.projectId,
+            timestamp,
+            before: { archivedAt: project.get("archivedAt") ?? null },
+            after: { archivedAt: command.input.restore ? null : timestamp },
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          const projectArchiveOutput = {
+            projectId: command.input.projectId,
+            archived: !command.input.restore,
+          };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: projectArchiveOutput,
+            createdAt: timestamp,
+          });
+          return projectArchiveOutput;
         }
 
         if (command.type === "archiveContact") {
