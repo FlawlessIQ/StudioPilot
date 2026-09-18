@@ -154,6 +154,25 @@ risked reverting the other clone's work.
    ```bash
    grep -rl "communications/email-templates" functions/src
    ```
+   **It happened again on 2026-09-18**, and a "deploy all" did not prevent it:
+   84 of 85 functions moved to `066c85d` and `operationsTaskWorker` — the
+   render worker again — stayed on a revision from 02:50. So the album-reminder
+   template and the portal links on the delivery and review emails were never
+   live, while the commit, the app rollout and the emailJobs all said otherwise.
+   Judgement about importers is not enough; check afterwards:
+   ```bash
+   ./scripts/verify-deployed-function-freshness.sh studiohub-prod us-east4
+   ```
+   It fails on any function whose deployed source predates the last
+   `functions/src` commit. To confirm a *specific* change actually shipped,
+   read the deployed bundle:
+   ```bash
+   GEN=$(gcloud functions describe operationsTaskWorker --region=us-east4 \
+     --project=studiohub-prod --gen2 \
+     --format="value(buildConfig.source.storageSource.generation)")
+   gsutil cp "gs://gcf-v2-sources-988256939236-us-east4/operationsTaskWorker/function-source.zip#$GEN" /tmp/f.zip
+   unzip -p /tmp/f.zip lib/communications/email-templates.js | grep -c secondaryAction
+   ```
 7. **Create the App Hosting rollout explicitly and verify it.** Auto-rollout on
    push is **unreliable** — observed both firing and silently not firing on
    merges to `main` (2026-08-20 and 2026-08-21). Never assume a push deployed:
