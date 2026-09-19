@@ -23,6 +23,19 @@ imported booking is never auto-offered.
 place. It used to count the assignments that already existed and fall back to a
 flat 1, so a job needing three people read as needing one.
 
+## When a job stops
+
+`features/crew/job-stopped.ts` decides what happens to each assignment.
+Cancelling withdraws every live one; an un-answered offer goes quietly, an
+**accepted** one is withdrawn and the crew member emailed, because they are
+holding the date. Postponing drops un-answered offers and keeps accepted ones —
+the date is moving, not gone. Any cascade still working down its list is closed
+so it cannot offer the next name.
+
+Archiving is bookkeeping and ends nothing, so it is **refused** while anyone is
+waiting on the job (`PROJECT_HAS_LIVE_CREW`), the same rule archiving a client
+follows. Cancel first: that ends the offers and records why.
+
 ## Deterministic lifecycle
 
 Assignment status changes use an explicit transition table. Invitations are idempotent, expire after seven days, store only a SHA-256 token hash on the assignment, and queue the one-time raw token only in the server-owned email job. Acceptance, decline, calendar acknowledgement, requirement submission/review, and schedule acknowledgement are authenticated commands with audit events.

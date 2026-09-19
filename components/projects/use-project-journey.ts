@@ -182,6 +182,8 @@ export function useProjectJourney({
       crewRequiredFromCoverage(resolveCoverage(bookedSnapshot)),
     ),
     packageNeedsSecondShooter,
+    // No package locked yet means the crew question is unanswered, not solo.
+    packageChosen: bookedSnapshot !== undefined,
     settledCheckpointKeys: forProject(checkpoints.records)
       .filter((checkpoint) => ["complete", "waived"].includes(text(checkpoint.status)))
       .map((checkpoint) => text(checkpoint.templateKey))

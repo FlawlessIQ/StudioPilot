@@ -818,7 +818,27 @@ export const crewCommand = onRequest(
             .where("archivedAt", "==", null)
             .limit(20)
             .get();
-          const settled = ["declined", "withdrawn", "completed", "closed"];
+          /**
+           * The statuses that mean this work is over.
+           *
+           * This read `["declined", "withdrawn", "completed", "closed"]`, and
+           * `withdrawn` and `closed` are not in `assignmentStatusSchema` at
+           * all — while `expired`, `cancelled` and `reassigned`, which are,
+           * were missing. So the three commonest ways an offer ends counted as
+           * open, and a collaborator whose assignments had all quietly expired
+           * could never be archived: `CREW_HAS_OPEN_ASSIGNMENT`, forever.
+           *
+           * `draft`, `invited`, `viewed` and `accepted` stay blocking, which is
+           * the point of the guard — do not archive someone the studio is
+           * still waiting on, or who is expecting to work.
+           */
+          const settled = [
+            "declined",
+            "expired",
+            "reassigned",
+            "cancelled",
+            "completed",
+          ];
           if (
             open.docs.some(
               (assignment) =>

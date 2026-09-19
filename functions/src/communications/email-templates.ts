@@ -43,6 +43,7 @@ export const emailTemplateKeys = [
   "coi_correction",
   "coi_venue_delivery",
   "crew_reminder",
+  "crew_assignment_cancelled",
   "final_invoice",
   "final_payment_reminder",
   "schedule_review",
@@ -638,6 +639,27 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           ? { label: "Open job brief", url: actionUrl }
           : undefined,
       };
+    case "crew_assignment_cancelled": {
+      /**
+       * Only ever sent to somebody who had **accepted**. They have the date in
+       * their diary and have turned other work down, so this says plainly that
+       * it is off, gives the studio's reason where there is one, and does not
+       * ask them to do anything — there is nothing left for them to do.
+       */
+      const why = stringValue(values, "reason");
+      return {
+        subject: `Cancelled: your ${brand.studioName} assignment${project}`,
+        preheader: "This job is no longer going ahead.",
+        eyebrow: "Assignment cancelled",
+        heading: "This job has been called off",
+        paragraphs: [
+          greeting,
+          `The event${project} is no longer going ahead, so your assignment has been cancelled. You are not needed on the day, and nothing further is expected from you.`,
+          ...(why ? [`The studio noted: ${why}`] : []),
+          "Please get in touch if you were counting on this date and want to talk it through.",
+        ],
+      };
+    }
     case "schedule_review":
     case "final_schedule_published": {
       const final = input.key === "final_schedule_published";

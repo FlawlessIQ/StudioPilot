@@ -234,6 +234,16 @@ export type JourneyInput = {
    * crew offered ticked "Crew confirmed · shooting this one solo".
    */
   packageNeedsSecondShooter?: boolean;
+  /**
+   * Whether a package has been chosen at all.
+   *
+   * Absent means the caller has no opinion, which keeps every existing caller
+   * unchanged. `false` means no package is locked yet — and without that, a
+   * brand-new enquiry read "Crew confirmed · Shooting this one solo" and
+   * counted the step done: no package means no coverage means nobody to book,
+   * which is arithmetic rather than a decision the studio has made.
+   */
+  packageChosen?: boolean;
   crewCascadeActive: boolean;
   coiStatus: string | null;
   /** "unknown" | "required" | "not_required" — see projects/schema.ts. */
@@ -685,7 +695,11 @@ export function projectJourney(input: JourneyInput): {
   // means "no opinion", which is not the same as "solo".
   const settled = (key: string) =>
     (input.settledCheckpointKeys ?? []).includes(key);
+  // A job with no package cannot be solo, because nothing has said who is
+  // coming. `undefined` keeps callers that do not know about packages exactly
+  // as they were.
   const shootingSolo =
+    input.packageChosen !== false &&
     input.crewRequired === 0 &&
     input.crewAccepted === 0 &&
     !input.packageNeedsSecondShooter;

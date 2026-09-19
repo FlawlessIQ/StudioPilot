@@ -7,6 +7,11 @@ import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { studioHubCors } from "../security/cors.js";
 import { invalidCommandResponse } from "../security/invalid-command.js";
 import {
+  archiveBlockedBy,
+  dispositionFor,
+  isLiveAssignment,
+} from "../crew/job-stopped.js";
+import {
   coverageFromPhotographerCount,
   coverageRoleSchema,
   includedCoverageSchema,
@@ -493,6 +498,89 @@ export const crmCommand = onRequest(
     const timestamp = new Date().toISOString();
     const correlationId = request.header("x-correlation-id") ?? randomUUID();
 
+    /**
+     * The crew this job is still holding, read before the transaction.
+     *
+     * Calling off or filing away a job has to answer for the people on it, and
+     * a transaction cannot start with a collection query. Read here, acted on
+     * inside — the same shape the booking gate uses for its contracts and
+     * invoices. A new offer created in the gap is not caught; that is a
+     * narrower window than the one this closes.
+     */
+    const crewProjectId = ((): string | null => {
+      /**
+       * Read structurally rather than by `command.type`.
+       *
+       * Two guards — tests/command-project-assignment and the receipt check in
+       * tests/command-idempotency — find a command's branch by its first
+       * `command.type === "…"` test and read what follows. A second test out
+       * here would hand them this block instead of the real handler, and they
+       * would report a missing assignment check and a missing receipt. They are
+       * right to: one branch per command type is the shape this file keeps.
+       */
+      const input = command.input as Record<string, unknown>;
+      const projectId =
+        typeof input.projectId === "string" ? input.projectId : null;
+      if (!projectId) return null;
+      // Filing a job away (rather than restoring one).
+      if (input.restore === false) return projectId;
+      // Or calling it off / putting it on hold.
+      return ["CANCELLED", "POSTPONED"].includes(String(input.targetState ?? ""))
+        ? projectId
+        : null;
+    })();
+    const liveCrew = crewProjectId
+      ? (
+          await db
+            .collection("crewAssignments")
+            .where("tenantId", "==", command.tenantId)
+            .where("projectId", "==", crewProjectId)
+            .get()
+        ).docs.filter((assignment) => isLiveAssignment(assignment.get("status")))
+      : [];
+    /**
+     * Where a cancellation notice goes, resolved here and written onto the
+     * job.
+     *
+     * `recipientFor` in the email worker falls back to the project's first
+     * *client* contact when a job carries no recipient — which for a crew
+     * notice would mail the couple to say their photographer's assignment is
+     * off. An assignment holds a `crewProfileId`, not an address, so the
+     * address is looked up now and stated explicitly.
+     */
+    /**
+     * The cascades behind those assignments, and whether they still exist.
+     *
+     * A cascade still working down its list would offer the next name on a job
+     * that has stopped, so it has to be closed — but `transaction.update`
+     * throws on a document that is gone, and a wedding must not fail to be
+     * cancelled because a cascade record was tidied away.
+     */
+    const liveCascadeIds: string[] = [];
+    for (const cascadeId of new Set(
+      liveCrew
+        .map((assignment) => String(assignment.get("cascadeId") ?? ""))
+        .filter(Boolean),
+    )) {
+      const cascade = await db.doc(`crewCascades/${cascadeId}`).get();
+      if (cascade.exists && cascade.get("status") === "active")
+        liveCascadeIds.push(cascadeId);
+    }
+    const crewEmails = new Map<string, { email: string; name: string }>();
+    for (const profileId of new Set(
+      liveCrew
+        .map((assignment) => String(assignment.get("crewProfileId") ?? ""))
+        .filter(Boolean),
+    )) {
+      const profile = await db.doc(`crewProfiles/${profileId}`).get();
+      const email = String(profile.get("email") ?? "");
+      if (profile.exists && email.includes("@"))
+        crewEmails.set(profileId, {
+          email,
+          name: String(profile.get("name") ?? "there"),
+        });
+    }
+
     try {
       const result = await db.runTransaction(async (transaction) => {
         const execution = await transaction.get(commandReference);
@@ -801,6 +889,78 @@ export const crmCommand = onRequest(
             updatedAt: timestamp,
             updatedBy: identity.uid,
           });
+          /**
+           * The crew, when the job stops.
+           *
+           * Calling a wedding off used to leave every offer standing: an
+           * un-answered one in somebody's inbox with a fee on it, and an
+           * accepted one belonging to a second shooter holding the date. They
+           * were told nothing.
+           *
+           * Somebody who never accepted is withdrawn quietly — the offer
+           * vanishing from their portal is the whole message. Somebody who
+           * accepted is withdrawn *and* emailed, because they are the one who
+           * turned other work down. A postponement keeps an accepted
+           * assignment: the date is moving, not gone, and re-agreeing it is a
+           * conversation rather than a side effect.
+           */
+          const stopReason =
+            command.input.targetState === "CANCELLED"
+              ? ("cancelled" as const)
+              : ("postponed" as const);
+          const withdrawn: string[] = [];
+          if (["CANCELLED", "POSTPONED"].includes(command.input.targetState)) {
+            for (const assignment of liveCrew) {
+              const disposition = dispositionFor({
+                reason: stopReason,
+                status: String(assignment.get("status")),
+              });
+              if (disposition.action !== "withdraw") continue;
+              transaction.update(assignment.ref, {
+                status: "cancelled",
+                cancelledAt: timestamp,
+                cancelledReason: command.input.reason ?? null,
+                updatedAt: timestamp,
+                updatedBy: identity.uid,
+              });
+              withdrawn.push(assignment.id);
+              if (!disposition.notify) continue;
+              const contact = crewEmails.get(
+                String(assignment.get("crewProfileId") ?? ""),
+              );
+              // No address, no mail — never fall through to the worker's
+              // client-contact default, which would tell the couple.
+              if (!contact) continue;
+              const noticeId = `crew_cancelled_${assignment.id}`;
+              transaction.create(db.doc(`emailJobs/${noticeId}`), {
+                id: noticeId,
+                tenantId: command.tenantId,
+                projectId: command.input.projectId,
+                assignmentId: assignment.id,
+                type: "crew_assignment_cancelled",
+                recipient: contact?.email ?? null,
+                recipientName: contact?.name ?? null,
+                crewProfileId: assignment.get("crewProfileId") ?? null,
+                role: assignment.get("role") ?? null,
+                reason: command.input.reason ?? null,
+                status: "queued",
+                attempts: 0,
+                createdAt: timestamp,
+                updatedAt: timestamp,
+              });
+            }
+            // A cascade still working down its list would offer the next name
+            // on a job that has stopped. Only the ones still there and still
+            // active — see the read above.
+            for (const cascadeId of liveCascadeIds) {
+              transaction.update(db.doc(`crewCascades/${cascadeId}`), {
+                status: "exhausted",
+                handlingCompletedAt: timestamp,
+                updatedAt: timestamp,
+                updatedBy: identity.uid,
+              });
+            }
+          }
           const auditId = randomUUID();
           transaction.create(db.doc(`auditEvents/${auditId}`), {
             id: auditId,
@@ -1244,6 +1404,27 @@ export const crmCommand = onRequest(
           }
           if (!hasProjectAccess(membershipData, project.id)) {
             throw new Error("PROJECT_ACCESS_DENIED");
+          }
+          /**
+           * Never file away a job somebody is waiting on.
+           *
+           * Archiving is bookkeeping and stays allowed at any stage — that is
+           * how a dead enquiry or a duplicate gets cleared, and why it was
+           * deliberately not gated on state. But it ends nothing, so archiving
+           * a job with a live offer on it hid the offer from the studio while
+           * leaving it standing for the crew member, who would have turned up.
+           *
+           * The same rule archiving a client already follows, for the same
+           * reason. Cancelling is the move that actually ends the offers.
+           */
+          const archiveBlock = archiveBlockedBy(
+            liveCrew.map((assignment) => ({
+              status: String(assignment.get("status")),
+              role: assignment.get("role") as string | null,
+            })),
+          );
+          if (!command.input.restore && archiveBlock.blocked) {
+            throw new Error("PROJECT_HAS_LIVE_CREW");
           }
           transaction.update(projectReference, {
             archivedAt: command.input.restore ? null : timestamp,
