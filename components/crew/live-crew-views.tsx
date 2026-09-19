@@ -742,11 +742,15 @@ export function LiveCrewHome() {
         <div>
           <p className="eyebrow">Crew workspace</p>
           <h1>
-            Welcome
-            {" "}{greetingName(workspace.userName, workspace.tenantName)
-              ? `, ${greetingName(workspace.userName, workspace.tenantName)}`
-              : ""}
-            .
+            {/* One expression, not a word beside one.
+                It read `Welcome{" "}{name ? \`, ${name}\` : ""}.` and rendered
+                "Welcome , Demo." on the first line of the crew workspace — the
+                space belongs after the comma, not before it.
+                tests/jsx-lost-space guards the opposite mistake and cannot see
+                this one; written whole, there is no adjacency to get wrong. */}
+            {greetingName(workspace.userName, workspace.tenantName)
+              ? `Welcome, ${greetingName(workspace.userName, workspace.tenantName)}.`
+              : "Welcome."}
           </h1>
           {/* Was "2 invitations and no schedule acknowledgements need
               attention." — a template that concatenated counts without handling
