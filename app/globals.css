@@ -8585,7 +8585,14 @@ textarea:focus-visible {
 
   .portal-live-state,
   .client-empty-moment,
-  .team-state {
+  .team-state,
+  /* `:has()` carries the specificity of its argument, so the three-column
+     rule above is 0-2-0 and this block was 0-1-0 — and media queries add
+     none. The mobile collapse written here never applied, so the crew error
+     card kept icon | text | buttons at 375px: the message squeezed into a
+     ribbon a few words wide with the buttons sitting on top of it. Seen on a
+     real phone. Matched specificity, so it wins. */
+  .team-state:has(.crew-state-actions) {
     grid-template-columns: 1fr;
   }
 
@@ -12760,7 +12767,10 @@ form:has(> .address-field) > .address-field,
 .questionnaire-editor-required{display:flex!important;align-items:center;gap:5px;font-size:10.5px;white-space:nowrap}
 .questionnaire-editor-required input{min-height:auto}
 .questionnaire-template-editor fieldset>button,.questionnaire-template-editor>div>.button{justify-self:start}
-@media(max-width:760px){.questionnaire-editor-meta,.questionnaire-editor-field{grid-template-columns:1fr}}
+/* The `:has()` variant above is 0-2-0 and this collapse was 0-1-0, so a field
+   carrying an options input kept its six-column desktop grid on a phone.
+   Same trap as the crew error card; matched specificity so it applies. */
+@media(max-width:760px){.questionnaire-editor-meta,.questionnaire-editor-field,.questionnaire-editor-field:has(input[placeholder="Yes, No, Undecided"]){grid-template-columns:1fr}}
 
 /* Reaching archived records in a curated directory, so archiving is not
    one-way. See components/studio/live-domain-view.tsx. */
