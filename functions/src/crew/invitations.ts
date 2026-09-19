@@ -194,9 +194,9 @@ export const crewInvitationCommand = onRequest(
           }
           if (normalizedEmail(String(profile.get("email"))) !== identityEmail)
             throw new Error("INVITED_EMAIL_MISMATCH");
+          // Same as the assignment path: a uid that is not this one is stale,
+          // not somebody else. See the note there.
           const linked = profile.get("userId");
-          if (linked && linked !== identity.uid)
-            throw new Error("INVITATION_ALREADY_USED");
           const tenantId = String(profile.get("tenantId"));
           const membershipReference = db.doc(
             `memberships/${tenantId}_${identity.uid}`,
@@ -223,7 +223,17 @@ export const crewInvitationCommand = onRequest(
           ) {
             throw new Error("MEMBERSHIP_ROLE_CONFLICT");
           }
-          if (subscription.exists) {
+          /**
+           * `!linked`, not just "not this uid".
+           *
+           * This used to be reached only by somebody who had never linked,
+           * because a differing uid was refused outright above. Now that a
+           * stale uid is adopted, the same person coming back on a new account
+           * would have spent a second seat for themselves — and on a plan with
+           * a crew limit, eventually locked the studio out of its own roster.
+           * The assignment path already gated its increment this way.
+           */
+          if (!linked && subscription.exists) {
             const maximumValue = subscription.get(
               "entitlements.maxActiveSubcontractors",
             );
@@ -337,12 +347,9 @@ export const crewInvitationCommand = onRequest(
         ) {
           throw new Error("INVITATION_EXPIRED");
         }
-        if (
-          assignment.get("userId") &&
-          assignment.get("userId") !== identity.uid
-        ) {
-          throw new Error("INVITATION_ALREADY_USED");
-        }
+        // Deferred: the assignment's `userId` is a denormalised copy of the
+        // profile's, and the profile's address — checked below — is what
+        // actually decides who this is. See the note on adopting a stale uid.
         if (
           assignment.get("userId") === identity.uid &&
           assignment.get("status") === "viewed"
@@ -374,8 +381,30 @@ export const crewInvitationCommand = onRequest(
         ) {
           throw new Error("INVITED_EMAIL_MISMATCH");
         }
-        if (profile.get("userId") && profile.get("userId") !== identity.uid)
-          throw new Error("INVITATION_ALREADY_USED");
+        /**
+         * A uid on file that is not this one is **stale**, not somebody else.
+         *
+         * Found on a real phone: a collaborator whose Firebase account had
+         * been deleted and recreated could never accept anything again. Their
+         * `crewProfiles` row still pointed at the dead uid, so the accept was
+         * refused with "This invitation is already linked to another account.
+         * Ask the studio to check the email on file, then resend" — advice
+         * that cannot work. The email on file was right, and every new offer
+         * copies `userId` from the profile, so each resend arrived pre-broken.
+         * The studio had no way to clear it either. A permanent lockout.
+         *
+         * The authority here is the pair this endpoint is built on: possession
+         * of the emailed token, and a signed-in address matching the one the
+         * studio recorded (see `markEmailVerified` above). Whoever satisfies
+         * both **is** the invitee — Firebase allows one account per address,
+         * and a linked profile's email cannot be edited by the studio
+         * (CREW_IDENTITY_OWNED_BY_MEMBER). A differing uid therefore tells us
+         * only that the account behind that address was replaced.
+         *
+         * So the accept adopts the current uid. It already writes
+         * `userId: identity.uid` to the profile, the assignment and the
+         * membership, which is the whole repair.
+         */
         if (
           membership.exists &&
           !["subcontractor"].includes(String(membership.get("role")))
