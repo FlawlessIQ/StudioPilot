@@ -60,7 +60,7 @@ test("a video-only package has the studio covering a videographer", () => {
   const plan = rolesToBook([{ role: "videographer", count: 2 }]);
   assert.deepEqual(
     plan.roles.map((role) => role.role),
-    ["Videographer 2"],
+    ["Second videographer"],
   );
   assert.equal(plan.studioCovers?.role, "videographer");
 });

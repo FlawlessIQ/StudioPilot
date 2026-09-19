@@ -142,10 +142,15 @@ function offerLabel(
   const title = noun.replace(/^./, (character) => character.toUpperCase());
   // Their place among everyone of that role, the studio's own place included.
   const position = index + 1 + studioCovered;
-  if (role === "photographer" && position === 2) return "Second photographer";
+  if (studioCovered === 1) {
+    // The studio works one of these itself, so the first hire is the second
+    // person. "Second photographer" is the phrase the trade uses and the one
+    // this product already sent; every trade gets the same treatment, because
+    // a videographer offered "Videographer 2" reads like a serial number.
+    return position === 2 ? `Second ${noun}` : `${title} ${position}`;
+  }
   // The only one of their trade on the job needs no number.
-  if (needed === 1 && studioCovered === 0) return title;
-  return `${title} ${position}`;
+  return needed === 1 ? title : `${title} ${position}`;
 }
 
 /**

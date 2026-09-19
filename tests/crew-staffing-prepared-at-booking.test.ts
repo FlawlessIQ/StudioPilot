@@ -74,6 +74,7 @@ const seedFor = (overrides: { project?: Row; tenant?: Row } = {}) => ({
     name: "Rivera wedding",
     eventType: "Wedding",
     eventDate: "2027-06-12",
+    timezone: "America/New_York",
     city: "Madison",
     venueName: "The Conservatory",
     venueAddress: "1 Garden Way",
@@ -180,6 +181,34 @@ test("a role nobody can work is still in the plan, carrying its reason", async (
   assert.equal(videographer !== undefined, true);
   assert.deepEqual(videographer?.candidateIds, []);
   assert.match(String((videographer?.gap as Row)?.reason), /Nobody on your roster/);
+});
+
+/**
+ * The offer a crew member actually reads.
+ *
+ * Cloud Functions run in UTC and the first version built this window as
+ * `${date}T12:00:00.000Z`, so a New Jersey wedding went out as "8:00 AM
+ * through 4:00 PM EDT" — seen in a real offer email on production. At booking
+ * there is never a run of show yet, so this fallback is what every automatic
+ * offer carries.
+ */
+test("the fallback window is midday to evening in the event's own timezone", async () => {
+  const { store } = await run(seedFor());
+  const plan = store.get("crewStaffingPlans/p1");
+  const inZone = (value: unknown) =>
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      hour: "numeric",
+      hour12: false,
+    }).format(new Date(String(value)));
+  assert.equal(inZone(plan?.arrivalAt), "12");
+  assert.equal(inZone(plan?.departureAt), "20");
+});
+
+test("a job with no timezone is offered in UTC rather than the server's", async () => {
+  const { store } = await run(seedFor({ project: { timezone: "" } }));
+  const plan = store.get("crewStaffingPlans/p1");
+  assert.equal(String(plan?.arrivalAt), "2027-06-12T12:00:00.000Z");
 });
 
 // --- the dial ------------------------------------------------------------

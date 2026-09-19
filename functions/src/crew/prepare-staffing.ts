@@ -44,6 +44,59 @@ const text = (value: unknown): string =>
 
 const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
 
+/**
+ * How far a zone is from UTC at a given instant.
+ *
+ * Measured rather than assumed, so it is right either side of a daylight-saving
+ * change — a wedding booked in September for the following August cannot use
+ * today's offset.
+ */
+function zoneOffsetMs(instant: number, timeZone: string): number {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hour12: false,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
+      .formatToParts(new Date(instant))
+      .map((part) => [part.type, part.value]),
+  );
+  const asUtc = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour) % 24,
+    Number(parts.minute),
+    Number(parts.second),
+  );
+  return asUtc - instant;
+}
+
+/**
+ * A wall-clock time on the event's own date, as an instant.
+ *
+ * Cloud Functions run in UTC, and the first version of this built the fallback
+ * window with `${date}T12:00:00.000Z` — so a New Jersey wedding was offered to
+ * crew as "8:00 AM through 4:00 PM EDT". Observed in a real offer email. The
+ * studio can correct the times, but at booking there is no run of show yet, so
+ * the fallback is what every automatic offer actually carries.
+ */
+function atLocalHour(date: string, hour: number, timeZone: string): string {
+  const guess = Date.parse(
+    `${date}T${String(hour).padStart(2, "0")}:00:00.000Z`,
+  );
+  // Two passes: the first offset may be measured on the wrong side of a
+  // transition, the second is taken at the corrected instant.
+  let instant = guess - zoneOffsetMs(guess, timeZone);
+  instant = guess - zoneOffsetMs(instant, timeZone);
+  return new Date(instant).toISOString();
+}
+
 /** The window to offer, from the approved schedule if there is one. */
 function offerWindow(
   project: DocumentSnapshot,
@@ -68,16 +121,19 @@ function offerWindow(
     );
   const first = items[0];
   const last = items.at(-1);
+  // The job's own zone. A project without one falls back to UTC, which is at
+  // least stated rather than silently the server's.
+  const zone = text(project.get("timezone")) || "UTC";
   return {
     // No schedule yet is the normal case at booking — the run of show is
-    // built later — so fall back to a plain daytime window the studio can
-    // correct, exactly as the staffing screen has always done.
+    // built later — so fall back to a plain daytime window in the event's own
+    // timezone, which the studio can correct.
     arrivalAt: first
       ? new Date(text(first.startAt)).toISOString()
-      : new Date(`${eventDate}T12:00:00.000Z`).toISOString(),
+      : atLocalHour(eventDate, 12, zone),
     departureAt: last
       ? new Date(text(last.endAt)).toISOString()
-      : new Date(`${eventDate}T20:00:00.000Z`).toISOString(),
+      : atLocalHour(eventDate, 20, zone),
   };
 }
 
