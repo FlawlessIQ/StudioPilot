@@ -605,6 +605,20 @@ service cloud.firestore {
         );
       allow write: if false;
     }
+    /**
+     * The staffing plan booking prepares. Studio-side only: it names who the
+     * studio is considering and what it intends to pay them, which is not a
+     * crew member's business and never a client's. Written by the booking
+     * worker alone.
+     */
+    match /crewStaffingPlans/{planId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+        || (
+          hasRole(resource.data.tenantId, ["studio_coordinator"])
+          && isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+        );
+      allow write: if false;
+    }
     match /crewCalendarEvents/{eventId} {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (

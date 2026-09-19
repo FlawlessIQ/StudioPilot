@@ -2086,6 +2086,7 @@ export const bookingCommand = onRequest(
                   "production_calendar",
                   "workflow",
                   "checkpoints",
+                  "crew_plan",
                   "confirmation",
                 ],
                 createdAt: timestamp,

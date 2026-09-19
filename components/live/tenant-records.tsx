@@ -91,6 +91,7 @@ const projectScopedCollections = new Set([
   "schedules",
   "crewAssignments",
   "crewCascades",
+  "crewStaffingPlans",
   "albumWorkflows",
   "projectCloseouts",
   "messages",

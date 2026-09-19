@@ -3394,6 +3394,61 @@
   color: var(--ds-muted);
   line-height: 1.45;
 }
+
+/* The plan booking prepared. It sits above the staffing form, so it has to
+   read as an answer the studio can act on rather than another form. */
+.crew-prepared-plan {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.crew-prepared-plan > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.crew-prepared-plan > header span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.crew-prepared-plan > header svg {
+  width: 17px;
+  height: 17px;
+  color: var(--ds-forest);
+}
+
+.crew-prepared-plan .crew-role-plan-summary {
+  margin: 0;
+}
+
+.crew-prepared-actions {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.crew-prepared-actions small {
+  color: var(--ds-muted);
+  line-height: 1.45;
+}
+
+/* A role nobody can work. The plan still lists it — an under-staffed wedding
+   is found the week of the event otherwise — so it has to read as short
+   rather than as one more filled row. */
+.crew-role-plan-summary article.is-short {
+  background: var(--ds-amber-soft);
+  border-color: var(--ds-amber);
+}
+
+.crew-role-plan-summary article.is-short small {
+  color: var(--ds-amber);
+}
 .delivery-announcement-import {
   display: grid;
   gap: 10px;

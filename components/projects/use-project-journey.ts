@@ -4,6 +4,7 @@ import {
   resolveCoverage,
   totalCoverageCount,
 } from "@/features/packages/coverage";
+import { crewRequiredFromCoverage } from "@/features/crew/staffing-plan";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import {
   invoiceIsOverdue,
@@ -173,7 +174,13 @@ export function useProjectJourney({
       (assignment) => assignment.status === "accepted",
     ).length,
     // Every role offered on this job. Zero means solo — see JourneyInput.
-    crewRequired: forProject(crewAssignments.records).length,
+    // From the package, not from the offers already made. See the same
+    // change in use-readiness-evidence.ts — the two must agree, or the rail
+    // and the readiness panel give one question two answers.
+    crewRequired: Math.max(
+      forProject(crewAssignments.records).length,
+      crewRequiredFromCoverage(resolveCoverage(bookedSnapshot)),
+    ),
     packageNeedsSecondShooter,
     settledCheckpointKeys: forProject(checkpoints.records)
       .filter((checkpoint) => ["complete", "waived"].includes(text(checkpoint.status)))

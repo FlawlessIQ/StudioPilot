@@ -718,7 +718,7 @@ export const bookingRetainerPaid = onDocumentWritten(
         type: "complete_booking_side_effects",
         idempotencyKey: correlationId,
         status: "queued",
-        steps: ["dropbox_folders", "production_calendar", "workflow", "checkpoints", "confirmation"],
+        steps: ["dropbox_folders", "production_calendar", "workflow", "checkpoints", "crew_plan", "confirmation"],
         createdAt: now,
         updatedAt: now,
       }, { merge: true });

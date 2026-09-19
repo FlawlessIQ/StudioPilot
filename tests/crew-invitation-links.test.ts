@@ -20,10 +20,19 @@ import {
  * link fails silently — it looks fine in the outbox and only fails for a real
  * person, once, on a link that cannot be re-sent to the same token.
  */
-const commands = readFileSync(
-  `${process.cwd()}/functions/src/crew/commands.ts`,
-  "utf8",
-);
+/**
+ * Every file that mints one. `offer.ts` was carved out of `commands.ts` so
+ * booking could release offers without an authenticated command, and it took
+ * the cascade's link with it — which this guard caught, because it counts.
+ * Add a file here rather than lowering the count.
+ */
+const MINTING_FILES = [
+  "functions/src/crew/commands.ts",
+  "functions/src/crew/offer.ts",
+];
+const commands = MINTING_FILES.map((file) =>
+  readFileSync(`${process.cwd()}/${file}`, "utf8"),
+).join("\n");
 
 test("every crew invite link points at a page that exists", () => {
   const links = [...commands.matchAll(/\$\{appUrl\(\)\}(\/[a-z0-9/-]+)\?/g)].map(

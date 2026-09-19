@@ -70,9 +70,18 @@ Detailed provider-console and business-owner steps are maintained in
   importer reads videographer counts it had been parsing and discarding, and the
   contract reader extracts them.
 
-  **Still by hand:** booking a package does not *automatically* invite that crew
-  — the cascade is pre-filled with the right roles and the studio starts the
-  offers. Automatic invitation on booking is the remaining half of this item.
+  **The second half shipped 2026-09-19.** Booking now prepares the staffing:
+  `crewStaffingPlans/{projectId}` holds one role per person still to hire, each
+  with its own shortlist ranked against that trade, the window, the venue, and
+  the rate the studio already pays that trade. The studio opens the job and
+  sends them in one action.
+
+  It prepares rather than sends, because an offer carries a fee. A studio that
+  wants it to run without them turns on **Settings → Crew → Crew offers**
+  (`crewOffers.autoOfferOnBooking`, owner-only and audited — the same trust
+  dial `lifecycleMessaging` gives client mail), and then the first name for
+  each role is asked at booking. Imported bookings are never offered
+  automatically: they were usually staffed before they reached StudioCue.
 
 ## Phase 1 — Credential and environment safety
 

@@ -1,9 +1,5 @@
-import { createHash, randomBytes } from "node:crypto";
-import {
-  getFirestore,
-  type DocumentData,
-  type DocumentSnapshot,
-} from "firebase-admin/firestore";
+import { randomBytes } from "node:crypto";
+import { getFirestore } from "firebase-admin/firestore";
 import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
@@ -12,6 +8,12 @@ import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { productEvent } from "../operations/product-events.js";
 import { studioHubCors } from "../security/cors.js";
 import { findDuplicateProfile } from "./duplicate-profile.js";
+import {
+  appUrl,
+  cascadeAssignment,
+  crewInvitationEmailFields,
+  hash,
+} from "./offer.js";
 
 const requirement = z.object({
   id: z.string().min(1),
@@ -105,6 +107,23 @@ const command = z.discriminatedUnion("type", [
     tenantId: z.string(),
     idempotencyKey: z.string().min(8),
     input: cascadeInput,
+  }),
+  /**
+   * The crew trust dial.
+   *
+   * `lifecycleMessaging` already lets a studio say "send this class of client
+   * mail without asking me"; this is the same decision for crew offers, and
+   * it lives on the same tenant document. Owner-only and audited, because
+   * turning it on means a fee leaves the building on a ranking nobody read.
+   */
+  z.object({
+    type: z.literal("setCrewOfferSettings"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      autoOfferOnBooking: z.boolean(),
+      responseWindowHours: z.number().int().min(1).max(168),
+    }),
   }),
   z.object({
     type: z.literal("createCrewPlan"),
@@ -414,12 +433,8 @@ const internalRoles = new Set([
   "studio_admin",
   "studio_coordinator",
 ]);
-const hash = (value: string) =>
-  createHash("sha256").update(value).digest("hex");
 const stable = (scope: string, tenantId: string, key: string) =>
   `${scope}_${hash(`${tenantId}:${key}`).slice(0, 32)}`;
-const appUrl = () =>
-  process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app";
 
 /**
  * The roster invite: an account, with no job attached.
@@ -525,146 +540,6 @@ function crewRosterInvitation(input: {
         updatedAt: input.now,
       },
     },
-  };
-}
-
-function crewInvitationEmailFields(input: {
-  role: unknown;
-  arrivalAt: unknown;
-  departureAt: unknown;
-  respondBy: string;
-  locations: unknown;
-  responsibilities: unknown;
-  compensationCents: unknown;
-  compensationType: unknown;
-  compensationVisibleToCrew: unknown;
-  currency: unknown;
-}) {
-  const locations = Array.isArray(input.locations) ? input.locations : [];
-  const firstLocation =
-    typeof locations[0] === "object" && locations[0] !== null
-      ? (locations[0] as Record<string, unknown>)
-      : {};
-  return {
-    role: input.role,
-    arrivalAt: input.arrivalAt,
-    departureAt: input.departureAt,
-    respondBy: input.respondBy,
-    locationName: firstLocation.name ?? null,
-    locationAddress: firstLocation.address ?? null,
-    responsibilities: Array.isArray(input.responsibilities)
-      ? input.responsibilities
-      : [],
-    compensationCents: input.compensationCents,
-    compensationType: input.compensationType,
-    compensationVisibleToCrew: input.compensationVisibleToCrew,
-    currency: input.currency,
-  };
-}
-
-function cascadeAssignment(input: {
-  id: string;
-  tenantId: string;
-  cascadeId: string;
-  candidateIndex: number;
-  profile: DocumentSnapshot;
-  cascade: DocumentData;
-  token: string;
-  now: string;
-  actorId: string;
-}) {
-  const expiresAt = new Date(
-    Date.parse(input.now) +
-      Number(input.cascade.responseWindowHours ?? 24) * 60 * 60 * 1000,
-  ).toISOString();
-  return {
-    assignment: {
-      id: input.id,
-      tenantId: input.tenantId,
-      projectId: input.cascade.projectId,
-      // Named here because an outstanding offer is all the crew member can
-      // read: the project itself stays closed until they accept.
-      projectName: input.cascade.projectName ?? null,
-      crewProfileId: input.profile.id,
-      userId: input.profile.get("userId") ?? null,
-      role: input.cascade.role,
-      compensationCents: input.cascade.compensationCents,
-      compensationType: input.cascade.compensationType,
-      currency: input.cascade.currency,
-      compensationVisibleToCrew: input.cascade.compensationVisibleToCrew,
-      arrivalAt: input.cascade.arrivalAt,
-      departureAt: input.cascade.departureAt,
-      locations: input.cascade.locations,
-      responsibilities: input.cascade.responsibilities,
-      scheduleItemIds: input.cascade.scheduleItemIds,
-      notes: null,
-      status: "invited",
-      invitationSentAt: input.now,
-      viewedAt: null,
-      respondedAt: null,
-      calendarStatus: "not_added",
-      calendarAcknowledgedAt: null,
-      currentScheduleId: input.cascade.currentScheduleId,
-      currentScheduleVersion: input.cascade.currentScheduleVersion,
-      acknowledgedScheduleVersion: null,
-      scheduleAcknowledgedAt: null,
-      requirements: Array.isArray(input.cascade.requirements)
-        ? input.cascade.requirements.map((itemValue: unknown) => {
-            const item =
-              typeof itemValue === "object" &&
-              itemValue !== null &&
-              !Array.isArray(itemValue)
-                ? (itemValue as Record<string, unknown>)
-                : {};
-            return {
-              ...item,
-              status: "missing",
-              documentId: null,
-              completedAt: null,
-              completedBy: null,
-              notes: null,
-            };
-          })
-        : [],
-      inviteTokenHash: hash(input.token),
-      inviteExpiresAt: expiresAt,
-      cascadeId: input.cascadeId,
-      cascadeCandidateIndex: input.candidateIndex,
-      createdAt: input.now,
-      updatedAt: input.now,
-      createdBy: input.actorId,
-      updatedBy: input.actorId,
-      archivedAt: null,
-    },
-    emailJob: {
-      id: `crew_invite_${input.id}`,
-      tenantId: input.tenantId,
-      projectId: input.cascade.projectId,
-      type: "crew_invitation",
-      assignmentId: input.id,
-      cascadeId: input.cascadeId,
-      recipient: input.profile.get("email"),
-      recipientName: input.profile.get("name"),
-      inviteToken: input.token,
-      inviteUrl: `${appUrl()}/auth/crew-invite?token=${encodeURIComponent(input.token)}`,
-      ...crewInvitationEmailFields({
-        role: input.cascade.role,
-        arrivalAt: input.cascade.arrivalAt,
-        departureAt: input.cascade.departureAt,
-        respondBy: expiresAt,
-        locations: input.cascade.locations,
-        responsibilities: input.cascade.responsibilities,
-        compensationCents: input.cascade.compensationCents,
-        compensationType: input.cascade.compensationType,
-        compensationVisibleToCrew: input.cascade.compensationVisibleToCrew,
-        currency: input.cascade.currency,
-      }),
-      status: "queued",
-      attempts: 0,
-      createdAt: input.now,
-      updatedAt: input.now,
-    },
-    expiresAt,
   };
 }
 
@@ -1006,6 +881,39 @@ export const crewCommand = onRequest(
           crewProfileId: parsed.input.crewProfileId,
           archived: !parsed.input.restore,
         };
+      } else if (parsed.type === "setCrewOfferSettings") {
+        if (role !== "studio_owner") throw new Error("FORBIDDEN");
+        const tenantReference = db.doc(`tenants/${parsed.tenantId}`);
+        const tenant = await tenantReference.get();
+        if (!tenant.exists) throw new Error("TENANT_NOT_FOUND");
+        const before = tenant.get("crewOffers") ?? null;
+        const auditReference = db.collection("auditEvents").doc();
+        const batch = db.batch();
+        batch.update(tenantReference, {
+          crewOffers: parsed.input,
+          updatedAt: now,
+          updatedBy: identity.uid,
+        });
+        batch.create(auditReference, {
+          id: auditReference.id,
+          tenantId: parsed.tenantId,
+          projectId: null,
+          actorId: identity.uid,
+          actorType: "user",
+          action: "tenant.crew_offer_settings_updated",
+          entityType: "tenant",
+          entityId: parsed.tenantId,
+          timestamp: now,
+          before,
+          after: parsed.input,
+          ipAddress: request.ip ?? null,
+          userAgent: request.get("user-agent") ?? null,
+          correlationId: parsed.idempotencyKey,
+          automationRunId: null,
+          providerEventId: null,
+        });
+        await batch.commit();
+        result = { tenantId: parsed.tenantId, settings: parsed.input };
       } else if (parsed.type === "createCrewPlan") {
         if (!internalRoles.has(role) || !hasProject(parsed.input.projectId))
           throw new Error("FORBIDDEN");

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { getFirestore,type DocumentSnapshot } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
+import { prepareCrewStaffing } from "../crew/prepare-staffing.js";
 import { buildIntegrationDiagnostics } from "../integrations/diagnostics.js";
 import {
   alreadyClientOnly,
@@ -1046,7 +1047,20 @@ export async function completeBookingResources(job:DocumentSnapshot){const db=ge
   // An imported booking was booked long before StudioCue, so it never gets
   // "You're booked" — whether this runs while it is quiet or after the studio
   // brings the couple in and asks for the calendar and folders.
-  if(!project.get("importedAt"))batch.set(db.doc(`emailJobs/booking_confirmation_${projectId}`),{id:`booking_confirmation_${projectId}`,tenantId,projectId,type:"booking_confirmation",status:"queued",attempts:0,createdAt:now,updatedAt:now},{merge:false});await batch.commit();return{projectId,folderIds,eventId,workflow}}
+  if(!project.get("importedAt"))batch.set(db.doc(`emailJobs/booking_confirmation_${projectId}`),{id:`booking_confirmation_${projectId}`,tenantId,projectId,type:"booking_confirmation",status:"queued",attempts:0,createdAt:now,updatedAt:now},{merge:false});await batch.commit();
+  /**
+   * The job's "crew_plan" step: work out who this booking still has to hire
+   * and write the plan, so the studio approves a shortlist instead of building
+   * one. Runs after the batch, and its own failure never fails the booking —
+   * a wedding is booked whether or not its staffing could be worked out.
+   */
+  let crewPlan: Awaited<ReturnType<typeof prepareCrewStaffing>> | { skipped: string };
+  try {
+    crewPlan = await prepareCrewStaffing({ tenantId, projectId, actorId: "booking-orchestrator", now });
+  } catch (caught: unknown) {
+    crewPlan = { skipped: caught instanceof Error ? caught.message : "CREW_PLAN_FAILED" };
+  }
+  return{projectId,folderIds,eventId,workflow,crewPlan}}
 
 export async function uploadDropboxDocument(job:DocumentSnapshot){
   const db=getFirestore();const tenantId=String(job.get("tenantId"));const projectId=String(job.get("projectId"));const documentId=String(job.get("documentId"));

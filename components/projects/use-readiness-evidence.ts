@@ -4,6 +4,7 @@ import {
   resolveCoverage,
   totalCoverageCount,
 } from "@/features/packages/coverage";
+import { crewRequiredFromCoverage } from "@/features/crew/staffing-plan";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import {
   readinessEvidenceFromFacts,
@@ -80,9 +81,21 @@ export function useReadinessEvidence(projectId: string): ReadinessEvidence {
       : [],
     crewAccepted: crew.filter((assignment) => assignment.status === "accepted")
       .length,
-    // The roles this job actually needs filled: every assignment offered on it.
-    // Zero means nobody was asked, which is a solo wedding.
-    crewRequired: crew.length,
+    /**
+     * The roles this job needs filled, from the package rather than from the
+     * offers already made.
+     *
+     * This counted the assignments that existed, which is zero until somebody
+     * is offered something — so a job that needed three people read as needing
+     * none, and the fallback below supplied a flat 1 however large the package
+     * was. The package has known the answer since it was selected. Offers
+     * already out still count when they exceed it, because a studio that
+     * chose to hire beyond the package has not made the package wrong.
+     */
+    crewRequired: Math.max(
+      crew.length,
+      crewRequiredFromCoverage(resolveCoverage(bookedSnapshot)),
+    ),
     packageNeedsSecondShooter,
     // Against the current version, not merely "has acknowledged something".
     crewAcknowledgedCurrent: crew.filter(

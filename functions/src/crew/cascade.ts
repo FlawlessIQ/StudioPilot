@@ -1,3 +1,16 @@
+/**
+ * Crew ranking, cascade progression and the event-day snapshot.
+ *
+ * The functions copy. features/crew/cascade.ts is the source of truth;
+ * functions/ is a separate package with no "@/features" path, so the engine is
+ * duplicated and tests/crew-staffing-plan.test.ts asserts the two files stay
+ * byte-identical below their headers.
+ *
+ * Duplicated because booking now prepares a staffing plan server-side. Until
+ * then the server never ranked crew at all — the browser ranked, and the
+ * command took an already-ordered `candidateIds`.
+ */
+
 export type CrewCandidateInput = {
   id: string;
   name: string;

@@ -15,10 +15,12 @@ import {
   Plug,
   Sparkles,
   Store,
+  UserRoundCheck,
   UsersRound,
   Wand2,
 } from "lucide-react";
 
+import { CrewOfferSettings } from "@/components/crew/crew-offer-settings";
 import { EmailTemplateDesigner } from "@/components/communications/email-template-designer";
 import { LifecyclePackPanel } from "@/components/communications/lifecycle-pack-panel";
 import { ConsultationAvailability } from "@/components/settings/consultation-availability";
@@ -61,6 +63,7 @@ type SectionKey =
   | "templates"
   | "drafts"
   | "forwarding"
+  | "crewOffers"
   | "data";
 
 const SECTION_COMPONENT: Record<SectionKey, ComponentType> = {
@@ -70,6 +73,7 @@ const SECTION_COMPONENT: Record<SectionKey, ComponentType> = {
   templates: EmailTemplateDesigner,
   drafts: LifecyclePackPanel,
   forwarding: InquiryForwardingSettings,
+  crewOffers: CrewOfferSettings,
   data: DataControls,
 };
 
@@ -139,6 +143,18 @@ const GROUPS: Array<{ label: string; items: HubItem[] }> = [
         icon: Forward,
         title: "Inquiry forwarding",
         subtitle: "Turn emailed inquiries into inquiries here",
+      },
+    ],
+  },
+  {
+    label: "Crew",
+    items: [
+      {
+        kind: "section",
+        key: "crewOffers",
+        icon: UserRoundCheck,
+        title: "Crew offers",
+        subtitle: "Whether booking sends the prepared offers, or you do",
       },
     ],
   },
@@ -217,7 +233,17 @@ function DesktopSettings() {
       <EmailBranding />
       <EmailTemplateDesigner />
       <LifecyclePackPanel />
+      {/* Absent from this stack until now, while being listed on the phone
+          screen — so "Studio settings → Communications", one of the three
+          routes c657cbb added to make the forwarding address findable, did
+          not exist on desktop at all. Found by tests/settings-sections. */}
+      <InquiryForwardingSettings />
       <ConsultationAvailability />
+      {/* Desktop renders its own fixed stack rather than reading GROUPS, so a
+          section added to GROUPS alone appears on phones and nowhere else —
+          which is exactly what happened to this one. tests/settings-sections
+          now asserts the two agree. */}
+      <CrewOfferSettings />
       <DataControls />
     </div>
   );

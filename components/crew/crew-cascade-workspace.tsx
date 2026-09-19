@@ -21,6 +21,10 @@ import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useReturnToJob } from "@/lib/projects/return-to-job";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
+  assignCandidatesToRoles,
+  coverageRoleForLabel,
+} from "@/features/crew/staffing-plan";
+import {
   rankCrewCandidates,
   type CrewCandidateInput,
 } from "@/features/crew/cascade";
@@ -54,6 +58,9 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
   const { records: availability } = useTenantDocuments("crewAvailability");
   const { records: assignments } = useTenantDocuments("crewAssignments");
   const { records: schedules } = useTenantDocuments("schedules");
+  // Written by the booking worker: who this job still has to hire, worked out
+  // when it was booked rather than when the studio comes looking.
+  const { records: staffingPlans } = useTenantDocuments("crewStaffingPlans");
   const { records: cascades } = useTenantDocuments("crewCascades");
   const { records: packageSnapshots } = useTenantDocuments("packageSnapshots");
   const project = projects?.find((item) => item.id === projectId);
@@ -136,9 +143,9 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const recommendations = useMemo(() => {
+  const candidateInputs = useMemo<CrewCandidateInput[]>(() => {
     if (!profiles) return [];
-    const inputs: CrewCandidateInput[] = profiles.map((profile) => ({
+    return profiles.map((profile) => ({
       id: profile.id,
       name: text(profile.name) || "Crew member",
       active: profile.active === true,
@@ -178,12 +185,15 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
           endsAt: text(item.departureAt),
         })),
     }));
+  }, [assignments, availability, profiles]);
+
+  const recommendations = useMemo(() => {
     const ranked = rankCrewCandidates({
       roleSpecialty: specialty,
       serviceArea: text(project?.city),
       startsAt: safeIso(startsAt),
       endsAt: safeIso(endsAt),
-      candidates: inputs,
+      candidates: candidateInputs,
     });
     const rank = new Map(manualOrder.map((id, index) => [id, index]));
     return [...ranked].sort((left, right) => {
@@ -196,16 +206,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
         );
       return 0;
     });
-  }, [
-    assignments,
-    availability,
-    endsAt,
-    manualOrder,
-    profiles,
-    project?.city,
-    specialty,
-    startsAt,
-  ]);
+  }, [candidateInputs, endsAt, manualOrder, project?.city, specialty, startsAt]);
   const included = recommendations.filter(
     (candidate) =>
       candidate.eligible && !excluded.has(candidate.crewProfileId),
@@ -255,6 +256,23 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
   );
   const formCollapsed = staffingInFlight || openStalled.length > 0;
   /**
+   * The plan booking already worked out.
+   *
+   * Its value is not that the studio cannot build one — the form below does
+   * that — but that it was built without being asked, at the moment the job
+   * was booked, when staffing is the thing a studio most wants off its plate.
+   * Shown only while nothing is in flight: once offers are out, the state of
+   * those offers is the only thing worth reading on this page.
+   */
+  const preparedPlan = (staffingPlans ?? []).find(
+    (plan) => plan.projectId === projectId || plan.id === projectId,
+  );
+  const preparedRoles = list(preparedPlan?.roles).map(record);
+  const preparedShowing =
+    !formCollapsed &&
+    preparedRoles.length > 0 &&
+    text(preparedPlan?.status) === "prepared";
+  /**
    * The people this cascade never got to.
    *
    * Offering "to someone else" means the candidates after the one it stopped
@@ -300,16 +318,44 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
     }
   }
 
-  const roles = rolesText
-    .split("\n")
-    .map((value) => value.trim())
-    .filter(Boolean);
-  const rolePlans = roles.map((plannedRole, roleIndex) => ({
-    role: plannedRole,
-    candidates: included.filter(
-      (_candidate, candidateIndex) => candidateIndex % roles.length === roleIndex,
-    ),
-  }));
+  // Memoised: it feeds a memo below, and a fresh array every render would
+  // re-rank every candidate on every keystroke elsewhere on the page.
+  const roles = useMemo(
+    () =>
+      rolesText
+        .split("\n")
+        .map((value) => value.trim())
+        .filter(Boolean),
+    [rolesText],
+  );
+  /**
+   * One plan per role, each ranked against the trade that role calls for.
+   *
+   * This used to be `included.filter((_, i) => i % roles.length === roleIndex)`
+   * — one ranking, against one global specialty, split across the roles by
+   * arithmetic. Which role a person was offered came down to where they landed
+   * in a list that had never heard of the roles, so a videographer could be
+   * sent the second-photographer offer. The engine ranks each role against its
+   * own trade and deals a round at a time, so nobody is offered two roles on
+   * the same day and no role is starved by the one before it.
+   */
+  const rolePlans = useMemo(
+    () =>
+      assignCandidatesToRoles({
+        roles: roles.map((label) => ({
+          role: label,
+          coverageRole: coverageRoleForLabel(label),
+        })),
+        eventSpecialty: specialty,
+        serviceArea: text(project?.city),
+        startsAt: safeIso(startsAt),
+        endsAt: safeIso(endsAt),
+        candidates: candidateInputs,
+        excludedIds: [...excluded],
+        depth: 5,
+      }),
+    [candidateInputs, endsAt, excluded, project?.city, roles, specialty, startsAt],
+  );
 
   useEffect(() => {
     if (
@@ -413,6 +459,69 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
     schedules,
     specialty,
   ]);
+
+  /**
+   * Send the plan booking prepared, exactly as prepared.
+   *
+   * It goes through the same `createCrewPlan` command the form uses — there is
+   * one way to start a cascade — so the approval is recorded against the
+   * studio member who clicked it, not against the worker that drafted it.
+   */
+  async function approvePrepared() {
+    if (!preparedPlan) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      const sendable = preparedRoles.filter(
+        (role) => list(role.candidateIds).length > 0,
+      );
+      if (!sendable.length) {
+        setNotice("Nothing to send: no role on this plan has a candidate.");
+        return;
+      }
+      const result = await sendCrewCommand("createCrewPlan", {
+        projectId,
+        cascades: sendable.map((role) => ({
+          projectId,
+          role: text(role.role),
+          candidateIds: list(role.candidateIds).map(text).filter(Boolean),
+          responseWindowHours: Number(preparedPlan.responseWindowHours ?? 24),
+          compensationCents:
+            role.compensationCents === null ||
+            role.compensationCents === undefined
+              ? null
+              : Number(role.compensationCents),
+          compensationType: "event",
+          currency: text(preparedPlan.currency) || "USD",
+          compensationVisibleToCrew: true,
+          arrivalAt: text(preparedPlan.arrivalAt),
+          departureAt: text(preparedPlan.departureAt),
+          locations: list(preparedPlan.locations).map(record),
+          responsibilities: list(preparedPlan.responsibilities).map(text).filter(Boolean),
+          scheduleItemIds: [],
+          currentScheduleId: preparedPlan.currentScheduleId ?? null,
+          currentScheduleVersion: Number(preparedPlan.currentScheduleVersion ?? 0),
+          requirements: list(preparedPlan.requirements).map(record),
+        })),
+      });
+      setNotice(
+        result.persisted
+          ? `${sendable.length} ${sendable.length === 1 ? "offer is" : "offers are"} out. The first name on each role has been asked.`
+          : "Development preview validated the prepared plan without sending an offer.",
+      );
+      if (result.persisted) returnToJob({ delayMs: 1400 });
+    } catch (caught: unknown) {
+      setNotice(
+        crewPublicError(
+          caught,
+          "The prepared plan could not be sent.",
+          "CREW_PREPARED_PLAN_SEND_FAILED",
+        ),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function move(candidateId: string, direction: -1 | 1) {
     const ids = included.map((candidate) => candidate.crewProfileId);
@@ -617,15 +726,23 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
                   {loading ? "Ranking…" : included.length ? "Ready to review" : "Needs candidates"}
                 </StatusBadge>
               </div>
-              {rolePlans.length > 1 ? (
+              {/* Every role, including the ones nobody can work. A role that
+                  cannot be filled is the thing the studio most needs to see,
+                  and it used to show as an empty slot with a generic hint. */}
+              {rolePlans.length ? (
                 <div className="crew-role-plan-summary">
                   {rolePlans.map((plan) => (
-                    <article key={plan.role}>
+                    <article
+                      className={plan.gap ? "is-short" : undefined}
+                      key={plan.role}
+                    >
                       <strong>{plan.role}</strong>
                       <small>
-                        {plan.candidates.length
-                          ? plan.candidates.map((candidate) => candidate.name).join(" → ")
-                          : "Add more eligible candidates before approval"}
+                        {plan.gap
+                          ? plan.gap.reason
+                          : plan.candidates
+                              .map((candidate) => candidate.name)
+                              .join(" → ")}
                       </small>
                     </article>
                   ))}
@@ -979,6 +1096,64 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
           <Sparkles aria-hidden="true" />
         </header>
       )}
+      {/* Booking already did this work. It goes above the form, because a
+          studio that can send the plan should not have to read the form to
+          find that out. */}
+      {preparedShowing ? (
+        <section className="panel crew-prepared-plan">
+          <header>
+            <span>
+              <Sparkles aria-hidden="true" />
+              <strong>Prepared when this job was booked</strong>
+            </span>
+            <StatusBadge tone={list(preparedPlan?.roles).some((role) => record(role).gap) ? "warning" : "success"}>
+              {preparedRoles.length}{" "}
+              {preparedRoles.length === 1 ? "role" : "roles"}{" "}
+              to fill
+            </StatusBadge>
+          </header>
+          {preparedPlan?.studioCovers ? (
+            <p className="form-notice">
+              You are covering one{" "}
+              {text(record(preparedPlan.studioCovers).label) || "place"}{" "}
+              yourself. Change the coverage on the package if that is not right.
+            </p>
+          ) : null}
+          <div className="crew-role-plan-summary">
+            {preparedRoles.map((role, index) => {
+              const gap = record(role.gap);
+              return (
+                <article
+                  className={role.gap ? "is-short" : undefined}
+                  key={`${text(role.role)}-${index}`}
+                >
+                  <strong>{text(role.role)}</strong>
+                  <small>
+                    {role.gap
+                      ? text(gap.reason)
+                      : list(role.candidateNames).map(text).join(" → ")}
+                  </small>
+                </article>
+              );
+            })}
+          </div>
+          <div className="crew-prepared-actions">
+            <button
+              className="button button-dark"
+              disabled={busy}
+              onClick={() => void approvePrepared()}
+              type="button"
+            >
+              <Send size={15} />
+              Send these offers
+            </button>
+            <small>
+              Each role is offered to its first name. Nobody further down is
+              asked unless that person declines or the window runs out.
+            </small>
+          </div>
+        </section>
+      ) : null}
       {/* When an offer is already out, starting a second staffing plan is
           almost never what the photographer came here to do. The form stays
           one click away rather than being the first thing on the page. */}
