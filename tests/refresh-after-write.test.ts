@@ -62,3 +62,34 @@ test("a settled read only clears its own map entry", () => {
     "a stale read's finally must not evict the newer read under the same key",
   );
 });
+
+/**
+ * A page that loads its own records must re-run on the same signal.
+ *
+ * `refreshTenantRecords` only reaches components reading through
+ * `useTenantDocuments`. The job page loads the project itself, so every write
+ * made from it — archiving in particular — left the page describing the
+ * project as it was before: the archive command succeeded and the page went on
+ * offering "Archive job" with no sign it had worked. Seen on production.
+ *
+ * `useTenantRecordsGeneration` exists for exactly this. Any page holding its
+ * own loader beside a write control has to depend on it.
+ */
+test("the job page re-reads the project after a write made on it", () => {
+  const page = readFileSync(
+    `${process.cwd()}/components/projects/live-project-detail.tsx`,
+    "utf8",
+  );
+  assert.match(
+    page,
+    /useTenantRecordsGeneration/,
+    "the job page loads the project itself and must re-run on the refresh signal",
+  );
+  // In the loader's dependencies, not merely imported.
+  const loader = page.slice(page.indexOf("export function LiveProjectDetail"));
+  assert.match(
+    loader,
+    /\}, \[projectId, recordsGeneration, workspace\.loading, workspace\.tenantId\]\);/,
+    "the generation must be a dependency of the effect that loads the project",
+  );
+});

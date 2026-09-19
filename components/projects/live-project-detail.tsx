@@ -72,7 +72,10 @@ import { ProjectPlanningCopilot } from "@/components/projects/project-planning-c
 import { crmProjects } from "@/config/crm-demo-data";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { ArchiveToggle } from "@/components/records/archive-toggle";
-import { refreshTenantRecords } from "@/components/live/tenant-records";
+import {
+  refreshTenantRecords,
+  useTenantRecordsGeneration,
+} from "@/components/live/tenant-records";
 import {
   manualAdvanceExample,
   manualAdvanceFor,
@@ -696,6 +699,18 @@ function ProjectLifecycleLanes({
 export function LiveProjectDetail({ projectId }: { projectId: string }) {
   const workspace = useWorkspace();
   const isPhone = useIsPhone();
+  /**
+   * This page loads the project itself rather than through
+   * `useTenantDocuments`, so `refreshTenantRecords` refreshes a store it never
+   * reads — and every write made from this page left the page describing the
+   * project as it was before.
+   *
+   * Seen on production archiving a job: the command succeeded, and the page
+   * went on offering "Archive job" with no sign it had worked, so the only way
+   * to find out was to reload. `useTenantRecordsGeneration` exists for exactly
+   * this — it lets an independent loader re-run on the same signal.
+   */
+  const recordsGeneration = useTenantRecordsGeneration();
   const [project, setProject] = useState<ProjectRecord | null>(
     dataIsLive ? null : mockProject(projectId),
   );
@@ -811,7 +826,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
     return () => {
       active = false;
     };
-  }, [projectId, workspace.loading, workspace.tenantId]);
+  }, [projectId, recordsGeneration, workspace.loading, workspace.tenantId]);
 
   if (workspace.loading || (!project && !error))
     return (
