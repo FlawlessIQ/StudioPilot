@@ -8049,6 +8049,16 @@ textarea:focus-visible {
   min-height: 162px;
 }
 
+/* The underlying failure, for a person who has to report it. Secondary to the
+   sentence above it, and allowed to break anywhere — these are error strings,
+   not prose, and must not push the card sideways on a phone. */
+.crew-state-detail {
+  color: var(--ds-muted, #747d77);
+  font-size: 12px;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+
 .crew-state-actions {
   align-items: center;
   align-self: center;

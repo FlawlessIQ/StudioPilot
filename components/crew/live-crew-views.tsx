@@ -87,6 +87,17 @@ type CrewData = {
   studio: Value | null;
   loading: boolean;
   error: string | null;
+  /**
+   * What actually failed, kept beside the sentence a person reads.
+   *
+   * `crewPublicError` maps four infrastructure conditions and otherwise
+   * returns the fallback, so anything it does not recognise reached the crew
+   * member as "Your crew workspace could not be loaded" with no way to say
+   * what went wrong — not to the studio, not to us. That happened on a real
+   * phone and left no thread to pull. The card now carries the reason, so a
+   * dead end is at least reportable.
+   */
+  errorDetail: string | null;
   refresh: () => void;
 };
 type CrewDataState = Omit<CrewData, "refresh">;
@@ -152,6 +163,7 @@ function useCrewData(): CrewData {
     studio: null,
     loading: dataIsLive,
     error: null,
+    errorDetail: null,
   });
   useEffect(() => {
     if (!dataIsLive || workspace.loading) return;
@@ -166,6 +178,20 @@ function useCrewData(): CrewData {
       return;
     }
     let active = true;
+    /**
+     * Say that something is happening.
+     *
+     * The effect re-ran on retry but left the previous error on screen until
+     * the new attempt resolved — and when it failed again in milliseconds the
+     * card was identical, so "Try again" looked broken. Reported from a phone
+     * in exactly those words. A retry that fails must still *look* like a
+     * retry.
+     */
+    queueMicrotask(() =>
+      setState((current) =>
+        current.loading ? current : { ...current, loading: true },
+      ),
+    );
     const { firestore } = getFirebaseClient();
     void withTimeout(Promise.all([
       /**
@@ -260,6 +286,7 @@ function useCrewData(): CrewData {
             : null,
           loading: false,
           error: null,
+          errorDetail: null,
         });
       })
       .catch((caught: unknown) => {
@@ -272,6 +299,10 @@ function useCrewData(): CrewData {
               "Your crew workspace could not be loaded. Try again, or ask the studio to confirm your assignment.",
               "CREW_WORKSPACE_LOAD_FAILED",
             ),
+            errorDetail:
+              caught instanceof Error && caught.message.trim()
+                ? caught.message.trim().slice(0, 220)
+                : null,
           }));
       });
     return () => {
@@ -312,9 +343,27 @@ function CrewState({
         <span>
           <strong>Crew workspace unavailable</strong>
           <small>{data.error}</small>
+          {/* What actually failed. Reported on a phone as "Try again is not
+              doing anything": it was retrying and failing again instantly,
+              and the card said the same thing either way, so there was
+              nothing to send the studio and nothing to debug from. */}
+          {data.errorDetail ? (
+            <small className="crew-state-detail">
+              Tell the studio this: {data.errorDetail}
+            </small>
+          ) : null}
         </span>
         <span className="crew-state-actions">
-          <button className="button button-light button-sm" onClick={workspace.retry} type="button">
+          <button
+            className="button button-light button-sm"
+            onClick={() => {
+              // Both: the workspace re-resolves the membership, and this
+              // re-runs the crew reads even when the workspace is unchanged.
+              workspace.retry();
+              data.refresh();
+            }}
+            type="button"
+          >
             <RotateCw size={14} /> Try again
           </button>
           <Link className="button button-light button-sm" href="/crew/jobs">
