@@ -618,12 +618,34 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
     setBusy("gate");
     setNotice(null);
     try {
+      /**
+       * The version, read at the moment of asking.
+       *
+       * Recording a retainer calls `load()`, but the project's own state moves
+       * a beat later — so the page was left holding the version from before
+       * the transition, and confirming the booking failed every time with
+       * PROJECT_VERSION_CONFLICT, surfaced as "This action could not be
+       * completed." Reproduced twice on production: record the retainer,
+       * confirm, fail; reload the page, confirm, booked. It is the last click
+       * of getting a job booked, and the manual-attestation path is the one a
+       * studio without a signing provider always takes.
+       *
+       * The guard still does its job — it exists to stop a decision made
+       * against a project that has since changed — but the decision here is
+       * "confirm this booking", and what it must be current with is the state
+       * the server holds now, not the one this component last rendered.
+       */
+      const { firestore: liveFirestore } = getFirebaseClient();
+      const current = await getDoc(doc(liveFirestore, "projects", projectId));
+      const expectedProjectVersion = current.exists()
+        ? Number(current.get("stateVersion") ?? 0)
+        : Number(project.stateVersion ?? 0);
       const response = await sendBookingCommand({
         type: "runBookingGate",
         idempotencyKey: crypto.randomUUID(),
         input: {
           projectId,
-          expectedProjectVersion: Number(project.stateVersion ?? 0),
+          expectedProjectVersion,
           approvedRetainerExceptionId: null,
         },
       });
