@@ -287,6 +287,7 @@ export type SignedAgreementReadResult = {
     taxAmount: number | null;
     coverageHours: number | null;
     photographers: number | null;
+    videographers: number | null;
     venueName: string | null;
     city: string | null;
     retainerAmount: number | null;

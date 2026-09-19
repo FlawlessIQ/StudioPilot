@@ -1,3 +1,10 @@
+import {
+  coverageFromPhotographerCount,
+  legacyPhotographerCount,
+  normaliseCoverage,
+  type CoverageRole,
+} from "../packages/coverage.js";
+
 type Json = Record<string, unknown>;
 
 const record = (value: unknown): Json =>
@@ -81,14 +88,34 @@ export function importedStudioPackage(input: {
         : firstItemPriceCents,
   );
   const coverage = source.match(/(\d+(?:\.\d+)?)\s*(?:hours?|hrs?)/i);
-  const crew = source.match(
-    /\b(\d+|one|two|three|four|five|six)\s+(?:[a-z]+\s+){0,2}(?:photographers?|videographers?)\b/i,
-  );
-  const crewValue = crew?.[1]?.toLowerCase() ?? "";
-  const includedPhotographers = Math.max(
-    1,
-    Number(crewValue) || wordsToNumber[crewValue] || 1,
-  );
+  /**
+   * Coverage, per role.
+   *
+   * This regex has always read `videographers?` and then thrown the answer
+   * away, because the only field to put it in was named after photographers.
+   * A price list reading "Two Videographers for a full day" imported as one
+   * photographer. Now every mention is matched and bucketed by the role it
+   * names, and the highest count for a role wins — a list often states the
+   * same role twice, once in a summary and once in a line item.
+   */
+  const crewPattern =
+    /\b(\d+|one|two|three|four|five|six)\s+(?:[a-z]+\s+){0,2}(photographers?|videographers?)\b/gi;
+  const counts = new Map<CoverageRole, number>();
+  for (const match of source.matchAll(crewPattern)) {
+    const value = (match[1] ?? "").toLowerCase();
+    const count = Number(value) || wordsToNumber[value] || 0;
+    if (count < 1) continue;
+    const role: CoverageRole = (match[2] ?? "").toLowerCase().startsWith("video")
+      ? "videographer"
+      : "photographer";
+    counts.set(role, Math.max(counts.get(role) ?? 0, Math.min(50, count)));
+  }
+  const includedCoverage = counts.size
+    ? normaliseCoverage([...counts].map(([role, count]) => ({ role, count })))
+    : // Nothing stated: one photographer, which is what this has always
+      // assumed rather than importing a package that sends nobody.
+      coverageFromPhotographerCount(1);
+  const includedPhotographers = legacyPhotographerCount(includedCoverage);
   const retainerAmount = money(
     content.retainer ?? content.retainerAmount ?? content.bookingFee,
   );
@@ -123,6 +150,7 @@ export function importedStudioPackage(input: {
       1,
       Math.round(Number(coverage?.[1] ?? 1) * 60),
     ),
+    includedCoverage,
     includedPhotographers,
     includedDeliverables: details.length
       ? details.slice(0, 40)

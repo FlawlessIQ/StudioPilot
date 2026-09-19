@@ -62,14 +62,17 @@ Detailed provider-console and business-owner steps are maintained in
      is built and dormant.
   9. [Conor/Gabe] Acceptance pilot — a full real wedding end to end.
 
-- **Crew requirements per package (requested by Gabe, 2026-09-17 — confirm
-  before building).** A package should say who it needs on the day (e.g. two
-  photographers; photographer + videographer), and booking it should invite
-  that crew by role automatically, with each invite labelled photographer or
-  video. Today `includedPhotographers` exists but is not editable on Edit
-  package (imported packages default to 1), there is no videographer count,
-  and crew offers are started by hand from the crew cascade with free-text
-  roles.
+- **Crew requirements per package (requested by Gabe, 2026-09-17) — mostly
+  shipped 2026-09-19.** A package now says who it sends, by role:
+  `includedCoverage` is `{role, count}[]`, editable on both Create and Edit
+  package, read by the client portal, the proposal, the readiness check and the
+  crew cascade, which pre-fills one role per person still to book. The price-list
+  importer reads videographer counts it had been parsing and discarding, and the
+  contract reader extracts them.
+
+  **Still by hand:** booking a package does not *automatically* invite that crew
+  — the cascade is pre-filled with the right roles and the studio starts the
+  offers. Automatic invitation on booking is the remaining half of this item.
 
 ## Phase 1 — Credential and environment safety
 

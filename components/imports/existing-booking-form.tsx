@@ -59,6 +59,7 @@ export type ExistingBookingFormValues = {
   tax: string;
   coverageHours: string;
   photographers: string;
+  videographers: string;
   signedOn: string;
   signerName: string;
   payments: Array<{ amount: string; paidOn: string; method: string }>;
@@ -83,6 +84,7 @@ const blank: ExistingBookingFormValues = {
   tax: "0",
   coverageHours: "8",
   photographers: "1",
+  videographers: "0",
   signedOn: "",
   signerName: "",
   payments: [{ amount: "", paidOn: "", method: "Retainer" }],
@@ -132,6 +134,7 @@ export function bookingFromForm(
     packageName: values.packageName.trim() || "Wedding photography",
     coverageMinutes: Math.round(Number(values.coverageHours) * 60),
     photographers: Math.round(Number(values.photographers)),
+    videographers: Math.round(Number(values.videographers || 0)),
     currency: "USD",
     totalCents: cents(values.total),
     taxCents: cents(values.tax || "0"),
@@ -162,6 +165,7 @@ export function bookingFromForm(
     [/^taxCents/, "Tax should be an amount, or 0."],
     [/^coverageMinutes/, "Coverage should be a number of hours."],
     [/^photographers/, "Photographers should be a whole number."],
+    [/^videographers/, "Videographers should be a whole number."],
     [/^payments\.\d+\.amountCents/, "Each payment needs an amount above zero."],
     [/^payments\.\d+\.paidOn/, "Each payment needs the date it was received."],
   ];
@@ -471,7 +475,11 @@ export function ExistingBookingForm({
         </label>
         <label>
           Photographers
-          <input inputMode="numeric" onChange={(e) => set("photographers", e.target.value)} required value={values.photographers} />
+          <input inputMode="numeric" min="0" onChange={(e) => set("photographers", e.target.value)} required value={values.photographers} />
+        </label>
+        <label>
+          Videographers
+          <input inputMode="numeric" min="0" onChange={(e) => set("videographers", e.target.value)} value={values.videographers} />
         </label>
         <label className="booking-import-span">
           Signed by <small>defaults to the client</small>

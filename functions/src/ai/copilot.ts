@@ -18,6 +18,10 @@ import {
   readSignedAgreement,
   readSignedAgreementRequestSchema,
 } from "./signed-agreement.js";
+import {
+  describeCoverage,
+  resolveCoverage,
+} from "../packages/coverage.js";
 
 type Json = Record<string, unknown>;
 
@@ -1622,6 +1626,8 @@ export const aiCopilotCommand = onRequest(
             description: snapshotDocument.get("description"),
             includedCoverageMinutes: snapshotDocument.get("includedCoverageMinutes"),
             includedPhotographers: snapshotDocument.get("includedPhotographers"),
+            // Written out, so a draft never calls a videographer a photographer.
+            coverage: describeCoverage(resolveCoverage(snapshotDocument.data())),
             includedDeliverables: snapshotDocument.get("includedDeliverables"),
             terms: snapshotDocument.get("terms"),
           },

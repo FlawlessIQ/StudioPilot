@@ -6,6 +6,10 @@ import { getStorage } from "firebase-admin/storage";
 import { runStudioImportAnalysis } from "../studio-import/extraction.js";
 import { productEvent } from "./product-events.js";
 import { limitDollars, sameCalendarDate } from "./certificate-review.js";
+import {
+  describeCoverage,
+  resolveCoverage,
+} from "../packages/coverage.js";
 
 type Json=Record<string,unknown>;
 const record=(value:unknown):Json=>typeof value==="object"&&value!==null&&!Array.isArray(value)?value as Json:{};
@@ -154,6 +158,7 @@ async function runConsultationAnalysis(job:DocumentSnapshot){
     currency:document.get("currency"),
     includedCoverageMinutes:document.get("includedCoverageMinutes"),
     includedPhotographers:document.get("includedPhotographers"),
+    coverage:describeCoverage(resolveCoverage(document.data())),
     includedDeliverables:document.get("includedDeliverables"),
     includedTravelArea:document.get("includedTravelArea"),
     terms:document.get("terms"),

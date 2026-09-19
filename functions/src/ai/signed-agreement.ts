@@ -52,6 +52,7 @@ export type SignedAgreementDetails = {
   taxAmount: number | null;
   coverageHours: number | null;
   photographers: number | null;
+  videographers: number | null;
   venueName: string | null;
   city: string | null;
   retainerAmount: number | null;
@@ -99,6 +100,7 @@ const detailsSchema = z
     taxAmount: money,
     coverageHours: z.number().positive().max(24).nullable().catch(null),
     photographers: z.number().int().positive().max(10).nullable().catch(null),
+    videographers: z.number().int().positive().max(10).nullable().catch(null),
     venueName: z.string().max(160).nullable().catch(null),
     city: z.string().max(120).nullable().catch(null),
     retainerAmount: money,
@@ -111,6 +113,7 @@ const detailsSchema = z
     taxAmount: null,
     coverageHours: null,
     photographers: null,
+    videographers: null,
     venueName: null,
     city: null,
     retainerAmount: null,
@@ -178,7 +181,7 @@ async function readWithVertex(input: {
           parts: [
             {
               text:
-                "You read one document a wedding photography studio believes is a signed client agreement. Report only what is visibly on the page — never infer, complete or correct it. isSignedAgreement: true only if it is an agreement between the studio and a client. signatureVisible: true only if a handwritten, drawn or typed-and-attested client signature is actually present, not merely a signature line. signerNames: the names of the clients who signed, as written. clientNames: every client the agreement is made with, as written. signedDate: the date the client signed, as YYYY-MM-DD, or null if not stated. eventDate: the date of the event the agreement covers, as YYYY-MM-DD, or null. details, each only if the document states it and otherwise null or empty: clientEmails and clientPhones as written; packageName as the agreement names the package or collection; contractTotal as the total price as a plain number including any tax; taxAmount as a plain number; coverageHours as the number of hours of coverage; photographers as the number of photographers included; venueName and city of the event; retainerAmount as the retainer or deposit amount as a plain number. Never compute a figure the document does not state. Do not judge whether the agreement is valid, enforceable or complete. Return JSON only.",
+                "You read one document a wedding photography studio believes is a signed client agreement. Report only what is visibly on the page — never infer, complete or correct it. isSignedAgreement: true only if it is an agreement between the studio and a client. signatureVisible: true only if a handwritten, drawn or typed-and-attested client signature is actually present, not merely a signature line. signerNames: the names of the clients who signed, as written. clientNames: every client the agreement is made with, as written. signedDate: the date the client signed, as YYYY-MM-DD, or null if not stated. eventDate: the date of the event the agreement covers, as YYYY-MM-DD, or null. details, each only if the document states it and otherwise null or empty: clientEmails and clientPhones as written; packageName as the agreement names the package or collection; contractTotal as the total price as a plain number including any tax; taxAmount as a plain number; coverageHours as the number of hours of coverage; photographers as the number of photographers included; videographers as the number of videographers included, and null rather than zero when the agreement does not mention video; venueName and city of the event; retainerAmount as the retainer or deposit amount as a plain number. Never compute a figure the document does not state. Do not judge whether the agreement is valid, enforceable or complete. Return JSON only.",
             },
           ],
         },
@@ -213,6 +216,7 @@ async function readWithVertex(input: {
                   taxAmount: { type: "NUMBER", nullable: true },
                   coverageHours: { type: "NUMBER", nullable: true },
                   photographers: { type: "NUMBER", nullable: true },
+                  videographers: { type: "NUMBER", nullable: true },
                   venueName: { type: "STRING", nullable: true },
                   city: { type: "STRING", nullable: true },
                   retainerAmount: { type: "NUMBER", nullable: true },

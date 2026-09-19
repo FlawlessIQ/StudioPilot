@@ -1,3 +1,9 @@
+import {
+  legacyPhotographerCount,
+  resolveCoverage,
+  type CoverageRole,
+} from "@/features/packages/coverage";
+import { billedCrewCount } from "@/features/packages/create-snapshot";
 import { z } from "zod";
 import { todayInZone } from "@/lib/format/event-date";
 import {
@@ -208,6 +214,7 @@ const clientRecordFields = {
     "totalCents",
     "currency",
     "includedCoverageMinutes",
+    "includedCoverage",
     "includedPhotographers",
     "includedDeliverables",
     "deliverables",
@@ -698,6 +705,10 @@ async function availablePackages(tenantId: string, projectId: string) {
       includedCoverageMinutes: Number(
         document.get("includedCoverageMinutes") ?? 0,
       ),
+      includedCoverage: resolveCoverage({
+        includedCoverage: document.get("includedCoverage"),
+        includedPhotographers: document.get("includedPhotographers"),
+      }),
       includedPhotographers: Number(
         document.get("includedPhotographers") ?? 0,
       ),
@@ -805,8 +816,16 @@ async function selectPackageForClient(input: {
       (studioPackage.get("retainerRule") as
         | { type: "fixed"; amountCents: number }
         | { type: "percentage"; basisPoints: number }
-        | { type: "per_crew_member"; amountPerCrewCents: number }
+        | {
+            type: "per_crew_member";
+            amountPerCrewCents: number;
+            billedRoles?: CoverageRole[];
+          }
         | undefined) ?? { type: "fixed", amountCents: 0 };
+    const selectedCoverage = resolveCoverage({
+      includedCoverage: studioPackage.get("includedCoverage"),
+      includedPhotographers: studioPackage.get("includedPhotographers"),
+    });
     const retainerCents =
       retainerRule.type === "fixed"
         ? Math.min(totalCents, Number(retainerRule.amountCents))
@@ -814,10 +833,7 @@ async function selectPackageForClient(input: {
           ? Math.min(
               totalCents,
               Number(retainerRule.amountPerCrewCents) *
-                Math.max(
-                  1,
-                  Number(studioPackage.get("includedPhotographers") ?? 1),
-                ),
+                billedCrewCount(selectedCoverage, retainerRule.billedRoles),
             )
           : Math.round((totalCents * Number(retainerRule.basisPoints)) / 10000);
     const snapshotId = `package_snapshot_${executionId}`;
@@ -841,9 +857,8 @@ async function selectPackageForClient(input: {
       includedCoverageMinutes: Number(
         studioPackage.get("includedCoverageMinutes") ?? 0,
       ),
-      includedPhotographers: Number(
-        studioPackage.get("includedPhotographers") ?? 0,
-      ),
+      includedCoverage: selectedCoverage,
+      includedPhotographers: legacyPhotographerCount(selectedCoverage),
       includedDeliverables: Array.isArray(
         studioPackage.get("includedDeliverables"),
       )

@@ -208,6 +208,7 @@ for (const item of packages) {
     currency: "USD",
     retainerRule: { type: "percentage", basisPoints: 3000 },
     includedCoverageMinutes: item.coverage,
+    includedCoverage: [{ role: "photographer", count: item.photographers }],
     includedPhotographers: item.photographers,
     includedDeliverables: [
       "Online gallery",
@@ -448,6 +449,9 @@ for (const job of jobs) {
       retainerCents,
       totalCents: job.priceCents,
       includedCoverageMinutes: chosen.coverage,
+      includedCoverage: [
+        { role: "photographer", count: chosen.photographers },
+      ],
       includedPhotographers: chosen.photographers,
       includedDeliverables: [
         "Online gallery",

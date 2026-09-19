@@ -6,6 +6,57 @@ import { requireAppCheck, requireIdentity } from "./security.js";
 import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { studioHubCors } from "../security/cors.js";
 import { invalidCommandResponse } from "../security/invalid-command.js";
+import {
+  coverageFromPhotographerCount,
+  coverageRoleSchema,
+  includedCoverageSchema,
+  legacyPhotographerCount,
+  resolveCoverage,
+  type CoverageItem,
+  type CoverageRole,
+} from "../packages/coverage.js";
+
+/**
+ * Coverage as sent by the browser, from either shape.
+ *
+ * Both fields are optional on the wire and this is deliberate: functions
+ * deploy before the app does, so the deployed command must still accept a
+ * payload from the previous client, which sends `includedPhotographers`
+ * alone.
+ */
+function coverageFromInput(input: {
+  includedCoverage?: readonly CoverageItem[];
+  includedPhotographers?: number;
+}): CoverageItem[] {
+  if (input.includedCoverage?.length) {
+    return input.includedCoverage.map((item) => ({ ...item }));
+  }
+  return coverageFromPhotographerCount(input.includedPhotographers ?? 1);
+}
+
+/** The pair, written together so they can never drift apart. */
+function coverageFields(coverage: readonly CoverageItem[]) {
+  return {
+    includedCoverage: coverage.map((item) => ({ ...item })),
+    includedPhotographers: legacyPhotographerCount(coverage),
+  };
+}
+
+/** Mirrors billedCrewCount in features/packages/create-snapshot.ts. */
+function billedCrewCount(
+  coverage: readonly CoverageItem[],
+  billedRoles: readonly CoverageRole[] | undefined,
+): number {
+  const roles = billedRoles?.length ? billedRoles : (["photographer"] as const);
+  return Math.max(
+    1,
+    roles.reduce(
+      (sum, role) =>
+        sum + (coverage.find((item) => item.role === role)?.count ?? 0),
+      0,
+    ),
+  );
+}
 
 const projectStates = [
   "LEAD",
@@ -264,10 +315,12 @@ const commandSchema = z.discriminatedUnion("type", [
           z.object({
             type: z.literal("per_crew_member"),
             amountPerCrewCents: z.number().int().nonnegative().safe(),
+            billedRoles: z.array(coverageRoleSchema).min(1).optional(),
           }),
         ])
         .optional(),
       includedCoverageMinutes: z.number().int().positive().optional(),
+      includedCoverage: includedCoverageSchema.optional(),
       includedPhotographers: z.number().int().positive().optional(),
       active: z.boolean().optional(),
       publicVisible: z.boolean().optional(),
@@ -296,10 +349,12 @@ const commandSchema = z.discriminatedUnion("type", [
         z.object({
           type: z.literal("per_crew_member"),
           amountPerCrewCents: z.number().int().nonnegative().safe(),
+          billedRoles: z.array(coverageRoleSchema).min(1).optional(),
         }),
       ]),
       includedCoverageMinutes: z.number().int().positive(),
-      includedPhotographers: z.number().int().positive(),
+      includedCoverage: includedCoverageSchema.optional(),
+      includedPhotographers: z.number().int().positive().optional(),
       includedDeliverables: z.array(z.string().min(1)).min(1),
       includedTravelArea: z.string().max(500),
       addOns: z.array(
@@ -795,10 +850,22 @@ export const crmCommand = onRequest(
             throw new Error("PACKAGE_NOT_FOUND");
           const { packageId, ...changes } = command.input;
           // Only what was actually sent; an omitted field is untouched.
-          const patch = Object.fromEntries(
+          const patch: Record<string, unknown> = Object.fromEntries(
             Object.entries(changes).filter(([, value]) => value !== undefined),
           );
           if (!Object.keys(patch).length) throw new Error("NO_PACKAGE_CHANGES");
+          /**
+           * Coverage is two fields describing one fact, so an edit that moves
+           * either must move both. An edit that touches neither leaves the
+           * package exactly as it was, including a legacy package that has no
+           * `includedCoverage` yet.
+           */
+          if (
+            changes.includedCoverage !== undefined ||
+            changes.includedPhotographers !== undefined
+          ) {
+            Object.assign(patch, coverageFields(coverageFromInput(changes)));
+          }
           const nextVersion = Number(existing.get("version") ?? 1) + 1;
           transaction.update(reference, {
             ...patch,
@@ -857,6 +924,8 @@ export const crmCommand = onRequest(
             id: packageId,
             tenantId: command.tenantId,
             ...command.input,
+            // After the spread: the pair is derived, never taken as sent.
+            ...coverageFields(coverageFromInput(command.input)),
             currency,
             version: 1,
             createdAt: timestamp,
@@ -923,8 +992,13 @@ export const crmCommand = onRequest(
                 retainerRule:
                   | { type: "fixed"; amountCents: number }
                   | { type: "percentage"; basisPoints: number }
-                  | { type: "per_crew_member"; amountPerCrewCents: number };
+                  | {
+                      type: "per_crew_member";
+                      amountPerCrewCents: number;
+                      billedRoles?: CoverageRole[];
+                    };
                 includedCoverageMinutes: number;
+                includedCoverage?: CoverageItem[];
                 includedPhotographers: number;
                 includedDeliverables: string[];
                 includedTravelArea: string;
@@ -993,6 +1067,7 @@ export const crmCommand = onRequest(
             (subtotalCents * studioPackage.taxRateBasisPoints) / 10000,
           );
           const totalCents = subtotalCents + taxCents;
+          const coverage = resolveCoverage(studioPackage);
           const retainerCents =
             studioPackage.retainerRule.type === "fixed"
               ? Math.min(totalCents, studioPackage.retainerRule.amountCents)
@@ -1000,7 +1075,10 @@ export const crmCommand = onRequest(
                 ? Math.min(
                     totalCents,
                     studioPackage.retainerRule.amountPerCrewCents *
-                      Math.max(1, studioPackage.includedPhotographers),
+                      billedCrewCount(
+                        coverage,
+                        studioPackage.retainerRule.billedRoles,
+                      ),
                   )
                 : Math.round(
                     (totalCents * studioPackage.retainerRule.basisPoints) /
@@ -1024,7 +1102,7 @@ export const crmCommand = onRequest(
             retainerCents,
             totalCents,
             includedCoverageMinutes: studioPackage.includedCoverageMinutes,
-            includedPhotographers: studioPackage.includedPhotographers,
+            ...coverageFields(coverage),
             includedDeliverables: studioPackage.includedDeliverables,
             includedTravelArea: studioPackage.includedTravelArea,
             terms: studioPackage.terms,

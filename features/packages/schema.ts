@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { auditFieldsSchema } from "@/features/tenants/schema";
+import {
+  coverageRoleSchema,
+  includedCoverageSchema,
+} from "@/features/packages/coverage";
 
 const centsSchema = z.number().int().nonnegative().safe();
 const basisPointsSchema = z.number().int().min(0).max(10000);
@@ -17,10 +21,16 @@ export const retainerRuleSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("fixed"), amountCents: centsSchema }),
   z.object({ type: z.literal("percentage"), basisPoints: basisPointsSchema }),
   // "I charge $1,000 per crew member" — retainer scales with the crew the
-  // package fields (includedPhotographers), capped at the package total.
+  // package includes, capped at the package total.
   z.object({
     type: z.literal("per_crew_member"),
     amountPerCrewCents: centsSchema,
+    /**
+     * Which coverage roles the rule bills for. Absent means photographers
+     * only, which is exactly what every package written before coverage had
+     * roles meant — so no existing package changes price by gaining roles.
+     */
+    billedRoles: z.array(coverageRoleSchema).min(1).optional(),
   }),
 ]);
 
@@ -35,7 +45,22 @@ export const packageSchema = auditFieldsSchema.extend({
   currency: z.string().length(3),
   retainerRule: retainerRuleSchema,
   includedCoverageMinutes: z.number().int().positive(),
-  includedPhotographers: z.number().int().positive(),
+  /**
+   * What the studio sends: {role, count}. Read it via `resolveCoverage`,
+   * never directly.
+   *
+   * Optional because package documents are not migrated: every package
+   * written before coverage had roles is still a valid package, and
+   * `PackagesRepository` parses those documents straight off Firestore. They
+   * gain the field the next time the studio saves them.
+   */
+  includedCoverage: includedCoverageSchema.optional(),
+  /**
+   * Legacy. Written beside `includedCoverage` and always equal to its
+   * photographer count — zero for a video-only package, which is why this is
+   * non-negative where it was once positive. Never read directly.
+   */
+  includedPhotographers: z.number().int().nonnegative(),
   includedDeliverables: z.array(z.string().min(1)).min(1),
   includedTravelArea: z.string().max(500),
   addOns: z.array(packageAddOnSchema),
@@ -94,7 +119,14 @@ export const packageSnapshotSchema = z.object({
   retainerCents: centsSchema,
   totalCents: centsSchema,
   includedCoverageMinutes: z.number().int().positive(),
-  includedPhotographers: z.number().int().positive(),
+  /**
+   * Optional only because snapshots are immutable: every proposal signed
+   * before coverage had roles carries the legacy field alone, forever.
+   * `resolveCoverage` answers for both shapes.
+   */
+  includedCoverage: includedCoverageSchema.optional(),
+  /** Legacy, written beside `includedCoverage`. See the package schema. */
+  includedPhotographers: z.number().int().nonnegative(),
   includedDeliverables: z.array(z.string()),
   includedTravelArea: z.string(),
   terms: z.string(),

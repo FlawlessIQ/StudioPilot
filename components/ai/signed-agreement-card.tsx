@@ -313,6 +313,8 @@ function prefillFromReading(
     tax: details.taxAmount === null ? "0" : amount(details.taxAmount),
     coverageHours: details.coverageHours === null ? "8" : String(details.coverageHours),
     photographers: details.photographers === null ? "1" : String(details.photographers),
+    videographers:
+      details.videographers === null ? "0" : String(details.videographers),
     signedOn: reading.signedDate ?? "",
     signerName: reading.signerNames[0] ?? "",
     // The contract says what the retainer is, not when it arrived: the date

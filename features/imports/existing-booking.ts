@@ -62,12 +62,16 @@ export const existingBookingSchema = z.object({
   /** What the contract called it — not a package in the studio's catalogue. */
   packageName: z.string().trim().min(1).max(160),
   /**
-   * What the contract covers. These are not decoration: photographers drives
-   * the second-shooter check and how many crew get offered the job, and the
-   * couple's portal shows both.
+   * What the contract covers. These are not decoration: the crew counts drive
+   * the additional-crew check and how many crew get offered the job, and the
+   * couple's portal shows them.
+   *
+   * `videographers` is optional because a booking imported before the studio
+   * could count them sent none, and those imports are still correct.
    */
   coverageMinutes: z.number().int().positive().max(24 * 60),
-  photographers: z.number().int().positive().max(10),
+  photographers: z.number().int().nonnegative().max(10),
+  videographers: z.number().int().nonnegative().max(10).optional(),
   currency: z.string().trim().toUpperCase().length(3),
   /** The contract total, tax included, in cents. */
   totalCents: z.number().int().nonnegative().max(100_000_000),
@@ -278,6 +282,30 @@ export type ImportedBookingRecords = {
 };
 
 /**
+ * Coverage as the contract states it, in the {role, count} shape
+ * `features/packages/coverage.ts` defines.
+ *
+ * Written out here rather than imported: this module is duplicated into
+ * `functions/`, which has no "@/features" path, and the two copies are
+ * asserted identical.
+ *
+ * A contract that records nobody imports as one photographer — the same
+ * assumption the import has always made — and the snapshot's legacy
+ * `includedPhotographers` is derived from the result rather than from the raw
+ * number, so the pair can never disagree.
+ */
+export function importedCoverage(
+  booking: Pick<ExistingBooking, "photographers" | "videographers">,
+): { role: "photographer" | "videographer"; count: number }[] {
+  const coverage: { role: "photographer" | "videographer"; count: number }[] = [];
+  if (booking.photographers > 0)
+    coverage.push({ role: "photographer", count: booking.photographers });
+  if ((booking.videographers ?? 0) > 0)
+    coverage.push({ role: "videographer", count: booking.videographers ?? 0 });
+  return coverage.length ? coverage : [{ role: "photographer", count: 1 }];
+}
+
+/**
  * The documents an import writes, and — as importantly — how they are shaped
  * so nothing downstream mistakes them for a live booking.
  *
@@ -310,6 +338,7 @@ export function planImportedBooking(
   const { now, actorId } = context;
   const name = booking.projectName ?? defaultBookingName(booking.clients);
   const paid = paidToDateCents(booking);
+  const includedCoverage = importedCoverage(booking);
   const evidence = {
     kind: "imported_booking",
     source: context.source,
@@ -372,7 +401,9 @@ export function planImportedBooking(
     retainerCents: paid,
     totalCents: booking.totalCents,
     includedCoverageMinutes: booking.coverageMinutes,
-    includedPhotographers: booking.photographers,
+    includedCoverage,
+    includedPhotographers:
+      includedCoverage.find((item) => item.role === "photographer")?.count ?? 0,
     includedDeliverables: [],
     includedTravelArea: "",
     terms: "",

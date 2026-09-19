@@ -198,7 +198,16 @@ test("approved package imports become native package catalog records", () => {
   assert.equal(studioPackage.basePriceCents, 459900);
   assert.equal(studioPackage.currency, "USD");
   assert.equal(studioPackage.includedCoverageMinutes, 600);
-  assert.equal(studioPackage.includedPhotographers, 2);
+  /**
+   * The line says videographers, and until coverage had roles this asserted
+   * two *photographers* — the import reading a cinema package and recording
+   * the wrong trade, because a photographer count was the only field there
+   * was. It is a videographer package and now says so.
+   */
+  assert.deepEqual(studioPackage.includedCoverage, [
+    { role: "videographer", count: 2 },
+  ]);
+  assert.equal(studioPackage.includedPhotographers, 0);
   assert.equal(studioPackage.active, true);
   assert.equal(studioPackage.publicVisible, false);
   assert.equal(studioPackage.includedDeliverables.length, 3);

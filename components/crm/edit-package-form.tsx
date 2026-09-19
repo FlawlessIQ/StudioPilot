@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  billedRolesFrom,
+  coverageFrom,
+} from "@/components/crm/package-coverage-fields";
+import { coverageCount, resolveCoverage } from "@/features/packages/coverage";
+import { billedCrewCount } from "@/features/packages/create-snapshot";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -34,6 +40,10 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
     amount?: string;
     publicVisible?: boolean;
     active?: boolean;
+    photographers?: string;
+    videographers?: string;
+    billPhotographers?: boolean;
+    billVideographers?: boolean;
   }>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,11 +58,35 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
         ? Number(rule.amountCents ?? 0) / 100
         : Number(rule.amountPerCrewCents ?? 0) / 100;
 
+  /**
+   * The package's coverage, from whichever shape it was written in. A package
+   * imported before roles existed reads as photographers only, and gains the
+   * new field the moment this form saves it.
+   */
+  const storedCoverage = resolveCoverage(record);
+  const storedBilledRoles = Array.isArray(rule.billedRoles)
+    ? (rule.billedRoles as string[])
+    : null;
+
   const name = edits.name ?? String(record?.name ?? "");
   const basePrice =
     edits.basePrice ?? String(Number(record?.basePriceCents ?? 0) / 100);
   const mode = edits.mode ?? storedMode;
   const amount = edits.amount ?? String(storedAmount);
+  const photographers =
+    edits.photographers ??
+    String(coverageCount(storedCoverage, "photographer"));
+  const videographers =
+    edits.videographers ??
+    String(coverageCount(storedCoverage, "videographer"));
+  // A rule with no roles named bills photographers, which is what it meant
+  // before roles existed — so the boxes show what the package actually does.
+  const billPhotographers =
+    edits.billPhotographers ??
+    (storedBilledRoles ? storedBilledRoles.includes("photographer") : true);
+  const billVideographers =
+    edits.billVideographers ??
+    (storedBilledRoles ? storedBilledRoles.includes("videographer") : false);
   const publicVisible = edits.publicVisible ?? record?.publicVisible !== false;
   const active = edits.active ?? record?.active !== false;
   const set = <K extends keyof typeof edits>(
@@ -80,9 +114,26 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
       : mode === "fixed"
         ? Math.round(amountValue * 100)
         : Math.round(amountValue * 100) *
-          Math.max(1, Number(record.includedPhotographers ?? 1));
+          billedCrewCount(
+            coverageFrom({
+              photographers: Math.max(0, Math.round(Number(photographers || 0))),
+              videographers: Math.max(0, Math.round(Number(videographers || 0))),
+            }),
+            billedRolesFrom({ billPhotographers, billVideographers }),
+          );
 
   async function save() {
+    const crew =
+      Math.max(0, Math.round(Number(photographers || 0))) +
+      Math.max(0, Math.round(Number(videographers || 0)));
+    if (crew < 1) {
+      setError("A package includes at least one person.");
+      return;
+    }
+    if (mode === "per_crew_member" && !billPhotographers && !billVideographers) {
+      setError("Choose at least one role the retainer charges for.");
+      return;
+    }
     setBusy(true);
     setError(null);
     setSaved(false);
@@ -99,7 +150,15 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
               : {
                   type: "per_crew_member",
                   amountPerCrewCents: Math.round(amountValue * 100),
+                  billedRoles: billedRolesFrom({
+                    billPhotographers,
+                    billVideographers,
+                  }),
                 },
+        includedCoverage: coverageFrom({
+          photographers: Math.max(0, Math.round(Number(photographers || 0))),
+          videographers: Math.max(0, Math.round(Number(videographers || 0))),
+        }),
         active,
         publicVisible,
       });
@@ -161,6 +220,48 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
             value={amount}
           />
           <small>Clients are asked for {formatCents(retainerPreview)}.</small>
+        </label>
+        {mode === "per_crew_member" ? (
+          <>
+            <label className="form-checkbox">
+              <input
+                checked={billPhotographers}
+                onChange={(event) =>
+                  set("billPhotographers", event.target.checked)
+                }
+                type="checkbox"
+              />
+              <span>Charge this per photographer</span>
+            </label>
+            <label className="form-checkbox">
+              <input
+                checked={billVideographers}
+                onChange={(event) =>
+                  set("billVideographers", event.target.checked)
+                }
+                type="checkbox"
+              />
+              <span>Charge this per videographer</span>
+            </label>
+          </>
+        ) : null}
+        <label>
+          Photographers
+          <input
+            min="0"
+            onChange={(event) => set("photographers", event.target.value)}
+            type="number"
+            value={photographers}
+          />
+        </label>
+        <label>
+          Videographers
+          <input
+            min="0"
+            onChange={(event) => set("videographers", event.target.value)}
+            type="number"
+            value={videographers}
+          />
         </label>
         <label className="form-checkbox">
           <input

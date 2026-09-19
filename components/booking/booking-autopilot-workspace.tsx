@@ -1,6 +1,10 @@
 "use client";
 
 import {
+  describeCoverage,
+  resolveCoverage,
+} from "@/features/packages/coverage";
+import {
   ArrowRight,
   BrainCircuit,
   Check,
@@ -779,7 +783,7 @@ export function BookingAutopilotWorkspace({
                   <span>
                     <small>{studioPackage.id === recommendation.packageId ? "StudioCue recommendation" : "Active package"}</small>
                     <strong>{text(studioPackage.name)}</strong>
-                    <em>{money(studioPackage.basePriceCents, studioPackage.currency)} · {Math.round(Number(studioPackage.includedCoverageMinutes ?? 0) / 60)} hours</em>
+                    <em>{money(studioPackage.basePriceCents, studioPackage.currency)} · {Math.round(Number(studioPackage.includedCoverageMinutes ?? 0) / 60)} hours · {describeCoverage(resolveCoverage(studioPackage))}</em>
                   </span>
                 </button>
               ))}

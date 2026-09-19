@@ -1,5 +1,9 @@
 "use client";
 
+import {
+  coverageRoleLabel,
+  resolveCoverage,
+} from "@/features/packages/coverage";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   ArrowDown,
@@ -363,15 +367,27 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
         snapshot.id === project.packageSnapshotId ||
         snapshot.projectId === projectId,
     );
-    const photographerCount = Math.max(
-      1,
-      Number(packageSnapshot?.includedPhotographers ?? 1),
-    );
-    const suggestedRoles = Array.from(
-      { length: Math.max(1, photographerCount - 1) },
-      (_value, index) =>
-        index === 0 ? "Second photographer" : `Photographer ${index + 2}`,
-    );
+    /**
+     * Who the studio still has to book.
+     *
+     * The package says who it sends; the lead is the studio itself, so the
+     * first photographer is not a role to offer. Every other person is —
+     * including videographers, who used to be invisible here because coverage
+     * was counted in photographers alone and a video-led package offered
+     * nobody.
+     */
+    const coverage = resolveCoverage(packageSnapshot);
+    const suggestedRoles = coverage.flatMap((item) => {
+      // The studio shoots one of them itself.
+      const needed = item.role === "photographer" ? item.count - 1 : item.count;
+      const noun = coverageRoleLabel(item.role, 1);
+      return Array.from({ length: Math.max(0, needed) }, (_value, index) => {
+        if (item.role === "photographer")
+          return index === 0 ? "Second photographer" : `Photographer ${index + 2}`;
+        const title = noun.replace(/^./, (character) => character.toUpperCase());
+        return needed === 1 ? title : `${title} ${index + 1}`;
+      });
+    });
 
     const frame = requestAnimationFrame(() => {
       if (Number.isFinite(rateCents) && rateCents >= 0) {
@@ -380,7 +396,9 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
       if (scheduleResponsibilities.length) {
         setResponsibilities(scheduleResponsibilities.join("\n"));
       }
-      setRolesText(suggestedRoles.join("\n"));
+      // A package the studio covers alone suggests nobody; leave the field as
+      // the studio left it rather than blanking what it already typed.
+      if (suggestedRoles.length) setRolesText(suggestedRoles.join("\n"));
       setDefaultsHydrated(true);
     });
     return () => cancelAnimationFrame(frame);

@@ -1,5 +1,9 @@
 "use client";
 
+import {
+  resolveCoverage,
+  totalCoverageCount,
+} from "@/features/packages/coverage";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import {
   invoiceIsOverdue,
@@ -101,8 +105,16 @@ export function useProjectJourney({
   const bookedSnapshot = (packageSnapshots.records ?? []).find(
     (snapshot) => snapshot.id === text(journeyProject?.packageSnapshotId),
   );
+  /**
+   * Whether the package sends anyone besides the studio itself.
+   *
+   * Named for the photographer case it was written for, but the question is
+   * "is there crew still to book" — a package of one photographer and one
+   * videographer needs crew exactly as much as a two-photographer one, and
+   * used to read as needing none.
+   */
   const packageNeedsSecondShooter =
-    Number(bookedSnapshot?.includedPhotographers ?? 1) > 1;
+    totalCoverageCount(resolveCoverage(bookedSnapshot)) > 1;
 
   const readinessEvidence = useReadinessEvidence(projectId);
 

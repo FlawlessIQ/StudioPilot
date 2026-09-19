@@ -1,5 +1,9 @@
 "use client";
 
+import {
+  billedRolesFrom,
+  coverageFrom,
+} from "@/components/crm/package-coverage-fields";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -44,7 +48,14 @@ const schema = z
     photographers: z.coerce
       .number()
       .int("Whole photographers only.")
-      .positive("At least one photographer."),
+      .min(0, "A count cannot be negative."),
+    videographers: z.coerce
+      .number()
+      .int("Whole videographers only.")
+      .min(0, "A count cannot be negative."),
+    /** Which roles a per-crew-member retainer charges for. */
+    billPhotographers: z.boolean(),
+    billVideographers: z.boolean(),
     deliverables: z
       .string()
       .trim()
@@ -76,6 +87,26 @@ const schema = z
         message: "A percentage cannot be more than 100.",
       });
     }
+    // A package has to send somebody. Either count may be zero — a video-only
+    // package sends no photographer — but not both.
+    if (values.photographers + values.videographers < 1) {
+      context.addIssue({
+        code: "custom",
+        path: ["photographers"],
+        message: "A package includes at least one person.",
+      });
+    }
+    if (
+      values.retainerMode === "per_crew_member" &&
+      !values.billPhotographers &&
+      !values.billVideographers
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["billPhotographers"],
+        message: "Choose at least one role the retainer charges for.",
+      });
+    }
   });
 type FormInput = z.input<typeof schema>;
 type FormValues = z.output<typeof schema>;
@@ -94,7 +125,7 @@ export function CreatePackageForm({
   const [error, setError] = useState<string | null>(null);
   const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", description: "", eventType: "Wedding", basePrice: 0, retainerMode: "percentage", retainerAmount: 30, coverageHours: 8, photographers: 2, deliverables: "Online gallery, High-resolution downloads", travelArea: "Within 50 miles", terms: "Subject to the completed studio agreement." },
+    defaultValues: { name: "", description: "", eventType: "Wedding", basePrice: 0, retainerMode: "percentage", retainerAmount: 30, coverageHours: 8, photographers: 2, videographers: 0, billPhotographers: true, billVideographers: true, deliverables: "Online gallery, High-resolution downloads", travelArea: "Within 50 miles", terms: "Subject to the completed studio agreement." },
   });
   const retainerMode = watch("retainerMode");
   const submit = handleSubmit(async (values) => {
@@ -112,9 +143,13 @@ export function CreatePackageForm({
             ? { type: "percentage" as const, basisPoints: Math.round(values.retainerAmount * 100) }
             : values.retainerMode === "fixed"
               ? { type: "fixed" as const, amountCents: Math.round(values.retainerAmount * 100) }
-              : { type: "per_crew_member" as const, amountPerCrewCents: Math.round(values.retainerAmount * 100) },
+              : {
+                  type: "per_crew_member" as const,
+                  amountPerCrewCents: Math.round(values.retainerAmount * 100),
+                  billedRoles: billedRolesFrom(values),
+                },
         includedCoverageMinutes: Math.round(values.coverageHours * 60),
-        includedPhotographers: values.photographers,
+        includedCoverage: coverageFrom(values),
         includedDeliverables: values.deliverables.split(",").map((item) => item.trim()).filter(Boolean),
         includedTravelArea: values.travelArea,
         addOns: [],
@@ -211,6 +246,19 @@ export function CreatePackageForm({
           />
           <small>{errors.retainerAmount?.message}</small>
         </label>
+        {retainerMode === "per_crew_member" ? (
+          <>
+            <label className="form-checkbox">
+              <input {...register("billPhotographers")} type="checkbox" />
+              <span>Charge this per photographer</span>
+              <small>{errors.billPhotographers?.message}</small>
+            </label>
+            <label className="form-checkbox">
+              <input {...register("billVideographers")} type="checkbox" />
+              <span>Charge this per videographer</span>
+            </label>
+          </>
+        ) : null}
         <label>
           Coverage hours <span className="required-mark">Required</span>
           <input {...register("coverageHours")} min="0.5" step="0.5" type="number" />
@@ -218,8 +266,13 @@ export function CreatePackageForm({
         </label>
         <label>
           Photographers <span className="required-mark">Required</span>
-          <input {...register("photographers")} min="1" type="number" />
+          <input {...register("photographers")} min="0" type="number" />
           <small>{errors.photographers?.message}</small>
+        </label>
+        <label>
+          Videographers
+          <input {...register("videographers")} min="0" type="number" />
+          <small>{errors.videographers?.message}</small>
         </label>
         <label>
           Travel area <span className="required-mark">Required</span>

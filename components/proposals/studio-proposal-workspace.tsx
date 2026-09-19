@@ -1,6 +1,11 @@
 "use client";
 
 import {
+  describeCoverage,
+  resolveCoverage,
+  totalCoverageCount,
+} from "@/features/packages/coverage";
+import {
   useCallback,
   useEffect,
   useMemo,
@@ -178,6 +183,10 @@ const mockProject: ProjectOption = {
       },
     ],
     includedCoverageMinutes: 480,
+    includedCoverage: [
+      { role: "photographer", count: 2 },
+      { role: "videographer", count: 1 },
+    ],
     includedPhotographers: 2,
     includedDeliverables: [
       "High-resolution digital collection",
@@ -1159,13 +1168,11 @@ export function StudioProposalComposer() {
                                 number(studioPackage.includedCoverageMinutes) / 60,
                               )}{" "}
                               hours ·{" "}
-                              {number(studioPackage.includedPhotographers) || 1}{" "}
-                              photographer
-                              {" "}{number(studioPackage.includedPhotographers) > 1
-                                ? "s"
-                                : ""}
-                              {number(studioPackage.includedPhotographers) > 1 ? (
-                                <b className="pkg-flag"> · second shooter</b>
+                              {describeCoverage(resolveCoverage(studioPackage))}
+                              {totalCoverageCount(
+                                resolveCoverage(studioPackage),
+                              ) > 1 ? (
+                                <b className="pkg-flag"> · additional crew</b>
                               ) : null}
                             </small>
                           </span>

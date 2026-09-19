@@ -1,5 +1,9 @@
 "use client";
 
+import {
+  coverageRoleLabel,
+  resolveCoverage,
+} from "@/features/packages/coverage";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
@@ -1876,10 +1880,12 @@ export function LiveClientPackage() {
                     <CircleCheck />{" "}
                     {number(studioPackage.includedCoverageMinutes) / 60}{" "} hours
                   </li>
-                  <li>
-                    <CircleCheck />{" "}
-                    {number(studioPackage.includedPhotographers)}{" "} photographer(s)
-                  </li>
+                  {resolveCoverage(studioPackage).map((item) => (
+                    <li key={item.role}>
+                      <CircleCheck /> {item.count}{" "}
+                      {coverageRoleLabel(item.role, item.count)}
+                    </li>
+                  ))}
                   {(Array.isArray(studioPackage.includedDeliverables)
                     ? studioPackage.includedDeliverables
                     : []
@@ -1994,9 +2000,12 @@ export function LiveClientPackage() {
             <CircleCheck />{" "}
             {number(value.includedCoverageMinutes) / 60}{" "} coverage hours
           </li>
-          <li>
-            <CircleCheck /> {number(value.includedPhotographers)}{" "} photographer(s)
-          </li>
+          {resolveCoverage(value).map((item) => (
+            <li key={item.role}>
+              <CircleCheck /> {item.count}{" "}
+              {coverageRoleLabel(item.role, item.count)}
+            </li>
+          ))}
           {included.map((item) => (
             <li key={String(item)}>
               <CircleCheck /> {String(item)}

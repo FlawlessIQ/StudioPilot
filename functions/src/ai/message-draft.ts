@@ -12,6 +12,10 @@ import {
   renderLifecycleDraft,
   type LifecycleFacts,
 } from "../communications/lifecycle-core.js";
+import {
+  describeCoverage,
+  resolveCoverage,
+} from "../packages/coverage.js";
 
 type Json = Record<string, unknown>;
 const record = (value: unknown): Json =>
@@ -546,6 +550,7 @@ export const aiMessageDraftCommand = onRequest(
             basePriceCents: item.get("basePriceCents"),
             includedCoverageMinutes: item.get("includedCoverageMinutes"),
             includedPhotographers: item.get("includedPhotographers"),
+            coverage: describeCoverage(resolveCoverage(item.data())),
           }));
       }
 
