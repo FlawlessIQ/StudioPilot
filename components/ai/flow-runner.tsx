@@ -11,6 +11,10 @@ import {
   rankCrewCandidates,
   type CrewCandidateInput,
 } from "@/features/crew/cascade";
+import {
+  matchSubject,
+  unmatchedSubjectNotice,
+} from "@/features/ai/flow-subject";
 import type { CopilotFlow } from "@/lib/ai/copilot-client";
 
 const str = (value: unknown) => (typeof value === "string" ? value : "");
@@ -52,6 +56,22 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
     .filter((p) => p.active === true)
     .filter((p) => !eventTypeId || str(p.eventTypeId) === eventTypeId || !str(p.eventTypeId))
     .sort((a, b) => num(a.displayOrder) - num(b.displayOrder));
+
+  /**
+   * The package the operator named. These flows act on a single tap, so the
+   * equivalent of skipping the picker is leading with the one they asked for
+   * and saying so — never applying it for them.
+   */
+  const subjectMatch = matchSubject(
+    flow.subject,
+    options.map((option) => ({ id: str(option.id), name: str(option.name) })),
+  );
+  const namedId = subjectMatch.kind === "matched" ? subjectMatch.id : null;
+  const ordered = namedId
+    ? [...options].sort((a, b) =>
+        a.id === namedId ? -1 : b.id === namedId ? 1 : 0,
+      )
+    : options;
 
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -99,6 +119,17 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
           <small>{flow.reason}</small>
         </span>
       </header>
+      {flow.subject && subjectMatch.kind === "unmatched" ? (
+        <p className="copilot-flow-subject" role="status">
+          {unmatchedSubjectNotice(flow.subject, "package")}
+        </p>
+      ) : null}
+      {subjectMatch.kind === "ambiguous" ? (
+        <p className="copilot-flow-subject" role="status">
+          More than one package matches &ldquo;{flow.subject}&rdquo;. Pick the
+          one you meant.
+        </p>
+      ) : null}
       {alreadySelected ? (
         <p role="status">
           {str(project?.name) || "This project"}{" "} already has a package selected.
@@ -107,7 +138,7 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
         <p role="status">No active packages to choose from yet.</p>
       ) : (
         <div className="copilot-flow-options">
-          {options.map((option) => (
+          {ordered.map((option) => (
             <button
               key={str(option.id)}
               className="copilot-flow-option"
@@ -164,6 +195,15 @@ function QuestionnaireSelectFlow({ flow }: { flow: CopilotFlow }) {
       return aMatch - bMatch || a.name.localeCompare(b.name);
     });
 
+  // The form they named, led with rather than applied. See the package flow.
+  const subjectMatch = matchSubject(flow.subject, options);
+  const namedId = subjectMatch.kind === "matched" ? subjectMatch.id : null;
+  const ordered = namedId
+    ? [...options].sort((a, b) =>
+        a.id === namedId ? -1 : b.id === namedId ? 1 : 0,
+      )
+    : options;
+
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -209,6 +249,17 @@ function QuestionnaireSelectFlow({ flow }: { flow: CopilotFlow }) {
           <small>{flow.reason}</small>
         </span>
       </header>
+      {flow.subject && subjectMatch.kind === "unmatched" ? (
+        <p className="copilot-flow-subject" role="status">
+          {unmatchedSubjectNotice(flow.subject, "questionnaire")}
+        </p>
+      ) : null}
+      {subjectMatch.kind === "ambiguous" ? (
+        <p className="copilot-flow-subject" role="status">
+          More than one form matches &ldquo;{flow.subject}&rdquo;. Pick the one
+          you meant.
+        </p>
+      ) : null}
       {alreadyAssigned ? (
         <p role="status">
           {str(project?.name) || "This project"}{" "} already has a questionnaire on
@@ -219,7 +270,7 @@ function QuestionnaireSelectFlow({ flow }: { flow: CopilotFlow }) {
         <p role="status">No active questionnaire templates to send yet.</p>
       ) : (
         <div className="copilot-flow-options">
-          {options.map((option) => (
+          {ordered.map((option) => (
             <button
               key={option.id}
               className="copilot-flow-option"
@@ -344,14 +395,56 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
     candidates,
   }).filter((candidate) => !spokenFor.has(candidate.crewProfileId));
 
-  const [step, setStep] = useState<"select" | "form">("select");
-  const [selected, setSelected] = useState<string[]>([]);
+  /**
+   * The person the operator named, joined to the roster.
+   *
+   * Matched against every active profile rather than the ranked list, so
+   * somebody who is on the roster but ineligible — or already spoken for on
+   * this job — is still recognised and said out loud, instead of appearing to
+   * be absent.
+   */
+  const subjectMatch = matchSubject(
+    flow.subject,
+    (profiles ?? [])
+      .filter((p) => p.active === true)
+      .map((p) => ({ id: p.id, name: str(p.name) })),
+  );
+  const namedId = subjectMatch.kind === "matched" ? subjectMatch.id : null;
+  const namedRanked = namedId
+    ? ranked.find((c) => c.crewProfileId === namedId)
+    : undefined;
+  /**
+   * Skipping the picker is only right when there is nothing to read about
+   * them. Somebody ranked but *ineligible* — a specialty that does not fit,
+   * marked unavailable, already working that day — keeps the list on screen
+   * with their reasons showing, pre-ticked. Jumping to the pay form would hide
+   * exactly the thing the operator needs to weigh.
+   */
+  const namedIsOfferable = Boolean(namedRanked?.eligible);
+  const namedNeedsReview = Boolean(namedRanked && !namedRanked.eligible);
+
+  // Named somebody offerable: open on the form with them chosen and their own
+  // rate filled. Nothing is sent — the operator still presses the button — but
+  // "add Albert" should not arrive as a blank picker.
+  const [step, setStep] = useState<"select" | "form">(
+    namedIsOfferable ? "form" : "select",
+  );
+  const [selected, setSelected] = useState<string[]>(
+    namedId && (namedIsOfferable || namedNeedsReview) ? [namedId] : [],
+  );
   const [role, setRole] = useState("Second photographer");
-  const [rate, setRate] = useState("");
+  const [rate, setRate] = useState(() => {
+    if (!namedIsOfferable || !namedId) return "";
+    const profile = (profiles ?? []).find((p) => p.id === namedId);
+    return profile ? String(Math.round(num(profile.rateCents) / 100)) : "";
+  });
   const [windowHours, setWindowHours] = useState("48");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
+  // Set only when the operator deliberately asks to staff more people on a job
+  // that already has someone, so the done state above steps aside.
+  const [reopened, setReopened] = useState(false);
 
   const profileById = (id: string) => (profiles ?? []).find((p) => p.id === id);
   // Selected candidates, kept in the ranker's order — that order is the cascade
@@ -446,15 +539,96 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
     );
   }
 
+  /**
+   * A flow that already acted must not offer to act again.
+   *
+   * `sent` is local state, so re-opening the thread rendered the picker afresh
+   * as though nothing had happened — which is what made the reference studio
+   * ask four times whether his second photographer was booked. The assignment
+   * created by the send is the durable record of what happened and is already
+   * loaded here, so the done state is derived from it rather than remembered.
+   *
+   * Lapsed offers deliberately do not count: declined, expired and reassigned
+   * are all re-offerable, which is the rule the crew workspace and
+   * features/crew/offer-moment.ts already keep.
+   */
+  const liveOnThisJob = (assignments ?? []).filter(
+    (item) =>
+      item.projectId === projectId && LIVE_OFFER_STATUSES.has(str(item.status)),
+  );
+  if (liveOnThisJob.length && !reopened) {
+    const accepted = liveOnThisJob.filter((item) => str(item.status) === "accepted");
+    const named = (item: Record<string, unknown>) =>
+      str(profileById(str(item.crewProfileId))?.name) || "someone";
+    return (
+      <div className="panel copilot-flow">
+        <p role="status">
+          {accepted.length
+            ? `${named(accepted[0]!)} has accepted ${str(accepted[0]!.role) || "this role"} on this job.`
+            : `${named(liveOnThisJob[0]!)} has been offered ${str(liveOnThisJob[0]!.role) || "this role"} and hasn't answered yet.`}
+          {liveOnThisJob.length > 1
+            ? ` ${liveOnThisJob.length} people are on this job in total.`
+            : ""}
+        </p>
+        <button
+          className="button button-light button-sm"
+          onClick={() => setReopened(true)}
+          type="button"
+        >
+          Offer someone else as well
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="panel copilot-flow">
       <header className="copilot-flow-head">
         <Users size={15} />
         <span>
-          <strong>{flow.title}</strong>
-          <small>{flow.reason}</small>
+          <strong>
+            {namedIsOfferable && subjectMatch.kind === "matched"
+              ? subjectMatch.name
+              : flow.title}
+          </strong>
+          <small>
+            {namedIsOfferable
+              ? "Ready to offer at their standard rate — check the details and send."
+              : flow.reason}
+          </small>
         </span>
       </header>
+
+      {/* What became of the person they named. Saying nothing was the original
+          complaint: the request named Albert and the picker did not mention
+          him, so it read as if the studio had no such person. */}
+      {subjectMatch.kind === "unmatched" && flow.subject ? (
+        <p className="copilot-flow-subject" role="status">
+          {unmatchedSubjectNotice(flow.subject, "crew")}
+        </p>
+      ) : null}
+      {subjectMatch.kind === "ambiguous" ? (
+        <p className="copilot-flow-subject" role="status">
+          More than one person on your roster matches
+          {" "}&ldquo;{flow.subject}&rdquo;. Pick the one you meant.
+        </p>
+      ) : null}
+      {namedNeedsReview && subjectMatch.kind === "matched" ? (
+        <p className="copilot-flow-subject" role="status">
+          {subjectMatch.name}{" "}
+          is on your roster but cannot take this as it stands —{" "}
+          {namedRanked?.exclusions.join(", ").toLocaleLowerCase()}. They are
+          ticked below; send anyway, or choose someone else.
+        </p>
+      ) : null}
+      {namedId && !namedIsOfferable && !namedNeedsReview && subjectMatch.kind === "matched" ? (
+        <p className="copilot-flow-subject" role="status">
+          {subjectMatch.name}{" "}
+          already has a live or accepted offer on this job, so there is nothing
+          more to send them. Choose someone else below, or reopen the existing
+          offer from the crew page.
+        </p>
+      ) : null}
 
       {step === "select" ? (
         <>

@@ -652,7 +652,15 @@ function AssistantTurn({
         </div>
       ) : null}
       <h2>{result.answer}</h2>
-      {result.jobObject ? <JobObject job={result.jobObject} /> : null}
+      {/* The job being acted on, then the action itself — before verified
+          facts, citations and prepared drafts. The flow used to render last,
+          so an operator who asked to staff a photographer met six unrelated
+          blocked checkpoints and had to scroll past all of it to reach the one
+          control they wanted. Reported from live use. */}
+      {result.jobObject ? (
+        <JobObject job={result.jobObject} compact={Boolean(result.flow)} />
+      ) : null}
+      {result.flow ? <FlowRunner flow={result.flow} /> : null}
       {result.facts.length ? (
         <div>
           <h3>Verified facts</h3>
@@ -697,7 +705,6 @@ function AssistantTurn({
         hasFlow={Boolean(result.flow)}
         question={question}
       />
-      {result.flow ? <FlowRunner flow={result.flow} /> : null}
     </section>
   );
 }
@@ -713,7 +720,22 @@ function humanState(state: string): string {
  * the record-derived attention list. Every value comes from the server's
  * deterministic jobObject — none of it is model-authored.
  */
-function JobObject({ job }: { job: CopilotJobObject }) {
+/**
+ * The job an answer is about.
+ *
+ * `compact` is set when a flow owns the turn. The operator has asked to *do*
+ * something, so the card names the job and where it is in its lifecycle and
+ * stops there: the readiness score and the blocked-checkpoint audit are about
+ * everything else on the wedding and, above an action, read as six problems in
+ * reply to one request. Exactly the rule already applied to `suggestions`.
+ */
+function JobObject({
+  job,
+  compact = false,
+}: {
+  job: CopilotJobObject;
+  compact?: boolean;
+}) {
   const dateLabel = job.eventDate
     ? new Date(`${job.eventDate}T00:00:00`).toLocaleDateString(undefined, {
         month: "short",
@@ -736,7 +758,7 @@ function JobObject({ job }: { job: CopilotJobObject }) {
       </div>
 
       <div className="cp-job-grid">
-        {r ? (
+        {r && !compact ? (
           <div className="cp-job-cell">
             <p className="cp-cell-label">Readiness</p>
             <div className="cp-readiness">
@@ -778,7 +800,7 @@ function JobObject({ job }: { job: CopilotJobObject }) {
         </div>
       </div>
 
-      {job.attention.length ? (
+      {job.attention.length && !compact ? (
         <div className="cp-attn">
           {job.attention.map((a) => (
             <div className="cp-attn-row" key={a.name}>

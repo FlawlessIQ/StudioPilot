@@ -65,6 +65,12 @@ export type CopilotFlow = {
   projectId: string;
   title: string;
   reason: string;
+  /**
+   * Who or what the operator named, in their own words — never an id.
+   * Matched to a real record by features/ai/flow-subject.ts. Absent when they
+   * named nothing specific, and the flow then behaves as it always has.
+   */
+  subject?: string | null;
 };
 
 export type CopilotThreadSummary = {
