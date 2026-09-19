@@ -1,6 +1,11 @@
 "use client";
 
 import {
+  crewRequirementsFor,
+  requireInsuranceOf,
+  type CrewRequirementSettings,
+} from "@/features/crew/requirements";
+import {
   coverageRoleLabel,
   resolveCoverage,
 } from "@/features/packages/coverage";
@@ -18,6 +23,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useTenantDocuments } from "@/components/live/tenant-records";
+import { useWorkspace } from "@/features/auth/workspace-context";
 import { useReturnToJob } from "@/lib/projects/return-to-job";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
@@ -52,6 +58,7 @@ const safeIso = (value: string) => {
 };
 
 export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
+  const workspace = useWorkspace();
   const returnToJob = useReturnToJob(projectId);
   const { records: projects } = useTenantDocuments("projects");
   const { records: profiles, loading } = useTenantDocuments("crewProfiles");
@@ -61,6 +68,13 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
   // Written by the booking worker: who this job still has to hire, worked out
   // when it was booked rather than when the studio comes looking.
   const { records: staffingPlans } = useTenantDocuments("crewStaffingPlans");
+  // How this studio staffs: whether a subcontractor must carry their own
+  // liability cover. Most operate under the studio's policy, so it is off
+  // unless they say otherwise (features/crew/requirements.ts).
+  const { records: tenants } = useTenantDocuments("tenants");
+  const crewSettings = (tenants ?? []).find(
+    (entry) => entry.id === workspace.tenantId,
+  )?.crewOffers as CrewRequirementSettings | undefined;
   const { records: cascades } = useTenantDocuments("crewCascades");
   const { records: packageSnapshots } = useTenantDocuments("packageSnapshots");
   const project = projects?.find((item) => item.id === projectId);
@@ -150,6 +164,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
       name: text(profile.name) || "Crew member",
       active: profile.active === true,
       specialties: list(profile.specialties).map(String),
+      trades: list(profile.trades).map(String),
       serviceAreas: list(profile.serviceAreas).map(String),
       travelRadiusMiles: Number(profile.travelRadiusMiles ?? 0),
       preferenceRank:
@@ -194,6 +209,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
       startsAt: safeIso(startsAt),
       endsAt: safeIso(endsAt),
       candidates: candidateInputs,
+      requireInsurance: requireInsuranceOf(crewSettings),
     });
     const rank = new Map(manualOrder.map((id, index) => [id, index]));
     return [...ranked].sort((left, right) => {
@@ -563,32 +579,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
         scheduleItemIds: [],
         currentScheduleId: latestSchedule?.id ?? null,
         currentScheduleVersion: Number(latestSchedule?.version ?? 0),
-        requirements: [
-          {
-            id: "w9",
-            name: "W-9 on file",
-            kind: "w9",
-            required: true,
-            dueAt: null,
-            instructions: "Upload a current signed W-9 for studio review.",
-          },
-          {
-            id: "insurance",
-            name: "Liability insurance",
-            kind: "insurance",
-            required: true,
-            dueAt: null,
-            instructions: "Upload a current certificate of liability insurance.",
-          },
-          {
-            id: "schedule",
-            name: "Current schedule acknowledged",
-            kind: "acknowledgement",
-            required: true,
-            dueAt: null,
-            instructions: "Review and acknowledge the current schedule before event day.",
-          },
-        ],
+        requirements: crewRequirementsFor(crewSettings),
       };
       const result =
         rolePlans.length === 1

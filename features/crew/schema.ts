@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { auditFieldsSchema } from "@/features/tenants/schema";
+import { coverageRoleSchema } from "@/features/packages/coverage";
 
 export const crewSpecialtySchema = z.enum([
   "weddings",
@@ -19,6 +20,19 @@ export const crewProfileSchema = auditFieldsSchema.extend({
   email: z.string().email(),
   phone: z.string().min(7).max(30).nullable(),
   specialties: z.array(crewSpecialtySchema),
+  /**
+   * The trade this person works: photographer, videographer.
+   *
+   * `specialties` describes the *kind of event* somebody shoots — weddings,
+   * corporate, sports — and was being asked to answer "are they a
+   * videographer?" as well, through a substring match on free text. A
+   * video-led studio's roster read "Weddings, Events, Headshots" and nothing
+   * in it said which of those people hold a camera and which hold a rig.
+   *
+   * Optional because no existing profile has one, and a profile without it
+   * still ranks exactly as it did — by specialty.
+   */
+  trades: z.array(coverageRoleSchema).optional(),
   serviceAreas: z.array(z.string().min(1)),
   travelRadiusMiles: z.number().int().nonnegative().max(500),
   rateType: z.enum(["hourly", "event"]),

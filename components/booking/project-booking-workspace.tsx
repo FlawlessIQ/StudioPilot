@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { offeredSigningProvider } from "@/features/integrations/schema";
 import { CapabilityNote } from "@/components/integrations/capability-note";
 import { InfoHint } from "@/components/ui/info-hint";
+import { AttachSignedCopy } from "@/components/booking/attach-signed-copy";
 import { RecordSignedAgreement } from "@/components/booking/record-signed-agreement";
 import { BookWithoutRetainer } from "@/components/booking/book-without-retainer";
 import { RecordRetainerPayment } from "@/components/booking/record-retainer-payment";
@@ -361,6 +362,18 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   }, [load, workspace.loading, workspace.tenantId]);
 
   const projectState = String(project?.state ?? "");
+  /**
+   * A booking that arrived from somewhere else, with no paper on file.
+   *
+   * `attachImportedSignedCopy` was reachable only during an import, from the
+   * single-booking form's optional file field — so a studio that imported in
+   * bulk had signed contracts on disk and nowhere to put them. Offered
+   * wherever the agreement is discussed, for as long as the slot is empty.
+   */
+  const importedContract =
+    String(contract?.completionAuthority ?? "") === "imported";
+  const canAttachSignedCopy =
+    importedContract && !String(contract?.signedDocumentId ?? "");
   const contractComplete = contract?.status === "completed";
   const contractFailed = contract?.status === "failed";
   const invoiceFailed = invoice?.status === "failed";
@@ -783,6 +796,16 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     : "Waiting"}
               </StatusBadge>
             </div>
+            {canAttachSignedCopy ? (
+              <AttachSignedCopy
+                onAttached={(message) => {
+                  setNotice(message);
+                  refreshTenantRecords("projects", "contracts");
+                  void load();
+                }}
+                projectId={projectId}
+              />
+            ) : null}
             {proposal || contract ? (
             <p>
               Built from the accepted proposal, so the package and price are

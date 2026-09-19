@@ -276,7 +276,7 @@ service firebase.storage {
                 && resource.metadata.visibility in ["client", "shared"]
               )
               || (
-                membership(tenantId).role in ["staff_photographer", "subcontractor"]
+                membership(tenantId).role in ["staff_photographer", "staff_videographer", "subcontractor"]
                 && resource.metadata.visibility in ["crew", "shared"]
               )
             )

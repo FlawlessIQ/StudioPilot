@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ClipboardList, LoaderCircle, PackageOpen, Send, Users } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
+import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendCrewCommand } from "@/lib/crew/command-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
@@ -11,6 +12,12 @@ import {
   rankCrewCandidates,
   type CrewCandidateInput,
 } from "@/features/crew/cascade";
+import { coverageRoleForLabel } from "@/features/crew/staffing-plan";
+import {
+  crewRequirementsFor,
+  requireInsuranceOf,
+  type CrewRequirementSettings,
+} from "@/features/crew/requirements";
 import {
   matchSubject,
   unmatchedSubjectNotice,
@@ -301,29 +308,21 @@ const SPECIALTY: Record<string, string> = {
   Sports: "sports",
 };
 
-type Requirement = {
-  id: string;
-  name: string;
-  kind: "w9" | "insurance" | "acknowledgement";
-  required: boolean;
-  dueAt: string | null;
-  instructions: string;
-};
-
-// The same obligations a cascade or direct offer carries, so every path agrees.
-const REQUIREMENTS: Requirement[] = [
-  { id: "w9", name: "W-9 on file", kind: "w9", required: true, dueAt: null, instructions: "Upload a current signed W-9 for studio review." },
-  { id: "insurance", name: "Liability insurance", kind: "insurance", required: true, dueAt: null, instructions: "Upload a current certificate of liability insurance." },
-  { id: "schedule", name: "Current schedule acknowledged", kind: "acknowledgement", required: true, dueAt: null, instructions: "Review and acknowledge the current schedule before event day." },
-];
-
 function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
+  const workspace = useWorkspace();
   const projectId = flow.projectId;
   const { records: projects } = useTenantDocuments("projects");
   const { records: profiles } = useTenantDocuments("crewProfiles");
   const { records: availability } = useTenantDocuments("crewAvailability");
   const { records: assignments } = useTenantDocuments("crewAssignments");
   const { records: schedules } = useTenantDocuments("schedules");
+  // How this studio staffs: whether a subcontractor must carry their own
+  // liability cover. Most operate under the studio's policy, so it is off
+  // unless they say otherwise (features/crew/requirements.ts).
+  const { records: tenants } = useTenantDocuments("tenants");
+  const crewSettings = (tenants ?? []).find(
+    (entry) => entry.id === workspace.tenantId,
+  )?.crewOffers as CrewRequirementSettings | undefined;
 
   const project = (projects ?? []).find((item) => item.id === projectId);
   const eventDate = str(project?.eventDate) || new Date().toISOString().slice(0, 10);
@@ -367,6 +366,7 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
       name: str(p.name),
       active: p.active === true,
       specialties: arr(p.specialties).map(String),
+      trades: arr(p.trades).map(String),
       serviceAreas: arr(p.serviceAreas).map(String),
       travelRadiusMiles: num(p.travelRadiusMiles),
       preferenceRank: typeof p.preferenceRank === "number" ? p.preferenceRank : null,
@@ -387,12 +387,21 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
         .filter((a) => a.crewProfileId === p.id && str(a.status) === "accepted")
         .map((a) => ({ startsAt: str(a.arrivalAt), endsAt: str(a.departureAt) })),
     }));
+  /**
+   * Declared above the ranking because the ranking depends on it: "Second
+   * videographer" must rank videographers, not whoever happens to have the
+   * word in their specialties. `coverageRoleForLabel` reads the trade out of
+   * whatever the operator typed.
+   */
+  const [role, setRole] = useState("Second photographer");
   const ranked = rankCrewCandidates({
     roleSpecialty,
+    roleTrade: coverageRoleForLabel(role),
     serviceArea,
     startsAt,
     endsAt,
     candidates,
+    requireInsurance: requireInsuranceOf(crewSettings),
   }).filter((candidate) => !spokenFor.has(candidate.crewProfileId));
 
   /**
@@ -432,7 +441,6 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
   const [selected, setSelected] = useState<string[]>(
     namedId && (namedIsOfferable || namedNeedsReview) ? [namedId] : [],
   );
-  const [role, setRole] = useState("Second photographer");
   const [rate, setRate] = useState(() => {
     if (!namedIsOfferable || !namedId) return "";
     const profile = (profiles ?? []).find((p) => p.id === namedId);
@@ -497,7 +505,7 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
       scheduleItemIds: [],
       currentScheduleId: latestSchedule ? str(latestSchedule.id) : null,
       currentScheduleVersion: num(latestSchedule?.version),
-      requirements: REQUIREMENTS,
+      requirements: crewRequirementsFor(crewSettings),
     };
     try {
       if (ids.length === 1) {

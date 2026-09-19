@@ -21,6 +21,7 @@ import {
   useTenantDocuments,
 } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { isStaffShooter } from "@/features/auth/roles";
 import { dailyCommandProjection } from "@/features/dashboard/daily-command-center";
 import { activeProjectStates } from "@/features/dashboard/active-states";
 import {
@@ -511,7 +512,7 @@ function DashboardSummary() {
         metrics={metrics}
       />
 
-      {workspace.role !== "staff_photographer" ? (
+      {!isStaffShooter(workspace.role) ? (
         <div className="studio-home-grid">
           <AttentionQueue loading={home.loading} now={now} rankable={rankable} />
           <div className="studio-home-side">

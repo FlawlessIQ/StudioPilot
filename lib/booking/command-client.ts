@@ -333,6 +333,51 @@ export async function importExistingBooking(input: {
   }
 }
 
+/**
+ * File the signed agreement against a booking that was imported.
+ *
+ * The same upload and the same command the import performs when its form
+ * carried a file — lifted out so it can be done afterwards, which is the only
+ * way a bulk-imported book of weddings can ever get its paper attached.
+ */
+export async function attachSignedCopyToImportedBooking(input: {
+  projectId: string;
+  signedCopy: File;
+}): Promise<{ mode: "preview" } | { mode: "live" }> {
+  if (!process.env.NEXT_PUBLIC_BOOKING_FUNCTIONS_URL) return { mode: "preview" };
+  const client = getFirebaseClient();
+  const user = getAuth(client.app).currentUser;
+  if (!user) throw new Error("Sign in before attaching a signed copy.");
+  const membership = await activeMembership(client.firestore, user.uid);
+  const tenantId = membership.data().tenantId as string;
+  const storage = getStorage(client.app);
+  if (
+    process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true" &&
+    !signedAgreementEmulatorConnected
+  ) {
+    connectStorageEmulator(storage, "127.0.0.1", 9199);
+    signedAgreementEmulatorConnected = true;
+  }
+  const safeName = input.signedCopy.name
+    .replace(/[^a-zA-Z0-9._-]/g, "_")
+    .slice(-120);
+  // The prefix the command validates against, so a request cannot file
+  // somebody else's document against this couple.
+  const documentPath = `tenants/${tenantId}/projects/${input.projectId}/contracts/${crypto.randomUUID()}-${safeName}`;
+  await uploadBytes(ref(storage, documentPath), input.signedCopy, {
+    contentType: input.signedCopy.type,
+    // The couple's paper, not the crew's — the same visibility the import and
+    // the hand-recorded path both use.
+    customMetadata: { visibility: "client", scanStatus: "pending" },
+  });
+  await sendBookingCommand({
+    type: "attachImportedSignedCopy",
+    idempotencyKey: crypto.randomUUID(),
+    input: { projectId: input.projectId, documentPath },
+  });
+  return { mode: "live" };
+}
+
 export async function bringImportedBookingLive(input: {
   projectId: string;
   calendarAndFolders: boolean;

@@ -16,6 +16,8 @@ export type CrewCandidateInput = {
   name: string;
   active: boolean;
   specialties: readonly string[];
+  /** photographer / videographer, when the studio has said. */
+  trades?: readonly string[];
   serviceAreas: readonly string[];
   travelRadiusMiles: number;
   preferenceRank: number | null;
@@ -60,6 +62,24 @@ export function rankCrewCandidates(input: {
   startsAt: string;
   endsAt: string;
   candidates: readonly CrewCandidateInput[];
+  /**
+   * Whether this studio asks its crew to carry their own liability cover.
+   *
+   * Most operate under the studio's own policy, and marking every one of their
+   * people "Complete: insurance" — and quietly docking their rank for it —
+   * describes a problem they do not have. Defaults to true so a caller that
+   * has not been taught about the setting behaves exactly as before.
+   */
+  requireInsurance?: boolean;
+  /**
+   * The trade this role calls for, when the caller knows it.
+   *
+   * A candidate who has been given trades is judged on them — exactly, not by
+   * substring — because that is the studio stating what somebody does.
+   * Everyone else falls back to the specialty match, so a roster nobody has
+   * re-tagged keeps working.
+   */
+  roleTrade?: string;
 }): CrewCandidateRecommendation[] {
   const role = input.roleSpecialty.toLocaleLowerCase();
   const area = input.serviceArea.toLocaleLowerCase();
@@ -71,7 +91,10 @@ export function rankCrewCandidates(input: {
       if (!candidate.travelRadiusMiles) incompleteProfile.push("travel radius");
       if (!["received", "verified"].includes(candidate.w9Status))
         incompleteProfile.push("W-9");
-      if (candidate.insuranceStatus !== "verified")
+      if (
+        input.requireInsurance !== false &&
+        candidate.insuranceStatus !== "verified"
+      )
         incompleteProfile.push("insurance");
       if (candidate.contractStatus !== "completed")
         incompleteProfile.push("crew agreement");
@@ -91,10 +114,17 @@ export function rankCrewCandidates(input: {
        * Still a substring match in both directions, so the specialty `video`
        * reaches a role called "videographer" and vice versa.
        */
-      const specialtyMatch = candidate.specialties.some((value) => {
-        const specialty = value.toLocaleLowerCase();
-        return specialty.includes(role) || role.includes(specialty);
-      });
+      const trades = (candidate.trades ?? []).map((value) =>
+        value.toLocaleLowerCase(),
+      );
+      const wantedTrade = input.roleTrade?.toLocaleLowerCase();
+      const specialtyMatch =
+        wantedTrade && trades.length
+          ? trades.includes(wantedTrade)
+          : candidate.specialties.some((value) => {
+              const specialty = value.toLocaleLowerCase();
+              return specialty.includes(role) || role.includes(specialty);
+            });
       const serviceAreaMatch =
         !area ||
         candidate.serviceAreas.some((serviceArea) =>

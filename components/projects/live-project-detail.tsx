@@ -74,6 +74,7 @@ import { friendlyError } from "@/lib/ai/friendly-error";
 import { ArchiveToggle } from "@/components/records/archive-toggle";
 import {
   refreshTenantRecords,
+  useTenantDocuments,
   useTenantRecordsGeneration,
 } from "@/components/live/tenant-records";
 import {
@@ -696,6 +697,83 @@ function ProjectLifecycleLanes({
   );
 }
 
+/**
+ * Who is on this job.
+ *
+ * The page has loaded `crewAssignments` all along and never named anybody from
+ * them, so the only way to find out who was booked was the staffing screen —
+ * and the reference studio, mid-way through staffing a wedding, said "I can't
+ * see anywhere where my staff is for this job." It is also why he doubted the
+ * offers had gone out at all.
+ *
+ * Deliberately above the disclosure: who is working the day is not "more
+ * detail". Lapsed offers are summarised rather than listed — they are history,
+ * and the question is who is coming.
+ */
+function ProjectCrewPanel({
+  assignments,
+  projectId,
+}: {
+  assignments: LifecycleRecord[];
+  projectId: string;
+}) {
+  const { records: profiles } = useTenantDocuments("crewProfiles");
+  const nameFor = (assignment: LifecycleRecord) =>
+    String(
+      (profiles ?? []).find(
+        (profile) => profile.id === String(assignment.crewProfileId ?? ""),
+      )?.name ?? "",
+    ) || "A crew member";
+  const live = assignments.filter((assignment) =>
+    ["draft", "invited", "viewed", "accepted"].includes(
+      String(assignment.status ?? ""),
+    ),
+  );
+  const lapsed = assignments.length - live.length;
+  return (
+    <section className="panel project-crew-panel">
+      <header>
+        <span>
+          <p className="eyebrow">On the day</p>
+          <h2>Your crew</h2>
+        </span>
+        <Link className="button button-quiet" href={`/studio/crew?project=${projectId}`}>
+          {live.length ? "Staff another role" : "Staff this job"}
+        </Link>
+      </header>
+      {live.length ? (
+        <ul>
+          {live.map((assignment) => {
+            const accepted = String(assignment.status) === "accepted";
+            return (
+              <li key={String(assignment.id)}>
+                <span>
+                  <strong>{nameFor(assignment)}</strong>
+                  <small>{String(assignment.role ?? "Crew")}</small>
+                </span>
+                <StatusBadge tone={accepted ? "success" : "info"}>
+                  {accepted ? "Accepted" : "Waiting on them"}
+                </StatusBadge>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="form-notice">
+          {lapsed
+            ? "Nobody is booked on this job yet. Earlier offers have lapsed — staffing it again starts a fresh one."
+            : "Nobody is booked on this job yet."}
+        </p>
+      )}
+      {live.length && lapsed ? (
+        <small className="project-crew-lapsed">
+          {`${lapsed} earlier ${lapsed === 1 ? "offer has" : "offers have"} lapsed.`}
+        </small>
+      ) : null}
+    </section>
+  );
+}
+
 export function LiveProjectDetail({ projectId }: { projectId: string }) {
   const workspace = useWorkspace();
   const isPhone = useIsPhone();
@@ -1146,6 +1224,10 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           </section>
         </>
       )}
+      <ProjectCrewPanel
+        assignments={related.crewAssignments}
+        projectId={projectId}
+      />
       <details className="project-detail-disclosure">
         <summary>
           <span>

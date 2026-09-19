@@ -26,6 +26,7 @@ const roleNames: Record<string, string> = {
   studio_coordinator: "a coordinator",
   studio_photographer: "a photographer",
   staff_photographer: "a photographer",
+  staff_videographer: "a videographer",
 };
 
 export function AcceptInvitation({ token }: { token: string }) {

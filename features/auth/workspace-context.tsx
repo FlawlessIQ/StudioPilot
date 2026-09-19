@@ -140,6 +140,7 @@ const areaRoles: Record<WorkspaceArea, Role[]> = {
     "studio_admin",
     "studio_coordinator",
     "staff_photographer",
+    "staff_videographer",
   ],
   client: ["client"],
   crew: ["subcontractor"],

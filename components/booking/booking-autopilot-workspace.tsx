@@ -614,32 +614,46 @@ export function BookingAutopilotWorkspace({
             </Link>
           </section>
           ) : null
-        ) : (
+        ) : canCreateProposalForProject(liveState) ? (
           <section className="booking-autopilot-empty">
             <Check />
             <span>
               <strong>No proposal is on file for this job.</strong>
               <small>
-                {/**
-                 * `laterBookingState` is true from PROPOSAL onward, so this
-                 * branch covers both a job whose proposal is still the
-                 * studio's move and one booked outside StudioCue entirely.
-                 * It used to offer "Add one for the record" to both, and the
-                 * command refuses anything past PROPOSAL — so on a booked job
-                 * the link opened a composer that dropped the job in silence
-                 * and stood ready to price somebody else's wedding. Offer it
-                 * only where it can be taken.
-                 */}
-                {canCreateProposalForProject(liveState)
-                  ? "Prepare one when you are ready — the agreement and payments below follow from it."
-                  : "It was booked outside StudioCue. The agreement and payments below are what StudioCue holds for it; a proposal is an offer, and this job is past that."}
+                Prepare one when you are ready — the agreement and payments
+                below follow from it.
               </small>
             </span>
-            {canCreateProposalForProject(liveState) ? (
-              <Link href={`/studio/proposals/new?project=${projectId}`}>
-                Prepare the proposal <ArrowRight />
-              </Link>
-            ) : null}
+            <Link href={`/studio/proposals/new?project=${projectId}`}>
+              Prepare the proposal <ArrowRight />
+            </Link>
+          </section>
+        ) : (
+          /**
+           * A job booked outside StudioCue.
+           *
+           * The words here were already right, but the shape was not: a
+           * white card with a heading opening "No proposal is on file"
+           * reads as a fault, and the reference studio screenshotted it as
+           * one. Nothing is missing — he has the wedding, the agreement and
+           * the money — so it is stated as the fact it is, quietly, in the
+           * same flat treatment as the accepted-proposal note above rather
+           * than as a card demanding something.
+           *
+           * `laterBookingState` is true from PROPOSAL onward, so the branch
+           * above covers a job whose proposal is still the studio's move;
+           * the command refuses anything past PROPOSAL, which is why this
+           * one offers no link at all.
+           */
+          <section className="booking-autopilot-empty is-quiet">
+            <Check />
+            <span>
+              <strong>Booked outside StudioCue — no proposal needed.</strong>
+              <small>
+                A proposal is an offer, and this job is past that. The
+                agreement and payments below are what StudioCue holds for it.
+              </small>
+            </span>
           </section>
         )
       ) : !consultation && consultationBehindThem && !proposalId ? (

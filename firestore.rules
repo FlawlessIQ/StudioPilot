@@ -50,14 +50,14 @@ service cloud.firestore {
           "studio_owner",
           "studio_admin",
           "studio_coordinator",
-          "staff_photographer"
+          "staff_photographer", "staff_videographer"
         ]);
     }
 
     function canReadContact(tenantId, projectIds) {
       return canManageProjects(tenantId)
         || (
-          hasRole(tenantId, ["staff_photographer"])
+          hasRole(tenantId, ["staff_photographer", "staff_videographer"])
           && projectIds is list
           && projectIds.hasAny(membership(tenantId).projectIds)
         );
@@ -103,7 +103,7 @@ service cloud.firestore {
         || (
           isAssignedToProject(tenantId, projectId)
           && (
-            hasRole(tenantId, ["studio_coordinator", "staff_photographer"])
+            hasRole(tenantId, ["studio_coordinator", "staff_photographer", "staff_videographer"])
             || (hasRole(tenantId, ["subcontractor"]) && visibility in ["crew", "shared"])
           )
         );
@@ -154,7 +154,7 @@ service cloud.firestore {
           isAssignedToProject(resource.data.tenantId, projectId)
           && hasRole(resource.data.tenantId, [
             "studio_coordinator",
-            "staff_photographer",
+            "staff_photographer", "staff_videographer",
             "subcontractor"
           ])
         );
@@ -220,7 +220,7 @@ service cloud.firestore {
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && hasRole(resource.data.tenantId, [
             "studio_coordinator",
-            "staff_photographer"
+            "staff_photographer", "staff_videographer"
           ])
         );
       allow write: if false;
@@ -241,7 +241,7 @@ service cloud.firestore {
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && hasRole(resource.data.tenantId, [
             "studio_coordinator",
-            "staff_photographer"
+            "staff_photographer", "staff_videographer"
           ])
         );
       allow write: if false;
@@ -326,7 +326,7 @@ service cloud.firestore {
               isAssignedToProject(resource.data.tenantId, projectId)
               && hasRole(resource.data.tenantId, [
                 "studio_coordinator",
-                "staff_photographer"
+                "staff_photographer", "staff_videographer"
               ])
             )
           )
@@ -339,7 +339,7 @@ service cloud.firestore {
               isAssignedToProject(projectTenant(projectId), projectId)
               && hasRole(projectTenant(projectId), [
                 "studio_coordinator",
-                "staff_photographer"
+                "staff_photographer", "staff_videographer"
               ])
             )
           )
@@ -394,7 +394,7 @@ service cloud.firestore {
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && (
-            hasRole(resource.data.tenantId, ["studio_coordinator", "staff_photographer"])
+            hasRole(resource.data.tenantId, ["studio_coordinator", "staff_photographer", "staff_videographer"])
             || (hasRole(resource.data.tenantId, ["subcontractor"]) && resource.data.visibility in ["crew", "shared"])
           )
         );
@@ -497,7 +497,7 @@ service cloud.firestore {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
-          && hasRole(resource.data.tenantId, ["studio_coordinator","staff_photographer","subcontractor"])
+          && hasRole(resource.data.tenantId, ["studio_coordinator","staff_photographer", "staff_videographer","subcontractor"])
         );
       allow write: if false;
     }
@@ -516,7 +516,7 @@ service cloud.firestore {
     match /vendors/{vendorId} {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (
-          hasRole(resource.data.tenantId, ["studio_coordinator","staff_photographer"])
+          hasRole(resource.data.tenantId, ["studio_coordinator","staff_photographer", "staff_videographer"])
           && resource.data.projectIds.hasAny(membership(resource.data.tenantId).projectIds)
         );
       allow write: if false;
@@ -542,7 +542,7 @@ service cloud.firestore {
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
           && (
-            hasRole(resource.data.tenantId, ["studio_coordinator","staff_photographer","client"])
+            hasRole(resource.data.tenantId, ["studio_coordinator","staff_photographer", "staff_videographer","client"])
           )
         );
       allow write: if false;
@@ -554,7 +554,7 @@ service cloud.firestore {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
-          && hasRole(resource.data.tenantId, ["studio_coordinator","staff_photographer"])
+          && hasRole(resource.data.tenantId, ["studio_coordinator","staff_photographer", "staff_videographer"])
         );
       allow write: if false;
     }
@@ -727,7 +727,7 @@ service cloud.firestore {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (
           isAssignedToProject(resource.data.tenantId, resource.data.projectId)
-          && hasRole(resource.data.tenantId, ["studio_coordinator","staff_photographer"])
+          && hasRole(resource.data.tenantId, ["studio_coordinator","staff_photographer", "staff_videographer"])
         );
       allow write: if false;
     }

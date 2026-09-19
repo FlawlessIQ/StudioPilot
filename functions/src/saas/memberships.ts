@@ -14,6 +14,7 @@ const internalRole = z.enum([
   "studio_admin",
   "studio_coordinator",
   "staff_photographer",
+  "staff_videographer",
 ]);
 const command = z.discriminatedUnion("type", [
   z.object({
@@ -65,6 +66,7 @@ const internalRoles = new Set([
   "studio_admin",
   "studio_coordinator",
   "staff_photographer",
+  "staff_videographer",
 ]);
 const hash = (value: string) =>
   createHash("sha256").update(value).digest("hex");

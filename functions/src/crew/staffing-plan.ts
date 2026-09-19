@@ -195,17 +195,24 @@ export function assignCandidatesToRoles(input: {
   const depth = Math.max(1, input.depth ?? 5);
 
   const rankedFor = new Map<string, CrewCandidateRecommendation[]>();
-  const rankFor = (specialty: string) => {
-    const cached = rankedFor.get(specialty);
+  const rankFor = (specialty: string, trade: CoverageRole) => {
+    // Keyed by both: a photographer role on a video-specialty event resolves
+    // to the same specialty string as the videographer role beside it, and
+    // caching on specialty alone would hand one role the other's ranking.
+    const key = `${trade}\u0000${specialty}`;
+    const cached = rankedFor.get(key);
     if (cached) return cached;
     const ranked = rankCrewCandidates({
       roleSpecialty: specialty,
+      // The studio's own statement of what this person does, where they have
+      // made one — see the trade note in features/crew/schema.ts.
+      roleTrade: trade,
       serviceArea: input.serviceArea,
       startsAt: input.startsAt,
       endsAt: input.endsAt,
       candidates: input.candidates,
     });
-    rankedFor.set(specialty, ranked);
+    rankedFor.set(key, ranked);
     return ranked;
   };
 
@@ -219,7 +226,7 @@ export function assignCandidatesToRoles(input: {
       coverageRole: entry.coverageRole,
       specialty,
       candidates: [],
-      considered: rankFor(specialty),
+      considered: rankFor(specialty, entry.coverageRole),
       gap: null,
     };
   });

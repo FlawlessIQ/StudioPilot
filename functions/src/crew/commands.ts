@@ -8,6 +8,7 @@ import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { productEvent } from "../operations/product-events.js";
 import { studioHubCors } from "../security/cors.js";
 import { findDuplicateProfile } from "./duplicate-profile.js";
+import { coverageRoleSchema } from "../packages/coverage.js";
 import {
   appUrl,
   cascadeAssignment,
@@ -65,6 +66,7 @@ const command = z.discriminatedUnion("type", [
       email: z.string().email(),
       phone: z.string().min(7).max(30).nullable(),
       specialties: z.array(z.string().min(1)),
+      trades: z.array(coverageRoleSchema).max(4).optional(),
       serviceAreas: z.array(z.string().min(1)),
       travelRadiusMiles: z.number().int().nonnegative().max(500),
       rateType: z.enum(["hourly", "event"]),
@@ -123,6 +125,13 @@ const command = z.discriminatedUnion("type", [
     input: z.object({
       autoOfferOnBooking: z.boolean(),
       responseWindowHours: z.number().int().min(1).max(168),
+      /**
+       * Whether a subcontractor must carry their own liability cover.
+       *
+       * Optional so a client that predates the setting keeps whatever the
+       * tenant already holds rather than silently clearing it.
+       */
+      requireInsurance: z.boolean().optional(),
     }),
   }),
   z.object({
@@ -182,6 +191,7 @@ const command = z.discriminatedUnion("type", [
       crewProfileId: z.string().min(1),
       phone: z.string().min(7).max(30).nullable(),
       specialties: z.array(z.string().min(1).max(80)).max(20),
+      trades: z.array(coverageRoleSchema).max(4).optional(),
       serviceAreas: z.array(z.string().min(1).max(120)).max(20),
       travelRadiusMiles: z.number().int().nonnegative().max(500),
       equipment: z.array(z.string().min(1).max(120)).max(50),
@@ -217,6 +227,7 @@ const command = z.discriminatedUnion("type", [
       name: z.string().trim().min(1).max(160),
       email: z.string().email(),
       specialties: z.array(z.string().min(1).max(80)).max(20),
+      trades: z.array(coverageRoleSchema).max(4).optional(),
       serviceAreas: z.array(z.string().min(1).max(120)).max(20),
       travelRadiusMiles: z.number().int().nonnegative().max(500),
       rateType: z.enum(["hourly", "event"]),
@@ -626,6 +637,7 @@ export const crewCommand = onRequest(
           tenantId: parsed.tenantId,
           userId: null,
           ...parsed.input,
+          trades: parsed.input.trades ?? [],
           equipment: [],
           w9Status: "missing",
           insuranceStatus: "missing",
@@ -687,6 +699,7 @@ export const crewCommand = onRequest(
           name: parsed.input.name,
           email: parsed.input.email,
           specialties: parsed.input.specialties,
+          trades: parsed.input.trades ?? [],
           serviceAreas: parsed.input.serviceAreas,
           travelRadiusMiles: parsed.input.travelRadiusMiles,
           rateType: parsed.input.rateType,
@@ -910,7 +923,10 @@ export const crewCommand = onRequest(
         const auditReference = db.collection("auditEvents").doc();
         const batch = db.batch();
         batch.update(tenantReference, {
-          crewOffers: parsed.input,
+          crewOffers: {
+            ...(typeof before === "object" && before ? before : {}),
+            ...parsed.input,
+          },
           updatedAt: now,
           updatedBy: identity.uid,
         });
@@ -1472,6 +1488,7 @@ export const crewCommand = onRequest(
         await reference.update({
           phone: parsed.input.phone,
           specialties: parsed.input.specialties,
+          trades: parsed.input.trades ?? [],
           serviceAreas: parsed.input.serviceAreas,
           travelRadiusMiles: parsed.input.travelRadiusMiles,
           equipment: parsed.input.equipment,

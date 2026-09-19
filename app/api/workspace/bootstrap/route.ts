@@ -19,6 +19,7 @@ const areaRoles: Record<"studio" | "client" | "crew", ReadonlySet<string>> = {
     "studio_admin",
     "studio_coordinator",
     "staff_photographer",
+    "staff_videographer",
   ]),
   client: new Set<string>(["client"]),
   crew: new Set<string>(["subcontractor"]),

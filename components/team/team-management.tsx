@@ -262,6 +262,7 @@ export function TeamManagement() {
               <option value="studio_admin">Studio Admin</option>
               <option value="studio_coordinator">Studio Coordinator</option>
               <option value="staff_photographer">Staff Photographer</option>
+              <option value="staff_videographer">Staff Videographer</option>
             </select>
           </label>
           <button
@@ -357,6 +358,7 @@ export function TeamManagement() {
                 <option value="studio_admin">Studio Admin</option>
                 <option value="studio_coordinator">Studio Coordinator</option>
                 <option value="staff_photographer">Staff Photographer</option>
+                <option value="staff_videographer">Staff Videographer</option>
               </select>
             )}
             <StatusBadge tone={member.status === "active" ? "success" : "warning"}>

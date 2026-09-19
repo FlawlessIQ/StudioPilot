@@ -8,6 +8,7 @@ import { resolveCoverage } from "../packages/coverage.js";
 import { planCrewStaffing } from "./staffing-plan.js";
 import type { CrewCandidateInput } from "./cascade.js";
 import { cascadeAssignment } from "./offer.js";
+import { crewRequirementsFor } from "./requirements.js";
 
 /**
  * Staffing, prepared the moment a job is booked.
@@ -137,33 +138,6 @@ function offerWindow(
   };
 }
 
-const STANDARD_REQUIREMENTS = [
-  {
-    id: "w9",
-    name: "W-9 on file",
-    kind: "w9",
-    required: true,
-    dueAt: null,
-    instructions: "Upload a current signed W-9 for studio review.",
-  },
-  {
-    id: "insurance",
-    name: "Liability insurance",
-    kind: "insurance",
-    required: true,
-    dueAt: null,
-    instructions: "Upload a current certificate of liability insurance.",
-  },
-  {
-    id: "schedule",
-    name: "Current schedule acknowledged",
-    kind: "acknowledgement",
-    required: true,
-    dueAt: null,
-    instructions:
-      "Review and acknowledge the current schedule before event day.",
-  },
-];
 
 export async function prepareCrewStaffing(input: {
   tenantId: string;
@@ -256,6 +230,7 @@ export async function prepareCrewStaffing(input: {
     name: text(profile.get("name")) || "Crew member",
     active: profile.get("active") === true,
     specialties: list(profile.get("specialties")).map(String),
+    trades: list(profile.get("trades")).map(String),
     serviceAreas: list(profile.get("serviceAreas")).map(String),
     travelRadiusMiles: Number(profile.get("travelRadiusMiles") ?? 0),
     preferenceRank: Number.isFinite(Number(profile.get("preferenceRank")))
@@ -302,6 +277,9 @@ export async function prepareCrewStaffing(input: {
     typeof tenant.get("crewOffers") === "object" && tenant.get("crewOffers")
       ? (tenant.get("crewOffers") as Record<string, unknown>)
       : {};
+  // Liability cover is the studio's choice; the W-9 and the schedule
+  // acknowledgement are not. See features/crew/requirements.ts.
+  const requirements = crewRequirementsFor(settings);
   const responseWindowHours = Math.min(
     168,
     Math.max(1, Number(settings.responseWindowHours ?? 24)),
@@ -386,7 +364,7 @@ export async function prepareCrewStaffing(input: {
         scheduleItemIds: [],
         currentScheduleId: latestSchedule?.id ?? null,
         currentScheduleVersion: Number(latestSchedule?.get("version") ?? 0),
-        requirements: STANDARD_REQUIREMENTS,
+        requirements,
         crewPlanId: `auto_${input.projectId}`,
         status: "active",
         currentCandidateIndex: 0,
@@ -450,7 +428,7 @@ export async function prepareCrewStaffing(input: {
     currency: text(tenant.get("currency")) || "USD",
     currentScheduleId: latestSchedule?.id ?? null,
     currentScheduleVersion: Number(latestSchedule?.get("version") ?? 0),
-    requirements: STANDARD_REQUIREMENTS,
+    requirements,
     roles,
     createdAt: input.now,
     updatedAt: input.now,

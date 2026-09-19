@@ -33,6 +33,7 @@ export function CrewOfferSettings() {
       : {};
 
   const [autoOffer, setAutoOffer] = useState<boolean | null>(null);
+  const [requireInsurance, setRequireInsurance] = useState<boolean | null>(null);
   const [windowHours, setWindowHours] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -48,6 +49,9 @@ export function CrewOfferSettings() {
   const effectiveAuto = autoOffer ?? stored.autoOfferOnBooking === true;
   const effectiveWindow =
     windowHours ?? String(Number(stored.responseWindowHours ?? 24));
+  // Off unless the studio says otherwise: most operate under their own policy.
+  const effectiveInsurance =
+    requireInsurance ?? stored.requireInsurance === true;
 
   async function save() {
     const hours = Math.round(Number(effectiveWindow));
@@ -62,6 +66,7 @@ export function CrewOfferSettings() {
       await sendCrewCommand("setCrewOfferSettings", {
         autoOfferOnBooking: effectiveAuto,
         responseWindowHours: hours,
+        requireInsurance: effectiveInsurance,
       });
       setSaved(true);
     } catch (caught: unknown) {
@@ -97,6 +102,23 @@ export function CrewOfferSettings() {
             for each role is asked straight away — including the fee. Imported
             bookings are never offered automatically, because they were usually
             staffed before they reached StudioCue.
+          </small>
+        </label>
+        <label className="form-checkbox">
+          <input
+            checked={effectiveInsurance}
+            onChange={(event) => {
+              setRequireInsurance(event.target.checked);
+              setSaved(false);
+            }}
+            type="checkbox"
+          />
+          <span>Crew must carry their own liability insurance</span>
+          <small>
+            Off for most studios — your own policy covers the people you bring.
+            On, every offer asks them to upload a certificate before the day.
+            The W-9 is always asked for, and the certificate you send a venue is
+            a separate thing set on each job.
           </small>
         </label>
         <label>

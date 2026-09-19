@@ -45,6 +45,7 @@ import { CrewClientBrief } from "@/components/crew/client-brief";
 import { CrewDocumentUpload } from "@/components/crew/document-upload";
 import { CrewProfileDocumentUpload } from "@/components/crew/profile-document-upload";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { TradeField, tradesFromForm } from "@/components/crew/trade-field";
 import { splitUpcomingAndPast } from "@/features/ordering/attention";
 import {
   offerCanBeAnswered,
@@ -612,6 +613,7 @@ function CrewProfileEditor({ data, profile }: { data: CrewData; profile: Value }
         crewProfileId: profile.id,
         phone: String(values.get("phone") ?? "").trim() || null,
         specialties: split("specialties"),
+        trades: tradesFromForm(values),
         serviceAreas: split("serviceAreas"),
         travelRadiusMiles: Number(values.get("travelRadiusMiles") ?? 0),
         equipment: split("equipment"),
@@ -652,6 +654,7 @@ function CrewProfileEditor({ data, profile }: { data: CrewData; profile: Value }
       <label>Phone<input name="phone" defaultValue={text(profile.phone, "")} /></label>
       <label>Travel radius (miles)<input name="travelRadiusMiles" type="number" min="0" max="500" defaultValue={number(profile.travelRadiusMiles)} /></label>
       <label className="form-span">Specialties, separated by commas<input name="specialties" defaultValue={csv(profile.specialties)} /></label>
+      <TradeField className="form-span" hint="Your studio uses this to decide who to ask when a job needs a photographer or a videographer." value={Array.isArray(profile.trades) ? profile.trades.map(String) : []} />
       <label className="form-span">Service areas, separated by commas<input name="serviceAreas" defaultValue={csv(profile.serviceAreas)} /></label>
       <label className="form-span">Equipment, separated by commas<textarea name="equipment" defaultValue={csv(profile.equipment)} /></label>
       <label>Emergency contact name<input name="emergencyName" defaultValue={text(emergency.name, "")} /></label>

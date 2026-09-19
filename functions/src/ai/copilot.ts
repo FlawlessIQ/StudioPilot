@@ -212,6 +212,7 @@ const internalRoles = new Set([
   "studio_admin",
   "studio_coordinator",
   "staff_photographer",
+  "staff_videographer",
 ]);
 
 const asRecord = (value: unknown): Json =>

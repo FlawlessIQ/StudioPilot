@@ -5,6 +5,7 @@ import { LoaderCircle, PencilLine } from "lucide-react";
 import { ArchiveToggle } from "@/components/records/archive-toggle";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { TradeField, tradesFromForm } from "@/components/crew/trade-field";
 import { CrewProfileDocumentUpload } from "@/components/crew/profile-document-upload";
 import { sendCrewCommand } from "@/lib/crew/command-client";
 
@@ -28,6 +29,7 @@ export function CrewRecordActions({
     name: string;
     email: string;
     specialties: string[];
+    trades: string[];
     serviceAreas: string[];
     travelRadiusMiles: number;
     rateType: string;
@@ -94,6 +96,7 @@ export function CrewRecordActions({
         name: crew.hasAccount ? crew.name : text("name"),
         email: crew.hasAccount ? crew.email : text("email"),
         specialties: list("specialties"),
+        trades: tradesFromForm(values),
         serviceAreas: list("serviceAreas"),
         travelRadiusMiles: Number(text("travelRadiusMiles") || 0),
         rateType: text("rateType") === "hourly" ? "hourly" : "event",
@@ -194,6 +197,7 @@ export function CrewRecordActions({
               placeholder="Second shooter, lighting"
             />
           </label>
+          <TradeField value={crew.trades} />
           <label>
             Service areas
             <input

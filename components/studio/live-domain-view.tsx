@@ -982,6 +982,7 @@ function renderRowActions(
           specialties: Array.isArray(record.specialties)
             ? record.specialties.map(String)
             : [],
+          trades: Array.isArray(record.trades) ? record.trades.map(String) : [],
           serviceAreas: Array.isArray(record.serviceAreas)
             ? record.serviceAreas.map(String)
             : [],

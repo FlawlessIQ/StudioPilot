@@ -9482,6 +9482,17 @@ textarea:focus-visible {
   font-size: 9px;
 }
 
+/*
+  A statement of fact, not an outstanding item.
+  Same card, flattened: no shadow, no white ground, so a job booked outside
+  StudioCue does not read as a job missing something.
+*/
+.booking-autopilot-empty.is-quiet {
+  background: var(--soft, #f4f7f4);
+  box-shadow: none;
+  padding: 16px 18px;
+}
+
 .booking-autopilot-empty > a {
   align-items: center;
   color: #3d6648;
@@ -11120,6 +11131,15 @@ textarea:focus-visible {
 .copilot-flow-head small{display:block;color:var(--muted,#6b7570);font-size:12px;margin-top:2px}
 /* What became of the person or package the operator named. Sits between the
    flow's heading and its options, so it is read before anything is chosen. */
+/* Who is working this job, above the fold on the job page. */
+.project-crew-panel{display:grid;gap:12px}
+.project-crew-panel>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.project-crew-panel>header h2{margin:0;font-size:18px}
+.project-crew-panel ul{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.project-crew-panel li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 13px;border:1px solid var(--line);border-radius:11px;background:var(--surface)}
+.project-crew-panel li>span{display:grid;gap:2px;min-width:0}
+.project-crew-panel li small{color:var(--muted)}
+.project-crew-lapsed{color:var(--muted)}
 .copilot-flow-subject{margin:0;padding:10px 12px;border-radius:10px;background:var(--ds-amber-soft,#f6ecd5);color:var(--ds-amber,#b07d29);font-size:12.5px;line-height:1.5}
 .copilot-flow-options{display:grid;gap:8px}
 .copilot-flow-option{display:grid;gap:2px;text-align:left;border:1px solid var(--border,#dfe3de);border-radius:12px;background:var(--surface,#fff);padding:11px 14px;font:inherit;cursor:pointer}
@@ -17911,3 +17931,16 @@ label {
 .coi-discrepancy-list li span{display:grid;gap:2px}
 .coi-discrepancy-list li small{color:var(--muted-ink,#5d665f)}
 .coi-discrepancy-list li[data-severity="blocking"] strong{color:var(--danger,#9a4545)}
+
+/*
+  Which camera this person holds.
+  A fieldset rather than a label so the two checkboxes are announced as one
+  question; it sits in whatever form grid surrounds it, like the labels do.
+*/
+.crew-trade-field { border: 0; display: grid; gap: 7px; margin: 0; min-width: 0; padding: 0; }
+.crew-trade-field legend { float: left; font-size: 12px; font-weight: 650; padding: 0; width: 100%; }
+.crew-trade-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.crew-trade-options label { align-items: center; border: 1px solid var(--border, var(--line)); border-radius: 999px; cursor: pointer; display: inline-flex; font-size: 12.5px; font-weight: 600; gap: 7px; padding: 8px 13px; }
+.crew-trade-options label:has(input:checked) { background: var(--soft, #eef3ef); border-color: var(--ink); }
+.crew-trade-field .crew-trade-options input { accent-color: var(--ink); background: none; border: 0; border-radius: 0; height: auto; margin: 0; padding: 0; width: auto; }
+.crew-trade-hint { color: var(--muted); font-size: 11.5px; margin: 0; }

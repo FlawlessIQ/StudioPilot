@@ -10,6 +10,7 @@ const studioRoles = new Set<Role>([
   "studio_admin",
   "studio_coordinator",
   "staff_photographer",
+  "staff_videographer",
 ]);
 
 export function isStudioMembership(

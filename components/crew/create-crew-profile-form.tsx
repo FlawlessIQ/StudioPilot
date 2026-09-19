@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRight, CheckCircle2, ShieldCheck, UserPlus } from "lucide-react";
 import { sendCrewCommand } from "@/lib/crew/command-client";
 import { PlaceTagsField } from "@/components/forms/place-tags-field";
+import { TradeField, tradesFromForm } from "@/components/crew/trade-field";
 import { friendlyError } from "@/lib/ai/friendly-error";
 
 export function CreateCrewProfileForm() {
@@ -28,6 +29,7 @@ export function CreateCrewProfileForm() {
           .split(",")
           .map((value) => value.trim())
           .filter(Boolean),
+        trades: tradesFromForm(data),
         serviceAreas,
         travelRadiusMiles: Number(data.get("travelRadiusMiles")),
         rateType: String(data.get("rateType")),
@@ -127,6 +129,7 @@ export function CreateCrewProfileForm() {
             placeholder="Weddings, documentary"
           />
         </label>
+        <TradeField />
         <PlaceTagsField
           hint="Where this collaborator will travel. Add as many as you need."
           label="Service areas"

@@ -28,6 +28,7 @@ import { GlobalSearch } from "@/components/layout/global-search";
 import { PlatformReturnLink } from "@/components/layout/platform-return-link";
 import { cn } from "@/lib/utils";
 import { AuthBoundary } from "@/features/auth/auth-boundary";
+import { isStaffShooter } from "@/features/auth/roles";
 import { SignOutButton } from "@/features/auth/auth-boundary";
 import {
   initials,
@@ -271,8 +272,7 @@ function StudioShell({
   ]);
   const canSee = (item: { label: string; ownerOnly?: boolean }) => {
     if (item.ownerOnly && workspace.role !== "studio_owner") return false;
-    if (workspace.role === "staff_photographer")
-      return staffAllowed.has(item.label);
+    if (isStaffShooter(workspace.role)) return staffAllowed.has(item.label);
     return true;
   };
   const visibleSections = navSections
