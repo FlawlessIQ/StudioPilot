@@ -1013,7 +1013,28 @@ export async function completeBookingResources(job:DocumentSnapshot){const db=ge
   // provider-state early return so a retry after a partial failure still
   // instantiates. A skip (no template configured) never fails the booking.
   const workflow=await autoInstantiateWorkflow({tenantId,projectId,actorId:"booking-orchestrator"});
-  if(project.get("bookingProviderState")==="completed")return{projectId,folderIds:project.get("dropboxFolderIds"),eventId:project.get("calendarEventId"),workflow};
+  /**
+   * The job's "crew_plan" step: work out who this booking still has to hire
+   * and write the plan, so the studio approves a shortlist instead of building
+   * one.
+   *
+   * Beside the workflow step and for the same reason — **before** the
+   * provider-state early return. Placed after it, this ran only on the one
+   * pass that completed the provider side effects: a retry after a partial
+   * failure returned early and the plan was never prepared, silently, because
+   * its own failure is swallowed. It is idempotent in its own right (an
+   * existing plan is left alone), so running it on every pass is safe.
+   *
+   * Its failure never fails the booking — a wedding is booked whether or not
+   * its staffing could be worked out.
+   */
+  let crewPlan: Awaited<ReturnType<typeof prepareCrewStaffing>> | { skipped: string };
+  try {
+    crewPlan = await prepareCrewStaffing({ tenantId, projectId, actorId: "booking-orchestrator", now: new Date().toISOString() });
+  } catch (caught: unknown) {
+    crewPlan = { skipped: caught instanceof Error ? caught.message : "CREW_PLAN_FAILED" };
+  }
+  if(project.get("bookingProviderState")==="completed")return{projectId,folderIds:project.get("dropboxFolderIds"),eventId:project.get("calendarEventId"),workflow,crewPlan};
   const date=String(project.get("eventDate"));const name=String(project.get("name"));const eventType=String(project.get("eventType"));const safe=`${date}_${name}_${eventType}`.replace(/[^a-zA-Z0-9_-]+/g,"_");let folderIds:string[]=[];let projectRootPath:string|null=null;const sideEffectSkips:Record<string,string>={};try{const dropbox=await connection(tenantId,"dropbox");const configuredRoot=String(dropbox.document.get("selectedResourceId")??"/StudioCue");const root=configuredRoot.startsWith("/")?configuredRoot:`/${configuredRoot}`;const projectRoot=`${root.replace(/\/$/,"")}/${date.slice(0,4)}/${safe}`;projectRootPath=projectRoot;const paths=[projectRoot,...["01_Contracts","02_Invoices","03_Client_Details","04_Schedule","05_COI","06_Crew","07_Delivery"].map(folder=>`${projectRoot}/${folder}`)];for(const path of paths){if(dropbox.mock){folderIds.push(mockId("dropbox",path));continue}const value=await dropboxFolder(String(dropbox.credential?.accessToken),path);folderIds.push(text(value.id))}}catch(caught:unknown){folderIds=[];projectRootPath=null;sideEffectSkips.dropbox=caught instanceof Error?caught.message:"DROPBOX_UNAVAILABLE"}
   let eventId=String(project.get("calendarEventId")??"");try{const calendar=await connection(tenantId,"google_calendar");if(!eventId&&calendar.mock)eventId=mockId("event",projectId);else if(!eventId){const calendarId=encodeURIComponent(String(calendar.document.get("selectedResourceId")??"primary"));const endDate=new Date(`${date}T00:00:00Z`);endDate.setUTCDate(endDate.getUTCDate()+1);const providerEventId=createHash("sha256").update(`project:${projectId}`).digest("hex").slice(0,32);const url=`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`;const create=await fetch(url,{method:"POST",headers:{authorization:`Bearer ${calendar.credential?.accessToken}`,"content-type":"application/json"},body:JSON.stringify({id:providerEventId,summary:`${name} · ${eventType}`,start:{date},end:{date:endDate.toISOString().slice(0,10)},transparency:"opaque",extendedProperties:{private:{studioHubProjectId:projectId}}})});if(create.status===409){const value=await providerJson(`${url}/${providerEventId}`,{headers:{authorization:`Bearer ${calendar.credential?.accessToken}`}},"CALENDAR_READ_FAILED");eventId=text(value.id)}else{const value=asRecord(await create.json().catch(()=>({})));if(!create.ok)throw new Error(`CALENDAR_CREATE_FAILED:${create.status}`);eventId=text(value.id)}}}catch(caught:unknown){sideEffectSkips.calendar=caught instanceof Error?caught.message:"GOOGLE_CALENDAR_UNAVAILABLE"}
   const now=new Date().toISOString();
@@ -1047,20 +1068,7 @@ export async function completeBookingResources(job:DocumentSnapshot){const db=ge
   // An imported booking was booked long before StudioCue, so it never gets
   // "You're booked" — whether this runs while it is quiet or after the studio
   // brings the couple in and asks for the calendar and folders.
-  if(!project.get("importedAt"))batch.set(db.doc(`emailJobs/booking_confirmation_${projectId}`),{id:`booking_confirmation_${projectId}`,tenantId,projectId,type:"booking_confirmation",status:"queued",attempts:0,createdAt:now,updatedAt:now},{merge:false});await batch.commit();
-  /**
-   * The job's "crew_plan" step: work out who this booking still has to hire
-   * and write the plan, so the studio approves a shortlist instead of building
-   * one. Runs after the batch, and its own failure never fails the booking —
-   * a wedding is booked whether or not its staffing could be worked out.
-   */
-  let crewPlan: Awaited<ReturnType<typeof prepareCrewStaffing>> | { skipped: string };
-  try {
-    crewPlan = await prepareCrewStaffing({ tenantId, projectId, actorId: "booking-orchestrator", now });
-  } catch (caught: unknown) {
-    crewPlan = { skipped: caught instanceof Error ? caught.message : "CREW_PLAN_FAILED" };
-  }
-  return{projectId,folderIds,eventId,workflow,crewPlan}}
+  if(!project.get("importedAt"))batch.set(db.doc(`emailJobs/booking_confirmation_${projectId}`),{id:`booking_confirmation_${projectId}`,tenantId,projectId,type:"booking_confirmation",status:"queued",attempts:0,createdAt:now,updatedAt:now},{merge:false});await batch.commit();return{projectId,folderIds,eventId,workflow,crewPlan}}
 
 export async function uploadDropboxDocument(job:DocumentSnapshot){
   const db=getFirestore();const tenantId=String(job.get("tenantId"));const projectId=String(job.get("projectId"));const documentId=String(job.get("documentId"));

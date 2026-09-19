@@ -288,6 +288,30 @@ test("the booking worker runs the staffing step", () => {
   assert.match(call.slice(0, 600), /catch/);
 });
 
+/**
+ * Placement, which is invisible and got this wrong once.
+ *
+ * `completeBookingResources` returns early when the provider side effects are
+ * already done. Below that line, the step runs only on the single pass that
+ * completed them: a retry after a partial failure returns early and the plan
+ * is never prepared — silently, because the step swallows its own failure.
+ * `autoInstantiateWorkflow` sits above the line for exactly this reason.
+ */
+test("staffing is prepared before the provider-state early return", () => {
+  const source = readFileSync(
+    `${process.cwd()}/functions/src/operations/provider-runtime.ts`,
+    "utf8",
+  );
+  const body = source.slice(source.indexOf("export async function completeBookingResources"));
+  const prepared = body.indexOf("await prepareCrewStaffing({");
+  const earlyReturn = body.indexOf('bookingProviderState")==="completed"');
+  assert.ok(prepared > 0 && earlyReturn > 0, "both landmarks must exist");
+  assert.ok(
+    prepared < earlyReturn,
+    "prepareCrewStaffing must run above the early return, or a retry skips it",
+  );
+});
+
 test("booking declares the step it now performs", () => {
   for (const path of [
     "functions/src/booking/commands.ts",
