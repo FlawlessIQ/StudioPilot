@@ -301,7 +301,10 @@ function useCrewData(): CrewData {
             ),
             errorDetail:
               caught instanceof Error && caught.message.trim()
-                ? caught.message.trim().slice(0, 220)
+                // Long enough for the whole of a Firestore index link, which
+                // is the single most actionable error this can carry — the
+                // first version cut it at 220 and truncated away the answer.
+                ? caught.message.trim().slice(0, 600)
                 : null,
           }));
       });

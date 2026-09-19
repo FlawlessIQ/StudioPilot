@@ -767,6 +767,24 @@
       ]
     },
     {
+      "collectionGroup": "crewAssignments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "tenantId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "arrivalAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "crewAvailability",
       "queryScope": "COLLECTION",
       "fields": [
