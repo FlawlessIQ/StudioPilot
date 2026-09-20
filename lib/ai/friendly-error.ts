@@ -102,6 +102,18 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   CREW_IDENTITY_OWNED_BY_MEMBER:
     "They have their own account now, so their name and email are theirs to change. You can still update rate, specialties and areas.",
   CONTACT_NOT_FOUND: "That client record could not be found.",
+  PROJECT_NOT_FOUND:
+    "That job could not be found. It may have been deleted, or you may not have access to it.",
+  // Permanently deleting a job. The bar is deliberately higher than archiving:
+  // there is nothing to restore afterwards. See features/projects/purge-policy.ts.
+  PROJECT_PURGE_OWNER_ONLY:
+    "Only the studio owner can permanently delete a job. Archiving it takes it out of your working list without destroying anything.",
+  PROJECT_PURGE_NAME_MISMATCH:
+    "That is not the job's name. Type it exactly as it appears above the box.",
+  PROJECT_PURGE_PREVIEW_UNAVAILABLE:
+    "Development preview: nothing can be deleted here.",
+  PROJECT_PURGE_FAILED:
+    "The job could not be deleted. Some of its records may already be gone — run the delete again to finish it, and contact support if it keeps failing.",
   VENDOR_NOT_FOUND: "That vendor record could not be found.",
   CREW_PROFILE_NOT_FOUND: "That collaborator could not be found.",
   // Billing. The server names the cause precisely and the client used to drop

@@ -77,6 +77,7 @@ const USER_FACING_API_ROUTES = [
  */
 const USER_FACING_HANDLERS = [
   "ai/actions.ts",
+  "projects/purge-command.ts",
   "ai/communications.ts",
   "ai/copilot.ts",
   "ai/message-draft.ts",
@@ -272,7 +273,6 @@ const KNOWN_GAPS: Record<string, string> = {
   POST_EVENT_COMMAND_UNHANDLED: "post-event",
   PROJECT_ACCESS_DENIED: "workflow",
   PROJECT_CONTACT_REQUIRED: "ai, communications",
-  PROJECT_NOT_FOUND: "ai, booking, communications, crm, workflow",
   PROJECT_NOT_IN_CONSULTATION: "booking",
   PROJECT_NOT_READY_FOR_PROPOSAL: "booking",
   PROJECT_OR_CONTACT_NOT_FOUND: "booking",

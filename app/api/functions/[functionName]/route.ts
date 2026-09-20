@@ -32,6 +32,7 @@ const functionNames = [
   "membershipCommand",
   "planningCommand",
   "postEventCommand",
+  "projectPurgeCommand",
   "proposalCommand",
   "publicLeadIntake",
   "publicConsultationScheduling",

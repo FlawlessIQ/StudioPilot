@@ -17944,3 +17944,30 @@ label {
 .crew-trade-options label:has(input:checked) { background: var(--soft, #eef3ef); border-color: var(--ink); }
 .crew-trade-field .crew-trade-options input { accent-color: var(--ink); background: none; border: 0; border-radius: 0; height: auto; margin: 0; padding: 0; width: auto; }
 .crew-trade-hint { color: var(--muted); font-size: 11.5px; margin: 0; }
+
+/*
+  Permanently deleting a job.
+  Last on the page, collapsed, and visually separate from the reversible
+  controls above it — archiving and cancelling must not look like neighbours
+  of something with no undo.
+*/
+.project-danger-zone { border: 1px solid color-mix(in srgb, #7d2929 35%, var(--border)); border-radius: 14px; margin-top: 8px; }
+.project-danger-zone > summary { align-items: center; color: #7d2929; cursor: pointer; display: flex; font-size: 13px; font-weight: 700; gap: 8px; list-style: none; padding: 14px 16px; }
+.project-danger-zone > summary::-webkit-details-marker { display: none; }
+.project-danger-zone[open] > summary { border-bottom: 1px solid var(--border); }
+.project-danger-zone > div { display: grid; gap: 16px; padding: 16px; }
+.project-danger-lede { color: var(--muted); margin: 0; max-width: 62ch; }
+/* It renders in the narrow job rail on desktop and full width on a phone, so
+   it stacks on its own container rather than on the viewport. */
+.project-danger-columns { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.project-danger-columns h4 { font-size: 12px; letter-spacing: .02em; margin: 0 0 8px; text-transform: uppercase; }
+.project-danger-columns section:first-child h4 { color: #7d2929; }
+.project-danger-columns ul { display: grid; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.project-danger-columns li { color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.project-danger-columns strong { color: var(--ink); }
+.project-danger-client { color: #7d2929; font-size: 12.5px; margin: 10px 0 0; }
+.project-danger-confirm { display: grid; font-size: 12px; font-weight: 650; gap: 7px; max-width: 460px; }
+.project-danger-confirm input { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; color: var(--ink); font: inherit; padding: 11px 12px; }
+.project-danger-zone .button-danger:disabled { cursor: not-allowed; opacity: .45; }
+.project-danger-final { background: color-mix(in srgb, #7d2929 8%, var(--surface)); border: 1px solid color-mix(in srgb, #7d2929 35%, var(--border)); border-radius: 12px; display: grid; gap: 12px; padding: 14px; }
+.project-danger-final > span { display: flex; flex-wrap: wrap; gap: 9px; }

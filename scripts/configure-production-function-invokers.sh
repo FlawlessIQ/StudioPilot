@@ -121,6 +121,7 @@ app_services=(
   membershipcommand
   planningcommand
   posteventcommand
+  projectpurgecommand
   proposalcommand
   publicconsultationscheduling
   publicleadintake

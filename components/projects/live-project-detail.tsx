@@ -35,6 +35,7 @@ import { ReadinessCheckpoints } from "@/components/projects/readiness-checkpoint
 import { StatusBadge } from "@/components/ui/status-badge";
 import { stateTone } from "@/lib/status-tone";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { DeleteJobPermanently } from "@/components/projects/delete-job-permanently";
 import {
   allowedProjectTransitions,
   transitionAuthority,
@@ -1073,6 +1074,17 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
         archived={typeof project.archivedAt === "string"}
         projectId={projectId}
       />
+      {/*
+        Owner only, and last. The server enforces the same rule — this hides a
+        control the studio cannot use rather than being the thing that stops
+        them. Archiving, directly above, is what almost everyone wants.
+      */}
+      {workspace.role === "studio_owner" ? (
+        <DeleteJobPermanently
+          projectId={projectId}
+          projectName={String(project.name ?? "")}
+        />
+      ) : null}
     </>
   );
 

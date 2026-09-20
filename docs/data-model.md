@@ -191,7 +191,42 @@ rerun evidence.
 - project state changes use optimistic versions
 - packages are versioned rather than rewritten for existing projects
 - lead, contact, package, event-type, and project history uses archival fields
-- hard deletion is reserved for the documented tenant deletion workflow
+- hard deletion is reserved for two documented workflows: tenant deletion
+  (`functions/src/saas/data-lifecycle.ts`) and **permanently deleting one job**
+  (`functions/src/projects/purge-command.ts`)
+
+### Permanently deleting one job
+
+The deliberate exception to the rule above, for the case archiving cannot
+serve: a couple who asks to be forgotten, a job imported twice, a booking made
+while learning the product. Policy and copy live in
+`features/projects/purge-policy.ts`.
+
+- **Reached** from the job page, owner only, behind three gates: opening a
+  collapsed danger zone, reading a count of exactly what will be destroyed and
+  what will survive, then typing the job's own name and confirming a second
+  time. Every gate is re-checked server-side.
+- **Refused** while any crew assignment is still live — cancelling the job is
+  what withdraws those offers and tells the crew why.
+- **Finds records** by asking Firestore which collections exist and querying
+  each for this `projectId`, rather than from a list in the source that would
+  rot. `projectId` is covered by the automatic single-field index, so no
+  composite index is involved. Every candidate is checked against the tenant
+  before deletion, because `projectId` alone would let one studio's
+  confirmation destroy another's colliding record.
+- **Never reaches** the idempotency ledgers (`commandExecutions`,
+  `webhookEvents`), the account itself (`memberships`, `users`, `tenants`,
+  `subscriptions`, `usageCounters`), or anything shared with other jobs — the
+  crew directory, vendors, packages and templates carry no `projectId`.
+- **The job record goes last**, by name rather than by the sweep, so a purge
+  that fails part way can always be finished by running it again.
+- **Client contacts** are deleted only when this was their last job; a client
+  who books twice survives, and the preview says which will happen.
+- **Storage** under `tenants/{tenantId}/projects/{projectId}/` goes with it.
+- **What survives**: a `projectPurges/{id}` record written before anything is
+  destroyed, and one `auditEvents` entry with `action: "project.purged"` naming
+  the operator and the counts. The job's own audit entries are erased with it —
+  they carry the couple's name and every change made to their wedding.
 
 ## Required indexes
 
