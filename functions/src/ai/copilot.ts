@@ -15,6 +15,11 @@ import { productEvent } from "../operations/product-events.js";
 import { deterministicIntakeExtraction } from "./intake-prefill.js";
 import { cloudAccessToken } from "./vertex-token.js";
 import {
+  vertexFailure,
+  vertexGenerate,
+  vertexMockMode,
+} from "./vertex-transport.js";
+import {
   readSignedAgreement,
   readSignedAgreementRequestSchema,
 } from "./signed-agreement.js";
@@ -108,7 +113,27 @@ const intakeExtractionSchema = z.object({
   summary: z.string().max(400).nullable(),
 });
 
-const responseSchema = z.object({
+/**
+ * Exported so tests/cue-offline.test.ts can parse every scripted reply through
+ * it. A fixture that drifts from what the model must actually produce then
+ * fails the test, rather than quietly teaching the UI a shape production will
+ * never send. See functions/src/ai/vertex-script.ts.
+ */
+/**
+ * What to record as the model for this turn.
+ *
+ * `VERTEX_AI_COPILOT_MODEL` is unset outside production, and the audit write
+ * puts this straight into Firestore — which rejects `undefined` and failed the
+ * whole turn with a serializer error after the answer had already been
+ * produced. Mock mode names itself honestly rather than borrowing a model's
+ * name for an answer no model gave.
+ */
+function copilotModelName(): string {
+  if (vertexMockMode()) return "scripted";
+  return process.env.VERTEX_AI_COPILOT_MODEL ?? "unknown";
+}
+
+export const responseSchema = z.object({
   answer: z.string().min(1),
   facts: z.array(z.string()).max(12),
   suggestions: z.array(z.string()).max(8),
@@ -231,7 +256,8 @@ const asRecord = (value: unknown): Json =>
 // (it needs no project detail to raise the picker), leaving `referenced`
 // empty. If none of those disambiguates, return null and the flow does not
 // launch — better a dropped flow than one aimed at the wrong project.
-function resolveFlowProjectId(
+/** Exported for tests/cue-offline.test.ts — pure, and the whole flow hangs on it. */
+export function resolveFlowProjectId(
   rawId: string | null | undefined,
   allowed: Set<string>,
   scopedId: string | null,
@@ -243,10 +269,32 @@ function resolveFlowProjectId(
   if (scopedId && allowed.has(scopedId)) return scopedId;
   const referencedAllowed = [...referenced].filter((id) => allowed.has(id));
   if (referencedAllowed.length === 1) return referencedAllowed[0] ?? null;
-  const haystack = text.toLowerCase();
+  /**
+   * Punctuation is not a reason to drop the flow.
+   *
+   * This matched the stored name inside the text verbatim, and almost every
+   * wedding is filed as "Maya & Theo Johnson" while an operator types "maya
+   * and theo johnson". The name then never matched, the flow resolved to
+   * nothing, and the turn came back as an answer with no action — the exact
+   * shape the 2026-09-19 batch existed to remove. Found on 2026-09-20 by
+   * walking Cue offline, which until that day was not possible.
+   *
+   * Same normalisation as features/ai/flow-subject.ts, for the same reason:
+   * studios write "&", "and", "O'Brien" and "OBrien" for one thing.
+   */
+  const flatten = (value: string) =>
+    value
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLocaleLowerCase()
+      .replace(/&/g, " and ")
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  const haystack = flatten(text);
   const named = [...allowed].filter((id) => {
-    const name = projectNames.get(id)?.trim().toLowerCase();
-    return !!name && name.length >= 3 && haystack.includes(name);
+    const name = flatten(projectNames.get(id) ?? "");
+    return name.length >= 3 && haystack.includes(name);
   });
   if (named.length === 1) return named[0] ?? null;
   return null;
@@ -494,31 +542,10 @@ const RESPONSE_SCHEMA_JSON = {
   required: ["answer", "facts", "suggestions", "citations"],
 } as const;
 
-const VERTEX_LOCATION = process.env.VERTEX_AI_LOCATION ?? "us-east4";
-
-function vertexUrl(method: "generateContent" | "streamGenerateContent"): string {
-  const project = process.env.VERTEX_AI_PROJECT_ID;
-  const model = process.env.VERTEX_AI_COPILOT_MODEL;
-  if (!project || !model) throw new Error("VERTEX_AI_COPILOT_NOT_CONFIGURED");
-  const suffix =
-    method === "streamGenerateContent"
-      ? "streamGenerateContent?alt=sse"
-      : "generateContent";
-  return `https://${VERTEX_LOCATION}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(VERTEX_LOCATION)}/publishers/google/models/${encodeURIComponent(model)}:${suffix}`;
-}
-
 /** One non-streaming generateContent call with a prebuilt request body. */
 async function generateStructuredBody(requestBody: unknown) {
-  const token = await cloudAccessToken();
-  const response = await fetch(vertexUrl("generateContent"), {
-    method: "POST",
-    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-    body: JSON.stringify(requestBody),
-  });
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(`VERTEX_AI_COPILOT_FAILED:${response.status}:${detail.slice(0, 500)}`);
-  }
+  const response = await vertexGenerate(requestBody, "generateContent");
+  if (!response.ok) throw await vertexFailure(response);
   const body = asRecord(await response.json());
   const candidates = Array.isArray(body.candidates) ? body.candidates : [];
   const content = asRecord(asRecord(candidates[0]).content);
@@ -609,16 +636,8 @@ async function streamStructuredBody(
   requestBody: unknown,
   onToken: (delta: string) => void,
 ) {
-  const token = await cloudAccessToken();
-  const response = await fetch(vertexUrl("streamGenerateContent"), {
-    method: "POST",
-    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-    body: JSON.stringify(requestBody),
-  });
-  if (!response.ok || !response.body) {
-    const detail = !response.ok ? await response.text().catch(() => "") : "no response body";
-    throw new Error(`VERTEX_AI_COPILOT_FAILED:${response.status}:${detail.slice(0, 500)}`);
-  }
+  const response = await vertexGenerate(requestBody, "streamGenerateContent");
+  if (!response.ok || !response.body) throw await vertexFailure(response);
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -885,11 +904,8 @@ async function runToolLoop(
     },
   ];
   for (let iteration = 0; iteration < COPILOT_MAX_TOOL_ITERATIONS; iteration++) {
-    const token = await cloudAccessToken();
-    const response = await fetch(vertexUrl("generateContent"), {
-      method: "POST",
-      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-      body: JSON.stringify({
+    const response = await vertexGenerate(
+      {
         systemInstruction: { parts: [{ text: COPILOT_RETRIEVAL_INSTRUCTION }] },
         contents,
         tools: [{ functionDeclarations: COPILOT_TOOL_DECLARATIONS }],
@@ -898,11 +914,11 @@ async function runToolLoop(
           temperature: 0,
           thinkingConfig: { thinkingBudget: COPILOT_THINKING_BUDGET },
         },
-      }),
-    });
+      },
+      "generateContent",
+    );
     if (!response.ok) {
-      const detail = await response.text().catch(() => "");
-      throw new Error(`VERTEX_AI_COPILOT_FAILED:${response.status}:${detail.slice(0, 500)}`);
+      throw await vertexFailure(response);
     }
     const body = asRecord(await response.json());
     const candidates = Array.isArray(body.candidates) ? body.candidates : [];
@@ -2027,7 +2043,7 @@ export const aiCopilotCommand = onRequest(
         // Store the full client-facing result (incl. jobObject + asOf) so a
         // resumed thread re-renders faithfully, not just the bare answer.
         result: { ...safeResult, jobObject, asOf: now, proposalActionIds, flow: flowDirective },
-        model: process.env.VERTEX_AI_COPILOT_MODEL,
+        model: copilotModelName(),
         createdAt: now,
       });
       // Thread index for the conversation rail. Title is set once, on the first
@@ -2059,7 +2075,7 @@ export const aiCopilotCommand = onRequest(
         timestamp: now,
         before: null,
         after: {
-          model: process.env.VERTEX_AI_COPILOT_MODEL,
+          model: copilotModelName(),
           factCount: safeResult.facts.length,
           suggestionCount: safeResult.suggestions.length,
         },

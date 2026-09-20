@@ -12929,6 +12929,8 @@ form:has(> .address-field) > .address-field,
 .cue-dock-inner{max-width:720px;margin:0 auto}
 .cue-dock .cue-composer{border-radius:16px;padding:12px 12px 10px;box-shadow:var(--shadow-sm)}
 .cue-error{margin:0 24px 20px}
+/* Send is never the part that gives way. */
+.cue-composer button[type=submit]{flex:none}
 
 /* right rail — demoted context */
 .cue-rail{background:color-mix(in srgb,var(--background) 55%,var(--surface));border-left:1px solid var(--line);padding:22px 20px;display:flex;flex-direction:column;gap:26px;overflow-y:auto}
@@ -12950,7 +12952,15 @@ form:has(> .address-field) > .address-field,
 .cue-quick-arr{margin-left:auto;color:var(--muted);flex:none}
 .cue-rail .copilot-voice{margin-top:0}
 
-@media (max-width:1000px){
+/*
+  The rail drops below the conversation at 1200, not 1000.
+  The breakpoint was measuring the viewport and forgetting the 209px nav beside
+  it: at 1024px the two-pane shell still applied, leaving the conversation
+  narrower than the rail demoting it — and crushing the send button to 18px,
+  which made the screen's primary action a sliver. Found in the 2026-09-20
+  audit walk, while trying to ask Cue a question.
+*/
+@media (max-width:1200px){
   .cue-shell{grid-template-columns:1fr}
   .cue-rail{border-left:0;border-top:1px solid var(--line);flex-direction:row;flex-wrap:wrap}
   .cue-rail-sec{flex:1 1 260px}
