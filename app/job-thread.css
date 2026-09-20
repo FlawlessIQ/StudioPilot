@@ -7,6 +7,18 @@
   align-items: start;
 }
 
+/*
+  Everything that is not the rail, stacked in one column.
+  The thread used to be the whole left column, so a job with a short
+  conversation left the rail running on alone beside ~818px of white — and the
+  sections that followed the grid pushed "Your crew" to 87% of the page.
+*/
+.job-column {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
 @media (max-width: 1000px) {
   .job-page-grid {
     grid-template-columns: 1fr;

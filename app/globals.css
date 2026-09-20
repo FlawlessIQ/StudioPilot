@@ -15350,14 +15350,19 @@ label {
   .ds-root .job-mobile > .project-job-plan {
     order: 1;
   }
-  .ds-root .job-mobile > .job-thread > .job-history-strip {
+  /* Who is on the day, straight after the plan — the question the reference
+     studio asked outright, and 186px of answer. */
+  .ds-root .job-mobile > .project-crew-panel {
     order: 2;
   }
-  .ds-root .job-mobile > .job-thread > :not(.thread-next-slot):not(.job-history-strip) {
+  .ds-root .job-mobile > .job-thread > .job-history-strip {
     order: 3;
   }
-  .ds-root .job-mobile > .job-rail-card {
+  .ds-root .job-mobile > .job-thread > :not(.thread-next-slot):not(.job-history-strip) {
     order: 4;
+  }
+  .ds-root .job-mobile > .job-rail-card {
+    order: 5;
   }
   /*
     Archiving and deleting go last, as they do in the desktop rail.
@@ -15369,7 +15374,7 @@ label {
   .ds-root .job-mobile > .record-archive-confirm,
   .ds-root .job-mobile > .project-danger-zone,
   .ds-root .job-mobile > .form-notice {
-    order: 5;
+    order: 6;
   }
 
   /* Next move: same card, less air. */

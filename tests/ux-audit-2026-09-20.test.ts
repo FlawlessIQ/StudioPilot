@@ -84,18 +84,11 @@ test("a studio is never shown the words 'fetch failed'", () => {
  * the job's name were "Archive job" and a red "Delete this job permanently".
  */
 test("archive and delete sort last on the mobile job page", () => {
-  const rule = css.slice(
+  const destructive = css.slice(
     css.indexOf(".ds-root .job-mobile > .record-archive-confirm"),
   );
-  assert.match(rule.slice(0, 260), /\.project-danger-zone/);
-  assert.match(rule.slice(0, 260), /order: 5;/);
-  // 5 has to beat every other order in that block.
-  const block = css.slice(
-    css.indexOf(".ds-root .job-mobile {"),
-    css.indexOf(".ds-root .job-mobile > .record-archive-confirm"),
-  );
-  for (const order of [...block.matchAll(/order: (\d+);/g)])
-    assert.ok(Number(order[1]) < 5, `order ${order[1]} would sit below delete`);
+  assert.match(destructive.slice(0, 260), /\.project-danger-zone/);
+  assert.match(destructive.slice(0, 260), /order: \d+;/);
 });
 
 // --- icons are not the part that gives way -------------------------------
@@ -111,4 +104,66 @@ test("the trade pills beat the form's own label rule", () => {
   // label` at 0-1-1, so display:grid stacked the box above its word.
   assert.match(css, /\.crew-trade-field \.crew-trade-options label \{/);
   assert.match(css, /\.crew-trade-field \.crew-trade-options label:has\(input:checked\)/);
+});
+
+// --- the job page, after phase 2 -----------------------------------------
+
+const detail = read("components/projects/live-project-detail.tsx");
+
+/**
+ * The thread was the whole left column at ~556px against a ~1374px rail, so
+ * every job without a long conversation — every new one, every imported one —
+ * showed an 818px column of white. The same shape pushed "Your crew" to 2768px
+ * of a 3163px page: 87%, for the question the reference studio asked outright.
+ */
+test("one column holds everything that is not the rail", () => {
+  assert.match(detail, /<div className="job-column">/);
+  const column = detail.slice(
+    detail.indexOf('<div className="job-column">'),
+    detail.indexOf('<div className="job-rail">'),
+  );
+  for (const inside of ["{threadEl}", "<ProjectCrewPanel", "<ProjectLifecycleLanes"])
+    assert.ok(column.includes(inside), `${inside} must sit in the column`);
+});
+
+test("who is on the job comes before what is outstanding", () => {
+  const column = detail.slice(detail.indexOf('<div className="job-column">'));
+  assert.ok(
+    column.indexOf("<ProjectCrewPanel") < column.indexOf("<ProjectLifecycleLanes"),
+    "the lanes in front of the crew panel are what buried it",
+  );
+});
+
+/** Rendering it in both branches would double it on one of them. */
+test("the crew panel is rendered once per layout", () => {
+  const mobile = detail.slice(
+    detail.indexOf('<div className="job-mobile">'),
+    detail.indexOf('<div className="job-page-grid">'),
+  );
+  assert.equal(mobile.split("<ProjectCrewPanel").length - 1, 1);
+  const desktop = detail.slice(detail.indexOf('<div className="job-page-grid">'));
+  assert.equal(desktop.split("<ProjectCrewPanel").length - 1, 1);
+});
+
+/**
+ * `.job-mobile` orders its children explicitly, so a child with no order of
+ * its own defaults to 0 and jumps to the top. That is how the delete control
+ * ended up above the job's next action, and adding the crew panel to that
+ * container without a number would have done it again.
+ */
+test("every ordered child of the mobile job page has a number", () => {
+  const block = css.slice(
+    css.indexOf(".ds-root .job-mobile {"),
+    css.indexOf(".ds-root .job-mobile > .record-archive-confirm"),
+  );
+  for (const selector of [".project-job-plan", ".project-crew-panel", ".job-rail-card"])
+    assert.ok(block.includes(selector), `${selector} has no order in .job-mobile`);
+  const orders = [...block.matchAll(/order: (\d+);/g)].map((m) => Number(m[1]));
+  const destructive = css.slice(
+    css.indexOf(".ds-root .job-mobile > .record-archive-confirm"),
+  );
+  const last = Number(/order: (\d+);/.exec(destructive)?.[1]);
+  assert.ok(Number.isFinite(last), "archive and delete must carry an order");
+  for (const order of orders)
+    assert.ok(order < last, `order ${order} would sit below delete (${last})`);
 });

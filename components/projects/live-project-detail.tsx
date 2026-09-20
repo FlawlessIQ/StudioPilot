@@ -1209,37 +1209,57 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
       {isPhone ? (
         <div className="job-mobile">
           <ProjectJobPlan steps={journey.steps} projectId={projectId} />
+          <ProjectCrewPanel
+            assignments={related.crewAssignments}
+            projectId={projectId}
+          />
           {leadInviteEl}
           {stageControlEl}
           {interruptionEl}
           {threadEl}
         </div>
       ) : (
-        <>
-          <div className="job-page-grid">
+        /*
+          One column beside the rail, not a column and then a full-width run.
+          The thread alone is ~556px against a ~1374px rail, so the page left
+          an 818px void beside it on any job without a long conversation —
+          every new job and every imported one. Worse, it pushed "Your crew"
+          to 2768px, so the answer to "who is on this job?" — the question the
+          reference studio asked outright — sat at 87% of the page.
+        */
+        <div className="job-page-grid">
+          <div className="job-column">
             {threadEl}
-            <div className="job-rail">
-              <ThreadMinimap steps={journey.steps} />
-              {leadInviteEl}
-              {stageControlEl}
-              {interruptionEl}
-            </div>
-          </div>
-          <section className="project-now-next" aria-label="Project work summary">
-            <ProjectLifecycleLanes
-              checkpoints={checkpoints}
-              evidence={journey.readinessEvidence}
-              project={project}
-              related={related}
+            {/*
+              Directly under the thread, because "who is on this job?" is a
+              fact about the job and not a summary of its work — and because
+              it is the question the reference studio asked outright. It is
+              186px tall; putting the lifecycle lanes in front of it was what
+              pushed the answer to 87% of the page.
+            */}
+            <ProjectCrewPanel
+              assignments={related.crewAssignments}
+              projectId={projectId}
             />
-            <ProjectPreparedTray projectId={projectId} />
-          </section>
-        </>
+            <section className="project-now-next" aria-label="Project work summary">
+              <ProjectLifecycleLanes
+                checkpoints={checkpoints}
+                evidence={journey.readinessEvidence}
+                project={project}
+                related={related}
+              />
+              <ProjectPreparedTray projectId={projectId} />
+            </section>
+          </div>
+          <div className="job-rail">
+            <ThreadMinimap steps={journey.steps} />
+            {leadInviteEl}
+            {stageControlEl}
+            {interruptionEl}
+          </div>
+        </div>
       )}
-      <ProjectCrewPanel
-        assignments={related.crewAssignments}
-        projectId={projectId}
-      />
+
       <details className="project-detail-disclosure">
         <summary>
           <span>
