@@ -196,6 +196,7 @@ export function CrewRecordActions({
               name="specialties"
               placeholder="Second shooter, lighting"
             />
+            <p className="field-hint">The kind of event, not the camera.</p>
           </label>
           <TradeField value={crew.trades} />
           <label>

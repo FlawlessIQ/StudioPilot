@@ -264,8 +264,15 @@ export function CreatePackageForm({
           <input {...register("coverageHours")} min="0.5" step="0.5" type="number" />
           <small>{errors.coverageHours?.message}</small>
         </label>
+        {/*
+          Neither count is required on its own — the pair is. Marking
+          Photographers "Required" and leaving Videographers bare told a
+          video-led studio that this product thinks in photographers, and left
+          them zeroing out a field the schema never needed. The rule the form
+          actually enforces is in the superRefine above: at least one person.
+        */}
         <label>
-          Photographers <span className="required-mark">Required</span>
+          Photographers
           <input {...register("photographers")} min="0" type="number" />
           <small>{errors.photographers?.message}</small>
         </label>
@@ -274,6 +281,9 @@ export function CreatePackageForm({
           <input {...register("videographers")} min="0" type="number" />
           <small>{errors.videographers?.message}</small>
         </label>
+        <p className="field-hint form-span">
+          Who your studio sends. At least one, in either row.
+        </p>
         <label>
           Travel area <span className="required-mark">Required</span>
           <input {...register("travelArea")} />

@@ -653,7 +653,7 @@ function CrewProfileEditor({ data, profile }: { data: CrewData; profile: Value }
       <header><span><p className="eyebrow">Your details</p><h2>Update your working details</h2></span></header>
       <label>Phone<input name="phone" defaultValue={text(profile.phone, "")} /></label>
       <label>Travel radius (miles)<input name="travelRadiusMiles" type="number" min="0" max="500" defaultValue={number(profile.travelRadiusMiles)} /></label>
-      <label className="form-span">Specialties, separated by commas<input name="specialties" defaultValue={csv(profile.specialties)} /></label>
+      <label className="form-span">Specialties — the kind of event you shoot, separated by commas<input name="specialties" defaultValue={csv(profile.specialties)} /></label>
       <TradeField className="form-span" hint="Your studio uses this to decide who to ask when a job needs a photographer or a videographer." value={Array.isArray(profile.trades) ? profile.trades.map(String) : []} />
       <label className="form-span">Service areas, separated by commas<input name="serviceAreas" defaultValue={csv(profile.serviceAreas)} /></label>
       <label className="form-span">Equipment, separated by commas<textarea name="equipment" defaultValue={csv(profile.equipment)} /></label>

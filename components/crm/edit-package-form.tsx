@@ -263,6 +263,9 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
             value={videographers}
           />
         </label>
+        <p className="field-hint form-span">
+          Who your studio sends. At least one, in either row.
+        </p>
         <label className="form-checkbox">
           <input
             checked={publicVisible}

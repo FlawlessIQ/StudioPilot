@@ -937,9 +937,14 @@ export function LiveDomainView({
             : rawStatus;
         const content = (
           <>
+            {/*
+              `title` because the identity column is deliberately one line
+              with an ellipsis, and "Eight hours of wedding covera…" was
+              otherwise unreachable from the list.
+            */}
             <span className="live-domain-primary">
-              <strong>{primary}</strong>
-              <small>{secondary}</small>
+              <strong title={String(primary)}>{primary}</strong>
+              <small title={String(secondary)}>{secondary}</small>
             </span>
             {config.facts.map((fact) => (
               <span key={fact.label}>

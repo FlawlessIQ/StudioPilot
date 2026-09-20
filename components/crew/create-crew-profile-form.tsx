@@ -128,6 +128,9 @@ export function CreateCrewProfileForm() {
             required
             placeholder="Weddings, documentary"
           />
+          <p className="field-hint">
+            The kind of event they shoot. What they hold is Shoots, below.
+          </p>
         </label>
         <TradeField />
         <PlaceTagsField

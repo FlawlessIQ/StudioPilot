@@ -167,3 +167,57 @@ test("every ordered child of the mobile job page has a number", () => {
   for (const order of orders)
     assert.ok(order < last, `order ${order} would sit below delete (${last})`);
 });
+
+// --- phase 3 -------------------------------------------------------------
+
+test("Specialties says what it is, next to Shoots", () => {
+  // Both answered "what do they do" and only one had a hint.
+  for (const path of [
+    "components/crew/create-crew-profile-form.tsx",
+    "components/crew/crew-record-actions.tsx",
+  ])
+    assert.match(read(path), /field-hint/, path);
+  assert.match(
+    read("components/crew/live-crew-views.tsx"),
+    /Specialties — the kind of event you shoot/,
+  );
+});
+
+/**
+ * Marking Photographers "Required" and leaving Videographers bare told a
+ * video-led studio the product thinks in photographers. The rule the schema
+ * actually enforces is that the *pair* comes to at least one.
+ */
+test("neither crew count is required on its own", () => {
+  const create = read("components/crm/create-package-form.tsx");
+  const counts = create.slice(
+    create.indexOf("          Photographers"),
+    create.indexOf("          Travel area"),
+  );
+  assert.doesNotMatch(counts, /required-mark/);
+  assert.match(create, /A package includes at least one person\./);
+  for (const path of [
+    "components/crm/create-package-form.tsx",
+    "components/crm/edit-package-form.tsx",
+  ])
+    assert.match(read(path), /At least one, in either row\./, path);
+});
+
+test("a truncated row is still readable", () => {
+  assert.match(view, /<strong title=\{String\(primary\)\}>/);
+  assert.match(view, /<small title=\{String\(secondary\)\}>/);
+});
+
+test("the status badge track cannot shrink below its word", () => {
+  // Measured at 26px for a badge needing 59: "accepted" rendered "accepte…".
+  assert.match(css, /auto min-content/);
+  assert.match(css, /\.live-domain-table \.status-badge \{ white-space: nowrap; \}/);
+});
+
+test("the Cue rail drops below the conversation before the composer is crushed", () => {
+  // The old breakpoint measured the viewport and forgot the 209px nav: at
+  // 1024 the conversation got 352px against the rail's 322, and the send
+  // button was 18px wide.
+  assert.match(css, /@media \(max-width:1200px\)\{\s*\.cue-shell\{grid-template-columns:1fr\}/);
+  assert.match(css, /\.cue-composer button\[type=submit\]\{flex:none\}/);
+});
