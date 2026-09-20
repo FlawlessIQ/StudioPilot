@@ -168,6 +168,11 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "The assistant isn't available for this workspace yet. Everything it reads is on the job itself.",
   VERTEX_AI_EMPTY_OUTPUT: "We couldn't draft this. Try again.",
   GOOGLE_RUNTIME_IDENTITY_UNAVAILABLE: "We couldn't draft this. Try again.",
+  // Cue's catch-all. Anything the provider or the runtime throws that is not
+  // already a code arrives here rather than as its own exception text — a
+  // studio was being shown the words "fetch failed". See copilot.ts.
+  AI_COPILOT_UNAVAILABLE:
+    "Cue couldn't reach its model just now. Nothing was changed — ask again in a moment, and contact support if it keeps happening.",
 
   /**
    * Booking attestations refusing for a reason worth reading.
@@ -298,7 +303,7 @@ const FRIENDLY_BY_PHRASE: Array<[RegExp, string]> = [
     "You don't have access to these records. Ask your studio owner to check your role.",
   ],
   [
-    /failed to fetch|network ?error|load failed/i,
+    /failed to fetch|fetch failed|network ?error|load failed/i,
     "We couldn't reach the server. Check your connection and try again.",
   ],
   // Firestore security-rules evaluation dumps ("evaluation error at L386:22

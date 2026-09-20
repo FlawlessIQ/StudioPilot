@@ -28,6 +28,14 @@ import {
   type QueryConstraint,
 } from "firebase/firestore";
 import { StatusBadge } from "@/components/ui/status-badge";
+import {
+  describeCoverage,
+  resolveCoverage,
+} from "@/features/packages/coverage";
+import {
+  requireInsuranceOf,
+  type CrewRequirementSettings,
+} from "@/features/crew/requirements";
 import { VendorRecordActions } from "@/components/planning/vendor-record-actions";
 import { CrewRecordActions } from "@/components/crew/crew-record-actions";
 import { TaskRecordActions } from "@/components/tasks/task-record-actions";
@@ -115,7 +123,15 @@ type DomainConfig = {
   /** How to render `secondary`; raw text when omitted, as it was throughout. */
   secondaryKind?: "money" | "date" | "count" | "percent" | "retainer" | "version" | "authority";
   status: string[];
-  facts: Array<{ label: string; fields: string[]; kind?: "money" | "date" | "count" | "percent" | "retainer" | "version" | "authority" }>;
+  facts: Array<{ label: string; fields: string[]; kind?: "money" | "date" | "count" | "percent" | "retainer" | "version" | "authority" | "coverage" | "trades" }>;
+  /**
+   * What a boolean status means, as [true, false].
+   *
+   * Without this a boolean falls through to "Yes" / "No" — a bare answer with
+   * the question missing, which is what every package and every collaborator
+   * carried in place of "Active".
+   */
+  statusLabels?: readonly [string, string];
   href?: (record: Value) => string;
 };
 
@@ -131,8 +147,12 @@ const configurations: Record<Domain, DomainConfig> = {
       // bookkeeping. An imported package arrives with no retainer at all, so
       // showing it here is how you notice.
       { label: "Deposit", fields: ["retainerRule"], kind: "retainer" },
-      { label: "Coverage", fields: ["includedCoverageMinutes"] },
+      // Minutes alone read as "480" with no unit, and never said whether the
+      // package sends photographers or videographers — so a video-led
+      // catalogue was indistinguishable from a photography one.
+      { label: "Coverage", fields: ["includedCoverageMinutes"], kind: "coverage" },
     ],
+    statusLabels: ["Active", "Inactive"],
     href: (record) => `/studio/packages/${record.id}`,
   },
   proposals: {
@@ -235,10 +255,15 @@ const configurations: Record<Domain, DomainConfig> = {
     secondary: ["email", "serviceAreas"],
     status: ["active"],
     facts: [
+      { label: "Shoots", fields: ["trades"], kind: "trades" },
       { label: "Specialties", fields: ["specialties"], kind: "count" },
       { label: "W-9", fields: ["w9Status"] },
+      // Insurance is a studio setting defaulting to off, so the column is
+      // added by the view only when this studio asks for it — otherwise every
+      // collaborator reads "missing" for a document nobody wants.
       { label: "Insurance", fields: ["insuranceStatus"] },
     ],
+    statusLabels: ["Active", "Inactive"],
     href: (record) => `/studio/crew/${record.id}`,
   },
   crew_assignments: {
@@ -273,6 +298,7 @@ const configurations: Record<Domain, DomainConfig> = {
     primary: ["projectName"],
     secondary: ["recommendedNextAction", "id"],
     status: ["ready"],
+    statusLabels: ["Ready", "Not ready"],
     facts: [
       { label: "Score", fields: ["score"], kind: "percent" },
       { label: "Blocking", fields: ["blockingItems"], kind: "count" },
@@ -447,10 +473,17 @@ function display(
     | "retainer"
     | "version"
     | "authority"
+    | "coverage"
+    | "trades"
     | undefined,
   currency: unknown,
+  /** The whole row, for kinds that cannot be read from one field. */
+  record: Record<string, unknown> = {},
 ) {
-  if (value === null || value === undefined || value === "") return "—";
+  // Coverage answers for itself when the field is absent: a package written
+  // before includedCoverage existed has no minutes and still has crew.
+  if (kind !== "coverage" && (value === null || value === undefined || value === ""))
+    return "—";
   /**
    * The contracts row used to fall through to `id` when no envelope existed,
    * printing "contract 7de90d60702ef56e3f9641e98dd912f1" as the name of a
@@ -501,6 +534,22 @@ function display(
       : "Not sent yet";
   }
   if (kind === "percent") return `${Number(value)}%`;
+  if (kind === "coverage") {
+    const minutes = Number(value);
+    const hours =
+      Number.isFinite(minutes) && minutes > 0
+        ? `${Math.round((minutes / 60) * 10) / 10} hrs`
+        : "";
+    const crew = describeCoverage(resolveCoverage(record));
+    return [hours, crew].filter(Boolean).join(" · ") || "—";
+  }
+  if (kind === "trades") {
+    const trades = Array.isArray(value) ? value.map(String) : [];
+    if (!trades.length) return "Not set";
+    return trades
+      .map((trade) => trade.slice(0, 1).toLocaleUpperCase() + trade.slice(1))
+      .join(", ");
+  }
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (Array.isArray(value)) return value.map(String).join(", ");
   return String(value).replaceAll("_", " ");
@@ -535,7 +584,25 @@ export function LiveDomainView({
   const workspace = useWorkspace();
   const recordsGeneration = useTenantRecordsGeneration();
   const [showArchived, setShowArchived] = useState(false);
-  const config = configurations[domain];
+  const base = configurations[domain];
+  /**
+   * Insurance is a studio setting, defaulting to off — most studios cover
+   * subcontractors under their own policy (features/crew/requirements.ts). The
+   * directory reported "Insurance missing" on every collaborator regardless,
+   * which reads as a problem with a document nobody asked for.
+   */
+  const { records: tenantRecords } = useTenantDocuments("tenants");
+  const crewSettings = (tenantRecords ?? []).find(
+    (entry) => entry.id === workspace.tenantId,
+  )?.crewOffers as CrewRequirementSettings | undefined;
+  const config = useMemo(() => {
+    if (base.collection !== "crewProfiles" || requireInsuranceOf(crewSettings))
+      return base;
+    return {
+      ...base,
+      facts: base.facts.filter((fact) => fact.label !== "Insurance"),
+    };
+  }, [base, crewSettings]);
   const demoRecords = useMemo(
     () => demoTenantDocuments(config.collection).filter((record) => {
       if (projectId && config.projectScoped) {
@@ -863,7 +930,11 @@ export function LiveDomainView({
           config.secondaryKind,
           record.currency,
         );
-        const status = nested(record, config.status);
+        const rawStatus = nested(record, config.status);
+        const status =
+          typeof rawStatus === "boolean" && config.statusLabels
+            ? config.statusLabels[rawStatus ? 0 : 1]
+            : rawStatus;
         const content = (
           <>
             <span className="live-domain-primary">
@@ -878,6 +949,7 @@ export function LiveDomainView({
                     nested(record, fact.fields),
                     fact.kind,
                     record.currency,
+                    record,
                   )}
                 </strong>
               </span>

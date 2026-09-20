@@ -2102,15 +2102,26 @@ export const aiCopilotCommand = onRequest(
         response.status(200).json(payload);
       }
     } catch (caught: unknown) {
-      const message =
-        caught instanceof Error ? caught.message : "AI_COPILOT_FAILED";
+      const raw = caught instanceof Error ? caught.message : "AI_COPILOT_FAILED";
+      /**
+       * Only coded failures reach the studio.
+       *
+       * This used to return `caught.message` verbatim, so any exception the
+       * provider or the runtime threw was rendered as Cue's answer — the
+       * 2026-09-20 audit found a studio being told "fetch failed". The real
+       * text still goes to Cloud Logging below, which is where it is useful.
+       */
+      const message = /^[A-Z][A-Z0-9_]{3,}$/.test(raw)
+        ? raw
+        : "AI_COPILOT_UNAVAILABLE";
       // Make the failure visible in Cloud Logging at ERROR severity. Without
       // this the function returns 200 with a streamed error event (or a 400),
       // and the real cause — a Vertex status/body or a responseSchema parse
       // failure — never reaches the logs, so "Cue could not answer" is
       // undiagnosable from the access log alone.
       console.error("[copilot] request failed", {
-        message,
+        message: raw,
+        returned: message,
         name: caught instanceof Error ? caught.name : typeof caught,
         stack: caught instanceof Error ? caught.stack : undefined,
         streamed: response.headersSent,
