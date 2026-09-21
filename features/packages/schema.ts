@@ -93,6 +93,25 @@ export const packageSelectionSchema = z.object({
 
 export type PackageSelection = z.infer<typeof packageSelectionSchema>;
 
+/**
+ * The catalogue package a snapshot was taken from — **or the sentinel
+ * `IMPORTED_PACKAGE_ID`**, which resolves to no document at all.
+ *
+ * A booking imported from a signed contract has no catalogue package behind
+ * it: the contract *is* the offer. `features/imports/existing-booking.ts`
+ * writes `packageId: "imported"` for exactly that reason, so on a studio that
+ * has imported its book, a large share of snapshots carry an id that will
+ * never resolve.
+ *
+ * Nothing in the product resolves it — proposal acceptance, the client portal
+ * and the invoice scheduler all read the snapshot, which is an immutable copy
+ * and self-contained by design; the only read of this field writes it into an
+ * audit event's payload. Treat it as a label, not a foreign key: a
+ * `db.doc(\`packages/${snapshot.packageId}\`)` would be a not-found on every
+ * imported wedding. tests/package-snapshot.test.ts holds that rule.
+ */
+export const IMPORTED_PACKAGE_ID = "imported";
+
 export const packageSnapshotSchema = z.object({
   id: z.string().min(1),
   tenantId: z.string().min(1),
