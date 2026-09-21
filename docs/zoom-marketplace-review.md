@@ -118,9 +118,10 @@ Passwords were set by Conor at signup and are not recorded here.
 A1 shipped `url5544.studio-cue.com` but nobody has yet read an actual client
 email and clicked an actual branded link — the last mile flagged in
 `walk-it-on-prod-or-it-is-not-done`. This invitation is a genuine client-facing
-send. **The link in it should point at `url5544.studio-cue.com`, not
-`ct.sendgrid.net`.** Worth a glance while setting the password; it closes A1
-properly.
+send. **Confirmed: the delivered email carried `url5544.studio-cue.com`.** That
+closes A1 — the branding is not merely configured, it is being applied at send
+time, read in a real client email rather than inferred from SendGrid's own
+status page.
 
 ## 4. What to tell Zoom about the integration
 
