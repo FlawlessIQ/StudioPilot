@@ -39,29 +39,49 @@ expires an `active` status by date).
 **Done 2026-09-21:** `conor+zoomreview@flawlessiq.com` added to
 `COMPED_OWNER_EMAILS`, deployed and verified on `tenantOnboardingCommand`.
 
-Remaining, and it needs a human because it sets a password:
+**Account created 2026-09-21 and it went straight into the workspace** — no
+Checkout. Verified in the data: `status: active`, `plan: studio`, period end
+`2099-12-31`, **no Stripe subscription id at all**, exactly as the comped path
+intends.
 
-1. Sign up at `https://studio-cue.com/auth/register` with
-   `conor+zoomreview@flawlessiq.com`. Plus-addressing delivers to the normal
-   inbox, so the verification mail arrives without a new mailbox.
-2. It will land straight in the workspace rather than at Checkout. If it asks
-   for a card, stop — the comped list did not take.
-3. Seed dummy data (below).
-4. Give Zoom the email and password.
+- Tenant: `tenant_4402ac21-aca3-412d-a556-69aaa3f7eeb8` ("Zoom test studio")
+- Login: `conor+zoomreview@flawlessiq.com` (password set by Conor at signup)
 
-## 3. Dummy data the reviewer needs
+Give Zoom that email and password.
 
-The Zoom path is: **studio books a client consultation → StudioCue creates the
-Zoom meeting → the join link goes on the consultation and to the client.** So
-the account needs one fake couple and one consultation far enough ahead to be
-bookable.
+## 3. Dummy data — seeded 2026-09-21
 
-- A client named something obviously fictional (not a real couple's name)
-- A project/wedding for them
-- A consultation slot to book
+Created through the product, so every record is shaped the way the app expects:
 
-Nothing real. This tenant is separate from the reference studio's, which holds
-live client data and must not be shown to reviewers.
+- **Client:** Testcouple Demo — `testcouple@example.com`
+- **Project:** *Sample Wedding (Zoom review demo)* — 20 Jun 2027, Sample City
+
+Deliberately fictional names. This tenant is separate from the reference
+studio's, which holds live client data and must never be shown to reviewers.
+
+**No consultation was booked.** Booking one *is* the flow under review, so it
+is left for the reviewer to do.
+
+### The path they will take, walked end to end to confirm it is clear
+
+1. **Jobs → Sample Wedding (Zoom review demo)**
+2. The job's next move is **"Schedule consultation"** — one click
+3. That routes to the calendar, scoped to the project, with open slots on every
+   weekday (default availability is already configured — nothing to set up)
+4. **Book** any slot. The dialog opens with **Meeting type: Zoom already
+   selected**, and — while Zoom is unconnected — a plain disclosure:
+
+   > "Nothing is connected to create meeting links. You will need to paste your
+   > own meeting link. **Connect Zoom**"
+
+   So the OAuth flow is reachable from the exact screen where it is needed. The
+   reviewer can also connect first from **Studio settings → Integrations**.
+5. **Confirm booking** creates the Zoom meeting and puts the join link on the
+   consultation.
+
+Reschedule and cancel from the same consultation exercise
+`meeting:update:meeting` and `meeting:delete:meeting`. The summary scope fires
+after a real meeting ends, via the `meeting.summary_completed` webhook.
 
 ## 4. What to tell Zoom about the integration
 
