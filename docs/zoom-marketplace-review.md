@@ -83,6 +83,35 @@ Reschedule and cancel from the same consultation exercise
 `meeting:update:meeting` and `meeting:delete:meeting`. The summary scope fires
 after a real meeting ends, via the `meeting.summary_completed` webhook.
 
+## 3b. Client-portal login — invited 2026-09-21
+
+Zoom's note asked for logins for **all roles** if the app has a two-user flow.
+The client never authorizes Zoom — they only receive the join link — so this is
+arguably single-user for Zoom's purposes. Offering it anyway costs less than
+being asked twice.
+
+- **Client:** Testcouple Demo, email changed from `testcouple@example.com` to
+  **`conor+zoomclient@flawlessiq.com`** so the invitation actually arrives —
+  `example.com` would never have delivered.
+- Portal invite **sent and delivered**: `emailJobs` shows `status: succeeded`
+  on the first attempt, and the invitation is `pending` (awaiting the client
+  setting a password), expiring **2026-09-28**.
+- Scope: the invite shares **only** *Sample Wedding (Zoom review demo)* — the
+  portal shows that one project and nothing else.
+
+**Conor:** open that email, set a password, and give Zoom the client login
+alongside the studio one. Do it before the 28th or the invitation expires and
+needs resending.
+
+### This email is also the first real test of the link branding
+
+A1 shipped `url5544.studio-cue.com` but nobody has yet read an actual client
+email and clicked an actual branded link — the last mile flagged in
+`walk-it-on-prod-or-it-is-not-done`. This invitation is a genuine client-facing
+send. **The link in it should point at `url5544.studio-cue.com`, not
+`ct.sendgrid.net`.** Worth a glance while setting the password; it closes A1
+properly.
+
 ## 4. What to tell Zoom about the integration
 
 **Use case.** A photography studio schedules a consultation with a prospective
