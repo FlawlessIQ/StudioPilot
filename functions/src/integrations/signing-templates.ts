@@ -34,7 +34,24 @@ const allowedRoles = ["studio_owner", "studio_admin"];
 const PAGE_SIZE = 50;
 
 export const signingTemplatesQuery = onRequest(
-  { cors: studioHubCors, invoker: "private" },
+  {
+    cors: studioHubCors,
+    invoker: "private",
+    /**
+     * This reads a Dropbox Sign connection, and reading one may refresh it.
+     *
+     * Dropbox Sign's refresh endpoint wants client_id and client_secret in the
+     * form body (see refreshNeedsClientCredentials), so without the secret here
+     * a studio whose token had aged out got DROPBOX_SIGN_REFRESH_NOT_CONFIGURED
+     * — surfacing as "Your templates could not be loaded", with their perfectly
+     * good connection marked broken on the way out.
+     *
+     * The client id is a plain environment variable on every Function; only the
+     * secret has to be declared. Found 2026-09-21 by
+     * tests/provider-refresh-configured.test.ts on its first run.
+     */
+    secrets: ["DROPBOX_SIGN_CLIENT_SECRET"],
+  },
   async (request, response) => {
     if (request.method !== "POST") {
       response.status(405).json({ error: "METHOD_NOT_ALLOWED" });

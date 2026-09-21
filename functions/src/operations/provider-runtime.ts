@@ -113,7 +113,30 @@ export async function connection(tenantId:string,provider:Provider){
     if(credential.expiresAt&&new Date(credential.expiresAt).valueOf()<=Date.now()+5*60_000)throw new Error("CREDENTIAL_EXPIRED");
     return{document,mock:false,credential};
   }catch(caught:unknown){
-    await document.ref.update({status:"error",lastError:caught instanceof Error?caught.message:"CREDENTIAL_FAILED",updatedAt:new Date().toISOString()});
+    const code=caught instanceof Error?caught.message:"CREDENTIAL_FAILED";
+    /**
+     * Our misconfiguration is not their broken connection.
+     *
+     * `*_REFRESH_NOT_CONFIGURED` means this Function was deployed without the
+     * provider's client id or secret — a deployment fault, with the studio's
+     * credential untouched and probably perfectly good. Writing `status:"error"`
+     * for it told the studio their integration was broken and to reconnect,
+     * which cannot help and throws away a working authorisation.
+     *
+     * Found 2026-09-21: the reference studio's QuickBooks sat "error /
+     * QUICKBOOKS_REFRESH_NOT_CONFIGURED" for three days. The secret is bound on
+     * only three of the Functions, and any refresh attempted from another one
+     * both fails *and* leaves that mark behind.
+     *
+     * It still throws, so the caller fails loudly and the log carries the
+     * reason at ERROR severity — the connection document just stops carrying
+     * the blame.
+     */
+    if(/_REFRESH_NOT_CONFIGURED$/.test(code)){
+      console.error(JSON.stringify({severity:"ERROR",event:"integration.refresh_not_configured",provider,tenantId,detail:"client id/secret missing on this Function; the studio credential was not touched"}));
+      throw caught;
+    }
+    await document.ref.update({status:"error",lastError:code,updatedAt:new Date().toISOString()});
     throw caught;
   }
 }
