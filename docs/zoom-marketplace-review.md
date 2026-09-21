@@ -99,9 +99,19 @@ being asked twice.
 - Scope: the invite shares **only** *Sample Wedding (Zoom review demo)* — the
   portal shows that one project and nothing else.
 
-**Conor:** open that email, set a password, and give Zoom the client login
-alongside the studio one. Do it before the 28th or the invitation expires and
-needs resending.
+**Accepted 2026-09-21T20:03Z.** Verified in the data: invitation `accepted`,
+auth user exists and is email-verified, and the membership is
+`role: client, status: active` with `projectIds` holding exactly the one demo
+project — so the client sees that wedding and nothing else.
+
+### Both logins, ready to send Zoom
+
+| Role | Email | What they see |
+|---|---|---|
+| Studio owner | `conor+zoomreview@flawlessiq.com` | The full workspace: the job, the calendar, Integrations → Connect Zoom |
+| Client | `conor+zoomclient@flawlessiq.com` | The client portal for *Sample Wedding (Zoom review demo)* only |
+
+Passwords were set by Conor at signup and are not recorded here.
 
 ### This email is also the first real test of the link branding
 
