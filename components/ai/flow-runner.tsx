@@ -8,6 +8,10 @@ import { sendCrewCommand } from "@/lib/crew/command-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { crewPublicError } from "@/lib/crew/public-error";
+// `caught.message.replaceAll("_", " ")` turned a thrown code straight into
+// user-facing copy — the studio read "INVALID COMMAND:discount". friendlyError
+// already carries copy for these codes, including the field detail.
+import { friendlyError } from "@/lib/ai/friendly-error";
 import {
   rankCrewCandidates,
   type CrewCandidateInput,
@@ -92,13 +96,19 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
         projectId,
         packageId,
         selectedAddOns: [],
+        // `discount` is required by the command schema — there is no default.
+        // Cue's picker omitted it, so every package selection from the chat
+        // came back 400 INVALID_COMMAND:discount and no package was ever
+        // applied. The proposal workspace and booking autopilot, the two
+        // callers that work, both send exactly this.
+        discount: { type: "none" as const },
       });
       if (response.persisted) setDone(name);
       else setNotice("Preview: the package would be selected from here.");
     } catch (caught: unknown) {
       setNotice(
         caught instanceof Error
-          ? caught.message.replaceAll("_", " ")
+          ? friendlyError(caught)
           : "The package could not be selected.",
       );
     } finally {
@@ -228,7 +238,7 @@ function QuestionnaireSelectFlow({ flow }: { flow: CopilotFlow }) {
     } catch (caught: unknown) {
       setNotice(
         caught instanceof Error
-          ? caught.message.replaceAll("_", " ")
+          ? friendlyError(caught)
           : "The questionnaire could not be sent.",
       );
     } finally {
