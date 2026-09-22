@@ -71,6 +71,13 @@ export type CopilotFlow = {
    * named nothing specific, and the flow then behaves as it always has.
    */
   subject?: string | null;
+  /**
+   * The role the operator asked to fill, in their own words ("as
+   * videographer", "second shooter"). The crew flow opens on it and
+   * `coverageRoleForLabel` reads the trade out of it. Absent when they did not
+   * say, and the flow then opens on its long-standing default.
+   */
+  role?: string | null;
 };
 
 export type CopilotThreadSummary = {

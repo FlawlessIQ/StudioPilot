@@ -403,7 +403,22 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
    * word in their specialties. `coverageRoleForLabel` reads the trade out of
    * whatever the operator typed.
    */
-  const [role, setRole] = useState("Second photographer");
+  /**
+   * Open on the role the operator asked for.
+   *
+   * This was hardcoded to "Second photographer", so "add marco silva as
+   * videographer" ranked the roster for photography and put the studio's only
+   * videographer last under "Role or specialty does not match" — with the
+   * comment above explaining that the trade is read out of this very label.
+   * The model now states the role (flow.role); the reason line is the
+   * fallback for a turn that predates it, and the field stays editable.
+   */
+  const [role, setRole] = useState(() => {
+    const said = str(flow.role).trim();
+    if (said) return said;
+    const from = `${str(flow.reason)} ${str(flow.title)}`;
+    return /video/i.test(from) ? "Videographer" : "Second photographer";
+  });
   const ranked = rankCrewCandidates({
     roleSpecialty,
     roleTrade: coverageRoleForLabel(role),

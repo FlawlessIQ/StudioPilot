@@ -298,3 +298,47 @@ test("a job named only with generic words is not matched by them", () => {
     null,
   );
 });
+
+/**
+ * The crew flow has to open on the role that was asked for.
+ *
+ * Found on production 2026-09-22, immediately after the name matcher above
+ * started letting the flow through. "add marco silva as videographer for erin
+ * and joe demattia" opened a picker hardcoded to "Second photographer", so it
+ * ranked for photography and listed the studio's only videographer LAST, under
+ * "Role or specialty does not match" — while the two photographers read
+ * "Specialty matches the requested role".
+ *
+ * The comment above that `useState` already said the trade is read out of the
+ * role label. The operator's words simply never reached it.
+ */
+test("the flow schema carries the role the operator asked for", () => {
+  const source = readFileSync("functions/src/ai/copilot.ts", "utf8");
+  assert.match(
+    source,
+    /role: z\.string\(\)\.min\(1\)\.max\(60\)\.nullable\(\)\.optional\(\)\.catch\(null\)/,
+    "flow.role is how the asked-for role reaches the picker",
+  );
+  assert.match(
+    source,
+    /role: result\.flow\.role \?\? null/,
+    "the resolved flow must pass role through to the client",
+  );
+  // The model can only fill a field the response schema declares.
+  assert.match(source, /subject: \{ type: "STRING" \},\s*role: \{ type: "STRING" \}/);
+});
+
+test("the crew picker does not open on a photography role regardless", () => {
+  const runner = readFileSync("components/ai/flow-runner.tsx", "utf8");
+  assert.doesNotMatch(
+    runner,
+    /useState\("Second photographer"\)/,
+    'The picker opened on "Second photographer" whatever was asked, so a ' +
+      "videographer request ranked photographers. Seed it from flow.role.",
+  );
+  assert.match(
+    runner,
+    /str\(flow\.role\)/,
+    "the asked-for role should seed the picker",
+  );
+});
