@@ -123,7 +123,7 @@ type DomainConfig = {
   /** How to render `secondary`; raw text when omitted, as it was throughout. */
   secondaryKind?: "money" | "date" | "count" | "percent" | "retainer" | "version" | "authority";
   status: string[];
-  facts: Array<{ label: string; fields: string[]; kind?: "money" | "date" | "count" | "percent" | "retainer" | "version" | "authority" | "coverage" | "trades" }>;
+  facts: Array<{ label: string; fields: string[]; kind?: "money" | "date" | "count" | "percent" | "retainer" | "version" | "authority" | "coverage" | "trades" | "list" }>;
   /**
    * What a boolean status means, as [true, false].
    *
@@ -256,7 +256,7 @@ const configurations: Record<Domain, DomainConfig> = {
     status: ["active"],
     facts: [
       { label: "Shoots", fields: ["trades"], kind: "trades" },
-      { label: "Specialties", fields: ["specialties"], kind: "count" },
+      { label: "Specialties", fields: ["specialties"], kind: "list" },
       { label: "W-9", fields: ["w9Status"] },
       // Insurance is a studio setting defaulting to off, so the column is
       // added by the view only when this studio asks for it — otherwise every
@@ -475,6 +475,7 @@ function display(
     | "authority"
     | "coverage"
     | "trades"
+    | "list"
     | undefined,
   currency: unknown,
   /** The whole row, for kinds that cannot be read from one field. */
@@ -542,6 +543,13 @@ function display(
         : "";
     const crew = describeCoverage(resolveCoverage(record));
     return [hours, crew].filter(Boolean).join(" · ") || "—";
+  }
+  /* Names the values instead of counting them. "Specialties 2" sat directly
+     beside "Shoots Photographer, Videographer" — two facts answering "what do
+     they do", one of them a number the studio cannot act on. */
+  if (kind === "list") {
+    const items = Array.isArray(value) ? value.map(String).filter(Boolean) : [];
+    return items.length ? items.join(", ") : "Not set";
   }
   if (kind === "trades") {
     const trades = Array.isArray(value) ? value.map(String) : [];

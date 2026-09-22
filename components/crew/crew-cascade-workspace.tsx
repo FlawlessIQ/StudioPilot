@@ -368,9 +368,60 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
         endsAt: safeIso(endsAt),
         candidates: candidateInputs,
         excludedIds: [...excluded],
+        // The studio's arrows reach the plan that actually goes out, not just
+        // the list on screen. Without this the two disagreed: a preferred
+        // videographer moved to the top stayed second in the offers.
+        preferredOrder: manualOrder,
         depth: 5,
       }),
-    [candidateInputs, endsAt, excluded, project?.city, roles, specialty, startsAt],
+    [
+      candidateInputs,
+      endsAt,
+      excluded,
+      manualOrder,
+      project?.city,
+      roles,
+      specialty,
+      startsAt,
+    ],
+  );
+  /**
+   * Where each person actually sits in the offers, and for which role.
+   *
+   * The list used to number people by their position in `included` — one flat
+   * ranking that has never heard of the roles. With a videographer role and a
+   * photographer on the roster it read "2. Jordan Reid" for someone who was
+   * never going to be offered the job at all, under a footer counting him in
+   * "3 in the order". The plan below is what `create()` sends, so it is what
+   * the list has to show.
+   */
+  const planPositions = useMemo(() => {
+    const byId = new Map<
+      string,
+      { role: string; position: number; total: number }
+    >();
+    for (const plan of rolePlans) {
+      plan.candidates.forEach((candidate, index) => {
+        byId.set(candidate.crewProfileId, {
+          role: plan.role,
+          position: index + 1,
+          total: plan.candidates.length,
+        });
+      });
+    }
+    return byId;
+  }, [rolePlans]);
+  // Everyone the plan will actually reach, which is what the timing and the
+  // "available" count are about.
+  const inPlan = rolePlans.reduce(
+    (total, plan) => total + plan.candidates.length,
+    0,
+  );
+  // Roles run their cascades side by side, so the wait is the longest role's,
+  // not the sum of everybody in the list.
+  const deepestPlan = rolePlans.reduce(
+    (deepest, plan) => Math.max(deepest, plan.candidates.length),
+    0,
   );
 
   useEffect(() => {
@@ -709,7 +760,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
                   <UserRoundSearch />
                   <strong>Recommended order</strong>
                   <small>
-                    {included.length} available ·{" "}
+                    {inPlan} in the plan ·{" "}
                     {ruledOut.length}{" "} ruled out
                   </small>
                 </span>
@@ -746,6 +797,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
                   const includedIndex = included.findIndex(
                     (item) => item.crewProfileId === candidate.crewProfileId,
                   );
+                  const placement = planPositions.get(candidate.crewProfileId);
                   return (
                     <article
                       className={
@@ -754,7 +806,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
                       key={candidate.crewProfileId}
                     >
                       <span className="crew-rank">
-                        {candidate.eligible && !isExcluded ? includedIndex + 1 : "—"}
+                        {placement && !isExcluded ? placement.position : "—"}
                       </span>
                       <div>
                         <strong>{candidate.name}</strong>
@@ -765,6 +817,22 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
                         {profileEmail(candidate.crewProfileId) ? (
                           <small className="crew-candidate-email">
                             {profileEmail(candidate.crewProfileId)}
+                          </small>
+                        ) : null}
+                        {/* A number with no role beside it was the whole
+                            ambiguity: "2" meant second in a list, and the
+                            studio read it as second in line for the role they
+                            were filling. */}
+                        {placement && !isExcluded ? (
+                          <small className="crew-candidate-placement">
+                            {placement.position === 1
+                              ? `Offered ${placement.role} first`
+                              : `${placement.role} · offer ${placement.position} of ${placement.total}`}
+                          </small>
+                        ) : null}
+                        {!placement && candidate.eligible && !isExcluded ? (
+                          <small className="crew-candidate-placement is-unplanned">
+                            Not in the plan for any role on this job
                           </small>
                         ) : null}
                         <small>
@@ -920,9 +988,9 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
                       response window is the real worst case, and it was invisible
                       next to the window selector. */}
                   <small className="crew-cascade-timing">
-                    {included.length} in the order × {responseWindowHours}h = up to{" "}
-                    {Math.ceil((included.length * Number(responseWindowHours)) / 24)}{" "}
-                    {Math.ceil((included.length * Number(responseWindowHours)) / 24) === 1
+                    {inPlan} in the order × {responseWindowHours}h = up to{" "}
+                    {Math.ceil((deepestPlan * Number(responseWindowHours)) / 24)}{" "}
+                    {Math.ceil((deepestPlan * Number(responseWindowHours)) / 24) === 1
                       ? "day"
                       : "days"}{" "}
                     to fill.
@@ -934,9 +1002,9 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
                     /* The real blocker, stated where the decision is made. */
                     <small className="crew-cascade-paperwork-warning">
                       You can send offers now, but{" "}
-                      {paperworkPending.length === included.length
+                      {paperworkPending.length === inPlan
                         ? "nobody in this order"
-                        : `${paperworkPending.length} of ${included.length}`}{" "}
+                        : `${paperworkPending.length} of ${inPlan}`}{" "}
                       can work this job until their paperwork is complete.
                     </small>
                   ) : null}

@@ -11590,6 +11590,20 @@ textarea:focus-visible {
   font-size: 11.5px;
 }
 
+/* Which role the rank beside this person belongs to. The number alone read as
+   "second in the list" when the studio needed "second in line for this role" —
+   and with two trades on a job those are different people. */
+.crew-candidate-placement {
+  color: var(--muted, #5f6a63);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.crew-candidate-placement.is-unplanned {
+  color: var(--amber-dark, #8a6220);
+  font-weight: 500;
+}
+
 /* Paperwork the person owes, with the request that used to be missing. */
 .crew-recommendation-list article em.crew-candidate-blocked {
   flex-wrap: wrap;

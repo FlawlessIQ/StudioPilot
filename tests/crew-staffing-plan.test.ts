@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  assignCandidatesToRoles,
   crewRequiredFromCoverage,
   planCrewStaffing,
   rolesToBook,
@@ -334,5 +335,96 @@ test("the functions copy of the staffing plan matches features/", () => {
   assert.equal(
     body("functions/src/crew/staffing-plan.ts"),
     body("features/crew/staffing-plan.ts"),
+  );
+});
+
+// --- the studio's own order reaches the offers ------------------------
+
+/**
+ * "You control the final order" has to be true of the offers, not the list.
+ *
+ * Found on production 2026-09-22 while walking a videographer job. The
+ * staffing screen ranked everyone once, flat, and numbered the list from that
+ * — while the plan that `create()` actually sends was rebuilt per role from
+ * the engine. The two disagreed in both directions: a photographer showed as
+ * "2" for a videographer role he would never be offered, and a videographer
+ * the studio moved to the top with the arrows stayed second in the offers.
+ */
+
+const videoRole = [
+  { role: "Videographer", coverageRole: "videographer" as const },
+];
+
+const shooters = [
+  candidate("alex", "Alex Rivera", ["weddings"], {
+    trades: ["photographer", "videographer"],
+  }),
+  candidate("marco", "Marco Silva", ["weddings"], {
+    trades: ["videographer"],
+  }),
+];
+
+const planFor = (preferredOrder?: string[]) =>
+  assignCandidatesToRoles({
+    roles: videoRole,
+    eventSpecialty: "weddings",
+    serviceArea: "Madison",
+    startsAt,
+    endsAt,
+    candidates: shooters,
+    ...(preferredOrder ? { preferredOrder } : {}),
+  });
+
+test("with no manual order the engine's ranking is untouched", () => {
+  const [plan] = planFor();
+  assert.ok(plan);
+  assert.deepEqual(
+    plan.candidates.map((candidate) => candidate.crewProfileId),
+    ["alex", "marco"],
+  );
+});
+
+test("the studio's order decides who is offered the role first", () => {
+  const [plan] = planFor(["marco", "alex"]);
+  assert.ok(plan);
+  assert.deepEqual(
+    plan.candidates.map((candidate) => candidate.crewProfileId),
+    ["marco", "alex"],
+    "moving someone to the top of the list must move them to the top of the offers",
+  );
+});
+
+test("people the studio never moved keep their relative ranking", () => {
+  // Only marco is named; alex has no stated position and must stay behind him
+  // rather than being reshuffled arbitrarily.
+  const [plan] = planFor(["marco"]);
+  assert.ok(plan);
+  assert.deepEqual(
+    plan.candidates.map((candidate) => candidate.crewProfileId),
+    ["marco", "alex"],
+  );
+});
+
+test("a trade-matched role still ranks by trade when nothing is moved", () => {
+  const [plan] = assignCandidatesToRoles({
+    roles: videoRole,
+    eventSpecialty: "weddings",
+    serviceArea: "Madison",
+    startsAt,
+    endsAt,
+    candidates: [
+      candidate("jordan", "Jordan Reid", ["weddings"], {
+        trades: ["photographer"],
+      }),
+      candidate("marco", "Marco Silva", ["weddings"], {
+        trades: ["videographer"],
+      }),
+    ],
+  });
+  assert.ok(plan);
+  assert.equal(
+    plan.candidates[0]?.crewProfileId,
+    "marco",
+    "a videographer role must reach the videographer before the photographer",
   );
 });

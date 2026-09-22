@@ -30,12 +30,9 @@ import {
  * each role against the specialty that role actually calls for, and hands out
  * candidates so nobody is offered two roles on the same day.
  *
- * Pure and deterministic — no I/O, no Firebase.
- *
- * The functions copy. features/crew/staffing-plan.ts is the source of truth;
- * functions/ is a separate package with no "@/features" path, so the engine is
- * duplicated and tests/crew-staffing-plan.test.ts asserts the two files stay
- * byte-identical below their headers.
+ * Pure and deterministic — no I/O, no Firebase. Duplicated at
+ * functions/src/crew/staffing-plan.ts, which is what lets booking prepare the
+ * plan server-side; tests/crew-staffing-plan.ts keeps the copies identical.
  */
 
 /** Crew profiles carry `video`; there is no "photographer" specialty. */
@@ -190,9 +187,41 @@ export function assignCandidatesToRoles(input: {
   candidates: readonly CrewCandidateInput[];
   excludedIds?: readonly string[];
   depth?: number;
+  /**
+   * The studio's own order, when they have set one.
+   *
+   * The staffing screen offers arrows under the copy "You control the final
+   * order", and that order used to reach only the list on screen — the plan
+   * that actually goes out was recomputed from the engine ranking alone, so
+   * moving a preferred second shooter to the top changed the display and
+   * nothing else. Empty (the normal case) leaves the engine's order untouched.
+   */
+  preferredOrder?: readonly string[];
 }): StaffingRolePlan[] {
   const excluded = new Set(input.excludedIds ?? []);
   const depth = Math.max(1, input.depth ?? 5);
+  // Rank by the studio's position where they have given one, and leave
+  // everyone else in the engine's order behind them. Stable, so candidates
+  // the studio never touched keep their relative ranking.
+  const preferred = new Map(
+    (input.preferredOrder ?? []).map((id, index) => [id, index]),
+  );
+  const applyPreference = (ranked: CrewCandidateRecommendation[]) => {
+    if (!preferred.size) return ranked;
+    return ranked
+      .map((candidate, index) => ({ candidate, index }))
+      .sort((left, right) => {
+        const leftRank = preferred.get(left.candidate.crewProfileId);
+        const rightRank = preferred.get(right.candidate.crewProfileId);
+        if (leftRank !== rightRank)
+          return (
+            (leftRank ?? Number.MAX_SAFE_INTEGER) -
+            (rightRank ?? Number.MAX_SAFE_INTEGER)
+          );
+        return left.index - right.index;
+      })
+      .map((entry) => entry.candidate);
+  };
 
   const rankedFor = new Map<string, CrewCandidateRecommendation[]>();
   const rankFor = (specialty: string, trade: CoverageRole) => {
@@ -212,8 +241,9 @@ export function assignCandidatesToRoles(input: {
       endsAt: input.endsAt,
       candidates: input.candidates,
     });
-    rankedFor.set(key, ranked);
-    return ranked;
+    const ordered = applyPreference(ranked);
+    rankedFor.set(key, ordered);
+    return ordered;
   };
 
   const plans: StaffingRolePlan[] = input.roles.map((entry) => {
