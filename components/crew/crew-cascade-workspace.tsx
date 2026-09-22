@@ -30,6 +30,7 @@ import {
   assignCandidatesToRoles,
   coverageRoleForLabel,
 } from "@/features/crew/staffing-plan";
+import { suggestedResponsibilitiesText } from "@/features/crew/responsibilities";
 import {
   rankCrewCandidates,
   type CrewCandidateInput,
@@ -98,9 +99,20 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
   const [startsAtEdit, setStartsAtEdit] = useState<string | null>(null);
   const [endsAtEdit, setEndsAtEdit] = useState<string | null>(null);
   const [compensationDollars, setCompensationDollars] = useState("800");
-  const [responsibilities, setResponsibilities] = useState(
-    "Ceremony reactions\nCocktail-hour candids\nBackup primary photographer",
-  );
+  /**
+   * Same shape as the times above: derived until the studio types over it.
+   *
+   * This was a constant photography list, so a videographer's offer went out
+   * reading "Backup primary photographer" among his responsibilities — at
+   * $950, in a real email, on the one screen a subcontractor reads before
+   * accepting. The run of show still wins the moment there is one; before
+   * that the suggestion follows the trade of the roles being filled.
+   */
+  const [responsibilitiesEdit, setResponsibilitiesEdit] = useState<
+    string | null
+  >(null);
+  const [scheduleResponsibilitiesText, setScheduleResponsibilitiesText] =
+    useState<string | null>(null);
   const [defaultsHydrated, setDefaultsHydrated] = useState(false);
   const latestSchedule = [...(schedules ?? [])]
     .filter(
@@ -345,6 +357,14 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
     [rolesText],
   );
   /**
+   * The studio's typing wins, then the run of show, then a suggestion that
+   * matches the trade being filled. Never the photography list regardless.
+   */
+  const responsibilities =
+    responsibilitiesEdit ??
+    scheduleResponsibilitiesText ??
+    suggestedResponsibilitiesText(roles);
+  /**
    * One plan per role, each ranked against the trade that role calls for.
    *
    * This used to be `included.filter((_, i) => i % roles.length === roleIndex)`
@@ -507,7 +527,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
         setCompensationDollars(String(rateCents / 100));
       }
       if (scheduleResponsibilities.length) {
-        setResponsibilities(scheduleResponsibilities.join("\n"));
+        setScheduleResponsibilitiesText(scheduleResponsibilities.join("\n"));
       }
       // A package the studio covers alone suggests nobody; leave the field as
       // the studio left it rather than blanking what it already typed.
@@ -745,13 +765,18 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
                   Responsibilities, one per line
                   <textarea
                     name="responsibilities"
-                    onChange={(event) => setResponsibilities(event.target.value)}
+                    onChange={(event) =>
+                      setResponsibilitiesEdit(event.target.value)
+                    }
                     value={responsibilities}
                   />
                 </label>
                 <p className="form-notice form-span">
-                  Times come from the current schedule, the rate from the crew
-                  profile, and the responsibilities from the coverage you planned.
+                  Times come from the current schedule and the rate from the
+                  crew profile.{" "}
+                  {scheduleResponsibilitiesText
+                    ? "The responsibilities come from your run of show."
+                    : "There is no run of show yet, so the responsibilities are a suggestion for this role — edit them before you send."}{" "}
                   Check the order below, then send the first offer.
                 </p>
               </div>
