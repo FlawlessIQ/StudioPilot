@@ -38,11 +38,24 @@ export function InvitationJoin({
   intro,
   onAccept,
   translateError,
+  verb = "accept",
 }: {
   preview: InvitationJoinPreview;
   intro: ReactNode;
   onAccept: () => Promise<void>;
   translateError?: (code: string) => string;
+  /**
+   * What pressing the button actually does, in the caller's own terms.
+   *
+   * A crew invitation does not accept the job — it claims the invitation and
+   * opens the assignment for review, as its own confirmation says ("The
+   * assignment is now available in your crew workspace", button "Review
+   * assignment"). The shared label said "accept" anyway, so the first thing a
+   * subcontractor ever sees asks them to accept a paid Saturday they have not
+   * been shown, and contradicts the screen that follows. Defaults to the
+   * original wording for the invitations where accepting is what happens.
+   */
+  verb?: string;
 }) {
   // This very page, token and all: where a password reset should return to.
   const returnTo =
@@ -150,10 +163,12 @@ export function InvitationJoin({
       <button className="button button-dark" disabled={busy} type="submit">
         {busy ? <LoaderCircle className="spin" /> : <ShieldCheck />}
         {identity
-          ? "Accept invitation"
+          ? verb === "accept"
+            ? "Accept invitation"
+            : `Continue to ${verb}`
           : preview.hasAccount
-            ? "Sign in and accept"
-            : "Create account and accept"}
+            ? `Sign in and ${verb}`
+            : `Create account and ${verb}`}
       </button>
       {preview.hasAccount && !identity ? (
         <Link

@@ -124,6 +124,9 @@ export function AcceptCrewInvitation({ token }: { token: string }) {
       }}
       preview={preview}
       translateError={invitationErrorMessage}
+      // Pressing this does not take the job. It opens the assignment so they
+      // can read the date, the role and the fee before deciding.
+      verb={preview.kind === "assignment" ? "see the job" : "accept"}
     />
   );
 }
