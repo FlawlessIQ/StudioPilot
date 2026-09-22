@@ -35,10 +35,16 @@ export default async function RegisterPage({
         <div className="auth-trust">
           <span>
             <CircleCheck size={15} />{" "}
-            {isClientInvite ? "Free client access" : "14-day Solo trial"}
+            {isClientInvite ? "Free client access" : "14-day trial"}
           </span>
           <span>
-            <CircleCheck size={15} /> No card required
+            <CircleCheck size={15} />{" "}
+            {/* A studio trial is card-required (see the `incomplete`
+                subscription in functions/src/saas/onboarding.ts) — this row
+                must not promise otherwise, and must match the landing page
+                the studio arrived from. A client invite genuinely needs no
+                card: clients never pay. */}
+            {isClientInvite ? "No card required" : "No charge until it renews"}
           </span>
           <span>
             <CircleCheck size={15} /> Verified email required
