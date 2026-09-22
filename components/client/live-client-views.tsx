@@ -1306,7 +1306,13 @@ export function LiveClientMessages() {
                   {messageAttachments.length ? (
                     <small><Paperclip /> {messageAttachments.map((attachment) => text(attachment.name, "Attachment")).join(", ")}</small>
                   ) : null}
-                  <small>{fromStudio ? workspace.tenantName : "You"} · {date(message.sentAt ?? message.createdAt)} · {statusLabel(message.status) || "sent"}</small>
+                  {/* The stored status is written from the studio's side — a
+                      client's message lands as `received`, meaning the studio
+                      has it. Rendered verbatim that read "You · … · Received"
+                      on the couple's own message, which is backwards from
+                      where they are sitting. Their own message says what the
+                      confirmation said: sent. */}
+                  <small>{fromStudio ? workspace.tenantName : "You"} · {date(message.sentAt ?? message.createdAt)} · {fromStudio ? statusLabel(message.status) || "sent" : "Sent"}</small>
                 </span>
                 {fromStudio ? (
                   <button
