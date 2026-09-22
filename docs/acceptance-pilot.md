@@ -37,6 +37,41 @@ completed production OAuth/certification. Decide before the pilot (see
 [Pre-flight](#pre-flight), step 4) whether you certify those or run money and
 signatures via attestation and accept provider certification as a separate gate.
 
+## Rehearsed 2026-09-22 — read this before spending people's time
+
+The gate machinery was run against a real tenant's records (the UAT tenant from
+that day's walk) rather than the pilot being simulated. Two things came out of
+it, and the first one matters more than the pilot script.
+
+**The handling-time gate was clearing itself.** It showed green with the
+evidence string "0 verified minutes saved." `Number(null)` is 0 and
+`Number.isFinite(0)` is true, so an absent measurement became a recorded zero —
+and the crew cascade emits `lifecycle.crew_staffed` with
+`measurementMethod: "workflow_timestamps"` and `verifiedSecondsSaved: null`. So
+staffing anybody passed the one gate this document says the walk cannot
+produce on its own. Fixed; it now requires a saving greater than zero from a
+measurement that actually happened. **If you rehearsed or part-ran this pilot
+before 2026-09-22, that gate's green is not evidence.**
+
+**What the rehearsal scored**, on a tenant that was never trying to pass:
+
+| Gate | Result | Why |
+|---|---|---|
+| No open S1/S2 defects | passed | nothing logged — passes vacuously on any young tenant |
+| No AI authority violations | passed | 1 decided AI action, 0 violations |
+| Automation success ≥ 95% | needs evidence | no terminal automation run yet |
+| Verified handling-time reduction | needs evidence | correct, after the fix above |
+| Median staffing < 15 min | **failed** | 125.1 min median — the true offer→acceptance time |
+
+The staffing gate behaved exactly as intended: the offer went out at 12:52 and
+was accepted at 14:57, and it failed on the real elapsed time. That is the gate
+doing its job, and it is why step 5 says to brief the crew member to be at
+their phone.
+
+Note that two gates pass on a tenant that has done nothing — defects and AI
+authority. Neither is weak: they are absence-of-harm gates. But they are not
+evidence the pilot went well, so do not read "3 of 5 green" as progress.
+
 ## Pre-flight
 
 1. **Clean tenant.** Provision a fresh production tenant with no demo/seed data.
