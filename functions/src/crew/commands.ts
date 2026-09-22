@@ -8,6 +8,7 @@ import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { productEvent } from "../operations/product-events.js";
 import { studioHubCors } from "../security/cors.js";
 import { findDuplicateProfile } from "./duplicate-profile.js";
+import { SCHEDULE_REQUIREMENT_ID } from "./requirements.js";
 import { coverageRoleSchema } from "../packages/coverage.js";
 import {
   appUrl,
@@ -2059,6 +2060,29 @@ export const crewCommand = onRequest(
               !["equipment", "acknowledgement"].includes(String(target.kind))
             )
               throw new Error("REQUIREMENT_REQUIRES_STUDIO_REVIEW");
+            /**
+             * The schedule acknowledgement is not self-declarable.
+             *
+             * It is kind "acknowledgement", so it fell through the check above
+             * and a crew member could mark "Current schedule acknowledged"
+             * complete from the requirements list — on a job with no published
+             * run of show at all. Walked on production 2026-09-22: it went to
+             * "Complete" while `acknowledgedScheduleVersion` and
+             * `scheduleAcknowledgedAt` stayed null and the tenant held zero
+             * schedules, leaving two sources of truth disagreeing forever and
+             * a studio believing its videographer had read a timeline that did
+             * not exist.
+             *
+             * `acknowledgeSchedule` is the way, and it checks the version
+             * against the assignment. The gated button in
+             * components/crew/assignment-actions.tsx already used it; this
+             * screen offered a shortcut around it.
+             */
+            if (
+              !internal &&
+              String(target.id) === SCHEDULE_REQUIREMENT_ID
+            )
+              throw new Error("SCHEDULE_REQUIRES_ACKNOWLEDGEMENT");
             transaction.update(reference, {
               requirements: requirements.map((item) =>
                 item.id === parsed.input.requirementId

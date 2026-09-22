@@ -51,8 +51,19 @@ const INSURANCE: CrewRequirement = {
   instructions: "Upload a current certificate of liability insurance.",
 };
 
+/**
+ * The one requirement a crew member cannot simply declare done.
+ *
+ * Every other acknowledgement is a statement about themselves — they have the
+ * equipment, they have read a note. This one asserts they have read a specific
+ * published version of the run of show, so it is settled by `acknowledgeSchedule`,
+ * which checks the version against the assignment. Exported because the command
+ * handler has to refuse it on the generic path.
+ */
+export const SCHEDULE_REQUIREMENT_ID = "schedule";
+
 const SCHEDULE: CrewRequirement = {
-  id: "schedule",
+  id: SCHEDULE_REQUIREMENT_ID,
   name: "Current schedule acknowledged",
   kind: "acknowledgement",
   required: true,

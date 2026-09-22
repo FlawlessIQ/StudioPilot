@@ -80,6 +80,11 @@ const CREW_CODE_MESSAGES: Record<string, string> = {
     "The studio has not approved this closeout yet, so payment cannot be scheduled.",
   SCHEDULE_VERSION_IS_NOT_CURRENT:
     "The studio published a newer schedule while this page was open. Reload to see it, then acknowledge that version.",
+  // Reachable only if a client calls completeRequirement for the schedule
+  // directly — the requirements list now links to the brief instead. Says
+  // where the acknowledgement actually happens rather than just refusing.
+  SCHEDULE_REQUIRES_ACKNOWLEDGEMENT:
+    "Open the event-day brief and acknowledge the schedule there, so the studio knows which version you read.",
   REQUIREMENT_NOT_FOUND:
     "That requirement is no longer part of this job.",
   REQUIREMENT_REQUIRES_STUDIO_REVIEW:

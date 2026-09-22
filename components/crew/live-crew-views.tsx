@@ -72,6 +72,7 @@ import { sendCrewCommand } from "@/lib/crew/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { withTimeout } from "@/lib/async/with-timeout";
 import { crewPublicError } from "@/lib/crew/public-error";
+import { SCHEDULE_REQUIREMENT_ID } from "@/features/crew/requirements";
 import { statusLabel } from "@/features/format/status-label";
 
 type Value = Record<string, unknown> & { id: string };
@@ -560,6 +561,30 @@ function RequirementAction({
     return <small className="crew-provider-requirement">The studio will send the signing request.</small>;
   }
   if (!["equipment", "acknowledgement"].includes(kind)) return null;
+  /**
+   * The schedule is acknowledged against a version, not declared done here.
+   *
+   * This list offered a plain "Acknowledge" for it, bypassing the gated button
+   * on the brief that checks a run of show exists and records which version was
+   * read. Pressed on a job with no schedule at all, it marked the requirement
+   * complete while the acknowledgement fields stayed empty — so the studio's
+   * readiness said the videographer had read a timeline nobody had written.
+   */
+  if (text(requirement.id) === SCHEDULE_REQUIREMENT_ID) {
+    const version = number(assignment.currentScheduleVersion);
+    return version ? (
+      <Link
+        className="button button-light button-sm"
+        href={`/crew/schedule?assignment=${encodeURIComponent(assignment.id)}`}
+      >
+        <CalendarDays size={14} /> Read and acknowledge
+      </Link>
+    ) : (
+      <small className="crew-provider-requirement">
+        The studio has not published the run of show yet.
+      </small>
+    );
+  }
   const complete = async () => {
     if (busy) return;
     setBusy(true);
