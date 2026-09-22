@@ -362,6 +362,55 @@ export function resolveFlowProjectId(
   // Still exactly one, or nothing. Better a dropped flow than one aimed at
   // the wrong wedding — two couples called Johnson must stay ambiguous.
   if (named.length === 1) return named[0] ?? null;
+  if (named.length > 1) return null;
+
+  /**
+   * How a studio actually refers to a couple.
+   *
+   * Containment — even with the generic word trimmed — assumes the operator
+   * reproduces the stored name. The reference studio's roster says otherwise:
+   * of eleven real jobs, ten are "<Full Name> & <Full Name>" with no suffix,
+   * and the one that broke was filed "Erin Hoffman & Joseph DeMattia" while
+   * the operator typed "for erin and joe demattia" — a dropped surname and a
+   * shortened first name. No substring of the record appears in that sentence.
+   *
+   * So match on the name's own words instead: how many of the stored name's
+   * significant words the operator used, counting a shortened first name
+   * ("joe" for "joseph") as the word it abbreviates. Two words is the floor —
+   * one is a coincidence waiting to happen — and the winner has to be strictly
+   * ahead of the runner-up, so the same couple's wedding and engagement, or
+   * two jobs sharing a surname, still resolve to nothing.
+   */
+  const stop = new Set(["and", "the", "of", "for", "with", "a", "an"]);
+  const significant = (name: string) =>
+    flatten(name)
+      .split(" ")
+      .filter(
+        (word) =>
+          word.length >= 3 && !stop.has(word) && !genericNameWords.has(word),
+      );
+  const saidWords = new Set(haystack.split(" ").filter(Boolean));
+  const score = (name: string) => {
+    const words = significant(name);
+    if (!words.length) return 0;
+    return words.filter(
+      (word) =>
+        saidWords.has(word) ||
+        // "joe" for "joseph", "kate" for "katherine" — the operator's shorter
+        // form standing in for the filed one. Never the reverse: a longer word
+        // in the sentence does not imply the shorter filed name.
+        [...saidWords].some(
+          (said) => said.length >= 3 && word.startsWith(said),
+        ),
+    ).length;
+  };
+  const scored = [...allowed]
+    .map((id) => ({ id, score: score(projectNames.get(id) ?? "") }))
+    .sort((left, right) => right.score - left.score);
+  const best = scored[0];
+  const runnerUp = scored[1];
+  if (best && best.score >= 2 && (!runnerUp || runnerUp.score < best.score))
+    return best.id;
   return null;
 }
 

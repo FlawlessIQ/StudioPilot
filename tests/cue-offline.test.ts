@@ -342,3 +342,97 @@ test("the crew picker does not open on a photography role regardless", () => {
     "the asked-for role should seed the picker",
   );
 });
+
+/**
+ * Couples are referred to by fragments of their names, not by the record.
+ *
+ * The fixtures above were invented; these are the reference studio's actual
+ * roster, read from production on 2026-09-22. Ten of its eleven jobs are
+ * "<Full Name> & <Full Name>" with no trailing word at all, which is the
+ * opposite of what the suffix fix assumed — and the job that started this
+ * whole thread is filed "Erin Hoffman & Joseph DeMattia" while the operator
+ * typed "for erin and joe demattia": a dropped surname and a shortened first
+ * name. Containment cannot reach that, so neither the original matcher nor its
+ * suffix-trimming fix resolved the case they were both written for.
+ *
+ * Kept as real names on purpose. See the `fixtures-must-match-real-names`
+ * note: a fixture that cannot reproduce the product's own data cannot cover it.
+ */
+const referenceRoster = [
+  "Sydney Lucas & Ryan Conklin wedding",
+  "Sarah Holtz & Jonathan Gross",
+  "Tori Tucci & Jake Mendlen",
+  "Kelly Hernon & Daniel Archer",
+  "Madeline Selvaggi & Brian Monaghan",
+  "Abigail Quiles & Justin DiPietro",
+  "Stephanie Herman",
+  "Heather Baumwoll",
+  "Erin Hoffman & Joseph DeMattia",
+  "Julia Golden & Michael Eastman",
+  "Alexa Yannuzzi & Alec Ruccio",
+];
+
+const againstRoster = (said: string) => {
+  const names = new Map(referenceRoster.map((name, i) => [`p${i}`, name]));
+  const allowed = new Set(names.keys());
+  const id = resolveFlowProjectId(null, allowed, null, new Set(), names, said);
+  return id ? names.get(id) : null;
+};
+
+test("the sentence that started this resolves against the real roster", () => {
+  assert.equal(
+    againstRoster(
+      "add albert gershengoren to 2nd photogrpaher for erin and joe demattia",
+    ),
+    "Erin Hoffman & Joseph DeMattia",
+  );
+});
+
+test("a shortened first name still finds the job", () => {
+  // "joe" for "Joseph" above; "sydney and ryan" for the full filed names here.
+  assert.equal(
+    againstRoster("staff the sydney and ryan wedding"),
+    "Sydney Lucas & Ryan Conklin wedding",
+  );
+  assert.equal(
+    againstRoster("offer kelly and daniel a slot"),
+    "Kelly Hernon & Daniel Archer",
+  );
+});
+
+test("the name as filed still matches, unchanged", () => {
+  assert.equal(
+    againstRoster("staff Tori Tucci & Jake Mendlen"),
+    "Tori Tucci & Jake Mendlen",
+  );
+});
+
+test("one word is never enough to pick a wedding", () => {
+  // A lone first name fits several jobs, and a lone surname collides too
+  // easily to act on. Typing the name in full still matches by containment.
+  assert.equal(againstRoster("add someone for erin"), null);
+  assert.equal(againstRoster("add a videographer for baumwoll"), null);
+  assert.equal(againstRoster("staff heather baumwoll"), "Heather Baumwoll");
+});
+
+test("a roster the sentence does not name resolves to nothing", () => {
+  assert.equal(againstRoster("staff the Ellis job"), null);
+});
+
+test("two jobs for one couple stay ambiguous under word matching", () => {
+  const names = new Map([
+    ["w", "Erin Hoffman & Joseph DeMattia"],
+    ["e", "Erin Hoffman & Joseph DeMattia Engagement"],
+  ]);
+  assert.equal(
+    resolveFlowProjectId(
+      null,
+      new Set(names.keys()),
+      null,
+      new Set(),
+      names,
+      "staff erin and joe demattia",
+    ),
+    null,
+  );
+});
