@@ -225,3 +225,76 @@ test("an explicit id and the conversation's scope still come first", () => {
     "scoped",
   );
 });
+
+/**
+ * The job is filed as "<couple> Wedding". Nobody says "wedding".
+ *
+ * Found on production 2026-09-22. The matcher above required the WHOLE stored
+ * name inside the operator's question, and /studio/projects/new files a job as
+ * "Erin & Joe DeMattia Wedding". So "add marco silva as videographer for erin
+ * and joe demattia" matched nothing, the flow resolved to null, and Cue
+ * answered "OK. Let's get Marco Silva added as the videographer." with nothing
+ * to press — twice, on two phrasings, before I read it off the wire.
+ *
+ * The ampersand test above passed throughout, because its fixture is named
+ * "Maya & Theo Johnson" with no suffix to trip over. A fixture that cannot
+ * reproduce the product's own naming is not covering it. These use names the
+ * project form actually produces.
+ */
+test("a job filed as '<couple> Wedding' matches what the operator types", () => {
+  const allowed = new Set(["demattia", "summit"]);
+  const names = new Map([
+    ["demattia", "Erin & Joe DeMattia Wedding"],
+    ["summit", "Northstar Annual Summit"],
+  ]);
+  const resolve = (said: string) =>
+    resolveFlowProjectId(null, allowed, null, new Set(), names, said);
+
+  // How an operator actually refers to the job.
+  assert.equal(
+    resolve("add marco silva as videographer for erin and joe demattia"),
+    "demattia",
+  );
+  assert.equal(resolve("staff erin & joe demattia"), "demattia");
+  // And saying it in full still works.
+  assert.equal(resolve("staff erin and joe demattia wedding"), "demattia");
+});
+
+test("trimming the generic word never makes two jobs one", () => {
+  // The same couple with a wedding and an engagement must stay ambiguous —
+  // a dropped flow is recoverable, the wrong wedding is not.
+  const allowed = new Set(["w", "e"]);
+  const names = new Map([
+    ["w", "Maya & Theo Johnson Wedding"],
+    ["e", "Maya & Theo Johnson Engagement"],
+  ]);
+  assert.equal(
+    resolveFlowProjectId(
+      null,
+      allowed,
+      null,
+      new Set(),
+      names,
+      "staff maya and theo johnson",
+    ),
+    null,
+  );
+});
+
+test("a job named only with generic words is not matched by them", () => {
+  // "Wedding" alone must not become a needle that matches every question
+  // mentioning a wedding.
+  const allowed = new Set(["bare"]);
+  const names = new Map([["bare", "Wedding"]]);
+  assert.equal(
+    resolveFlowProjectId(
+      null,
+      allowed,
+      null,
+      new Set(),
+      names,
+      "staff a videographer for the smith job",
+    ),
+    null,
+  );
+});

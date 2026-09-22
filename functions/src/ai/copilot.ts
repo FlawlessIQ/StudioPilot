@@ -291,11 +291,64 @@ export function resolveFlowProjectId(
       .replace(/[^a-z0-9\s]/g, " ")
       .replace(/\s+/g, " ")
       .trim();
+  /**
+   * The words a studio puts in a job name but never says out loud.
+   *
+   * Jobs are filed as "Erin & Joe DeMattia Wedding" — that is what
+   * /studio/projects/new produces — and the operator types "for erin and joe
+   * demattia". Matching required the WHOLE stored name inside the question, so
+   * the trailing "Wedding" alone was enough to drop the flow, and the turn came
+   * back as an answer with nothing to press.
+   *
+   * The ampersand fix above did not catch this because its fixture was named
+   * "Maya & Theo Johnson", with no suffix to trip over — it passed while
+   * production failed. Gabe's own sentence ("...for erin and joe demattia")
+   * would have failed too.
+   */
+  const genericNameWords = new Set([
+    "wedding",
+    "weddings",
+    "engagement",
+    "elopement",
+    "shoot",
+    "session",
+    "photography",
+    "photo",
+    "photos",
+    "video",
+    "videography",
+    "coverage",
+    "event",
+    "job",
+    "project",
+  ]);
+  /**
+   * What to look for: the name as filed, and the name with those generic
+   * words trimmed off either end. Both, so a studio that does say "wedding"
+   * still matches, and never the bare remainder if trimming leaves too little
+   * to be sure of — a two-letter needle would match half the roster.
+   */
+  const needlesFor = (name: string): string[] => {
+    const flat = flatten(name);
+    if (!flat) return [];
+    const words = flat.split(" ");
+    let start = 0;
+    let end = words.length;
+    while (end > start && genericNameWords.has(words[end - 1] ?? "")) end -= 1;
+    while (start < end && genericNameWords.has(words[start] ?? "")) start += 1;
+    const trimmed = words.slice(start, end).join(" ");
+    return trimmed && trimmed !== flat && trimmed.length >= 6
+      ? [flat, trimmed]
+      : [flat];
+  };
   const haystack = flatten(text);
-  const named = [...allowed].filter((id) => {
-    const name = flatten(projectNames.get(id) ?? "");
-    return name.length >= 3 && haystack.includes(name);
-  });
+  const named = [...allowed].filter((id) =>
+    needlesFor(projectNames.get(id) ?? "").some(
+      (needle) => needle.length >= 3 && haystack.includes(needle),
+    ),
+  );
+  // Still exactly one, or nothing. Better a dropped flow than one aimed at
+  // the wrong wedding — two couples called Johnson must stay ambiguous.
   if (named.length === 1) return named[0] ?? null;
   return null;
 }
