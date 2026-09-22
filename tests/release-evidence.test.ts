@@ -90,3 +90,88 @@ test("release evidence fails prohibited AI execution and open critical defects",
     "failed",
   );
 });
+
+/**
+ * The handling-time gate must not clear itself.
+ *
+ * `docs/acceptance-pilot.md` singles this one out: "Every other gate is
+ * produced as a side effect of doing the walk. Verified time-reduction is not
+ * — it needs an explicit measurement of at least one real task." And: "Amber is
+ * never cleared by editing data."
+ *
+ * Rehearsing the pilot against a real tenant on 2026-09-22, it was already
+ * green, reporting "0 verified minutes saved." as a pass. `Number(null)` is 0
+ * and `Number.isFinite(0)` is true, so an absent measurement became a recorded
+ * zero — and the crew cascade emits `lifecycle.crew_staffed` carrying
+ * `measurementMethod: "workflow_timestamps"` with `verifiedSecondsSaved: null`.
+ * Staffing anybody cleared the gate that exists to prove a human measured
+ * something.
+ */
+
+const handlingEvent = (handling: Record<string, unknown>) => ({
+  id: "e1",
+  handling,
+});
+
+const emptyInput = {
+  productEvents: [],
+  aiActions: [],
+  actionReceipts: [],
+  automationRuns: [],
+  crewCascades: [],
+  providerJobs: [],
+  incidents: [],
+};
+
+const timeGate = (productEvents: Array<Record<string, unknown>>) =>
+  summarizeReleaseEvidence({
+    ...emptyInput,
+    productEvents,
+  } as never).gates.find((gate) => gate.key === "verified_time_reduction");
+
+test("an absent measurement does not count as a verified zero", () => {
+  const gate = timeGate([
+    handlingEvent({
+      activeSeconds: 7503,
+      baselineSeconds: null,
+      verifiedSecondsSaved: null,
+      measurementMethod: "workflow_timestamps",
+    }),
+  ]);
+  assert.equal(
+    gate?.status,
+    "needs_evidence",
+    "this is the exact shape the crew cascade emits on every staffing",
+  );
+});
+
+test("a measured saving of zero is not a reduction", () => {
+  const gate = timeGate([
+    handlingEvent({
+      verifiedSecondsSaved: 0,
+      measurementMethod: "pilot_observation",
+    }),
+  ]);
+  assert.equal(gate?.status, "needs_evidence");
+});
+
+test("a real measured saving still passes", () => {
+  const gate = timeGate([
+    handlingEvent({
+      verifiedSecondsSaved: 900,
+      measurementMethod: "pilot_observation",
+    }),
+  ]);
+  assert.equal(gate?.status, "passed");
+  assert.match(String(gate?.evidence), /15 verified minutes saved/);
+});
+
+test("an owner estimate still cannot clear the gate", () => {
+  const gate = timeGate([
+    handlingEvent({
+      verifiedSecondsSaved: 900,
+      measurementMethod: "owner_estimate",
+    }),
+  ]);
+  assert.equal(gate?.status, "needs_evidence");
+});

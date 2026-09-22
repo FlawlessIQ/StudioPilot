@@ -29,7 +29,24 @@ const record = (value: unknown): Record<string, unknown> =>
     ? (value as Record<string, unknown>)
     : {};
 
+/**
+ * A number that was actually recorded — not one JavaScript invented.
+ *
+ * `Number(null)` is 0 and `Number.isFinite(0)` is true, so an absent
+ * measurement came back as a real zero. The crew cascade emits
+ * `lifecycle.crew_staffed` with `measurementMethod: "workflow_timestamps"` and
+ * `verifiedSecondsSaved: null`, which meant staffing anybody produced a
+ * "verified" sample of 0 and turned the handling-time gate green — reporting
+ * "0 verified minutes saved" as a pass. That is the one gate the acceptance
+ * pilot says cannot be a side effect of the walk.
+ *
+ * `Number("")` and `Number([])` are 0 for the same reason, so they are refused
+ * here too.
+ */
 const finiteNumber = (value: unknown): number | null => {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "number" && typeof value !== "string") return null;
+  if (typeof value === "string" && value.trim() === "") return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 };
@@ -83,8 +100,10 @@ export function summarizeReleaseEvidence(
     const handling = record(event.handling);
     const saved = finiteNumber(handling.verifiedSecondsSaved);
     const method = String(handling.measurementMethod ?? "");
+    // The gate is a measured *reduction*. A task that saved nothing is a real
+    // result worth recording, but it is not evidence the product saves time.
     return saved !== null &&
-      saved >= 0 &&
+      saved > 0 &&
       ["timer", "workflow_timestamps", "pilot_observation"].includes(method)
       ? [saved]
       : [];
