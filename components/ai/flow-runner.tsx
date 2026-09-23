@@ -16,7 +16,11 @@ import {
   rankCrewCandidates,
   type CrewCandidateInput,
 } from "@/features/crew/cascade";
-import { coverageRoleForLabel } from "@/features/crew/staffing-plan";
+import {
+  coverageRoleForLabel,
+  rolesToBook,
+} from "@/features/crew/staffing-plan";
+import { resolveCoverage } from "@/features/packages/coverage";
 import {
   crewRequirementsFor,
   requireInsuranceOf,
@@ -326,6 +330,7 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
   const { records: availability } = useTenantDocuments("crewAvailability");
   const { records: assignments } = useTenantDocuments("crewAssignments");
   const { records: schedules } = useTenantDocuments("schedules");
+  const { records: crewFlowPackages } = useTenantDocuments("packages");
   // How this studio staffs: whether a subcontractor must carry their own
   // liability cover. Most operate under the studio's policy, so it is off
   // unless they say otherwise (features/crew/requirements.ts).
@@ -413,11 +418,29 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
    * The model now states the role (flow.role); the reason line is the
    * fallback for a turn that predates it, and the field stays editable.
    */
+  /**
+   * What this job's package says it sends.
+   *
+   * Read through `resolveCoverage`, which answers for the pre-roles shape too
+   * — see `coverage-is-roles-not-photographers`. Empty when the job has no
+   * package yet, and the role then falls through to the label below.
+   */
+  const coverageForProject = resolveCoverage(
+    (crewFlowPackages ?? []).find(
+      (entry) => entry.id === str(project?.packageId),
+    ) ?? project,
+  );
   const [role, setRole] = useState(() => {
     const said = str(flow.role).trim();
     if (said) return said;
-    const from = `${str(flow.reason)} ${str(flow.title)}`;
-    return /video/i.test(from) ? "Videographer" : "Second photographer";
+    // Nothing said. Ask the job, not a constant: the package already states
+    // which roles this wedding sends, so the first one still to book is a
+    // fact rather than a guess. Falling back to a photography label when even
+    // that is unknown is the last resort, not the first move.
+    const fromReason = `${str(flow.reason)} ${str(flow.title)}`;
+    if (/video/i.test(fromReason)) return "Videographer";
+    const stillToBook = rolesToBook(coverageForProject).roles;
+    return stillToBook[0]?.role ?? "Second photographer";
   });
   const ranked = rankCrewCandidates({
     roleSpecialty,

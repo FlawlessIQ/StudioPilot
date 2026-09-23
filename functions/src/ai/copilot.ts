@@ -15,6 +15,14 @@ import { productEvent } from "../operations/product-events.js";
 import { deterministicIntakeExtraction } from "./intake-prefill.js";
 import { cloudAccessToken } from "./vertex-token.js";
 import {
+  fenceToolResult,
+  UNTRUSTED_CONTENT_RULE,
+} from "./untrusted.js";
+import {
+  promptFingerprint,
+  type CopilotDiagnostics,
+} from "./diagnostics.js";
+import {
   vertexFailure,
   vertexGenerate,
   vertexMockMode,
@@ -688,7 +696,8 @@ const COPILOT_SYSTEM_INSTRUCTION =
   " You may also propose up to three client emails in `proposals` when the answer implies a concrete outward step to a client — a reminder for an overdue balance, a nudge for an expired crew offer or an unsigned contract, a request to finish an overdue questionnaire. Each proposal is a DRAFT the operator reviews and sends with one tap; you never send anything. Write a specific, warm, professional subject and body grounded strictly in the supplied facts — do not invent amounts, dates, or names, and do not address the recipient by a guessed name or write an email address (the system fills the real recipient). `projectId` must be one from the supplied project overview. Propose an email only when it is genuinely the next step; leave `proposals` empty for purely informational questions, and never propose the same email twice." +
   " You may also propose up to three internal, reversible actions in `actionProposals` when the answer implies one: `create_task` (a to-do on a project — supply a short `title` and optional `detail` and `dueDate` as YYYY-MM-DD, e.g. a task to chase an overdue retainer or follow up on an expired offer), `set_insurance_required` (flag that the venue requires insurance), or `create_proposal_draft` (prepare an unsent proposal draft — only when the project already has a selected package; put any cover note in `detail`). Give a one-line `rationale` for each. Each is a card the operator approves; nothing runs until they tap approve, and you never set money, ids, or recipients — the system resolves those. `projectId` must be one from the overview. Leave `actionProposals` empty unless an action is clearly the next step." +
   " When the operator ASKS to STAFF CREW — add crew, book a photographer/second shooter, or fill a crew role — set `flow` to { type: 'crew_offer', projectId, reason }. This launches an interactive flow that shows who is available, lets the operator pick who and set the pay, and sends the offers. When you launch crew_offer, do NOT state specific counts or statuses of prior crew offers (how many were sent, expired, invited, viewed, or accepted) in your `answer` or `facts` — you cannot see the live offer state and the flow shows it accurately; limit yourself to noting that the role is unfilled. When the operator needs to CHOOSE A PACKAGE for a project that has not selected one yet — they ask to pick/select a package, or building a proposal is blocked because no package is chosen — set `flow` to { type: 'select_package', projectId, reason }; it shows the studio's packages, the operator picks one, and it is applied. When the operator asks to SEND OR ASSIGN THE PLANNING QUESTIONNAIRE — send the form/questionnaire/details form to the client, or the questionnaire is overdue or not yet sent — set `flow` to { type: 'select_questionnaire', projectId, reason }; it shows the studio's active questionnaire templates, the operator picks which one, and it is sent to the client. When the operator NAMES a specific person, package or form in that request — 'add albert gershengoren as second photographer', 'use the Gold Cinematic package' — copy the words they used into `flow.subject`, verbatim and uncorrected. When they say WHICH ROLE a crew_offer is for — 'as videographer', 'second shooter', 'as the second photographer' — copy that into `flow.role`, again in their words: the flow ranks the roster against the trade in that label, and defaults to a photography role when you leave it out. Do not guess at a spelling, do not substitute a name from elsewhere in the conversation, and never put an identifier there: you cannot see the studio's roster or catalogue, and the words are matched to a real record before anything is shown. Leave `subject` out when the operator named nothing specific. Set `flow` only for staffing, package selection, or sending a questionnaire; keep the `answer` short (one line) since the flow carries the interaction. Use at most one flow per turn, and `projectId` must be one from the overview. Be proactive, but never at the expense of the question actually asked. Launch a flow only when the operator's request is itself about acting — staffing or filling a crew role, choosing a package, sending the planning questionnaire, or an open-ended triage ask such as 'what needs my attention today' or 'prep everything' — AND there is a real, specific gap on a real project. When the operator asked an INFORMATIONAL question — a status, a fact or count, 'is X ready', 'what is blocking X', 'which clients…', 'show me…' — ANSWER it directly and do NOT set `flow`, even if you notice an unfilled crew role or a missing package; instead name that gap in your answer and offer to act with a `suggestions` entry (e.g. 'Staff the second photographer'). When the request is clear but fits SEVERAL projects — the operator named a person and some dates, or a couple whose name matches more than one job — do not launch a flow and do not simply ask which one in prose: name the ambiguity in one line and put each candidate project in `suggestions` as a question the operator can tap, so answering is a tap rather than retyping. Never launch a flow speculatively." +
-  " You may ALSO answer how-to questions about StudioCue itself — how the product works and how the operator does a task — using ONLY the product facts in this paragraph. Give concrete steps; never invent features, menus, or settings beyond these, and if a how-to falls outside this knowledge say you are not certain and point them to the Help & guides page (in the studio nav) or Support rather than guessing. Answering a how-to is informational — do not claim to perform the steps yourself, and set a flow only if the operator's request is itself an action you can prepare (then the normal flow rules above apply). Product facts: StudioCue runs the whole client lifecycle. `Today` is the operator's inbox — what needs a decision, ranked by what it costs to wait, plus what StudioCue already handled. A `Job` (also called a project) is one client's whole story moving through phases in order: inquiry, proposal, booking, planning, the event, delivery, closeout; open a Job to see the one next move. The rule everywhere is that AI prepares and the human approves — drafts and prepared steps never send or change status until the operator taps approve. To create a project: `Jobs` then `New project` (or the `+ New project` button in the top bar), then enter the client and event. To send a proposal: open the Job, select a package, then send the proposal for the client to accept — if no package is chosen yet, ask me to pick one and I open the package picker. Booking becomes final only on real evidence — a signed contract and a paid retainer, or a signature the operator records on the booking — this is the booking gate. To staff crew: ask me to staff the role and I open the crew flow to choose who, set the pay, and send offers (it cascades to the next candidate if the first passes). To send the planning questionnaire: ask me to send it and I open the questionnaire picker. `Readiness` is the checklist a booked Job clears before the event — contract signed, deposit paid, crew accepted, questionnaire complete, and so on. Setup lives in `Studio settings` and the four setup questions (prices/packages, agreement template, planning questionnaire, consultation availability), and existing price lists, agreements, and forms can be brought in through Import. Weddings already booked before StudioCue (contract signed, retainer paid) are brought in from `Jobs` then `Import bookings`: one at a time with a form, or a whole CSV exported from HoneyBook, Dubsado, Studio Ninja or a spreadsheet, reviewed row by row before anything is imported; payments can be filled from QuickBooks by the client's email; and a signed contract attached here in Cue that matches no job offers to import it with the details filled in. Imported bookings arrive quiet — nothing is emailed, invoiced, reminded or charged to the couple — until the operator opens the job and chooses to bring the couple in; only studio owners and admins can import. Calendar, video meetings, file storage, and accounting connect under `Studio settings` then `Integrations`; contract e-signature is currently handled by recording the signature on each booking rather than a connected signing app.";
+  " You may ALSO answer how-to questions about StudioCue itself — how the product works and how the operator does a task — using ONLY the product facts in this paragraph. Give concrete steps; never invent features, menus, or settings beyond these, and if a how-to falls outside this knowledge say you are not certain and point them to the Help & guides page (in the studio nav) or Support rather than guessing. Answering a how-to is informational — do not claim to perform the steps yourself, and set a flow only if the operator's request is itself an action you can prepare (then the normal flow rules above apply). Product facts: StudioCue runs the whole client lifecycle. `Today` is the operator's inbox — what needs a decision, ranked by what it costs to wait, plus what StudioCue already handled. A `Job` (also called a project) is one client's whole story moving through phases in order: inquiry, proposal, booking, planning, the event, delivery, closeout; open a Job to see the one next move. The rule everywhere is that AI prepares and the human approves — drafts and prepared steps never send or change status until the operator taps approve. To create a project: `Jobs` then `New project` (or the `+ New project` button in the top bar), then enter the client and event. To send a proposal: open the Job, select a package, then send the proposal for the client to accept — if no package is chosen yet, ask me to pick one and I open the package picker. Booking becomes final only on real evidence — a signed contract and a paid retainer, or a signature the operator records on the booking — this is the booking gate. To staff crew: ask me to staff the role and I open the crew flow to choose who, set the pay, and send offers (it cascades to the next candidate if the first passes). To send the planning questionnaire: ask me to send it and I open the questionnaire picker. `Readiness` is the checklist a booked Job clears before the event — contract signed, deposit paid, crew accepted, questionnaire complete, and so on. Setup lives in `Studio settings` and the four setup questions (prices/packages, agreement template, planning questionnaire, consultation availability), and existing price lists, agreements, and forms can be brought in through Import. Weddings already booked before StudioCue (contract signed, retainer paid) are brought in from `Jobs` then `Import bookings`: one at a time with a form, or a whole CSV exported from HoneyBook, Dubsado, Studio Ninja or a spreadsheet, reviewed row by row before anything is imported; payments can be filled from QuickBooks by the client's email; and a signed contract attached here in Cue that matches no job offers to import it with the details filled in. Imported bookings arrive quiet — nothing is emailed, invoiced, reminded or charged to the couple — until the operator opens the job and chooses to bring the couple in; only studio owners and admins can import. Calendar, video meetings, file storage, and accounting connect under `Studio settings` then `Integrations`; contract e-signature is currently handled by recording the signature on each booking rather than a connected signing app." +
+  UNTRUSTED_CONTENT_RULE;
 
 /**
  * The final-answer request. The agent's gathered retrieval already lives in
@@ -811,7 +820,8 @@ async function streamStructuredBody(
 const COPILOT_MAX_TOOL_ITERATIONS = 4;
 
 const COPILOT_RETRIEVAL_INSTRUCTION =
-  "You are StudioCue Event Copilot for a studio operator. You are given the operator's question and a compact overview of every project they can see (id, name, type, event date, state, readiness score). Use the read-only tools to fetch exactly the detail the question needs, then stop calling tools — a later step writes the final answer. For a question about one project, call get_project_detail with its id from the overview. For a portfolio question (who owes money, what is unsigned, which crew have not accepted), call find_across_projects. Do not call a tool if the overview already answers the question. Never invent data; rely only on tool results and the overview.";
+  "You are StudioCue Event Copilot for a studio operator. You are given the operator's question and a compact overview of every project they can see (id, name, type, event date, state, readiness score). Use the read-only tools to fetch exactly the detail the question needs, then stop calling tools — a later step writes the final answer. For a question about one project, call get_project_detail with its id from the overview. For a portfolio question (who owes money, what is unsigned, which crew have not accepted), call find_across_projects. Do not call a tool if the overview already answers the question. Never invent data; rely only on tool results and the overview." +
+  UNTRUSTED_CONTENT_RULE;
 
 const COPILOT_TOOL_DECLARATIONS = [
   {
@@ -1068,7 +1078,14 @@ async function runToolLoop(
         : [];
       for (const match of matches)
         if (typeof match.projectId === "string") referenced.add(match.projectId);
-      responseParts.push({ functionResponse: { name: call.name, response: result } });
+      responseParts.push({
+        functionResponse: {
+          name: call.name,
+          // Free text an outsider wrote is marked before the model sees it.
+          // See functions/src/ai/untrusted.ts.
+          response: fenceToolResult(result) as Json,
+        },
+      });
     }
     contents.push({ role: "user", parts: responseParts });
   }
@@ -2023,6 +2040,7 @@ export const aiCopilotCommand = onRequest(
       const writeSSE = (obj: unknown) => {
         response.write(`data: ${JSON.stringify(obj)}\n\n`);
       };
+      const toolTrace: Array<{ name: string; projectId: string | null }> = [];
       const { contents: retrievalContents, referenced: referencedProjectIds } = await runToolLoop(
         input.question,
         input.history ?? [],
@@ -2031,6 +2049,13 @@ export const aiCopilotCommand = onRequest(
         permittedProjectIds,
         projectNames,
         (name, toolArgs) => {
+          // Recorded as well as shown: which records reached the model is how
+          // a retrieval failure is told apart from a judgement one.
+          toolTrace.push({
+            name,
+            projectId:
+              typeof toolArgs.projectId === "string" ? toolArgs.projectId : null,
+          });
           if (streaming) writeSSE({ status: toolStatusLabel(name, toolArgs, projectNames) });
         },
       );
@@ -2144,6 +2169,42 @@ export const aiCopilotCommand = onRequest(
               role: result.flow.role ?? null,
             }
           : null;
+      /**
+       * What the model asked for, beside what we did with it.
+       *
+       * `flowDirective` is null when the model asked for no flow AND when it
+       * asked for one we could not aim at a project. Those are opposite
+       * problems — one is the model's, one is ours — and for a day they were
+       * indistinguishable on the record.
+       */
+      const diagnostics: CopilotDiagnostics = {
+        flowRequested: result.flow
+          ? {
+              type: String(result.flow.type),
+              hasProjectId: Boolean(result.flow.projectId),
+              subject: result.flow.subject ?? null,
+              role: result.flow.role ?? null,
+            }
+          : null,
+        flowResolution: !result.flow
+          ? "not_requested"
+          : flowDirective
+            ? "resolved"
+            : "dropped_unresolved_project",
+        flowProjectId,
+        tools: toolTrace,
+        referencedProjectIds: [...referencedProjectIds],
+        answerChars: String(safeResult.answer ?? "").length,
+        factCount: safeResult.facts.length,
+        citationCount: safeResult.citations.length,
+        proposalCount: proposalActions.length,
+        actionProposalCount: commandActions.length,
+        promptFingerprint: promptFingerprint(
+          COPILOT_SYSTEM_INSTRUCTION,
+          COPILOT_RETRIEVAL_INSTRUCTION,
+        ),
+        model: copilotModelName(),
+      };
       const interactionId = `ai_${randomUUID()}`;
       const batch = db.batch();
       for (const entry of [...proposalActions, ...commandActions]) {
@@ -2161,6 +2222,9 @@ export const aiCopilotCommand = onRequest(
         // resumed thread re-renders faithfully, not just the bare answer.
         result: { ...safeResult, jobObject, asOf: now, proposalActionIds, flow: flowDirective },
         model: copilotModelName(),
+        // Why the turn came out this way. ids and counts only, no record
+        // content — see functions/src/ai/diagnostics.ts.
+        diagnostics,
         createdAt: now,
       });
       // Thread index for the conversation rail. Title is set once, on the first
