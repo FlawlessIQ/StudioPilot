@@ -913,12 +913,46 @@ async function executeReadTool(
         scopedDocuments("questionnaireResponses", tenantId, scope),
         scopedDocuments("readinessAssessments", tenantId, scope),
       ]);
+    /**
+     * Crew assignments name a person, not an id.
+     *
+     * The assignment carries `crewProfileId` and nothing else identifying, so
+     * asked "who is on the demattia wedding?" Cue could only answer "a
+     * videographer has accepted a role" — it did not have the name to give.
+     * That is Gabe's G4 complaint ("I can't see anywhere where my staff is for
+     * this job") surfacing again in the copilot, and it reads as the model
+     * being evasive when it was simply not told.
+     *
+     * Names only. Rates, emails and documents stay out: the question is who is
+     * working the wedding, and the rest is the roster screen's business.
+     */
+    const crewProfileIds = [
+      ...new Set(
+        crew
+          .map((item) => String((item as Json).crewProfileId ?? ""))
+          .filter(Boolean),
+      ),
+    ];
+    const crewNames = new Map<string, string>();
+    if (crewProfileIds.length) {
+      const db = getFirestore();
+      const profiles = await Promise.all(
+        crewProfileIds.slice(0, 40).map((id) => db.doc(`crewProfiles/${id}`).get()),
+      );
+      for (const profile of profiles)
+        if (profile.exists && profile.get("tenantId") === tenantId)
+          crewNames.set(profile.id, String(profile.get("name") ?? ""));
+    }
     return {
       projectId,
       name: projectNames.get(projectId) ?? projectId,
       contracts,
       invoices,
-      crew,
+      crew: crew.map((item) => ({
+        ...(item as Json),
+        crewName:
+          crewNames.get(String((item as Json).crewProfileId ?? "")) ?? null,
+      })),
       tasks,
       schedules,
       insurance,

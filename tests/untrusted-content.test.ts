@@ -77,3 +77,43 @@ test("no tool the model can call writes anything", () => {
     "a new Cue tool needs reviewing against the injection tests",
   );
 });
+
+/**
+ * Cue can name the people on a job.
+ *
+ * Asked "who is on the demattia wedding?" on production, Cue answered "a
+ * videographer has accepted a role" — no name. Not evasion: `crewAssignments`
+ * carry `crewProfileId` and nothing identifying, and `crewProfiles` was never
+ * fetched, so the model had no name to give. It reads as the assistant being
+ * cagey about the studio's own staff.
+ *
+ * Found by the retrieval/judgement split added the same day: the answer was
+ * poor, and the diagnostics said the model saw the job — so the fault was what
+ * it was shown, not what it concluded.
+ */
+test("the project detail names the crew, and nothing more about them", () => {
+  // Anchored on the implementation, not the tool declaration — the string
+  // `get_project_detail` appears in both.
+  // Both anchors appear more than once (tool declaration, status labels, the
+  // implementation), so the end is searched forward from the start.
+  const from = copilot.indexOf("const scope = [projectId];");
+  const detail = copilot.slice(
+    from,
+    copilot.indexOf('if (name === "find_across_projects")', from),
+  );
+  assert.ok(detail.length > 200, "could not isolate the project detail branch");
+  assert.match(detail, /crewName/, "crew assignments must carry a name");
+  assert.match(
+    detail,
+    /crewProfiles\/\$\{id\}/,
+    "resolved from the roster, tenant-checked",
+  );
+  // Names answer "who is working this wedding". Rates and contact details are
+  // the roster screen's business and have no place in a copilot answer.
+  for (const field of ["rateCents", "email", "phone", "w9Status"])
+    assert.doesNotMatch(
+      detail,
+      new RegExp(`crewNames[\\s\\S]{0,400}${field}`),
+      `the copilot must not pull ${field} into an answer`,
+    );
+});
