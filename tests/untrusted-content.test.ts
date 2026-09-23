@@ -103,6 +103,18 @@ test("the project detail names the crew, and nothing more about them", () => {
   );
   assert.ok(detail.length > 200, "could not isolate the project detail branch");
   assert.match(detail, /crewName/, "crew assignments must carry a name");
+  // The id has to survive `compact` or the lookup has nothing to look up.
+  // It did not, the first time: every name resolved to null and Cue kept
+  // saying the name was unavailable, which was true of what it was given.
+  const compactAllowlist = copilot.slice(
+    copilot.indexOf("function compact("),
+    copilot.indexOf("function compact(") + 1400,
+  );
+  assert.match(
+    compactAllowlist,
+    /"crewProfileId"/,
+    "compact strips every field not named here, including the crew id",
+  );
   assert.match(
     detail,
     /crewProfiles\/\$\{id\}/,

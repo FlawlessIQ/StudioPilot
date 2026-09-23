@@ -441,6 +441,12 @@ function compact(document: DocumentSnapshot): Json & { id: string } {
     "dueDate",
     "completedAt",
     "role",
+    // Opaque, and the only way to put a name on a crew assignment. Without it
+    // `compact` stripped the id before the detail could resolve it, so the
+    // first version of the crew-name fix silently set every name to null and
+    // Cue went on saying "the crew member's name is not yet available" —
+    // accurately, about what it had been given.
+    "crewProfileId",
     "arrivalAt",
     "currentScheduleVersion",
     "acknowledgedScheduleVersion",
