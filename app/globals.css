@@ -13063,6 +13063,36 @@ form:has(> .address-field) > .address-field,
 /* "This wasn't right" — deliberately quiet. It is there when a turn is wrong
    and invisible the rest of the time; a prominent rating widget would collect
    opinions, and what is wanted is the turns worth reading back. */
+/* Asked after a rejection, not before it — see ai-approval-queue.tsx. Quiet
+   enough to ignore, because skipping it is a valid answer. */
+.ai-reject-reason {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.ai-reject-reason label { display: grid; gap: 5px; flex: 1; min-width: 200px; font-size: 12px; color: var(--muted); }
+.ai-reject-reason small { color: var(--muted); }
+.ai-reject-reason input {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  padding: 0 10px;
+  color: var(--ink);
+}
+.ai-reject-reason button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
 .cp-feedback { margin-top: 10px; }
 .cp-feedback button {
   background: none;

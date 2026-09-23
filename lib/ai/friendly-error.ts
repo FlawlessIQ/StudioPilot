@@ -347,6 +347,13 @@ const DETAILED_BY_CODE: Record<string, (detail: string) => string> = {
       : "This booking is already in StudioCue. Open that job instead of importing it again.",
   // Reachable only if a turn is reported after its record has gone, or from a
   // stale tab. Nothing is lost but the report itself.
+  // A studio turning its own AI off, not a fault. Says who can undo it.
+  AI_PAUSED_BY_STUDIO: () =>
+    "AI features are switched off for this studio. An owner can turn them back on in Studio settings.",
+  // The day's burst cap, not the month's allowance — so the wording has to
+  // make clear that waiting fixes it and nothing has been lost.
+  AI_DAILY_QUOTA_EXCEEDED: () =>
+    "That is today's AI limit reached. It resets overnight, and your monthly allowance is unaffected.",
   INTERACTION_NOT_FOUND: () =>
     "That answer is no longer on file, so the report could not be attached to it.",
   INVALID_COMMAND: (detail) =>

@@ -87,6 +87,17 @@ export function AiQueueCard({
   const [bodyDraft, setBodyDraft] = useState(text(output.body));
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /**
+   * Asked AFTER a rejection, never before.
+   *
+   * The reason is the useful part — it says what the suggestion got wrong,
+   * which is what an eval case needs. But requiring it before the reject
+   * button works would reduce rejections, and a rejection nobody records is
+   * worth less than one with no reason. The click lands immediately; the
+   * question comes after, and can be ignored.
+   */
+  const [rejectedActionId, setRejectedActionId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
   // A proposed studio command that was approved but whose command run failed —
   // keep the card so the owner can retry, rather than losing it with a stale
   // "approved" state and no effect.
@@ -150,6 +161,7 @@ export function AiQueueCard({
         },
       });
       setNotice(text(result.downstreamConsequence));
+      if (decision === "rejected") setRejectedActionId(action.id);
       if (
         decision === "approved" &&
         text(action.capability) === "inquiry_reply_draft" &&
@@ -513,9 +525,16 @@ export function AiQueueCard({
             <Sparkles /> {editing ? "Use original" : "Edit first"}
           </button>
         )}
+        {/* Two ways to say no, and until now no way to tell them apart. A
+            rejection means the suggestion was WRONG and is worth learning
+            from; a dismissal means "not now" and carries no signal. The
+            titles say so, and a rejection asks what was wrong afterwards
+            rather than before — friction on the button that carries the
+            signal would just reduce the signal. */}
         <button
           disabled={Boolean(busy)}
           onClick={() => void decide("rejected")}
+          title="This suggestion was wrong. StudioCue learns from this."
           type="button"
         >
           <X /> Reject
@@ -530,6 +549,7 @@ export function AiQueueCard({
         <button
           disabled={Boolean(busy)}
           onClick={() => void decide("dismissed")}
+          title="Fine, just not now. Nothing is learned from this."
           type="button"
         >
           Dismiss
@@ -537,6 +557,45 @@ export function AiQueueCard({
       </footer>
       )}
       {notice ? <p className="ai-queue-notice" role="status">{notice}</p> : null}
+      {/* Skippable by design: the rejection is already recorded, and this only
+          adds the reason. See the note on `rejectedActionId`. */}
+      {rejectedActionId ? (
+        <form
+          className="ai-reject-reason"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const note = rejectReason.trim();
+            const id = rejectedActionId;
+            setRejectedActionId(null);
+            setRejectReason("");
+            if (!note) return;
+            void runAiQueueCommand({
+              type: "decideAiAction",
+              input: { actionId: id, decision: "rejected", note },
+            }).catch(() => undefined);
+          }}
+        >
+          <label>
+            What was wrong with it?{" "}
+            <small>Optional — helps StudioCue improve.</small>
+            <input
+              onChange={(event) => setRejectReason(event.target.value)}
+              placeholder="e.g. wrong job, or we already did this"
+              value={rejectReason}
+            />
+          </label>
+          <button type="submit">Send</button>
+          <button
+            onClick={() => {
+              setRejectedActionId(null);
+              setRejectReason("");
+            }}
+            type="button"
+          >
+            Skip
+          </button>
+        </form>
+      ) : null}
     </article>
   );
 }
