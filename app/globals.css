@@ -13060,6 +13060,23 @@ form:has(> .address-field) > .address-field,
    actions). A global `.copilot-result > div{display:grid}` would stack them,
    so force the inline row with a scoped rule, like .cp-trace. */
 .cue-thread .copilot-result .cp-quickreplies { display: flex; flex-wrap: wrap; gap: 7px; }
+/* "This wasn't right" — deliberately quiet. It is there when a turn is wrong
+   and invisible the rest of the time; a prominent rating widget would collect
+   opinions, and what is wanted is the turns worth reading back. */
+.cp-feedback { margin-top: 10px; }
+.cp-feedback button {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--muted);
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.cp-feedback button:hover { color: var(--ink); }
+.cp-feedback.is-sent { color: var(--muted); font-size: 12px; }
+
 .cp-quickreply {
   border: 1px solid var(--line);
   background: var(--surface);

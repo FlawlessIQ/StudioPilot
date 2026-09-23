@@ -345,6 +345,10 @@ const DETAILED_BY_CODE: Record<string, (detail: string) => string> = {
     detail
       ? `${detail} Open that job instead of importing it again.`
       : "This booking is already in StudioCue. Open that job instead of importing it again.",
+  // Reachable only if a turn is reported after its record has gone, or from a
+  // stale tab. Nothing is lost but the report itself.
+  INTERACTION_NOT_FOUND: () =>
+    "That answer is no longer on file, so the report could not be attached to it.",
   INVALID_COMMAND: (detail) =>
     detail
       ? `Check ${detail} — that value wasn't accepted.`

@@ -185,6 +185,27 @@ export async function setCopilotVoice(
   return saved ?? null;
 }
 
+/**
+ * Tell StudioCue a turn was wrong.
+ *
+ * Joins the operator's verdict to that turn's diagnostics — what the model
+ * asked for, which tools ran, which records it saw — so a real complaint can
+ * become an eval case instead of a memory. See
+ * scripts/cue-feedback-to-scenarios.mjs.
+ */
+export async function reportCopilotTurn(input: {
+  tenantId: string;
+  interactionId: string;
+  verdict: "wrong" | "unhelpful";
+  note?: string;
+}): Promise<boolean> {
+  const { recorded } = await postCopilot<{ recorded: boolean }>({
+    kind: "turn_feedback",
+    ...input,
+  });
+  return recorded === true;
+}
+
 /** The signed-in owner's recent copilot conversations, newest first. */
 export async function listCopilotThreads(tenantId: string): Promise<CopilotThreadSummary[]> {
   const { threads } = await postCopilot<{ threads: CopilotThreadSummary[] }>({

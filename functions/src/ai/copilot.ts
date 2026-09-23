@@ -252,6 +252,18 @@ export const responseSchema = z.object({
     .catch(null),
 });
 
+/**
+ * An operator's verdict on one Cue turn. Short on purpose: the value is the
+ * join to that turn's diagnostics, not an essay.
+ */
+const turnFeedbackSchema = z.object({
+  kind: z.literal("turn_feedback"),
+  tenantId: z.string().min(1),
+  interactionId: z.string().min(1).max(120),
+  verdict: z.enum(["wrong", "unhelpful"]),
+  note: z.string().trim().max(500).optional().default(""),
+});
+
 const internalRoles = new Set([
   "studio_owner",
   "studio_admin",
@@ -1676,6 +1688,67 @@ export const aiCopilotCommand = onRequest(
     try {
       await requireAppCheck(request);
       const identity = await requireIdentity(request);
+
+      /**
+       * "That wasn't right" — the shortest path from a bad turn to a test.
+       *
+       * Every Cue defect this month was found by a person reading a transcript
+       * and then writing a scenario by hand. That is the bottleneck: the
+       * ampersand bug took two attempts and an audit because nothing captured
+       * the failing turn at the moment it failed.
+       *
+       * The turn already records what the model asked for, which tools ran and
+       * which records it saw (see diagnostics.ts). This joins the operator's
+       * verdict to it, so `scripts/cue-feedback-to-scenarios.mjs` can turn a
+       * week of real complaints into eval cases without anyone watching.
+       *
+       * Deliberately not a new function: a new endpoint needs three allowlist
+       * entries and a deploy of its own, and this is one small write.
+       */
+      if (asRecord(request.body).kind === "turn_feedback") {
+        const feedback = turnFeedbackSchema.parse(request.body);
+        const db = getFirestore();
+        const membership = await db
+          .doc(`memberships/${feedback.tenantId}_${identity.uid}`)
+          .get();
+        if (
+          !membership.exists ||
+          membership.get("status") !== "active" ||
+          !internalRoles.has(String(membership.get("role")))
+        )
+          throw new Error("FORBIDDEN");
+        // The turn must be this tenant's. An interaction id is guessable and
+        // the feedback carries the question back out in the tooling.
+        const interaction = await db
+          .doc(`aiInteractions/${feedback.interactionId}`)
+          .get();
+        if (
+          !interaction.exists ||
+          interaction.get("tenantId") !== feedback.tenantId
+        )
+          throw new Error("INTERACTION_NOT_FOUND");
+        const now = new Date().toISOString();
+        await db.doc(`copilotFeedback/${feedback.interactionId}`).set(
+          {
+            id: feedback.interactionId,
+            tenantId: feedback.tenantId,
+            interactionId: feedback.interactionId,
+            userId: identity.uid,
+            verdict: feedback.verdict,
+            note: feedback.note || null,
+            // Copied so the tooling can read a scenario without re-reading the
+            // interaction, and so it survives the interaction being pruned.
+            question: String(interaction.get("question") ?? ""),
+            diagnostics: interaction.get("diagnostics") ?? null,
+            promotedToEvalAt: null,
+            createdAt: now,
+            updatedAt: now,
+          },
+          { merge: true },
+        );
+        response.json({ recorded: true });
+        return;
+      }
 
       if (asRecord(request.body).kind === "project_intake") {
         const intake = intakeRequestSchema.parse(request.body);

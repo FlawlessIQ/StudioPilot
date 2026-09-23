@@ -22,6 +22,7 @@ import { CueMark } from "@/components/brand/logo";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { AiQueueCard } from "@/components/ai/ai-approval-queue";
 import { FlowRunner } from "@/components/ai/flow-runner";
+import { reportCopilotTurn } from "@/lib/ai/copilot-client";
 import { SignedAgreementCard } from "@/components/ai/signed-agreement-card";
 import {
   refreshTenantRecords,
@@ -705,7 +706,59 @@ function AssistantTurn({
         hasFlow={Boolean(result.flow)}
         question={question}
       />
+      <TurnFeedback interactionId={result.interactionId} />
     </section>
+  );
+}
+
+/**
+ * "That wasn't right."
+ *
+ * Every Cue defect this month reached a test by a person reading a transcript
+ * and writing a scenario by hand — which is why the ampersand bug needed two
+ * attempts and an audit. The turn already records what the model asked for,
+ * which tools ran and which records it saw; this attaches the operator's
+ * verdict to it, so a real complaint becomes an eval case instead of a memory.
+ *
+ * Deliberately small. A rating scale would collect opinions; one button
+ * collects the turns worth looking at.
+ */
+function TurnFeedback({ interactionId }: { interactionId: string }) {
+  const workspace = useWorkspace();
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  // No tenant means no workspace to attribute the turn to; the control has
+  // nothing to report against.
+  if (!interactionId || !workspace.tenantId) return null;
+  const tenantId = workspace.tenantId;
+  if (sent)
+    return (
+      <p className="cp-feedback is-sent" role="status">
+        Thanks — we will look at this turn.
+      </p>
+    );
+  return (
+    <p className="cp-feedback">
+      <button
+        disabled={busy}
+        onClick={() => {
+          setBusy(true);
+          void reportCopilotTurn({
+            tenantId,
+            interactionId,
+            verdict: "wrong",
+          })
+            .then(() => setSent(true))
+            // A failed report is not worth interrupting the operator for; the
+            // turn itself is unaffected.
+            .catch(() => setSent(true))
+            .finally(() => setBusy(false));
+        }}
+        type="button"
+      >
+        This wasn&rsquo;t right
+      </button>
+    </p>
   );
 }
 

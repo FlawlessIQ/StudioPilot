@@ -44,6 +44,10 @@ const AI_OWNED_COLLECTIONS = new Set([
   // The assistant's own conversation index (thread title, recency, turn count)
   // for the copilot chat rail — an AI artifact, not a business record.
   "copilotThreads",
+  // An operator's verdict on one assistant turn, joined to that turn's
+  // diagnostics so it can become an eval case. About the assistant, never
+  // about the wedding — no reader of a project consults it.
+  "copilotFeedback",
   "actionReceipts",
   "auditEvents",
   "commandExecutions",
