@@ -50,6 +50,14 @@ export type CopilotDiagnostics = {
   referencedProjectIds: string[];
   /** Counts only. Enough to spot "the model said a lot and did nothing". */
   answerChars: number;
+  /**
+   * Contact details stripped from the answer before it was sent.
+   *
+   * Empty on every healthy turn — the prompt forbids writing them and the
+   * tools do not supply them. A non-empty list means one of those two stopped
+   * being true, which is worth knowing the same day.
+   */
+  redactions: ("email" | "phone")[];
   factCount: number;
   citationCount: number;
   proposalCount: number;

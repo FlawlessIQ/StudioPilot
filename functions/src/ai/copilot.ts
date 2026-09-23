@@ -22,6 +22,7 @@ import {
   promptFingerprint,
   type CopilotDiagnostics,
 } from "./diagnostics.js";
+import { screenAnswer } from "./answer-safety.js";
 import {
   vertexFailure,
   vertexGenerate,
@@ -2203,9 +2204,18 @@ export const aiCopilotCommand = onRequest(
       const allowedLinks = new Set(citationCandidates.map((item) => item.href));
       // `proposals` is the model's raw draft input; the client renders the
       // created approval cards by id, so it is not echoed in the client result.
+      /**
+       * Contact details never leave in prose.
+       *
+       * The prompt forbids it and the tools do not supply it, so this should
+       * never fire — which is exactly why it is here rather than trusted. See
+       * functions/src/ai/answer-safety.ts.
+       */
+      const answerRisk = screenAnswer(String(result.answer ?? ""));
+      const factRisks = result.facts.map((fact) => screenAnswer(fact));
       const safeResult = {
-        answer: result.answer,
-        facts: result.facts,
+        answer: answerRisk ? answerRisk.redacted : result.answer,
+        facts: result.facts.map((fact, index) => factRisks[index]?.redacted ?? fact),
         suggestions: result.suggestions,
         citations: result.citations.filter((item) => allowedLinks.has(item.href)),
       };
@@ -2332,6 +2342,15 @@ export const aiCopilotCommand = onRequest(
         tools: toolTrace,
         referencedProjectIds: [...referencedProjectIds],
         answerChars: String(safeResult.answer ?? "").length,
+        // Empty on every healthy turn. A non-empty list is worth looking at
+        // immediately: either the model was steered, or a tool started
+        // returning something it should not.
+        redactions: [
+          ...new Set([
+            ...(answerRisk?.kinds ?? []),
+            ...factRisks.flatMap((risk) => risk?.kinds ?? []),
+          ]),
+        ],
         factCount: safeResult.facts.length,
         citationCount: safeResult.citations.length,
         proposalCount: proposalActions.length,
