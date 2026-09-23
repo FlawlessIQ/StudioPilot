@@ -177,3 +177,37 @@ test("message bodies are trimmed rather than reproduced whole", () => {
   assert.match(reader, /slice\(0, 700\)/);
   assert.match(reader, /\.slice\(-25\)/, "and the thread itself is bounded");
 });
+
+/**
+ * The plumbing never reaches the studio.
+ *
+ * Asked "what has the couple said?", Cue quoted the message back correctly and
+ * brought the fence markers with it:
+ *
+ *   The couple asked about the timeline, writing: «record-content»Hi! We are
+ *   hoping to start getting ready around 11am…«/record-content»
+ *
+ * Accurate, and unreadable. Found by walking it on production the same day
+ * fencing shipped — the markers exist so the MODEL can tell a client's words
+ * from the operator's, and they have no business in an answer.
+ *
+ * Stripped deterministically rather than asked for in the prompt: a rule the
+ * model has to remember is not a rule.
+ */
+test("fence markers are taken back out before the answer is shown", () => {
+  assert.match(copilot, /stripFenceMarkers\(String\(result\.answer/);
+  assert.match(copilot, /spokenFacts/, "facts are quoted back too");
+  assert.match(untrusted, /export function stripFenceMarkers/);
+});
+
+test("stripping survives a partial or doubled marker", () => {
+  // A model may echo one half, or wrap something twice.
+  const open = /UNTRUSTED_OPEN = "([^"]+)"/.exec(untrusted)?.[1] ?? "";
+  const close = /UNTRUSTED_CLOSE = "([^"]+)"/.exec(untrusted)?.[1] ?? "";
+  assert.ok(open && close);
+  // The stripper splits on each marker and rejoins, so any count disappears.
+  const strip = (value: string) => value.split(open).join("").split(close).join("");
+  assert.equal(strip(`${open}hello${close}`), "hello");
+  assert.equal(strip(`${open}${open}hi${close}`), "hi");
+  assert.equal(strip(`no markers here`), "no markers here");
+});

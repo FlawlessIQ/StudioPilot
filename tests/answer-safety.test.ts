@@ -54,8 +54,11 @@ test("the screen is stateless across calls", () => {
 
 test("the copilot screens before it answers, and records that it did", () => {
   const copilot = readFileSync("functions/src/ai/copilot.ts", "utf8");
-  assert.match(copilot, /screenAnswer\(String\(result\.answer/);
-  assert.match(copilot, /facts: result\.facts\.map/, "facts are prose too");
+  // Both the answer and the facts are prose the studio reads, and both are
+  // screened after the fence markers come off — screening the raw string
+  // would leave the markers in whatever it redacted around.
+  assert.match(copilot, /screenAnswer\(spokenAnswer\)/);
+  assert.match(copilot, /spokenFacts\.map\(\(fact\) => screenAnswer\(fact\)\)/);
   assert.match(copilot, /redactions:/, "a redaction is worth knowing about");
 });
 

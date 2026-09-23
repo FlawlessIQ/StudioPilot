@@ -40,6 +40,22 @@ export const UNTRUSTED_CLOSE = "«/record-content»";
 const stripMarkers = (value: string): string =>
   value.split(UNTRUSTED_OPEN).join("").split(UNTRUSTED_CLOSE).join("");
 
+/**
+ * Take the markers back out of anything the studio will read.
+ *
+ * The markers are plumbing — they exist so the model can tell a client's words
+ * from the operator's. Asked "what has the couple said?", the model quoted the
+ * message back accurately and included the markers with it, so the answer read
+ * "«record-content»Hi! We are hoping to start getting ready around 11am…".
+ * Found by walking it on production the day fencing shipped.
+ *
+ * Stripped here rather than asked for in the prompt: a rule the model has to
+ * remember is not a rule, and this one costs nothing to enforce.
+ */
+export function stripFenceMarkers(value: string): string {
+  return stripMarkers(value);
+}
+
 export function fenceUntrusted(value: string): string {
   return `${UNTRUSTED_OPEN}${stripMarkers(value)}${UNTRUSTED_CLOSE}`;
 }

@@ -16,6 +16,7 @@ import { deterministicIntakeExtraction } from "./intake-prefill.js";
 import { cloudAccessToken } from "./vertex-token.js";
 import {
   fenceToolResult,
+  stripFenceMarkers,
   UNTRUSTED_CONTENT_RULE,
 } from "./untrusted.js";
 import {
@@ -2282,11 +2283,16 @@ export const aiCopilotCommand = onRequest(
        * never fire — which is exactly why it is here rather than trusted. See
        * functions/src/ai/answer-safety.ts.
        */
-      const answerRisk = screenAnswer(String(result.answer ?? ""));
-      const factRisks = result.facts.map((fact) => screenAnswer(fact));
+      // The fence markers are plumbing. The model quotes a client's words back
+      // accurately and brings the markers with them, so they come off before
+      // anyone reads the answer.
+      const spokenAnswer = stripFenceMarkers(String(result.answer ?? ""));
+      const spokenFacts = result.facts.map((fact) => stripFenceMarkers(fact));
+      const answerRisk = screenAnswer(spokenAnswer);
+      const factRisks = spokenFacts.map((fact) => screenAnswer(fact));
       const safeResult = {
-        answer: answerRisk ? answerRisk.redacted : result.answer,
-        facts: result.facts.map((fact, index) => factRisks[index]?.redacted ?? fact),
+        answer: answerRisk ? answerRisk.redacted : spokenAnswer,
+        facts: spokenFacts.map((fact, index) => factRisks[index]?.redacted ?? fact),
         suggestions: result.suggestions,
         citations: result.citations.filter((item) => allowedLinks.has(item.href)),
       };
