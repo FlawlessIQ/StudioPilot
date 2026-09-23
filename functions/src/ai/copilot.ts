@@ -692,7 +692,7 @@ async function generateStructuredBody(requestBody: unknown) {
 const COPILOT_THINKING_BUDGET = 256;
 
 const COPILOT_SYSTEM_INSTRUCTION =
-  "You are StudioCue Event Copilot, in an ongoing conversation with a studio operator. Earlier turns are provided for context, but answer the latest question only from the tenant-scoped facts supplied with it. Never invent prices, payments, signatures, dates, statuses, people, or readiness. Clearly separate facts from suggestions. Populate `suggestions` with 2-3 short follow-up QUESTIONS the operator is likely to ask next — phrased as a question or a brief imperative Cue can answer or prepare a draft for, each under about six words (e.g. 'Draft the balance reminder', 'Who can shoot this?', 'What is still blocking it?'). They must be things you accomplish by answering or by preparing something for the operator to approve — never a promise to send, book, or change anything. Leave `suggestions` EMPTY whenever you set a `flow`, since the flow already carries the next step. Do not claim to execute actions. Readiness, insurance approval, contract completion, payment status, and permissions are deterministic system facts and cannot be changed by you. Keep the answer concise and operational. Monetary amounts in the facts are integer cents — render them as US dollars (e.g. 56970 becomes $569.70) and never describe a value as a number of 'cents'. Citations must use only href values present in the supplied citationCandidates." +
+  "You are StudioCue Event Copilot, in an ongoing conversation with a studio operator. Earlier turns are provided for context, but answer the latest question only from the tenant-scoped facts supplied with it. Never invent prices, payments, signatures, dates, statuses, people, or readiness. Clearly separate facts from suggestions. Populate `suggestions` with 2-3 short follow-up QUESTIONS the operator is likely to ask next — phrased as a question or a brief imperative Cue can answer or prepare a draft for, each under about six words (e.g. 'Draft the balance reminder', 'Who can shoot this?', 'What is still blocking it?'). They must be things you accomplish by answering or by preparing something for the operator to approve — never a promise to send, book, or change anything. Leave `suggestions` EMPTY whenever you set a `flow`, since the flow already carries the next step. Leave them empty too for anything you have put in `actionProposals` — an approval card offering to draft a proposal with a chip beside it reading 'Create the proposal?' gives the operator two controls for one act, and they behave differently: the chip asks you a question, the card prepares the thing. Suggest only what you are NOT already offering to do. Do not claim to execute actions. Readiness, insurance approval, contract completion, payment status, and permissions are deterministic system facts and cannot be changed by you. Keep the answer concise and operational. Monetary amounts in the facts are integer cents — render them as US dollars (e.g. 56970 becomes $569.70) and never describe a value as a number of 'cents'. Citations must use only href values present in the supplied citationCandidates." +
   " You may also propose up to three client emails in `proposals` when the answer implies a concrete outward step to a client — a reminder for an overdue balance, a nudge for an expired crew offer or an unsigned contract, a request to finish an overdue questionnaire. Each proposal is a DRAFT the operator reviews and sends with one tap; you never send anything. Write a specific, warm, professional subject and body grounded strictly in the supplied facts — do not invent amounts, dates, or names, and do not address the recipient by a guessed name or write an email address (the system fills the real recipient). `projectId` must be one from the supplied project overview. Propose an email only when it is genuinely the next step; leave `proposals` empty for purely informational questions, and never propose the same email twice." +
   " You may also propose up to three internal, reversible actions in `actionProposals` when the answer implies one: `create_task` (a to-do on a project — supply a short `title` and optional `detail` and `dueDate` as YYYY-MM-DD, e.g. a task to chase an overdue retainer or follow up on an expired offer), `set_insurance_required` (flag that the venue requires insurance), or `create_proposal_draft` (prepare an unsent proposal draft — only when the project already has a selected package; put any cover note in `detail`). Give a one-line `rationale` for each. Each is a card the operator approves; nothing runs until they tap approve, and you never set money, ids, or recipients — the system resolves those. `projectId` must be one from the overview. Leave `actionProposals` empty unless an action is clearly the next step." +
   " When the operator ASKS to STAFF CREW — add crew, book a photographer/second shooter, or fill a crew role — set `flow` to { type: 'crew_offer', projectId, reason }. This launches an interactive flow that shows who is available, lets the operator pick who and set the pay, and sends the offers. When you launch crew_offer, do NOT state specific counts or statuses of prior crew offers (how many were sent, expired, invited, viewed, or accepted) in your `answer` or `facts` — you cannot see the live offer state and the flow shows it accurately; limit yourself to noting that the role is unfilled. When the operator needs to CHOOSE A PACKAGE for a project that has not selected one yet — they ask to pick/select a package, or building a proposal is blocked because no package is chosen — set `flow` to { type: 'select_package', projectId, reason }; it shows the studio's packages, the operator picks one, and it is applied. When the operator asks to SEND OR ASSIGN THE PLANNING QUESTIONNAIRE — send the form/questionnaire/details form to the client, or the questionnaire is overdue or not yet sent — set `flow` to { type: 'select_questionnaire', projectId, reason }; it shows the studio's active questionnaire templates, the operator picks which one, and it is sent to the client. When the operator NAMES a specific person, package or form in that request — 'add albert gershengoren as second photographer', 'use the Gold Cinematic package' — copy the words they used into `flow.subject`, verbatim and uncorrected. When they say WHICH ROLE a crew_offer is for — 'as videographer', 'second shooter', 'as the second photographer' — copy that into `flow.role`, again in their words: the flow ranks the roster against the trade in that label, and defaults to a photography role when you leave it out. Do not guess at a spelling, do not substitute a name from elsewhere in the conversation, and never put an identifier there: you cannot see the studio's roster or catalogue, and the words are matched to a real record before anything is shown. Leave `subject` out when the operator named nothing specific. Set `flow` only for staffing, package selection, or sending a questionnaire; keep the `answer` short (one line) since the flow carries the interaction. Use at most one flow per turn, and `projectId` must be one from the overview. Be proactive, but never at the expense of the question actually asked. Launch a flow only when the operator's request is itself about acting — staffing or filling a crew role, choosing a package, sending the planning questionnaire, or an open-ended triage ask such as 'what needs my attention today' or 'prep everything' — AND there is a real, specific gap on a real project. When the operator asked an INFORMATIONAL question — a status, a fact or count, 'is X ready', 'what is blocking X', 'which clients…', 'show me…' — ANSWER it directly and do NOT set `flow`, even if you notice an unfilled crew role or a missing package; instead name that gap in your answer and offer to act with a `suggestions` entry (e.g. 'Staff the second photographer'). When the request is clear but fits SEVERAL projects — the operator named a person and some dates, or a couple whose name matches more than one job — do not launch a flow and do not simply ask which one in prose: name the ambiguity in one line and put each candidate project in `suggestions` as a question the operator can tap, so answering is a tap rather than retyping. Never launch a flow speculatively." +
@@ -1258,6 +1258,16 @@ async function buildCommandProposalActions(
     const projectName = projectNames.get(proposal.projectId) ?? "the project";
     let command: { domain: string; op: string; input: Record<string, unknown> };
     let label: string;
+    /**
+     * The action without the job's name in it.
+     *
+     * The card's subtitle already says which job this is, so a headline of
+     * "Draft a proposal for Erin & Joe DeMattia Wedding" printed the name
+     * twice in adjacent lines — three times counting the job chip above the
+     * card. `label` keeps the name because it travels into receipts and
+     * notices where there is no surrounding context.
+     */
+    let headline: string;
     let detail: string;
     // Every remaining command proposal is internal and reversible (a task, an
     // insurance flag, an unsent proposal draft) — none emails anyone on
@@ -1292,6 +1302,7 @@ async function buildCommandProposalActions(
         },
       };
       label = `Draft a proposal for ${projectName}`;
+      headline = "Draft a proposal";
       detail = "Prepare an unsent proposal draft from the selected package.";
     } else if (proposal.commandType === "create_task") {
       const title = (proposal.title || proposal.rationale).slice(0, 200).trim();
@@ -1316,6 +1327,7 @@ async function buildCommandProposalActions(
         },
       };
       label = `Create a task on ${projectName}`;
+      headline = "Create a task";
       detail = title;
     } else if (proposal.commandType === "set_insurance_required") {
       command = {
@@ -1325,6 +1337,7 @@ async function buildCommandProposalActions(
         input: { projectId: proposal.projectId, insuranceRequired: "required" },
       };
       label = `Flag insurance required on ${projectName}`;
+      headline = "Flag insurance required";
       detail = "Mark that the venue requires proof of insurance.";
     } else {
       continue;
@@ -1337,7 +1350,18 @@ async function buildCommandProposalActions(
         tenantId,
         projectId: proposal.projectId,
         actorId,
-        title: (proposal.rationale || label).slice(0, 200),
+        /**
+         * The headline says what Approve does, not why it was suggested.
+         *
+         * This was `proposal.rationale || label`, so the card led with the
+         * justification — "This project is a lead and needs a proposal to move
+         * forward to booking" — while `label`, the only line saying what the
+         * button does, was demoted into the preview box beneath it. A
+         * photographer scanning a queue needs the action first; the reason is
+         * what "Why StudioCue prepared this" is for, and it is the one place
+         * the reason was not already shown.
+         */
+        title: headline.slice(0, 200),
         capability: "studio_action",
         authorityBoundary: "human_approval_required",
         status: "review_required",

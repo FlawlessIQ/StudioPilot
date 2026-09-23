@@ -178,7 +178,9 @@ test("a change to Cue's prompt is deliberate and re-evaluated", () => {
   // Length is a coarse but honest proxy: it moves on any real edit, and does
   // not churn on reformatting the way a hash of the whole block would.
   const size = prompt.replace(/\s+/g, " ").length;
-  const EXPECTED = 13950;
+  // Bumped 2026-09-23: suggestions must not duplicate an attached action card.
+  // Scenario groups D and J from docs/cue-scenarios.md re-run before shipping.
+  const EXPECTED = 14306;
   const drift = Math.abs(size - EXPECTED);
   assert.ok(
     drift < 40,

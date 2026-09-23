@@ -96,6 +96,10 @@ export function AiQueueCard({
   >(null);
   const [dispatched, setDispatched] = useState(false);
   const confidence = object(action.confidence);
+  /** The only part of `confidence` that says anything actionable. */
+  const uncertainFields = list(confidence.uncertainFields)
+    .map((entry) => readable(text(entry)))
+    .filter(Boolean);
   const validation = object(action.validation);
   const issues = list(validation.issues).map(object);
   const blocking = issues.some((issue) => issue.severity === "blocking");
@@ -285,9 +289,22 @@ export function AiQueueCard({
             {relativeTime(action.updatedAt ?? action.createdAt)}
           </em>
         </span>
-        <span className={`ai-confidence is-${text(confidence.label) || "medium"}`}>
-          {Math.round(Number(confidence.overall ?? 0) * 100)}% confidence
-        </span>
+        {/* What is actually uncertain, not a percentage.
+            Every copilot action card read "70% confidence" because the value
+            is the constant 0.7 at both construction sites; the drafting
+            surfaces compute it, but only as `missingInformation.length ? 0.6 :
+            0.85` — a two-valued flag wearing a percentage. The operator can do
+            nothing with either number, and it invites a judgement neither
+            supports. The same reasoning removed the crew cascade's score:
+            "a number implying precision the data does not have is worse than
+            the order itself". What is real is `uncertainFields`, so that is
+            what shows — and when nothing is uncertain, nothing does. */}
+        {uncertainFields.length ? (
+          <span className="ai-confidence is-medium">
+            Check {uncertainFields.slice(0, 3).join(", ")}
+            {uncertainFields.length > 3 ? ` +${uncertainFields.length - 3}` : ""}
+          </span>
+        ) : null}
       </header>
 
       {/* What approving actually does, in one sentence. The entity type,
@@ -323,6 +340,13 @@ export function AiQueueCard({
           <ChevronDown size={14} />
         </summary>
         <div>
+          {/* The model's own reason, which this disclosure is named after and
+              did not previously contain — it carried provenance and the
+              authority boundary while the reason was printed twice outside,
+              in the headline and again in the preview. */}
+          {text(output.rationale) ? (
+            <p className="ai-queue-rationale">{text(output.rationale)}</p>
+          ) : null}
           <p>
             {sources.length
               ? `Written from ${sources.length} record${sources.length === 1 ? "" : "s"} in this job.`
@@ -373,14 +397,19 @@ export function AiQueueCard({
 
       {text(output.kind) === "studio_command" && !editing ? (
         <div className="ai-message-preview">
-          <strong>{text(output.label) || "Proposed action"}</strong>
+          {/* The headline above carries the action now, so repeating
+              `output.label` here said it twice. What the box is for is the
+              detail — what approving actually produces. */}
           {text(output.detail) ? (
             <p style={{ whiteSpace: "pre-wrap" }}>{text(output.detail)}</p>
           ) : null}
           {output.outward === true ? (
             <small>Sends to {text(output.sendsTo) || "the client"}</small>
           ) : null}
-          {text(output.rationale) ? <small>{text(output.rationale)}</small> : null}
+          {/* The reason lives under "Why StudioCue prepared this" — see the
+              disclosure below. Printing it here as well put the same sentence
+              on the card twice, and with the headline also set to it, three
+              times. */}
         </div>
       ) : null}
 
