@@ -722,11 +722,56 @@ const RESPONSE_SCHEMA_JSON = {
   required: ["answer", "facts", "suggestions", "citations"],
 } as const;
 
+/**
+ * What a turn actually cost, accumulated across every call it made.
+ *
+ * Vertex returns `usageMetadata` on every response and StudioCue threw it
+ * away — `usage` on an interaction has been `{inputTokens: 0, outputTokens: 0}`
+ * since it was written. So the bill could not be attributed to a tenant, a
+ * question, or a model, and choosing between models meant guessing.
+ *
+ * It matters more than it looks: one Cue question is not one model call. The
+ * retrieval loop runs up to four times and each call resends the whole context,
+ * so the input cost is a multiple nobody could see.
+ *
+ * Module-scoped and reset per turn, because the call sites are spread across
+ * the retrieval loop, the flow pass and the final answer, and threading a
+ * counter through all of them would be a larger change than the measurement is
+ * worth.
+ */
+let turnTokens = { input: 0, output: 0, calls: 0 };
+
+export function resetTurnTokens(): void {
+  turnTokens = { input: 0, output: 0, calls: 0 };
+}
+
+export function readTurnTokens(): { input: number; output: number; calls: number } {
+  return { ...turnTokens };
+}
+
+function recordUsage(body: Record<string, unknown>): void {
+  const usage = asRecord(body.usageMetadata);
+  const input = Number(usage.promptTokenCount ?? 0);
+  const output = Number(usage.candidatesTokenCount ?? 0);
+  // `thoughtsTokenCount` is billed as output on thinking models and is absent
+  // on the rest, so it is added rather than assumed.
+  const thoughts = Number(usage.thoughtsTokenCount ?? 0);
+  turnTokens = {
+    input: turnTokens.input + (Number.isFinite(input) ? input : 0),
+    output:
+      turnTokens.output +
+      (Number.isFinite(output) ? output : 0) +
+      (Number.isFinite(thoughts) ? thoughts : 0),
+    calls: turnTokens.calls + 1,
+  };
+}
+
 /** One non-streaming generateContent call with a prebuilt request body. */
 async function generateStructuredBody(requestBody: unknown) {
   const response = await vertexGenerate(requestBody, "generateContent");
   if (!response.ok) throw await vertexFailure(response);
   const body = asRecord(await response.json());
+  recordUsage(body);
   const candidates = Array.isArray(body.candidates) ? body.candidates : [];
   const content = asRecord(asRecord(candidates[0]).content);
   const parts = Array.isArray(content.parts) ? content.parts : [];
@@ -1166,11 +1211,18 @@ async function runToolLoop(
         },
       },
       "generateContent",
+      // Choosing which records to fetch is mechanical. This loop runs up to
+      // four times and each call resends the whole context, so it carries most
+      // of a turn's input cost for none of its judgement.
+      "retrieval",
     );
     if (!response.ok) {
       throw await vertexFailure(response);
     }
     const body = asRecord(await response.json());
+    // The retrieval loop runs up to four times and each call resends the
+    // whole context, so this is where the input cost actually accumulates.
+    recordUsage(body);
     const candidates = Array.isArray(body.candidates) ? body.candidates : [];
     const parts = (
       Array.isArray(asRecord(asRecord(candidates[0]).content).parts)
@@ -2250,6 +2302,9 @@ export const aiCopilotCommand = onRequest(
       const writeSSE = (obj: unknown) => {
         response.write(`data: ${JSON.stringify(obj)}\n\n`);
       };
+      // A turn's cost is the sum of every call it makes, so the counter starts
+      // clean here rather than at the first call.
+      resetTurnTokens();
       const toolTrace: Array<{ name: string; projectId: string | null }> = [];
       const { contents: retrievalContents, referenced: referencedProjectIds } = await runToolLoop(
         input.question,
@@ -2432,6 +2487,14 @@ export const aiCopilotCommand = onRequest(
         citationCount: safeResult.citations.length,
         proposalCount: proposalActions.length,
         actionProposalCount: commandActions.length,
+        /**
+         * What this turn cost, in tokens, across every call it made.
+         *
+         * The bill can now be attributed to a tenant, a question and a model —
+         * which is the only way to choose between models on evidence rather
+         * than on a guess about what a turn probably costs.
+         */
+        tokens: readTurnTokens(),
         promptFingerprint: promptFingerprint(
           COPILOT_SYSTEM_INSTRUCTION,
           COPILOT_RETRIEVAL_INSTRUCTION,

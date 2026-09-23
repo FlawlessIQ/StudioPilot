@@ -27,11 +27,33 @@ import { scriptedVertexResponse } from "./vertex-script.js";
 
 export const VERTEX_LOCATION = process.env.VERTEX_AI_LOCATION ?? "us-east4";
 
+/**
+ * Which model a call should use.
+ *
+ * A Cue question is not one model call. The retrieval loop runs up to four
+ * times deciding *which records to fetch* — mechanical work, no judgement —
+ * and each of those calls resends the whole context, so they carry most of the
+ * input cost. The final answer is the turn's one act of judgement.
+ *
+ * Paying the judgement price for the fetching was invisible while tokens went
+ * unrecorded. `VERTEX_AI_COPILOT_RETRIEVAL_MODEL` lets the loop run on a
+ * cheaper model while the answer keeps the better one; unset, everything uses
+ * the answering model exactly as before.
+ */
+export type VertexPurpose = "answer" | "retrieval";
+
+export function vertexModelFor(purpose: VertexPurpose): string | undefined {
+  const answering = process.env.VERTEX_AI_COPILOT_MODEL;
+  if (purpose === "answer") return answering;
+  return process.env.VERTEX_AI_COPILOT_RETRIEVAL_MODEL || answering;
+}
+
 export function vertexUrl(
   method: "generateContent" | "streamGenerateContent",
+  purpose: VertexPurpose = "answer",
 ): string {
   const project = process.env.VERTEX_AI_PROJECT_ID;
-  const model = process.env.VERTEX_AI_COPILOT_MODEL;
+  const model = vertexModelFor(purpose);
   if (!project || !model) throw new Error("VERTEX_AI_COPILOT_NOT_CONFIGURED");
   const suffix =
     method === "streamGenerateContent"
@@ -55,10 +77,11 @@ export function vertexMockMode(): boolean {
 export async function vertexGenerate(
   body: unknown,
   method: "generateContent" | "streamGenerateContent",
+  purpose: VertexPurpose = "answer",
 ): Promise<Response> {
   if (vertexMockMode()) return scriptedVertexResponse(body, method);
   const token = await cloudAccessToken();
-  return fetch(vertexUrl(method), {
+  return fetch(vertexUrl(method, purpose), {
     method: "POST",
     headers: {
       authorization: `Bearer ${token}`,

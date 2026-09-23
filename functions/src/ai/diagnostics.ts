@@ -58,6 +58,16 @@ export type CopilotDiagnostics = {
    * being true, which is worth knowing the same day.
    */
   redactions: ("email" | "phone")[];
+  /**
+   * Tokens this turn actually used, summed over every model call it made.
+   *
+   * Vertex returns `usageMetadata` on every response and it was discarded, so
+   * `usage` on an interaction read zero and the bill could not be attributed
+   * to anything. `calls` matters as much as the totals: one question is not
+   * one model call — the retrieval loop runs up to four times and each call
+   * resends the whole context.
+   */
+  tokens: { input: number; output: number; calls: number };
   factCount: number;
   citationCount: number;
   proposalCount: number;
