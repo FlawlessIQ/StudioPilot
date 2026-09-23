@@ -129,3 +129,51 @@ test("the project detail names the crew, and nothing more about them", () => {
       `the copilot must not pull ${field} into an answer`,
     );
 });
+
+/**
+ * The couple's own words reach Cue, and reach it fenced.
+ *
+ * Cue could not answer "what did the couple ask for?" — messages were never
+ * fetched, and a questionnaire was projected down to whether it was complete,
+ * never to what it said. That was the right shape while nothing marked
+ * untrusted text. With fencing in place, and twenty injection shapes run
+ * against the real model with zero compliance on 2026-09-23, it is a gap
+ * rather than a defence.
+ *
+ * This is the first place a client's prose reaches the model, so the guard is
+ * on both halves: it must arrive, and it must arrive marked.
+ */
+test("the project detail carries the message thread and the questionnaire answers", () => {
+  const from = copilot.indexOf("const scope = [projectId];");
+  const detail = copilot.slice(
+    from,
+    copilot.indexOf('if (name === "find_across_projects")', from),
+  );
+  assert.match(detail, /rawProjectMessages\(tenantId, projectId\)/);
+  assert.match(detail, /messages,/, "the thread must be returned, not just read");
+  assert.match(detail, /answers: item\.answers/, "the couple's answers, not just a status");
+});
+
+test("a client's prose is fenced on its way to the model", () => {
+  // `fenceToolResult` marks by field name, so the fields this projection
+  // produces have to be the ones it knows about — otherwise the widening
+  // above quietly ships unmarked client text.
+  const untrusted = readFileSync("functions/src/ai/untrusted.ts", "utf8");
+  for (const field of ["body", "subject", "answers"])
+    assert.match(
+      untrusted,
+      new RegExp(`"${field}"`),
+      `${field} now reaches the model and must be fenced`,
+    );
+});
+
+test("message bodies are trimmed rather than reproduced whole", () => {
+  // A message can be 8,000 characters. Cue is summarising a thread, not
+  // reprinting it, and an unbounded body crowds out the rest of the job.
+  const reader = copilot.slice(
+    copilot.indexOf("async function rawProjectMessages"),
+    copilot.indexOf("export async function scopedDocuments"),
+  );
+  assert.match(reader, /slice\(0, 700\)/);
+  assert.match(reader, /\.slice\(-25\)/, "and the thread itself is bounded");
+});

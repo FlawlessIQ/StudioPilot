@@ -494,6 +494,43 @@ function compact(document: DocumentSnapshot): Json & { id: string } {
   };
 }
 
+/**
+ * The conversation on one job, newest last, as the studio would read it.
+ *
+ * An explicit projection rather than `compact`'s shared allowlist: this is the
+ * one place a client's own prose reaches the model, so what is exposed is
+ * listed here and nowhere else. Bodies are trimmed — Cue is summarising a
+ * thread, not reproducing it, and a 8,000-character message would crowd out
+ * everything else the question needs.
+ */
+async function rawProjectMessages(tenantId: string, projectId: string) {
+  const db = getFirestore();
+  const snapshot = await db
+    .collection("messages")
+    .where("tenantId", "==", tenantId)
+    .where("projectId", "==", projectId)
+    .limit(40)
+    .get();
+  return snapshot.docs
+    .map((doc) => {
+      const body = String(doc.get("bodyPreview") ?? doc.get("body") ?? "");
+      return {
+        id: doc.id,
+        // "inbound" is the couple writing to the studio — the half that
+        // answers "what did they ask for".
+        direction: String(doc.get("direction") ?? ""),
+        subject: String(doc.get("subject") ?? ""),
+        body: body.length > 700 ? `${body.slice(0, 700)}…` : body,
+        sentAt: doc.get("sentAt") ?? doc.get("createdAt") ?? null,
+        deliveryStatus: doc.get("deliveryStatus") ?? null,
+      };
+    })
+    .sort((left, right) =>
+      String(left.sentAt ?? "").localeCompare(String(right.sentAt ?? "")),
+    )
+    .slice(-25);
+}
+
 export async function scopedDocuments(
   collectionName: string,
   tenantId: string,
@@ -846,7 +883,7 @@ const COPILOT_TOOL_DECLARATIONS = [
   {
     name: "get_project_detail",
     description:
-      "Full operational detail for ONE project: contract status, invoices (balanceCents, dueDate, status), crew assignments and their acceptance status, open tasks, schedule, insurance, questionnaire, and the readiness assessment. Pass a projectId taken from the supplied project overview.",
+      "Full operational detail for ONE project: contract status, invoices (balanceCents, dueDate, status), crew assignments with the crew member's name and acceptance status, open tasks, schedule, insurance, the planning questionnaire INCLUDING the couple's own answers, the message thread with the couple, and the readiness assessment. Use this to answer what the couple asked for or said, as well as where the job stands. Pass a projectId taken from the supplied project overview.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -921,7 +958,7 @@ async function executeReadTool(
     if (permitted && !permitted.includes(projectId))
       return { error: "project not accessible" };
     const scope = [projectId];
-    const [contracts, invoices, crew, tasks, schedules, insurance, questionnaires, readiness] =
+    const [contracts, invoices, crew, tasks, schedules, insurance, questionnaires, readiness, messages] =
       await Promise.all([
         scopedDocuments("contracts", tenantId, scope),
         scopedDocuments("invoiceReferences", tenantId, scope),
@@ -931,6 +968,25 @@ async function executeReadTool(
         scopedDocuments("insuranceRequests", tenantId, scope),
         scopedDocuments("questionnaireResponses", tenantId, scope),
         scopedDocuments("readinessAssessments", tenantId, scope),
+        /**
+         * What the couple actually said.
+         *
+         * "What did they ask for?" is among the most natural questions a
+         * photographer has, and the one where records genuinely beat memory —
+         * and Cue could not answer it, because messages were never fetched.
+         * That narrowness was right while nothing marked untrusted text; with
+         * fencing in place and twenty injection shapes run against it, it is
+         * now just a gap.
+         *
+         * Read raw rather than through `scopedDocuments`, because `compact`
+         * would strip the body — and because a client's own words deserve an
+         * explicit projection rather than an allowlist shared with every other
+         * collection.
+         *
+         * `visibility` is not filtered: it decides what the CLIENT PORTAL
+         * shows, and this is the studio's own assistant answering the studio.
+         */
+        rawProjectMessages(tenantId, projectId),
       ]);
     /**
      * Crew assignments name a person, not an id.
@@ -975,12 +1031,27 @@ async function executeReadTool(
       tasks,
       schedules,
       insurance,
+      /**
+       * The couple's answers, not just whether they answered.
+       *
+       * This was projected down to id/projectId/planningPackage/approvalState,
+       * so Cue could say a questionnaire was complete and nothing about what
+       * it said — which is the only part a photographer wants before a
+       * consultation. The answers are the client's own words and are fenced
+       * like any other untrusted content.
+       */
       questionnaires: questionnaires.map((item) => ({
         id: item.id,
         projectId: item.projectId,
         planningPackage: item.planningPackage,
         approvalState: item.approvalState,
+        templateName: item.templateName ?? null,
+        status: item.status ?? null,
+        completionPercent: item.completionPercent ?? null,
+        submittedAt: item.submittedAt ?? null,
+        answers: item.answers ?? null,
       })),
+      messages,
       readiness: readiness[0] ?? null,
     };
   }
