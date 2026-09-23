@@ -43,6 +43,11 @@ export function normaliseSubject(value: string): string {
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toLocaleLowerCase()
+    // "&" is a word, not punctuation. Stripping it left "Erin & Joe" as
+    // "erin joe" while the project matcher in copilot.ts read the same words
+    // as "erin and joe" — two normalisers disagreeing about one studio's
+    // spelling, which is how a phrase matches on one screen and not another.
+    .replace(/&/g, " and ")
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
