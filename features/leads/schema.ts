@@ -25,22 +25,46 @@ export const eventServiceSchema = z.enum([
   "other",
 ]);
 
+/**
+ * Every message here is read by somebody enquiring about their wedding.
+ *
+ * The `consent` note below has said so since it was written, and the reasoning
+ * never reached the fields beside it. On 2026-09-22 the public form refused to
+ * submit four times in a row showing "Too small: expected string to have >=2
+ * characters" against City — Zod's own words, on the most public page in the
+ * product. A couple reads that and emails somebody else.
+ */
 export const publicLeadIntakeSchema = z.object({
   tenantSlug: z.string().trim().min(2).max(80).regex(/^[a-z0-9-]+$/),
-  firstName: z.string().trim().min(1).max(80),
-  lastName: z.string().trim().min(1).max(80),
+  firstName: z.string().trim().min(1, "Tell us your first name.").max(80),
+  lastName: z.string().trim().min(1, "Tell us your last name.").max(80),
   partnerName: z.string().trim().max(120).nullable().default(null),
-  email: z.string().trim().email(),
-  phone: z.string().trim().min(7).max(30),
-  eventDate: z.string().date(),
+  email: z
+    .string()
+    .trim()
+    .email("Check the email address — this is where the studio will reply."),
+  phone: z
+    .string()
+    .trim()
+    .min(7, "Add a phone number the studio can reach you on.")
+    .max(30),
+  eventDate: z.string().date("Pick the date of your event."),
   eventType: z.string().trim().min(2).max(80),
   venue: z.string().trim().max(160).nullable().default(null),
-  city: z.string().trim().min(2).max(120),
+  city: z
+    .string()
+    .trim()
+    .min(2, "Which city or town is the event in?")
+    .max(120),
   estimatedGuestCount: z.number().int().min(1).max(100000).nullable().default(null),
   servicesRequested: z.array(eventServiceSchema).min(1),
   budgetRange: z.string().trim().max(80).nullable().default(null),
   referralSource: z.string().trim().max(120).nullable().default(null),
-  message: z.string().trim().min(10).max(5000),
+  message: z
+    .string()
+    .trim()
+    .min(10, "Tell the studio a little about the day — a sentence is plenty.")
+    .max(5000),
   // Ticked by the person, not for them: the box used to arrive checked, so the
   // only way to withhold consent was to notice it and untick it. The message
   // matters because it is now reachable — "Invalid literal value" is not

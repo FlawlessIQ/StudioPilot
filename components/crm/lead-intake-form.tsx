@@ -86,6 +86,29 @@ export function LeadIntakeForm({
     if (city) setValue("city", city.slice(0, 120), { shouldValidate: true });
   }
 
+  /**
+   * A refused submit has to say so.
+   *
+   * `handleSubmit` runs validation first and does nothing at all when it
+   * fails — no request, no message, no movement. With the failing field off
+   * screen (City sits below the fold on a laptop) pressing "Send inquiry"
+   * looked like a dead button. Walked on 2026-09-22: four presses, no
+   * feedback, and the studio never heard from that inquiry.
+   */
+  const onInvalid = (fieldErrors: Record<string, unknown>) => {
+    const names = Object.keys(fieldErrors);
+    setServerError(
+      names.length === 1
+        ? "One thing is missing — it is highlighted below."
+        : `${names.length} things are missing — they are highlighted below.`,
+    );
+    const first = names[0];
+    if (!first) return;
+    const field = document.querySelector<HTMLElement>(`[name="${first}"]`);
+    field?.scrollIntoView({ behavior: "smooth", block: "center" });
+    field?.focus({ preventScroll: true });
+  };
+
   const submit = handleSubmit(async (values) => {
     setServerError(null);
     const endpoint = process.env.NEXT_PUBLIC_CRM_FUNCTIONS_URL;
@@ -130,7 +153,7 @@ export function LeadIntakeForm({
             : "Your inquiry could not be submitted. Please try again, or email the studio directly.",
       );
     }
-  });
+  }, onInvalid);
 
   if (result) {
     return (
@@ -168,11 +191,11 @@ export function LeadIntakeForm({
         <div><h2>Tell us about you</h2><p>We’ll use these details only to respond to your inquiry.</p></div>
       </div>
       <div className="form-grid">
-        <label>First name<input {...register("firstName")} autoComplete="given-name" /><small>{errors.firstName?.message}</small></label>
-        <label>Last name<input {...register("lastName")} autoComplete="family-name" /><small>{errors.lastName?.message}</small></label>
+        <label>First name <span className="required-mark">Required</span><input {...register("firstName")} autoComplete="given-name" /><small>{errors.firstName?.message}</small></label>
+        <label>Last name <span className="required-mark">Required</span><input {...register("lastName")} autoComplete="family-name" /><small>{errors.lastName?.message}</small></label>
         <label>Partner or contact name<input {...register("partnerName", { setValueAs: (value) => value || null })} /></label>
-        <label>Email<input {...register("email")} type="email" autoComplete="email" /><small>{errors.email?.message}</small></label>
-        <label>Phone<input {...register("phone")} type="tel" autoComplete="tel" /><small>{errors.phone?.message}</small></label>
+        <label>Email <span className="required-mark">Required</span><input {...register("email")} type="email" autoComplete="email" /><small>{errors.email?.message}</small></label>
+        <label>Phone <span className="required-mark">Required</span><input {...register("phone")} type="tel" autoComplete="tel" /><small>{errors.phone?.message}</small></label>
       </div>
 
       <div className="form-section-heading">
@@ -180,7 +203,7 @@ export function LeadIntakeForm({
         <div><h2>Event details</h2><p>Dates are checked before availability is confirmed.</p></div>
       </div>
       <div className="form-grid">
-        <label>Event date<input {...register("eventDate")} type="date" /><small>{errors.eventDate?.message}</small></label>
+        <label>Event date <span className="required-mark">Required</span><input {...register("eventDate")} type="date" /><small>{errors.eventDate?.message}</small></label>
         <label>Event type<select {...register("eventType")}><option value="wedding">Wedding</option><option value="corporate">Corporate</option><option value="sports">Sports</option><option value="other">Other</option></select></label>
         {/* The venue a couple types here is the first thing the studio
             ever learns about the job, and it fed straight through to the
@@ -197,11 +220,11 @@ export function LeadIntakeForm({
             value={venue}
           />
         </div>
-        <label>City<input {...register("city")} /><small>{errors.city?.message}</small></label>
+        <label>City <span className="required-mark">Required</span><input {...register("city")} /><small>{errors.city?.message}</small></label>
         <label>Estimated guests<input {...register("estimatedGuestCount", { setValueAs: (value) => value ? Number(value) : null })} type="number" min="1" /></label>
         <label>Budget range<select {...register("budgetRange", { setValueAs: (value) => value || null })}><option value="">Prefer not to say</option><option>$3,000–$5,000</option><option>$5,000–$8,000</option><option>$8,000–$12,000</option><option>$12,000+</option></select></label>
         <label className="form-span">How did you hear about us?<input {...register("referralSource", { setValueAs: (value) => value || null })} /></label>
-        <label className="form-span">What are you planning?<textarea {...register("message")} rows={5} placeholder="Tell us what matters most, the atmosphere, and anything we should know." /><small>{errors.message?.message}</small></label>
+        <label className="form-span">What are you planning? <span className="required-mark">Required</span><textarea {...register("message")} rows={5} placeholder="Tell us what matters most, the atmosphere, and anything we should know." /><small>{errors.message?.message}</small></label>
         <label className="honeypot" aria-hidden="true">Website<input {...register("honeypot")} tabIndex={-1} autoComplete="off" /></label>
       </div>
       <label className="consent-row">
