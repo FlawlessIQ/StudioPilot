@@ -61,7 +61,7 @@ const navSections = [
     items: [
       { label: "Calendar", href: "/studio/calendar", icon: CalendarDays },
       { label: "Messages", href: "/studio/messages", icon: MessageSquareText },
-      { label: "People", href: "/studio/clients", icon: UsersRound },
+      { label: "Clients", href: "/studio/clients", icon: UsersRound },
       { label: "AI review", href: "/studio/ai-queue", icon: ListChecks },
       { label: "Insights", href: "/studio/reports", icon: ChartNoAxesColumn },
     ],
@@ -90,9 +90,9 @@ const mobileTabs = [
   { label: "Today", href: "/studio", icon: CircleGauge },
   { label: "Jobs", href: "/studio/projects", icon: FolderKanban },
   { label: "Cue", href: "/studio/copilot", icon: Sparkles },
-  { label: "People", href: "/studio/clients", icon: UsersRound },
+  { label: "Clients", href: "/studio/clients", icon: UsersRound },
 ] as const;
-const primaryTabGroups = new Set(["Today", "Jobs", "Cue", "People"]);
+const primaryTabGroups = new Set(["Today", "Jobs", "Cue", "Clients"]);
 
 const activeGroups: Record<string, string[]> = {
   Today: ["Today", "Dashboard", "Notifications", "Leads", "Inquiries"],
@@ -121,7 +121,17 @@ const activeGroups: Record<string, string[]> = {
     "Tasks",
   ],
   Calendar: ["Calendar"],
-  People: ["Clients", "Crew", "Team", "Vendors"],
+  /**
+   * The item is labelled Clients because that is where it goes.
+   *
+   * It read "People" and linked to /studio/clients, which is a small lie the
+   * section still tells if you only read the sidebar: the reference studio
+   * asked twice to have it renamed, once outright and once as "maybe add just
+   * a clients tab". The section genuinely holds crew, team and vendors too —
+   * PeopleSectionNav shows all four the moment you arrive — so the grouping
+   * survives, and only the label now matches the destination.
+   */
+  Clients: ["Clients", "Crew", "Team", "Vendors"],
   Library: ["Library", "Packages", "AI import", "Studio setup"],
   // Workflows covers /studio/workflows, /studio/automations and /studio/audit,
   // none of which appeared in any group — so all three highlighted Today, which
@@ -205,9 +215,9 @@ function StudioShell({
   const [navigationOpen, setNavigationOpen] = useState(false);
   /**
    * True when the URL carries ?project= — crew, booking, planning and the
-   * rest, reached from inside one job. Those routes belong to People or
+   * rest, reached from inside one job. Those routes belong to Clients or
    * their own group by default, so arriving at Crew from a job highlighted
-   * "People" and lost the thread the photographer was following.
+   * "Clients" and lost the thread the photographer was following.
    */
   const inJob = useSearchParams().has("project");
   // The drawer is only a drawer below 860px; above that the sidebar is
@@ -268,7 +278,7 @@ function StudioShell({
     "Jobs",
     "Calendar",
     "Messages",
-    "People",
+    "Clients",
   ]);
   const canSee = (item: { label: string; ownerOnly?: boolean }) => {
     if (item.ownerOnly && workspace.role !== "studio_owner") return false;

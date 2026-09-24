@@ -841,6 +841,21 @@ export function StudioProposalComposer() {
   const [activePackages, setActivePackages] = useState<Value[] | null>(null);
   const [lockingPackageId, setLockingPackageId] = useState<string | null>(null);
   /**
+   * A discount the studio decides, per proposal.
+   *
+   * `selectPackage` has accepted a fixed or percentage discount since it was
+   * written — it clamps the amount to the pre-discount total, folds it into the
+   * immutable pricing snapshot, and every surface downstream already renders
+   * `discountCents`: the proposal view, the client portal and the PDF. The
+   * whole engine was built and this screen sent `{ type: "none" }`, hardcoded,
+   * every single time. The reference studio asked for exactly this: "there is
+   * no discount but need to be able to put in a discount if i want".
+   *
+   * Dollars in the field, cents on the wire, because money is integer cents
+   * everywhere behind this.
+   */
+  const [discountDollars, setDiscountDollars] = useState("");
+  /**
    * A link arrived naming a job this page cannot prepare a proposal for.
    *
    * Before, that produced silence: the id matched nothing in the eligible list,
@@ -960,6 +975,12 @@ export function StudioProposalComposer() {
    */
   async function lockPackage(packageId: string) {
     if (!packagePickerFor || !workspace.tenantId) return;
+    // A blank field is no discount, not a zero-value one, and anything that is
+    // not a number is treated the same way rather than sent as NaN.
+    const parsedDiscount = Number.parseFloat(discountDollars.replace(/[^0-9.]/g, ""));
+    const discountCents = Number.isFinite(parsedDiscount) && parsedDiscount > 0
+      ? Math.round(parsedDiscount * 100)
+      : 0;
     setLockingPackageId(packageId);
     setError("");
     try {
@@ -967,7 +988,9 @@ export function StudioProposalComposer() {
         projectId: packagePickerFor.id,
         packageId,
         selectedAddOns: [],
-        discount: { type: "none" },
+        discount: discountCents > 0
+          ? { type: "fixed", amountCents: discountCents }
+          : { type: "none" },
       });
       if (!command.persisted) {
         setError("Preview mode: the package would be locked to this project.");
@@ -1189,6 +1212,19 @@ export function StudioProposalComposer() {
                           </button>
                         </article>
                       ))}
+                      <label className="proposal-discount-field">
+                        Discount (optional)
+                        <input
+                          inputMode="decimal"
+                          onChange={(event) => setDiscountDollars(event.target.value)}
+                          placeholder="0.00"
+                          value={discountDollars}
+                        />
+                        <small>
+                          Applied to whichever package you lock. Leave blank for
+                          none.
+                        </small>
+                      </label>
                     </div>
                   )}
                 </div>
@@ -1635,6 +1671,19 @@ export function StudioProposalWorkspace({
         );
       } else {
         await load();
+        /**
+         * The email worker writes `emailDeliveryStatus` back after the send,
+         * which is a second or two after this command returns — so the reload
+         * above always catches it mid-flight and the card sits on "Queued"
+         * until something else happens to re-read. One delayed re-read settles
+         * it. Deliberately fire-and-forget: it is a display refresh, and a
+         * failed one must not surface as a failed send.
+         */
+        if (type === "send" || type === "resend") {
+          window.setTimeout(() => {
+            void load().catch(() => {});
+          }, 4000);
+        }
       }
       setConfirmSend(false);
       const messages: Partial<Record<ProposalCommandType, string>> = {
@@ -2267,6 +2316,22 @@ export function StudioProposalWorkspace({
                         text(proposal.emailDeliveryStatus, "queued"),
                       )}
                     </strong>
+                    {/**
+                      * The address, not just the state.
+                      *
+                      * A studio sent this proposal four times and never
+                      * received one, because the client's email held a typo he
+                      * could not correct. Every send succeeded. What the card
+                      * told him was "Queued", so he read it as a delivery
+                      * fault and resent — three more times, to the same wrong
+                      * address. Naming the recipient is what would have ended
+                      * it on the first send, and it costs one line.
+                      */}
+                    {text(objectValue(proposal.clientSnapshot).email) ? (
+                      <small className="proposal-delivery-recipient">
+                        to {text(objectValue(proposal.clientSnapshot).email)}
+                      </small>
+                    ) : null}
                   </div>
                 </div>
                 <dl className="proposal-client-activity">

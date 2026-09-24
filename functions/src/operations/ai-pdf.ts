@@ -674,7 +674,37 @@ async function pdfInput(job:DocumentSnapshot){const db=getFirestore();const tena
     const lines=Array.isArray(pricing.lineItems)?pricing.lineItems:[];
     const paymentSchedule=Array.isArray(proposal.get("paymentSchedule"))?proposal.get("paymentSchedule") as unknown[]:[];
     const currency=string(pricing.currency)||"USD";
-    const packageName=string(pricing.packageName)||"Photography collection";
+    const packageName=string(pricing.packageName)||"Coverage collection";
+    /**
+     * What trade this proposal is actually selling.
+     *
+     * The document said PHOTOGRAPHY PROPOSAL on every proposal ever generated,
+     * including the reference studio's Gold Cinematic Package — ten hours of
+     * videography, drone and gimbal, under a header that contradicted it. The
+     * package snapshot already records `includedCoverage` as {role,count}[], so
+     * the label is a fact we hold rather than a guess.
+     */
+    const snapshotId=string(proposal.get("packageSnapshotId"));
+    const snapshot=snapshotId?await db.doc(`packageSnapshots/${snapshotId}`).get():null;
+    const coverageRoles=new Set(
+      (Array.isArray(snapshot?.get("includedCoverage"))?snapshot!.get("includedCoverage") as unknown[]:[])
+        .map(entry=>string(record(entry).role).toLowerCase())
+        .filter(Boolean),
+    );
+    const documentKind=
+      coverageRoles.has("videographer")&&coverageRoles.has("photographer")
+        ?"PHOTOGRAPHY & VIDEO PROPOSAL"
+        :coverageRoles.has("videographer")
+          ?"VIDEOGRAPHY PROPOSAL"
+          :coverageRoles.has("photographer")
+            ?"PHOTOGRAPHY PROPOSAL"
+            // No coverage recorded is not evidence of photography.
+            :"PROPOSAL";
+    const coverageWord=
+      documentKind==="VIDEOGRAPHY PROPOSAL"?"Video"
+        :documentKind==="PHOTOGRAPHY & VIDEO PROPOSAL"?"Photography and video"
+          :documentKind==="PHOTOGRAPHY PROPOSAL"?"Photography"
+            :"Coverage";
     const normalizedLines=lines.length>0?lines:[{description:packageName,totalCents:pricing.subtotalCents}];
     return{
       endpoint:"proposals",
@@ -687,7 +717,8 @@ async function pdfInput(job:DocumentSnapshot){const db=getFirestore();const tena
         client_name:string(record(proposal.get("clientSnapshot")).displayName),
         event_summary:Object.values(record(proposal.get("eventSnapshot"))).filter(value=>typeof value==="string"&&value).join(" · "),
         package_name:packageName,
-        package_description:"Photography coverage and deliverables as selected.",
+        document_kind:documentKind,
+        package_description:`${coverageWord} coverage and deliverables as selected.`,
         introduction:string(proposal.get("notes")),
         terms_summary:string(proposal.get("termsSummary")),
         line_items:normalizedLines.map(value=>{const line=record(value);return{description:string(line.description)||packageName,amount:money(line.totalCents,currency)}}),

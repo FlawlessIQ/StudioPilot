@@ -46,6 +46,11 @@ class ProposalRequest(BaseModel):
     client_name: str = Field(min_length=1, max_length=200)
     event_summary: str = Field(min_length=1, max_length=500)
     package_name: str = Field(min_length=1, max_length=160)
+    # What the proposal is selling, derived from the package's coverage roles.
+    # Defaulted rather than required so an older caller keeps working, but the
+    # default is the neutral word: every proposal used to say PHOTOGRAPHY,
+    # including the video-only ones.
+    document_kind: str = Field(default="PROPOSAL", min_length=1, max_length=60)
     package_description: str = Field(min_length=1, max_length=2000)
     introduction: str = Field(default="", max_length=3000)
     terms_summary: str = Field(default="", max_length=3000)
@@ -130,7 +135,7 @@ def build_proposal_pdf(data: ProposalRequest) -> bytes:
     header = Table(
         [
             [
-                Paragraph(f"<b>{escape(data.tenant_name.upper())}</b><br/><font color='#67706B'>PHOTOGRAPHY PROPOSAL</font>", styles["Brand"]),
+                Paragraph(f"<b>{escape(data.tenant_name.upper())}</b><br/><font color='#67706B'>{escape(data.document_kind)}</font>", styles["Brand"]),
                 Paragraph(f"{escape(data.proposal_id)}<br/>VERSION {data.version}", styles["RightMeta"]),
             ]
         ],
@@ -190,7 +195,16 @@ def build_proposal_pdf(data: ProposalRequest) -> bytes:
             Paragraph(escape(terms), styles["BodyStudio"]),
             Spacer(1, 0.08 * inch),
             Paragraph(
-                f"This proposal expires {escape(data.expires_on)}. Acceptance of this proposal does not itself constitute a signed contract.",
+                # Says what happens next, not only what this is not.
+                #
+                # The old line ended "does not itself constitute a signed
+                # contract" — true, and the reference studio still read the
+                # proposal as the last document his client would ever see. He
+                # asked for two signature blocks and his legal agreement inside
+                # it, because he did not know StudioCue sends a contract as a
+                # separate signed step at all. The contract was already there;
+                # the document simply never mentioned it.
+                f"This proposal expires {escape(data.expires_on)}. Accepting it is not a signed contract — once you accept, we'll send the booking agreement to sign, and the date is held when that comes back.",
                 styles["BodyStudio"],
             ),
         ]),
