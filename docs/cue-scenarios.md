@@ -193,3 +193,19 @@ question about the roster, and Cue answered it from a project assignment. It
 named the right person by luck of there being one videographer with one job. On
 a roster with three, the answer would be confidently incomplete. This is a
 retrieval-scope problem and there is no evidence the model change caused it.
+
+**Both defects fixed the same day** (`ca56e9a`). The transport backs off on 429,
+500, 502, 503 and 504 with jittered exponential delay, and a malformed
+generation is retried once before it becomes a failed turn. Deployed to
+`aiCopilotCommand` and to `dailyDigestScheduler`, which shares `copilot.ts` —
+the selective-deploy trap in CLAUDE.md, checked by grepping importers rather
+than by assuming.
+
+Verified on production afterwards: the B3 turn that had failed now completes,
+and an open-items question returned the unanswered client message, both open
+tasks, the offer status and what is missing — the "worth having" bar, not just
+the "worked" one. No retry has yet fired in production, so the backoff is
+unit-tested and deployed but not yet observed doing its job; the log line
+`[copilot] retrying malformed generation` is what to grep for when it does.
+
+J2 remains open.
