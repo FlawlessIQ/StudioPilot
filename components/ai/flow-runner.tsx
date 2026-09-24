@@ -31,6 +31,7 @@ import {
   unmatchedSubjectNotice,
 } from "@/features/ai/flow-subject";
 import type { CopilotFlow } from "@/lib/ai/copilot-client";
+import { needsQualifier, sharedNames } from "@/features/crew/shared-names";
 
 const str = (value: unknown) => (typeof value === "string" ? value : "");
 const num = (value: unknown) => (typeof value === "number" ? value : 0);
@@ -503,6 +504,9 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
   const [reopened, setReopened] = useState(false);
 
   const profileById = (id: string) => (profiles ?? []).find((p) => p.id === id);
+  // Names shared by more than one candidate in THIS list — the only place a
+  // qualifier is worth the room.
+  const duplicateNames = sharedNames(ranked);
   // Selected candidates, kept in the ranker's order — that order is the cascade
   // order (offer to the top pick first, then down the list).
   const orderedIds = ranked
@@ -713,6 +717,16 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
                       {picked ? "✓ " : ""}
                       {candidate.name}
                     </strong>
+                    {/* Two people called "Conor Lawless" rendered as two
+                        identical buttons, and the offer carries a fee. Only
+                        shown where the name does not settle it — an address
+                        under every row is noise on a phone. */}
+                    {needsQualifier(candidate.name, duplicateNames) ? (
+                      <small className="crew-candidate-email">
+                        {str(profileById(candidate.crewProfileId)?.email) ||
+                          candidate.crewProfileId}
+                      </small>
+                    ) : null}
                     {candidate.explanations[0] ? (
                       <small>{candidate.explanations[0]}</small>
                     ) : null}
