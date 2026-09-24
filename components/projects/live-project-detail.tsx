@@ -73,6 +73,7 @@ import { ProjectPlanningCopilot } from "@/components/projects/project-planning-c
 import { crmProjects } from "@/config/crm-demo-data";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { ArchiveToggle } from "@/components/records/archive-toggle";
+import { ProjectEdit } from "@/components/projects/project-edit";
 import {
   refreshTenantRecords,
   useTenantDocuments,
@@ -1098,10 +1099,29 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           <p className="eyebrow">The job</p>
           <div className="project-title-line">
             <h1>{String(project.name)}</h1>
+            <ProjectEdit
+              project={{
+                id: String(project.id),
+                name: String(project.name ?? ""),
+                eventDate:
+                  typeof project.eventDate === "string" ? project.eventDate : "",
+                eventType: String(project.eventType ?? ""),
+                venueName:
+                  typeof project.venueName === "string" ? project.venueName : null,
+                city: typeof project.city === "string" ? project.city : null,
+                timezone:
+                  typeof project.timezone === "string"
+                    ? project.timezone
+                    : "America/New_York",
+                archived: Boolean(project.archivedAt),
+              }}
+            />
           </div>
+          {/* "Wedding photography" was printed under every job, including the
+              video-led ones. The event type is what the studio called it; the
+              trade is not ours to add. */}
           <p>
-            {String(project.eventType)} photography ·{" "}
-            {displayDate(project.eventDate)}
+            {String(project.eventType)} · {displayDate(project.eventDate)}
           </p>
           {/* The five arcs, not fifteen states — the same model as the Jobs
               table's track (features/journey/phases.ts). The precise state is

@@ -102,6 +102,8 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   CREW_IDENTITY_OWNED_BY_MEMBER:
     "They have their own account now, so their name and email are theirs to change. You can still update rate, specialties and areas.",
   CONTACT_NOT_FOUND: "That client record could not be found.",
+  PROJECT_ARCHIVED:
+    "This job is archived, so it cannot be edited. Restore it first if you need to change it.",
   PROJECT_NOT_FOUND:
     "That job could not be found. It may have been deleted, or you may not have access to it.",
   // Permanently deleting a job. The bar is deliberately higher than archiving:

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "./security.js";
 import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { studioHubCors } from "../security/cors.js";
+import { reconcileProjectReadiness } from "../workflow/readiness-triggers.js";
 import { invalidCommandResponse } from "../security/invalid-command.js";
 import {
   archiveBlockedBy,
@@ -241,6 +242,45 @@ const commandSchema = z.discriminatedUnion("type", [
       phone: z.string().max(30).nullable(),
       company: z.string().max(160).nullable(),
       notes: z.string().max(2000).nullable().default(null),
+    }),
+  }),
+  z.object({
+    /**
+     * Correct a job's own details.
+     *
+     * StudioCue was write-once for everything except a client. A studio could
+     * create a job and never change its name, its date, its venue or its type
+     * — and the reference studio proved the cost of that in an afternoon: he
+     * typed a client email with a deliberate typo to see whether he could fix
+     * it, could not, and then sent a proposal four times to an address nobody
+     * reads. `firestore.rules` has allowed a browser to update a project the
+     * whole time; only the act was missing.
+     *
+     * Deliberately the job's own descriptive fields. `state` is a deterministic
+     * transition with its own evidence-controlled path and is not editable
+     * here; `packageSnapshotId`, `readinessScore` and the audit fields are
+     * derived, and a general-purpose overwrite would let a form clear them by
+     * omission.
+     */
+    type: z.literal("updateProject"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      name: z.string().trim().min(1).max(200),
+      /**
+       * The day the work happens.
+       *
+       * Everything dated hangs off this — relative-date automations, the
+       * invoice scheduler, readiness. Changing it is legitimate (a couple
+       * moves the wedding) and it is the one field here with consequences
+       * beyond the record, so the handler re-derives readiness after it moves.
+       */
+      eventDate: z.string().date(),
+      eventType: z.string().trim().min(1).max(80),
+      venueName: z.string().trim().max(200).nullable().default(null),
+      city: z.string().trim().max(120).nullable().default(null),
+      timezone: z.string().trim().min(1).max(80),
     }),
   }),
   z.object({
@@ -1388,6 +1428,97 @@ export const crmCommand = onRequest(
           return output;
         }
 
+        if (command.type === "updateProject") {
+          /**
+           * A coordinator runs jobs, so a coordinator may correct one. This is
+           * a lower bar than editing the address book or archiving, both of
+           * which curate what the studio has rather than fix what it typed.
+           */
+          if (
+            !["studio_owner", "studio_admin", "studio_coordinator"].includes(
+              membershipData.role,
+            )
+          ) {
+            throw new Error("FORBIDDEN");
+          }
+          const projectReference = db.doc(`projects/${command.input.projectId}`);
+          const project = await transaction.get(projectReference);
+          if (!project.exists || project.get("tenantId") !== command.tenantId) {
+            throw new Error("PROJECT_NOT_FOUND");
+          }
+          if (!hasProjectAccess(membershipData, project.id)) {
+            throw new Error("PROJECT_ACCESS_DENIED");
+          }
+          // A job the studio has put away is not one to edit, for the same
+          // reason Cue will not staff one.
+          if (project.get("archivedAt")) {
+            throw new Error("PROJECT_ARCHIVED");
+          }
+          const before = {
+            name: project.get("name") ?? null,
+            eventDate: project.get("eventDate") ?? null,
+            eventType: project.get("eventType") ?? null,
+            venueName: project.get("venueName") ?? null,
+            city: project.get("city") ?? null,
+            timezone: project.get("timezone") ?? null,
+          };
+          transaction.update(projectReference, {
+            name: command.input.name,
+            eventDate: command.input.eventDate,
+            eventType: command.input.eventType,
+            venueName: command.input.venueName,
+            city: command.input.city,
+            timezone: command.input.timezone,
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          const projectAuditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${projectAuditId}`), {
+            id: projectAuditId,
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorUserId: identity.uid,
+            action: "project.updated",
+            occurredAt: timestamp,
+            /**
+             * Both sides, because "the date moved" is the question someone
+             * asks weeks later when a dated automation fired at the wrong
+             * time, and an audit that records only the new value cannot
+             * answer it.
+             */
+            payload: {
+              before,
+              after: {
+                name: command.input.name,
+                eventDate: command.input.eventDate,
+                eventType: command.input.eventType,
+                venueName: command.input.venueName,
+                city: command.input.city,
+                timezone: command.input.timezone,
+              },
+            },
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          const output = {
+            projectId: command.input.projectId,
+            updated: true,
+            // Read by the caller so the handler below knows whether the dated
+            // work needs re-deriving, without re-reading the document.
+            eventDateChanged: before.eventDate !== command.input.eventDate,
+          };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
         if (command.type === "archiveProject") {
           // Same bar as archiving a client: curating the working list is an
           // owner/admin decision, not a coordinator's.
@@ -1578,6 +1709,42 @@ export const crmCommand = onRequest(
         });
         return output;
       });
+      /**
+       * A moved date is not just a changed field.
+       *
+       * `readinessOnProjectPlanning` only fires when a project's STATE changes
+       * into PLANNING, so editing the date alone leaves readiness answering for
+       * the old one. Re-derived here, after the write has committed, because
+       * the reconcile reads the records this transaction just changed.
+       *
+       * Deliberately not fatal: the edit itself succeeded and the studio should
+       * be told so. Readiness recomputes on its next trigger regardless, and a
+       * failure here must not present as a failed edit.
+       */
+      /**
+       * Keyed off the result rather than the command type, because only
+       * `updateProject` returns `eventDateChanged` and because
+       * `command.type === "…"` in this file is where the idempotency guard
+       * looks for a receipt — a second one out here would read to it as a
+       * branch that forgot to write one.
+       */
+      const dateMoved = result as {
+        eventDateChanged?: boolean;
+        projectId?: string;
+      };
+      if (dateMoved.eventDateChanged && dateMoved.projectId) {
+        try {
+          await reconcileProjectReadiness(
+            db,
+            command.tenantId,
+            dateMoved.projectId,
+          );
+        } catch (caught: unknown) {
+          console.warn(
+            `[crm] readiness reconcile after date change failed: ${String(caught).slice(0, 160)}`,
+          );
+        }
+      }
       response.status(200).json(result);
     } catch (error) {
       const code = error instanceof Error ? error.message : "COMMAND_FAILED";
@@ -1586,7 +1753,9 @@ export const crmCommand = onRequest(
           ? 409
           : code === "PROJECT_NOT_FOUND"
             ? 404
-            : 422;
+            : code === "FORBIDDEN" || code === "PROJECT_ACCESS_DENIED"
+              ? 403
+              : 422;
       response.status(status).json({ error: code });
     }
   },
