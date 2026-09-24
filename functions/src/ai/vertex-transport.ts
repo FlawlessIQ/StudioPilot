@@ -78,14 +78,77 @@ export async function vertexGenerate(
 ): Promise<Response> {
   if (vertexMockMode()) return scriptedVertexResponse(body, method);
   const token = await cloudAccessToken();
-  return fetch(vertexUrl(method, purpose), {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${token}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  const url = vertexUrl(method, purpose);
+  return retryTransient(() =>
+    fetch(url, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
+/**
+ * Nothing retried, until a studio was told Cue could not reach its model.
+ *
+ * Gemini 3 is served from a dynamic shared quota rather than a per-project
+ * regional one, so 429 is an ordinary operating condition rather than a sign
+ * that anything is wrong — and a turn fires the retrieval call and the answer
+ * call within a second or two of each other by design. Called back to back in
+ * a probe the models returned 429 roughly a quarter of the time; spaced four
+ * seconds apart, twenty of twenty succeeded. That is precisely the shape a
+ * short backoff absorbs and a studio should never see.
+ *
+ * Retrying is safe here only because the caller has not read the body yet: we
+ * retry on the status line, before a streamed response has yielded a byte.
+ */
+const TRANSIENT_VERTEX_STATUSES = new Set([429, 500, 502, 503, 504]);
+const VERTEX_MAX_ATTEMPTS = 3;
+
+export function isTransientVertexStatus(status: number): boolean {
+  return TRANSIENT_VERTEX_STATUSES.has(status);
+}
+
+/**
+ * Exponential, with jitter that can only ever delay.
+ *
+ * Every function instance retrying a shared-quota 429 on the same schedule
+ * would rebuild the burst it is meant to spread, so the delay is a random
+ * point in the interval rather than its endpoint.
+ */
+export function vertexRetryDelayMs(
+  attempt: number,
+  random: () => number = Math.random,
+): number {
+  const base = 250 * 2 ** Math.max(0, attempt - 1);
+  return base + Math.floor(random() * base);
+}
+
+export async function retryTransient(
+  attempt: () => Promise<Response>,
+  options: {
+    sleep?: (ms: number) => Promise<void>;
+    random?: () => number;
+    maxAttempts?: number;
+  } = {},
+): Promise<Response> {
+  const sleep =
+    options.sleep ??
+    ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const maxAttempts = options.maxAttempts ?? VERTEX_MAX_ATTEMPTS;
+  let last: Response | undefined;
+  for (let n = 1; n <= maxAttempts; n += 1) {
+    const response = await attempt();
+    if (!isTransientVertexStatus(response.status)) return response;
+    last = response;
+    if (n < maxAttempts) await sleep(vertexRetryDelayMs(n, options.random));
+  }
+  // Out of attempts: hand back the last refusal so the caller reports the real
+  // status rather than a failure of its own invention.
+  return last as Response;
 }
 
 /**

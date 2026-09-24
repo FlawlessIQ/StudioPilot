@@ -768,7 +768,7 @@ function recordUsage(body: Record<string, unknown>): void {
 }
 
 /** One non-streaming generateContent call with a prebuilt request body. */
-async function generateStructuredBody(requestBody: unknown) {
+async function generateStructuredOnce(requestBody: unknown) {
   const response = await vertexGenerate(requestBody, "generateContent");
   if (!response.ok) throw await vertexFailure(response);
   const body = asRecord(await response.json());
@@ -782,6 +782,40 @@ async function generateStructuredBody(requestBody: unknown) {
       `VERTEX_AI_EMPTY_OUTPUT:finish=${String(asRecord(candidates[0]).finishReason ?? "none")}`,
     );
   return responseSchema.parse(JSON.parse(output));
+}
+
+/**
+ * A malformed generation is not a failed turn.
+ *
+ * The transport retries a refused *request*; this retries a refused *answer* —
+ * the model returning JSON that stops mid-string, which `JSON.parse` rejects
+ * and the operator sees as "Cue couldn't reach its model just now". It happened
+ * once in an eval run on 2026-09-23, at 390 characters, and then would not
+ * reproduce in twelve direct attempts at the same shape. Rare, non-deterministic
+ * and total: exactly the failure a second attempt is for.
+ *
+ * Only the generation is retried. A refusal that the model will repeat — an
+ * empty candidate, a schema the answer genuinely does not satisfy — costs one
+ * extra call and then surfaces as before, which is a price worth paying to stop
+ * a studio losing a question to a dropped character.
+ */
+function isMalformedGeneration(error: unknown): boolean {
+  return (
+    error instanceof SyntaxError ||
+    (error instanceof Error && error.name === "ZodError")
+  );
+}
+
+async function generateStructuredBody(requestBody: unknown) {
+  try {
+    return await generateStructuredOnce(requestBody);
+  } catch (error) {
+    if (!isMalformedGeneration(error)) throw error;
+    console.warn(
+      `[copilot] retrying malformed generation: ${String((error as Error).message).slice(0, 160)}`,
+    );
+    return await generateStructuredOnce(requestBody);
+  }
 }
 
 // Gemini thinks with a dynamic budget by default, which held the whole
