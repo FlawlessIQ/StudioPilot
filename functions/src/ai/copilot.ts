@@ -26,6 +26,7 @@ import {
 import { screenAnswer } from "./answer-safety.js";
 import { rosterByTrade } from "../crew/roster-trade.js";
 import { coverageTradeNamed } from "../crew/staffing-plan.js";
+import { deriveFlowRole, deriveFlowSubject } from "./flow-derive.js";
 import {
   vertexFailure,
   vertexGenerate,
@@ -2409,6 +2410,14 @@ export const aiCopilotCommand = onRequest(
         scopedDocuments("projects", input.tenantId, permittedProjectIds),
         scopedDocuments("readinessAssessments", input.tenantId, permittedProjectIds),
       ]);
+      /**
+       * Names only, and only to recognise one the operator typed. Cheap enough
+       * to fetch every turn and useless for anything else.
+       */
+      const rosterNames = (await rawCrewRoster(input.tenantId))
+        .filter((member) => member.active)
+        .map((member) => member.name)
+        .filter((name) => name.length > 0);
       const citationCandidates = projects.map((project) => ({
         label: String(project.name ?? project.id),
         href: `/studio/projects/${String(project.id)}`,
@@ -2659,10 +2668,18 @@ export const aiCopilotCommand = onRequest(
               projectId: flowProjectId,
               title: flowTitles[result.flow.type] ?? flowProjectName,
               reason: result.flow.reason ?? flowReasons[result.flow.type] ?? flowProjectName,
-              // Passed through untouched; the client matches it to a record.
-              subject: result.flow.subject ?? null,
-              // Likewise untouched — the client reads the trade out of it.
-              role: result.flow.role ?? null,
+              /**
+               * The model's words where it gave them, ours where it did not.
+               *
+               * It did not, on ten consecutive crew turns — so these are
+               * derived from the operator's own sentence rather than left
+               * null. The model still wins when it supplies a value, because
+               * it can see phrasing a regex cannot.
+               */
+              subject:
+                result.flow.subject ??
+                deriveFlowSubject(input.question, rosterNames),
+              role: result.flow.role ?? deriveFlowRole(input.question),
             }
           : null;
       /**
