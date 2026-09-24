@@ -30,7 +30,50 @@ Predictions` is standard on-demand.
 | Gemini 3.5 Flash | global | $1.50 | $9.00 | GA |
 | Gemini 3.0 / 3.1 Pro | global | $2.00 | $12.00 | preview |
 
-Three things in that table are not obvious:
+## The deadline
+
+**Gemini 2.5 Pro, Flash and Flash-Lite retire on October 16, 2026.** That is
+in the Vertex AI release notes, published April 2, 2026: *"The retirement dates
+for Gemini 2.5 Pro, Gemini 2.5 Flash-Lite, and Gemini 2.5 Flash have been
+updated to October 16, 2026."*
+
+Two traps in confirming this, both of which caught this analysis first time:
+
+- The **deprecations index** does not list it, and neither does the model
+  lifecycle page. The date lives only in the release notes. Not finding it on
+  the obvious page is not evidence it does not exist.
+- The **Gemini API and Vertex AI disagree.** `ai.google.dev` still says "No
+  shutdown date announced" for stable `gemini-2.5-pro`. That is the other
+  product. We are on Vertex. Google's own Vertex pages also disagree with each
+  other — release notes say October 16, the lifecycle page says October 20 —
+  so plan against October 16.
+
+Every AI path in StudioCue runs on 2.5 today: `VERTEX_AI_COPILOT_MODEL` is
+`gemini-2.5-pro`, and drafting, extraction, risk and schedule are all
+`gemini-2.5-flash`.
+
+## The blocker is the endpoint, not the model
+
+The 3.x line is served **only from `global`**, and `global` uses a different
+host from a regional endpoint — `aiplatform.googleapis.com`, not
+`us-east4-aiplatform.googleapis.com`. Setting `VERTEX_AI_LOCATION=global`
+today produces `global-aiplatform.googleapis.com`, which does not resolve.
+
+There are **nine** hardcoded `${location}-aiplatform.googleapis.com` template
+strings across `functions/src` (copilot, schedule, communications,
+signed-agreement, studio-import, and four in `operations/ai-pdf.ts`; one of
+them defaults to `us-central1` rather than `us-east4`, which is its own latent
+bug). Every one breaks on `global`.
+
+So the migration's first step is not choosing a model. It is deriving host and
+location **from the model** in one place, so a single purpose can move to 3.x
+while the rest stay on 2.5. Without that, the cutover is all-or-nothing on a
+deadline, which is the worst possible shape for it.
+
+All six candidate models were probed against `studiohub-prod` on `global` and
+all six answered. The path works; only the URL builder is in the way.
+
+## Three things in the price table are not obvious:
 
 - **3.5 Flash is dearer than 3.6, 3.7 and 3.8.** Newer is cheaper here, which
   is the opposite of the usual assumption. There is no reason to run 3.5.
@@ -67,13 +110,30 @@ counts to `aiInteractions/{id}.diagnostics.tokens`. **Until a week of those
 have accumulated, the split below is an estimate** — ~14k in / 0.6k out for
 retrieval, ~6k in / 1.9k out for the answer.
 
-| Retrieval model | Answer model | $/turn | vs today | $/1k turns |
+| Retrieval model | Answer model | $/turn | vs today | Status |
 |---|---|---|---|---|
-| 2.5 Pro | 2.5 Pro | $0.0500 | — today | $50.00 |
-| 2.5 Flash | 2.5 Pro | $0.0322 | −36% | $32.20 |
-| 3.1 Flash Lite | 2.5 Pro | $0.0309 | −38% | $30.90 |
-| 2.5 Flash Lite | 2.5 Pro | $0.0281 | −44% | $28.14 |
-| 2.5 Flash Lite | 3.8 Flash | $0.0249 | −50% | $24.89 |
+| 2.5 Pro | 2.5 Pro | $0.0500 | — today | **retires Oct 16** |
+| 3.1 Flash Lite | 3.6 / 3.7 / 3.8 Flash | $0.0277 | −45% | GA |
+| 3.5 Flash Lite | 3.8 Flash | $0.0290 | −42% | GA |
+| 3.1 Flash Lite | 3.5 Flash | $0.0305 | −39% | GA |
+| 3.1 Flash Lite | 3.1 Pro | $0.0392 | −22% | preview |
+
+There is **no GA Pro model on 3.x** — every 3.x Pro is `-preview`. So the
+copilot's answer model cannot move Pro-to-Pro. It either drops to a 3.x Flash
+(GA, and cheaper on output than 2.5 Pro) or takes on preview risk for a model
+that costs more than the thing it replaces. The Flash tier is the answer.
+
+A probe of a trivial prompt shows why the retrieval/answer split survives the
+migration: 3.6/3.7/3.8 Flash each burned 55–83 **thinking** tokens on "reply
+OK", while 3.1 and 3.5 Flash Lite burned zero. Thinking is billed as output.
+Flash Lite does not reason and should never write the answer; it is exactly
+right for choosing which tool to call.
+
+For the other four purposes, all on 2.5 Flash today, **3.5 Flash Lite is the
+price-identical swap** ($0.30/$2.50, matching 2.5 Flash to the cent) and 3.1
+Flash Lite is cheaper on both axes. Google's suggested replacement for 2.5
+Flash is 3.6 Flash, which costs 5× the input and 3× the output — do not take
+that recommendation without reading the price.
 
 Today's row is the current deployed configuration:
 `VERTEX_AI_COPILOT_RETRIEVAL_MODEL` is unset, so 2.5 Pro answers *and* does the
