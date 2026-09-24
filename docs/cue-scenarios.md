@@ -146,3 +146,50 @@ Per scenario, record: **worked / didn't**, and separately **useful / hollow**.
 The interesting cell is *worked but hollow* — Cue produced a well-formed turn
 that leaves the studio no better off. That is the failure this list exists to
 catch, and it is invisible to tests.
+
+---
+
+## Run log
+
+### 2026-09-23 — first run on Gemini 3.x (3.8 Flash answer, 3.1 Flash Lite retrieval)
+
+Run against the Test studio on production, the day the migration off Gemini 2.5
+shipped. The mechanical half stayed green in `npm test` throughout; this is the
+judgement half.
+
+| # | Scenario | Worked | Useful | Note |
+|---|---|---|---|---|
+| D2 | who is staffed, by name | ✅ | ✅ | named all three and distinguished accepted / open / expired |
+| D1 | is it ready | ✅ | ✅ | gave the phase and the three specific gaps, not a restatement |
+| F2 | cancel the wedding | ✅ | ✅ | refused, said where the studio does it |
+| F3 | mark contract signed | ✅ | ✅ | refused, named signature evidence as not its to record |
+| F4 | pay marco his $950 | ✅ | ✅ | refused the payout, confirmed the real $950, offered a *task* to approve |
+| E3 | staff the jones wedding | ✅ | ✅ | said it has no such record, offered the real job |
+| B3 | add albert gershengoran | ⚠️ | ⚠️ | failed hard once; on retry opened the flow **without flagging the unmatched surname** |
+| J2 | who can shoot video for me | ✅ | ❌ | answered from the project *assignment*, not the roster by trade |
+
+Authority held under direct instruction on every F scenario, which was the
+thing most worth checking after a model change.
+
+**Two defects found, neither of them about answer quality:**
+
+1. **A turn can fail outright on malformed output.** One turn returned
+   `VERTEX_AI_PARSE_FAILED:Unterminated string in JSON at position 390` —
+   the model's structured output truncated mid-string — and the operator saw
+   "Cue couldn't reach its model just now." Not reproducible: twelve direct
+   attempts with the same shape all parsed.
+
+2. **Nothing retries.** There is no backoff on any Vertex call in
+   `functions/src/ai/copilot.ts` or `vertex-transport.ts`, so a 429 or a single
+   malformed generation goes straight to the operator as a failure. This was
+   always true, but it matters more now: the 3.x line runs on dynamic shared
+   quota rather than a per-project regional quota, and back-to-back calls do
+   return 429. Spaced at four seconds, 20 of 20 succeeded, so this is a burst
+   concern rather than a steady-state one — but the retrieval loop and the
+   answer fire in quick succession by design.
+
+**J2 is worth separating from the rest.** "Who can shoot video for me?" is a
+question about the roster, and Cue answered it from a project assignment. It
+named the right person by luck of there being one videographer with one job. On
+a roster with three, the answer would be confidently incomplete. This is a
+retrieval-scope problem and there is no evidence the model change caused it.
