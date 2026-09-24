@@ -546,6 +546,40 @@ async function rawProjectMessages(tenantId: string, projectId: string) {
  * specialties, and a rate or an emergency contact has no business in a model
  * prompt that only has to say who shoots video.
  */
+/**
+ * The package the studio already chose, which nothing was reading.
+ *
+ * `get_project_detail` fetched nine collections and no package, so asked to
+ * send a proposal Cue answered "a package must be selected first" for a job
+ * that had held one for two days — a negative it had no evidence for, stated
+ * as a fact. The flow card beside it read the real field and said the
+ * opposite on the same screen.
+ *
+ * Absence of data is not data. The fix is to fetch it rather than to tell the
+ * model to hedge.
+ */
+async function rawSelectedPackage(tenantId: string, projectId: string) {
+  const db = getFirestore();
+  const project = await db.doc(`projects/${projectId}`).get();
+  if (!project.exists || project.get("tenantId") !== tenantId) return null;
+  const snapshotId = String(project.get("packageSnapshotId") ?? "");
+  if (!snapshotId) return null;
+  const snapshot = await db.doc(`packageSnapshots/${snapshotId}`).get();
+  if (!snapshot.exists || snapshot.get("tenantId") !== tenantId) return null;
+  // Money stays in integer cents; the system instruction renders it.
+  return {
+    snapshotId,
+    packageName: snapshot.get("packageName") ?? null,
+    totalCents: snapshot.get("totalCents") ?? null,
+    retainerCents: snapshot.get("retainerCents") ?? null,
+    includedCoverage: snapshot.get("includedCoverage") ?? null,
+    includedCoverageMinutes: snapshot.get("includedCoverageMinutes") ?? null,
+    includedDeliverables: snapshot.get("includedDeliverables") ?? null,
+    terms: snapshot.get("terms") ?? null,
+    selectionDate: snapshot.get("selectionDate") ?? null,
+  };
+}
+
 async function rawCrewRoster(tenantId: string) {
   const db = getFirestore();
   const snapshot = await db
@@ -977,9 +1011,33 @@ async function streamStructuredBody(
   } catch (parseError: unknown) {
     const reason =
       parseError instanceof Error ? parseError.message : "parse failed";
-    throw new Error(
-      `VERTEX_AI_PARSE_FAILED:${reason}:rawLen=${raw.length}:head=${raw.slice(0, 200)}`,
+    /**
+     * The streamed answer is the one that actually fails.
+     *
+     * A retry was added to the non-streaming call on 2026-09-23 after a turn
+     * died on truncated JSON — and it never fired, because production streams.
+     * The next eval run lost two more turns the same way, both with a buffer of
+     * fifteen characters: `{ "answer": "` and nothing after it. The retry was
+     * guarding the path that was not breaking.
+     *
+     * Finishing without streaming rather than re-streaming, because the tokens
+     * already emitted cannot be taken back and a second stream would append to
+     * them. The client treats the resolved result as authoritative and the
+     * tokens as a progressive reveal — `askCopilotStream` says so — so the cost
+     * of this path is the reveal, and the saving is the answer.
+     */
+    console.warn(
+      `[copilot] streamed answer did not parse (rawLen=${raw.length}); finishing without streaming: ${reason.slice(0, 120)}`,
     );
+    try {
+      return await generateStructuredBody(requestBody);
+    } catch (retryError: unknown) {
+      const retryReason =
+        retryError instanceof Error ? retryError.message : "retry failed";
+      throw new Error(
+        `VERTEX_AI_PARSE_FAILED:${reason}:rawLen=${raw.length}:head=${raw.slice(0, 200)}:retry=${retryReason.slice(0, 120)}`,
+      );
+    }
   }
 }
 
@@ -999,7 +1057,7 @@ const COPILOT_TOOL_DECLARATIONS = [
   {
     name: "get_project_detail",
     description:
-      "Full operational detail for ONE project: contract status, invoices (balanceCents, dueDate, status), crew assignments with the crew member's name and acceptance status, open tasks, schedule, insurance, the planning questionnaire INCLUDING the couple's own answers, the message thread with the couple, and the readiness assessment. Use this to answer what the couple asked for or said, as well as where the job stands. Pass a projectId taken from the supplied project overview.",
+      "Full operational detail for ONE project: contract status, invoices (balanceCents, dueDate, status), crew assignments with the crew member's name and acceptance status, open tasks, schedule, insurance, the planning questionnaire INCLUDING the couple's own answers, the message thread with the couple, the readiness assessment, and `selectedPackage` — the package the studio has already chosen for this job, with its name, price and coverage, or null if none has been chosen. Never say a project has no package unless `selectedPackage` is null. Use this to answer what the couple asked for or said, as well as where the job stands. Pass a projectId taken from the supplied project overview.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -1093,7 +1151,7 @@ async function executeReadTool(
     if (permitted && !permitted.includes(projectId))
       return { error: "project not accessible" };
     const scope = [projectId];
-    const [contracts, invoices, crew, tasks, schedules, insurance, questionnaires, readiness, messages] =
+    const [contracts, invoices, crew, tasks, schedules, insurance, questionnaires, readiness, messages, selectedPackage] =
       await Promise.all([
         scopedDocuments("contracts", tenantId, scope),
         scopedDocuments("invoiceReferences", tenantId, scope),
@@ -1122,6 +1180,7 @@ async function executeReadTool(
          * shows, and this is the studio's own assistant answering the studio.
          */
         rawProjectMessages(tenantId, projectId),
+        rawSelectedPackage(tenantId, projectId),
       ]);
     /**
      * Crew assignments name a person, not an id.
@@ -1187,6 +1246,12 @@ async function executeReadTool(
         answers: item.answers ?? null,
       })),
       messages,
+      /**
+       * Null means no package chosen; an object means one is. Stated rather
+       * than inferred from the absence of a field, because inferring it is the
+       * bug this replaces.
+       */
+      selectedPackage,
       readiness: readiness[0] ?? null,
     };
   }

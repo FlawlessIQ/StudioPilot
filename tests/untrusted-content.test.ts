@@ -250,3 +250,33 @@ test("stripping survives a partial or doubled marker", () => {
   assert.equal(strip(`${open}${open}hi${close}`), "hi");
   assert.equal(strip(`no markers here`), "no markers here");
 });
+
+/**
+ * A negative stated without evidence is a defect, not a hedge.
+ *
+ * Asked to send a proposal, Cue answered "a package must be selected first"
+ * for a job that had held one for two days, while the flow card beside it read
+ * the real field and said the opposite on the same screen. The tool fetched
+ * nine collections and no package, so the model had nothing and filled the gap
+ * itself.
+ */
+test("project detail carries the chosen package, tenant-checked both ways", () => {
+  const reader = copilot.slice(copilot.indexOf("async function rawSelectedPackage"));
+  const body = reader.slice(0, reader.indexOf("\n}\n"));
+  // The project and the snapshot are each confirmed to belong to the caller.
+  assert.equal(
+    (body.match(/get\("tenantId"\) !== tenantId/g) ?? []).length,
+    2,
+    "both the project and its package snapshot must be tenant-checked",
+  );
+  assert.match(body, /packageSnapshotId/);
+  assert.match(body, /packageName/);
+});
+
+test("the project detail result exposes selectedPackage", () => {
+  assert.match(copilot, /\n {6}selectedPackage,\n/);
+  assert.match(
+    copilot,
+    /Never say a project has no package unless `selectedPackage` is null\./,
+  );
+});

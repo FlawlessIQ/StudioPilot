@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -115,4 +116,40 @@ test("the last attempt does not sleep before giving up", async () => {
     maxAttempts: 2,
   });
   assert.equal(slept.length, 1);
+});
+
+const copilot = readFileSync(
+  `${process.cwd()}/functions/src/ai/copilot.ts`,
+  "utf8",
+);
+
+/**
+ * The retry that guarded the wrong path.
+ *
+ * `generateStructuredBody` got a malformed-generation retry on 2026-09-23 and
+ * it never fired once, because production answers stream and the streamed
+ * parse lives in `streamStructuredBody` — which re-wraps the SyntaxError into a
+ * plain Error, so it could not have matched even if it had been reached. Two
+ * more turns were lost to it the next day.
+ *
+ * Asserted at the source, because this function needs a live stream to exercise
+ * and the thing worth protecting is structural: the streamed parse must have
+ * somewhere to fall back to.
+ */
+test("a streamed answer that does not parse falls back rather than failing", () => {
+  const start = copilot.indexOf("async function streamStructuredBody");
+  assert.ok(start > 0, "streamStructuredBody not found");
+  const body = copilot.slice(start, copilot.indexOf("\n// The agentic retrieval loop", start));
+  assert.ok(
+    body.includes("await generateStructuredBody(requestBody)"),
+    "the streamed parse failure must finish the turn without streaming",
+  );
+  // And it must still surface the original reason when the fallback also fails.
+  assert.match(body, /VERTEX_AI_PARSE_FAILED:\$\{reason\}/);
+});
+
+/** Both parse paths retry; neither may quietly lose it again. */
+test("the non-streaming structured call still retries a malformed generation", () => {
+  assert.match(copilot, /function isMalformedGeneration/);
+  assert.match(copilot, /return await generateStructuredOnce\(requestBody\)/);
 });
