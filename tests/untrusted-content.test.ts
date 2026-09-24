@@ -73,9 +73,48 @@ test("no tool the model can call writes anything", () => {
   const names = [...block.matchAll(/^\s{4}name: "([a-z_]+)",$/gm)].map((m) => m[1]);
   assert.deepEqual(
     names.sort(),
-    ["find_across_projects", "get_project_detail"].sort(),
+    ["find_across_projects", "get_crew_roster", "get_project_detail"].sort(),
     "a new Cue tool needs reviewing against the injection tests",
   );
+});
+
+/**
+ * `get_crew_roster` reviewed against the injection tests, 2026-09-24.
+ *
+ * It reads `crewProfiles` for one tenant and returns names, trades and
+ * specialties. Two things make it safe, and both are asserted below rather than
+ * promised in a comment: it takes no parameters, so there is no argument a
+ * model can be talked into widening; and its result goes through the same
+ * `fenceToolResult` dispatch as every other tool. That last one matters because
+ * a crew member who accepted a roster invite can edit their own name and
+ * specialties — records a person outside the studio can write, which is the
+ * whole definition of untrusted here.
+ */
+test("the roster tool gives the model no argument to widen", () => {
+  const start = copilot.indexOf("const COPILOT_TOOL_DECLARATIONS");
+  const block = copilot.slice(start);
+  const tool = block.slice(block.indexOf('name: "get_crew_roster"'));
+  const declaration = tool.slice(0, tool.indexOf("},\n]"));
+  assert.match(
+    declaration,
+    /parameters:\s*\{\s*type:\s*"OBJECT",\s*properties:\s*\{\}\s*\}/,
+    "get_crew_roster must take no parameters — scope comes from the verified caller",
+  );
+});
+
+test("the roster read is scoped by tenant, not by anything the model said", () => {
+  const reader = copilot.slice(copilot.indexOf("async function rawCrewRoster"));
+  const body = reader.slice(0, reader.indexOf("\n}"));
+  assert.match(body, /\.where\("tenantId", "==", tenantId\)/);
+  assert.ok(
+    !/args\.|projectId/.test(body),
+    "rawCrewRoster must not read anything the model supplied",
+  );
+});
+
+/** Every tool result is fenced at one dispatch point; this is that point. */
+test("tool results reach the model fenced as untrusted content", () => {
+  assert.match(copilot, /response: fenceToolResult\(result\) as Json/);
 });
 
 /**

@@ -24,6 +24,7 @@ import {
   type CopilotDiagnostics,
 } from "./diagnostics.js";
 import { screenAnswer } from "./answer-safety.js";
+import { rosterByTrade } from "../crew/roster-trade.js";
 import {
   vertexFailure,
   vertexGenerate,
@@ -533,6 +534,38 @@ async function rawProjectMessages(tenantId: string, projectId: string) {
     .slice(-25);
 }
 
+/**
+ * The studio's people, asked of the roster rather than of a job.
+ *
+ * Every other read here starts from a project, which is why "who can shoot
+ * video for me?" used to be answered from whoever happened to be booked. This
+ * one is scoped by tenant alone — the roster is a tenant-level record, and a
+ * question about it has no project to hang from.
+ *
+ * Projected explicitly, not through `compact`: the answer needs trades and
+ * specialties, and a rate or an emergency contact has no business in a model
+ * prompt that only has to say who shoots video.
+ */
+async function rawCrewRoster(tenantId: string) {
+  const db = getFirestore();
+  const snapshot = await db
+    .collection("crewProfiles")
+    .where("tenantId", "==", tenantId)
+    .limit(200)
+    .get();
+  return snapshot.docs.map((doc) => ({
+    id: doc.id,
+    name: String(doc.get("name") ?? ""),
+    active: doc.get("active") !== false && !doc.get("archivedAt"),
+    trades: Array.isArray(doc.get("trades"))
+      ? (doc.get("trades") as unknown[]).map((value) => String(value))
+      : undefined,
+    specialties: Array.isArray(doc.get("specialties"))
+      ? (doc.get("specialties") as unknown[]).map((value) => String(value))
+      : [],
+  }));
+}
+
 export async function scopedDocuments(
   collectionName: string,
   tenantId: string,
@@ -959,7 +992,7 @@ async function streamStructuredBody(
 const COPILOT_MAX_TOOL_ITERATIONS = 4;
 
 const COPILOT_RETRIEVAL_INSTRUCTION =
-  "You are StudioCue Event Copilot for a studio operator. You are given the operator's question and a compact overview of every project they can see (id, name, type, event date, state, readiness score). Use the read-only tools to fetch exactly the detail the question needs, then stop calling tools — a later step writes the final answer. For a question about one project, call get_project_detail with its id from the overview. For a portfolio question (who owes money, what is unsigned, which crew have not accepted), call find_across_projects. Do not call a tool if the overview already answers the question. Never invent data; rely only on tool results and the overview." +
+  "You are StudioCue Event Copilot for a studio operator. You are given the operator's question and a compact overview of every project they can see (id, name, type, event date, state, readiness score). Use the read-only tools to fetch exactly the detail the question needs, then stop calling tools — a later step writes the final answer. For a question about one project, call get_project_detail with its id from the overview. For a portfolio question (who owes money, what is unsigned, which crew have not accepted), call find_across_projects. For a question about the studio's PEOPLE — who is on the roster, who works a trade, who could be offered a role — call get_crew_roster; a project's assignments show only who is already booked and will understate the roster. Do not call a tool if the overview already answers the question. Never invent data; rely only on tool results and the overview." +
   UNTRUSTED_CONTENT_RULE;
 
 const COPILOT_TOOL_DECLARATIONS = [
@@ -1000,6 +1033,12 @@ const COPILOT_TOOL_DECLARATIONS = [
       required: ["dimension"],
     },
   },
+  {
+    name: "get_crew_roster",
+    description:
+      "The studio's whole crew roster, tenant-wide and not tied to any project: each person's name, the trades they work (photographer, videographer), their specialties, and whether they are active. Also returns, per trade, who the studio has CONFIRMED works it and who is only INFERRED from their specialties because no trade was recorded. Use this for any question about who the studio has, who can do a kind of work, or who could be offered a role — never answer those from a project's assignments, which show only who is already booked.",
+    parameters: { type: "OBJECT", properties: {} },
+  },
 ] as const;
 
 /** A short, human-readable status for the tool the agent just chose to call. */
@@ -1022,6 +1061,7 @@ function toolStatusLabel(
     };
     return labels[String(args.dimension)] ?? "Scanning your projects…";
   }
+  if (name === "get_crew_roster") return "Reading your crew roster…";
   return "Looking that up…";
 }
 
@@ -1033,6 +1073,18 @@ async function executeReadTool(
   permitted: string[] | null,
   projectNames: Map<string, string>,
 ): Promise<Json> {
+  if (name === "get_crew_roster") {
+    const roster = await rawCrewRoster(tenantId);
+    return {
+      roster: roster.filter((member) => member.active),
+      /**
+       * The verdict computed deterministically rather than left to the model,
+       * so "confirmed" means the studio said so and "inferred" means we are
+       * reading their specialties — a distinction the answer has to keep.
+       */
+      byTrade: rosterByTrade(roster, ["photographer", "videographer"]),
+    } as unknown as Json;
+  }
   if (name === "get_project_detail") {
     const projectId = typeof args.projectId === "string" ? args.projectId : "";
     if (!projectId) return { error: "projectId is required" };
