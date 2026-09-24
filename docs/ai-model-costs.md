@@ -155,8 +155,31 @@ Today's row is the current deployed configuration:
 retrieval — paying Pro rates for two calls whose entire job is choosing which
 tool to call.
 
-Splitting retrieval onto a Lite model is the whole saving. Which Lite model
-barely matters (−36% to −44%); whether retrieval is split at all matters a
-great deal. What it costs in quality is a question for `features/ai/cue-eval.ts`,
-not for this file — a retrieval model that picks the wrong project is not cheap
-at any price.
+## What a turn actually costs
+
+The first turn measured after the migration — a real question on production,
+"who is staffed on the demattia wedding, by name?" — recorded **3,281 input and
+304 output tokens across 2 calls**.
+
+That is about a seventh of what the table above assumed. The estimate guessed
+~20k input on the theory that the retrieval loop resends the whole context
+several times; it runs once, on a context pack far smaller than feared. At the
+measured shape a turn costs roughly **$0.007**, or **$7 per thousand turns**,
+and the choice of model barely moves it: 2.5 Pro would have cost $0.00714 and
+3.8 Flash costs $0.00720, because Flash's cheaper output is offset by its
+dearer input once output is only 8% of the tokens.
+
+So the honest conclusion is the opposite of the one the estimate pointed at.
+Model choice here is a **quality and lifecycle decision, not a cost decision**
+— at this volume the whole AI bill is noise next to a single studio's
+subscription. The retrieval split is still right, because it costs nothing and
+puts mechanical work on a mechanical model, but nobody should pick a model to
+save $3 per thousand turns.
+
+One turn is not a sample. The per-turn tokens are recorded on every
+`aiInteractions` document now, so re-read them after a week of real use before
+treating any of this as settled.
+
+What it costs in quality is a question for `features/ai/cue-eval.ts`, not for
+this file — a retrieval model that picks the wrong project is not cheap at any
+price.
