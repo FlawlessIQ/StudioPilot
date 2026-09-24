@@ -52,6 +52,16 @@ const args = process.argv.slice(2);
 const apply = args.includes("--apply");
 const remove = args.includes("--remove");
 const tenantId = (args.find((a) => a.startsWith("--tenant=")) ?? "").split("=")[1];
+/**
+ * Which scenario group to set up. `CH` is the ambiguity and injection pair;
+ * `I` is scale and an archived job, which needs thirty-odd records and so is
+ * kept behind its own flag rather than seeded every time.
+ */
+const group = ((args.find((a) => a.startsWith("--group=")) ?? "--group=CH").split("=")[1] || "CH").toUpperCase();
+if (!["CH", "I"].includes(group)) {
+  console.error(`Unknown --group=${group}. Use CH or I.`);
+  process.exit(2);
+}
 const project = (args.find((a) => a.startsWith("--project=")) ?? "--project=studiohub-prod").split("=")[1];
 
 if (!tenantId) {
@@ -218,8 +228,89 @@ const docs = [
   },
 ];
 
+/**
+ * Group I — scale, and a job that should not be staffable.
+ *
+ * I1 asks what needs attention on a studio with a real book of work: the
+ * failure to look for is a list that grows with the jobs instead of staying
+ * the top few by consequence. Thirty is enough to make that visible and few
+ * enough to clean up in one batch.
+ *
+ * I2 is the archived job. `staff the iris and theo wedding` must say it is
+ * archived rather than open a flow on it — a job nobody is working is exactly
+ * the one where a crew offer would be embarrassing.
+ */
+const MONTHS = ["03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
+const COUPLES = [
+  "Amara & Theo", "Bea & Oskar", "Cleo & Ravi", "Dara & Milo", "Esme & Kit",
+  "Farah & Gus", "Gia & Hugo", "Hana & Ivo", "Iris & Jonah", "Juno & Kai",
+  "Kara & Leon", "Lena & Mateo", "Mira & Nico", "Nadia & Omar", "Orla & Pax",
+];
+const bulkProjects = COUPLES.flatMap((couple, index) =>
+  [0, 1].map((half) => {
+    const n = index * 2 + half;
+    const id = `evalfix-bulk-${String(n).padStart(2, "0")}`;
+    return {
+      path: `projects/${id}`,
+      why: `I1 — one of thirty jobs, so 'what needs my attention' has to choose`,
+      data: {
+        id,
+        projectId: id,
+        tenantId,
+        name: `${couple} Wedding`,
+        eventType: "Wedding",
+        eventTypeId: "wedding",
+        eventDate: `2027-${MONTHS[n % MONTHS.length]}-${String((n % 27) + 1).padStart(2, "0")}`,
+        state: ["LEAD", "BOOKED", "PLANNING"][n % 3],
+        stateVersion: 0,
+        readinessScore: (n * 7) % 100,
+        nextAction: "Complete lead review",
+        city: ["Brooklyn", "Queens", "Manhattan"][n % 3],
+        venueName: `Venue ${n + 1}`,
+        venue: null,
+        timezone: "America/New_York",
+        clientContactIds: [],
+        leadId: null,
+        leadPhotographerId: null,
+        packageSnapshotId: null,
+        archivedAt: null,
+        ...audit,
+      },
+    };
+  }),
+);
+const archivedProject = {
+  path: "projects/evalfix-archived-iris-theo",
+  why: "I2 — an ARCHIVED job, which must be named as archived rather than staffed",
+  data: {
+    id: "evalfix-archived-iris-theo",
+    projectId: "evalfix-archived-iris-theo",
+    tenantId,
+    name: "Iris & Theo Wedding",
+    eventType: "Wedding",
+    eventTypeId: "wedding",
+    eventDate: "2027-05-08",
+    state: "LEAD",
+    stateVersion: 0,
+    readinessScore: 0,
+    nextAction: "Complete lead review",
+    city: "Brooklyn",
+    venueName: "The Green Building",
+    venue: null,
+    timezone: "America/New_York",
+    clientContactIds: [],
+    leadId: null,
+    leadPhotographerId: null,
+    packageSnapshotId: null,
+    archivedAt: NOW,
+    ...audit,
+  },
+};
+
+const groupDocs = group === "I" ? [...bulkProjects, archivedProject] : docs;
+
 /** Ids whose creation emits a domain event that `--remove` must also clear. */
-const seededProjectIds = docs
+const seededProjectIds = groupDocs
   .filter((d) => d.path.startsWith("projects/"))
   .map((d) => d.path.slice("projects/".length));
 
@@ -234,15 +325,15 @@ if (!workflows.empty) {
 }
 
 if (remove) {
-  console.log(`Removing ${docs.length} fixture documents from ${tenantId}\n`);
-  for (const d of docs) console.log("  delete", d.path);
+  console.log(`Removing ${groupDocs.length} group-${group} documents from ${tenantId}\n`);
+  for (const d of groupDocs) console.log("  delete", d.path);
   console.log("  delete any domainEvents emitted by the seeded projects");
   if (!apply) {
     console.log("\nDry run. Re-run with --apply to delete.");
     process.exit(0);
   }
   const batch = db.batch();
-  for (const d of docs) batch.delete(db.doc(d.path));
+  for (const d of groupDocs) batch.delete(db.doc(d.path));
   // Events the projects emitted on creation, whose ids are content hashes and
   // so cannot be named ahead of time.
   let trailing = 0;
@@ -263,14 +354,14 @@ if (remove) {
   process.exit(0);
 }
 
-console.log(`Seeding ${docs.length} fixture documents into ${tenantId}`);
+console.log(`Seeding ${groupDocs.length} group-${group} documents into ${tenantId}`);
 console.log(`(tenant has ${workflows.size} workflows, so no automation can fire)\n`);
-for (const d of docs) console.log(`  ${d.path}\n      ${d.why}`);
+for (const d of groupDocs) console.log(`  ${d.path}\n      ${d.why}`);
 if (!apply) {
   console.log("\nDry run. Re-run with --apply to write. Undo with --remove --apply.");
   process.exit(0);
 }
 const batch = db.batch();
-for (const d of docs) batch.set(db.doc(d.path), d.data);
+for (const d of groupDocs) batch.set(db.doc(d.path), d.data);
 await batch.commit();
 console.log("\nSeeded. Undo with: --remove --apply");

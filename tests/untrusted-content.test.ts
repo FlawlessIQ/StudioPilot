@@ -280,3 +280,33 @@ test("the project detail result exposes selectedPackage", () => {
     /Never say a project has no package unless `selectedPackage` is null\./,
   );
 });
+
+/**
+ * I2: an archived wedding was indistinguishable from a live one in the
+ * overview, so Cue opened the crew picker on it and called it a Lead. What sat
+ * one tap away was a paid offer on a job nobody is working.
+ */
+test("the overview marks archived jobs", () => {
+  assert.match(copilot, /archived: Boolean\(project\.archivedAt\)/);
+  assert.match(copilot, /an archived job is one the studio has put away/);
+});
+
+test("archivedAt survives compact, so project detail can answer for it", () => {
+  const allow = copilot.slice(
+    copilot.indexOf("const allowed = ["),
+    copilot.indexOf("];", copilot.indexOf("const allowed = [")),
+  );
+  assert.match(allow, /"archivedAt"/);
+});
+
+test("a flow on an archived project is dropped and the answer replaced", () => {
+  const block = copilot.slice(
+    copilot.indexOf("const archivedFlowProject ="),
+    copilot.indexOf("const flowDirective ="),
+  );
+  assert.match(block, /project\.archivedAt/);
+  assert.match(block, /result\.flow = null;/);
+  assert.match(block, /result\.answer =/);
+  // It must name the job rather than saying "that project".
+  assert.match(block, /archivedFlowProject\.name/);
+});

@@ -181,7 +181,7 @@ test("a change to Cue's prompt is deliberate and re-evaluated", () => {
   // Bumped 2026-09-23 (2nd): answer what was asked and stop; say so when a
   // record is out of reach. Group D re-run on production before shipping — it
   // is what found that Cue could not name the crew on a job.
-  const EXPECTED = 16503;
+  const EXPECTED = 16632;
   const drift = Math.abs(size - EXPECTED);
   assert.ok(
     drift < 40,
