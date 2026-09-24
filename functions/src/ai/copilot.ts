@@ -784,7 +784,7 @@ async function generateStructuredBody(requestBody: unknown) {
   return responseSchema.parse(JSON.parse(output));
 }
 
-// gemini-2.5-pro thinks with a dynamic budget by default, which held the whole
+// Gemini thinks with a dynamic budget by default, which held the whole
 // response open for 5–8s before emitting a single token — measured against
 // Vertex directly (see the streaming work of 2026-09-08). The copilot's facts
 // are already computed deterministically and handed to the model in the context
@@ -792,6 +792,8 @@ async function generateStructuredBody(requestBody: unknown) {
 // budget keeps that reasoning intact while cutting time-to-first-token to ~2.6s
 // and letting the answer stream. 256 was both faster AND at least as accurate as
 // 512/1024 on a multi-project reasoning probe — more thinking bought nothing here.
+// Measured on gemini-2.5-pro and carried over to gemini-3.8-flash, which accepts
+// the same budget; it is worth re-measuring now that the model underneath changed.
 const COPILOT_THINKING_BUDGET = 256;
 
 const COPILOT_SYSTEM_INSTRUCTION =

@@ -48,9 +48,24 @@ Two traps in confirming this, both of which caught this analysis first time:
   other — release notes say October 16, the lifecycle page says October 20 —
   so plan against October 16.
 
-Every AI path in StudioCue runs on 2.5 today: `VERTEX_AI_COPILOT_MODEL` is
-`gemini-2.5-pro`, and drafting, extraction, risk and schedule are all
-`gemini-2.5-flash`.
+**StudioCue no longer runs any Gemini 2.5 model.** Migrated 23 September 2026:
+
+| Purpose | Was | Now |
+|---|---|---|
+| Copilot answer | `gemini-2.5-pro` | `gemini-3.8-flash` |
+| Copilot retrieval | (the answer model) | `gemini-3.1-flash-lite` |
+| Drafting | `gemini-2.5-flash` | `gemini-3.5-flash-lite` |
+| Extraction | `gemini-2.5-flash` | `gemini-3.5-flash-lite` |
+| Risk | `gemini-2.5-flash` | `gemini-3.5-flash-lite` |
+| Schedule | `gemini-2.5-flash` | `gemini-3.5-flash-lite` |
+
+Before the switch, each candidate was called against `studiohub-prod` for every
+capability the product actually depends on — a 256-token thinking budget, a
+`responseSchema` structured output, a `functionDeclarations` tool call, and a
+PDF read — because "it is a newer Gemini" is an assumption and the certificate
+extractor reading a document is not a thing to assume. All four worked on all
+four models. `VERTEX_AI_LOCATION` now applies only to Gemini 2.x and
+non-Gemini models, and is consulted nowhere else.
 
 ## The blocker is the endpoint, not the model
 

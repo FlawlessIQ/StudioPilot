@@ -25,7 +25,7 @@ const base = {
   projectId: "p1",
   actorId: "user_1",
   modelProvider: "vertex_ai",
-  modelVersion: "gemini-2.5-pro",
+  modelVersion: "gemini-3.8-flash",
   instructionVersion: "copilot_action_v1",
   outputSchemaVersion: "copilot_action_output_v1",
   sourceReferences: [
