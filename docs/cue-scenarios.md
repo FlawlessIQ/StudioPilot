@@ -306,3 +306,27 @@ the model to consult it before accepting a role name.
 jobs for one couple, two crew with one name), H (a seeded injection payload), I
 (30+ jobs and an archived one), E2 (an empty package catalogue), E4 (an empty
 tenant), G2 and G3 (mid-flow completion and correction).
+
+**E1 fixed the same day.** Asked again for a drone operator, Cue now answers:
+"StudioCue only staffs photographers and videographers, and nobody on the roster
+is recorded as doing drone work. Would you like to staff a photographer or
+videographer instead?" — no flow, the limitation named, the roster checked, and
+both trades offered as one tap. That is the E-class rubric: an impossible ask
+returns the reason and a way forward.
+
+Fixed in two layers. The prompt now states that StudioCue staffs exactly two
+trades and that a role outside them must not launch a flow — and that is what
+produced the answer above, so the second layer never fired. Behind it sits
+`coverageTradeNamed`, which answers a question `coverageRoleForLabel` cannot:
+that one is deliberately total, because a studio may retitle a role on its own
+staffing screen and "Second shooter" must still rank as photography. Asked about
+"drone operator" it answers photographer, which is why the offer would have gone
+to the wrong trade. The new function returns null for a specialism the studio
+does not staff, and the copilot then drops the flow *and* replaces the answer —
+dropping alone would leave "opening the crew flow…" on screen with nothing
+opening, which is the announce-then-produce-nothing shape this file has been
+bitten by before.
+
+A1 was re-run afterwards and is unchanged, which was the risk worth checking:
+the new rule sits in the same paragraph that tells the model how to set
+`flow.role`.

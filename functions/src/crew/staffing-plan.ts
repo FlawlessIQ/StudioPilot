@@ -172,6 +172,33 @@ export function coverageRoleForLabel(label: string): CoverageRole {
 }
 
 /**
+ * Whether a role label names a trade the studio actually staffs.
+ *
+ * `coverageRoleForLabel` above is deliberately total: a studio can retitle a
+ * role to "Second shooter" or "Video lead" and it still has to rank against
+ * the right trade, so anything unrecognised is treated as photography. That is
+ * correct for a role the studio typed on its own staffing screen.
+ *
+ * It is wrong for a role somebody asked Cue for. Asked to add a "drone
+ * operator", Cue opened the crew flow and reported the drone operator role as
+ * unfilled — StudioCue has no such role, nobody on the roster holds one, and
+ * the label would have ranked photographers. This distinguishes "a name for a
+ * trade we staff" from "a specialism we do not", which is the question that
+ * was being answered by accident.
+ *
+ * Null means neither, and is a fact about StudioCue rather than about the
+ * person asking.
+ */
+export function coverageTradeNamed(label: string): CoverageRole | null {
+  if (/video|cinema|film|drone|aerial/i.test(label)) {
+    // Drone and aerial work name a camera, not this studio's video trade.
+    return /drone|aerial/i.test(label) ? null : "videographer";
+  }
+  if (/photo|shooter|stills|camera|portrait/i.test(label)) return "photographer";
+  return null;
+}
+
+/**
  * Deal candidates across a known list of roles.
  *
  * Split out from `planCrewStaffing` because the staffing screen works from
