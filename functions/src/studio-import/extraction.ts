@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { getFirestore, type DocumentSnapshot } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import mammoth from "mammoth";
+import { vertexEndpoint } from "../ai/vertex-endpoint.js";
 
 export const studioAssetTypes = [
   "message_template",
@@ -500,7 +501,6 @@ async function vertexExtraction(input: {
   text: string | null;
 }): Promise<ExtractedStudioAsset[]> {
   const project = process.env.VERTEX_AI_PROJECT_ID;
-  const location = process.env.VERTEX_AI_LOCATION ?? "us-east4";
   const model = process.env.VERTEX_AI_EXTRACTION_MODEL;
   if (!project || !model) throw new Error("VERTEX_AI_NOT_CONFIGURED");
   const token = await cloudAccessToken();
@@ -513,7 +513,7 @@ async function vertexExtraction(input: {
         },
       };
   const response = await fetch(
-    `https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`,
+    vertexEndpoint(project, model),
     {
       method: "POST",
       headers: {

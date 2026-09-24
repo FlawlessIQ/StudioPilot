@@ -16,6 +16,7 @@ import {
   describeCoverage,
   resolveCoverage,
 } from "../packages/coverage.js";
+import { vertexEndpoint } from "./vertex-endpoint.js";
 
 type Json = Record<string, unknown>;
 const record = (value: unknown): Json =>
@@ -264,13 +265,12 @@ async function generateDraft(input: {
   if (process.env.PROVIDER_MOCK_MODE === "true")
     return fallbackDraft({ trigger: input.trigger, context: input.context });
   const project = process.env.VERTEX_AI_PROJECT_ID;
-  const location = process.env.VERTEX_AI_LOCATION ?? "us-east4";
   const model =
     process.env.VERTEX_AI_MESSAGE_MODEL ?? process.env.VERTEX_AI_SCHEDULE_MODEL;
   if (!project || !model)
     return fallbackDraft({ trigger: input.trigger, context: input.context });
   const token = await accessToken();
-  const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`;
+  const endpoint = vertexEndpoint(project, model);
   const callModel = async (contents: Array<Json>) => {
     const response = await fetch(endpoint, {
       method: "POST",

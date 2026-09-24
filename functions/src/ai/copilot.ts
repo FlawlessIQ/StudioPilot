@@ -37,6 +37,7 @@ import {
   describeCoverage,
   resolveCoverage,
 } from "../packages/coverage.js";
+import { vertexEndpoint } from "./vertex-endpoint.js";
 
 type Json = Record<string, unknown>;
 
@@ -1623,13 +1624,12 @@ async function generateIntake(
   };
   if (process.env.PROVIDER_MOCK_MODE === "true") return fallback();
   const project = process.env.VERTEX_AI_PROJECT_ID;
-  const location = process.env.VERTEX_AI_LOCATION ?? "us-east4";
   const model = process.env.VERTEX_AI_EXTRACTION_MODEL;
   if (!project || !model) return fallback();
   try {
     const token = await cloudAccessToken();
     const response = await fetch(
-      `https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`,
+      vertexEndpoint(project, model),
       {
         method: "POST",
         headers: {
@@ -1750,14 +1750,13 @@ async function generateProposalDraft(facts: {
   };
   if (process.env.PROVIDER_MOCK_MODE === "true") return fallback();
   const project = process.env.VERTEX_AI_PROJECT_ID;
-  const location = process.env.VERTEX_AI_LOCATION ?? "us-east4";
   const model =
     process.env.VERTEX_AI_DRAFTING_MODEL ?? process.env.VERTEX_AI_EXTRACTION_MODEL;
   if (!project || !model) return fallback();
   try {
     const token = await cloudAccessToken();
     const response = await fetch(
-      `https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`,
+      vertexEndpoint(project, model),
       {
         method: "POST",
         headers: {

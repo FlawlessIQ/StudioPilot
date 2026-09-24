@@ -7,6 +7,7 @@ import { studioHubCors } from "../security/cors.js";
 import { consumeAiQuota, refundAiQuota } from "../saas/usage.js";
 import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { productEvent } from "../operations/product-events.js";
+import { vertexEndpoint } from "./vertex-endpoint.js";
 
 type Json = Record<string, unknown>;
 const record = (value: unknown): Json =>
@@ -178,11 +179,10 @@ async function fetchVertexWithRetry(url: string, init: RequestInit) {
 
 async function generate(input: z.infer<typeof inputSchema>, context: Json) {
   const project = process.env.VERTEX_AI_PROJECT_ID;
-  const location = process.env.VERTEX_AI_LOCATION ?? "us-east4";
   const model = process.env.VERTEX_AI_SCHEDULE_MODEL;
   if (!project || !model) throw new Error("VERTEX_AI_SCHEDULE_NOT_CONFIGURED");
   const token = await accessToken();
-  const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`;
+  const endpoint = vertexEndpoint(project, model);
   // Every turn goes through the retrying fetch, so the repair pass inherits
   // the same throttling recovery as the first attempt.
   const callModel = async (contents: Array<Record<string, unknown>>) => {

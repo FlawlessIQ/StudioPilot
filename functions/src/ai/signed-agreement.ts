@@ -8,6 +8,7 @@ import {
   type SignedAgreementReading,
 } from "../booking/signed-agreement-match.js";
 import { cloudAccessToken } from "./vertex-token.js";
+import { vertexEndpoint } from "./vertex-endpoint.js";
 
 /**
  * Cue reading a signed agreement a studio has dropped into the chat.
@@ -164,12 +165,11 @@ async function readWithVertex(input: {
 }): Promise<{ reading: SignedAgreementReading; details: SignedAgreementDetails } | null> {
   if (process.env.PROVIDER_MOCK_MODE === "true") return null;
   const project = process.env.VERTEX_AI_PROJECT_ID;
-  const location = process.env.VERTEX_AI_LOCATION ?? "us-east4";
   const model = process.env.VERTEX_AI_EXTRACTION_MODEL;
   if (!project || !model) return null;
   const token = await cloudAccessToken();
   const response = await fetch(
-    `https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`,
+    vertexEndpoint(project, model),
     {
       method: "POST",
       headers: {

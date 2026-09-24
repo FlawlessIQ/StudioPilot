@@ -5,6 +5,7 @@ import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { consumeAiQuota } from "../saas/usage.js";
 import { requireActiveSubscription } from "../saas/entitlement-guard.js";
+import { vertexEndpoint } from "./vertex-endpoint.js";
 
 type Json = Record<string, unknown>;
 const record = (value: unknown): Json =>
@@ -57,12 +58,11 @@ async function accessToken() {
 
 async function propose(input: z.infer<typeof inputSchema>) {
   const project = process.env.VERTEX_AI_PROJECT_ID;
-  const location = process.env.VERTEX_AI_LOCATION ?? "us-east4";
   const model =
     process.env.VERTEX_AI_MESSAGE_MODEL ?? process.env.VERTEX_AI_SCHEDULE_MODEL;
   if (!project || !model) throw new Error("VERTEX_AI_MESSAGE_NOT_CONFIGURED");
   const token = await accessToken();
-  const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`;
+  const endpoint = vertexEndpoint(project, model);
   const callModel = async (contents: Array<Json>) => {
     const response = await fetch(endpoint, {
       method: "POST",

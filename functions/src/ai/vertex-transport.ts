@@ -1,5 +1,6 @@
 import { cloudAccessToken } from "./vertex-token.js";
 import { scriptedVertexResponse } from "./vertex-script.js";
+import { vertexEndpoint } from "./vertex-endpoint.js";
 
 /**
  * The one place Cue talks to a model.
@@ -25,7 +26,7 @@ import { scriptedVertexResponse } from "./vertex-script.js";
  * — retrieval, answer, flow, the UI that renders it — is walkable offline.
  */
 
-export const VERTEX_LOCATION = process.env.VERTEX_AI_LOCATION ?? "us-east4";
+export { DEFAULT_VERTEX_LOCATION, vertexLocationForModel } from "./vertex-endpoint.js";
 
 /**
  * Which model a call should use.
@@ -55,11 +56,7 @@ export function vertexUrl(
   const project = process.env.VERTEX_AI_PROJECT_ID;
   const model = vertexModelFor(purpose);
   if (!project || !model) throw new Error("VERTEX_AI_COPILOT_NOT_CONFIGURED");
-  const suffix =
-    method === "streamGenerateContent"
-      ? "streamGenerateContent?alt=sse"
-      : "generateContent";
-  return `https://${VERTEX_LOCATION}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(VERTEX_LOCATION)}/publishers/google/models/${encodeURIComponent(model)}:${suffix}`;
+  return vertexEndpoint(project, model, method);
 }
 
 export function vertexMockMode(): boolean {

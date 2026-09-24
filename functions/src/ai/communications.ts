@@ -8,6 +8,7 @@ import { consumeAiQuota } from "../saas/usage.js";
 import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { productEvent } from "../operations/product-events.js";
 import { normalizeClientEmailBody } from "../communications/email-content.js";
+import { vertexEndpoint } from "./vertex-endpoint.js";
 
 type Json = Record<string, unknown>;
 
@@ -59,14 +60,13 @@ async function generateCommunication(input: {
   context: Json;
 }) {
   const project = process.env.VERTEX_AI_PROJECT_ID;
-  const location = process.env.VERTEX_AI_LOCATION ?? "us-east4";
   const model =
     process.env.VERTEX_AI_COMMUNICATIONS_MODEL ??
     process.env.VERTEX_AI_COPILOT_MODEL;
   if (!project || !model) throw new Error("VERTEX_AI_COMMUNICATIONS_NOT_CONFIGURED");
   const token = await cloudAccessToken();
   const response = await fetch(
-    `https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`,
+    vertexEndpoint(project, model),
     {
       method: "POST",
       headers: {
