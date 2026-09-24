@@ -113,10 +113,26 @@ proposal carries exactly one package. A studio selling photo and video on one
 wedding cannot express it, which is not an edge case for a video-led studio —
 it is the normal sale.
 
-**Required:** a proposal carries one or more package snapshots, priced together,
+**Answered, 24 Sep.** *"Clients can pick either a photography package or a
+videography package or can select a photography and video package. There is no
+discount but need to be able to put in a discount if i want in the proposal
+section."*
+
+So: one or two packages, never a fixed bundle, and **no automatic bundle
+discount** — the discount is a judgement he makes per proposal.
+
+**Required:** a proposal carries one or two package snapshots, priced together,
 with one total and one payment schedule. `resolveCoverage` already returns
 `{role, count}[]` per package, so the combined crew requirement falls out of
 summing them rather than needing a new concept.
+
+**The discount is nearly free.** `selectPackage` already accepts
+`discount: { type: "none" | "fixed" | percentage }`, already clamps a fixed
+amount to the pre-discount total, and already flows `discountCents` into the
+pricing snapshot, the proposal view, the client portal and the PDF. The entire
+engine is built. `components/proposals/studio-proposal-workspace.tsx:970` sends
+`discount: { type: "none" }`, hardcoded, every time. This is an input field and
+a wire-up, not a feature.
 
 **Note the blast radius** before scheduling this: the pricing snapshot, the PDF,
 the booking gate, readiness coverage and the package-selection flow all assume
@@ -138,13 +154,28 @@ that says photography. The document contradicts what it is selling.
 - Two signature blocks, matching how he already sells.
 - The studio's legal agreement carried in the same document.
 
-**One thing to settle with him first:** his current format makes the client sign
-the proposal itself. StudioCue's booking gate deliberately treats a signed
-contract as separate, signature-verified evidence, and only a provider event
-satisfies it. Either the proposal gains a real signature step through the
-existing signing provider, or it stays a quote and the agreement is signed
-after. Which of those he wants changes the work substantially, so it is worth
-one question before anything is built.
+**Answered, 24 Sep.** Asked whether he wanted the proposal itself signable, he
+said: *"No. I didn't realize the contract would be sent separately."*
+
+That is not a preference, it is a discoverability failure, and it changes this
+requirement rather than confirming it. He asked for two signature blocks and his
+legal agreement **because he believed the proposal was the only document the
+client would ever sign**. StudioCue already sends a contract as a separate,
+signature-verified step — which is the design the booking gate depends on — and
+he did not know it existed.
+
+**So the signature work drops.** What replaces it:
+
+- The proposal must say what happens next, on the document and on the screen:
+  that a contract follows and is what gets signed. A quote that looks like a
+  final document is what produced this.
+- The contract step needs to be visible from the proposal, not discovered by
+  accident. Same shape as the forwarding address that was live for weeks and
+  invisible to the people it was for.
+
+**Still required from this section:** the hardcoded `PHOTOGRAPHY PROPOSAL`
+subtitle. His Gold Cinematic Package is ten hours of videography, drone and
+gimbal, under a header that says photography.
 
 ## R6 — Delivery status must tell the truth *(P1)*
 
@@ -179,9 +210,13 @@ raised it.
    emails. Nothing else on this list matters as much.
 2. **R6** — small, and it is what made the failure unreadable.
 3. **R3** — follows R1 directly; the action proposal is a thin layer over it.
-4. **R5** — the document is client-facing and currently says the wrong trade.
+4. **R5** — the document is client-facing, says the wrong trade, and does not
+   tell the client a contract is coming. Gabe asked for signatures only because
+   he thought this was the last document; saying so is most of the fix.
 5. **R7** — cheap.
-6. **R4** — the largest, and it wants R1 settled first.
+6. **R4** — the largest. The discount half is an afternoon, since the engine
+   already exists and the UI simply never calls it; the two-package half is the
+   real work and wants R1 settled first.
 
 ## Two notes on the testing itself
 
