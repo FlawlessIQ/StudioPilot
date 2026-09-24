@@ -208,4 +208,17 @@ the "worked" one. No retry has yet fired in production, so the backoff is
 unit-tested and deployed but not yet observed doing its job; the log line
 `[copilot] retrying malformed generation` is what to grep for when it does.
 
-J2 remains open.
+**J2 fixed the next day** (`4697682`), and the fix proves the failure rather
+than just removing it. Before: "Marco Silva is already confirmed as the
+videographer for the Erin & Joe DeMattia Wedding" — one person, read off an
+assignment. After: "Marco Silva and Alex Rivera are registered on your roster as
+videographers" — two, read off the roster, each with the trade cited. Alex is
+not staffed on that job; his offer expired. The old answer could not have named
+him, which is exactly the incompleteness the scenario was written to catch.
+
+The cause was a missing tool, not a weak model: both retrieval tools start from
+a project, so `crewProfiles` was unreachable and the model answered from the
+only people it had been shown. `get_crew_roster` reads the roster scoped by
+tenant, and reuses the cascade's existing rule — a stated trade decides, and
+where none is stated fall back to specialties — rather than inventing a second
+answer to "is this person a videographer".
