@@ -57,9 +57,47 @@ test("a partial name is not a match", () => {
   assert.equal(deriveFlowSubject("add marco to the wedding", ROSTER), null);
 });
 
+/**
+ * G3: "add marco silva as videographer" then "actually make it alex rivera
+ * instead". The correction names a person and no trade, and reading it alone
+ * dropped the role back to photography — so the videographer just asked for was
+ * ranked as not matching, mid-flow.
+ */
+test("a correction keeps the role the request named", () => {
+  assert.equal(
+    deriveFlowRole("actually make it alex rivera instead", [
+      "add marco silva as videographer to the priya and daniel wedding",
+    ]),
+    "Videographer",
+  );
+});
+
+test("the newest trade named wins over an older one", () => {
+  assert.equal(
+    deriveFlowRole("actually make it alex", [
+      "add someone as videographer",
+      "no, I need a second photographer",
+    ]),
+    "Second photographer",
+  );
+});
+
+test("the current sentence still outranks any history", () => {
+  assert.equal(
+    deriveFlowRole("make it a videographer instead", ["add a second photographer"]),
+    "Videographer",
+  );
+});
+
+test("history naming no trade changes nothing", () => {
+  assert.equal(deriveFlowRole("actually make it alex", ["staff the wedding"]), null);
+});
+
 const copilot = readFileSync(`${process.cwd()}/functions/src/ai/copilot.ts`, "utf8");
 
 test("the model's own value still wins where it supplies one", () => {
   assert.match(copilot, /result\.flow\.subject \?\?\s*\n?\s*deriveFlowSubject\(input\.question, rosterNames\)/);
-  assert.match(copilot, /result\.flow\.role \?\? deriveFlowRole\(input\.question\)/);
+  assert.match(copilot, /result\.flow\.role \?\?\s*\n?\s*deriveFlowRole\(/);
+  // And the history it reads is the operator's own turns, not the model's.
+  assert.match(copilot, /turn\.role === "user"/);
 });

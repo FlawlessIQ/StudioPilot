@@ -26,7 +26,30 @@
  * and anything else returns null so the flow keeps its existing behaviour of
  * asking the job what is still to book.
  */
-export function deriveFlowRole(question: string): string | null {
+export function deriveFlowRole(
+  question: string,
+  earlierQuestions: readonly string[] = [],
+): string | null {
+  const here = roleIn(question);
+  if (here) return here;
+  /**
+   * A correction does not restate the job.
+   *
+   * "add marco silva as videographer" then "actually make it alex rivera
+   * instead" — the second sentence names a person and no trade, and deriving
+   * from it alone dropped the role back to photography mid-flow, so the
+   * videographer the operator had just asked for was ranked as not matching.
+   * The role belongs to the request, not to the last thing typed, so earlier
+   * turns are read newest-first until one names a trade.
+   */
+  for (let index = earlierQuestions.length - 1; index >= 0; index -= 1) {
+    const earlier = roleIn(earlierQuestions[index] ?? "");
+    if (earlier) return earlier;
+  }
+  return null;
+}
+
+function roleIn(question: string): string | null {
   const said = question.toLocaleLowerCase();
   // Checked before photography, because "second shooter for the video team"
   // names video and would otherwise be read as stills.

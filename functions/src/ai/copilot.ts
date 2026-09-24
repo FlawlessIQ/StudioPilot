@@ -2679,7 +2679,14 @@ export const aiCopilotCommand = onRequest(
               subject:
                 result.flow.subject ??
                 deriveFlowSubject(input.question, rosterNames),
-              role: result.flow.role ?? deriveFlowRole(input.question),
+              role:
+                result.flow.role ??
+                deriveFlowRole(
+                  input.question,
+                  (input.history ?? [])
+                    .filter((turn) => turn.role === "user")
+                    .map((turn) => turn.text),
+                ),
             }
           : null;
       /**
