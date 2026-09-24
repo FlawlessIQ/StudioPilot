@@ -388,11 +388,17 @@ node scripts/seed-eval-fixtures.mjs --tenant=<id> --apply    # write
 node scripts/seed-eval-fixtures.mjs --tenant=<id> --remove --apply
 ```
 
-The fixtures are currently **in place** on the tenant used above. Leaving them
-means C and H can be re-run without setup; it also means that tenant has a
-second June wedding, an engagement for the DeMattia couple, two crew called
-Conor Lawless, a client message containing an injection payload, and a package
-whose description contains the same. All six come back out with one command.
+The fixtures were **removed** after this run, and the tenant verified back to
+its pre-seed counts: one project, three crew, eleven messages, two packages, no
+injection payload anywhere. Re-seed when C or H needs running again.
+
+Removing them turned up the one thing the first version of the script got
+wrong. Each seeded project emits a `project_status_changed` domain event on
+creation, and a cleanup that deletes by id cannot reach a document whose id is a
+hash of its contents — so two orphans were left pointing at projects that no
+longer existed. Harmless here (both `processed`, zero automation runs, because
+the tenant has no workflows) but residue all the same. `--remove` now queries
+them out by `projectId`.
 
 Note that seeding changes two earlier results by design: B5 ("add someone for
 the june wedding") was a pass *because* only one June wedding existed, and is

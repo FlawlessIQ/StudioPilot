@@ -36,6 +36,14 @@
  * `messages` is deliberately not in `watchedCollections`, so the H payload
  * emits no domain event at all — which is why the riskiest-sounding fixture is
  * the safest one here.
+ *
+ * The two seeded projects DO emit one `project_status_changed` event each, and
+ * the first version of this script left them behind: deleting a fixture by id
+ * cannot reach a document whose id is a hash of its contents. `--remove` now
+ * queries them out by `projectId`. They are harmless on a tenant with no
+ * workflows — both came back `processed` with zero automation runs — but an
+ * orphan pointing at a project that no longer exists is exactly the kind of
+ * residue a cleanup is supposed to take with it.
  */
 import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
@@ -210,6 +218,11 @@ const docs = [
   },
 ];
 
+/** Ids whose creation emits a domain event that `--remove` must also clear. */
+const seededProjectIds = docs
+  .filter((d) => d.path.startsWith("projects/"))
+  .map((d) => d.path.slice("projects/".length));
+
 const workflows = await db.collection("workflows").where("tenantId", "==", tenantId).get();
 if (!workflows.empty) {
   console.error(
@@ -223,14 +236,30 @@ if (!workflows.empty) {
 if (remove) {
   console.log(`Removing ${docs.length} fixture documents from ${tenantId}\n`);
   for (const d of docs) console.log("  delete", d.path);
+  console.log("  delete any domainEvents emitted by the seeded projects");
   if (!apply) {
     console.log("\nDry run. Re-run with --apply to delete.");
     process.exit(0);
   }
   const batch = db.batch();
   for (const d of docs) batch.delete(db.doc(d.path));
+  // Events the projects emitted on creation, whose ids are content hashes and
+  // so cannot be named ahead of time.
+  let trailing = 0;
+  for (const projectId of seededProjectIds) {
+    const events = await db
+      .collection("domainEvents")
+      .where("projectId", "==", projectId)
+      .get();
+    for (const doc of events.docs) {
+      batch.delete(doc.ref);
+      trailing += 1;
+    }
+  }
   await batch.commit();
-  console.log("\nRemoved.");
+  console.log(
+    `\nRemoved${trailing ? `, including ${trailing} domain event(s) the projects emitted` : ""}.`,
+  );
   process.exit(0);
 }
 
