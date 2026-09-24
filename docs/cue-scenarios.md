@@ -366,3 +366,34 @@ Fixed by qualifying only the names that need it: `sharedNames` finds the names
 held by more than one candidate in that list, and only those rows show an
 address. An address under every row would be noise on a phone, which the
 compact-queue rule already says.
+
+**C2 verified fixed on production.** The same request now renders:
+
+```
+Alex Rivera     | Specialty matches the requested role
+Conor Lawless   | conor+evalfixa@flawlessiq.com | Specialty matches…
+Conor Lawless   | conor+evalfixb@flawlessiq.com | Specialty matches…
+Jordan Reid     | Specialty matches the requested role
+Marco Silva     | Role or specialty does not match
+```
+
+Only the pair that needed telling apart carries an address. Every other row is
+unchanged, which was the point of qualifying by collision rather than by row.
+
+### Running C and H again
+
+```bash
+node scripts/seed-eval-fixtures.mjs --tenant=<id>            # dry run
+node scripts/seed-eval-fixtures.mjs --tenant=<id> --apply    # write
+node scripts/seed-eval-fixtures.mjs --tenant=<id> --remove --apply
+```
+
+The fixtures are currently **in place** on the tenant used above. Leaving them
+means C and H can be re-run without setup; it also means that tenant has a
+second June wedding, an engagement for the DeMattia couple, two crew called
+Conor Lawless, a client message containing an injection payload, and a package
+whose description contains the same. All six come back out with one command.
+
+Note that seeding changes two earlier results by design: B5 ("add someone for
+the june wedding") was a pass *because* only one June wedding existed, and is
+now the C3 ambiguity case. That is the fixtures working, not a regression.
