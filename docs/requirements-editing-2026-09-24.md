@@ -229,3 +229,37 @@ raised it.
 - The typo test was a good one. It found more in an afternoon than the scenario
   suite found in two days, because it exercised the one thing no scenario
   covers: what happens after you get something wrong.
+
+---
+
+## Status, 24 September 2026
+
+Built and live on production unless noted.
+
+| # | What | State |
+|---|---|---|
+| R1 | Edit a job | **Shipped.** Verified end to end: the venue was changed through the form on the live DeMattia job, persisted, attributed to the real user, and audited with both before and after. Restored afterwards. |
+| R2 | Correct and re-issue a proposal | **Shipped.** Supersedes rather than mutates, re-reads the client and event, lands as a draft, and says "it will go to X instead" when the recipient changes. |
+| R3 | Cue | **Half shipped.** It no longer invents a control — asked how to rename a wedding it now answers "open the job page and click the 'Edit job' control beside the job's name", verified on production. Cue *performing* the edit is not built; see below. |
+| R4 | Photo and video on one proposal | **Discount shipped**, which was the half he asked for by name. The two-package half is not built; see below. |
+| R5 | Proposal document | **Shipped.** The header is derived from the package's coverage roles, so a video package no longer reads PHOTOGRAPHY PROPOSAL, and the document now says the booking agreement follows rather than only what it is not. |
+| R6 | Delivery status | **Shipped.** The card names the recipient, and re-reads once after a send so the status stops sitting on "Queued". |
+| R7 | Clients in the sidebar | **Shipped.** The item is labelled Clients, which is where it has always gone. |
+
+### What is deliberately not built
+
+**R3b — Cue performing the edit.** The action-proposal shape carries `title`,
+`detail` and `dueDate`, which suits a task and does not describe a field change.
+Doing this properly means a new proposal shape carrying the field, the old value
+and the new one, so the approval card can show a before and after — which is the
+only version of this worth approving. Cue knowing the truth was the urgent half
+and it is done; this is a clean, separate piece of work.
+
+**R4b — two packages on one proposal.** Still the largest item on the list.
+`proposalSchema.packageSnapshotId` is a single required string, and the pricing
+snapshot, the PDF, the booking gate, readiness coverage and the package flow all
+assume one. Worth doing on its own rather than folded into a batch.
+
+**The signature blocks Gabe asked for.** Dropped on his own answer — he wanted
+them because he thought the proposal was the last document his client would
+sign. Worth confirming he is happy once he sees the new wording.
