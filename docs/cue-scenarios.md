@@ -266,3 +266,43 @@ question. That also cleared the A3 contradiction.
 runner used page timers and Chrome throttles those in an unfocused tab. C, H and
 I still need their **[setup]**, and A1, B1, B2, E4, G2, G3 and J3 are untouched.
 Worth finishing, driving each turn from outside the page rather than from it.
+
+### 2026-09-24 (later) — the remaining runnable scenarios
+
+Driven one turn at a time from outside the page, after the batch runner built on
+page timers stalled in an unfocused tab.
+
+| # | Say to Cue | Worked | Useful | Note |
+|---|---|---|---|---|
+| A1 | add marco silva as videographer for erin and joe demattia | ✅ | ✅ | flow opened, Marco named, role right |
+| B1 | add albert gershengoren to 2nd photogrpaher for erin and joe demattia | ✅ | ✅ | the reference studio's verbatim sentence — role misspelled, couple named short, job filed long. Resolved both |
+| B2 | staff the sydney and ryan wedding | ✅ | ⚠️ | said it cannot find it and offered the real job — but printed the project UUID into a studio-facing fact |
+| B4 | the baumwoll job needs a second shooter | ✅ | ✅ | surname only, no such job: said so, offered the one that exists |
+| B5 | add someone for the june wedding | ✅ | ✅ | no name at all, resolved by date, and showed who is already on it |
+| B6 | who's free for erin & joe | ✅ | ✅ | ampersand, contraction, no verb — and named Alex Rivera, who holds no assignment |
+| E1 | add a drone operator to the demattia wedding | ❌ | ❌ | see below |
+| G1 | add marco as videographer and send the questionnaire | ✅ | ✅ | neither intent dropped, and it knew Marco had already accepted rather than re-offering |
+| G4 | is the demattia wedding fully staffed? | ✅ | ✅ | the best answer of the run: not fully staffed, Marco accepted, Alex expired, Jordan pending |
+| J3 | staff both roles on the demattia wedding | ✅ | ✅ | one flow, existing crew shown |
+
+B6 is worth singling out. It names Alex Rivera as free, and Alex is on no
+assignment at all — that answer was unreachable before `get_crew_roster`
+existed, which is the J2 fix paying out in a scenario it was not written for.
+
+**E1 is a new finding, and it is the package bug wearing different clothes.**
+Asked to add a *drone operator*, Cue opened the crew flow and stated "the drone
+operator role for Erin & Joe DeMattia Wedding is unfilled". There is no such
+role: `coverageRoleSchema` is `photographer | videographer`, and nobody on the
+roster holds it. It should have said the studio has no one who does that and
+that StudioCue staffs photographers and videographers. Instead it asserted a
+role into existence and reported on its status.
+
+The shape is the same one F1 had: asked about something it had no data for, Cue
+produces a confident sentence rather than an admission. The roster tool that
+would answer it is now in place, so the remaining gap is that nothing requires
+the model to consult it before accepting a role name.
+
+**Still unrun, and all of them need setup this tenant does not have:** C (two
+jobs for one couple, two crew with one name), H (a seeded injection payload), I
+(30+ jobs and an archived one), E2 (an empty package catalogue), E4 (an empty
+tenant), G2 and G3 (mid-flow completion and correction).
