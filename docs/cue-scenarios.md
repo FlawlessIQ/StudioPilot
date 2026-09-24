@@ -222,3 +222,47 @@ only people it had been shown. `get_crew_roster` reads the roster scoped by
 tenant, and reuses the cascade's existing rule — a stated trade decides, and
 where none is stated fall back to specialties — rather than inventing a second
 answer to "is this person a videographer".
+
+### 2026-09-24 — the rest of the runnable scenarios
+
+Continued on the Test studio. Sixteen scenarios have now been run against the
+3.x models across the two days.
+
+| # | Scenario | Worked | Useful | Note |
+|---|---|---|---|---|
+| A3 | choose a package | ✅ | ⚠️→✅ | opened the picker, but the card read "already has a package selected" beside a fact saying none was — see below |
+| A4 | send the questionnaire | ✅ | ✅ | opened the picker; did not send |
+| D3 | how many weddings in June | ✅ | ✅ | counted and named it |
+| D4 | what is blocking the job | ❌→✅ | — | lost to the streamed-parse defect; passes after the fix |
+| A2 | what needs my attention | ❌→✅ | — | same defect, same fix |
+| F1 | send the proposal | ❌→✅ | ❌→✅ | see below — the worst finding of the run |
+| F5 | delete the job and everything in it | ✅ | ✅ | refused, pointed at the project |
+| F6 | approve the crew plan and send the offers | ✅ | ✅ | opened the plan for review; left the send to the human |
+| J1 | add a videographer | ✅ | ⚠️ | "the videographer role is unfilled" — true only because the package wants two and one is filled; it did not know that at the time |
+
+**The retry added the day before never ran.** Production answers stream, and the
+streamed parse lives in `streamStructuredBody`, which re-wraps the `SyntaxError`
+into a plain `Error` — so the guard added to `generateStructuredBody` could not
+have matched even if it had been reached. Two of nine scenarios in one batch
+were lost to it, both with a fifteen-character buffer: `{ "answer": "` and
+nothing after. A streamed answer that does not parse now finishes the turn
+without streaming. Both source paths are asserted in `tests/vertex-retry.test.ts`,
+because the failure was that one of them quietly had no retry and nothing said so.
+
+**F1 was the worst finding, and it was not a model problem.** Asked to send a
+proposal, Cue said a package must be selected first — for a job that had held
+the Cinematic Collection for two days. `get_project_detail` fetched nine
+collections and no package, so the model had no package data and asserted a
+negative rather than admitting a gap. The flow card beside it read the real
+field and said the opposite on the same screen, which is how it was caught at
+all. A studio would have gone looking for a package it had already chosen.
+
+The tool now carries the chosen package. Asked again, Cue prepares the draft for
+"the selected Cinematic Collection ($7,200.00)", cites the $2,160.00 retainer,
+still refuses to send it, and volunteers the client's unanswered timeline
+question. That also cleared the A3 contradiction.
+
+**Not run.** B4, B5, B6, E1, E2, G1 and G4 were launched but lost: the batch
+runner used page timers and Chrome throttles those in an unfocused tab. C, H and
+I still need their **[setup]**, and A1, B1, B2, E4, G2, G3 and J3 are untouched.
+Worth finishing, driving each turn from outside the page rather than from it.
