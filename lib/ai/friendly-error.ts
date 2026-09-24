@@ -102,6 +102,10 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   CREW_IDENTITY_OWNED_BY_MEMBER:
     "They have their own account now, so their name and email are theirs to change. You can still update rate, specialties and areas.",
   CONTACT_NOT_FOUND: "That client record could not be found.",
+  ACCEPTED_PROPOSAL_IS_FINAL:
+    "This proposal has been accepted, so it cannot be changed. Start a new one if the details need to move.",
+  PROPOSAL_ALREADY_SUPERSEDED:
+    "A corrected copy of this proposal already exists. Open the newest version.",
   PROJECT_ARCHIVED:
     "This job is archived, so it cannot be edited. Restore it first if you need to change it.",
   PROJECT_NOT_FOUND:

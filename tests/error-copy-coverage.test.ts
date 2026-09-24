@@ -162,7 +162,6 @@ const GENERIC_ON_PURPOSE: Record<string, string> = {
  * studio walks on its first job, and are worth writing first.
  */
 const KNOWN_GAPS: Record<string, string> = {
-  ACCEPTED_PROPOSAL_IS_FINAL: "booking",
   ACTION_RECEIPT_NOT_CANCELLABLE: "ai",
   ACTION_RECEIPT_NOT_FOUND: "ai",
   ACTION_RECEIPT_NOT_RETRYABLE: "ai",

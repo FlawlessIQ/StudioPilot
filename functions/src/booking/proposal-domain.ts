@@ -25,7 +25,16 @@ export type ProposalAction =
    * Only a proposal they have actually been given: recording an acceptance of a
    * draft nobody has seen would be recording agreement to a price never quoted.
    */
-  | "record_acceptance";
+  | "record_acceptance"
+  /**
+   * Correct a proposal that has already gone out, by superseding it.
+   *
+   * A sent quote must keep reading the way the client read it, so the record is
+   * never mutated — a new version is written and the old one marked superseded.
+   * Allowed from the states where the client has actually been given something
+   * wrong, which is the only situation this exists for.
+   */
+  | "reissue";
 
 const actionStatuses: Readonly<Record<ProposalAction, readonly ProposalStatus[]>> = {
   update_draft: ["draft"],
@@ -46,6 +55,9 @@ const actionStatuses: Readonly<Record<ProposalAction, readonly ProposalStatus[]>
    * agreed to.
    */
   record_acceptance: ["approved", "sent", "viewed"],
+  // Not from "accepted": that is the record of a deal, and correcting it would
+  // rewrite what the client agreed to.
+  reissue: ["sent", "viewed"],
 };
 
 export function assertProposalAction(

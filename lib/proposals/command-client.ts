@@ -14,7 +14,8 @@ export type ProposalCommandType =
   | "regenerate_pdf"
   | "send"
   | "resend"
-  | "record_acceptance";
+  | "record_acceptance"
+  | "reissue";
 
 export type ProposalCommandResult = Record<string, unknown>;
 

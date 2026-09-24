@@ -1687,6 +1687,10 @@ export function StudioProposalWorkspace({
       }
       setConfirmSend(false);
       const messages: Partial<Record<ProposalCommandType, string>> = {
+        reissue:
+          command.result.recipientChanged === true
+            ? `Corrected copy created as a draft. It will go to ${text(command.result.recipient, "the client")} instead.`
+            : "Corrected copy created as a draft. Review it and send when you are happy.",
         update_draft: "Draft saved.",
         submit_for_approval: "Proposal sent for internal approval.",
         return_to_draft: "Proposal returned to draft.",
@@ -2359,6 +2363,31 @@ export function StudioProposalWorkspace({
                 </button>
                 <small>
                   Resending creates a separate audited delivery attempt.
+                </small>
+                {/**
+                  * Resending was the only control here, and it was the wrong
+                  * one: the studio who needed this had a typo in the client's
+                  * address, so every resend went to the same wrong place. A
+                  * sent proposal freezes the client and event it was written
+                  * for — correctly, since the client must keep seeing what
+                  * they were sent — so correcting it means superseding it.
+                  */}
+                <button
+                  className="button button-light"
+                  disabled={working !== null}
+                  onClick={() => void run("reissue")}
+                  type="button"
+                >
+                  {working === "reissue" ? (
+                    <LoaderCircle className="spin" />
+                  ) : (
+                    <PencilLine />
+                  )}
+                  Correct and re-issue
+                </button>
+                <small>
+                  Picks up the client and event details as they are now, as a
+                  new draft. This copy is kept, marked superseded.
                 </small>
                 {/**
                   * The couple said yes somewhere else.

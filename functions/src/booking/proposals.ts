@@ -87,6 +87,23 @@ const commandSchema = z.discriminatedUnion("type", [
       "regenerate_pdf",
       "send",
       "resend",
+      /**
+       * Correct a proposal that has already gone out.
+       *
+       * A proposal freezes the client and event it was written for, and that
+       * immutability is right: a sent quote must still read the way the client
+       * read it. But it left a studio with no way to fix a mistake. The
+       * reference studio typed a client email with a deliberate typo, sent the
+       * proposal four times, and every send succeeded — to an address nobody
+       * reads. Editing the client afterwards would not have helped him either,
+       * because the wrong address was already frozen into `clientSnapshot`.
+       *
+       * So this supersedes rather than mutates. `version` and a `superseded`
+       * status have been in the schema since it was written and the workspace
+       * already renders "Version history"; what was missing was the act that
+       * uses them.
+       */
+      "reissue",
     ]),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
@@ -712,6 +729,120 @@ export const proposalCommand = onRequest(
               proposalId: proposal.id,
               status: "draft",
               draftRevision: nextRevision,
+            };
+          } else if (command.type === "reissue") {
+            if (!canApproveProposal(membership.role)) {
+              throw new Error("APPROVAL_PERMISSION_REQUIRED");
+            }
+            // An accepted proposal is the record of a deal. Correcting it would
+            // rewrite what the client agreed to.
+            if (String(proposal.get("status")) === "accepted") {
+              throw new Error("ACCEPTED_PROPOSAL_IS_FINAL");
+            }
+            if (String(proposal.get("status")) === "superseded") {
+              throw new Error("PROPOSAL_ALREADY_SUPERSEDED");
+            }
+            const projectDocument = await transaction.get(
+              db.doc(`projects/${String(proposal.get("projectId"))}`),
+            );
+            if (
+              !projectDocument.exists ||
+              projectDocument.get("tenantId") !== command.tenantId
+            ) {
+              throw new Error("PROJECT_NOT_FOUND");
+            }
+            /**
+             * Re-read the client rather than carrying the old snapshot over.
+             *
+             * The entire point is that the frozen copy is wrong — a corrected
+             * address only reaches the new version if we go back to the record
+             * it was frozen from.
+             */
+            const contactIds = Array.isArray(
+              projectDocument.get("clientContactIds"),
+            )
+              ? (projectDocument.get("clientContactIds") as unknown[])
+              : [];
+            const contactDocument = contactIds.length
+              ? await transaction.get(db.doc(`contacts/${String(contactIds[0])}`))
+              : null;
+            const freshEmail = stringValue(
+              contactDocument?.get("email"),
+              stringValue(objectValue(proposal.get("clientSnapshot")).email),
+            ).toLowerCase();
+            const freshName = stringValue(
+              contactDocument?.get("displayName"),
+              stringValue(
+                objectValue(proposal.get("clientSnapshot")).displayName,
+                freshEmail,
+              ),
+            );
+            const nextVersion = numberValue(proposal.get("version")) + 1;
+            const reissuedId = stableId(
+              "proposal",
+              command.tenantId,
+              command.idempotencyKey,
+            );
+            // The new version starts as a draft: a correction is still a
+            // document a studio should read before it goes to a client, and
+            // the existing approve/send path already does that properly.
+            transaction.create(db.doc(`proposals/${reissuedId}`), {
+              ...objectValue(proposal.data()),
+              id: reissuedId,
+              version: nextVersion,
+              status: "draft",
+              draftRevision: 1,
+              clientSnapshot: { displayName: freshName, email: freshEmail },
+              eventSnapshot: {
+                name: stringValue(
+                  projectDocument.get("name"),
+                  stringValue(objectValue(proposal.get("eventSnapshot")).name),
+                ),
+                eventType: stringValue(
+                  projectDocument.get("eventType"),
+                  stringValue(objectValue(proposal.get("eventSnapshot")).eventType),
+                ),
+                eventDate: stringValue(
+                  projectDocument.get("eventDate"),
+                  stringValue(objectValue(proposal.get("eventSnapshot")).eventDate),
+                ),
+                timezone: stringValue(projectDocument.get("timezone"), "UTC"),
+                venue: projectDocument.get("venueName") ?? null,
+              },
+              supersedesProposalId: proposal.id,
+              approvedAt: null,
+              approvedBy: null,
+              sentAt: null,
+              viewedAt: null,
+              emailDeliveryStatus: "not_sent",
+              emailMessageId: null,
+              pdfDocumentId: null,
+              pdfState: "not_requested",
+              createdAt: timestamp,
+              createdBy: identity.uid,
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            });
+            transaction.update(proposalReference, {
+              status: "superseded",
+              supersededByProposalId: reissuedId,
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            });
+            output = {
+              proposalId: reissuedId,
+              supersededProposalId: proposal.id,
+              status: "draft",
+              version: nextVersion,
+              /**
+               * Surfaced so the screen can say "this will now go to X instead
+               * of Y" — the correction that matters most is usually the one
+               * nobody can see.
+               */
+              recipientChanged:
+                freshEmail !==
+                stringValue(objectValue(proposal.get("clientSnapshot")).email),
+              recipient: freshEmail,
             };
           } else if (
             command.type === "approve" ||
