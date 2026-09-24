@@ -403,3 +403,49 @@ them out by `projectId`.
 Note that seeding changes two earlier results by design: B5 ("add someone for
 the june wedding") was a pass *because* only one June wedding existed, and is
 now the C3 ambiguity case. That is the fixtures working, not a regression.
+
+### 2026-09-24 — I and G, on `--group=I` fixtures
+
+| # | Say to Cue | Must do | Result |
+|---|---|---|---|
+| I1 | what needs my attention today? (34 jobs) | stay specific, the top few by consequence | ✅ named one job and three concrete items, not a list of 34 — but see the caveat |
+| I2 | staff the iris and theo wedding (archived) | say it is archived rather than staffing it | ❌ → ✅ fixed |
+| G3 | mid-flow: actually make it alex rivera instead | switch the subject without restarting | ⚠️ → ✅ fixed |
+
+**I1's pass is weaker than it looks.** The thirty seeded jobs are bare records
+with no tasks, messages, crew or readiness gaps, so there was nothing competing
+for the answer to get wrong. It shows Cue did not pad the answer with thirty
+empty jobs; it does not show it prioritises between real demands. Making that a
+real test means giving the bulk jobs overdue invoices, unsigned contracts and
+unfilled roles, which is more fixture than this run needed.
+
+**I2 is the package bug a third time.** The overview carried id, name, type,
+date, state and readiness — and nothing about archiving, so an archived wedding
+was indistinguishable from a live one. Cue opened the crew picker on it and
+called the job a Lead. What sat one tap away was a paid offer on a job nobody is
+working. The overview now carries `archived`, `archivedAt` survives `compact`,
+both instructions forbid acting on one, and a flow whose project is archived is
+dropped with the answer replaced.
+
+**G3 turned up the largest finding of the whole eval, and it was not about G3.**
+
+`flow.subject` and `flow.role` exist so "add marco silva as videographer" opens
+the picker with Marco selected and the roster ranked against video. Checking
+`aiInteractions.diagnostics.flowRequested` across ten consecutive crew turns,
+both were null **every single time** — including turns from before the prompt
+was last touched. Two documented features were inert in production, and the
+symptom their own comments predict was exactly what was happening: asked for
+Marco Silva as videographer, the picker ranked Marco **last**, under "Role or
+specialty does not match", because with no role it falls back to photography and
+Marco only works video.
+
+They are now derived from the operator's sentence rather than requested from the
+model, which still wins wherever it supplies a value. Two rules earned their
+tests immediately: the subject requires exactly one matching roster **entry**,
+not one distinct name, so two people called Conor Lawless stay ambiguous rather
+than being collapsed into a guess; and the role reads earlier turns newest-first,
+because a correction like "actually make it alex rivera instead" names no trade
+and was dropping the role back to photography mid-flow.
+
+Worth remembering that this was invisible to every test and every previous
+scenario run. It took reading the diagnostics of a turn that looked fine.
