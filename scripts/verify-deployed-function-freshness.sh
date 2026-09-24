@@ -48,6 +48,31 @@ done < <(
 
 printf '\n%s current, %s behind the last functions/src commit.\n' "${current}" "${behind}"
 
+# Seeing nothing is not the same as seeing nothing wrong.
+#
+# `gcloud functions list` sends its errors to /dev/null above, so an expired
+# credential produced an empty list, an empty loop, and "0 current, 0 behind —
+# every deployed function is at or after the last functions/src change". The
+# check that exists to break a silence had a silence of its own: on
+# 2026-09-24 it passed while it could not see the project at all, immediately
+# after a deploy that had in fact left 84 functions behind.
+#
+# A run that lists no functions has not verified anything, and must never be
+# read as a pass.
+if [ "$((current + behind))" -eq 0 ]; then
+  cat >&2 <<'EOF'
+
+Listed no functions at all, so nothing was verified — this is NOT a pass.
+
+Usually an expired credential. Check the project is reachable, then re-run:
+
+  gcloud auth login
+  gcloud functions list --project PROJECT --regions REGION
+
+EOF
+  exit 2
+fi
+
 if [ "${behind}" -gt 0 ]; then
   cat <<'NOTE'
 
