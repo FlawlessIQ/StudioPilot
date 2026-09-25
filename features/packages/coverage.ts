@@ -97,6 +97,35 @@ export function normaliseCoverage(
   });
 }
 
+/**
+ * Two packages on one job, as one crew requirement.
+ *
+ * A studio selling photography and video on the same wedding holds two
+ * packages, and the crew it has to send is the sum of both — three
+ * photographers and two videographers, not whichever package happened to be
+ * locked first. The reference studio asked for this three times: "clients can
+ * pick either a photography package or a videography package or can select a
+ * photography and video package."
+ *
+ * Summed rather than merged by maximum, because the two packages describe
+ * different work happening at the same wedding. A photo package wanting two
+ * photographers and a video package wanting two videographers needs four
+ * people, and a rule that took the larger of each role would send two.
+ */
+export function combineCoverage(
+  coverages: readonly (readonly CoverageItem[])[],
+): IncludedCoverage {
+  const totals = new Map<CoverageRole, number>();
+  for (const coverage of coverages) {
+    for (const item of coverage) {
+      totals.set(item.role, (totals.get(item.role) ?? 0) + item.count);
+    }
+  }
+  return normaliseCoverage(
+    [...totals].map(([role, count]) => ({ role, count })),
+  );
+}
+
 export function coverageFromPhotographerCount(count: number): IncludedCoverage {
   return [{ role: "photographer", count: Math.max(1, Math.trunc(count)) }];
 }

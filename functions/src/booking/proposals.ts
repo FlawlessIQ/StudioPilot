@@ -14,6 +14,7 @@ import {
   canCreateProposalForProject,
   canSendProposal,
 } from "./proposal-domain.js";
+import { combinePricing } from "../proposals/combined-pricing.js";
 
 const authoringFields = z.object({
   expiresAt: z.string().datetime(),
@@ -352,6 +353,17 @@ export const proposalCommand = onRequest(
             const clientIds = stringList(project.get("clientContactIds"));
             const clientId = clientIds[0];
             if (!clientId) throw new Error("CLIENT_CONTACT_REQUIRED");
+            /**
+             * The second package, when the job has one.
+             *
+             * `packageSnapshotId` stays the primary — the booking gate,
+             * readiness and the invoice scheduler all resolve it — and a photo
+             * + video job carries the other alongside it. One proposal, one
+             * total, both sets of lines.
+             */
+            const additionalSnapshotIds = stringList(
+              project.get("additionalPackageSnapshotIds"),
+            );
             const [packageDocument, contact, proposals] = await Promise.all([
               transaction.get(
                 db.doc(`packageSnapshots/${packageSnapshotId}`),
@@ -401,6 +413,27 @@ export const proposalCommand = onRequest(
             }
 
             const packageData = objectValue(packageDocument.data());
+            /**
+             * Read after the primary rather than in the same Promise.all,
+             * because the ids come from the project document that call
+             * returns. Each is tenant-checked: a snapshot id is not a
+             * capability.
+             */
+            const additionalPackageData = (
+              await Promise.all(
+                additionalSnapshotIds
+                  .slice(0, 3)
+                  .map((id) =>
+                    transaction.get(db.doc(`packageSnapshots/${id}`)),
+                  ),
+              )
+            )
+              .filter(
+                (snapshot) =>
+                  snapshot.exists &&
+                  snapshot.get("tenantId") === command.tenantId,
+              )
+              .map((snapshot) => objectValue(snapshot.data()));
             const proposalId = stableId(
               "proposal",
               command.tenantId,
@@ -433,19 +466,22 @@ export const proposalCommand = onRequest(
                 timezone: stringValue(project.get("timezone"), "UTC"),
                 venue: project.get("venueName") ?? null,
               },
-              pricingSnapshot: {
-                currency: stringValue(packageData.currency, "USD"),
-                packageName: stringValue(
-                  packageData.packageName,
-                  "Photography package",
-                ),
-                subtotalCents: numberValue(packageData.subtotalCents),
-                discountCents: numberValue(packageData.discountCents),
-                taxCents: numberValue(packageData.taxCents),
-                retainerCents: numberValue(packageData.retainerCents),
-                totalCents: numberValue(packageData.totalCents),
-                lineItems: lineItems(packageData),
-              },
+              additionalPackageSnapshotIds: additionalSnapshotIds,
+              pricingSnapshot: combinePricing(
+                [packageData, ...additionalPackageData].map((data) => ({
+                  packageName: stringValue(data.packageName, "Coverage package"),
+                  currency: stringValue(data.currency, "USD"),
+                  subtotalCents: numberValue(data.subtotalCents),
+                  taxCents: numberValue(data.taxCents),
+                  retainerCents: numberValue(data.retainerCents),
+                  totalCents: numberValue(data.totalCents),
+                  lineItems: lineItems(data),
+                })),
+                // The discount the studio already applied when locking the
+                // primary package. Not recomputed here, and never invented:
+                // there is no automatic bundle discount.
+                numberValue(packageData.discountCents),
+              ),
               paymentSchedule: paymentSchedule(
                 packageData,
                 command.input.retainerDueDate,

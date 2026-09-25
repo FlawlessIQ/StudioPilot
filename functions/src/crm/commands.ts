@@ -460,6 +460,16 @@ const commandSchema = z.discriminatedUnion("type", [
           quantity: z.number().int().positive().max(100),
         }),
       ),
+      /**
+       * Whether this package replaces the job's package or joins it.
+       *
+       * A studio selling photography and video on one wedding holds two
+       * packages, and the client should get one proposal with one total. The
+       * default stays "replace" so every existing caller and every existing
+       * job is unchanged: `packageSnapshotId` remains the primary package that
+       * the booking gate, readiness and the invoice scheduler already read.
+       */
+      mode: z.enum(["replace", "add"]).optional().default("replace"),
       discount: z.discriminatedUnion("type", [
         z.object({ type: z.literal("none") }),
         z.object({
@@ -1339,11 +1349,44 @@ export const crmCommand = onRequest(
             createdAt: timestamp,
             createdBy: identity.uid,
           });
-          transaction.update(projectReference, {
-            packageSnapshotId,
-            updatedAt: timestamp,
-            updatedBy: identity.uid,
-          });
+          /**
+           * "replace" overwrites the primary; "add" joins it.
+           *
+           * The primary is deliberately never moved by an add, because
+           * `packageSnapshotId` is what the booking gate, readiness, the
+           * invoice scheduler and a hundred other readers already resolve. A
+           * second package is additive information, and everything that only
+           * knows about one keeps working exactly as it did.
+           */
+          const existingAdditional = Array.isArray(
+            projectDocument.get("additionalPackageSnapshotIds"),
+          )
+            ? (
+                projectDocument.get("additionalPackageSnapshotIds") as unknown[]
+              ).map((value) => String(value))
+            : [];
+          const hasPrimary = Boolean(project?.packageSnapshotId);
+          transaction.update(
+            projectReference,
+            command.input.mode === "add" && hasPrimary
+              ? {
+                  additionalPackageSnapshotIds: [
+                    ...existingAdditional,
+                    packageSnapshotId,
+                  ],
+                  updatedAt: timestamp,
+                  updatedBy: identity.uid,
+                }
+              : {
+                  packageSnapshotId,
+                  // Replacing the primary drops any second package with it: it
+                  // was priced against the package being replaced, and leaving
+                  // it would put a stale line on the next proposal.
+                  additionalPackageSnapshotIds: [],
+                  updatedAt: timestamp,
+                  updatedBy: identity.uid,
+                },
+          );
           const auditId = randomUUID();
           transaction.create(db.doc(`auditEvents/${auditId}`), {
             id: auditId,

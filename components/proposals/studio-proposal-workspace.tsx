@@ -974,7 +974,7 @@ export function StudioProposalComposer() {
    * selectPackage creates the immutable pricing snapshot server-side; the
    * composer then continues with the now-eligible project.
    */
-  async function lockPackage(packageId: string) {
+  async function lockPackage(packageId: string, mode: "replace" | "add" = "replace") {
     if (!packagePickerFor || !workspace.tenantId) return;
     // A blank field is no discount, not a zero-value one, and anything that is
     // not a number is treated the same way rather than sent as NaN.
@@ -989,6 +989,7 @@ export function StudioProposalComposer() {
         projectId: packagePickerFor.id,
         packageId,
         selectedAddOns: [],
+        mode,
         discount: discountCents > 0
           ? { type: "fixed", amountCents: discountCents }
           : { type: "none" },
@@ -1210,6 +1211,19 @@ export function StudioProposalComposer() {
                               <LoaderCircle className="spin" size={14} />
                             ) : null}
                             Lock this package
+                          </button>
+                          {/* Photo and video on one wedding is the normal sale
+                              for a studio that shoots both, and it used to need
+                              two proposals. Adding joins this package to the
+                              one already locked: one document, one total, both
+                              sets of crew. */}
+                          <button
+                            className="button button-light"
+                            disabled={lockingPackageId !== null}
+                            onClick={() => void lockPackage(studioPackage.id, "add")}
+                            type="button"
+                          >
+                            Add alongside
                           </button>
                         </article>
                       ))}

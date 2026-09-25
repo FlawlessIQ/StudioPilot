@@ -20,6 +20,14 @@ export const proposalSchema = auditFieldsSchema.extend({
   tenantId: z.string().min(1),
   projectId: z.string().min(1),
   packageSnapshotId: z.string().min(1),
+  /**
+   * Further packages sold on the same job — photo plus video.
+   *
+   * The primary above stays the one the booking gate, readiness and the
+   * invoice scheduler resolve; these join it in the pricing and on the
+   * document. Optional so every proposal written before this keeps parsing.
+   */
+  additionalPackageSnapshotIds: z.array(z.string().min(1)).max(3).optional(),
   version: z.number().int().positive(),
   status: proposalStatusSchema,
   clientSnapshot: z.object({

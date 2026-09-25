@@ -31,7 +31,11 @@ test("the command still requires a discount", () => {
   // The premise. If discount ever gains a default, this file should be
   // rewritten rather than deleted.
   const schema = readFileSync("functions/src/crm/commands.ts", "utf8");
-  const block = /packageId: z\.string\(\)\.min\(1\),[\s\S]{0,700}?discount: z\.discriminatedUnion/;
+  // The window grew when `mode` was added between them for photo + video
+  // proposals. The premise is unchanged — `discount` still has no default and
+  // no `.optional()` — so this widens rather than weakens: it still fails if
+  // the field stops being a required discriminated union.
+  const block = /packageId: z\.string\(\)\.min\(1\),[\s\S]{0,1600}?discount: z\.discriminatedUnion/;
   assert.match(
     schema,
     block,

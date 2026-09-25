@@ -4,7 +4,7 @@ import {
   type DocumentSnapshot,
   type Firestore,
 } from "firebase-admin/firestore";
-import { resolveCoverage } from "../packages/coverage.js";
+import { combineCoverage, resolveCoverage } from "../packages/coverage.js";
 import { planCrewStaffing } from "./staffing-plan.js";
 import type { CrewCandidateInput } from "./cascade.js";
 import { cascadeAssignment } from "./offer.js";
@@ -199,7 +199,37 @@ export async function prepareCrewStaffing(input: {
         .get(),
     ]);
 
-  const coverage = resolveCoverage(snapshot?.data());
+  /**
+   * Staff for every package on the job, not just the primary.
+   *
+   * A photo + video wedding carries two package snapshots and needs the crew
+   * both describe — three photographers and two videographers, not whichever
+   * package happened to be locked first. Summed rather than merged: the two
+   * describe different work at the same event, so taking the larger of each
+   * role would send two people to a job that needs four.
+   */
+  const additionalIds = Array.isArray(
+    project.get("additionalPackageSnapshotIds"),
+  )
+    ? (project.get("additionalPackageSnapshotIds") as unknown[])
+        .map((value) => String(value))
+        .filter(Boolean)
+        .slice(0, 3)
+    : [];
+  const additionalSnapshots = additionalIds.length
+    ? (
+        await Promise.all(
+          additionalIds.map((id) => db.doc(`packageSnapshots/${id}`).get()),
+        )
+      ).filter(
+        (document) =>
+          document.exists && document.get("tenantId") === input.tenantId,
+      )
+    : [];
+  const coverage = combineCoverage([
+    resolveCoverage(snapshot?.data()),
+    ...additionalSnapshots.map((document) => resolveCoverage(document.data())),
+  ]);
   const latestSchedule =
     schedules.docs
       .filter((document) => document.get("status") === "approved")

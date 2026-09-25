@@ -688,12 +688,23 @@ async function pdfInput(job:DocumentSnapshot){const db=getFirestore();const tena
      * package snapshot already records `includedCoverage` as {role,count}[], so
      * the label is a fact we hold rather than a guess.
      */
-    const snapshotId=string(proposal.get("packageSnapshotId"));
-    const snapshot=snapshotId?await db.doc(`packageSnapshots/${snapshotId}`).get():null;
+    // Every package on the proposal, because a photo + video job is both and
+    // the header has to say so.
+    const snapshotIds=[
+      string(proposal.get("packageSnapshotId")),
+      ...(Array.isArray(proposal.get("additionalPackageSnapshotIds"))
+        ?(proposal.get("additionalPackageSnapshotIds") as unknown[]).map(value=>String(value))
+        :[]),
+    ].filter(Boolean).slice(0,4);
+    const snapshots=(await Promise.all(
+      snapshotIds.map(id=>db.doc(`packageSnapshots/${id}`).get()),
+    )).filter(document=>document.exists);
     const coverageRoles=new Set(
-      (Array.isArray(snapshot?.get("includedCoverage"))?snapshot!.get("includedCoverage") as unknown[]:[])
-        .map(entry=>string(record(entry).role).toLowerCase())
-        .filter(Boolean),
+      snapshots.flatMap(document=>
+        (Array.isArray(document.get("includedCoverage"))?document.get("includedCoverage") as unknown[]:[])
+          .map(entry=>string(record(entry).role).toLowerCase())
+          .filter(Boolean),
+      ),
     );
     const documentKind=
       coverageRoles.has("videographer")&&coverageRoles.has("photographer")
