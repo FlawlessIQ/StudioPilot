@@ -13,7 +13,7 @@ export default function PrivacyPage() {
     <main className="ds-root legal-page" data-ds-theme="emerald">
       <header><Link href="/"><Logo /></Link><Link href="/"><ArrowLeft size={15} /> Back home</Link></header>
       <article>
-        <p className="eyebrow">Effective August 20, 2026</p>
+        <p className="eyebrow">Effective September 25, 2026</p>
         <h1>Privacy at StudioCue</h1>
         <p className="legal-lead">StudioCue is designed around tenant isolation, minimum necessary access, and clear control over business data.</p>
 
@@ -25,6 +25,9 @@ export default function PrivacyPage() {
 
         <h2>How information is used</h2>
         <p>We use information to deliver requested workflows, secure portals, provider synchronization, communications, reporting, audit history, customer support, and permission-aware AI assistance. AI output is advisory for legal, payment, insurance, and readiness decisions.</p>
+
+        <h2>Electronic signatures</h2>
+        <p>When a studio sends an agreement through StudioCue and a client signs it, StudioCue records, as evidence of each signature, the name typed, the email address the signer is signed in with, the date and time, the signer&apos;s IP address, and the device and browser used, together with the version of the electronic-signature consent they agreed to and a fingerprint of the exact agreement text. This record is kept with the agreement, printed on its signing record, and available to the signer, the studio, and StudioCue to operate the service. It is retained for as long as the agreement is, so that the signature can be verified if it is ever questioned.</p>
 
         <h2>Google Calendar data</h2>
         <p>A studio may connect its own Google Calendar so StudioCue can offer clients only consultation times the studio is genuinely free, and place booked work on that calendar. StudioCue requests two Google OAuth scopes. The Google user data accessed under each is:</p>

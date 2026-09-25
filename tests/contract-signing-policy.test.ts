@@ -140,11 +140,50 @@ test("both copies of the gate fold count a client signature as a completed contr
   assert.match(commands, /contractCompleted: !contracts\.empty && !attestedManually/);
 });
 
-test("consent text is versioned and recoverable by id", () => {
+test("consent text is versioned and every version stays recoverable by id", () => {
   assert.equal(esignConsentVersion(currentEsignConsent.id), currentEsignConsent);
   assert.equal(esignConsentVersion("nope"), null);
+  // Signatures name the version they were given under; v1 signatures exist.
+  assert.ok(esignConsentVersion("esign-consent-v1"));
+  assert.equal(currentEsignConsent.id, "esign-consent-v2");
+});
+
+/**
+ * v2 was written to the consumer-disclosure elements of ESIGN §7001(c). Each
+ * element is pinned by the words that carry it, so an edit that drops one
+ * fails here rather than in front of counsel. A wording change is a new
+ * version, never an edit to this one.
+ */
+test("consent v2 carries every disclosure element", () => {
   const text = esignConsentText(currentEsignConsent);
-  assert.match(text, /paper copy/i);
-  assert.match(text, /decline/i);
-  assert.match(text, /copy of the complete agreement is emailed/i);
+  // Reasonable demonstration: they affirm they can open it, on this device.
+  assert.match(currentEsignConsent.label, /I can open and read this agreement on this device/);
+  // Scope.
+  assert.match(text, /This consent covers this agreement only/);
+  // Right to paper, before and after, and that it is free.
+  assert.match(text, /arrange a paper copy to sign instead/);
+  assert.match(text, /paper copy of the signed agreement at any time, free of charge/);
+  // Withdrawal: how, and its consequence.
+  assert.match(text, /withdraw this consent at any time by messaging your studio/);
+  assert.match(text, /doesn't undo a signature you've already given/);
+  // Hardware and software, and notice of change.
+  assert.match(text, /Safari, Chrome, Edge or Firefox/);
+  assert.match(text, /told by email before the change takes effect/);
+  // Keeping contact details current.
+  assert.match(text, /Keep your email address up to date/);
+  // What is recorded, and where to read more.
+  assert.match(text, /your IP address, and the device and browser/);
+  assert.match(text, /studio-cue\.com\/privacy/);
+});
+
+test("the privacy policy describes what signing records", () => {
+  const privacy = readFileSync("app/privacy/page.tsx", "utf8");
+  assert.match(privacy, /<h2>Electronic signatures<\/h2>/);
+  assert.match(privacy, /IP address, and the device and browser used/);
+});
+
+test("a page still showing old consent wording is told to reload, not to tick a box", () => {
+  assert.match(signingRefusalCopy.CONSENT_OUTDATED, /Reload the page/);
+  const signing = readFileSync("server/contracts/client-signing.ts", "utf8");
+  assert.match(signing, /throw new SigningRefused\("CONSENT_OUTDATED"\)/);
 });

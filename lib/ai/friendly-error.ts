@@ -321,6 +321,8 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   DOCUMENT_CHANGED:
     "The agreement was updated while you were reading it. Read the latest version before signing.",
   CONSENT_REQUIRED: "Tick the box to agree to sign electronically.",
+  CONSENT_OUTDATED:
+    "The terms for signing electronically were updated. Reload the page, read them, and sign again.",
   NAME_REQUIRED: "Type your full name as your signature.",
 
   /**

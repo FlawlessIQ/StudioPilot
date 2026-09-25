@@ -83,8 +83,12 @@ the signatures) and the first line becomes the title.
 
 `features/contracts/esign-consent.ts`. Each version is kept by id and never
 edited in place; the signature records which version and a hash of its words.
-The portal refuses a signature under any version but the current one. Changing
-the words means a new version — and counsel reads it first.
+The portal refuses a signature under any version but the current one (a page
+still showing old wording is told to reload). Changing the words means a new
+version — and counsel reads it first. Current: **v2**, written to the ESIGN
+§7001(c) consumer-disclosure elements. The review pack for counsel — both
+versions, the element-by-element comparison, and the open questions — is
+`docs/esign-consent-review.md`.
 
 ## Edges
 

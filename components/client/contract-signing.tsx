@@ -213,9 +213,19 @@ export function ClientContractSigning({
           </label>
           <details className="client-contract-disclosure">
             <summary>Read the full terms of signing electronically</summary>
-            {currentEsignConsent.disclosure.map((paragraph) => (
-              <p key={paragraph}>{paragraph}</p>
-            ))}
+            {currentEsignConsent.disclosure.map((paragraph) => {
+              // Each paragraph opens with a short lead ("Paper instead.");
+              // bold it so the terms can be scanned on a phone. The words
+              // themselves are unchanged — they are what the signature hashes.
+              const lead = paragraph.match(/^([^.]{3,40}\.)\s/);
+              return lead ? (
+                <p key={paragraph}>
+                  <strong>{lead[1]}</strong> {paragraph.slice(lead[0].length)}
+                </p>
+              ) : (
+                <p key={paragraph}>{paragraph}</p>
+              );
+            })}
           </details>
           <label className="client-contract-name">
             Type your full name to sign

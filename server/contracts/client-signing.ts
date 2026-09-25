@@ -169,8 +169,8 @@ export async function signContract(
   const consent = esignConsentVersion(input.consentVersion);
   // Only the current wording may be agreed to. An old page open in a tab is
   // told to reload rather than sign under text that is no longer offered.
-  if (!consent || consent.id !== currentEsignConsent.id)
-    throw new SigningRefused("CONSENT_REQUIRED");
+  if (!consent) throw new SigningRefused("CONSENT_REQUIRED");
+  if (consent.id !== currentEsignConsent.id) throw new SigningRefused("CONSENT_OUTDATED");
   const executionId = stableId(
     "client_sign",
     input.signer.uid,

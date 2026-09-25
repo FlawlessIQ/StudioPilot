@@ -21,6 +21,7 @@ export type SigningRefusal =
   | "WRONG_SIGNER"
   | "DOCUMENT_CHANGED"
   | "CONSENT_REQUIRED"
+  | "CONSENT_OUTDATED"
   | "NAME_REQUIRED";
 
 export type SigningDecision =
@@ -98,5 +99,6 @@ export const signingRefusalCopy: Record<SigningRefusal, string> = {
   WRONG_SIGNER: "This agreement is addressed to a different email address. Sign in with the email your studio sent it to.",
   DOCUMENT_CHANGED: "Your studio updated this agreement while you were reading it. The page has the latest version — please read it again before signing.",
   CONSENT_REQUIRED: "Tick the box to agree to sign electronically.",
+  CONSENT_OUTDATED: "The terms for signing electronically were updated while this page was open. Reload the page, read them, and sign again.",
   NAME_REQUIRED: "Type your full name as your signature.",
 };
