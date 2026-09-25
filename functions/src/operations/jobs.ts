@@ -450,6 +450,18 @@ async function emailContext(
   values: Record<string, unknown>;
   template: EmailTemplateOverride | null;
   recipientIsClient: boolean;
+  /**
+   * Every client contact on the job, not just the one addressed.
+   *
+   * A wedding is usually two people and the studio holds both — the project
+   * carries `clientContactIds` as an array and always has. Every send path
+   * took the first and ignored the rest, so the partner never heard anything.
+   * "A lot of the time they both want to be on emails. Believe it or not this
+   * age group the men care about this shit!" — the reference studio, and he is
+   * right: the person who does not get the proposal is the person who cannot
+   * answer it.
+   */
+  clientContactEmails: ReadonlySet<string>;
 }> {
   const db = getFirestore();
   const tenantId = String(document.get("tenantId") ?? "");
@@ -567,6 +579,7 @@ async function emailContext(
     // a project with two clients would otherwise misfile mail to the second as
     // studio-only. Falls closed — an unmatched recipient stays studio-visible.
     recipientIsClient: clientContactEmails.has(recipient.trim().toLowerCase()),
+    clientContactEmails,
     values: {
       ...objectValue(document.data()),
       recipient,
@@ -659,6 +672,21 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
     };
   }
 
+  /**
+   * The other people on this job, added only to mail that is already theirs.
+   *
+   * Gated on `recipientIsClient` so a crew offer, a studio notification or an
+   * auth link can never fan out to a couple — that flag falls closed, so an
+   * address it does not recognise stays studio-only and nothing is added.
+   * Capped, because a `to` line is visible to everyone on it and a project with
+   * a long contact list should not publish it.
+   */
+  const partnerRecipients = context.recipientIsClient
+    ? [...context.clientContactEmails]
+        .filter((email) => email !== recipient.trim().toLowerCase())
+        .slice(0, 3)
+    : [];
+
   const apiKey = process.env.SENDGRID_API_KEY;
   const fromEmail = process.env.SENDGRID_FROM_EMAIL;
   if (!apiKey || !fromEmail) throw new Error("SENDGRID_NOT_CONFIGURED");
@@ -667,7 +695,7 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
   const payload: Record<string, unknown> = {
     personalizations: [
       {
-        to: [{ email: recipient }],
+        to: [{ email: recipient }, ...partnerRecipients.map((email) => ({ email }))],
         custom_args: {
           studioHubJobId: document.id,
           projectId,

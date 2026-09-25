@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCircle2, LoaderCircle } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { runCrmCommand } from "@/lib/crm/command-client";
+import { runCrmCommand, teamEmailWarning } from "@/lib/crm/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 
 const schema = z.object({
@@ -18,7 +18,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export function CreateContactForm() {
-  const [outcome, setOutcome] = useState<{ persisted: boolean; reference: string } | null>(null);
+  const [outcome, setOutcome] = useState<{ persisted: boolean; reference: string; warning: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -37,6 +37,7 @@ export function CreateContactForm() {
       setOutcome({
         persisted: command.persisted,
         reference: String(command.result.contactId ?? command.result.reference),
+        warning: teamEmailWarning(command.result),
       });
     } catch (caught: unknown) {
       setError(friendlyError(caught, "Contact could not be created."));
@@ -44,7 +45,7 @@ export function CreateContactForm() {
   });
 
   if (outcome) {
-    return <div className="command-success"><CheckCircle2 size={23} /><h2>Client prepared</h2><p>Reference: {outcome.reference}</p>{!outcome.persisted ? <small>Preview mode: this record was not persisted.</small> : null}</div>;
+    return <div className="command-success"><CheckCircle2 size={23} /><h2>Client prepared</h2><p>Reference: {outcome.reference}</p>{outcome.warning ? <p className="form-notice" role="alert">{outcome.warning}</p> : null}{!outcome.persisted ? <small>Preview mode: this record was not persisted.</small> : null}</div>;
   }
 
   return (

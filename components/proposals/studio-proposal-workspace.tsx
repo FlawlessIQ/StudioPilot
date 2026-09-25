@@ -1,5 +1,6 @@
 "use client";
 
+import { undatedPaymentDue } from "@/features/contracts/document";
 import {
   describeCoverage,
   resolveCoverage,
@@ -1328,8 +1329,8 @@ export function StudioProposalComposer() {
                   value={termsSummary}
                 />
                 <small>
-                  Keep this concise. The completed signature-provider agreement
-                  remains authoritative.
+                  Keep this concise. The signed agreement is what the couple
+                  is bound by.
                 </small>
               </label>
             </div>
@@ -2035,7 +2036,7 @@ export function StudioProposalWorkspace({
                     <strong>{money(payment.amountCents, currency)}</strong>
                     {/* The retainer has no due date until the agreement is
                         ready, and this is the couple's copy. */}
-                    <span>{date(payment.dueDate, false, "On signing")}</span>
+                    <span>{date(payment.dueDate, false, undatedPaymentDue(text(payment.label)))}</span>
                   </article>
                 ))}
               </div>

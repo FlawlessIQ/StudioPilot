@@ -5,7 +5,7 @@ import { LoaderCircle, PencilLine } from "lucide-react";
 import { ArchiveToggle } from "@/components/records/archive-toggle";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { friendlyError } from "@/lib/ai/friendly-error";
-import { runCrmCommand } from "@/lib/crm/command-client";
+import { runCrmCommand, teamEmailWarning } from "@/lib/crm/command-client";
 
 /**
  * Correcting and archiving a client.
@@ -42,7 +42,7 @@ export function ClientRecordActions({
     setNotice(null);
     try {
       const text = (key: string) => String(values.get(key) ?? "").trim();
-      await runCrmCommand("updateContact", {
+      const saved = await runCrmCommand("updateContact", {
         contactId: client.id,
         firstName: text("firstName"),
         lastName: text("lastName"),
@@ -52,7 +52,7 @@ export function ClientRecordActions({
         company: text("company") || null,
         notes: text("notes") || null,
       });
-      setNotice("Client updated.");
+      setNotice(teamEmailWarning(saved.result) ?? "Client updated.");
       refreshTenantRecords("contacts");
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "That client could not be updated."));

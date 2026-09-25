@@ -74,6 +74,7 @@ import { crmProjects } from "@/config/crm-demo-data";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { ArchiveToggle } from "@/components/records/archive-toggle";
 import { ProjectEdit } from "@/components/projects/project-edit";
+import { ProjectAddClient } from "@/components/projects/project-add-client";
 import {
   refreshTenantRecords,
   useTenantDocuments,
@@ -1099,6 +1100,10 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           <p className="eyebrow">The job</p>
           <div className="project-title-line">
             <h1>{String(project.name)}</h1>
+            <ProjectAddClient
+              archived={Boolean(project.archivedAt)}
+              projectId={String(project.id)}
+            />
             <ProjectEdit
               project={{
                 id: String(project.id),

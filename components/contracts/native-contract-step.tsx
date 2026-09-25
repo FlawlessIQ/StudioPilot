@@ -108,11 +108,22 @@ export function NativeContractStep({
     void Promise.resolve().then(loadDraft);
   }, [loadDraft, reload]);
 
+  /**
+   * Pre-filled only when the account's name reads as a person's. It is often
+   * the studio's own name — set at signup — and on the production walk the
+   * owner was one tick away from signing a contract as "FlawlessIQ".
+   */
   useEffect(() => {
-    if (!signerName && workspace.userName && !workspace.userName.startsWith("Loading")) {
-      queueMicrotask(() => setSignerName(workspace.userName));
+    const name = workspace.userName?.trim() ?? "";
+    const looksLikeAPerson =
+      name.split(/\s+/).length >= 2 &&
+      !name.includes("@") &&
+      name.toLowerCase() !== workspace.tenantName.trim().toLowerCase() &&
+      !/^(signed-in user|loading)/i.test(name);
+    if (!signerName && looksLikeAPerson) {
+      queueMicrotask(() => setSignerName(name));
     }
-  }, [signerName, workspace.userName]);
+  }, [signerName, workspace.userName, workspace.tenantName]);
 
   const parsed = useMemo(() => {
     const source = live ? live.document : draft?.document;
@@ -360,6 +371,7 @@ export function NativeContractStep({
             autoComplete="name"
             maxLength={160}
             onChange={(event) => setSignerName(event.target.value)}
+            placeholder="Your full name"
             type="text"
             value={signerName}
           />

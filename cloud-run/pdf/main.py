@@ -4,6 +4,7 @@ Cloud Run receives trusted, validated proposal snapshots. It never reads tenant
 or pricing data from the browser and never modifies signed provider documents.
 """
 
+import re
 from io import BytesIO
 from html import escape
 from typing import Any
@@ -97,6 +98,11 @@ class CloseoutRequest(BaseModel):
     generated_at: str = Field(min_length=1, max_length=80)
 
 
+def undated_payment_due(label: str) -> str:
+    """Matches undatedPaymentDue in features/contracts/document.ts: the same words on every schedule."""
+    return "On signing" if re.search(r"\b(retainer|deposit|booking fee)\b", label, re.I) else "As agreed"
+
+
 def build_proposal_pdf(data: ProposalRequest) -> bytes:
     buffer = BytesIO()
     ink = HexColor("#1E2A25")
@@ -174,7 +180,7 @@ def build_proposal_pdf(data: ProposalRequest) -> bytes:
                 [
                     Paragraph(escape(item.label), styles["BodyStudio"]),
                     Paragraph(f"<b>{escape(item.amount)}</b>", styles["BodyStudio"]),
-                    Paragraph(escape(item.due_date or "As agreed"), styles["BodyStudio"]),
+                    Paragraph(escape(item.due_date or undated_payment_due(item.label)), styles["BodyStudio"]),
                 ]
                 for item in data.payment_schedule
             ]
@@ -188,7 +194,7 @@ def build_proposal_pdf(data: ProposalRequest) -> bytes:
         )
     payments = Table(payment_rows, colWidths=[2.7 * inch, 1.55 * inch, 2.15 * inch], repeatRows=1)
     payments.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), soft), ("BOX", (0, 0), (-1, -1), 0.5, line), ("INNERGRID", (0, 0), (-1, -1), 0.5, line), ("TOPPADDING", (0, 0), (-1, -1), 8), ("BOTTOMPADDING", (0, 0), (-1, -1), 8), ("LEFTPADDING", (0, 0), (-1, -1), 10), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
-    terms = data.terms_summary or "Final terms are governed by the completed Docusign agreement."
+    terms = data.terms_summary or "Final terms are the ones in the signed agreement."
     story.extend([
         KeepTogether([Paragraph("Payment schedule", styles["Heading"]), payments]),
         Spacer(1, 0.22 * inch),

@@ -175,7 +175,8 @@ export function AgreementEditor() {
         return;
       }
       setName(draft.name);
-      if (draft.title) setTitle(draft.title);
+      // The agreement's own title, or its name — never the starter's.
+      setTitle(draft.title ?? draft.name);
       setBody(draft.body);
       setLabels(Object.fromEntries(draft.customFields.map((field) => [field.key, field.label])));
       setLoaded((current) => (current ? { ...current, templateId: draft.templateId } : current));

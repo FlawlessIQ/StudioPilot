@@ -22,7 +22,7 @@ import {
   readProjectIntake,
   type ProjectIntakeResult,
 } from "@/lib/ai/project-intake-client";
-import { runCrmCommand } from "@/lib/crm/command-client";
+import { runCrmCommand, teamEmailWarning } from "@/lib/crm/command-client";
 import { AddressField } from "@/components/forms/address-field";
 import {
   placeCity,
@@ -156,6 +156,7 @@ export function CreateProjectForm({
     persisted: boolean;
     projectId: string;
     name: string;
+    warning?: string | null;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState(sharedMessage ?? "");
@@ -289,6 +290,7 @@ export function CreateProjectForm({
     setError(null);
     try {
       let contactId = values.primaryContactId;
+      let warning: string | null = null;
       if (values.clientMode === "new") {
         const contact = await runCrmCommand("createContact", {
           firstName: values.newClientFirstName,
@@ -300,9 +302,11 @@ export function CreateProjectForm({
         });
         contactId = String(contact.result.contactId ?? "");
         if (!contactId) throw new Error("CONTACT_CREATE_FAILED");
+        warning = teamEmailWarning(contact.result);
       }
       const command = await runCrmCommand("createProject", {
         name: values.name,
+        warning,
         eventType: values.eventType,
         eventTypeId: values.eventType.toLowerCase(),
         eventDate: values.eventDate,
@@ -330,6 +334,11 @@ export function CreateProjectForm({
         <CheckCircle2 size={23} />
         <h2>{outcome.name} is ready</h2>
         <p>The journey starts at inquiry — open the project to take the first step.</p>
+        {outcome.warning ? (
+          <p className="form-notice" role="alert">
+            {outcome.warning}
+          </p>
+        ) : null}
         {outcome.persisted && outcome.projectId ? (
           <Link
             className="button button-dark"

@@ -14913,11 +14913,16 @@ label {
     padding: 11px 14px;
     gap: 7px 8px;
   }
+  /* The name owns line one. With a zero basis it gave way to the badge and
+     every action, and on a phone each client read as a single letter
+     ("C", "I") behind them — seen on the 2026-09-25 production walk. Line
+     two carries the portal status and the actions. */
   .ds-root .ds-people-copy {
-    flex: 1 1 0;
+    flex: 1 1 calc(100% - 52px);
+    min-width: 0;
   }
   .ds-root .ds-people-row > .status-badge {
-    margin-left: auto;
+    margin-left: 0;
   }
   .ds-root .ds-people-row > .ds-people-invite {
     padding: 5px 10px;

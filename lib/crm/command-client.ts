@@ -50,3 +50,23 @@ export async function runCrmCommand(
   markTenantRecordsWritten();
   return { persisted: true, result };
 }
+
+const TEAM_ROLE_WORDS: Record<string, string> = {
+  subcontractor: "one of your crew",
+  staff_photographer: "one of your team",
+  staff_videographer: "one of your team",
+  studio_coordinator: "one of your team",
+  studio_admin: "one of your team",
+  studio_owner: "you, the studio owner",
+};
+
+/**
+ * The warning crmCommand returns when a client's email already belongs to
+ * someone on the studio's team or crew (functions/src/crm/team-email.ts).
+ * That address can never become this client's portal login.
+ */
+export function teamEmailWarning(result: CrmCommandResult | Record<string, unknown>): string | null {
+  const role = (result as { emailBelongsToTeamRole?: unknown }).emailBelongsToTeamRole;
+  if (typeof role !== "string" || !role) return null;
+  return `That email belongs to ${TEAM_ROLE_WORDS[role] ?? "someone on your team"}, so it can't be this client's portal login — invitations, proposals and contracts sent there won't reach a client account. Use the client's own address.`;
+}

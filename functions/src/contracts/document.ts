@@ -476,7 +476,7 @@ export function resolveContractDocument(input: {
               rows: sources.paymentSchedule.map((row) => ({
                 label: row.label,
                 amount: formatMoney(row.amountCents, sources.pricing.currency),
-                due: row.dueDate ? formatContractDate(row.dueDate) : "As agreed",
+                due: row.dueDate ? formatContractDate(row.dueDate) : undatedPaymentDue(row.label),
               })),
             }
           : { type: "paragraph", content: [{ text: "[payment.schedule]", field: "payment.schedule" }] },
@@ -508,6 +508,16 @@ export function resolveContractDocument(input: {
       .filter((field) => field.value === null)
       .map((field) => field.key),
   };
+}
+
+/**
+ * What an undated payment says instead of a date. The same words everywhere a
+ * schedule is shown — proposal page, proposal PDF, contract — because on the
+ * production walk the proposal said "On signing" and the contract said "As
+ * agreed" for the same retainer.
+ */
+export function undatedPaymentDue(label: string): string {
+  return /\b(retainer|deposit|booking fee)\b/i.test(label) ? "On signing" : "As agreed";
 }
 
 /** The text of an inline run, as a reader sees it. */

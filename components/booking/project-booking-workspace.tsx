@@ -804,7 +804,11 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 {contract
                   ? statusLabel(contract.status)
                   : proposal
-                    ? "Not created"
+                    ? nativeActive
+                      ? // A StudioCue contract may already be prepared and
+                        // waiting; "Not created" sat beside "Ready to send".
+                        "Not sent yet"
+                      : "Not created"
                     : "Waiting"}
               </StatusBadge>
             </div>

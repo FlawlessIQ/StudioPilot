@@ -94,7 +94,7 @@ test("money, dates and the schedule come from the accepted proposal", () => {
   const schedule = document.blocks.find((block) => block.type === "payment_schedule");
   assert.ok(schedule && schedule.type === "payment_schedule");
   assert.deepEqual(schedule.rows, [
-    { label: "Retainer", amount: "$1,600.00", due: "As agreed" },
+    { label: "Retainer", amount: "$1,600.00", due: "On signing" },
     { label: "Final balance", amount: "$4,800.00", due: "May 15, 2027" },
   ]);
   const deliverables = document.blocks.find(

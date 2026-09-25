@@ -101,7 +101,7 @@ export function LiveProposalPreview({ id }: { id: string }) {
       <section><h2>{packageName}</h2><p>{String(proposal.notes ?? snapshot?.description ?? "Scope and deliverables are preserved in this proposal version.")}</p>
         <table><tbody><tr><td>{packageName}</td><td>{money(snapshot?.subtotalCents ?? total, currency)}</td></tr><tr><td>Discounts and tax</td><td>{money(Number(snapshot?.taxCents ?? 0) - Number(snapshot?.discountCents ?? 0), currency)}</td></tr><tr className="total"><td>Total</td><td>{money(total, currency)}</td></tr></tbody></table>
       </section>
-      <section className="pdf-terms"><h2>Payment schedule</h2><div><span><small>Retainer</small><strong>{money(retainer, currency)}</strong></span><span><small>Remaining balance</small><strong>{money(Math.max(0, total - retainer), currency)}</strong></span></div><p>{String(proposal.termsSummary ?? "Final contractual terms are governed only by the completed signature-provider agreement.")}</p></section>
+      <section className="pdf-terms"><h2>Payment schedule</h2><div><span><small>Retainer</small><strong>{money(retainer, currency)}</strong></span><span><small>Remaining balance</small><strong>{money(Math.max(0, total - retainer), currency)}</strong></span></div><p>{String(proposal.termsSummary ?? "Final terms are the ones in the signed agreement.")}</p></section>
       <footer><span>Generated {formatDueDate(new Date().toISOString())}</span><span>{workspace.tenantName}</span><span>Preview</span></footer>
       </main>
     </div>

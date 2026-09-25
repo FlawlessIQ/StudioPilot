@@ -6,6 +6,7 @@ import { requireAppCheck, requireIdentity } from "./security.js";
 import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { studioHubCors } from "../security/cors.js";
 import { reconcileProjectReadiness } from "../workflow/readiness-triggers.js";
+import { teamRoleForEmail } from "./team-email.js";
 import { invalidCommandResponse } from "../security/invalid-command.js";
 import {
   archiveBlockedBy,
@@ -242,6 +243,32 @@ const commandSchema = z.discriminatedUnion("type", [
       phone: z.string().max(30).nullable(),
       company: z.string().max(160).nullable(),
       notes: z.string().max(2000).nullable().default(null),
+    }),
+  }),
+  z.object({
+    /**
+     * Put the second person on the job.
+     *
+     * A wedding is two people and a project has always carried
+     * `clientContactIds` as an array — but nothing could append to it after
+     * creation, and every send path took the first and ignored the rest. The
+     * partner heard nothing: not the proposal, not the questionnaire, not the
+     * gallery. "A lot of the time they both want to be on emails. Believe it
+     * or not this age group the men care about this shit!"
+     *
+     * Finds the contact by email before creating one, because a studio that
+     * has already met the partner should not end up with them twice — the same
+     * rule `findDuplicateProfile` applies to crew, for the same reason.
+     */
+    type: z.literal("addProjectClient"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      firstName: z.string().trim().min(1).max(80),
+      lastName: z.string().trim().min(1).max(80),
+      email: z.string().email(),
+      phone: z.string().max(30).nullable().default(null),
     }),
   }),
   z.object({
@@ -1428,6 +1455,105 @@ export const crmCommand = onRequest(
           return output;
         }
 
+        if (command.type === "addProjectClient") {
+          if (
+            !["studio_owner", "studio_admin", "studio_coordinator"].includes(
+              membershipData.role,
+            )
+          ) {
+            throw new Error("FORBIDDEN");
+          }
+          const projectReference = db.doc(`projects/${command.input.projectId}`);
+          const project = await transaction.get(projectReference);
+          if (!project.exists || project.get("tenantId") !== command.tenantId) {
+            throw new Error("PROJECT_NOT_FOUND");
+          }
+          if (!hasProjectAccess(membershipData, project.id)) {
+            throw new Error("PROJECT_ACCESS_DENIED");
+          }
+          if (project.get("archivedAt")) throw new Error("PROJECT_ARCHIVED");
+          const existingIds = Array.isArray(project.get("clientContactIds"))
+            ? (project.get("clientContactIds") as unknown[]).map((value) =>
+                String(value),
+              )
+            : [];
+          const normalizedEmail = command.input.email.trim().toLowerCase();
+          // Reuse the person the studio already has, rather than making a
+          // second record of them under the same address.
+          const matches = await transaction.get(
+            db
+              .collection("contacts")
+              .where("tenantId", "==", command.tenantId)
+              .where("normalizedEmail", "==", normalizedEmail)
+              .limit(1),
+          );
+          const existingContact = matches.docs[0] ?? null;
+          const contactId = existingContact?.id ?? randomUUID();
+          if (existingIds.includes(contactId)) {
+            throw new Error("CLIENT_ALREADY_ON_PROJECT");
+          }
+          if (!existingContact) {
+            transaction.create(db.doc(`contacts/${contactId}`), {
+              id: contactId,
+              tenantId: command.tenantId,
+              firstName: command.input.firstName,
+              lastName: command.input.lastName,
+              displayName: `${command.input.firstName} ${command.input.lastName}`,
+              email: command.input.email.trim(),
+              normalizedEmail,
+              phone: command.input.phone,
+              normalizedPhone: command.input.phone?.replace(/\D/g, "") ?? null,
+              company: null,
+              contactTypes: ["client"],
+              projectIds: [command.input.projectId],
+              portalUserId: null,
+              marketingConsent: false,
+              notes: null,
+              archivedAt: null,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+              createdBy: identity.uid,
+              updatedBy: identity.uid,
+            });
+          }
+          transaction.update(projectReference, {
+            clientContactIds: [...existingIds, contactId],
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          const addAuditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${addAuditId}`), {
+            id: addAuditId,
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorUserId: identity.uid,
+            action: "project.client_added",
+            occurredAt: timestamp,
+            payload: {
+              contactId,
+              email: normalizedEmail,
+              reusedExistingContact: Boolean(existingContact),
+            },
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          const output = {
+            projectId: command.input.projectId,
+            contactId,
+            created: !existingContact,
+          };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
         if (command.type === "updateProject") {
           /**
            * A coordinator runs jobs, so a coordinator may correct one. This is
@@ -1743,6 +1869,23 @@ export const crmCommand = onRequest(
           console.warn(
             `[crm] readiness reconcile after date change failed: ${String(caught).slice(0, 160)}`,
           );
+        }
+      }
+      /**
+       * A client given an address that belongs to the studio's own team or
+       * crew cannot get portal access with it. Said now, at the save, rather
+       * than when the couple's invitation fails. Keyed off the result and the
+       * input rather than the command type (see the note above).
+       */
+      const savedContact = result as { contactId?: string };
+      const inputEmail = (command.input as { email?: unknown }).email;
+      if (savedContact.contactId && typeof inputEmail === "string") {
+        const teamRole = await teamRoleForEmail(db, command.tenantId, inputEmail).catch(
+          () => null,
+        );
+        if (teamRole) {
+          response.status(200).json({ ...(result as object), emailBelongsToTeamRole: teamRole });
+          return;
         }
       }
       response.status(200).json(result);
