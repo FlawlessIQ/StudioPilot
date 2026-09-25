@@ -84,6 +84,39 @@ export async function loadContractSources(
     .filter((contact) => contact.exists && contact.get("tenantId") === input.tenantId)
     .map((contact) => contact.data() ?? {});
 
+  /**
+   * The couple's own answers to the details form, for printing into the
+   * agreement they sign.
+   *
+   * "I need the wedding venue form sent to them and on the contract" — and,
+   * asked whether the answers should travel alongside or be printed in: "They
+   * should be on the signed contract document itself." Venue, timings and
+   * access are what the studio is agreeing to work around.
+   *
+   * Only a submitted response counts. A half-filled draft would put answers
+   * the couple has not stood behind into a document they are about to sign.
+   */
+  const questionnaires = await db
+    .collection("questionnaireResponses")
+    .where("tenantId", "==", project.get("tenantId"))
+    .where("projectId", "==", project.id)
+    .get();
+  const submitted = questionnaires.docs
+    .filter((document) => text(document.get("status")) === "submitted")
+    .sort((left, right) =>
+      text(left.get("submittedAt")).localeCompare(text(right.get("submittedAt"))),
+    )
+    .at(-1);
+  const formAnswers = Array.isArray(submitted?.get("answers"))
+    ? (submitted!.get("answers") as unknown[])
+        .map(record)
+        .map((row) => ({
+          question: text(row.question ?? row.label ?? row.prompt),
+          answer: text(row.answer ?? row.value ?? row.response),
+        }))
+        .filter((row) => row.question && row.answer)
+        .slice(0, 40)
+    : [];
   const client = record(proposal.get("clientSnapshot"));
   const event = record(proposal.get("eventSnapshot"));
   const pricing = record(proposal.get("pricingSnapshot"));
@@ -120,6 +153,7 @@ export async function loadContractSources(
         totalCents: cents(pricing.totalCents),
         retainerCents: cents(pricing.retainerCents),
       },
+      formAnswers,
       paymentSchedule: schedule.map((row) => ({
         label: text(row.label) || "Payment",
         amountCents: cents(row.amountCents),

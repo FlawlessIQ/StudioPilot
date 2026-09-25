@@ -114,6 +114,17 @@ export const contractMergeFields = [
   { key: "price.retainer", label: "Retainer", example: "$1,600.00" },
   { key: "price.balance", label: "Balance after retainer", example: "$4,800.00" },
   { key: "payment.schedule", label: "Payment schedule (table)", example: "Retainer $1,600.00 …", block: true },
+  /**
+   * What the couple told the studio before the meeting, printed into the
+   * thing they sign.
+   *
+   * "I need the wedding venue form sent to them and on the contract" — and
+   * when asked whether the answers should travel alongside or be printed in:
+   * "They should be on the signed contract document itself." Venue, timings
+   * and access are what the studio is agreeing to work around, so they belong
+   * inside the agreement rather than attached beside it.
+   */
+  { key: "form.answers", label: "Details form answers (list)", example: "Ceremony start: 3:00 PM", block: true },
   { key: "studio.name", label: "Studio name", example: "Hart Light Photography" },
   { key: "studio.legal_name", label: "Studio legal name", example: "Hart Light Photography LLC" },
   { key: "contract.date", label: "Date prepared", example: "September 25, 2026" },
@@ -160,6 +171,12 @@ export type ContractSources = {
     /** YYYY-MM-DD or null when the date is set by agreement. */
     dueDate: string | null;
   }>;
+  /**
+   * The couple's own answers to the details form, in the order asked.
+   * Empty when nothing has been submitted — the field then renders as an
+   * unfilled placeholder like any other, rather than an empty heading.
+   */
+  formAnswers: Array<{ question: string; answer: string }>;
   studio: { name: string; legalName: string | null };
   /** YYYY-MM-DD, the day the contract was prepared. */
   contractDate: string;
@@ -261,6 +278,14 @@ function recordValue(key: string, sources: ContractSources): string | null {
       const items = sources.package.deliverables.map((item) => item.trim()).filter(Boolean);
       return items.length ? items.join("; ") : null;
     }
+    case "form.answers": {
+      // Inline fallback for a field written mid-sentence, the same shape the
+      // other block fields take. Nothing submitted reads as missing, not blank.
+      const rows = sources.formAnswers
+        .map((row) => `${row.question.trim()}: ${row.answer.trim()}`)
+        .filter((row) => row.length > 2);
+      return rows.length ? rows.join("; ") : null;
+    }
     case "price.total":
       return formatMoney(sources.pricing.totalCents, sources.pricing.currency);
     case "price.retainer":
@@ -343,7 +368,11 @@ function parseRawBlocks(body: string): RawBlock[] {
     const lone = line.match(LONE_TOKEN);
     if (lone) {
       const key = normaliseTokenKey(lone[1]!);
-      if (key === "payment.schedule" || key === "package.deliverables") {
+      if (
+        key === "payment.schedule" ||
+        key === "package.deliverables" ||
+        key === "form.answers"
+      ) {
         flush();
         blocks.push({ type: "field_block", key });
         continue;
@@ -480,6 +509,29 @@ export function resolveContractDocument(input: {
               })),
             }
           : { type: "paragraph", content: [{ text: "[payment.schedule]", field: "payment.schedule" }] },
+      );
+    } else if (raw.key === "form.answers") {
+      // Rendered as a list rather than a new block type, so the document
+      // format, its schema and the PDF renderer are all untouched.
+      const answered = valueFor("form.answers");
+      const rows = sources.formAnswers
+        .map((row) => ({
+          question: row.question.trim(),
+          answer: row.answer.trim(),
+        }))
+        .filter((row) => row.question && row.answer);
+      blocks.push(
+        answered && rows.length
+          ? {
+              type: "list",
+              items: rows.map((row) => ({
+                content: [
+                  { text: `${row.question}: `, bold: true, field: "form.answers" },
+                  { text: row.answer, field: "form.answers" },
+                ],
+              })),
+            }
+          : { type: "paragraph", content: [{ text: "[form.answers]", field: "form.answers" }] },
       );
     } else {
       const value = valueFor("package.deliverables");

@@ -23,7 +23,11 @@ export function sampleContractSources(studioName: string, today: string): Contra
       { label: "Retainer", amountCents: 160_000, dueDate: null },
       { label: "Final balance", amountCents: 480_000, dueDate: "2027-05-15" },
     ],
-    studio: { name: studioName || "Your studio", legalName: null },
+    formAnswers: [
+    { question: "Ceremony start", answer: "3:00 PM" },
+    { question: "Getting ready address", answer: "The Lodge, 14 Mill Lane" },
+  ],
+  studio: { name: studioName || "Your studio", legalName: null },
     contractDate: today,
   };
 }
