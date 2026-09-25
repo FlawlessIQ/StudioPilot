@@ -6,6 +6,7 @@ import {
   canonicalJson,
   contractDocumentSchema,
   convertImportedAgreement,
+  firestoreStorable,
   formatMoney,
   importedAgreementText,
   inlineText,
@@ -97,7 +98,7 @@ test("money, dates and the schedule come from the accepted proposal", () => {
     { label: "Final balance", amount: "$4,800.00", due: "May 15, 2027" },
   ]);
   const deliverables = document.blocks.find(
-    (block) => block.type === "list" && block.items.some((item) => inlineText(item) === "Highlight film"),
+    (block) => block.type === "list" && block.items.some((item) => inlineText(item.content) === "Highlight film"),
   );
   assert.ok(deliverables, "deliverables render as a list");
   assert.equal(fields.find((field) => field.key === "price.total")?.source, "record");
@@ -319,4 +320,34 @@ test("an agreement that already names the couple is not given a second details s
   assert.equal(convertImportedAgreement(importedGabeStyle).detailsAdded, false);
   // Text that already has its line breaks is left as written.
   assert.equal(convertImportedAgreement(importedGabeStyle).clausesRestored, 0);
+});
+
+/**
+ * Found on production: Firestore refuses an array nested in an array, and a
+ * list block stored its items as a list of lists. Every block shape is checked
+ * here, from a template that uses all of them.
+ */
+test("every contract document can be stored in Firestore", () => {
+  const everything = resolveContractDocument({
+    template: {
+      title: "All shapes",
+      body: [
+        "# Heading",
+        "## Sub",
+        "Paragraph with **bold {{client.names}}**.",
+        "- bullet {{price.total}}",
+        "- another",
+        "{{payment.schedule}}",
+        "{{package.deliverables}}",
+        convertImportedAgreement(flattenedImport).body,
+      ].join("\n"),
+      customFields: [],
+    },
+    sources: { ...sources, event: { ...sources.event, venue: "Barn" } },
+    overrides: {},
+  });
+  assert.ok(everything.document.blocks.some((block) => block.type === "list"));
+  assert.equal(firestoreStorable(everything.document), true);
+  assert.equal(firestoreStorable(everything.fields), true);
+  assert.equal(firestoreStorable({ a: [[1]] }), false, "the check itself catches the bad shape");
 });

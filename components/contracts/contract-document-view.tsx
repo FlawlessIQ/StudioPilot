@@ -59,7 +59,7 @@ export function ContractDocumentView({
           return (
             <ul className="contract-list" key={key}>
               {block.items.map((item, itemIndex) => (
-                <li key={`${key}-${itemIndex}`}>{inline(item, `${key}-${itemIndex}`)}</li>
+                <li key={`${key}-${itemIndex}`}>{inline(item.content, `${key}-${itemIndex}`)}</li>
               ))}
             </ul>
           );

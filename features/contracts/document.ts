@@ -43,7 +43,13 @@ export type ContractInline = {
 export type ContractBlock =
   | { type: "heading"; level: 1 | 2; content: ContractInline[] }
   | { type: "paragraph"; content: ContractInline[] }
-  | { type: "list"; items: ContractInline[][] }
+  /**
+   * Each item is an object, never a bare array: Firestore refuses an array
+   * nested directly in an array ("invalid nested entity"). A list of lists
+   * passed every test and the emulator walk, and failed on the first real
+   * agreement with a bulleted list (production, 2026-09-25).
+   */
+  | { type: "list"; items: Array<{ content: ContractInline[] }> }
   | {
       type: "payment_schedule";
       rows: Array<{ label: string; amount: string; due: string }>;
@@ -73,7 +79,10 @@ export const contractDocumentSchema = z.object({
           content: z.array(inlineSchema),
         }),
         z.object({ type: z.literal("paragraph"), content: z.array(inlineSchema) }),
-        z.object({ type: z.literal("list"), items: z.array(z.array(inlineSchema)) }),
+        z.object({
+          type: z.literal("list"),
+          items: z.array(z.object({ content: z.array(inlineSchema) })),
+        }),
         z.object({
           type: z.literal("payment_schedule"),
           rows: z.array(
@@ -454,7 +463,10 @@ export function resolveContractDocument(input: {
     } else if (raw.type === "paragraph") {
       blocks.push({ type: "paragraph", content: inlines(raw.text, valueFor) });
     } else if (raw.type === "list") {
-      blocks.push({ type: "list", items: raw.items.map((item) => inlines(item, valueFor)) });
+      blocks.push({
+        type: "list",
+        items: raw.items.map((item) => ({ content: inlines(item, valueFor) })),
+      });
     } else if (raw.key === "payment.schedule") {
       const value = valueFor("payment.schedule");
       blocks.push(
@@ -474,7 +486,12 @@ export function resolveContractDocument(input: {
       const items = sources.package.deliverables.map((item) => item.trim()).filter(Boolean);
       blocks.push(
         value && items.length
-          ? { type: "list", items: items.map((item) => [{ text: item, field: "package.deliverables" }]) }
+          ? {
+              type: "list",
+              items: items.map((item) => ({
+                content: [{ text: item, field: "package.deliverables" }],
+              })),
+            }
           : { type: "paragraph", content: [{ text: "[package.deliverables]", field: "package.deliverables" }] },
       );
     }
@@ -496,6 +513,21 @@ export function resolveContractDocument(input: {
 /** The text of an inline run, as a reader sees it. */
 export function inlineText(content: readonly ContractInline[]): string {
   return content.map((piece) => piece.text).join("");
+}
+
+/**
+ * Whether a value can be stored in Firestore as written: no array directly
+ * inside another array. Checked by tests over every block shape, because the
+ * emulator walk did not catch it and production did.
+ */
+export function firestoreStorable(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    return value.every((item) => !Array.isArray(item) && firestoreStorable(item));
+  }
+  if (value && typeof value === "object") {
+    return Object.values(value as Record<string, unknown>).every(firestoreStorable);
+  }
+  return true;
 }
 
 // ---------------------------------------------------------------------------

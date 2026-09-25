@@ -44,11 +44,16 @@ class ScheduleRow(BaseModel):
     due: str = Field(max_length=80)
 
 
+class ListEntry(BaseModel):
+    content: list[Inline]
+
+
 class Block(BaseModel):
     type: Literal["heading", "paragraph", "list", "payment_schedule"]
     level: int | None = None
     content: list[Inline] | None = None
-    items: list[list[Inline]] | None = None
+    # Each item wraps its runs: Firestore cannot store an array in an array.
+    items: list[ListEntry] | None = None
     rows: list[ScheduleRow] | None = None
 
 
@@ -145,7 +150,7 @@ def build_contract_pdf(data: ContractRequest) -> bytes:
         elif block.type == "paragraph":
             story.append(Paragraph(_inline_markup(block.content), body))
         elif block.type == "list":
-            items = [ListItem(Paragraph(_inline_markup(item), body), leftIndent=12) for item in block.items or []]
+            items = [ListItem(Paragraph(_inline_markup(item.content), body), leftIndent=12) for item in block.items or []]
             if items:
                 story.append(ListFlowable(items, bulletType="bullet", start="•", leftIndent=14, bulletFontSize=8))
         elif block.type == "payment_schedule":
