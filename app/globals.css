@@ -18198,6 +18198,8 @@ label {
 .capture-panel {
   display: grid;
   gap: 16px;
+  /* Clears the sticky workspace header when linked to (?section=forwarding). */
+  scroll-margin-top: 88px;
 }
 
 .capture-status {

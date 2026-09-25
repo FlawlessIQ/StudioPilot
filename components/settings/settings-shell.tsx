@@ -266,9 +266,37 @@ export function SettingsShell() {
   // branch, which never renders on the server, so there is nothing to hydrate.
   const [open, setOpen] = useState<SectionKey | null>(linkedSection);
 
+  // On a desk the panels above load their data after this runs and push the
+  // target down, so one scroll lands on whatever grew into its place. Keep it
+  // in view until the page stops moving (or ~3s), and hand over the moment
+  // the person scrolls themselves.
   useEffect(() => {
-    if (isPhone === false && linkedSection() === "forwarding")
-      document.getElementById("inquiry-capture")?.scrollIntoView({ block: "start" });
+    if (isPhone !== false || linkedSection() !== "forwarding") return;
+    let stopped = false;
+    const stop = () => {
+      stopped = true;
+    };
+    const events = ["wheel", "touchstart", "keydown", "mousedown"] as const;
+    events.forEach((name) => window.addEventListener(name, stop, { once: true, passive: true }));
+    let lastTop: number | null = null;
+    let steady = 0;
+    const timer = window.setInterval(() => {
+      const target = document.getElementById("inquiry-capture");
+      if (stopped || !target) return;
+      const top = Math.round(target.getBoundingClientRect().top);
+      // Where it should sit: below the sticky header (the panel's scroll-margin).
+      const want = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
+      if (Math.abs(top - want) > 2) target.scrollIntoView({ block: "start" });
+      steady = lastTop === top ? steady + 1 : 0;
+      lastTop = top;
+      if (steady >= 3) stop();
+    }, 250);
+    const limit = window.setTimeout(stop, 3000);
+    return () => {
+      window.clearInterval(timer);
+      window.clearTimeout(limit);
+      events.forEach((name) => window.removeEventListener(name, stop));
+    };
   }, [isPhone]);
 
   if (isPhone === null) {
