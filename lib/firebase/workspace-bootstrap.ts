@@ -29,12 +29,19 @@ export async function getWorkspaceBootstrap(
   const user = auth.currentUser;
   if (!user) throw new Error("Sign in to load this workspace.");
   const appCheckToken = await getAppCheckToken();
+  // The recovery path must not itself be able to hang: it is what runs when
+  // the first attempt already stalled.
+  const idToken = await withTimeout(
+    user.getIdToken(),
+    10_000,
+    "StudioCue could not confirm your sign-in in time. Check your connection and try again.",
+  );
   const response = await withTimeout(
     fetch("/api/workspace/bootstrap", {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: `Bearer ${await user.getIdToken()}`,
+        authorization: `Bearer ${idToken}`,
         ...(appCheckToken ? { "x-firebase-appcheck": appCheckToken } : {}),
       },
       body: JSON.stringify({ area, preferredTenantId: preferredTenantId ?? null }),
