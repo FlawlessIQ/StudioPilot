@@ -69,6 +69,9 @@ export const emailTemplateKeys = [
   // Client-facing autopay: the saved card was charged, or declined.
   "autopay_charged",
   "autopay_charge_failed",
+  // Studio-facing: inbox capture has gone quiet — the forwarding filter may
+  // have broken, and inquiries may be sitting unanswered in the inbox.
+  "studio_capture_silent",
   // Studio-facing: the owner's own morning brief. Not a client note — it gets
   // its own framing rather than the "note from your studio" shell.
   "daily_digest",
@@ -962,6 +965,21 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         ],
         action: actionUrl ? { label: "Open the job", url: actionUrl } : undefined,
       };
+    case "studio_capture_silent": {
+      const days = Number(values.silentDays) || 7;
+      return {
+        subject: `No inquiries have reached StudioCue in ${days} days`,
+        preheader: "Check your inbox forwarding is still working.",
+        eyebrow: "Inquiry capture",
+        heading: "Your inquiries have gone quiet",
+        paragraphs: [
+          `StudioCue hasn't captured an inquiry from your inbox in ${days} days, which is longer than usual for ${brand.studioName}.`,
+          "It may just be a quiet week. But if your email forwarding stopped (a changed password, a deleted filter, or a mailbox move can do it), inquiries will be waiting in your inbox instead.",
+          "The quickest check: fill in your own website form and see whether it appears in StudioCue within a couple of minutes.",
+        ],
+        action: actionUrl ? { label: "Check inquiry capture", url: actionUrl } : undefined,
+      };
+    }
     case "client_message_received": {
       const senderName = stringValue(values, "senderName") || "A client";
       const messageSubject = stringValue(values, "messageSubject");

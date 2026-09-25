@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Filter, Inbox, Search } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
-import { LiveLeadRows } from "@/components/live/tenant-records";
+import { LiveLeadRows, LiveMaybeInquiries } from "@/components/live/tenant-records";
 import { TenantInquiryLink } from "@/components/crm/tenant-inquiry-link";
 import { InquiryForwardingAddress } from "@/components/crm/inquiry-forwarding-address";
 
@@ -22,6 +22,7 @@ export default async function LeadsPage({
           <TenantInquiryLink />
         </div>
         <InquiryForwardingAddress />
+        <LiveMaybeInquiries />
         <section className="panel crm-table-panel">
           <div className="crm-toolbar">
             <div className="crm-tabs"><Link className={view === "open" ? "active" : ""} href="?view=open">Open</Link><Link className={view === "converted" ? "active" : ""} href="?view=converted">Converted</Link><Link className={view === "lost" ? "active" : ""} href="?view=lost">Lost</Link></div>

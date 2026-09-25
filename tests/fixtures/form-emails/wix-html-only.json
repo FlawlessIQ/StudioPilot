@@ -1,0 +1,20 @@
+{
+  "note": "Documented Wix senders (notifications@wix-forms.com); Wix's dynamic reply-to is opt-in, so no Reply-To. HTML-only body laid out as label/value blocks. Shape inferred, not a real captured email — replace with Gabe's real Wix notifications.",
+  "from": "notifications@wix-forms.com",
+  "fromName": "Wix Forms",
+  "replyTo": null,
+  "subject": "New submission from Contact Us",
+  "text": "",
+  "html": "<html><head><style>p{margin:0}</style></head><body><div><h2>You got a new submission</h2><div><p>First Name</p><p>Dionne</p></div><div><p>Last Name</p><p>Carter</p></div><div><p>Email</p><p><a href=\"mailto:dionne.carter@example.com\">dionne.carter@example.com</a></p></div><div><p>Phone</p><p>973-555-0199</p></div><div><p>Event Date</p><p>Oct 9, 2027</p></div><div><p>Tell us about your wedding day</p><p>Ceremony at St. Mary&#39;s, reception at The Madison Hotel. About 180 guests &amp; we want photo and video!</p></div><p>Powered by Wix</p></div></body></html>",
+  "expect": {
+    "builder": "wix",
+    "contactSource": "form_field",
+    "email": "dionne.carter@example.com",
+    "firstName": "Dionne",
+    "lastName": "Carter",
+    "phone": "973-555-0199",
+    "eventDate": "2027-10-09",
+    "verdict": "inquiry",
+    "messageIncludes": "Madison Hotel"
+  }
+}

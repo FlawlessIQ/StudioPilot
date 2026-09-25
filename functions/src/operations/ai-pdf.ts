@@ -1,4 +1,5 @@
 import { contractPdfInput, storeSealedContract } from "../contracts/seal.js";
+import { enrichCapturedLead } from "../intake/enrich.js";
 import { createHash } from "node:crypto";
 import { consumeAiQuota } from "../saas/usage.js";
 import { gatherAnswerFacts } from "../communications/answer-facts.js";
@@ -24,8 +25,13 @@ const money=(value:unknown,currency:string)=>new Intl.NumberFormat("en-US",{styl
 async function runLeadIntakeAnalysis(job:DocumentSnapshot){
   const db=getFirestore();
   const leadId=string(job.get("leadId"))||job.id.replace(/^lead_intake_/,"");
+  const initial=await db.doc(`leads/${leadId}`).get();
+  if(!initial.exists)throw new Error("LEAD_NOT_FOUND");
+  // A captured inquiry first has its empty fields filled from its message
+  // (functions/src/intake/enrich.ts), so the summary and the reply draft work
+  // from the fuller lead. A no-op for leads from the public form.
+  await enrichCapturedLead(db,initial,{mock:process.env.PROVIDER_MOCK_MODE==="true",accessToken:cloudAccessToken});
   const lead=await db.doc(`leads/${leadId}`).get();
-  if(!lead.exists)throw new Error("LEAD_NOT_FOUND");
   const missing=Array.isArray(lead.get("missingInformation"))?lead.get("missingInformation") as unknown[]:[];
   let analysis:Json;
   if(process.env.PROVIDER_MOCK_MODE==="true"){
@@ -119,7 +125,9 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
     instructionVersion:"inquiry-reply-v1",
     outputSchemaVersion:"inquiry-reply-v1",
     sourceReferences:[{entityType:"lead",entityId:leadId,versionId:null,label:"Original inquiry",locator:"lead.message"}],
-    structuredOutput:{subject:replySubject,body:replyBody,recipientEmail:lead.get("email"),suggestedConsultationQuestions},
+    // leadId and contactId travel with the reply so, once approved, it is sent
+    // on the lead's own thread and the couple's answer comes back to it.
+    structuredOutput:{subject:replySubject,body:replyBody,recipientEmail:lead.get("email"),recipientName:lead.get("displayName")??null,leadId,contactId:lead.get("primaryContactId")??null,suggestedConsultationQuestions},
     confidence:{overall:confidence,label:confidence>=0.9?"high":"medium",uncertainFields:missingInformation},
     validation:{status:replyBody?"passed":"failed",issues:replyBody?[]:[{code:"EMPTY_REPLY",severity:"blocking",message:"The reply draft is empty.",field:"body"}]},
     decision:null,

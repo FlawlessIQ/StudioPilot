@@ -5,6 +5,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { z } from "zod";
 import { inquiryAddressFor } from "./forwarded-inquiry.js";
+import { detectMailboxProvider } from "../intake/mailbox-provider.js";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { emailTemplateKeys } from "./email-templates.js";
@@ -91,6 +92,56 @@ const commandSchema = z.discriminatedUnion("type", [
     input: z.object({}).default({}),
   }),
   z.object({
+    /**
+     * Read-only: everything the inquiry-capture setup shows — the forwarding
+     * address, which mailbox the studio uses, Gmail's forwarding confirmation
+     * when it has arrived, when capture last worked, and the latest test.
+     */
+    type: z.literal("getLeadCaptureSetup"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ mailbox: z.string().trim().email().max(160).nullable().default(null) }).default({ mailbox: null }),
+  }),
+  z.object({
+    /** "Send a test inquiry": the next capture in 20 minutes is a test, not a lead. */
+    type: z.literal("startCaptureTest"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ cancel: z.boolean().default(false) }).default({ cancel: false }),
+  }),
+  z.object({
+    /** The studio's corrections to how a form's fields were read, kept per form. */
+    type: z.literal("saveFormMapping"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      formKey: z.string().min(8).max(80),
+      formLabel: z.string().max(160).nullable().default(null),
+      mapping: z.record(
+        z.string().min(1).max(80),
+        z.enum([
+          "fullName",
+          "firstName",
+          "lastName",
+          "partnerName",
+          "email",
+          "phone",
+          "eventDate",
+          "eventType",
+          "venue",
+          "city",
+          "ceremonyTime",
+          "guestCount",
+          "budget",
+          "services",
+          "referralSource",
+          "message",
+          "ignore",
+        ]),
+      ),
+    }),
+  }),
+  z.object({
     type: z.literal("sendTemplateTest"),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
@@ -147,6 +198,125 @@ export const communicationsCommand = onRequest(
         response.status(200).json({
           address: slug ? inquiryAddressFor(command.tenantId, slug) : null,
         });
+        return;
+      }
+      if (command.type === "getLeadCaptureSetup") {
+        const [tenant, settings] = await Promise.all([
+          db.doc(`tenants/${command.tenantId}`).get(),
+          db.doc(`leadCaptureSettings/${command.tenantId}`).get(),
+        ]);
+        const slug = String(tenant.get("publicSlug") ?? "");
+        const mailbox =
+          command.input.mailbox ??
+          (typeof tenant.get("contactEmail") === "string" ? String(tenant.get("contactEmail")) : null) ??
+          null;
+        const lastTestId = settings.get("lastTestCaptureId");
+        const lastTest =
+          typeof lastTestId === "string" && lastTestId
+            ? await db.doc(`inboundCaptures/${lastTestId}`).get()
+            : null;
+        const confirmation = settings.get("forwardingConfirmation") as
+          | { code?: string; link?: string; forAddress?: string; receivedAt?: string }
+          | undefined;
+        response.status(200).json({
+          address: slug ? inquiryAddressFor(command.tenantId, slug) : null,
+          mailbox: mailbox ? { email: mailbox, ...(await detectMailboxProvider(mailbox)) } : null,
+          // Gmail's code is only useful for a day or so; older ones are noise.
+          forwardingConfirmation:
+            confirmation?.receivedAt &&
+            Date.now() - Date.parse(confirmation.receivedAt) < 3 * 24 * 60 * 60 * 1000
+              ? confirmation
+              : null,
+          lastCaptureAt: settings.get("lastCaptureAt") ?? null,
+          testWindowUntil: settings.get("testWindowUntil") ?? null,
+          lastTest:
+            lastTest?.exists && lastTest.get("tenantId") === command.tenantId
+              ? {
+                  id: lastTest.id,
+                  receivedAt: lastTest.get("receivedAt"),
+                  builderLabel: lastTest.get("builderLabel"),
+                  formName: lastTest.get("formName") ?? null,
+                  formKey: lastTest.get("formKey"),
+                  subject: lastTest.get("subject"),
+                  fields: lastTest.get("fields") ?? [],
+                  verdict: lastTest.get("verdict"),
+                }
+              : null,
+          forms: Object.entries(
+            (settings.get("forms") as Record<string, { label?: string; fieldMapping?: Record<string, string> }> | undefined) ?? {},
+          ).map(([formKey, form]) => ({
+            formKey,
+            label: form.label ?? null,
+            mappedFields: Object.keys(form.fieldMapping ?? {}).length,
+          })),
+        });
+        return;
+      }
+      if (command.type === "startCaptureTest") {
+        if (!canApprove(role)) throw new Error("FORBIDDEN");
+        const now = new Date();
+        const until = command.input.cancel
+          ? null
+          : new Date(now.getTime() + 20 * 60 * 1000).toISOString();
+        await db.doc(`leadCaptureSettings/${command.tenantId}`).set(
+          {
+            tenantId: command.tenantId,
+            testWindowUntil: until,
+            testStartedAt: command.input.cancel ? null : now.toISOString(),
+            updatedAt: now.toISOString(),
+          },
+          { merge: true },
+        );
+        response.status(200).json({ testWindowUntil: until });
+        return;
+      }
+      if (command.type === "saveFormMapping") {
+        if (!canApprove(role)) throw new Error("FORBIDDEN");
+        const now = new Date().toISOString();
+        const reference = db.doc(`leadCaptureSettings/${command.tenantId}`);
+        await db.runTransaction(async (transaction) => {
+          const current = await transaction.get(reference);
+          const forms =
+            (current.get("forms") as Record<string, Record<string, unknown>> | undefined) ?? {};
+          const existing = forms[command.input.formKey] ?? {};
+          transaction.set(
+            reference,
+            {
+              tenantId: command.tenantId,
+              forms: {
+                ...forms,
+                [command.input.formKey]: {
+                  ...existing,
+                  label: command.input.formLabel ?? existing.label ?? null,
+                  fieldMapping: command.input.mapping,
+                  updatedAt: now,
+                },
+              },
+              updatedAt: now,
+            },
+            { merge: true },
+          );
+        });
+        const auditId = stableId("audit_form_mapping", command.tenantId, command.idempotencyKey);
+        await db.doc(`auditEvents/${auditId}`).set({
+          id: auditId,
+          tenantId: command.tenantId,
+          projectId: null,
+          actorId: identity.uid,
+          actorType: "user",
+          action: "lead_capture.form_mapping_saved",
+          entityType: "leadCaptureSettings",
+          entityId: command.tenantId,
+          timestamp: now,
+          before: null,
+          after: { formKey: command.input.formKey, fields: Object.keys(command.input.mapping).length },
+          ipAddress: null,
+          userAgent: request.header("user-agent") ?? null,
+          correlationId: command.idempotencyKey,
+          automationRunId: null,
+          providerEventId: null,
+        });
+        response.status(200).json({ formKey: command.input.formKey, saved: true });
         return;
       }
       const executionId = stableId(

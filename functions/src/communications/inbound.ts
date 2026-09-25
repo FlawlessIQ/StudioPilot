@@ -16,9 +16,9 @@ import { conversationIdFromReplyToken } from "./reply-address.js";
 import {
   inquirySignatureMatches,
   inquiryTokenFromRecipients,
-  parseForwardedInquiry,
 } from "./forwarded-inquiry.js";
-import { createForwardedLead } from "../crm/forwarded-lead.js";
+import { captureInquiry } from "../intake/capture.js";
+import { gmailForwardingConfirmation } from "../intake/gmail-forwarding.js";
 import { findTenantBySlug } from "../crm/tenant-by-slug.js";
 import { gatherAnswerFacts } from "./answer-facts.js";
 import { studioNotificationAddress } from "./notify-address.js";
@@ -60,6 +60,9 @@ type ParsedInbound = {
   fromName: string | null;
   subject: string;
   text: string;
+  /** The HTML part, for notifications that send no plain text. */
+  html: string | null;
+  replyTo: string | null;
   headers: Record<string, string>;
 };
 
@@ -115,6 +118,8 @@ function parseMultipart(request: Request) {
           fromName: sender.name,
           subject: normalizeSubject(fields.subject ?? headers.Subject ?? ""),
           text: (fields.text ?? "").slice(0, MAX_BODY_LENGTH * 2),
+          html: fields.html ? fields.html.slice(0, MAX_BODY_LENGTH * 6) : null,
+          replyTo: headers["Reply-To"] ? addressOf(headers["Reply-To"]).email : null,
           headers,
         });
       } catch (caught) {
@@ -123,6 +128,16 @@ function parseMultipart(request: Request) {
     });
     parser.end(request.rawBody);
   });
+}
+
+/** Addresses that are the studio's own, so a manual forward never reads as the couple. */
+async function studioAddresses(db: FirebaseFirestore.Firestore, tenantId: string): Promise<string[]> {
+  const tenant = await db.doc(`tenants/${tenantId}`).get();
+  const branding = (tenant.get("emailBranding") ?? {}) as Record<string, unknown>;
+  const notify = await studioNotificationAddress(db, tenantId).catch(() => null);
+  return [branding.replyTo, tenant.get("contactEmail"), tenant.get("email"), notify]
+    .filter((value): value is string => typeof value === "string" && value.includes("@"))
+    .map((value) => value.trim().toLowerCase());
 }
 
 async function quarantine(
@@ -192,15 +207,12 @@ export const sendgridInboundMessage = onRequest(
     const db = getFirestore();
     const now = new Date().toISOString();
 
-    // Recorded and stopped. An out-of-office is real mail worth keeping, but it
-    // is not the client talking and must not look like it in a thread.
-    if (isAutomatedEmail(parsed.headers)) {
-      await quarantine("AUTOMATED", parsed, rawHash);
-      response.status(200).json({ status: "ignored", reason: "AUTOMATED" });
-      return;
-    }
-
     // Forwarded to the studio's inquiry address: a new lead, not a reply.
+    //
+    // Checked before the automated-mail filter below. A website's form
+    // notification is automated mail by every header it carries — that is what
+    // it is — and the filter exists to keep out-of-office replies off client
+    // threads, not to discard the inquiries a studio forwards on purpose.
     if (parsed.inquiry) {
       const tenantDocument = await findTenantBySlug(db, parsed.inquiry.slug);
       if (
@@ -211,27 +223,55 @@ export const sendgridInboundMessage = onRequest(
         response.status(200).json({ status: "quarantined", reason: "UNMATCHED" });
         return;
       }
-      const inquiry = parseForwardedInquiry({
-        text: parsed.text,
-        forwarderEmail: parsed.from,
-        today: now.slice(0, 10),
+      // Gmail asks the forwarding address to confirm before it will forward.
+      // That confirmation arrives here; show it in setup rather than lose it.
+      const confirmation = gmailForwardingConfirmation({
+        from: parsed.from,
+        subject: parsed.subject,
+        text: parsed.text || (parsed.html ?? ""),
       });
-      if (!inquiry.message) {
+      if (confirmation) {
+        await db.doc(`leadCaptureSettings/${tenantDocument.id}`).set(
+          {
+            tenantId: tenantDocument.id,
+            forwardingConfirmation: { ...confirmation, receivedAt: now },
+            updatedAt: now,
+          },
+          { merge: true },
+        );
+        response.status(200).json({ status: "forwarding_confirmation" });
+        return;
+      }
+      if (!parsed.text.trim() && !parsed.html?.trim()) {
         await quarantine("EMPTY_BODY", parsed, rawHash);
         response.status(200).json({ status: "quarantined", reason: "EMPTY_BODY" });
         return;
       }
-      const lead = await createForwardedLead({
+      const captured = await captureInquiry({
         db,
         tenantId: tenantDocument.id,
-        inquiry,
-        subject: parsed.subject,
+        email: {
+          from: parsed.from,
+          fromName: parsed.fromName,
+          replyTo: parsed.replyTo,
+          subject: parsed.subject,
+          text: parsed.text,
+          html: parsed.html,
+          studioAddresses: await studioAddresses(db, tenantDocument.id),
+        },
         providerMessageId: parsed.messageId,
+        route: "forward",
         now,
       });
-      response
-        .status(200)
-        .json({ status: lead.duplicate ? "duplicate" : "lead_created", id: lead.leadId });
+      response.status(200).json({ status: captured.outcome, id: captured.leadId ?? captured.projectId });
+      return;
+    }
+
+    // Recorded and stopped. An out-of-office is real mail worth keeping, but it
+    // is not the client talking and must not look like it in a thread.
+    if (isAutomatedEmail(parsed.headers)) {
+      await quarantine("AUTOMATED", parsed, rawHash);
+      response.status(200).json({ status: "ignored", reason: "AUTOMATED" });
       return;
     }
 
@@ -256,7 +296,16 @@ export const sendgridInboundMessage = onRequest(
       response.status(200).json({ status: "quarantined", reason: "UNMATCHED" });
       return;
     }
-    const conversation = conversationSnapshot.data() as Conversation;
+    // A lead's thread moves onto its job at conversion; the reply address in
+    // the couple's mailbox still names the old one, so follow the pointer.
+    const movedTo = conversationSnapshot.get("movedTo");
+    const followed =
+      typeof movedTo === "string" && movedTo
+        ? await db.doc(`conversations/${movedTo}`).get()
+        : null;
+    const conversation = (
+      followed?.exists ? followed.data() : conversationSnapshot.data()
+    ) as Conversation;
 
     const body = stripQuotedReply(parsed.text).slice(0, MAX_BODY_LENGTH);
     if (!body) {
@@ -294,7 +343,8 @@ export const sendgridInboundMessage = onRequest(
         id: messageId,
         tenantId: conversation.tenantId,
         projectId: conversation.projectId,
-        conversationId,
+        leadId: conversation.leadId ?? null,
+        conversationId: conversation.id,
         direction: "inbound",
         channel: "email",
         visibility: "shared",
@@ -355,7 +405,7 @@ export const sendgridInboundMessage = onRequest(
         id: tokenHash,
         tenantId: conversation.tenantId,
         projectId: conversation.projectId,
-        conversationId,
+        conversationId: conversation.id,
         inboundMessageId: messageId,
         question: body.slice(0, 1000),
         subject: preparedAnswer.subject,
@@ -424,7 +474,7 @@ export const sendgridInboundMessage = onRequest(
           tenantId: conversation.tenantId,
           projectId: conversation.projectId,
           type: "inbound_reply_draft",
-          conversationId,
+          conversationId: conversation.id,
           inboundMessageId: messageId,
           humanApprovalRequired: true,
           status: "queued",

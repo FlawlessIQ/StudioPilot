@@ -1,0 +1,18 @@
+{
+  "note": "A marketplace lead the studio forwarded; couple's details in the body, sender is The Knot.",
+  "from": "studio@hartlight.example",
+  "fromName": "Hart Light Photography",
+  "replyTo": null,
+  "subject": "Fwd: New lead from The Knot",
+  "text": "---------- Forwarded message ---------\nFrom: The Knot <leads@notifications.theknot.com>\nDate: Wed, Sep 23, 2026\nSubject: New lead from The Knot\n\nName: Alex Rivera\nEmail: alex.rivera@example.com\nWedding Date: 08/19/2028\nGuest Count: 90\nMessage: Looking for a photographer for our summer wedding.",
+  "html": null,
+  "expect": {
+    "builder": "the_knot",
+    "email": "alex.rivera@example.com",
+    "firstName": "Alex",
+    "eventDate": "2028-08-19",
+    "guestCount": 90,
+    "verdict": "inquiry",
+    "forwarded": true
+  }
+}

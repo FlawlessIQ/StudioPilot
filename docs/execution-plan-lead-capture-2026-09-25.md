@@ -180,3 +180,24 @@ everyone else uses Phase 1 forwarding.
 min), fields pre-filled vs present in the form (≥ 80%), leads edited after
 capture (< 20%), false leads (< 2%), "maybe" items confirmed vs dismissed
 (tunes the classifier), setup completion time (< 3 min).
+
+## Phase 1 status (2026-09-25)
+
+Built: 1.1–1.17, 1.19–1.25, with these deviations:
+
+- **1.19** Converting a lead with no date asks for the date at the button
+  rather than creating a dateless job. Every job surface assumes a date;
+  a job created without one would have broken more than it saved.
+- **1.23** Gmail's forwarding confirmation is recognised and its code and link
+  shown live in setup; the link is **not** followed server-side. Following a
+  link out of an inbound email from our own server is a request we'd be making
+  on an untrusted body's say-so. One paste is the cost.
+- **1.18** Today's inquiry card now names the form ("From your Wix form") and
+  says whether the date is free; unsure captures stay off Today. The inline
+  Send / Edit / Not-an-inquiry card on Today itself is **not** built — the lead
+  page is the review surface for now.
+- **1.25** The silence alert is sent by email and shown as "last captured" in
+  setup; it is not yet an item on Today.
+
+Open: real notification emails from the pilot studio's own form (the fixtures
+follow each builder's documented format), and the production walk.

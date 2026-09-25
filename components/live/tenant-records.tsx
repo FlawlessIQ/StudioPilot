@@ -67,6 +67,12 @@ import { friendlyError } from "@/lib/ai/friendly-error";
 import { leadIntakeGaps } from "@/features/crm/lead-intake";
 import { ClientRecordActions } from "@/components/clients/client-record-actions";
 import { cacheEntryPredatesWrite } from "@/lib/live/record-writes";
+import {
+  InferredTag,
+  LeadDetailsEditor,
+  MaybeInquiryPrompt,
+  leadSourceLabel,
+} from "@/components/leads/lead-capture-review";
 
 // Re-exported so existing importers of this module keep working.
 export { demoTenantDocuments };
@@ -953,7 +959,9 @@ export function LiveLeadRows({ view, q }: { view: string; q: string }) {
     ? records
         .filter((item) =>
           view === "open"
-            ? !["converted", "lost"].includes(String(item.status))
+            ? // A capture awaiting "is this an inquiry?" waits in the tray above.
+              !["converted", "lost", "archived"].includes(String(item.status)) &&
+              item.needsConfirmation !== true
             : String(item.status) === view,
         )
         .filter((item) =>
@@ -975,16 +983,18 @@ export function LiveLeadRows({ view, q }: { view: string; q: string }) {
           // How long it has been sitting there, which is the reason to open it.
           // Today computes this and the list that exists to work leads did not.
           waiting: waitingLabel(item.createdAt),
-          event: String(item.eventType ?? "Event"),
+          event: String(item.eventType ?? item.eventTypeLabel ?? "Event"),
           // Was `String(item.eventDate)`, printing a raw `2027-07-01` while
           // every other surface said "Jul 1, 2027".
-          date: formatEventDate(item.eventDate),
+          date: item.eventDate ? formatEventDate(item.eventDate) : "Date to confirm",
           venue: String(item.venue ?? item.city ?? "Venue pending"),
-          source: String(item.referralSource ?? "Direct"),
+          source: leadSourceLabel(item),
           status: String(item.status ?? "new"),
-          missing: Array.isArray(item.missingFields)
-            ? item.missingFields.length
-            : 0,
+          missing: Array.isArray(item.missingInformation)
+            ? item.missingInformation.length
+            : Array.isArray(item.missingFields)
+              ? item.missingFields.length
+              : 0,
         }))
     : view === "open"
       ? crmLeads.filter((lead) =>
@@ -1058,6 +1068,55 @@ export function LiveLeadRows({ view, q }: { view: string; q: string }) {
   );
 }
 
+/**
+ * "Maybe an inquiry" — captures the reader wasn't sure about.
+ *
+ * Kept off Today and out of the Open list so a newsletter never outranks a
+ * couple, but never dropped: each one is a tap to keep or file away, and the
+ * answer teaches capture about that sender.
+ */
+export function LiveMaybeInquiries() {
+  const { records } = useTenantDocuments("leads");
+  const maybes = (records ?? []).filter(
+    (item) =>
+      item.needsConfirmation === true &&
+      !["converted", "lost", "archived"].includes(String(item.status)),
+  );
+  if (!maybes.length) return null;
+  return (
+    <section className="panel maybe-inquiry-tray">
+      <div className="panel-heading">
+        <div>
+          <h2>Maybe an inquiry</h2>
+          <p>
+            {`${maybes.length === 1 ? "One email" : `${maybes.length} emails`} we weren't sure about. Keep the real ones; the rest won't be captured again.`}
+          </p>
+        </div>
+      </div>
+      <ul>
+        {maybes.map((item) => (
+          <li key={item.id}>
+            <Link href={`/studio/leads/${item.id}`}>
+              <strong>
+                {String(item.displayName ?? item.email ?? "Unknown sender")}
+              </strong>
+              <small>
+                {leadSourceLabel(item)} ·{" "}
+                {String(item.message ?? "").slice(0, 120) || "No message"}
+              </small>
+            </Link>
+            <MaybeInquiryPrompt
+              compact
+              lead={item}
+              onAnswered={() => refreshTenantRecords("leads")}
+            />
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function LiveLeadDetail({ id }: { id: string }) {
   const { records, error, loading } = useTenantDocuments("leads");
   const aiState = useTenantDocuments("aiActions");
@@ -1123,6 +1182,10 @@ export function LiveLeadDetail({ id }: { id: string }) {
   // Converted means it has a project, whatever the status string says.
   const converted =
     Boolean(lead.projectId) || String(lead.status) === "converted";
+  const captured = typeof lead.captureId === "string" && Boolean(lead.captureId);
+  const guests =
+    typeof lead.estimatedGuestCount === "number" ? String(lead.estimatedGuestCount) : "";
+  const inquiryCount = typeof lead.inquiryCount === "number" ? lead.inquiryCount : 1;
   return (
     <div className="live-detail-page lead-detail-page">
       <Link className="back-link" href="/studio/leads"><ArrowLeft /> Back to inquiries</Link>
@@ -1135,7 +1198,7 @@ export function LiveLeadDetail({ id }: { id: string }) {
               draft — writes "Jul 2, 2027". A database value leaking onto the
               one screen whose job is to make a stranger feel like a person. */}
           <p>
-            {String(lead.eventType ?? "Photography")} inquiry for{" "}
+            {String(lead.eventType ?? lead.eventTypeLabel ?? "Photography")} inquiry for{" "}
             {typeof lead.eventDate === "string" && lead.eventDate
               ? formatEventDate(lead.eventDate)
               : "a date to be confirmed"}
@@ -1146,6 +1209,17 @@ export function LiveLeadDetail({ id }: { id: string }) {
           {statusLabel(lead.status ?? "new")}
         </StatusBadge>
       </header>
+      {lead.needsConfirmation === true && !converted ? (
+        <MaybeInquiryPrompt
+          lead={lead}
+          onAnswered={() => refreshTenantRecords("leads")}
+        />
+      ) : null}
+      {typeof lead.eventDate === "string" && lead.eventDate && lead.availabilityStatus === "conflict" ? (
+        <p className="form-notice lead-date-clash" role="status">
+          You already have a job booked on {formatEventDate(lead.eventDate)}.
+        </p>
+      ) : null}
       <div className="lead-action-row">
         {/**
           * The project decides, not the status string.
@@ -1170,6 +1244,13 @@ export function LiveLeadDetail({ id }: { id: string }) {
             Open project <ArrowRight />
           </Link>
         ) : null}
+        {!converted ? (
+          <LeadDetailsEditor
+            key={String(lead.updatedAt ?? "")}
+            lead={lead}
+            onSaved={() => refreshTenantRecords("leads")}
+          />
+        ) : null}
         {email ? <a className="button button-dark" href={`mailto:${email}`}><Mail /> Email client</a> : null}
         {phone ? <a className="button button-light" href={`tel:${phone}`}><Phone /> Call client</a> : null}
       </div>
@@ -1177,9 +1258,9 @@ export function LiveLeadDetail({ id }: { id: string }) {
         <article className="panel lead-detail-card">
           <div className="panel-heading"><div><h2>Contact</h2><p>How to follow up</p></div></div>
           <dl>
-            <div><dt>Email</dt><dd>{email || "Not provided"}</dd></div>
-            <div><dt>Phone</dt><dd>{phone || "Not provided"}</dd></div>
-            <div><dt>Partner or contact</dt><dd>{String(lead.partnerName ?? "Not provided")}</dd></div>
+            <div><dt>Email</dt><dd>{email || "Not provided"} <InferredTag lead={lead} field="email" /></dd></div>
+            <div><dt>Phone</dt><dd>{phone || "Not provided"} <InferredTag lead={lead} field="phone" /></dd></div>
+            <div><dt>Partner or contact</dt><dd>{String(lead.partnerName ?? "Not provided")} <InferredTag lead={lead} field="partnerName" /></dd></div>
           </dl>
         </article>
         <article className="panel lead-detail-card">
@@ -1191,18 +1272,33 @@ export function LiveLeadDetail({ id }: { id: string }) {
                 <CalendarDays />{" "}
                 {typeof lead.eventDate === "string" && lead.eventDate
                   ? formatEventDate(lead.eventDate)
-                  : "Not provided"}
+                  : "Not provided"}{" "}
+                <InferredTag lead={lead} field="eventDate" />
               </dd>
             </div>
-            <div><dt>Location</dt><dd><MapPin /> {String(lead.venue ?? lead.city ?? "Not provided")}</dd></div>
-            <div><dt>Budget</dt><dd>{String(lead.budgetRange ?? "Not provided")}</dd></div>
-            <div><dt>Source</dt><dd>{String(lead.referralSource ?? "Direct")}</dd></div>
+            <div><dt>Location</dt><dd><MapPin /> {[lead.venue, lead.city].filter((part) => typeof part === "string" && part).join(", ") || "Not provided"} <InferredTag lead={lead} field="venue" /></dd></div>
+            {typeof lead.ceremonyTime === "string" && lead.ceremonyTime ? (
+              <div><dt>Ceremony</dt><dd>{lead.ceremonyTime} <InferredTag lead={lead} field="ceremonyTime" /></dd></div>
+            ) : null}
+            {guests ? (
+              <div><dt>Guests</dt><dd>{guests} <InferredTag lead={lead} field="estimatedGuestCount" /></dd></div>
+            ) : null}
+            <div><dt>Budget</dt><dd>{String(lead.budgetRange ?? "Not provided")} <InferredTag lead={lead} field="budgetRange" /></dd></div>
+            <div>
+              <dt>Source</dt>
+              <dd>
+                {captured ? leadSourceLabel(lead) : String(lead.referralSource ?? "Direct")}
+                {captured && typeof lead.referralSource === "string" && lead.referralSource
+                  ? ` · found you via ${lead.referralSource}`
+                  : ""}
+              </dd>
+            </div>
           </dl>
         </article>
       </section>
       {typeof lead.message === "string" && lead.message ? (
         <section className="panel lead-message-card">
-          <div className="panel-heading"><div><h2>Client message</h2><p>Submitted with the inquiry</p></div></div>
+          <div className="panel-heading"><div><h2>Client message</h2><p>{inquiryCount > 1 ? `They've written ${inquiryCount} times; this is the first` : captured ? "Read from the email" : "Submitted with the inquiry"}</p></div></div>
           <p>{lead.message}</p>
         </section>
       ) : null}
@@ -1360,8 +1456,21 @@ function ConvertInquiryButton({ lead }: { lead: TenantDocument }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // A job needs a date; a contact-form inquiry often doesn't carry one. Asked
+  // here, at the moment it's needed, rather than failing the conversion.
+  const knownDate =
+    typeof lead.eventDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(lead.eventDate)
+      ? lead.eventDate
+      : "";
+  const [askingDate, setAskingDate] = useState(false);
+  const [date, setDate] = useState(knownDate);
 
   async function convert() {
+    const eventDate = knownDate || date;
+    if (!eventDate) {
+      setAskingDate(true);
+      return;
+    }
     setBusy(true);
     setNotice(null);
     try {
@@ -1386,7 +1495,7 @@ function ConvertInquiryButton({ lead }: { lead: TenantDocument }) {
         name: `${displayName || "Client"} ${eventTypeLabel}`.trim(),
         eventTypeId: String(lead.eventTypeId ?? eventTypeLabel.toLowerCase()),
         eventType: eventTypeLabel,
-        eventDate: String(lead.eventDate),
+        eventDate,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         clientContactIds: [contactId],
         leadPhotographerId: null,
@@ -1414,9 +1523,20 @@ function ConvertInquiryButton({ lead }: { lead: TenantDocument }) {
 
   return (
     <>
+      {askingDate && !knownDate ? (
+        <label className="lead-convert-date">
+          <span>Wedding date</span>
+          <input
+            onChange={(event) => setDate(event.target.value)}
+            required
+            type="date"
+            value={date}
+          />
+        </label>
+      ) : null}
       <button
         className="button button-dark"
-        disabled={busy}
+        disabled={busy || (askingDate && !date)}
         onClick={() => void convert()}
         type="button"
       >

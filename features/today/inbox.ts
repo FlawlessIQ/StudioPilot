@@ -436,6 +436,23 @@ const currency = (cents: unknown) =>
     maximumFractionDigits: 0,
   }).format(Number(cents ?? 0) / 100);
 
+
+/**
+ * Where an inquiry came from, in the studio's words. A capture names the form
+ * the studio recognises ("From your Wix form"), a marketplace names itself, and
+ * the public intake form stays "From your inquiry form".
+ */
+function leadEvidence(lead: TodayRecord): string {
+  const builder = text(lead.formBuilderLabel);
+  const source = text(lead.source);
+  if (source.startsWith("marketplace_") && builder) return `From ${builder}`;
+  // The builder's label already names the thing: "Wix form", "Jotform".
+  if (source === "website_form" && builder) return `From your ${builder}`;
+  if (source === "website_form") return "From your website form";
+  if (source === "forwarded_email") return "Forwarded from your inbox";
+  return "From your inquiry form";
+}
+
 export function todayInbox(input: TodayInput): TodayInbox {
   const now = new Date(input.now);
   const today = input.now.slice(0, 10);
@@ -447,6 +464,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
   for (const lead of rows(input.leads)) {
     const status = text(lead.status).toLowerCase();
     if (["converted", "lost", "archived"].includes(status)) continue;
+    // A capture the reader wasn't sure was an inquiry waits in the Leads
+    // tray, not at the top of Today: a newsletter must never outrank a couple.
+    if (lead.needsConfirmation === true) continue;
     const name =
       text(lead.displayName) ||
       `${text(lead.firstName)} ${text(lead.lastName)}`.trim();
@@ -465,7 +485,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
       // A nameless inquiry is titled once, not "New inquiry — New inquiry".
       title: name ? `New inquiry — ${name}` : "New inquiry",
       detail: facts.join(" · ") || "Waiting on your first reply",
-      evidence: "From your inquiry form",
+      evidence: leadEvidence(lead),
       projectId: null,
       projectName: null,
       action: {
@@ -478,6 +498,13 @@ export function todayInbox(input: TodayInput): TodayInbox {
         // How long they have waited comes first: that is what bands this card.
         arrivalFact(arrivedAt(lead), now),
         eventFact(leadEvent, now),
+        // Whether the date is free is the first thing a studio asks of an
+        // inquiry; it's already known, so say it.
+        leadEvent && lead.availabilityStatus === "conflict"
+          ? "Date already booked"
+          : leadEvent && lead.availabilityStatus === "available"
+            ? "Date free"
+            : null,
         readable(lead.eventType) || null,
       ].filter((fact): fact is string => Boolean(fact)),
       // An inquiry is urgent because it is unanswered, never because the

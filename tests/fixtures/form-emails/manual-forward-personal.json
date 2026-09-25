@@ -1,0 +1,19 @@
+{
+  "note": "A couple emailed the studio directly and the studio forwarded it by hand (Gmail forward marker).",
+  "from": "studio@hartlight.example",
+  "fromName": "Hart Light Photography",
+  "replyTo": null,
+  "subject": "Fwd: Wedding photography?",
+  "text": "---------- Forwarded message ---------\nFrom: Priya Shah <priya.shah@example.com>\nDate: Thu, Sep 24, 2026 at 9:12 AM\nSubject: Wedding photography?\nTo: <studio@hartlight.example>\n\nHi there,\nJordan and I are getting married on 3 June 2028 at Oak Hill Barn and are looking for a photographer. Are you available?\n\nPriya",
+  "html": null,
+  "expect": {
+    "builder": "unknown",
+    "contactSource": "forwarded_from",
+    "email": "priya.shah@example.com",
+    "firstName": "Priya",
+    "lastName": "Shah",
+    "eventDate": "2028-06-03",
+    "verdict": "inquiry",
+    "forwarded": true
+  }
+}

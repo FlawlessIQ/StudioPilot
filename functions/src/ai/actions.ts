@@ -212,6 +212,7 @@ export const aiActionCommand = onRequest(
               actionId,
               tenantId: parsed.tenantId,
               projectId,
+              leadId: text(structuredOutput.leadId) || null,
               contactId: text(structuredOutput.contactId) || null,
               recipient: text(structuredOutput.recipientEmail) || null,
               recipientName: text(structuredOutput.recipientName) || null,

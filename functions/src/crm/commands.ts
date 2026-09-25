@@ -7,6 +7,7 @@ import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { studioHubCors } from "../security/cors.js";
 import { reconcileProjectReadiness } from "../workflow/readiness-triggers.js";
 import { teamRoleForEmail } from "./team-email.js";
+import { moveLeadThreadsToProject } from "../intake/lead-thread.js";
 import { invalidCommandResponse } from "../security/invalid-command.js";
 import {
   archiveBlockedBy,
@@ -331,6 +332,55 @@ const commandSchema = z.discriminatedUnion("type", [
       /** Undo, for the archive filter's own restore control. */
       restore: z.boolean().default(false),
     }),
+  }),
+  z.object({
+    /**
+     * Correct what inbox capture read from an inquiry.
+     *
+     * A contact-form notification is read by rules and a model; the studio is
+     * the authority. Every field sent here is marked as the studio's in
+     * `fieldProvenance`, so the review card stops flagging it as inferred.
+     * `confirmInquiry` answers the "Maybe an inquiry" tray: yes, and remember
+     * that sender.
+     */
+    type: z.literal("updateLead"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      leadId: z.string().min(1),
+      firstName: z.string().trim().max(80).nullable().optional(),
+      lastName: z.string().trim().max(80).nullable().optional(),
+      partnerName: z.string().trim().max(120).nullable().optional(),
+      email: z.string().trim().toLowerCase().email().max(160).nullable().optional(),
+      phone: z.string().trim().max(40).nullable().optional(),
+      eventDate: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .nullable()
+        .optional(),
+      venue: z.string().trim().max(160).nullable().optional(),
+      city: z.string().trim().max(120).nullable().optional(),
+      ceremonyTime: z.string().trim().max(40).nullable().optional(),
+      estimatedGuestCount: z.number().int().min(1).max(100000).nullable().optional(),
+      budgetRange: z.string().trim().max(80).nullable().optional(),
+      referralSource: z.string().trim().max(120).nullable().optional(),
+      servicesRequested: z
+        .array(z.enum(["photography", "videography"]))
+        .min(1)
+        .optional(),
+      confirmInquiry: z.boolean().optional(),
+    }),
+  }),
+  z.object({
+    /**
+     * "Not an inquiry": file the capture away and stop capturing that sender.
+     * The sender is the address the notification came from (a newsletter, a
+     * vendor), never the person — so one tap teaches capture for good.
+     */
+    type: z.literal("markLeadNotInquiry"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ leadId: z.string().min(1) }),
   }),
   z.object({
     /**
@@ -808,7 +858,11 @@ export const crmCommand = onRequest(
               providerEventId: null,
             });
           }
-          const output = { projectId, state: "LEAD" };
+          const output = {
+            projectId,
+            state: "LEAD",
+            convertedLeadId: leadReference ? command.input.leadId : null,
+          };
           transaction.create(commandReference, {
             tenantId: command.tenantId,
             idempotencyKey: command.idempotencyKey,
@@ -1765,6 +1819,218 @@ export const crmCommand = onRequest(
           return projectArchiveOutput;
         }
 
+        if (command.type === "updateLead") {
+          const leadReference = db.doc(`leads/${command.input.leadId}`);
+          const lead = await transaction.get(leadReference);
+          if (!lead.exists || lead.get("tenantId") !== command.tenantId) {
+            throw new Error("LEAD_NOT_FOUND");
+          }
+          const { leadId, confirmInquiry, ...edits } = command.input;
+          const changes: Record<string, unknown> = {};
+          const provenance: Record<string, { source: "studio"; label: null }> = {};
+          const provenanceKey: Record<string, string> = {
+            estimatedGuestCount: "guestCount",
+            budgetRange: "budget",
+            servicesRequested: "services",
+          };
+          for (const [key, value] of Object.entries(edits)) {
+            if (value === undefined) continue;
+            changes[key] = value === "" ? null : value;
+            provenance[provenanceKey[key] ?? key] = { source: "studio", label: null };
+          }
+          const next = { ...lead.data(), ...changes } as Record<string, unknown>;
+          if ("eventDate" in changes) {
+            const date = changes.eventDate as string | null;
+            if (date) {
+              const clash = await transaction.get(
+                db
+                  .collection("projects")
+                  .where("tenantId", "==", command.tenantId)
+                  .where("eventDate", "==", date)
+                  .where("state", "in", [
+                    "CONSULTATION",
+                    "PROPOSAL",
+                    "CONTRACT_PENDING",
+                    "RETAINER_PENDING",
+                    "BOOKED",
+                    "PLANNING",
+                    "READY",
+                  ])
+                  .limit(1),
+              );
+              changes.availabilityStatus = clash.empty ? "available" : "conflict";
+            } else {
+              changes.availabilityStatus = "unknown";
+            }
+          }
+          if ("firstName" in changes || "lastName" in changes || "partnerName" in changes) {
+            const name = [next.firstName, next.lastName]
+              .filter((part) => typeof part === "string" && part)
+              .join(" ");
+            if (name) {
+              changes.displayName =
+                typeof next.partnerName === "string" && next.partnerName
+                  ? `${name} & ${next.partnerName}`
+                  : name;
+            }
+          }
+          if (Object.keys(provenance).length) {
+            changes.fieldProvenance = {
+              ...((lead.get("fieldProvenance") as Record<string, unknown>) ?? {}),
+              ...provenance,
+            };
+          }
+          changes.missingInformation = [
+            ...(next.email || next.phone ? [] : ["how to reach them"]),
+            ...(next.eventDate ? [] : ["event date"]),
+            ...(next.venue ? [] : ["venue"]),
+            ...(next.estimatedGuestCount ? [] : ["guest count"]),
+          ];
+          let learnedSender: string | null = null;
+          if (confirmInquiry && lead.get("needsConfirmation") === true) {
+            changes.needsConfirmation = false;
+            const captureId = lead.get("captureId");
+            if (typeof captureId === "string" && captureId) {
+              const capture = await transaction.get(db.doc(`inboundCaptures/${captureId}`));
+              const sender = capture.get("notificationSender");
+              // A form's notification address is learned; a person's own
+              // address (a manual forward) is not a form and is not.
+              const personal = String(next.email ?? "").toLowerCase();
+              if (typeof sender === "string" && sender && sender !== personal) learnedSender = sender;
+            }
+          }
+          const settingsReference = db.doc(`leadCaptureSettings/${command.tenantId}`);
+          const settings = learnedSender ? await transaction.get(settingsReference) : null;
+          transaction.update(leadReference, {
+            ...changes,
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          if (learnedSender) {
+            const known = (settings?.get("inquirySenders") as string[] | undefined) ?? [];
+            transaction.set(
+              settingsReference,
+              {
+                tenantId: command.tenantId,
+                inquirySenders: Array.from(new Set([...known, learnedSender])).slice(-200),
+                updatedAt: timestamp,
+              },
+              { merge: true },
+            );
+          }
+          const leadAuditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${leadAuditId}`), {
+            id: leadAuditId,
+            tenantId: command.tenantId,
+            projectId: null,
+            actorId: identity.uid,
+            actorType: "user",
+            action: confirmInquiry ? "lead.confirmed" : "lead.updated",
+            entityType: "lead",
+            entityId: leadId,
+            timestamp,
+            before: Object.fromEntries(
+              Object.keys(changes)
+                .filter((key) => key !== "fieldProvenance" && key !== "missingInformation")
+                .map((key) => [key, lead.get(key) ?? null]),
+            ),
+            after: Object.fromEntries(
+              Object.entries(changes).filter(
+                ([key]) => key !== "fieldProvenance" && key !== "missingInformation",
+              ),
+            ),
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          const output = { leadId, updated: Object.keys(changes) };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        if (command.type === "markLeadNotInquiry") {
+          const leadReference = db.doc(`leads/${command.input.leadId}`);
+          const lead = await transaction.get(leadReference);
+          if (!lead.exists || lead.get("tenantId") !== command.tenantId) {
+            throw new Error("LEAD_NOT_FOUND");
+          }
+          if (lead.get("projectId")) throw new Error("LEAD_NOT_CONVERTIBLE");
+          const captureId = lead.get("captureId");
+          const capture =
+            typeof captureId === "string" && captureId
+              ? await transaction.get(db.doc(`inboundCaptures/${captureId}`))
+              : null;
+          const sender = capture?.get("notificationSender");
+          const settingsReference = db.doc(`leadCaptureSettings/${command.tenantId}`);
+          const settings = await transaction.get(settingsReference);
+          transaction.update(leadReference, {
+            status: "archived",
+            needsConfirmation: false,
+            notInquiry: true,
+            archivedAt: timestamp,
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          // A capture from a person's own address (a manual forward, a reply)
+          // must not teach capture to ignore that person. Only a sender that
+          // isn't the lead itself is remembered.
+          const learn =
+            typeof sender === "string" &&
+            sender &&
+            sender !== String(lead.get("email") ?? "").toLowerCase();
+          if (learn) {
+            const known = (settings.get("notInquirySenders") as string[] | undefined) ?? [];
+            const inquirySenders = (settings.get("inquirySenders") as string[] | undefined) ?? [];
+            transaction.set(
+              settingsReference,
+              {
+                tenantId: command.tenantId,
+                notInquirySenders: Array.from(new Set([...known, sender])).slice(-200),
+                inquirySenders: inquirySenders.filter((value) => value !== sender),
+                updatedAt: timestamp,
+              },
+              { merge: true },
+            );
+          }
+          const notInquiryAuditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${notInquiryAuditId}`), {
+            id: notInquiryAuditId,
+            tenantId: command.tenantId,
+            projectId: null,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "lead.not_inquiry",
+            entityType: "lead",
+            entityId: command.input.leadId,
+            timestamp,
+            before: { status: lead.get("status") ?? "new" },
+            after: { status: "archived", ignoredSender: learn ? sender : null },
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          const output = {
+            leadId: command.input.leadId,
+            ignoredSender: learn ? (sender as string) : null,
+          };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
         if (command.type === "archiveContact") {
           // Editing and archiving a client is an owner/admin decision: a
           // coordinator works jobs, they do not curate the address book.
@@ -1911,6 +2177,26 @@ export const crmCommand = onRequest(
         } catch (caught: unknown) {
           console.warn(
             `[crm] readiness reconcile after date change failed: ${String(caught).slice(0, 160)}`,
+          );
+        }
+      }
+      /**
+       * The inquiry thread follows the lead onto the job, so the couple's first
+       * message and the studio's reply are on the job's Messages rather than
+       * stranded on a converted lead. Not fatal: the job exists either way.
+       */
+      const converted = result as { convertedLeadId?: string | null; projectId?: string };
+      if (converted.convertedLeadId && converted.projectId) {
+        try {
+          await moveLeadThreadsToProject(db, {
+            tenantId: command.tenantId,
+            leadId: converted.convertedLeadId,
+            projectId: converted.projectId,
+            now: new Date().toISOString(),
+          });
+        } catch (caught: unknown) {
+          console.warn(
+            `[crm] moving the lead thread onto the job failed: ${String(caught).slice(0, 160)}`,
           );
         }
       }

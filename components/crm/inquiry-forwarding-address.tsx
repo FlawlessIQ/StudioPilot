@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Check, Copy, Forward } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendCommunicationsCommand } from "@/lib/communications/command-client";
+import { LeadCaptureSetup } from "@/components/intake/lead-capture-setup";
 
 /**
  * "Forward any inquiry to this address."
@@ -93,6 +94,11 @@ export function InquiryForwardingAddress() {
         </small>
       </span>
       <CopyAddress address={address} />
+      {/* Setting it up to happen by itself, rather than one forward at a time. */}
+      <details className="inquiry-forwarding-setup">
+        <summary>Capture every website inquiry automatically</summary>
+        <LeadCaptureSetup />
+      </details>
     </div>
   );
 }
@@ -129,6 +135,7 @@ export function InquiryForwardingSettings() {
         forward reaches it. The couple is not emailed — you are already in that
         conversation.
       </small>
+      <LeadCaptureSetup />
     </div>
   );
 }

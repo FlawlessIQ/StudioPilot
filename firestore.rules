@@ -708,6 +708,20 @@ service cloud.firestore {
       allow read: if false;
       allow write: if false;
     }
+    // Inbox capture. What was read from each captured email, and the studio's
+    // capture settings (learned senders, per-form field mappings). Written
+    // only by the inbound route and the capture commands, which check who is
+    // asking; a browser that could write a mapping could redirect a couple's
+    // email address into any field, and one that could write the sender lists
+    // could silently stop inquiries being captured.
+    match /inboundCaptures/{captureId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
+      allow write: if false;
+    }
+    match /leadCaptureSettings/{tenantId} {
+      allow read: if hasRole(tenantId, ["studio_owner", "studio_admin"]);
+      allow write: if false;
+    }
     // Server-only in both directions. An unmatched message has no reliable
     // tenantId — that is why it is here — so there is no tenant to scope a read
     // to, and any broader rule would expose one studio's client mail to

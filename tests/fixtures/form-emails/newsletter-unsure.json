@@ -1,0 +1,13 @@
+{
+  "note": "Something a broad filter might catch: not an inquiry. Must never become a lead silently.",
+  "from": "news@albumco.example",
+  "fromName": "AlbumCo",
+  "replyTo": null,
+  "subject": "Our fall album sale",
+  "text": "Save 20% on all albums this month. Shop now.\nUnsubscribe",
+  "html": null,
+  "expect": {
+    "builder": "unknown",
+    "verdict": "unsure"
+  }
+}

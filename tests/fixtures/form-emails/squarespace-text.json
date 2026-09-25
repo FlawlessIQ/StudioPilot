@@ -1,0 +1,29 @@
+{
+  "note": "Documented Squarespace format: sent from form-submission@squarespace.info, Reply-To set to the submitter, 'Form Submission - [form] - [subject]', one field per line, ends 'Sent via [Site Title]'. Not a real captured email.",
+  "from": "form-submission@squarespace.info",
+  "fromName": "Squarespace",
+  "replyTo": "emma.hart@example.com",
+  "subject": "Form Submission - Contact - Wedding inquiry",
+  "text": "Name: Emma Hart\nEmail Address: emma.hart@example.com\nPhone: (518) 555-0142\nWedding Date: 06/12/2027\nVenue: Wildflower Barn\nCity: Hudson, NY\nGuest Count: about 140\nWhat are you looking for?: Photo + video\nHow did you hear about us?: Instagram\nMessage: Hi! James and I are getting married next June and we love your work.\nWe'd like to know about your full day coverage.\n\n(Sent via Hart Light Photography)",
+  "html": null,
+  "expect": {
+    "builder": "squarespace",
+    "contactSource": "reply_to",
+    "email": "emma.hart@example.com",
+    "firstName": "Emma",
+    "lastName": "Hart",
+    "phone": "(518) 555-0142",
+    "eventDate": "2027-06-12",
+    "venue": "Wildflower Barn",
+    "city": "Hudson, NY",
+    "guestCount": 140,
+    "services": [
+      "photography",
+      "videography"
+    ],
+    "referralSource": "Instagram",
+    "formName": "Contact",
+    "verdict": "inquiry",
+    "messageIncludes": "full day coverage"
+  }
+}

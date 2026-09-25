@@ -1,0 +1,19 @@
+{
+  "note": "Contact Form 7's default mail template (includes/contact-form-template.php): From [_site_title] <wordpress@domain>, Reply-To [your-email], body 'From: name <email>' / Subject / Message Body / footer.",
+  "from": "wordpress@hartlight.example",
+  "fromName": "Hart Light Photography",
+  "replyTo": "maria.lopez@example.com",
+  "subject": "Hart Light Photography \"Engagement session\"",
+  "text": "From: Maria Lopez <maria.lopez@example.com>\nSubject: Engagement session\n\nMessage Body:\nHi! We'd love an engagement session in the fall and are getting married on 14 September 2027.\nThanks, Maria\n\n-- \nThis e-mail was sent from a contact form on Hart Light Photography (https://hartlight.example)",
+  "html": null,
+  "expect": {
+    "builder": "wordpress",
+    "contactSource": "reply_to",
+    "email": "maria.lopez@example.com",
+    "firstName": "Maria",
+    "lastName": "Lopez",
+    "eventDate": "2027-09-14",
+    "verdict": "inquiry",
+    "messageIncludes": "engagement session"
+  }
+}

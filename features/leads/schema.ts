@@ -78,22 +78,32 @@ export const publicLeadIntakeSchema = z.object({
 
 export type PublicLeadIntake = z.infer<typeof publicLeadIntakeSchema>;
 
+/** Where a captured value came from — shown on the review card so a studio can tell stated from inferred. */
+export const leadFieldSourceSchema = z.enum(["form", "header", "message", "studio"]);
+
+/**
+ * A lead as stored. Two front doors write it: the public intake form (every
+ * field required, the couple typed them) and inbox capture (a contact-form
+ * notification that asked for a name and an email and little else). So the
+ * date, city and contact are nullable here, and `needsConfirmation` marks a
+ * capture the reader wasn't sure was an inquiry at all.
+ */
 export const leadSchema = auditFieldsSchema.extend({
   id: z.string().min(1),
   tenantId: z.string().min(1),
   projectId: z.string().nullable(),
-  primaryContactId: z.string().min(1),
+  primaryContactId: z.string().min(1).nullable(),
   status: leadStatusSchema,
   eventTypeId: z.string().min(1),
   eventTypeLabel: z.string().min(2).max(80),
-  eventDate: z.string().date(),
+  eventDate: z.string().date().nullable(),
   venue: z.string().max(160).nullable(),
-  city: z.string().min(2).max(120),
+  city: z.string().max(120).nullable(),
   estimatedGuestCount: z.number().int().positive().nullable(),
   servicesRequested: z.array(eventServiceSchema).min(1),
   budgetRange: z.string().max(80).nullable(),
   referralSource: z.string().max(120).nullable(),
-  message: z.string().min(10).max(5000),
+  message: z.string().max(5000),
   assignedUserId: z.string().nullable(),
   duplicateKey: z.string().min(1),
   duplicateOfLeadId: z.string().nullable(),
@@ -101,9 +111,31 @@ export const leadSchema = auditFieldsSchema.extend({
   aiSummary: z.string().max(2000).nullable(),
   missingInformation: z.array(z.string()).default([]),
   suggestedConsultationQuestions: z.array(z.string()).default([]),
-  consentRecordedAt: z.string().datetime(),
+  consentRecordedAt: z.string().datetime().nullable(),
   source: z.string().max(120),
   archivedAt: z.string().datetime().nullable(),
+  // Inbox capture. Absent on leads from the public form.
+  displayName: z.string().max(200).optional(),
+  firstName: z.string().max(80).nullable().optional(),
+  lastName: z.string().max(80).nullable().optional(),
+  partnerName: z.string().max(120).nullable().optional(),
+  email: z.string().max(160).nullable().optional(),
+  phone: z.string().max(40).nullable().optional(),
+  ceremonyTime: z.string().max(40).nullable().optional(),
+  needsConfirmation: z.boolean().optional(),
+  formBuilder: z.string().max(40).optional(),
+  formBuilderLabel: z.string().max(80).optional(),
+  formName: z.string().max(160).nullable().optional(),
+  captureRoute: z.enum(["forward", "graph", "gmail"]).optional(),
+  captureId: z.string().optional(),
+  fieldProvenance: z
+    .record(z.string(), z.object({ source: leadFieldSourceSchema, label: z.string().nullable().optional() }))
+    .optional(),
+  rawFormFields: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
+  enrichmentPending: z.boolean().optional(),
+  inquiryCount: z.number().int().min(1).optional(),
+  lastInquiryAt: z.string().datetime().optional(),
+  conversationId: z.string().nullable().optional(),
 });
 
 export type Lead = z.infer<typeof leadSchema>;

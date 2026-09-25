@@ -2,6 +2,8 @@ type ApprovedCommunicationInput = {
   actionId: string;
   tenantId: string;
   projectId: string | null;
+  /** The lead a reply answers, so it is sent on — and answered into — the lead's thread. */
+  leadId?: string | null;
   contactId: string | null;
   recipient: string | null;
   recipientName: string | null;
@@ -32,6 +34,7 @@ export function approvedCommunicationDispatch(
           id: `ai_message_${input.actionId}`,
           tenantId: input.tenantId,
           projectId: input.projectId,
+          leadId: input.leadId ?? null,
           contactId: input.contactId,
           recipient: input.recipient,
           recipientName: input.recipientName,

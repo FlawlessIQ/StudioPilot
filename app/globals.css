@@ -6654,6 +6654,103 @@ textarea:focus-visible {
   width: 15px;
 }
 
+
+.lead-inferred {
+  background: #fbf3e4;
+  border-radius: 999px;
+  color: #8a5a12;
+  font-size: 10px;
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+
+.lead-edit-form {
+  display: grid;
+  gap: 14px;
+}
+
+.lead-edit-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+}
+
+.lead-edit-grid label,
+.lead-convert-date {
+  display: grid;
+  gap: 5px;
+}
+
+.lead-edit-grid label span,
+.lead-convert-date span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.lead-edit-grid input,
+.lead-convert-date input {
+  min-width: 0;
+  width: 100%;
+}
+
+.maybe-inquiry {
+  align-items: center;
+  border: 1px dashed var(--line);
+  border-radius: 13px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px 14px;
+}
+
+.maybe-inquiry > span {
+  display: grid;
+  gap: 3px;
+}
+
+.maybe-inquiry small {
+  color: var(--muted);
+}
+
+.maybe-inquiry-compact {
+  border: 0;
+  padding: 0;
+}
+
+.maybe-inquiry-tray ul {
+  display: grid;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.maybe-inquiry-tray li {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 10px 0;
+}
+
+.maybe-inquiry-tray li > a {
+  color: inherit;
+  display: grid;
+  flex: 1 1 260px;
+  gap: 3px;
+  min-width: 0;
+  text-decoration: none;
+}
+
+.maybe-inquiry-tray li > a small {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .lead-message-card > p {
   color: var(--ink-soft);
   line-height: 1.7;
@@ -18084,3 +18181,129 @@ label {
   "accepte…" on the People lists. `min-content` refuses to go below the word.
 */
 .live-domain-table .status-badge { white-space: nowrap; }
+
+/* Inquiry capture setup (components/intake/lead-capture-setup.tsx) */
+.inquiry-forwarding-setup {
+  flex-basis: 100%;
+}
+
+.inquiry-forwarding-setup > summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.lead-capture-setup {
+  display: grid;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.lead-capture-setup > header {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+}
+
+.lead-capture-setup h3,
+.lead-capture-setup h4,
+.lead-capture-setup p {
+  margin: 0 0 6px;
+}
+
+.lead-capture-setup section {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+}
+
+.lead-capture-setup ol {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 19px;
+}
+
+.lead-capture-setup code {
+  overflow-wrap: anywhere;
+}
+
+.lead-capture-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lead-capture-inline input {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.lead-capture-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.lead-capture-sources label {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.lead-capture-query,
+.lead-capture-code,
+.lead-capture-waiting {
+  align-items: center;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.lead-capture-test {
+  display: grid;
+  gap: 10px;
+}
+
+.lead-capture-test table {
+  border-collapse: collapse;
+  font-size: 13px;
+  width: 100%;
+}
+
+.lead-capture-test th,
+.lead-capture-test td {
+  border-bottom: 1px solid var(--line);
+  padding: 6px 8px 6px 0;
+  text-align: left;
+  vertical-align: top;
+}
+
+.lead-capture-test td:nth-child(2) {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.lead-capture-test select {
+  max-width: 100%;
+}
+
+@media (max-width: 640px) {
+  .lead-capture-test thead {
+    display: none;
+  }
+
+  .lead-capture-test tr {
+    border-bottom: 1px solid var(--line);
+    display: grid;
+    gap: 4px;
+    padding: 8px 0;
+  }
+
+  .lead-capture-test td {
+    border: 0;
+    padding: 0;
+  }
+}

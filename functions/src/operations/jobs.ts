@@ -497,6 +497,17 @@ async function emailContext(
       .map((snapshot) => String(snapshot.get("email") ?? "").trim().toLowerCase())
       .filter(Boolean),
   );
+  // A lead's couple is a client for threading, though no project exists yet:
+  // a reply to an inquiry used to go out with no thread, so the couple's
+  // answer landed in the studio's personal inbox instead of on the lead.
+  const leadId = firstString(document.get("leadId"));
+  if (leadId && !projectId) {
+    const lead = await db.doc(`leads/${leadId}`).get();
+    if (lead.exists && lead.get("tenantId") === tenantId) {
+      const leadEmail = String(lead.get("email") ?? "").trim().toLowerCase();
+      if (leadEmail) clientContactEmails.add(leadEmail);
+    }
+  }
   const studioName =
     firstString(
       document.get("brandName"),

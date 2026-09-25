@@ -1,0 +1,21 @@
+{
+  "note": "Documented Showit format: noreply@showit.co, per-field Reply To toggle, 'Label: value' lines. Not a real captured email.",
+  "from": "noreply@showit.co",
+  "fromName": "Showit",
+  "replyTo": "sam.okafor@example.com",
+  "subject": "New form submission: Inquire",
+  "text": "Your names: Sam Okafor & Riley Chen\nEmail: sam.okafor@example.com\nWedding date: May 20, 2028\nWhere: The Foundry, Long Island City\nBudget: $6,000-$8,000\nAnything else?: We're planning an intimate evening wedding.",
+  "html": null,
+  "expect": {
+    "builder": "showit",
+    "contactSource": "reply_to",
+    "email": "sam.okafor@example.com",
+    "firstName": "Sam",
+    "lastName": "Okafor",
+    "partnerName": "Riley Chen",
+    "eventDate": "2028-05-20",
+    "venue": "The Foundry, Long Island City",
+    "budget": "$6,000-$8,000",
+    "verdict": "inquiry"
+  }
+}

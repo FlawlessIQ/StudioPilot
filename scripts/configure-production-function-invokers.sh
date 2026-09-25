@@ -160,6 +160,9 @@ scheduler_services=(
   # advancing again.
   emaildeliveryreconciler
   finalinvoicescheduler
+  # Tells a studio when inbox capture goes quiet (forwarding broke). Missing
+  # here, it would 403 after the next invoker reset and say nothing.
+  leadcapturehealthscheduler
   lifecyclemessagescheduler
   operationshealthscheduler
   operationsjobscheduler
