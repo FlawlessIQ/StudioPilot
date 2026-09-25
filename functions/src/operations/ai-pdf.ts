@@ -733,6 +733,9 @@ async function pdfInput(job:DocumentSnapshot){const db=getFirestore();const tena
         event_summary:Object.values(record(proposal.get("eventSnapshot"))).filter(value=>typeof value==="string"&&value).join(" · "),
         package_name:packageName,
         document_kind:documentKind,
+        // The studio's own mark, from the same place every branded email
+        // takes it. Empty is fine: the renderer falls back to the wordmark.
+        logo_url:string(record(tenant.get("emailBranding")).logoUrl)||string(tenant.get("logoUrl"))||"",
         package_description:`${coverageWord} coverage and deliverables as selected.`,
         introduction:string(proposal.get("notes")),
         terms_summary:string(proposal.get("termsSummary")),

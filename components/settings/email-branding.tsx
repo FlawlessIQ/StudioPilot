@@ -8,6 +8,7 @@ import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { LOGO_CONTENT_TYPES, uploadStudioLogo } from "@/lib/branding/logo-upload";
 
 type Branding = {
   tenantId: string;
@@ -27,6 +28,7 @@ const previewDefaults: Branding = {
 
 export function EmailBranding() {
   const [branding, setBranding] = useState<Branding>(previewDefaults);
+  const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(dataIsLive);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -76,6 +78,28 @@ export function EmailBranding() {
 
   function update(field: keyof Branding, value: string) {
     setBranding((current) => ({ ...current, [field]: value }));
+  }
+
+  /**
+   * The upload writes into the same `logoUrl` the form already saves, so the
+   * studio still presses Save and nothing about the command changes.
+   */
+  async function uploadLogo(file: File) {
+    setUploading(true);
+    setNotice(null);
+    try {
+      if (!dataIsLive || branding.tenantId === "preview") {
+        setNotice("Preview mode: the logo would be uploaded and applied.");
+        return;
+      }
+      const url = await uploadStudioLogo(branding.tenantId, file);
+      update("logoUrl", url);
+      setNotice("Logo uploaded. Save to apply it.");
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "That logo could not be uploaded."));
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function save(event: FormEvent<HTMLFormElement>) {
@@ -177,8 +201,56 @@ export function EmailBranding() {
               />
             </span>
           </label>
+          {/**
+            * Upload, not a URL.
+            *
+            * This asked for a "Logo URL", which assumes the studio hosts
+            * images somewhere and can paste a link to one. Most cannot, so
+            * most had no logo at all — and the field reached emails only,
+            * while the proposal PDF printed the studio name as plain text and
+            * the client portal showed nothing.
+            *
+            * The field stays, because a studio that already has a hosted logo
+            * should not be made to re-upload it, and because it is what the
+            * upload writes into.
+            */}
           <label>
-            Logo URL <span>(optional)</span>
+            Your logo <span>(optional)</span>
+            <input
+              accept={LOGO_CONTENT_TYPES.join(",")}
+              disabled={uploading}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void uploadLogo(file);
+              }}
+              type="file"
+            />
+            <span>
+              {uploading
+                ? "Uploading…"
+                : "PNG, JPEG, WebP or SVG, under 2 MB. Appears on your proposals, your client portal and your emails."}
+            </span>
+          </label>
+          {branding.logoUrl ? (
+            <label>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                alt="Your studio logo"
+                className="branding-logo-preview"
+                src={branding.logoUrl}
+                style={{ maxHeight: 64, maxWidth: 220 }}
+              />
+              <button
+                className="ghost-button"
+                onClick={() => update("logoUrl", "")}
+                type="button"
+              >
+                Remove logo
+              </button>
+            </label>
+          ) : null}
+          <label>
+            Logo URL <span>(optional — set by the upload above)</span>
             <input
               type="url"
               inputMode="url"

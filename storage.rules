@@ -156,6 +156,33 @@ service firebase.storage {
      * scanner clears it before any model sees it, the same as every upload
      * under tenants/, and nothing overwrites or deletes from the browser.
      */
+    /**
+     * The studio's own logo, on everything the client sees.
+     *
+     * Branding was a "Logo URL" field: the studio had to host the image
+     * somewhere and paste a link, and it reached emails only — the proposal PDF
+     * printed the studio name as plain text and the portal showed nothing. A
+     * studio that wants its pages branded should not have to run a web server
+     * to do it.
+     *
+     * Readable by anyone, deliberately. A logo is the least private thing a
+     * studio owns — it is already on their website and in the footer of every
+     * email they send — and the proposal renderer and the client portal both
+     * have to fetch it without a session. Nothing else lives under this path.
+     *
+     * Images only and small: this is a logo, not a gallery, and the cap is what
+     * stops the path being used as one.
+     */
+    match /tenants/{tenantId}/branding/{fileName} {
+      allow read: if true;
+      allow create, update: if activeMember(tenantId)
+        && membership(tenantId).role in ["studio_owner", "studio_admin"]
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches("image/png|image/jpeg|image/webp|image/svg\\+xml");
+      allow delete: if activeMember(tenantId)
+        && membership(tenantId).role in ["studio_owner", "studio_admin"];
+    }
+
     match /tenants/{tenantId}/cueAttachments/{userId}/{fileName} {
       allow read: if false;
       allow create: if activeMember(tenantId)

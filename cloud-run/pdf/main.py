@@ -6,6 +6,8 @@ or pricing data from the browser and never modifies signed provider documents.
 
 import re
 from io import BytesIO
+import io
+import urllib.request
 from html import escape
 from typing import Any
 
@@ -17,6 +19,7 @@ from reportlab.lib.pagesizes import LETTER
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import (
+    Image,
     KeepTogether,
     Paragraph,
     SimpleDocTemplate,
@@ -54,6 +57,9 @@ class ProposalRequest(BaseModel):
     # default is the neutral word: every proposal used to say PHOTOGRAPHY,
     # including the video-only ones.
     document_kind: str = Field(default="PROPOSAL", min_length=1, max_length=60)
+    # The studio's own mark. Optional, because most proposals were generated
+    # before a logo could be uploaded at all and those must still render.
+    logo_url: str = Field(default="", max_length=2000)
     package_description: str = Field(min_length=1, max_length=2000)
     introduction: str = Field(default="", max_length=3000)
     terms_summary: str = Field(default="", max_length=3000)
@@ -103,6 +109,53 @@ def undated_payment_due(label: str) -> str:
     return "On signing" if re.search(r"\b(retainer|deposit|booking fee)\b", label, re.I) else "As agreed"
 
 
+def _brand_cell(data, styles):
+    """The studio's logo where it has one, its name where it does not.
+
+    A proposal is the first document a couple sees, and it printed the studio's
+    name as plain text — the only logo field in the product reached email
+    templates and nothing else. Studios brand their own work; this stops
+    StudioCue flattening that.
+
+    Falls back rather than failing: a logo that will not fetch must not take the
+    proposal down with it, so anything unexpected leaves the wordmark in place.
+    """
+    name_cell = Paragraph(
+        f"<b>{escape(data.tenant_name.upper())}</b><br/>"
+        f"<font color='#67706B'>{escape(data.document_kind)}</font>",
+        styles["Brand"],
+    )
+    if not data.logo_url:
+        return name_cell
+    try:
+        with urllib.request.urlopen(data.logo_url, timeout=5) as response:
+            raw = response.read(2 * 1024 * 1024)
+        logo = Image(io.BytesIO(raw))
+        ratio = logo.imageHeight / logo.imageWidth if logo.imageWidth else 1
+        logo.drawWidth = min(1.9 * inch, logo.imageWidth)
+        logo.drawHeight = logo.drawWidth * ratio
+        # Tall marks are scaled by height instead, so a square logo does not
+        # push the header off the page.
+        if logo.drawHeight > 0.62 * inch:
+            logo.drawHeight = 0.62 * inch
+            logo.drawWidth = logo.drawHeight / ratio if ratio else logo.drawWidth
+        kind = Paragraph(
+            f"<font color='#67706B'>{escape(data.document_kind)}</font>",
+            styles["Brand"],
+        )
+        return Table(
+            [[logo], [kind]],
+            style=TableStyle(
+                [
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                ]
+            ),
+        )
+    except Exception:
+        return name_cell
+
+
 def build_proposal_pdf(data: ProposalRequest) -> bytes:
     buffer = BytesIO()
     ink = HexColor("#1E2A25")
@@ -129,6 +182,7 @@ def build_proposal_pdf(data: ProposalRequest) -> bytes:
         author="StudioCue",
     )
 
+
     def footer(canvas: Any, document: Any) -> None:
         canvas.saveState()
         canvas.setStrokeColor(line)
@@ -143,7 +197,7 @@ def build_proposal_pdf(data: ProposalRequest) -> bytes:
     header = Table(
         [
             [
-                Paragraph(f"<b>{escape(data.tenant_name.upper())}</b><br/><font color='#67706B'>{escape(data.document_kind)}</font>", styles["Brand"]),
+                _brand_cell(data, styles),
                 Paragraph(f"{escape(data.proposal_id)}<br/>VERSION {data.version}", styles["RightMeta"]),
             ]
         ],
