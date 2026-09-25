@@ -18297,6 +18297,97 @@ label {
   vertical-align: 2px;
 }
 
+/* Today, before any inquiry has arrived: the three ways in as buttons. */
+.capture-start {
+  align-items: center;
+  background: var(--panel, #fff);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 20px 22px;
+}
+
+.capture-start-icon {
+  background: #e9f4ec;
+  border-radius: 50%;
+  color: #2e7042;
+  display: grid;
+  height: 40px;
+  place-items: center;
+  width: 40px;
+}
+
+.capture-start-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.capture-start-copy small {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.capture-start-routes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  grid-column: 1 / -1;
+}
+
+.capture-start-route {
+  align-items: center;
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--ink);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  gap: 7px;
+  padding: 8px 14px;
+}
+
+.capture-start-route svg {
+  color: var(--accent);
+}
+
+.capture-start-route:hover {
+  background: var(--soft);
+}
+
+.capture-start-route .capture-badge {
+  margin-left: 0;
+}
+
+@media (min-width: 900px) {
+  /* One line on a desk: the heading, then the three ways in beside it. */
+  .capture-start {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .capture-start-routes {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .capture-start {
+    padding: 16px;
+  }
+  /* Three full-width rows a thumb can hit, not chips that wrap unevenly. */
+  .capture-start-routes {
+    display: grid;
+  }
+  .capture-start-route {
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+}
+
 /* ── The sheet: header with progress, one step, Back / Next ── */
 .capture-sheet {
   display: grid;

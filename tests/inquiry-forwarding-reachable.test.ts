@@ -38,7 +38,7 @@ const COLD_START_SURFACES = [
 
 test("the forwarding address is reachable with no inquiries and no jobs", () => {
   const reachable = COLD_START_SURFACES.filter((surface) =>
-    /InquiryForwarding(Address|Settings)/.test(read(surface)),
+    /InquiryForwarding(Address|Settings)|LeadCaptureStart/.test(read(surface)),
   );
   assert.ok(
     reachable.length > 0,
@@ -54,10 +54,12 @@ test("the forwarding address is reachable with no inquiries and no jobs", () => 
  */
 test("Today offers it while no inquiry has ever arrived", () => {
   const today = read("components/today/today-inbox.tsx");
-  assert.match(today, /InquiryForwardingAddress/);
+  // The address, and the three ways to get inquiries to it — the website
+  // form, the inbox, a forward by hand — each opening its setup sheet.
+  assert.match(today, /LeadCaptureStart/);
   assert.match(
     today,
-    /setup\.noInquiriesEver\s*\?\s*<InquiryForwardingAddress\s*\/>/,
+    /setup\.noInquiriesEver\s*\?\s*<LeadCaptureStart\s*\/>/,
     "Today must gate the address on noInquiriesEver, not on the open-inquiry count",
   );
   const hook = read("components/today/use-today-inbox.ts");
@@ -96,7 +98,7 @@ test("more than one surface renders it", () => {
     .flatMap((root) => tsxFiles(`${process.cwd()}/${root}`))
     .filter((file) => !file.endsWith("inquiry-forwarding-address.tsx"))
     .filter((file) =>
-      /<InquiryForwarding(Address|Settings)\s*\/>|forwarding: InquiryForwardingSettings/.test(
+      /<InquiryForwarding(Address|Settings)\s*\/>|<LeadCaptureStart\s*\/>|forwarding: InquiryForwardingSettings/.test(
         readFileSync(file, "utf8"),
       ),
     )

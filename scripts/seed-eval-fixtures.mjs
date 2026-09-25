@@ -327,29 +327,43 @@ if (!workflows.empty) {
 if (remove) {
   console.log(`Removing ${groupDocs.length} group-${group} documents from ${tenantId}\n`);
   for (const d of groupDocs) console.log("  delete", d.path);
-  console.log("  delete any domainEvents emitted by the seeded projects");
+  console.log("  delete any domainEvents and auditEvents the seeded projects left behind");
   if (!apply) {
     console.log("\nDry run. Re-run with --apply to delete.");
     process.exit(0);
   }
   const batch = db.batch();
   for (const d of groupDocs) batch.delete(db.doc(d.path));
-  // Events the projects emitted on creation, whose ids are content hashes and
-  // so cannot be named ahead of time.
+  /**
+   * Everything the fixtures set off, whose ids are content hashes or random and
+   * so cannot be named ahead of time.
+   *
+   * `domainEvents` are emitted by creating a project. `auditEvents` accumulate
+   * as anything touches one — a state change, a Cue answer. Both are keyed by
+   * `projectId`, so both are reachable, and both are deleted **only** for the
+   * fixture project ids: nothing else in either collection is matched.
+   *
+   * Audit events are immutable by design and this is the one place they are
+   * removed, deliberately. An audit trail for a project nobody can look up is
+   * not evidence, it is residue — and a fixture that leaves a trail behind has
+   * not been cleaned up.
+   */
   let trailing = 0;
-  for (const projectId of seededProjectIds) {
-    const events = await db
-      .collection("domainEvents")
-      .where("projectId", "==", projectId)
-      .get();
-    for (const doc of events.docs) {
-      batch.delete(doc.ref);
-      trailing += 1;
+  for (const collection of ["domainEvents", "auditEvents"]) {
+    for (const projectId of seededProjectIds) {
+      const events = await db
+        .collection(collection)
+        .where("projectId", "==", projectId)
+        .get();
+      for (const doc of events.docs) {
+        batch.delete(doc.ref);
+        trailing += 1;
+      }
     }
   }
   await batch.commit();
   console.log(
-    `\nRemoved${trailing ? `, including ${trailing} domain event(s) the projects emitted` : ""}.`,
+    `\nRemoved${trailing ? `, including ${trailing} event(s) the projects left behind` : ""}.`,
   );
   process.exit(0);
 }

@@ -124,7 +124,8 @@ function withinDay(iso: string | null | undefined): boolean {
 
 /* ── Container: loads the setup and runs its commands ─────────────────── */
 
-export function LeadCaptureSetup() {
+/** The setup's data and commands, shared by the settings panel and Today. */
+export function useLeadCaptureSetup() {
   const workspace = useWorkspace();
   const [setup, setSetup] = useState<LeadCaptureSetupState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -197,6 +198,11 @@ export function LeadCaptureSetup() {
     [refresh, setup?.lastTest],
   );
 
+  return { setup, actions, error, unavailable };
+}
+
+export function LeadCaptureSetup() {
+  const { setup, actions, error, unavailable } = useLeadCaptureSetup();
   if (unavailable)
     return (
       <p className="form-notice">Inquiry capture is not available on this workspace yet.</p>
@@ -204,12 +210,58 @@ export function LeadCaptureSetup() {
   return <LeadCaptureView actions={actions} error={error} setup={setup} />;
 }
 
+/**
+ * Today, before any inquiry has ever arrived: the three ways in as three
+ * buttons, each opening the same sheet as settings — so a studio can put its
+ * address on its website form without leaving the page it landed on.
+ */
+export function LeadCaptureStart() {
+  const { setup, actions, unavailable } = useLeadCaptureSetup();
+  if (unavailable || !setup?.address) return null;
+  return <LeadCaptureStartView actions={actions} setup={{ ...setup, address: setup.address }} />;
+}
+
+export function LeadCaptureStartView({
+  setup,
+  actions,
+}: {
+  setup: LeadCaptureSetupState & { address: string };
+  actions: LeadCaptureActions;
+}) {
+  const [sheet, setSheet] = useState<SheetKey | null>(null);
+  return (
+    <section aria-labelledby="capture-start-title" className="capture-start">
+      <span aria-hidden="true" className="capture-start-icon">
+        <Inbox size={20} />
+      </span>
+      <div className="capture-start-copy">
+        <strong id="capture-start-title">Get your inquiries in</strong>
+        <small>Each one arrives filled in, with a reply drafted.</small>
+      </div>
+      <div className="capture-start-routes">
+        {ROUTES.map((route) => (
+          <button className="capture-start-route" key={route.key} onClick={() => setSheet(route.key)} type="button">
+            <route.icon size={16} />
+            <span>{route.short}</span>
+            {route.badge ? <em className="capture-badge">{route.badge}</em> : null}
+          </button>
+        ))}
+      </div>
+      <CaptureSheets actions={actions} address={setup.address} onChange={setSheet} setup={setup} sheet={sheet} />
+    </section>
+  );
+}
+
+
+
 /* ── The panel ────────────────────────────────────────────────────────── */
 
 const ROUTES: Array<{
   key: Exclude<SheetKey, "test">;
   icon: ComponentType<{ size?: number }>;
   title: string;
+  /** The label on Today, where three buttons share one line. */
+  short: string;
   subtitle: string;
   badge?: string;
 }> = [
@@ -217,6 +269,7 @@ const ROUTES: Array<{
     key: "form",
     icon: LayoutTemplate,
     title: "From your website form",
+    short: "Website form",
     subtitle: "Wix, WordPress or Jotform: one setting",
     badge: "Easiest",
   },
@@ -224,12 +277,14 @@ const ROUTES: Array<{
     key: "inbox",
     icon: MailPlus,
     title: "From your inbox",
+    short: "Your inbox",
     subtitle: "A Gmail filter or Outlook rule",
   },
   {
     key: "manual",
     icon: Forward,
     title: "Forward by hand",
+    short: "Forward by hand",
     subtitle: "Any email, one at a time",
   },
 ];
@@ -246,7 +301,6 @@ export function LeadCaptureView({
   initialSheet?: SheetKey | null;
 }) {
   const [sheet, setSheet] = useState<SheetKey | null>(initialSheet);
-  const close = useCallback(() => setSheet(null), []);
   const address = setup?.address ?? null;
   const knownForms = (setup?.forms ?? []).map((form) => form.label ?? "Unnamed form");
   const live = Boolean(setup?.lastCaptureAt);
@@ -313,38 +367,59 @@ export function LeadCaptureView({
       </div>
 
       {setup && address ? (
-        <>
-          <SheetDialog label="From your website form" onClose={close} open={sheet === "form"}>
-            <FormRoute
-              actions={actions}
-              address={address}
-              onDone={close}
-              onUseInbox={() => setSheet("inbox")}
-              setup={setup}
-            />
-          </SheetDialog>
-          <SheetDialog label="From your inbox" onClose={close} open={sheet === "inbox"}>
-            <InboxRoute actions={actions} address={address} onDone={close} setup={setup} />
-          </SheetDialog>
-          <SheetDialog label="Forward by hand" onClose={close} open={sheet === "manual"}>
-            <ManualRoute address={address} onDone={close} />
-          </SheetDialog>
-          <SheetDialog label="Send a test inquiry" onClose={close} open={sheet === "test"}>
-            <div className="capture-sheet">
-              <header>
-                <p className="eyebrow">Check it works</p>
-                <h3>Send a test inquiry</h3>
-              </header>
-              <TestStep actions={actions} setup={setup} />
-              <footer>
-                <span />
-                <button className="button button-dark" onClick={close} type="button">Done</button>
-              </footer>
-            </div>
-          </SheetDialog>
-        </>
+        <CaptureSheets actions={actions} address={address} onChange={setSheet} setup={setup} sheet={sheet} />
       ) : null}
     </section>
+  );
+}
+
+/** The four sheets behind the routes, the same wherever they are opened from. */
+function CaptureSheets({
+  sheet,
+  onChange,
+  setup,
+  address,
+  actions,
+}: {
+  sheet: SheetKey | null;
+  onChange: (sheet: SheetKey | null) => void;
+  setup: LeadCaptureSetupState;
+  address: string;
+  actions: LeadCaptureActions;
+}) {
+  const close = useCallback(() => onChange(null), [onChange]);
+  const setSheet = onChange;
+  return (
+    <>
+      <SheetDialog label="From your website form" onClose={close} open={sheet === "form"}>
+        <FormRoute
+          actions={actions}
+          address={address}
+          onDone={close}
+          onUseInbox={() => setSheet("inbox")}
+          setup={setup}
+        />
+      </SheetDialog>
+      <SheetDialog label="From your inbox" onClose={close} open={sheet === "inbox"}>
+        <InboxRoute actions={actions} address={address} onDone={close} setup={setup} />
+      </SheetDialog>
+      <SheetDialog label="Forward by hand" onClose={close} open={sheet === "manual"}>
+        <ManualRoute address={address} onDone={close} />
+      </SheetDialog>
+      <SheetDialog label="Send a test inquiry" onClose={close} open={sheet === "test"}>
+        <div className="capture-sheet">
+          <header>
+            <p className="eyebrow">Check it works</p>
+            <h3>Send a test inquiry</h3>
+          </header>
+          <TestStep actions={actions} setup={setup} />
+          <footer>
+            <span />
+            <button className="button button-dark" onClick={close} type="button">Done</button>
+          </footer>
+        </div>
+      </SheetDialog>
+    </>
   );
 }
 
