@@ -33,6 +33,9 @@ export async function sendBookingCommand(input: Record<string, unknown>) {
         "content-type": "application/json",
         authorization: `Bearer ${await user.getIdToken()}`,
         ...(appCheckToken ? { "x-firebase-appcheck": appCheckToken } : {}),
+        // The device, for commands that record it as evidence (signing a
+        // contract for the studio). Proxies replace the real user agent.
+        "x-studiohub-user-agent": navigator.userAgent.slice(0, 400),
       },
       body: JSON.stringify({
         ...input,

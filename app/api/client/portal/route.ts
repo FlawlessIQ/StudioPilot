@@ -1499,7 +1499,11 @@ export async function POST(request: Request) {
       const evidence = {
         ipAddress:
           request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
-        userAgent: request.headers.get("user-agent"),
+        // App Hosting's proxy replaces the user agent ("Google"); the page
+        // reports the device it runs on.
+        userAgent:
+          request.headers.get("x-studiohub-user-agent")?.slice(0, 400) ??
+          request.headers.get("user-agent"),
       };
       if (parsed.type === "view_contract") {
         return Response.json(

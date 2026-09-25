@@ -2295,9 +2295,19 @@ export const bookingCommand = onRequest(
             typeof identity.email_verified === "boolean" ? identity.email_verified : null,
           timestamp,
           idempotencyKey: command.idempotencyKey,
+          // Behind the App Hosting relay the request's own address and agent
+          // are the relay's. It passes the client's address, and the device
+          // the browser reports; functions are private, so only the relay
+          // can have set them.
           ipAddress:
-            request.header("x-forwarded-for")?.split(",")[0]?.trim() || request.ip || null,
-          userAgent: request.header("user-agent") ?? null,
+            request.header("x-studiohub-client-ip") ||
+            request.header("x-forwarded-for")?.split(",")[0]?.trim() ||
+            request.ip ||
+            null,
+          userAgent:
+            request.header("x-studiohub-user-agent")?.slice(0, 400) ??
+            request.header("user-agent") ??
+            null,
         };
         if (command.type === "agreementDraftFromImport")
           result = await agreementDraftFromImport(contractContext, command.input);

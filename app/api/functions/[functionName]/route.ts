@@ -120,6 +120,19 @@ async function proxy(
   if (userAuthorization) {
     headers.set("x-studiohub-user-authorization", userAuthorization);
   }
+  /**
+   * Who is on the other end, for evidence a command records (a contract the
+   * studio signs is the case that found this). Behind the relay a function
+   * sees App Hosting's address and a server user agent — a production
+   * certificate recorded the studio's signature as made from Google's network
+   * on "node". The client address is set here, from the request that reached
+   * App Hosting, never taken from the browser; the device is what the browser
+   * reports about itself, labelled as such where it is shown.
+   */
+  const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  if (clientIp) headers.set("x-studiohub-client-ip", clientIp);
+  const reportedAgent = request.headers.get("x-studiohub-user-agent");
+  if (reportedAgent) headers.set("x-studiohub-user-agent", reportedAgent.slice(0, 400));
 
   const incomingUrl = new URL(request.url);
   const targetUrl = new URL(target);

@@ -192,3 +192,26 @@ test("Cue's product facts describe both ways a contract gets signed, and neither
   assert.match(copilot, /`Contracts` then `Your agreement`/);
   assert.match(copilot, /signing is the client's or the operator's act, never Cue's/);
 });
+
+/**
+ * Found on the production walk: the certificate recorded the studio's
+ * signature as made from Google's network on "node" (the functions relay) and
+ * the couple's device as "Google" (App Hosting's proxy). The evidence has to
+ * be the person's, not the infrastructure's.
+ */
+test("signing evidence records the person's address and device, not the proxy's", () => {
+  const relay = readFileSync("app/api/functions/[functionName]/route.ts", "utf8");
+  // The relay derives the client address itself — never forwards one a browser sent.
+  assert.match(relay, /headers\.set\("x-studiohub-client-ip", clientIp\)/);
+  assert.match(relay, /request\.headers\.get\("x-forwarded-for"\)/);
+  assert.doesNotMatch(relay, /request\.headers\.get\("x-studiohub-client-ip"\)/);
+  assert.match(relay, /headers\.set\("x-studiohub-user-agent"/);
+  const commands = readFileSync("functions/src/booking/commands.ts", "utf8");
+  assert.match(commands, /request\.header\("x-studiohub-client-ip"\)/);
+  assert.match(commands, /request\.header\("x-studiohub-user-agent"\)/);
+  const portal = readFileSync("app/api/client/portal/route.ts", "utf8");
+  assert.match(portal, /request\.headers\.get\("x-studiohub-user-agent"\)/);
+  for (const client of ["lib/booking/command-client.ts", "lib/client/portal-client.ts"]) {
+    assert.match(readFileSync(client, "utf8"), /"x-studiohub-user-agent": navigator\.userAgent/, client);
+  }
+});

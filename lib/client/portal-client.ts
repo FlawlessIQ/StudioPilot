@@ -83,6 +83,9 @@ async function portalRequest<T>(body: Record<string, unknown>): Promise<T> {
       "content-type": "application/json",
       authorization: `Bearer ${await user.getIdToken()}`,
       ...(appCheckToken ? { "x-firebase-appcheck": appCheckToken } : {}),
+      // The device a couple signs from. App Hosting's proxy replaces the
+      // user agent, so the certificate read "Google" (production, 2026-09-25).
+      "x-studiohub-user-agent": navigator.userAgent.slice(0, 400),
     },
     body: JSON.stringify(body),
   }), 15_000, "Your project took too long to load. Try again.");
