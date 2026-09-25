@@ -1,0 +1,465 @@
+/* StudioCue contracts: the document, the studio's review and send, the
+   couple's signing, and the agreement editor. Loaded from app/layout.tsx so it
+   reaches the studio, client and crew routes alike (globals.css is split
+   across chunks and does not). Panels take their inset from the default in
+   legacy-bridge.css; nothing here pads a panel's children to fake one. */
+
+.contract-document {
+  font-family: var(--ds-serif, Georgia, "Times New Roman", serif);
+  color: var(--ds-ink, #221c16);
+  line-height: 1.6;
+  font-size: 1rem;
+  max-width: 44rem;
+  overflow-wrap: anywhere;
+}
+
+.contract-document-title {
+  font-size: 1.6rem;
+  line-height: 1.2;
+  margin: 0 0 1.1rem;
+  font-weight: 500;
+}
+
+.contract-heading {
+  font-size: 1.2rem;
+  margin: 1.4rem 0 0.5rem;
+  font-weight: 500;
+}
+
+.contract-subheading {
+  font-family: var(--ds-sans, system-ui, sans-serif);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 1.2rem 0 0.4rem;
+  font-weight: 650;
+}
+
+.contract-paragraph {
+  margin: 0 0 0.8rem;
+  white-space: pre-line;
+}
+
+.contract-list {
+  margin: 0 0 0.9rem;
+  padding-left: 1.3rem;
+}
+
+.contract-list li {
+  margin: 0.2rem 0;
+}
+
+.contract-bold {
+  font-weight: 650;
+}
+
+.contract-field {
+  background: var(--ds-brass-soft, #f4ecdb);
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px var(--ds-brass-soft, #f4ecdb);
+}
+
+.contract-field.is-missing {
+  background: var(--ds-danger-soft, #f5e2df);
+  box-shadow: 0 0 0 2px var(--ds-danger-soft, #f5e2df);
+  color: var(--ds-danger, #a63c3a);
+  font-family: var(--ds-sans, system-ui, sans-serif);
+  font-size: 0.85em;
+}
+
+.contract-schedule {
+  border: 1px solid var(--ds-line, #e9e1d4);
+  border-radius: var(--ds-r-sm, 11px);
+  margin: 0.4rem 0 1rem;
+  font-family: var(--ds-sans, system-ui, sans-serif);
+  font-size: 0.9rem;
+  overflow: hidden;
+}
+
+.contract-schedule-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 0.75rem;
+  padding: 0.55rem 0.85rem;
+  border-top: 1px solid var(--ds-line, #e9e1d4);
+}
+
+.contract-schedule-row.is-head {
+  border-top: 0;
+  background: var(--ds-line-soft, #f1ece1);
+  font-weight: 650;
+  font-size: 0.78rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+/* ---- The page a contract sits on ---------------------------------------- */
+
+.contract-sheet {
+  background: var(--ds-paper, #fffdf8);
+  border: 1px solid var(--ds-line, #e9e1d4);
+  border-radius: var(--ds-r-lg, 20px);
+  padding: clamp(18px, 4vw, 44px);
+  box-shadow: var(--ds-shadow-sm, 0 1px 2px rgba(58, 40, 22, 0.05));
+}
+
+.contract-signature-line {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 1.25rem;
+  margin-top: 1.75rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--ds-line, #e9e1d4);
+}
+
+.contract-signature-slot small {
+  display: block;
+  color: var(--ds-ink-soft, #6a5d50);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.contract-signature-name {
+  font-family: "Snell Roundhand", "Segoe Script", "Brush Script MT", var(--ds-serif, Georgia, serif);
+  font-style: italic;
+  font-size: 1.7rem;
+  line-height: 1.3;
+  min-height: 2.3rem;
+  color: var(--ds-ink, #221c16);
+}
+
+.contract-signature-slot.is-pending .contract-signature-name {
+  color: var(--ds-muted, #97897a);
+  font-family: var(--ds-sans, system-ui, sans-serif);
+  font-style: normal;
+  font-size: 0.95rem;
+  padding-top: 0.6rem;
+}
+
+.contract-signature-meta {
+  color: var(--ds-ink-soft, #6a5d50);
+  font-size: 0.8rem;
+}
+
+/* ---- The couple signs ----------------------------------------------------- */
+
+.client-contract-signing {
+  display: grid;
+  gap: 1rem;
+}
+
+/* At the end of the agreement, not pinned over it: a panel that follows the
+   reader covered half of every screen they were trying to read. The page
+   tells them to sign at the bottom, and the bottom is where it is. */
+.client-contract-sign-panel {
+  display: grid;
+  gap: 0.85rem;
+  background: var(--ds-paper-raised, #fff);
+  border: 1px solid var(--ds-line, #e9e1d4);
+  border-radius: var(--ds-r-lg, 20px);
+  padding: 18px 18px calc(18px + env(safe-area-inset-bottom, 0px));
+  box-shadow: var(--ds-shadow-sm, 0 1px 2px rgba(58, 40, 22, 0.05));
+}
+
+.client-contract-consent {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.6rem;
+  align-items: start;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.client-contract-consent input {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.1rem;
+}
+
+.client-contract-disclosure {
+  font-size: 0.85rem;
+  color: var(--ds-ink-soft, #6a5d50);
+}
+
+.client-contract-disclosure summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.client-contract-disclosure p {
+  margin: 0 0 0.5rem;
+}
+
+.client-contract-name {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.client-contract-name input {
+  min-height: 48px;
+  font-size: 1.05rem;
+  padding: 0 0.85rem;
+  border: 1px solid var(--ds-line, #e9e1d4);
+  border-radius: var(--ds-r-sm, 11px);
+  background: var(--ds-paper, #fffdf8);
+}
+
+.client-contract-name-preview {
+  font-family: "Snell Roundhand", "Segoe Script", "Brush Script MT", var(--ds-serif, Georgia, serif);
+  font-style: italic;
+  font-size: 1.6rem;
+  min-height: 2.2rem;
+  color: var(--ds-ink, #221c16);
+  border-bottom: 1px solid var(--ds-line, #e9e1d4);
+  padding-bottom: 0.2rem;
+}
+
+.client-contract-sign-panel .button {
+  min-height: 48px;
+  width: 100%;
+  justify-content: center;
+}
+
+.client-contract-error {
+  color: var(--ds-danger, #a63c3a);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.client-contract-done {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.client-contract-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.client-contract-actions .button {
+  min-height: 44px;
+}
+
+/* ---- The studio reviews and sends ---------------------------------------- */
+
+.native-contract-step {
+  display: grid;
+  gap: 1rem;
+}
+
+.native-contract-fields {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+
+.native-contract-fields label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.native-contract-fields input,
+.native-contract-send input[type="text"],
+.native-contract-void textarea {
+  min-height: 44px;
+  padding: 0 0.75rem;
+  border: 1px solid var(--ds-line, #e9e1d4);
+  border-radius: var(--ds-r-sm, 11px);
+  font: inherit;
+  background: var(--ds-paper, #fffdf8);
+}
+
+.native-contract-void textarea {
+  min-height: 5rem;
+  padding: 0.6rem 0.75rem;
+}
+
+.native-contract-preview {
+  max-height: 34rem;
+  overflow: auto;
+}
+
+@media (max-width: 759px) {
+  .native-contract-preview {
+    max-height: none;
+  }
+}
+
+.native-contract-send {
+  display: grid;
+  gap: 0.75rem;
+  border-top: 1px solid var(--ds-line, #e9e1d4);
+  padding-top: 1rem;
+}
+
+.native-contract-send label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.native-contract-consent {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.55rem;
+  align-items: start;
+  font-size: 0.88rem;
+}
+
+.native-contract-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.native-contract-actions .button {
+  min-height: 44px;
+}
+
+.native-contract-status {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.native-contract-note {
+  color: var(--ds-ink-soft, #6a5d50);
+  font-size: 0.88rem;
+  margin: 0;
+}
+
+/* ---- The agreement editor ------------------------------------------------- */
+
+.agreement-editor {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.agreement-editor-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1100px) {
+  .agreement-editor-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+  .agreement-editor-preview {
+    position: sticky;
+    top: 16px;
+    max-height: calc(100vh - 32px);
+    overflow: auto;
+  }
+}
+
+.agreement-editor-meta {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+
+.agreement-editor label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.agreement-editor input[type="text"] {
+  min-height: 44px;
+  padding: 0 0.75rem;
+  border: 1px solid var(--ds-line, #e9e1d4);
+  border-radius: var(--ds-r-sm, 11px);
+  font: inherit;
+  background: var(--ds-paper, #fffdf8);
+}
+
+.agreement-editor textarea {
+  min-height: 28rem;
+  padding: 0.85rem;
+  border: 1px solid var(--ds-line, #e9e1d4);
+  border-radius: var(--ds-r-sm, 11px);
+  font: 0.92rem/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--ds-paper, #fffdf8);
+  resize: vertical;
+}
+
+.agreement-field-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.agreement-field-picker button {
+  min-height: 36px;
+  padding: 0 0.7rem;
+  border: 1px solid var(--ds-line, #e9e1d4);
+  border-radius: 999px;
+  background: var(--ds-paper-raised, #fff);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.agreement-field-picker button:hover {
+  border-color: var(--ds-brass, #b08a52);
+}
+
+.agreement-custom-fields {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.agreement-custom-field {
+  display: grid;
+  grid-template-columns: minmax(0, 12rem) minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.agreement-custom-field code {
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.agreement-editor-notice {
+  background: var(--ds-brass-soft, #f4ecdb);
+  border-radius: var(--ds-r-sm, 11px);
+  padding: 0.75rem 0.9rem;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.agreement-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.agreement-editor-actions .button {
+  min-height: 44px;
+}
+
+.client-contract-done h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.client-contract-done h2 svg {
+  flex: none;
+  color: var(--ds-forest, #40694f);
+}

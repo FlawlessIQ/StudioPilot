@@ -4,6 +4,7 @@ import Link from "next/link";
 import { CircleAlert, PlugZap, ShieldCheck } from "lucide-react";
 import type { IntegrationCapability } from "@/features/integrations/schema";
 import { useCapability } from "@/components/integrations/use-capability";
+import { useNativeSigning } from "@/components/contracts/use-native-signing";
 
 /**
  * What happens next, named, wherever a provider is about to be used.
@@ -26,6 +27,27 @@ export function CapabilityNote({
   className?: string;
 }) {
   const readiness = useCapability(capability);
+  const native = useNativeSigning();
+  /**
+   * A studio StudioCue writes contracts for has no signing app and needs
+   * none. "You send the agreement yourself" would be false for it, so the
+   * signing note says what actually happens.
+   */
+  if (capability === "signing" && native.enabled && native.agreementTemplateId) {
+    return (
+      <p
+        className={`capability-note is-ready${className ? ` ${className}` : ""}`}
+        role="note"
+      >
+        <ShieldCheck aria-hidden="true" size={14} />
+        <span>
+          {native.autoSend.enabled
+            ? "When they accept, StudioCue writes the contract from your agreement, signs it for you and sends it for their signature."
+            : "When they accept, StudioCue writes the contract from your agreement for you to read, sign and send."}
+        </span>
+      </p>
+    );
+  }
   if (!readiness) return null;
   const Icon = readiness.ok
     ? ShieldCheck

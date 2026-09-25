@@ -1,3 +1,4 @@
+import { contractStillAwaitingSignature } from "../contracts/reminders.js";
 import {
   clientAutomationEmailTypes,
   clientAutomationsPaused,
@@ -598,6 +599,24 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
     if (clientAutomationsPaused(project.data()))
       return { held: "client_automations_paused", type };
   }
+  // A contract email is about one contract. Asking a couple to sign an
+  // agreement they signed an hour ago, or one the studio withdrew, is worse
+  // than silence — so the contract is read again as the email goes.
+  if (
+    (type === "contract_ready" || type === "contract_reminder") &&
+    document.get("contractId")
+  ) {
+    const contract = await getFirestore()
+      .doc(`contracts/${String(document.get("contractId"))}`)
+      .get();
+    if (
+      !contractStillAwaitingSignature({
+        exists: contract.exists && contract.get("tenantId") === document.get("tenantId"),
+        status: contract.get("status"),
+      })
+    )
+      return { held: "contract_no_longer_awaiting_signature", type };
+  }
   const recipient = await recipientFor(document);
   const context = await emailContext(document, recipient);
   const rendered = renderEmailTemplate({
@@ -733,7 +752,13 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
       },
     ];
   }
-  if (type === "proposal_sent" && document.get("attachmentDocumentId")) {
+  // The proposal PDF, and the couple's own copy of a signed StudioCue
+  // contract — ESIGN expects the signer to be given one, so it travels with
+  // the email rather than waiting behind a sign-in.
+  if (
+    (type === "proposal_sent" || type === "contract_signed") &&
+    document.get("attachmentDocumentId")
+  ) {
     const attachment = await getFirestore()
       .doc(`documents/${String(document.get("attachmentDocumentId"))}`)
       .get();
@@ -759,7 +784,8 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
         content: bytes.toString("base64"),
         type: "application/pdf",
         filename: String(
-          attachment.get("name") ?? "photography-proposal.pdf",
+          attachment.get("name") ??
+            (type === "contract_signed" ? "signed-agreement.pdf" : "photography-proposal.pdf"),
         ),
         disposition: "attachment",
       },

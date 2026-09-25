@@ -35,6 +35,14 @@ export const emailTemplateKeys = [
   "package_follow_up",
   "proposal_sent",
   "contract_sent",
+  // StudioCue's own contracts (functions/src/contracts). The couple signs in
+  // their portal, so every one of these links there.
+  "contract_ready",
+  "contract_reminder",
+  "contract_signed",
+  "contract_voided",
+  // Studio-facing: the couple signed.
+  "studio_contract_signed",
   "retainer_invoice",
   "booking_confirmation",
   "questionnaire_request",
@@ -529,6 +537,87 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         note:
           "StudioCue will not mark an agreement complete until the signature provider confirms completion.",
       };
+    case "contract_ready": {
+      const signerName = stringValue(values, "signerName");
+      return {
+        subject: `Your agreement from ${brand.studioName} is ready to sign`,
+        preheader: "Read it and sign in your client portal — it takes a couple of minutes.",
+        eyebrow: "Agreement ready",
+        heading: "Your agreement is ready to sign",
+        paragraphs: [
+          greeting,
+          `Your agreement${project} is ready. It's written from the proposal you accepted, so the package, price and payment schedule are the ones you agreed to.`,
+          signerName
+            ? `${signerName} has already signed for ${brand.studioName}. Once you sign, your agreement is complete and you'll get a copy by email.`
+            : `Once you sign, your agreement is complete and you'll get a copy by email.`,
+        ],
+        action: actionUrl
+          ? { label: "Read and sign", url: actionUrl }
+          : portalUrl
+            ? { label: "Read and sign", url: `${portalUrl.replace(/\/$/, "")}/contract` }
+            : undefined,
+        note: "You'll sign by typing your name. Questions about the agreement? Reply to this email before you sign.",
+      };
+    }
+    case "contract_reminder":
+      return {
+        subject: `Reminder: your agreement from ${brand.studioName} is waiting`,
+        preheader: "Your date is held once the agreement is signed.",
+        eyebrow: "Agreement waiting",
+        heading: "Your agreement is still waiting for you",
+        paragraphs: [
+          greeting,
+          `A quick reminder that your agreement${project} is ready to sign in your client portal.`,
+          "If anything in it needs changing, reply to this email and we'll sort it out before you sign.",
+        ],
+        action: portalUrl
+          ? { label: "Read and sign", url: `${portalUrl.replace(/\/$/, "")}/contract` }
+          : undefined,
+      };
+    case "contract_signed":
+      return {
+        subject: `Your signed agreement with ${brand.studioName}`,
+        preheader: "Your copy of the signed agreement is attached.",
+        eyebrow: "Agreement signed",
+        heading: "Your agreement is signed",
+        paragraphs: [
+          greeting,
+          `Thank you for signing${project}. Your copy of the complete agreement is attached — both signatures, and a record of when and how each was made.`,
+          "It's also saved in your client portal whenever you need it.",
+        ],
+        action: portalUrl
+          ? { label: "Open your client portal", url: `${portalUrl.replace(/\/$/, "")}/contract` }
+          : undefined,
+        note: "Keep this email for your records. You can ask us for a paper copy at any time.",
+      };
+    case "contract_voided":
+      return {
+        subject: `Your agreement from ${brand.studioName} was withdrawn`,
+        preheader: "Please don't sign the earlier version — a new one is on its way.",
+        eyebrow: "Agreement withdrawn",
+        heading: "We withdrew your agreement",
+        paragraphs: [
+          greeting,
+          `We withdrew the agreement we sent${project}, so it can no longer be signed.`,
+          "We'll send an updated agreement shortly. If you have questions in the meantime, just reply to this email.",
+        ],
+      };
+    case "studio_contract_signed": {
+      const clientName = stringValue(values, "clientName") || "Your client";
+      return {
+        subject: `${clientName} signed the agreement${project}`,
+        preheader: "The agreement is complete. The retainer is the next step.",
+        eyebrow: "Agreement signed",
+        heading: `${clientName} signed`,
+        paragraphs: [
+          `${clientName} signed the agreement${project}, so it is complete.`,
+          values.retainerAutomatic === true
+            ? "StudioCue is raising the retainer invoice now, and the job books itself when it's paid."
+            : "The retainer is next. When it's paid, record it on the job and the booking confirms.",
+        ],
+        action: actionUrl ? { label: "Open the job", url: actionUrl } : undefined,
+      };
+    }
     case "retainer_invoice":
     case "final_invoice":
     case "final_payment_reminder": {

@@ -49,13 +49,16 @@ export function assertProjectTransition(from: ProjectState, to: ProjectState): v
 export const evidenceControlledProjectTransitions: ReadonlyArray<{
   from: ProjectState;
   to: ProjectState;
-  authority: "proposal" | "docusign" | "booking_gate" | "readiness" | "delivery";
+  authority: "proposal" | "contract" | "booking_gate" | "readiness" | "delivery";
 }> = [
   { from: "PROPOSAL", to: "CONTRACT_PENDING", authority: "proposal" },
   {
     from: "CONTRACT_PENDING",
     to: "RETAINER_PENDING",
-    authority: "docusign",
+    // Any completed contract: a vendor's verified signature, the couple's
+    // signature in StudioCue (ADR 0006), or the studio's recorded one. This
+    // read "docusign" long after DocuSign stopped being the only way.
+    authority: "contract",
   },
   { from: "RETAINER_PENDING", to: "BOOKED", authority: "booking_gate" },
   { from: "POSTPONED", to: "BOOKED", authority: "booking_gate" },

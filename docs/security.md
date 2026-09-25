@@ -49,6 +49,10 @@ arbitrary services.
 - file signature verification and malware scanning are performed in a restricted processing service before approval workflows
 - PDFs are parsed/rendered in isolated Cloud Run workers with time and memory limits
 - signed Docusign PDFs are immutable
+- a contract StudioCue writes is signed against a hash of its canonical text;
+  signature records are append-only and server-written, the signer must be the
+  addressed client on their own session, and the sealed copy is re-verified
+  against the hash before it is rendered (ADR 0006, `docs/contracts.md`)
 - reusable studio files remain quarantined until signature validation and
   malware scanning pass; only trusted workers may create extracted drafts
 - imported legal, payment, signature, insurance, approval, and provider-state

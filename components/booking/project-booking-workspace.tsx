@@ -6,6 +6,8 @@ import { CapabilityNote } from "@/components/integrations/capability-note";
 import { InfoHint } from "@/components/ui/info-hint";
 import { AttachSignedCopy } from "@/components/booking/attach-signed-copy";
 import { RecordSignedAgreement } from "@/components/booking/record-signed-agreement";
+import { NativeContractStep } from "@/components/contracts/native-contract-step";
+import { useNativeSigning } from "@/components/contracts/use-native-signing";
 import { BookWithoutRetainer } from "@/components/booking/book-without-retainer";
 import { RecordRetainerPayment } from "@/components/booking/record-retainer-payment";
 import { RecordProposalAcceptance } from "@/components/booking/record-proposal-acceptance";
@@ -142,6 +144,13 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [gateBlockers, setGateBlockers] = useState<string[]>([]);
+  /**
+   * A studio that writes its agreement in StudioCue sends from here: prepare,
+   * read, sign for the studio, send. The signing-app and record-it paths
+   * below stay for studios that do not — and "signed somewhere else?" stays
+   * available to everyone.
+   */
+  const nativeSigning = useNativeSigning();
 
   const load = useCallback(async () => {
     if (!workspace.tenantId) return;
@@ -434,6 +443,9 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
    * a signing app is offered — nothing here is deleted, only branched.
    */
   const signingOffered = signingProvider !== null;
+  const nativeActive =
+    nativeSigning.enabled &&
+    (Boolean(nativeSigning.agreementTemplateId) || contract?.provider === "studiocue");
   const signingProviderLabel =
     signingProvider === "dropbox_sign"
       ? "Dropbox Sign"
@@ -806,7 +818,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 projectId={projectId}
               />
             ) : null}
-            {proposal || contract ? (
+            {!nativeActive && (proposal || contract) ? (
             <p>
               Built from the accepted proposal, so the package and price are
               already set.
@@ -815,7 +827,43 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 : null}
             </p>
             ) : null}
-            {contractFailed ? (
+            {nativeActive && proposal ? (
+              <>
+                <NativeContractStep
+                  contract={contract}
+                  onChanged={(message) => {
+                    if (message) setNotice(message);
+                    refreshTenantRecords(
+                      "projects",
+                      "contracts",
+                      "checkpoints",
+                      "readinessAssessments",
+                    );
+                    void load();
+                  }}
+                  projectId={projectId}
+                  proposal={proposal}
+                />
+                {contract?.status !== "completed" ? (
+                  <RecordSignedAgreement
+                    primary={false}
+                    onRecorded={(message) => {
+                      setNotice(message);
+                      refreshTenantRecords(
+                        "projects",
+                        "contracts",
+                        "invoiceReferences",
+                        "checkpoints",
+                        "readinessAssessments",
+                      );
+                      void load();
+                    }}
+                    projectId={projectId}
+                    proposalId={String(proposal.id)}
+                  />
+                ) : null}
+              </>
+            ) : contractFailed ? (
               // A refused contract is not evidence of anything, and hiding
               // the send form behind "a contract exists" left the booking
               // with nowhere to go. Say what the provider said, and offer

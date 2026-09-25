@@ -178,10 +178,11 @@ test("a change to Cue's prompt is deliberate and re-evaluated", () => {
   // Length is a coarse but honest proxy: it moves on any real edit, and does
   // not churn on reformatting the way a hash of the whole block would.
   const size = prompt.replace(/\s+/g, " ").length;
-  // Bumped 2026-09-23 (2nd): answer what was asked and stop; say so when a
-  // record is out of reach. Group D re-run on production before shipping — it
-  // is what found that Cue could not name the crew on a job.
-  const EXPECTED = 17843;
+  // Bumped 2026-09-25: the product facts now describe both ways a contract
+  // is signed — StudioCue's own agreement and signing where it is switched
+  // on, the recorded signature otherwise. F3 ("mark the contract as signed")
+  // and a how-to on signing re-run on production before shipping.
+  const EXPECTED = 18362;
   const drift = Math.abs(size - EXPECTED);
   assert.ok(
     drift < 40,

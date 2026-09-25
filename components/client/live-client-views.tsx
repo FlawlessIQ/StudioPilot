@@ -36,6 +36,7 @@ import { PostEventAction } from "@/components/post-event/post-event-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { ClientAutopay } from "@/components/client/client-autopay";
+import { ClientContractSigning } from "@/components/client/contract-signing";
 import {
   portalPastNotice,
   portalStageIsBehind,
@@ -2031,6 +2032,7 @@ export function LiveClientPackage() {
 }
 
 export function LiveClientContract() {
+  const workspace = useWorkspace();
   const portalProject = useProject();
   const contracts = useProjectRecords("contracts");
   const reserve = useReserveYourDate();
@@ -2061,6 +2063,36 @@ export function LiveClientContract() {
   }, [providerOpened, refreshContracts]);
   if (contracts.error || !contract)
     return <PortalPageState lead={reserve ? <ReserveYourDate view={reserve} here="/client/contract" /> : null} eyebrow="Agreement" title="Your contract" description="Review signature progress and open your secure signing request." loading={contracts.loading} error={contracts.error} empty={!contracts.loading && !contracts.error ? "Your agreement will appear after the studio sends it for signature." : undefined} area="contract" milestones={portalProject.value?.milestones ?? null} />;
+  /**
+   * An agreement StudioCue wrote: the couple reads and signs it right here.
+   * Everything below this branch is for a signing vendor's contract, or one
+   * the studio recorded.
+   */
+  if (contract.provider === "studiocue") {
+    const studioNameForContract =
+      workspace.tenantName && !workspace.tenantName.startsWith("Loading")
+        ? workspace.tenantName
+        : null;
+    return (
+      <div className="client-booking-page">
+        {reserve ? <ReserveYourDate view={reserve} here="/client/contract" /> : null}
+        <p className="eyebrow">Agreement</p>
+        <h1>Your agreement</h1>
+        <p>
+          {contractStatus === "completed"
+            ? "Signed by you and your studio."
+            : contractStatus === "voided"
+              ? "This version was withdrawn."
+              : "Read it through, then sign at the bottom. It's written from the proposal you accepted."}
+        </p>
+        <ClientContractSigning
+          contract={contract}
+          onChanged={() => refreshContracts?.()}
+          studioName={studioNameForContract}
+        />
+      </div>
+    );
+  }
   /**
    * Who actually witnessed this signature.
    *

@@ -189,3 +189,4 @@ export const health = onRequest(
 export { crewBriefOnQuestionnaireWrite } from "./planning/crew-brief-trigger.js";
 export { questionnaireReminderScheduler } from "./planning/questionnaire-reminder-scheduler.js";
 export { projectPurgeCommand } from "./projects/purge-command.js";
+export { contractReminderScheduler } from "./contracts/reminders.js";

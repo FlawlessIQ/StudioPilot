@@ -21,6 +21,13 @@ import {
 import { buildClientPortalExperience } from "@/server/client/portal-experience";
 import { planClientProposalDecision } from "@/server/client/proposal-decision";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
+import {
+  signContract,
+  SigningRefused,
+  studioNotificationAddress,
+  viewContract,
+} from "@/server/contracts/client-signing";
+import { signingRefusalCopy } from "@/features/contracts/signing-policy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -79,6 +86,26 @@ const requestSchema = z.discriminatedUnion("type", [
     proposalId: z.string().min(1).max(160),
     decision: z.enum(["accepted", "declined"]),
     reason: z.string().trim().min(10).max(1000).nullable(),
+    idempotencyKey: z.string().min(8).max(160),
+  }),
+  z.object({
+    type: z.literal("view_contract"),
+    tenantId: z.string().min(1).max(160),
+    projectId: z.string().min(1).max(160),
+    contractId: z.string().min(1).max(160),
+  }),
+  z.object({
+    /** The couple signs a contract StudioCue wrote. See server/contracts/client-signing.ts. */
+    type: z.literal("sign_contract"),
+    tenantId: z.string().min(1).max(160),
+    projectId: z.string().min(1).max(160),
+    contractId: z.string().min(1).max(160),
+    /** The hash of the text the page showed. Refused if it is not the stored one. */
+    documentHash: z.string().regex(/^[a-f0-9]{64}$/),
+    typedName: z.string().max(200),
+    // Not defaulted: agreeing to sign electronically has to be an explicit act.
+    consent: z.literal(true),
+    consentVersion: z.string().min(1).max(80),
     idempotencyKey: z.string().min(8).max(160),
   }),
   z.object({
@@ -231,6 +258,15 @@ const clientRecordFields = {
     "completedAt",
     "signingUrl",
     "signers",
+    // A StudioCue contract carries its own text, and the couple signs the
+    // hash of exactly what they were shown.
+    "document",
+    "documentHash",
+    "signatures",
+    "sentAt",
+    "viewedAt",
+    "voidedAt",
+    "signedDocumentId",
   ],
   invoiceReferences: [
     "kind",
@@ -433,8 +469,21 @@ async function clientRecords(
       sanitized.signers = (
         sanitized.signers as Array<Record<string, unknown>>
       ).map((signer) =>
-        pick(signer, ["name", "role", "order", "status", "completedAt"]),
+        pick(signer, ["name", "role", "order", "status", "completedAt", "signedAt"]),
       );
+    }
+    if (collectionName === "contracts") {
+      // The couple's copy of a sealed StudioCue contract, read through the
+      // Storage rules (visibility "client"). Never the studio's own paths.
+      const signedDocumentId = sanitized.signedDocumentId;
+      delete sanitized.signedDocumentId;
+      if (
+        value.provider === "studiocue" &&
+        typeof signedDocumentId === "string" &&
+        signedDocumentId === `signed_contract_${document.id}`
+      ) {
+        sanitized.signedCopyPath = `tenants/${tenantId}/projects/${projectId}/contracts/signed/${document.id}.pdf`;
+      }
     }
     if (collectionName === "schedules" && Array.isArray(sanitized.items)) {
       sanitized.items = (
@@ -1437,6 +1486,66 @@ export async function POST(request: Request) {
           actorId: identity.uid,
         }),
       );
+    }
+
+    if (parsed.type === "view_contract" || parsed.type === "sign_contract") {
+      const signer = {
+        uid: identity.uid,
+        email: typeof identity.email === "string" ? identity.email : null,
+        emailVerified:
+          typeof identity.email_verified === "boolean" ? identity.email_verified : null,
+        authMethod: identity.firebase?.sign_in_provider ?? null,
+      };
+      const evidence = {
+        ipAddress:
+          request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+        userAgent: request.headers.get("user-agent"),
+      };
+      if (parsed.type === "view_contract") {
+        return Response.json(
+          await viewContract(adminFirestore, {
+            tenantId: parsed.tenantId,
+            projectId: parsed.projectId,
+            contractId: parsed.contractId,
+            signer,
+            evidence,
+          }),
+        );
+      }
+      const studioAddress = await studioNotificationAddress(
+        adminFirestore,
+        adminAuth,
+        parsed.tenantId,
+      ).catch(() => null);
+      try {
+        return Response.json(
+          await signContract(adminFirestore, {
+            tenantId: parsed.tenantId,
+            projectId: parsed.projectId,
+            contractId: parsed.contractId,
+            documentHash: parsed.documentHash,
+            typedName: parsed.typedName,
+            consent: parsed.consent,
+            consentVersion: parsed.consentVersion,
+            idempotencyKey: parsed.idempotencyKey,
+            signer,
+            evidence,
+            studioAddress,
+            appUrl:
+              process.env.NEXT_PUBLIC_APP_URL ??
+              new URL(request.url).origin,
+          }),
+          { status: 201 },
+        );
+      } catch (caught) {
+        if (caught instanceof SigningRefused) {
+          return Response.json(
+            { error: caught.refusal, message: signingRefusalCopy[caught.refusal] },
+            { status: 409 },
+          );
+        }
+        throw caught;
+      }
     }
 
     if (parsed.type === "available_packages") {

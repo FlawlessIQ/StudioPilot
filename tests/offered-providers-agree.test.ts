@@ -122,8 +122,8 @@ test("no unoffered provider is hard-coded as a default or fallback", () => {
    * version of this test reported them:
    *   - `provider: "docusign"` in the integration definitions, which must exist
    *     so a leftover connection can still be recognised and labelled;
-   *   - `authority: "docusign"` in the state machine, the name of an evidence
-   *     authority rather than a provider choice;
+   *   - `authority: "docusign"`, which the state machine once used as the
+   *     name of an evidence authority (now `"contract"`);
    *   - `=== "docusign"` comparisons anywhere.
    */
   const offenders: string[] = [];

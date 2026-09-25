@@ -24,6 +24,8 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from contract import ContractRequest, build_contract_pdf
+
 app = FastAPI(title="StudioCue PDF Service")
 
 
@@ -306,3 +308,13 @@ def closeout_pdf(data: CloseoutRequest) -> Response:
         rows=rows,
     )
     return Response(content=payload, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{data.closeout_id}.pdf"'})
+
+
+@app.post("/v1/contracts/pdf")
+def contract_pdf(data: ContractRequest) -> Response:
+    """A signed StudioCue agreement with its certificate page."""
+    try:
+        payload = build_contract_pdf(data)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return Response(content=payload, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{data.contract_id}.pdf"'})

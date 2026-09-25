@@ -88,6 +88,10 @@ export const PURGE_KEEPS: readonly string[] = [
   "Your vendors and venues. Only this job's insurance requests are removed.",
   "Your packages, questionnaires, workflows and email templates.",
   "Every other job, including other jobs for the same client.",
+  // A signed agreement is deleted with the job like everything else, but the
+  // couple was emailed their own copy when they signed, and no delete can
+  // recall an email. Said here so an owner is not surprised later.
+  "Your client's own copy of any agreement they signed — it was emailed to them when they signed.",
 ];
 
 export type PurgeLine = { collection: string; label: string; count: number };
@@ -107,6 +111,8 @@ const LABELS: Record<string, { one: string; many: string }> = {
   proposals: { one: "proposal", many: "proposals" },
   packageSnapshots: { one: "package snapshot", many: "package snapshots" },
   contracts: { one: "agreement", many: "agreements" },
+  contractSignatures: { one: "signature record", many: "signature records" },
+  contractDrafts: { one: "agreement draft", many: "agreement drafts" },
   invoiceReferences: { one: "invoice", many: "invoices" },
   autopayCharges: { one: "payment attempt", many: "payment attempts" },
   paymentMethods: { one: "saved card", many: "saved cards" },

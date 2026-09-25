@@ -461,6 +461,8 @@ const AUTHORITY_LABELS: Record<string, string> = {
   manual_attestation: "Signed elsewhere · recorded by you",
   provider_webhook: "Confirmed by the signing provider",
   provider: "Confirmed by the signing provider",
+  client_signed: "Signed by the client in StudioCue",
+  imported: "Signed before StudioCue · imported",
 };
 
 function display(

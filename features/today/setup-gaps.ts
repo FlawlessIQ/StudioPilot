@@ -37,6 +37,12 @@ export type SetupGap = {
 export type SetupState = {
   hasActivePackage: boolean;
   hasAgreementTemplate: boolean;
+  /**
+   * StudioCue writes and signs contracts for this studio
+   * (features/contracts/rollout.ts). Optional so every existing caller keeps
+   * the answer it had: absent means no.
+   */
+  nativeSigning?: boolean;
   hasQuestionnaireTemplate: boolean;
   hasConsultationAvailability: boolean;
 };
@@ -93,7 +99,25 @@ export function setupGaps(
    * not a blocker in the way a missing package is — it is a choice between two
    * working paths, and the card names both.
    */
-  if (!state.hasAgreementTemplate) {
+  /**
+   * Once StudioCue writes contracts for a studio, the one missing piece is
+   * the agreement it writes them from — and that is now a real promise, so
+   * the card can make it. Everyone else keeps the two honest paths below.
+   */
+  if (!state.hasAgreementTemplate && state.nativeSigning) {
+    const blocked = signals.projectsNeedingAgreement[0] ?? null;
+    gaps.push({
+      key: "agreement",
+      title: "Set up your agreement",
+      detail: blocked
+        ? `${blocked} accepted their proposal. Set up your agreement and StudioCue writes their contract from it — they sign in their portal.`
+        : "Bring in the agreement you already use. StudioCue writes each client's contract from it, and they sign in their portal.",
+      actionLabel: "Set up your agreement",
+      href: "/studio/contracts/agreement",
+      blocking: Boolean(blocked),
+      blockedProjectName: blocked,
+    });
+  } else if (!state.hasAgreementTemplate) {
     const blocked = signals.projectsNeedingAgreement[0] ?? null;
     gaps.push({
       key: "agreement",

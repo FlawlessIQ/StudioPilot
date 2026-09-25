@@ -6,6 +6,7 @@ import { SITE_URL } from "@/lib/site";
 import "./globals.css";
 import "./design-system.css";
 import "./legacy-bridge.css";
+import "./contracts.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

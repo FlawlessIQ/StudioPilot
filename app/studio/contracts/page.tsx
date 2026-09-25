@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
+import { AgreementLinkCard } from "@/components/contracts/agreement-link-card";
 import { ProjectBookingWorkspace } from "@/components/booking/project-booking-workspace";
 import { LiveDomainView, ProjectContextBar } from "@/components/studio/live-domain-view";
 
@@ -19,6 +20,8 @@ export default async function ContractsPage({ searchParams }: { searchParams: Pr
         {project ? (
           <ProjectBookingWorkspace projectId={project} />
         ) : (
+          <>
+          <AgreementLinkCard />
           <section className="panel booking-project-prompt">
             <h2>Choose a project to continue booking</h2>
             <p>Open a project and select Booking to prepare its contract, retainer, and booking review in order.</p>
@@ -26,6 +29,7 @@ export default async function ContractsPage({ searchParams }: { searchParams: Pr
               Open projects
             </Link>
           </section>
+          </>
         )}
         <section>
           <div className="section-heading-row"><div><p className="eyebrow">Agreements</p><h2>Contracts</h2></div></div>

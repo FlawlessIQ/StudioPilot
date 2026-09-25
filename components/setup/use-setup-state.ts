@@ -12,6 +12,7 @@ import {
 } from "@/features/today/setup-gaps";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { nativeSigningOn } from "@/features/contracts/rollout";
 
 const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
@@ -40,6 +41,8 @@ export function useSetupState(): {
   const connections = useTenantDocuments("integrationConnections");
   const [tenantDocs, setTenantDocs] = useState<{
     agreement: boolean;
+    nativeAgreement: boolean;
+    nativeSigning: boolean;
     availability: boolean;
   } | null>(null);
 
@@ -52,18 +55,23 @@ export function useSetupState(): {
       getDoc(
         doc(firestore, "consultationSettings", workspace.tenantId),
       ).catch(() => null),
-    ]).then(([tenant, availability]) => {
+      getDoc(doc(firestore, "tenantFeatures", workspace.tenantId)).catch(() => null),
+    ]).then(([tenant, availability, features]) => {
       if (!active) return;
-      const templateId = text(
-        (tenant?.get("defaultContractSettings") as
-          | Record<string, unknown>
-          | undefined)?.templateId,
-      );
+      const contractSettings = tenant?.get("defaultContractSettings") as
+        | Record<string, unknown>
+        | undefined;
+      const templateId = text(contractSettings?.templateId);
+      const nativeSigning = nativeSigningOn(features?.exists() ? features.data() : null);
       // Availability counts as set when the studio has published windows,
       // or has deliberately chosen open-by-default hours.
       const windows = availability?.get("windows");
       setTenantDocs({
         agreement: Boolean(templateId),
+        nativeSigning,
+        // StudioCue's own agreement counts only where StudioCue writes contracts.
+        nativeAgreement:
+          nativeSigning && Boolean(text(contractSettings?.agreementTemplateId)),
         availability:
           (Array.isArray(windows) && windows.length > 0) ||
           text(availability?.get("mode")) === "open_default",
@@ -86,7 +94,11 @@ export function useSetupState(): {
     ),
     // A configured default template or a connected signing provider both
     // mean the studio can send an agreement without pasting an id.
-    hasAgreementTemplate: Boolean(tenantDocs?.agreement) || signingConnected,
+    hasAgreementTemplate:
+      Boolean(tenantDocs?.agreement) ||
+      Boolean(tenantDocs?.nativeAgreement) ||
+      signingConnected,
+    nativeSigning: Boolean(tenantDocs?.nativeSigning),
     hasQuestionnaireTemplate: (questionnaireTemplates.records ?? []).some(
       (item) => text(item.status) === "active",
     ),

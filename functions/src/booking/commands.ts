@@ -35,8 +35,59 @@ import {
   previewExistingBookingsInput,
 } from "../imports/commands.js";
 import { studioVouchedAuthorities } from "../imports/existing-booking.js";
+import {
+  agreementDraftFromImport,
+  agreementDraftFromImportInput,
+  prepareContract,
+  prepareContractInput,
+  saveAgreementTemplate,
+  saveAgreementTemplateInput,
+  sendContract,
+  sendContractInput,
+  setContractAutoSend,
+  setContractAutoSendInput,
+  voidContract,
+  voidContractInput,
+} from "../contracts/commands.js";
 
 const commandSchema = z.discriminatedUnion("type", [
+  // StudioCue's own contracts — see ../contracts/commands.ts.
+  z.object({
+    type: z.literal("agreementDraftFromImport"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: agreementDraftFromImportInput,
+  }),
+  z.object({
+    type: z.literal("saveAgreementTemplate"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: saveAgreementTemplateInput,
+  }),
+  z.object({
+    type: z.literal("prepareContract"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: prepareContractInput,
+  }),
+  z.object({
+    type: z.literal("sendContract"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: sendContractInput,
+  }),
+  z.object({
+    type: z.literal("setContractAutoSend"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: setContractAutoSendInput,
+  }),
+  z.object({
+    type: z.literal("voidContract"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: voidContractInput,
+  }),
   z.object({
     /**
      * Book without the retainer, on a named person's decision.
@@ -962,6 +1013,17 @@ export const bookingCommand = onRequest(
         if (!existingContracts.empty) {
           throw new Error("CONTRACT_ALREADY_COMPLETED");
         }
+        // A StudioCue contract still out for signature is overtaken by the
+        // signature the studio is recording: the couple signed another way.
+        // Left "sent", it would stay signable in their portal and keep
+        // collecting reminders for an agreement that is already done.
+        const outstandingNative = await firestore
+          .collection("contracts")
+          .where("tenantId", "==", command.tenantId)
+          .where("projectId", "==", command.input.projectId)
+          .where("provider", "==", "studiocue")
+          .limit(10)
+          .get();
 
         const contractId = stableId(
           "contract",
@@ -1034,6 +1096,16 @@ export const bookingCommand = onRequest(
             },
             { merge: false },
           );
+        }
+        for (const outstanding of outstandingNative.docs) {
+          if (!["sent", "viewed"].includes(String(outstanding.get("status")))) continue;
+          batch.update(outstanding.ref, {
+            status: "superseded",
+            supersededAt: timestamp,
+            supersededBy: contractId,
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
         }
         batch.create(firestore.doc(`contracts/${contractId}`), {
           id: contractId,
@@ -2205,6 +2277,39 @@ export const bookingCommand = onRequest(
         });
         await exceptionBatch.commit();
         result = { exceptionId, status: "approved" };
+      } else if (
+        command.type === "agreementDraftFromImport" ||
+        command.type === "saveAgreementTemplate" ||
+        command.type === "prepareContract" ||
+        command.type === "sendContract" ||
+        command.type === "setContractAutoSend" ||
+        command.type === "voidContract"
+      ) {
+        const contractContext = {
+          tenantId: command.tenantId,
+          membership,
+          actorId: identity.uid,
+          actorEmail: typeof identity.email === "string" ? identity.email : null,
+          authMethod: identity.firebase?.sign_in_provider ?? null,
+          emailVerified:
+            typeof identity.email_verified === "boolean" ? identity.email_verified : null,
+          timestamp,
+          idempotencyKey: command.idempotencyKey,
+          ipAddress:
+            request.header("x-forwarded-for")?.split(",")[0]?.trim() || request.ip || null,
+          userAgent: request.header("user-agent") ?? null,
+        };
+        if (command.type === "agreementDraftFromImport")
+          result = await agreementDraftFromImport(contractContext, command.input);
+        else if (command.type === "saveAgreementTemplate")
+          result = await saveAgreementTemplate(contractContext, command.input);
+        else if (command.type === "prepareContract")
+          result = await prepareContract(contractContext, command.input);
+        else if (command.type === "sendContract")
+          result = await sendContract(contractContext, command.input);
+        else if (command.type === "setContractAutoSend")
+          result = await setContractAutoSend(contractContext, command.input);
+        else result = await voidContract(contractContext, command.input);
       } else if (command.type === "previewExistingBookings") {
         result = await previewExistingBookings({
           tenantId: command.tenantId,

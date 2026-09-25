@@ -150,6 +150,8 @@ scheduler_services=(
   autopayscheduler
   automationretryscheduler
   coichasescheduler
+  # Reminds a couple who has not signed a StudioCue contract, at 3 and 7 days.
+  contractreminderscheduler
   crewcascadeexpiryscheduler
   domaineventoutboxscheduler
   # Asks SendGrid what became of the mail we sent, because StudioCue has no

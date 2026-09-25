@@ -127,6 +127,16 @@ package, pricing, payment, and terms snapshots. `contracts` and
 `invoiceReferences` store normalized Docusign and QuickBooks evidence without
 containing signature secrets or payment credentials.
 
+Contracts StudioCue writes itself (`provider: "studiocue"`, see
+`docs/contracts.md`) also hold the resolved `document`, its `documentHash`, the
+`templateVersionId` it was written from and any `mergeOverrides` the studio
+typed. `contractSignatures` are append-only signature records (one per signer)
+bound to that hash. `contractDrafts/{projectId}` holds the one draft a job may
+have, before send. `agreementTemplates` are the mutable heads of a studio's
+agreements; `agreementTemplateVersions` are immutable versions, and a contract
+names the version it was written from. `tenantFeatures/{tenantId}` holds
+per-studio switches only the platform writes.
+
 Proposal decision metadata (`status`, viewed/accepted/declined timestamps,
 decision actor, and client change request) may advance, but the proposal’s
 package, pricing, payment, event, and terms snapshots never change. Client

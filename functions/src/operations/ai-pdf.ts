@@ -1,3 +1,4 @@
+import { contractPdfInput, storeSealedContract } from "../contracts/seal.js";
 import { createHash } from "node:crypto";
 import { consumeAiQuota } from "../saas/usage.js";
 import { gatherAnswerFacts } from "../communications/answer-facts.js";
@@ -667,7 +668,10 @@ export async function runAiJob(job:DocumentSnapshot){if(String(job.get("type"))=
   if(requirement.get("primaryNoncontributory")===true&&!normalize(extraction.primaryNoncontributory).includes("yes")&&!normalize(extraction.primaryNoncontributory).includes("true"))discrepancies.push({field:"primaryNoncontributory",expected:"Required",extracted:String(extraction.primaryNoncontributory??""),severity:"warning"});
   const now=new Date().toISOString();await insurance.ref.update({status:"under_review",extractedData:extraction,aiExtraction:extraction,discrepancies,aiExtractedAt:now,humanDecision:"pending",updatedAt:now,updatedBy:"vertex-ai-worker"});return{requestId,status:"under_review",discrepancyCount:discrepancies.length,humanApprovalRequired:true}}
 
-async function pdfInput(job:DocumentSnapshot){const db=getFirestore();const tenant=await db.doc(`tenants/${String(job.get("tenantId"))}`).get();const tenantName=String(tenant.get("brandName")??tenant.get("businessName")??"Studio");const generatedAt=new Date().toISOString();const type=String(job.get("type"));if(type==="proposal_pdf"){
+async function pdfInput(job:DocumentSnapshot){const db=getFirestore();const tenant=await db.doc(`tenants/${String(job.get("tenantId"))}`).get();const tenantName=String(tenant.get("brandName")??tenant.get("businessName")??"Studio");const generatedAt=new Date().toISOString();const type=String(job.get("type"));
+  // A signed StudioCue contract and its certificate. See ../contracts/seal.ts.
+  if(type==="contract_pdf")return contractPdfInput(db,job,tenantName);
+  if(type==="proposal_pdf"){
     const proposal=await db.doc(`proposals/${String(job.get("proposalId"))}`).get();
     if(!proposal.exists)throw new Error("PROPOSAL_NOT_FOUND");
     const pricing=record(proposal.get("pricingSnapshot"));
@@ -748,6 +752,9 @@ export async function runPdfJob(job:DocumentSnapshot){
   if(!response.ok)throw new Error(`PDF_GENERATION_FAILED:${response.status}`);
   const bytes=Buffer.from(await response.arrayBuffer());
   if(bytes.length<100||bytes.subarray(0,4).toString()!=="%PDF")throw new Error("INVALID_GENERATED_PDF");
+  // The signed copy has its own home, record and email; it is never a
+  // generic "generated" document.
+  if(String(job.get("type"))==="contract_pdf")return storeSealedContract(getFirestore(),job,input.entity,bytes);
   const tenantId=String(job.get("tenantId"));
   const projectId=String(job.get("projectId"));
   const isProposal=String(job.get("type"))==="proposal_pdf";

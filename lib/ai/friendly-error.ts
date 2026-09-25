@@ -271,6 +271,56 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   ACCEPTED_PROPOSAL_REQUIRED:
     "The client needs to accept the proposal before the agreement can go out.",
 
+  /** StudioCue's own contracts — functions/src/contracts and the portal's signing route. */
+  NATIVE_SIGNING_NOT_ENABLED:
+    "Writing and signing contracts in StudioCue isn't switched on for your studio yet. Send your agreement the way you do today and record the signature.",
+  AGREEMENT_TEMPLATE_REQUIRED:
+    "Set up your agreement first — StudioCue writes each contract from it. Open Contracts → Your agreement.",
+  AGREEMENT_HAS_PLACEHOLDER_TEXT:
+    "Some sections still say \"[Replace with …]\". Put your own terms there before saving — that text would go to your clients.",
+  AGREEMENT_TEMPLATE_NOT_FOUND:
+    "That agreement could not be found. Refresh the page and open it again.",
+  AGREEMENT_PERMISSION_REQUIRED:
+    "Only the studio owner or an admin can change the studio's agreement.",
+  IMPORTED_AGREEMENT_EMPTY:
+    "The imported agreement has no text StudioCue could read. Paste your agreement into the editor instead.",
+  CONTRACT_SIGNING_PERMISSION_REQUIRED:
+    "Only the studio owner or an admin can sign contracts for the studio.",
+  CONTRACT_DRAFT_NOT_FOUND:
+    "There's no prepared contract to send. Prepare it again from the job.",
+  CONTRACT_CHANGED:
+    "The job's details changed since this contract was prepared. Prepare it again, read it once more, then send.",
+  CONTRACT_FIELDS_MISSING:
+    "Some details in the contract are still blank. Fill them in, then send.",
+  CLIENT_EMAIL_REQUIRED:
+    "The client has no email address on the accepted proposal, so the contract has nowhere to go. Add one to the client and reissue the proposal.",
+  CONTRACT_ALREADY_COMPLETED:
+    "This job's agreement is already signed.",
+  CONTRACT_ALREADY_EXISTS:
+    "An agreement is already out for this job. Withdraw it first if it needs to change.",
+  CONTRACT_NOT_FOUND:
+    "That agreement could not be found. Refresh the booking page.",
+  NOT_A_STUDIOCUE_CONTRACT:
+    "That agreement went out through a signing app, so it is managed there.",
+  SIGNED_CONTRACT_CANNOT_BE_VOIDED:
+    "A signed agreement can't be withdrawn — it's the record of what you both agreed. A change needs a new agreement.",
+  CONTRACT_NOT_VOIDABLE:
+    "Only an agreement that is out for signature can be withdrawn.",
+  AUTO_SEND_CONSENT_REQUIRED:
+    "Type your name and tick the box to let StudioCue sign and send for you.",
+  CONTRACT_NOT_SENT: "Your studio hasn't sent this agreement yet.",
+  CONTRACT_ALREADY_SIGNED: "This agreement is already signed.",
+  CONTRACT_VOIDED: "Your studio withdrew this agreement. They'll send a new one.",
+  PROJECT_NOT_AWAITING_SIGNATURE:
+    "This agreement isn't waiting for a signature right now. Message your studio if that seems wrong.",
+  SIGNER_NOT_A_CLIENT: "Only the client named on this agreement can sign it.",
+  WRONG_SIGNER:
+    "This agreement is addressed to a different email address. Sign in with the email your studio sent it to.",
+  DOCUMENT_CHANGED:
+    "The agreement was updated while you were reading it. Read the latest version before signing.",
+  CONSENT_REQUIRED: "Tick the box to agree to sign electronically.",
+  NAME_REQUIRED: "Type your full name as your signature.",
+
   /**
    * Capability resolution refusing to guess.
    *

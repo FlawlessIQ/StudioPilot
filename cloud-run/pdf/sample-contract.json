@@ -1,0 +1,30 @@
+{
+  "tenant_name": "Hart Light Photography",
+  "project_id": "project_fixture",
+  "contract_id": "contract_sc_fixture",
+  "title": "Wedding Photography & Videography Agreement",
+  "blocks": [
+    {"type": "paragraph", "content": [{"text": "This agreement is between "}, {"text": "Hart Light Photography LLC", "field": "studio.legal_name"}, {"text": " (\"the Studio\") and "}, {"text": "Emma Hart & James Cole", "field": "client.names", "bold": true}, {"text": " (\"the Client\"), for coverage of their wedding on "}, {"text": "Saturday, June 12, 2027", "field": "event.date"}, {"text": " at "}, {"text": "Wildflower Barn", "field": "event.venue"}, {"text": "."}]},
+    {"type": "heading", "level": 2, "content": [{"text": "1. SERVICES"}]},
+    {"type": "paragraph", "content": [{"text": "The Studio will provide the "}, {"text": "Gold Cinematic Package", "field": "package.name"}, {"text": ": "}, {"text": "2 photographers and 1 videographer, 10 hours", "field": "package.coverage"}, {"text": ", including:"}]},
+    {"type": "list", "items": [[{"text": "Online gallery of edited images", "field": "package.deliverables"}], [{"text": "Highlight film (5–7 minutes)", "field": "package.deliverables"}], [{"text": "10x10 heirloom album", "field": "package.deliverables"}]]},
+    {"type": "heading", "level": 2, "content": [{"text": "2. FEES AND PAYMENT"}]},
+    {"type": "paragraph", "content": [{"text": "The total fee is "}, {"text": "$6,400.00", "field": "price.total", "bold": true}, {"text": ". A non-refundable retainer of "}, {"text": "$1,600.00", "field": "price.retainer"}, {"text": " reserves the date. Payments are due as follows:"}]},
+    {"type": "payment_schedule", "rows": [{"label": "Retainer", "amount": "$1,600.00", "due": "As agreed"}, {"label": "Final balance", "amount": "$4,800.00", "due": "May 15, 2027"}]},
+    {"type": "heading", "level": 2, "content": [{"text": "3. CANCELLATION"}]},
+    {"type": "paragraph", "content": [{"text": "If the Client cancels more than 180 days before the event, the retainer is retained and no further payment is due. Within 180 days, 50% of the remaining balance is due.\nThis clause survives any rescheduling."}]}
+  ],
+  "document_hash": "3f1d6a2b9c8e7d6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f",
+  "template_version": "Wedding agreement · version 2",
+  "signatures": [
+    {"role": "studio", "typed_name": "Gabe Rivera", "email": "gabe@hartlight.example", "signed_at": "September 25, 2026 at 10:02 AM EDT", "ip_address": "203.0.113.4", "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari/605.1.15", "auth_method": "password", "consent_version": "studio-signing-v1"},
+    {"role": "client", "typed_name": "Emma Hart", "email": "emma@example.com", "signed_at": "September 26, 2026 at 8:41 PM EDT", "ip_address": "198.51.100.23", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) Mobile/15E148", "auth_method": "emailLink", "consent_version": "esign-consent-v1"}
+  ],
+  "events": [
+    {"at": "September 25, 2026 at 9:58 AM EDT", "description": "Prepared from Wedding agreement version 2 and the accepted proposal"},
+    {"at": "September 25, 2026 at 10:02 AM EDT", "description": "Signed by Gabe Rivera for Hart Light Photography and sent to emma@example.com"},
+    {"at": "September 26, 2026 at 8:37 PM EDT", "description": "Opened by the client"},
+    {"at": "September 26, 2026 at 8:41 PM EDT", "description": "Signed by Emma Hart — agreement complete"}
+  ],
+  "generated_at": "September 26, 2026 at 8:41 PM EDT"
+}

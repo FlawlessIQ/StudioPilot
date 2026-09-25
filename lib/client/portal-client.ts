@@ -278,3 +278,39 @@ export async function tokenizeCardWithIntuit(
   if (!response.ok || !body.value) throw new Error("CARD_DETAILS_REJECTED");
   return body.value;
 }
+
+/** First open of a StudioCue contract by the person it is addressed to. */
+export function viewClientContract(tenantId: string, projectId: string, contractId: string) {
+  return portalRequest<{ viewed: boolean }>({
+    type: "view_contract",
+    tenantId,
+    projectId,
+    contractId,
+  });
+}
+
+/**
+ * Sign a StudioCue contract. The hash is of the text the page showed; the
+ * server refuses if it is no longer the stored one. A refusal arrives as an
+ * Error whose message is the refusal code (features/contracts/signing-policy).
+ */
+export function signClientContract(input: {
+  tenantId: string;
+  projectId: string;
+  contractId: string;
+  documentHash: string;
+  typedName: string;
+  consentVersion: string;
+  idempotencyKey: string;
+}) {
+  return portalRequest<{
+    contractId: string;
+    status: string;
+    projectState: string;
+    alreadySigned: boolean;
+  }>({
+    type: "sign_contract",
+    ...input,
+    consent: true,
+  });
+}

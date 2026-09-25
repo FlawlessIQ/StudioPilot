@@ -1,3 +1,4 @@
+import { prepareOnAcceptance } from "../contracts/commands.js";
 import { studioVouchedAuthorities } from "../imports/existing-booking.js";
 import { createHash } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
@@ -110,6 +111,35 @@ export const bookingProposalAccepted = onDocumentWritten(
     const tenantId = String(proposal.get("tenantId") ?? "");
     const projectId = String(proposal.get("projectId") ?? "");
     if (!tenantId || !projectId) return;
+
+    // StudioCue's own contracts come first: when the studio has saved an
+    // agreement, the contract is written from it and waits as a draft (or is
+    // signed and sent, if the studio turned that on). A signing app's
+    // template is only consulted when there is no StudioCue agreement.
+    try {
+      const native = await prepareOnAcceptance(db, {
+        tenantId,
+        projectId,
+        proposalId: proposal.id,
+      });
+      if (native.outcome !== "not_enabled" && native.outcome !== "no_agreement_template") {
+        logger.info("bookingProposalAcceptedNativeContract", {
+          tenantId,
+          projectId,
+          outcome: native.outcome,
+        });
+        return;
+      }
+    } catch (caught: unknown) {
+      // Never let a contract draft failure block the rest of acceptance; the
+      // studio can still prepare it from the job.
+      logger.error("bookingProposalAcceptedNativeContractFailed", {
+        tenantId,
+        projectId,
+        error: caught instanceof Error ? caught.message : String(caught),
+      });
+      return;
+    }
 
     const tenant = await db.doc(`tenants/${tenantId}`).get();
     const settings = (tenant.get("defaultContractSettings") ?? {}) as {

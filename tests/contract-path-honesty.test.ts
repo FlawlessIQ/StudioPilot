@@ -67,10 +67,11 @@ const workspace = readFileSync(
  * that cannot end. He sat on exactly this screen.
  */
 test("the failed-send screen offers recording, not an impossible retry", () => {
-  const failed = workspace.slice(
-    workspace.indexOf("{contractFailed ? ("),
-    workspace.indexOf("{contractFailed ? (") + 3000,
-  );
+  // StudioCue's own contract step now comes first in the chain, so the
+  // failed-send branch opens with ": contractFailed ? (".
+  const start = workspace.indexOf("contractFailed ? (\n");
+  assert.ok(start > 0, "the failed-send branch is still there");
+  const failed = workspace.slice(start, start + 3000);
   assert.match(failed, /\{signingOffered \? \(\s*\n?\s*<button/);
   assert.match(failed, /No signing app is connected/);
   assert.match(failed, /primary=\{!signingOffered\}/);
@@ -113,4 +114,41 @@ test("nothing claims StudioCue reuses an imported agreement by itself", () => {
       `${path} still implies StudioCue sends the agreement`,
     );
   }
+});
+
+
+/**
+ * Where StudioCue does write contracts, the card may finally say so — and
+ * only there. The promise withdrawn above is true for a studio with native
+ * signing switched on, and false for everyone else.
+ */
+test("with StudioCue signing on, the card asks for the agreement and says what happens", () => {
+  const native = setupGaps(
+    { ...base, nativeSigning: true },
+    { ...noSignals, projectsNeedingAgreement: ["Erin and Joe"] },
+  ).find((gap) => gap.key === "agreement");
+  assert.ok(native);
+  assert.equal(native.href, "/studio/contracts/agreement");
+  assert.match(native.detail, /writes their contract/);
+  assert.match(native.detail, /sign in their portal/);
+  assert.ok(native.blocking);
+});
+
+test("without it, nothing claims StudioCue writes the contract", () => {
+  const idle = setupGaps({ ...base, nativeSigning: false }, noSignals).find(
+    (gap) => gap.key === "agreement",
+  );
+  assert.ok(idle);
+  assert.doesNotMatch(idle.detail, /writes (their|each|your)/i);
+  assert.match(idle.detail, /doesn't write your contract/i);
+});
+
+test("the setup conversation's native promise is gated on the native link", () => {
+  const conversation = readFileSync(
+    `${process.cwd()}/components/setup/setup-conversation.tsx`,
+    "utf8",
+  );
+  assert.match(conversation, /gap\?\.href === NATIVE_AGREEMENT_HREF/);
+  // The default question copy still says the honest thing.
+  assert.match(conversation, /StudioCue doesn't write your contract\./);
 });

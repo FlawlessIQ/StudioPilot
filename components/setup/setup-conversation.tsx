@@ -72,6 +72,16 @@ const QUESTIONS: Question[] = [
   },
 ];
 
+/**
+ * Where StudioCue does write contracts (features/contracts/rollout.ts), the
+ * promise the paragraph above had to withdraw is true, and the card says so.
+ * The gap's link is what tells the two apart — setup-gaps.ts sends a studio
+ * with StudioCue signing to its agreement, and every other studio elsewhere.
+ */
+const NATIVE_AGREEMENT_HREF = "/studio/contracts/agreement";
+const NATIVE_AGREEMENT_WHY =
+  "Bring in the agreement you already use. StudioCue writes each client's contract from it, with their details and the price they accepted, and they sign in their portal.";
+
 export function SetupConversation() {
   const workspace = useWorkspace();
   const { gaps, complete, loading } = useSetupState();
@@ -120,7 +130,14 @@ export function SetupConversation() {
                 </span>
                 <div className="setup-question-body">
                   <strong>{question.ask}</strong>
-                  <p>{done ? question.doneLabel : question.why}</p>
+                  <p>
+                    {done
+                      ? question.doneLabel
+                      : question.key === "agreement" &&
+                          gap?.href === NATIVE_AGREEMENT_HREF
+                        ? NATIVE_AGREEMENT_WHY
+                        : question.why}
+                  </p>
                   {gap?.blocking ? (
                     <span className="setup-blocking">
                       <CircleAlert size={12} /> {gap.detail}

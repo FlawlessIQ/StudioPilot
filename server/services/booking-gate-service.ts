@@ -2,12 +2,21 @@ import { bookingGateResultSchema, type BookingGateEvidence, type BookingGateResu
 import { offeredSigningProvider } from "@/features/integrations/schema";
 import { bookingGateRequirements } from "@/features/booking/gate-requirements";
 
-type SigningProvider = "docusign" | "dropbox_sign";
+type SigningProvider = "docusign" | "dropbox_sign" | "studiocue";
 
 const signingLabels: Readonly<Record<SigningProvider, string>> = {
   docusign: "Docusign contract completed",
   dropbox_sign: "Dropbox Sign contract completed",
+  // The couple's own signature, captured by StudioCue (ADR 0006). Signer
+  // evidence, so it is labelled as the client's act — never as a vendor's,
+  // and never as the studio's word.
+  studiocue: "Signed by the client in StudioCue",
 };
+
+/** The audit source for a signature: a vendor's name, or StudioCue's own signing. */
+function signingSource(provider: SigningProvider) {
+  return provider === "studiocue" ? ("studiocue_signature" as const) : provider;
+}
 
 // The attestation flags are excluded alongside the requirements they
 // satisfy: each feeds one requirement, which is labelled by whichever
@@ -49,7 +58,7 @@ export function evaluateBookingGate(input: {
   const contractCompletedMeta =
     input.evidence.contractAttestedManually && !input.evidence.contractCompleted
       ? { label: "Signed agreement recorded by the studio", source: "manual_attestation" as const }
-      : { label: signingLabels[signingProvider], source: signingProvider };
+      : { label: signingLabels[signingProvider], source: signingSource(signingProvider) };
   // Same for the money. With no invoicing provider connected StudioCue
   // cannot raise a retainer and so can never watch one clear; the studio
   // takes the transfer and says so. Naming QuickBooks on a payment

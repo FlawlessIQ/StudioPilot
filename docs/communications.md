@@ -53,6 +53,8 @@ The shared catalog covers:
 - consultation confirmation and reminder
 - package follow-up and proposal
 - contract and retainer/final invoice notices
+- StudioCue contracts: ready to sign, reminder (3 and 7 days), signed copy
+  (the sealed PDF attached), withdrawn, and the studio's "your client signed"
 - booking confirmation
 - questionnaire request and reminder
 - COI request, correction, and venue delivery
@@ -65,6 +67,12 @@ Proposal delivery is approval-gated. The email worker attaches the exact
 approved PDF, uses the secure client-portal action URL, and writes SendGrid
 message and delivery evidence back to the proposal. Resending creates a new
 idempotent email job without mutating the approved offer snapshot.
+
+StudioCue contract emails (`contract_ready`, `contract_reminder`) are read
+against the contract as they send: one for a contract already signed or
+withdrawn is held, not sent. `contract_reminder` is also on the held list for
+quiet imported bookings. `contract_signed` carries the signed copy as an
+attachment — ESIGN expects the signer to be given one.
 
 Unknown future job types receive the same safe branded fallback instead of an
 unstyled message.

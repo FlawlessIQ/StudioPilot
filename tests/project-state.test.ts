@@ -40,7 +40,7 @@ test("provider and evidence controlled transitions cannot be performed manually"
   );
   assert.throws(
     () => assertManualProjectTransition("CONTRACT_PENDING", "RETAINER_PENDING"),
-    /docusign evidence/i,
+    /contract evidence/i,
   );
   assert.throws(
     () => assertManualProjectTransition("PLANNING", "READY"),

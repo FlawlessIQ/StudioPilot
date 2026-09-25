@@ -380,6 +380,40 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // StudioCue's own contracts (functions/src/contracts). Every write is
+    // server-side; a signature is written once and never changed by anyone.
+    match /contractSignatures/{signatureId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
+      allow write: if false;
+    }
+
+    match /contractDrafts/{projectId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+        || (
+          isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+          && hasRole(resource.data.tenantId, ["studio_coordinator"])
+        );
+      allow write: if false;
+    }
+
+    match /agreementTemplates/{templateId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin", "studio_coordinator"]);
+      allow write: if false;
+    }
+
+    match /agreementTemplateVersions/{versionId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin", "studio_coordinator"]);
+      allow write: if false;
+    }
+
+    // Features a platform admin has switched on for one studio. Members can
+    // see what is on; nobody but the platform can change it.
+    match /tenantFeatures/{featureTenantId} {
+      allow read: if isPlatformAdmin()
+        || (resource.data.tenantId == featureTenantId && isActiveMember(featureTenantId));
+      allow write: if false;
+    }
+
     match /invoiceReferences/{invoiceId} {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
         || (
