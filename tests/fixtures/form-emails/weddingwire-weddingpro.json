@@ -1,0 +1,18 @@
+{
+  "note": "A WeddingWire lead from the same WeddingPro sender as The Knot's (pros@weddingpro.com); the body names WeddingWire. Documented sender, not captured mail.",
+  "from": "pros@weddingpro.com",
+  "fromName": "WeddingWire Pro",
+  "replyTo": null,
+  "subject": "New message from a couple on WeddingWire",
+  "text": "A couple contacted you on WeddingWire.\n\nName: Jordan Lee\nEmail: jordan.lee@example.com\nWedding Date: 10/07/2028\nGuest Count: 110\nMessage: Is our date still open? We'd love to see your packages.",
+  "html": null,
+  "expect": {
+    "builder": "weddingwire",
+    "email": "jordan.lee@example.com",
+    "firstName": "Jordan",
+    "eventDate": "2028-10-07",
+    "guestCount": 110,
+    "verdict": "inquiry",
+    "forwarded": false
+  }
+}

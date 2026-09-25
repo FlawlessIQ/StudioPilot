@@ -1,0 +1,18 @@
+{
+  "note": "A The Knot lead sent straight from WeddingPro's sender (pros@weddingpro.com, per The Knot Pro help centre), not captured mail. The sender is shared with WeddingWire, so the body decides which marketplace it is.",
+  "from": "pros@weddingpro.com",
+  "fromName": "The Knot Pro",
+  "replyTo": null,
+  "subject": "You have a new lead on The Knot",
+  "text": "You have a new message from a couple on The Knot.\n\nName: Priya Shah\nEmail: priya.shah@example.com\nWedding Date: 05/13/2028\nGuest Count: 150\nMessage: We love your documentary style and would like to check your availability.",
+  "html": null,
+  "expect": {
+    "builder": "the_knot",
+    "email": "priya.shah@example.com",
+    "firstName": "Priya",
+    "eventDate": "2028-05-13",
+    "guestCount": 150,
+    "verdict": "inquiry",
+    "forwarded": false
+  }
+}

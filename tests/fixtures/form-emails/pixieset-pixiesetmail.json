@@ -1,0 +1,17 @@
+{
+  "note": "A Pixieset contact-form notification from notifications@pixiesetmail.com (the sender Pixieset's help centre shows), not captured mail.",
+  "from": "notifications@pixiesetmail.com",
+  "fromName": "Pixieset",
+  "replyTo": null,
+  "subject": "New contact form submission",
+  "text": "You have received a new contact form submission.\n\nName: Sam Ortiz\nEmail: sam.ortiz@example.com\nEvent Date: 09/16/2028\nMessage: Hi! We're getting married in the fall and would love to chat about photography.",
+  "html": null,
+  "expect": {
+    "builder": "pixieset",
+    "email": "sam.ortiz@example.com",
+    "firstName": "Sam",
+    "eventDate": "2028-09-16",
+    "verdict": "inquiry",
+    "forwarded": false
+  }
+}

@@ -62,7 +62,8 @@ const BUILDER_SENDERS: Array<[RegExp, FormBuilder]> = [
   [/@squarespace\.(info|com)$/i, "squarespace"],
   [/@(wix-forms\.com|crm\.wix\.com|wixsiteautomations\.com|wix\.com|wixforms\.com)$/i, "wix"],
   [/@showit\.(co|com)$/i, "showit"],
-  [/@(pixieset\.com|mail\.pixieset\.com)$/i, "pixieset"],
+  // Pixieset's notifications come from pixiesetmail.com, not pixieset.com.
+  [/@(.*\.)?(pixieset|pixiesetmail)\.com$/i, "pixieset"],
   [/@jotform\.com$/i, "jotform"],
   [/^forms-receipts-noreply@google\.com$/i, "google_forms"],
   [/@(123formbuilder\.com|123contactform\.com)$/i, "123formbuilder"],
@@ -397,7 +398,7 @@ export type CapturedValue = {
 export type CapturedValues = Partial<Record<Exclude<LeadFieldKey, "fullName">, CapturedValue>>;
 
 const PLATFORM_OR_NOREPLY =
-  /(^|[._+-])(no-?reply|donotreply|do-not-reply|notifications?|mailer-daemon|postmaster|form-submission|forms-receipts|wordpress|alerts?)@|@(.*\.)?(squarespace\.(info|com)|wix-forms\.com|crm\.wix\.com|wixsiteautomations\.com|wix\.com|showit\.(co|com)|pixieset\.com|jotform\.com|123formbuilder\.com|123contactform\.com|theknot\.com|weddingwire\.com|zola\.com|facebookmail\.com|instagram\.com)$/i;
+  /(^|[._+-])(no-?reply|donotreply|do-not-reply|notifications?|mailer-daemon|postmaster|form-submission|forms-receipts|wordpress|alerts?)@|@(.*\.)?(squarespace\.(info|com)|wix-forms\.com|crm\.wix\.com|wixsiteautomations\.com|wix\.com|showit\.(co|com)|pixieset\.com|jotform\.com|123formbuilder\.com|123contactform\.com|theknot\.com|weddingwire\.com|weddingpro\.com|pixiesetmail\.com|zola\.com|facebookmail\.com|instagram\.com)$/i;
 
 export function isPlatformAddress(email: string | null | undefined): boolean {
   return Boolean(email && PLATFORM_OR_NOREPLY.test(email));
@@ -523,6 +524,10 @@ export type InquiryRead = {
 
 export function builderFor(sender: string, subject: string, body: string): FormBuilder {
   for (const [pattern, builder] of BUILDER_SENDERS) if (pattern.test(sender)) return builder;
+  // The Knot and WeddingWire both belong to WeddingPro and send leads from
+  // pros@weddingpro.com, so the sender alone can't say which; the email does.
+  if (/@(.*\.)?weddingpro\.com$/i.test(sender))
+    return /weddingwire/i.test(`${subject}\n${body}`) ? "weddingwire" : "the_knot";
   if (/^wordpress@/i.test(sender) || /this e-?mail was sent from a contact form on/i.test(body)) return "wordpress";
   if (/^form submission\s*-/i.test(subject)) return "squarespace";
   return "unknown";

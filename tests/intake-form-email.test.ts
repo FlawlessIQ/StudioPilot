@@ -60,7 +60,7 @@ for (const [file, fixture] of fixtures) {
       assert.match(String(value("message") ?? read.message), new RegExp(String(expect.messageIncludes), "i"));
     // The couple is never the studio or a platform's no-reply address.
     const email = String(value("email") ?? "");
-    assert.doesNotMatch(email, /hartlight\.example|squarespace|wix|showit|theknot|no-?reply/i);
+    assert.doesNotMatch(email, /hartlight\.example|squarespace|wix|showit|theknot|weddingpro|pixieset|no-?reply/i);
   });
 }
 
