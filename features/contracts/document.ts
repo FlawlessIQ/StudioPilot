@@ -113,6 +113,16 @@ export const contractMergeFields = [
   { key: "price.total", label: "Total price", example: "$6,400.00" },
   { key: "price.retainer", label: "Retainer", example: "$1,600.00" },
   { key: "price.balance", label: "Balance after retainer", example: "$4,800.00" },
+  /**
+   * Each package priced on its own line.
+   *
+   * A studio selling photography and video sells two things, and its contract
+   * says so: "Still Package Totals: $4,999   Video Package Total: $2,999
+   * Retainer: $1,800". `price.total` is one number and cannot express that.
+   * Written as a block it lists each package; written mid-sentence it falls
+   * back to a single readable line, like every other block field here.
+   */
+  { key: "price.packages", label: "Price per package (list)", example: "Signature Collection: $4,999.00", block: true },
   { key: "payment.schedule", label: "Payment schedule (table)", example: "Retainer $1,600.00 …", block: true },
   /**
    * What the couple told the studio before the meeting, printed into the
@@ -166,6 +176,11 @@ export type ContractSources = {
     date: string;
     venue: string | null;
   };
+  /**
+   * Every package on the proposal with its own total, in the order sold.
+   * A single-package job has one entry; `package` above stays the primary.
+   */
+  packages: Array<{ name: string; totalCents: number }>;
   package: {
     name: string;
     coverage: string | null;
@@ -297,6 +312,20 @@ function recordValue(key: string, sources: ContractSources): string | null {
       const items = sources.package.deliverables.map((item) => item.trim()).filter(Boolean);
       return items.length ? items.join("; ") : null;
     }
+    case "price.packages": {
+      const rows = sources.packages
+        .map((entry) => entry.name.trim())
+        .filter(Boolean);
+      return rows.length
+        ? sources.packages
+            .filter((entry) => entry.name.trim())
+            .map(
+              (entry) =>
+                `${entry.name.trim()}: ${formatMoney(entry.totalCents, sources.pricing.currency)}`,
+            )
+            .join("; ")
+        : null;
+    }
     case "studio.address":
       return nonEmpty(sources.studio.address);
     case "studio.phone":
@@ -398,7 +427,8 @@ function parseRawBlocks(body: string): RawBlock[] {
       if (
         key === "payment.schedule" ||
         key === "package.deliverables" ||
-        key === "form.answers"
+        key === "form.answers" ||
+        key === "price.packages"
       ) {
         flush();
         blocks.push({ type: "field_block", key });
@@ -536,6 +566,25 @@ export function resolveContractDocument(input: {
               })),
             }
           : { type: "paragraph", content: [{ text: "[payment.schedule]", field: "payment.schedule" }] },
+      );
+    } else if (raw.key === "price.packages") {
+      const priced = valueFor("price.packages");
+      const rows = sources.packages.filter((entry) => entry.name.trim());
+      blocks.push(
+        priced && rows.length
+          ? {
+              type: "list",
+              items: rows.map((entry) => ({
+                content: [
+                  { text: `${entry.name.trim()}: `, bold: true, field: "price.packages" },
+                  {
+                    text: formatMoney(entry.totalCents, sources.pricing.currency),
+                    field: "price.packages",
+                  },
+                ],
+              })),
+            }
+          : { type: "paragraph", content: [{ text: "[price.packages]", field: "price.packages" }] },
       );
     } else if (raw.key === "form.answers") {
       // Rendered as a list rather than a new block type, so the document

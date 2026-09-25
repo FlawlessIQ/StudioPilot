@@ -39,11 +39,13 @@ const TERMS: Record<FormSource, string[]> = {
   wix: ["from:wix-forms.com", "from:crm.wix.com", "from:wixsiteautomations.com"],
   showit: ["from:showit.co", "from:showit.com"],
   wordpress: ['"sent from a contact form on"'],
-  pixieset: ["from:pixieset.com"],
+  // Pixieset's notifications come from pixiesetmail.com, which `from:pixieset.com` does not match.
+  pixieset: ["from:pixieset.com", "from:pixiesetmail.com"],
   jotform: ["from:jotform.com"],
   google_forms: ["from:forms-receipts-noreply@google.com"],
-  the_knot: ["from:theknot.com"],
-  weddingwire: ["from:weddingwire.com"],
+  // Both marketplaces belong to WeddingPro and send leads from pros@weddingpro.com.
+  the_knot: ["from:theknot.com", "from:weddingpro.com"],
+  weddingwire: ["from:weddingwire.com", "from:weddingpro.com"],
   zola: ["from:zola.com"],
 };
 
@@ -53,11 +55,26 @@ const TERMS: Record<FormSource, string[]> = {
  * submissions.
  */
 export function gmailFilterQuery(sources: readonly FormSource[]): string {
-  const parts = sources.flatMap((source) =>
-    source === "squarespace" ? ['(from:squarespace.info subject:"Form Submission")'] : TERMS[source],
-  );
+  // A Set: The Knot and WeddingWire share a sender, and it should appear once.
+  const parts = [
+    ...new Set(
+      sources.flatMap((source) =>
+        source === "squarespace" ? ['(from:squarespace.info subject:"Form Submission")'] : TERMS[source],
+      ),
+    ),
+  ];
   if (!parts.length) return "";
   return parts.length === 1 ? parts[0] : `{${parts.join(" ")}}`;
+}
+
+/**
+ * The same sources as an Outlook or other-provider rule reads them: sender
+ * domains, plus WordPress's phrase, which has no sender of its own.
+ */
+export function senderDomains(sources: readonly FormSource[]): string[] {
+  const terms = sources.flatMap((source) => TERMS[source]);
+  const readable = terms.map((term) => (term.startsWith("from:") ? term.slice(5) : term.startsWith("subject:") ? "" : term));
+  return [...new Set(readable.filter(Boolean))];
 }
 
 /** Opens Gmail on that search, where "Create filter" is one click away. */

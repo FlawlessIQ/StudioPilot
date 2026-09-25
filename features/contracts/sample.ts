@@ -13,6 +13,10 @@ export function sampleContractSources(studioName: string, today: string): Contra
       date: "2027-06-12",
       venue: "Wildflower Barn",
     },
+    packages: [
+      { name: "Signature Collection", totalCents: 499900 },
+      { name: "Gold Cinematic Package", totalCents: 299900 },
+    ],
     package: {
       name: "Full Day Collection",
       coverage: "2 photographers, 8 hours",

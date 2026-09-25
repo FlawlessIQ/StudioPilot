@@ -10,7 +10,8 @@ import { moveLeadThreadsToProject } from "../functions/src/intake/lead-thread";
 import { providerFromMx } from "../functions/src/intake/mailbox-provider";
 import { captureSilent, silenceThreshold } from "../functions/src/intake/health-scheduler";
 import { conversationIdFor } from "../functions/src/communications/conversation";
-import { gmailFilterQuery, gmailSearchLink } from "../features/intake/forwarding-filters";
+import { gmailFilterQuery, gmailSearchLink, senderDomains } from "../features/intake/forwarding-filters";
+import { NOTIFICATION_GUIDES } from "../features/intake/form-notification-guides";
 import { todayInbox } from "../features/today/inbox";
 
 /**
@@ -469,10 +470,42 @@ test("the mailbox provider is read from MX records", () => {
 
 test("the Gmail filter forwards only the builders the studio picked", () => {
   const query = gmailFilterQuery(["wix", "the_knot"]);
-  assert.equal(query, "{from:wix-forms.com from:crm.wix.com from:wixsiteautomations.com from:theknot.com}");
+  assert.equal(
+    query,
+    "{from:wix-forms.com from:crm.wix.com from:wixsiteautomations.com from:theknot.com from:weddingpro.com}",
+  );
+  // The Knot and WeddingWire both send leads from weddingpro.com: once, not twice.
+  assert.equal(gmailFilterQuery(["the_knot", "weddingwire"]).match(/weddingpro/g)?.length, 1);
   assert.match(gmailFilterQuery(["squarespace"]), /subject:"Form Submission"/);
   assert.equal(gmailFilterQuery([]), "");
   assert.match(gmailSearchLink(query), /^https:\/\/mail\.google\.com\/mail\/u\/0\/#search\//);
+});
+
+test("an Outlook rule gets the same sources as sender domains", () => {
+  assert.deepEqual(senderDomains(["pixieset", "the_knot", "weddingwire"]), [
+    "pixieset.com",
+    "pixiesetmail.com",
+    "theknot.com",
+    "weddingpro.com",
+    "weddingwire.com",
+  ]);
+  // Squarespace's subject narrowing has no place in a sender list.
+  assert.deepEqual(senderDomains(["squarespace"]), ["squarespace.info"]);
+});
+
+test("a form that can email only one address is never pointed at StudioCue", () => {
+  for (const guide of NOTIFICATION_GUIDES) {
+    if (guide.supported) {
+      assert.ok(guide.path.length >= 3, `${guide.label} needs its click path`);
+    } else {
+      // Pointing a one-recipient form at StudioCue would stop the studio
+      // getting its own inquiries; the setup must say why and offer the inbox.
+      assert.equal(guide.path.length, 0, `${guide.label} must not offer a path`);
+      assert.ok(guide.note, `${guide.label} must say why`);
+    }
+  }
+  const unsupported = NOTIFICATION_GUIDES.filter((guide) => !guide.supported).map((guide) => guide.key);
+  assert.deepEqual(unsupported.sort(), ["google_forms", "pixieset", "showit", "squarespace"]);
 });
 
 test("capture health speaks up once when inquiries stop", () => {

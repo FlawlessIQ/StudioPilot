@@ -73,6 +73,45 @@ export async function loadContractSources(
     snapshot?.exists && snapshot.get("tenantId") === input.tenantId
       ? (snapshot.data() ?? {})
       : {};
+  /**
+   * Every package on the proposal, each with its own total.
+   *
+   * A studio selling photography and video sells two things and its contract
+   * says so. The pricing snapshot holds one combined total, so the per-package
+   * figures come from the snapshots themselves — the primary first, in the
+   * order they were sold.
+   */
+  const additionalSnapshotIds = Array.isArray(
+    proposal.get("additionalPackageSnapshotIds"),
+  )
+    ? (proposal.get("additionalPackageSnapshotIds") as unknown[])
+        .map((value) => String(value))
+        .filter(Boolean)
+        .slice(0, 3)
+    : [];
+  const additionalSnapshots = additionalSnapshotIds.length
+    ? (
+        await Promise.all(
+          additionalSnapshotIds.map((id) =>
+            db.doc(`packageSnapshots/${id}`).get(),
+          ),
+        )
+      ).filter(
+        (document) =>
+          document.exists && document.get("tenantId") === input.tenantId,
+      )
+    : [];
+  const packages = [
+    ...(snapshot?.exists && snapshot.get("tenantId") === input.tenantId
+      ? [snapshot]
+      : []),
+    ...additionalSnapshots,
+  ]
+    .map((document) => ({
+      name: text(document.get("packageName")),
+      totalCents: Number(document.get("totalCents") ?? 0),
+    }))
+    .filter((entry) => entry.name);
   const clientContactIds = Array.isArray(project.get("clientContactIds"))
     ? (project.get("clientContactIds") as unknown[]).filter(
         (id): id is string => typeof id === "string" && id.length > 0,
@@ -153,6 +192,7 @@ export async function loadContractSources(
         totalCents: cents(pricing.totalCents),
         retainerCents: cents(pricing.retainerCents),
       },
+      packages,
       formAnswers,
       paymentSchedule: schedule.map((row) => ({
         label: text(row.label) || "Payment",

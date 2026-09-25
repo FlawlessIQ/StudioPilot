@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Copy, Forward } from "lucide-react";
+import Link from "next/link";
+import { Check, ChevronRight, Copy, Forward } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendCommunicationsCommand } from "@/lib/communications/command-client";
 import { LeadCaptureSetup } from "@/components/intake/lead-capture-setup";
@@ -94,48 +95,23 @@ export function InquiryForwardingAddress() {
         </small>
       </span>
       <CopyAddress address={address} />
-      {/* Setting it up to happen by itself, rather than one forward at a time. */}
-      <details className="inquiry-forwarding-setup">
-        <summary>Capture every website inquiry automatically</summary>
-        <LeadCaptureSetup />
-      </details>
+      {/* Setting it up to happen by itself lives in settings, where the three
+          routes each open their own step-by-step sheet. */}
+      <Link className="inquiry-forwarding-setup" href="/studio/settings?section=forwarding">
+        Capture every inquiry automatically <ChevronRight aria-hidden="true" size={14} />
+      </Link>
     </div>
   );
 }
 
 /**
- * Studio settings → Communications → Inquiry forwarding.
+ * Studio settings → Communications → Inquiry capture.
  *
  * A permanent, findable home: an account-level address is the kind of thing a
  * studio hunts for in settings, and it is the only surface here that survives
- * the studio having plenty of inquiries already.
+ * the studio having plenty of inquiries already. The address, and the three
+ * ways to get inquiries to it, are one panel: see LeadCaptureSetup.
  */
 export function InquiryForwardingSettings() {
-  const address = useInquiryForwardingAddress();
-  if (!address)
-    return (
-      <p className="form-notice">
-        Inquiry forwarding is not available on this workspace yet.
-      </p>
-    );
-  return (
-    <div className="settings-block">
-      <p>
-        Inquiries do not all arrive through your website form. Forward one from
-        your own inbox — or a notification from The Knot or WeddingWire — to
-        this address and it becomes an inquiry here, with the date checked
-        against your calendar and a reply drafted for your approval.
-      </p>
-      <p className="inquiry-forwarding-address">
-        <code>{address}</code>
-      </p>
-      <CopyAddress address={address} />
-      <small>
-        The address is unique to your studio and signed, so only mail you
-        forward reaches it. The couple is not emailed — you are already in that
-        conversation.
-      </small>
-      <LeadCaptureSetup />
-    </div>
-  );
+  return <LeadCaptureSetup />;
 }

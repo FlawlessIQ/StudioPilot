@@ -1,34 +1,52 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, Copy, ExternalLink, LoaderCircle, MailCheck, Send } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
+import {
+  Check,
+  ChevronRight,
+  Copy,
+  ExternalLink,
+  FlaskConical,
+  Forward,
+  Inbox,
+  Info,
+  LayoutTemplate,
+  LoaderCircle,
+  MailPlus,
+  Send,
+} from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendCommunicationsCommand } from "@/lib/communications/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { SheetDialog } from "@/components/ui/sheet-dialog";
 import {
   FORM_SOURCES,
   GMAIL_FORWARDING_SETTINGS,
   OUTLOOK_RULES,
   gmailFilterQuery,
   gmailSearchLink,
+  senderDomains,
   type FormSource,
 } from "@/features/intake/forwarding-filters";
+import { NOTIFICATION_GUIDES, type NotificationGuide } from "@/features/intake/form-notification-guides";
 
 /**
- * Capture inquiries from the studio's own inbox, with nothing changed on its
- * website.
+ * Studio settings → Inquiry capture.
  *
- * Three steps, each answered by the product rather than by the studio:
- *  1. Which mailbox — detected from the domain's MX records.
- *  2. The filter — the exact Gmail search for the builders they use, and the
- *     forwarding confirmation code shown here the moment Gmail sends it.
- *  3. A test — the next capture is shown field by field, and the studio's
- *     corrections become how that form is read from then on.
+ * Three ways an inquiry reaches StudioCue, offered side by side because
+ * studios differ in what they will touch:
+ *  - the website form emails StudioCue directly (one field in the builder);
+ *  - the studio's inbox forwards form emails on (a Gmail filter or Outlook rule);
+ *  - the studio forwards one by hand, whenever it likes.
+ *
+ * The panel itself is a status line, the address, and three rows. Every
+ * instruction lives in a sheet, one step per screen, so the settings page
+ * stays short and a step is read when it is being done — not before.
  */
 
 type TestField = { label: string; normalisedLabel: string; value: string; key: string | null };
 
-type Setup = {
+export type LeadCaptureSetupState = {
   address: string | null;
   mailbox: { email: string; domain: string; provider: string } | null;
   forwardingConfirmation: { code?: string; link?: string; forAddress?: string; receivedAt?: string } | null;
@@ -47,13 +65,14 @@ type Setup = {
   forms: Array<{ formKey: string; label: string | null; mappedFields: number }>;
 };
 
-const PROVIDER_LABEL: Record<string, string> = {
-  gmail: "Gmail",
-  google_workspace: "Google Workspace (Gmail)",
-  outlook_com: "Outlook.com",
-  microsoft_365: "Microsoft 365 (Outlook)",
-  other: "another provider",
+export type LeadCaptureActions = {
+  refresh: () => void;
+  checkMailbox: (email: string) => void;
+  startTest: (cancel?: boolean) => Promise<void>;
+  saveMapping: (mapping: Record<string, string>) => Promise<void>;
 };
+
+type SheetKey = "form" | "inbox" | "manual" | "test";
 
 const FIELD_CHOICES: Array<[string, string]> = [
   ["fullName", "Name"],
@@ -75,12 +94,331 @@ const FIELD_CHOICES: Array<[string, string]> = [
   ["ignore", "Ignore this field"],
 ];
 
-function isGoogle(provider: string | undefined) {
-  return provider === "gmail" || provider === "google_workspace";
+type MailFamily = "google" | "microsoft" | "other";
+
+function familyOf(provider: string | undefined): MailFamily | null {
+  if (provider === "gmail" || provider === "google_workspace") return "google";
+  if (provider === "microsoft_365" || provider === "outlook_com") return "microsoft";
+  return provider ? "other" : null;
 }
 
-function isMicrosoft(provider: string | undefined) {
-  return provider === "microsoft_365" || provider === "outlook_com";
+function ago(iso: string | null): string {
+  if (!iso) return "never";
+  const minutes = Math.round((Date.now() - Date.parse(iso)) / 60000);
+  if (minutes < 2) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours} h ago`;
+  return `${Math.round(hours / 24)} days ago`;
+}
+
+/** Whether an ISO time is still ahead. */
+function isAhead(iso: string | null | undefined): boolean {
+  return Boolean(iso && Date.parse(iso) > Date.now());
+}
+
+/** Whether an ISO time is within the last day. */
+function withinDay(iso: string | null | undefined): boolean {
+  return Boolean(iso && Date.now() - Date.parse(iso) < 24 * 60 * 60 * 1000);
+}
+
+/* ── Container: loads the setup and runs its commands ─────────────────── */
+
+export function LeadCaptureSetup() {
+  const workspace = useWorkspace();
+  const [setup, setSetup] = useState<LeadCaptureSetupState | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [unavailable, setUnavailable] = useState(false);
+  // Bumped to read again: after a change, a "check again", or on a timer.
+  const [reads, setReads] = useState(0);
+  const [mailboxQuery, setMailboxQuery] = useState<string | null>(null);
+  const refresh = useCallback(() => setReads((count) => count + 1), []);
+
+  useEffect(() => {
+    if (!workspace.tenantId) return;
+    let active = true;
+    sendCommunicationsCommand({
+      type: "getLeadCaptureSetup",
+      idempotencyKey: `lead_capture_setup_${reads}`,
+      input: { mailbox: mailboxQuery },
+    })
+      .then((result) => {
+        if (!active) return;
+        if (result.mode === "live") setSetup(result.payload as LeadCaptureSetupState);
+        else setUnavailable(true);
+      })
+      .catch((caught: unknown) => {
+        if (active) setError(friendlyError(caught, "Inquiry capture settings could not be loaded."));
+      });
+    return () => {
+      active = false;
+    };
+  }, [workspace.tenantId, reads, mailboxQuery]);
+
+  // While a test is running, look again every few seconds so it completes on
+  // screen without a refresh.
+  const waiting = isAhead(setup?.testWindowUntil);
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = window.setInterval(refresh, 5000);
+    return () => window.clearInterval(timer);
+  }, [waiting, refresh]);
+
+  const actions = useMemo<LeadCaptureActions>(
+    () => ({
+      refresh,
+      checkMailbox(email) {
+        setMailboxQuery(email.trim() || null);
+        refresh();
+      },
+      async startTest(cancel = false) {
+        await sendCommunicationsCommand({
+          type: "startCaptureTest",
+          idempotencyKey: `capture_test_${Date.now()}`,
+          input: { cancel },
+        });
+        refresh();
+      },
+      async saveMapping(mapping) {
+        const test = setup?.lastTest;
+        if (!test) return;
+        await sendCommunicationsCommand({
+          type: "saveFormMapping",
+          idempotencyKey: `form_mapping_${test.formKey}_${Date.now()}`,
+          input: {
+            formKey: test.formKey,
+            formLabel: test.formName ?? test.builderLabel,
+            mapping,
+          },
+        });
+        refresh();
+      },
+    }),
+    [refresh, setup?.lastTest],
+  );
+
+  if (unavailable)
+    return (
+      <p className="form-notice">Inquiry capture is not available on this workspace yet.</p>
+    );
+  return <LeadCaptureView actions={actions} error={error} setup={setup} />;
+}
+
+/* ── The panel ────────────────────────────────────────────────────────── */
+
+const ROUTES: Array<{
+  key: Exclude<SheetKey, "test">;
+  icon: ComponentType<{ size?: number }>;
+  title: string;
+  subtitle: string;
+  badge?: string;
+}> = [
+  {
+    key: "form",
+    icon: LayoutTemplate,
+    title: "From your website form",
+    subtitle: "Wix, WordPress or Jotform: one setting",
+    badge: "Easiest",
+  },
+  {
+    key: "inbox",
+    icon: MailPlus,
+    title: "From your inbox",
+    subtitle: "A Gmail filter or Outlook rule",
+  },
+  {
+    key: "manual",
+    icon: Forward,
+    title: "Forward by hand",
+    subtitle: "Any email, one at a time",
+  },
+];
+
+export function LeadCaptureView({
+  setup,
+  actions,
+  error = null,
+  initialSheet = null,
+}: {
+  setup: LeadCaptureSetupState | null;
+  actions: LeadCaptureActions;
+  error?: string | null;
+  initialSheet?: SheetKey | null;
+}) {
+  const [sheet, setSheet] = useState<SheetKey | null>(initialSheet);
+  const close = useCallback(() => setSheet(null), []);
+  const address = setup?.address ?? null;
+  const knownForms = (setup?.forms ?? []).map((form) => form.label ?? "Unnamed form");
+  const live = Boolean(setup?.lastCaptureAt);
+
+  return (
+    <section aria-labelledby="inquiry-capture-title" className="panel capture-panel" id="inquiry-capture">
+      <div className="email-branding-heading">
+        <span className="data-control-icon">
+          <Inbox aria-hidden="true" />
+        </span>
+        <div>
+          <p className="eyebrow">Inquiries</p>
+          <h2 id="inquiry-capture-title">Inquiry capture</h2>
+          <p>Inquiries land here filled in, with a reply drafted.</p>
+        </div>
+      </div>
+
+      {error ? <p className="form-notice">{error}</p> : null}
+
+      <div className="capture-status" aria-live="polite">
+        <span aria-hidden="true" className={live ? "capture-dot is-live" : "capture-dot"} />
+        <span className="capture-status-text">
+          <strong>{setup ? (live ? `Last inquiry ${ago(setup.lastCaptureAt)}` : "Nothing captured yet") : "Checking…"}</strong>
+          {knownForms.length ? <small>Reads {knownForms.join(", ")}</small> : null}
+        </span>
+        <button
+          className="button button-light button-sm"
+          disabled={!address}
+          onClick={() => setSheet("test")}
+          type="button"
+        >
+          <FlaskConical size={14} /> Test
+        </button>
+      </div>
+
+      <div className="capture-address">
+        <small>Your StudioCue address</small>
+        <code>{address ?? "…"}</code>
+        {address ? <Copyable label="Copy" value={address} /> : null}
+      </div>
+
+      <div className="capture-routes">
+        {ROUTES.map((route) => (
+          <button
+            className="settings-row capture-route"
+            disabled={!address}
+            key={route.key}
+            onClick={() => setSheet(route.key)}
+            type="button"
+          >
+            <span className="settings-row-icon">
+              <route.icon size={18} />
+            </span>
+            <span className="settings-row-text">
+              <strong>
+                {route.title}
+                {route.badge ? <em className="capture-badge">{route.badge}</em> : null}
+              </strong>
+              <small>{route.subtitle}</small>
+            </span>
+            <ChevronRight aria-hidden="true" className="settings-row-chev" size={18} />
+          </button>
+        ))}
+      </div>
+
+      {setup && address ? (
+        <>
+          <SheetDialog label="From your website form" onClose={close} open={sheet === "form"}>
+            <FormRoute
+              actions={actions}
+              address={address}
+              onDone={close}
+              onUseInbox={() => setSheet("inbox")}
+              setup={setup}
+            />
+          </SheetDialog>
+          <SheetDialog label="From your inbox" onClose={close} open={sheet === "inbox"}>
+            <InboxRoute actions={actions} address={address} onDone={close} setup={setup} />
+          </SheetDialog>
+          <SheetDialog label="Forward by hand" onClose={close} open={sheet === "manual"}>
+            <ManualRoute address={address} onDone={close} />
+          </SheetDialog>
+          <SheetDialog label="Send a test inquiry" onClose={close} open={sheet === "test"}>
+            <div className="capture-sheet">
+              <header>
+                <p className="eyebrow">Check it works</p>
+                <h3>Send a test inquiry</h3>
+              </header>
+              <TestStep actions={actions} setup={setup} />
+              <footer>
+                <span />
+                <button className="button button-dark" onClick={close} type="button">Done</button>
+              </footer>
+            </div>
+          </SheetDialog>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+/* ── Building blocks ──────────────────────────────────────────────────── */
+
+type Step = { title: string; body: ReactNode; ready?: boolean };
+
+/** One step per screen, with a progress bar and Back / Next. */
+function Steps({ eyebrow, steps, onDone }: { eyebrow: string; steps: Step[]; onDone: () => void }) {
+  const [index, setIndex] = useState(0);
+  const at = Math.min(index, steps.length - 1);
+  const step = steps[at];
+  const last = at === steps.length - 1;
+  return (
+    <div className="capture-sheet">
+      <header>
+        <p className="eyebrow">{eyebrow}</p>
+        <ol aria-label={`Step ${at + 1} of ${steps.length}`} className="capture-progress">
+          {steps.map((item, position) => (
+            <li className={position < at ? "is-done" : position === at ? "is-current" : undefined} key={item.title} />
+          ))}
+        </ol>
+        <h3>
+          <span className="capture-step-number">{at + 1}</span>
+          {step.title}
+        </h3>
+      </header>
+      <div className="capture-step">{step.body}</div>
+      <footer>
+        {at > 0 ? (
+          <button className="button button-light" onClick={() => setIndex(at - 1)} type="button">Back</button>
+        ) : (
+          <span />
+        )}
+        {last ? (
+          <button className="button button-dark" onClick={onDone} type="button">Done</button>
+        ) : (
+          <button className="button button-dark" disabled={step.ready === false} onClick={() => setIndex(at + 1)} type="button">
+            Next
+          </button>
+        )}
+      </footer>
+    </div>
+  );
+}
+
+/** A click path in someone else's app, as chips: Settings › Mail › Rules. */
+function Path({ steps }: { steps: string[] }) {
+  return (
+    <ol className="capture-path">
+      {steps.map((step) => (
+        <li key={step}>
+          <span>{step}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function Tip({ children }: { children: ReactNode }) {
+  return (
+    <p className="capture-tip">
+      <Info aria-hidden="true" size={14} />
+      <span>{children}</span>
+    </p>
+  );
+}
+
+function OpenLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a className="button button-light button-sm" href={href} rel="noreferrer" target="_blank">
+      {label} <ExternalLink size={12} />
+    </a>
+  );
 }
 
 function Copyable({ value, label }: { value: string; label: string }) {
@@ -102,343 +440,414 @@ function Copyable({ value, label }: { value: string; label: string }) {
   );
 }
 
-function ago(iso: string | null): string {
-  if (!iso) return "never";
-  const minutes = Math.round((Date.now() - Date.parse(iso)) / 60000);
-  if (minutes < 2) return "just now";
-  if (minutes < 60) return `${minutes} minutes ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 48) return `${hours} hours ago`;
-  return `${Math.round(hours / 24)} days ago`;
-}
-
-/** Whether an ISO time is still ahead. */
-function isAhead(iso: string | null | undefined): boolean {
-  return Boolean(iso && Date.parse(iso) > Date.now());
-}
-
-/** Whether an ISO time is within the last day. */
-function withinDay(iso: string | null | undefined): boolean {
-  return Boolean(iso && Date.now() - Date.parse(iso) < 24 * 60 * 60 * 1000);
-}
-
-export function LeadCaptureSetup() {
-  const workspace = useWorkspace();
-  const [setup, setSetup] = useState<Setup | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [sources, setSources] = useState<FormSource[]>([]);
-  const [mailbox, setMailbox] = useState("");
-  // Bumped to read again: after a change, a "check again", or on a timer.
-  const [reads, setReads] = useState(0);
-  const [mailboxQuery, setMailboxQuery] = useState<string | null>(null);
-  const load = useCallback((mailboxOverride?: string) => {
-    if (mailboxOverride !== undefined) setMailboxQuery(mailboxOverride || null);
-    setReads((count) => count + 1);
-  }, []);
-
-  useEffect(() => {
-    if (!workspace.tenantId) return;
-    let active = true;
-    sendCommunicationsCommand({
-      type: "getLeadCaptureSetup",
-      idempotencyKey: `lead_capture_setup_${reads}`,
-      input: { mailbox: mailboxQuery },
-    })
-      .then((result) => {
-        if (active && result.mode === "live") setSetup(result.payload as Setup);
-      })
-      .catch((caught: unknown) => {
-        if (active) setError(friendlyError(caught, "Inquiry capture settings could not be loaded."));
-      });
-    return () => {
-      active = false;
-    };
-  }, [workspace.tenantId, reads, mailboxQuery]);
-
-  // While a test is running, look again every few seconds so the step
-  // completes on screen without a refresh.
-  const waiting = isAhead(setup?.testWindowUntil);
-  useEffect(() => {
-    if (!waiting) return;
-    const timer = window.setInterval(() => load(), 5000);
-    return () => window.clearInterval(timer);
-  }, [waiting, load]);
-
-  const query = useMemo(() => gmailFilterQuery(sources), [sources]);
-
-  if (error) return <p className="form-notice">{error}</p>;
-  if (!setup?.address) return null;
-  const provider = setup.mailbox?.provider;
-
+/** The thing to paste, big enough to read and one tap to copy. */
+function Pasteable({ value, label }: { value: string; label: string }) {
   return (
-    <div className="lead-capture-setup">
-      <header>
-        <MailCheck aria-hidden="true" size={18} />
-        <div>
-          <h3>Capture inquiries from your inbox</h3>
-          <p>
-            Your website form already emails you. Forward those emails here and
-            each one becomes an inquiry, filled in, with the date checked and a
-            reply drafted. Nothing changes on your website.
-          </p>
-          <small>
-            Last inquiry captured: <strong>{ago(setup.lastCaptureAt)}</strong>
-          </small>
-        </div>
-      </header>
-
-      <section>
-        <h4>1. Your inbox</h4>
-        {setup.mailbox ? (
-          <p>
-            <strong>{setup.mailbox.email}</strong> uses {PROVIDER_LABEL[provider ?? "other"]}.
-          </p>
-        ) : null}
-        <form
-          className="lead-capture-inline"
-          onSubmit={(event) => {
-            event.preventDefault();
-            load(mailbox);
-          }}
-        >
-          <input
-            aria-label="The email address your website form sends to"
-            onChange={(event) => setMailbox(event.target.value)}
-            placeholder="Where does your form send? e.g. hello@yourstudio.com"
-            type="email"
-            value={mailbox}
-          />
-          <button className="button button-light button-sm" type="submit">Check</button>
-        </form>
-      </section>
-
-      <section>
-        <h4>2. Forward only your inquiries</h4>
-        <p>Which of these send you inquiries?</p>
-        <div className="lead-capture-sources">
-          {FORM_SOURCES.map((source) => (
-            <label key={source.key}>
-              <input
-                checked={sources.includes(source.key)}
-                onChange={(event) =>
-                  setSources(
-                    event.target.checked
-                      ? [...sources, source.key]
-                      : sources.filter((value) => value !== source.key),
-                  )
-                }
-                type="checkbox"
-              />
-              {source.label}
-            </label>
-          ))}
-        </div>
-        {isMicrosoft(provider) ? (
-          <ol>
-            <li>
-              In Outlook, open <a href={OUTLOOK_RULES} rel="noreferrer" target="_blank">Rules <ExternalLink size={12} /></a> and add a rule: when the sender&apos;s address includes your form&apos;s sender, <em>Forward to</em> <code>{setup.address}</code>.
-            </li>
-            {provider === "microsoft_365" ? (
-              <li>
-                Microsoft 365 blocks forwarding outside your organisation by
-                default. If the rule does nothing, ask whoever manages your
-                email to allow automatic forwarding for your mailbox.
-              </li>
-            ) : null}
-          </ol>
-        ) : (
-          <ol>
-            <li>
-              In Gmail, open <a href={GMAIL_FORWARDING_SETTINGS} rel="noreferrer" target="_blank">Forwarding settings <ExternalLink size={12} /></a> → <em>Add a forwarding address</em> → paste <code>{setup.address}</code> <Copyable label="Copy address" value={setup.address} />
-            </li>
-            <li>
-              Gmail sends a confirmation code to that address. It appears here:{" "}
-              {setup.forwardingConfirmation?.code ? (
-                <span className="lead-capture-code">
-                  <strong>{setup.forwardingConfirmation.code}</strong>{" "}
-                  <Copyable label="Copy code" value={setup.forwardingConfirmation.code} />
-                  {setup.forwardingConfirmation.link ? (
-                    <a className="button button-light button-sm" href={setup.forwardingConfirmation.link} rel="noreferrer" target="_blank">
-                      Or confirm in Gmail <ExternalLink size={12} />
-                    </a>
-                  ) : null}
-                </span>
-              ) : (
-                <span className="lead-capture-waiting">
-                  <LoaderCircle className="spin" size={14} /> waiting for Gmail…{" "}
-                  <button className="button button-light button-sm" onClick={() => load()} type="button">Check again</button>
-                </span>
-              )}
-            </li>
-            <li>
-              {query ? (
-                <>
-                  Make a filter from this search — open it, then the search
-                  options ▾ → <em>Create filter</em> → <em>Forward it to</em> your StudioCue address:
-                  <span className="lead-capture-query">
-                    <code>{query}</code>
-                    <Copyable label="Copy search" value={query} />
-                    <a className="button button-light button-sm" href={gmailSearchLink(query)} rel="noreferrer" target="_blank">
-                      Open in Gmail <ExternalLink size={12} />
-                    </a>
-                  </span>
-                </>
-              ) : (
-                "Pick where your inquiries come from above and we'll write the Gmail filter for you."
-              )}
-            </li>
-          </ol>
-        )}
-        {!isGoogle(provider) && !isMicrosoft(provider) && setup.mailbox ? (
-          <p className="form-notice">
-            Set up a rule in your email that forwards your form&apos;s
-            notifications to <code>{setup.address}</code>.
-          </p>
-        ) : null}
-      </section>
-
-      <TeachYourForm onChange={() => load()} setup={setup} waiting={waiting} />
+    <div className="capture-paste">
+      <code>{value}</code>
+      <Copyable label={label} value={value} />
     </div>
   );
 }
 
-/**
- * Step 3: submit your own form once. What StudioCue read is shown field by
- * field; the studio's corrections are saved as how that form is read.
- */
-function TeachYourForm({
-  setup,
-  waiting,
-  onChange,
+function Chips<T extends string>({
+  options,
+  selected,
+  onToggle,
+  label,
 }: {
-  setup: Setup;
-  waiting: boolean;
-  onChange: () => void;
+  options: ReadonlyArray<{ key: T; label: string }>;
+  selected: readonly T[];
+  onToggle: (key: T) => void;
+  label: string;
 }) {
+  return (
+    <div aria-label={label} className="capture-chips" role="group">
+      {options.map((option) => {
+        const on = selected.includes(option.key);
+        return (
+          <button
+            aria-pressed={on}
+            className={on ? "capture-chip is-on" : "capture-chip"}
+            key={option.key}
+            onClick={() => onToggle(option.key)}
+            type="button"
+          >
+            {on ? <Check aria-hidden="true" size={13} /> : null}
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Route 1: the website form emails StudioCue ───────────────────────── */
+
+function FormRoute({
+  setup,
+  address,
+  actions,
+  onDone,
+  onUseInbox,
+}: {
+  setup: LeadCaptureSetupState;
+  address: string;
+  actions: LeadCaptureActions;
+  onDone: () => void;
+  onUseInbox: () => void;
+}) {
+  const [builder, setBuilder] = useState<NotificationGuide["key"] | null>(null);
+  const guide = NOTIFICATION_GUIDES.find((item) => item.key === builder) ?? null;
+
+  const pick: Step = {
+    title: "Which website builder?",
+    ready: Boolean(guide),
+    body: (
+      <Chips
+        label="Website builder"
+        onToggle={(key) => setBuilder(key)}
+        options={NOTIFICATION_GUIDES}
+        selected={builder ? [builder] : []}
+      />
+    ),
+  };
+
+  if (guide && !guide.supported) {
+    return (
+      <Steps
+        eyebrow="From your website form"
+        onDone={onDone}
+        steps={[
+          pick,
+          {
+            title: `${guide.label} can't do this`,
+            body: (
+              <>
+                <p className="capture-lead">{guide.note}</p>
+                <button className="button button-dark button-sm" onClick={onUseInbox} type="button">
+                  <MailPlus size={14} /> Use your inbox instead
+                </button>
+              </>
+            ),
+          },
+        ]}
+      />
+    );
+  }
+
+  return (
+    <Steps
+      eyebrow="From your website form"
+      onDone={onDone}
+      steps={[
+        pick,
+        {
+          title: "Add your StudioCue address",
+          body: guide ? (
+            <>
+              <Pasteable label="Copy" value={address} />
+              <Path steps={guide.path} />
+              {guide.link ? <OpenLink href={guide.link} label={`Open ${guide.label}`} /> : null}
+              {guide.note ? <Tip>{guide.note}</Tip> : null}
+            </>
+          ) : null,
+        },
+        { title: "Send a test", body: <TestStep actions={actions} setup={setup} /> },
+      ]}
+    />
+  );
+}
+
+/* ── Route 2: the inbox forwards form emails on ───────────────────────── */
+
+const FAMILY_OPTIONS: ReadonlyArray<{ key: MailFamily; label: string }> = [
+  { key: "google", label: "Gmail" },
+  { key: "microsoft", label: "Outlook" },
+  { key: "other", label: "Something else" },
+];
+
+function InboxRoute({
+  setup,
+  address,
+  actions,
+  onDone,
+}: {
+  setup: LeadCaptureSetupState;
+  address: string;
+  actions: LeadCaptureActions;
+  onDone: () => void;
+}) {
+  const [email, setEmail] = useState(setup.mailbox?.email ?? "");
+  const detected = familyOf(setup.mailbox?.provider);
+  const [chosen, setChosen] = useState<MailFamily | null>(null);
+  const family = chosen ?? detected ?? "google";
+  const [sources, setSources] = useState<FormSource[]>([]);
+  const query = gmailFilterQuery(sources);
+  const senders = senderDomains(sources);
+
+  const steps: Step[] = [
+    {
+      title: "Your inbox",
+      body: (
+        <>
+          <form
+            className="capture-inline"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setChosen(null);
+              actions.checkMailbox(email);
+            }}
+          >
+            <input
+              aria-label="The address your website form emails"
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="hello@yourstudio.com"
+              type="email"
+              value={email}
+            />
+            <button className="button button-light button-sm" type="submit">Check</button>
+          </form>
+          <Chips
+            label="Email provider"
+            onToggle={(key) => setChosen(key)}
+            options={FAMILY_OPTIONS}
+            selected={[family]}
+          />
+          {setup.mailbox?.provider === "microsoft_365" ? (
+            <Tip>Microsoft 365 often blocks forwarding. Your IT admin may need to allow it.</Tip>
+          ) : null}
+        </>
+      ),
+    },
+    {
+      title: "Where do inquiries come from?",
+      ready: sources.length > 0,
+      body: (
+        <Chips
+          label="Inquiry sources"
+          onToggle={(key) =>
+            setSources((current) => (current.includes(key) ? current.filter((value) => value !== key) : [...current, key]))
+          }
+          options={FORM_SOURCES}
+          selected={sources}
+        />
+      ),
+    },
+  ];
+
+  if (family === "google") {
+    const code = setup.forwardingConfirmation?.code;
+    steps.push(
+      {
+        title: "Add a forwarding address",
+        body: (
+          <>
+            <Pasteable label="Copy" value={address} />
+            <Path steps={["Settings", "Forwarding and POP/IMAP", "Add a forwarding address"]} />
+            <OpenLink href={GMAIL_FORWARDING_SETTINGS} label="Open Gmail settings" />
+          </>
+        ),
+      },
+      {
+        title: "Confirm it",
+        body: code ? (
+          <>
+            <Pasteable label="Copy code" value={code} />
+            <Path steps={["Paste the code in Gmail", "Verify"]} />
+            {setup.forwardingConfirmation?.link ? (
+              <OpenLink href={setup.forwardingConfirmation.link} label="Or confirm in Gmail" />
+            ) : null}
+          </>
+        ) : (
+          <WaitingForCode onPoll={actions.refresh} />
+        ),
+      },
+      {
+        title: "Create the filter",
+        body: (
+          <>
+            <Pasteable label="Copy search" value={query} />
+            <Path steps={["Search options ▾", "Create filter", "Forward it to", "your StudioCue address"]} />
+            <OpenLink href={gmailSearchLink(query)} label="Open in Gmail" />
+          </>
+        ),
+      },
+    );
+  } else {
+    steps.push({
+      title: family === "microsoft" ? "Add an Outlook rule" : "Add a forwarding rule",
+      body: (
+        <>
+          <p className="capture-lead">Forward mail from:</p>
+          <div className="capture-chips">
+            {senders.map((sender) => (
+              <span className="capture-chip is-static" key={sender}>{sender}</span>
+            ))}
+          </div>
+          <p className="capture-lead">To:</p>
+          <Pasteable label="Copy" value={address} />
+          {family === "microsoft" ? (
+            <>
+              <Path steps={["Settings", "Mail", "Rules", "Add new rule", "Forward to"]} />
+              <OpenLink href={OUTLOOK_RULES} label="Open Outlook rules" />
+            </>
+          ) : null}
+        </>
+      ),
+    });
+  }
+
+  steps.push({ title: "Send a test", body: <TestStep actions={actions} setup={setup} /> });
+  return <Steps eyebrow="From your inbox" onDone={onDone} steps={steps} />;
+}
+
+/** Gmail's code lands at StudioCue within seconds; look for it until it does. */
+function WaitingForCode({ onPoll }: { onPoll: () => void }) {
+  useEffect(() => {
+    const timer = window.setInterval(onPoll, 5000);
+    return () => window.clearInterval(timer);
+  }, [onPoll]);
+  return (
+    <p className="capture-waiting">
+      <LoaderCircle className="spin" size={16} /> Waiting for Gmail&apos;s code…
+    </p>
+  );
+}
+
+/* ── Route 3: forward by hand ─────────────────────────────────────────── */
+
+function ManualRoute({ address, onDone }: { address: string; onDone: () => void }) {
+  return (
+    <div className="capture-sheet">
+      <header>
+        <p className="eyebrow">Forward by hand</p>
+        <h3>Forward any inquiry here</h3>
+      </header>
+      <div className="capture-step">
+        <Pasteable label="Copy" value={address} />
+        <ul className="capture-facts">
+          <li><Forward aria-hidden="true" size={16} /> Emails, The Knot, WeddingWire, Zola</li>
+          <li><Check aria-hidden="true" size={16} /> Becomes an inquiry, date checked</li>
+          <li><Send aria-hidden="true" size={16} /> Reply drafted for you to approve</li>
+        </ul>
+        <Tip>The couple isn&apos;t emailed.</Tip>
+      </div>
+      <footer>
+        <span />
+        <button className="button button-dark" onClick={onDone} type="button">Done</button>
+      </footer>
+    </div>
+  );
+}
+
+/* ── The test: submit your own form once ──────────────────────────────── */
+
+/**
+ * The next email to reach StudioCue is shown field by field instead of
+ * becoming an inquiry; the studio's corrections become how that form is read.
+ */
+function TestStep({ setup, actions }: { setup: LeadCaptureSetupState; actions: LeadCaptureActions }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>({});
-  const test = setup.lastTest;
-  const fresh = withinDay(test?.receivedAt);
+  const waiting = isAhead(setup.testWindowUntil);
+  const test = withinDay(setup.lastTest?.receivedAt) ? setup.lastTest : null;
 
-  async function start(cancel = false) {
+  async function run(work: () => Promise<void>, failure: string, success?: string) {
     setBusy(true);
     setNotice(null);
     try {
-      await sendCommunicationsCommand({
-        type: "startCaptureTest",
-        idempotencyKey: `capture_test_${Date.now()}`,
-        input: { cancel },
-      });
-      onChange();
+      await work();
+      if (success) setNotice(success);
     } catch (caught: unknown) {
-      setNotice(friendlyError(caught, "The test could not be started."));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function save() {
-    if (!test) return;
-    setBusy(true);
-    setNotice(null);
-    try {
-      const full = Object.fromEntries(
-        test.fields.map((field) => [
-          field.normalisedLabel,
-          mapping[field.normalisedLabel] ?? field.key ?? "ignore",
-        ]),
-      );
-      await sendCommunicationsCommand({
-        type: "saveFormMapping",
-        idempotencyKey: `form_mapping_${test.formKey}_${Date.now()}`,
-        input: {
-          formKey: test.formKey,
-          formLabel: test.formName ?? test.builderLabel,
-          mapping: full,
-        },
-      });
-      setNotice("Saved. Every inquiry from this form will be read this way.");
-      onChange();
-    } catch (caught: unknown) {
-      setNotice(friendlyError(caught, "The form's fields could not be saved."));
+      setNotice(friendlyError(caught, failure));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <section>
-      <h4>3. Send a test inquiry</h4>
+    <div className="capture-test">
       {waiting ? (
-        <p className="lead-capture-waiting">
-          <LoaderCircle className="spin" size={14} /> Now fill in your own website
-          form. The next email that reaches StudioCue will show up here, and
-          won&apos;t become an inquiry.{" "}
-          <button className="button button-light button-sm" disabled={busy} onClick={() => void start(true)} type="button">
+        <div className="capture-waiting">
+          <LoaderCircle className="spin" size={16} />
+          <span><strong>Fill in your website form now.</strong> It shows up here.</span>
+          <button
+            className="button button-light button-sm"
+            disabled={busy}
+            onClick={() => void run(() => actions.startTest(true), "The test could not be cancelled.")}
+            type="button"
+          >
             Cancel
           </button>
-        </p>
+        </div>
       ) : (
-        <p>
-          Fill in your own form once and check we read it right.{" "}
-          <button className="button button-dark button-sm" disabled={busy} onClick={() => void start()} type="button">
-            <Send size={14} /> Start the test
-          </button>
-        </p>
+        <button
+          className={test ? "button button-light button-sm" : "button button-dark"}
+          disabled={busy}
+          onClick={() => void run(() => actions.startTest(), "The test could not be started.")}
+          type="button"
+        >
+          <Send size={14} /> {test ? "Test again" : "Start the test"}
+        </button>
       )}
-      {fresh && test ? (
-        <div className="lead-capture-test">
-          <p>
-            <strong>Received {ago(test.receivedAt)}</strong> — {test.builderLabel}
-            {test.formName ? ` · ${test.formName}` : ""}. Here&apos;s what each field became:
+
+      {test ? (
+        <>
+          <p className="capture-received">
+            <Check aria-hidden="true" size={15} /> Received {ago(test.receivedAt)} · {test.formName ?? test.builderLabel}
           </p>
           {test.fields.length ? (
-            <table>
-              <thead>
-                <tr><th>Your form&apos;s field</th><th>What they wrote</th><th>Goes to</th></tr>
-              </thead>
-              <tbody>
+            <>
+              <ul className="capture-fields">
                 {test.fields.map((field) => (
-                  <tr key={field.normalisedLabel}>
-                    <td>{field.label}</td>
-                    <td>{field.value}</td>
-                    <td>
-                      <select
-                        aria-label={`Where "${field.label}" goes`}
-                        onChange={(event) =>
-                          setMapping({ ...mapping, [field.normalisedLabel]: event.target.value })
-                        }
-                        value={mapping[field.normalisedLabel] ?? field.key ?? "ignore"}
-                      >
-                        {FIELD_CHOICES.map(([value, label]) => (
-                          <option key={value} value={value}>{label}</option>
-                        ))}
-                      </select>
-                    </td>
-                  </tr>
+                  <li key={field.normalisedLabel}>
+                    <span>
+                      <small>{field.label}</small>
+                      <strong>{field.value || "—"}</strong>
+                    </span>
+                    <select
+                      aria-label={`Where "${field.label}" goes`}
+                      onChange={(event) => setMapping({ ...mapping, [field.normalisedLabel]: event.target.value })}
+                      value={mapping[field.normalisedLabel] ?? field.key ?? "ignore"}
+                    >
+                      {FIELD_CHOICES.map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                  </li>
                 ))}
-              </tbody>
-            </table>
+              </ul>
+              <button
+                className="button button-dark button-sm"
+                disabled={busy}
+                onClick={() =>
+                  void run(
+                    () =>
+                      actions.saveMapping(
+                        Object.fromEntries(
+                          test.fields.map((field) => [
+                            field.normalisedLabel,
+                            mapping[field.normalisedLabel] ?? field.key ?? "ignore",
+                          ]),
+                        ),
+                      ),
+                    "The form's fields could not be saved.",
+                    "Saved. This form is read this way from now on.",
+                  )
+                }
+                type="button"
+              >
+                <Check size={14} /> Looks right
+              </button>
+            </>
           ) : (
-            <p className="form-notice">
-              We couldn&apos;t find labelled fields in that email. It will still
-              become an inquiry, read from its text.
-            </p>
+            <Tip>No labelled fields found. It still becomes an inquiry, read from its text.</Tip>
           )}
-          {test.fields.length ? (
-            <button className="button button-dark button-sm" disabled={busy} onClick={() => void save()} type="button">
-              <Check size={14} /> Looks right — save
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-      {setup.forms.length ? (
-        <small>
-          Forms StudioCue knows: {setup.forms.map((form) => form.label ?? "Unnamed form").join(", ")}
-        </small>
+        </>
       ) : null}
       {notice ? <p className="form-notice" role="status">{notice}</p> : null}
-    </section>
+    </div>
   );
 }

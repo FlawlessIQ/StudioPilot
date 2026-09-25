@@ -141,8 +141,8 @@ const GROUPS: Array<{ label: string; items: HubItem[] }> = [
         kind: "section",
         key: "forwarding",
         icon: Forward,
-        title: "Inquiry forwarding",
-        subtitle: "Turn emailed inquiries into inquiries here",
+        title: "Inquiry capture",
+        subtitle: "Website form, inbox, or forward by hand",
       },
     ],
   },
@@ -249,11 +249,27 @@ function DesktopSettings() {
   );
 }
 
+function linkedSection(): SectionKey | null {
+  if (typeof window === "undefined") return null;
+  const section = new URLSearchParams(window.location.search).get("section");
+  return section && section in SECTION_COMPONENT ? (section as SectionKey) : null;
+}
+
 export function SettingsShell() {
   const isPhone = useIsPhone();
   // `open` is only ever read on the phone branch; the desktop branch renders the
   // full stack regardless, so no effect is needed to reconcile it on resize.
-  const [open, setOpen] = useState<SectionKey | null>(null);
+  // `?section=forwarding` — the "capture every inquiry automatically" link on
+  // Today and Leads lands on the panel itself, not the top of a long page.
+  // Read from window rather than useSearchParams, which would need a Suspense
+  // boundary around the whole settings page. `open` is only read on the phone
+  // branch, which never renders on the server, so there is nothing to hydrate.
+  const [open, setOpen] = useState<SectionKey | null>(linkedSection);
+
+  useEffect(() => {
+    if (isPhone === false && linkedSection() === "forwarding")
+      document.getElementById("inquiry-capture")?.scrollIntoView({ block: "start" });
+  }, [isPhone]);
 
   if (isPhone === null) {
     // First paint, before the viewport is measured: heading only, no panels.
