@@ -46,7 +46,7 @@ test("content cannot close its own fence", () => {
   assert.ok(open && close && open !== close);
 });
 
-test("Cue's ability to act is still three reversible, approved commands", () => {
+test("Cue's ability to act is still four reversible, approved commands", () => {
   // The real ceiling on any injection. If this list grows — especially to
   // anything that sends, pays, signs or deletes — the risk profile changes
   // completely and the fencing above stops being sufficient.
@@ -55,7 +55,33 @@ test("Cue's ability to act is still three reversible, approved commands", () => 
   const allowed = [...block[1]!.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
   assert.deepEqual(
     allowed.sort(),
-    ["create_proposal_draft", "create_task", "set_insurance_required"].sort(),
+    [
+      "create_proposal_draft",
+      "create_task",
+      "set_insurance_required",
+      /**
+       * `update_project` reviewed against the injection tests, 2026-09-25.
+       *
+       * It qualifies on the same terms as the other three: internal,
+       * reversible, emails nobody, and runs the identical command the Edit job
+       * form runs — same authorization, same refusal on an archived job, same
+       * audit carrying both sides. A studio approves it seeing the before and
+       * the after.
+       *
+       * What an injection could reach is the ceiling that matters. The field
+       * comes from a closed enum of six descriptive fields, so the worst an
+       * attacker achieves is a renamed job or a moved venue on a project the
+       * caller already has access to — visible, audited and undoable by the
+       * same control. Stage, readiness and the selected package are not in the
+       * enum and are asserted absent by tests/cue-edits-a-job.test.ts, so none
+       * of the deterministic outcomes can be reached this way.
+       *
+       * The date is the one field with consequences past the record, and it
+       * re-derives readiness rather than leaving it stale. That is a
+       * correctness property, not a new power.
+       */
+      "update_project",
+    ].sort(),
     "Cue's action surface changed — re-read the injection tests before shipping",
   );
 });

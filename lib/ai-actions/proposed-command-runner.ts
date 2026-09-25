@@ -4,6 +4,7 @@ import { runWorkflowCommand } from "@/lib/workflows/command-client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { runProposalCommand } from "@/lib/proposals/command-client";
 import type { ProposalCommandType } from "@/lib/proposals/command-client";
+import { runCrmCommand } from "@/lib/crm/command-client";
 import {
   commandOf,
   isProposedStudioCommand,
@@ -37,6 +38,13 @@ export async function runProposedStudioCommand(
   } else if (command.domain === "proposal") {
     result = (await runProposalCommand(command.op as ProposalCommandType, command.input))
       .result;
+  } else if (command.domain === "crm") {
+    /**
+     * Correcting a job reaches the same command the Edit job form uses, which
+     * enforces its own authorization, refuses an archived job and audits both
+     * sides. Nothing here is a second path into the record.
+     */
+    result = (await runCrmCommand(command.op, command.input)).result;
   } else {
     throw new Error("Unknown command domain.");
   }

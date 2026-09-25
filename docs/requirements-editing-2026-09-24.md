@@ -240,7 +240,7 @@ Built and live on production unless noted.
 |---|---|---|
 | R1 | Edit a job | **Shipped.** Verified end to end: the venue was changed through the form on the live DeMattia job, persisted, attributed to the real user, and audited with both before and after. Restored afterwards. |
 | R2 | Correct and re-issue a proposal | **Shipped.** Supersedes rather than mutates, re-reads the client and event, lands as a draft, and says "it will go to X instead" when the recipient changes. |
-| R3 | Cue | **Half shipped.** It no longer invents a control — asked how to rename a wedding it now answers "open the job page and click the 'Edit job' control beside the job's name", verified on production. Cue *performing* the edit is not built; see below. |
+| R3 | Cue | **R3a shipped; R3b built but not reliably triggered.** It no longer invents a control — asked how to rename a wedding it now answers "open the job page and click the 'Edit job' control beside the job's name", verified on production. Cue *performing* the edit is not built; see below. |
 | R4 | Photo and video on one proposal | **Discount shipped**, which was the half he asked for by name. The two-package half is not built; see below. |
 | R5 | Proposal document | **Shipped.** The header is derived from the package's coverage roles, so a video package no longer reads PHOTOGRAPHY PROPOSAL, and the document now says the booking agreement follows rather than only what it is not. |
 | R6 | Delivery status | **Shipped.** The card names the recipient, and re-reads once after a send so the status stops sitting on "Queued". |
@@ -248,12 +248,35 @@ Built and live on production unless noted.
 
 ### What is deliberately not built
 
-**R3b — Cue performing the edit.** The action-proposal shape carries `title`,
-`detail` and `dueDate`, which suits a task and does not describe a field change.
-Doing this properly means a new proposal shape carrying the field, the old value
-and the new one, so the approval card can show a before and after — which is the
-only version of this worth approving. Cue knowing the truth was the urgent half
-and it is done; this is a clean, separate piece of work.
+**R3b — Cue performing the edit. Built, deployed, and the model will not
+reliably choose it.**
+
+The whole mechanism is in place and tested: `update_project` is a fourth action
+proposal carrying `field` and `value`, the card reads the current record and
+overrides exactly one field (a partial write would clear the rest by omission),
+it refuses an archived job and a malformed date, it declines to offer a card
+that would change nothing, and the detail line is the before and after. The
+approval runner reaches the same `crmCommand` the Edit job form uses, so
+authorization, the archived refusal and the two-sided audit are shared rather
+than duplicated. It was reviewed against the injection tests and the closed
+enum guard widened from three to four with the reasoning written down.
+
+What does not work is getting the model to pick it. Four deploy cycles of
+prompt wording produced, in order: the right intent as a `create_task` ("Update
+venue to The Foundry Main Hall" — a reminder rather than the change), then no
+proposal at all twice, then a polite pointer back to the Edit job control.
+`actionProposalCount` was 1, 0, 0, 0.
+
+This is the same failure as `flow.subject` and `flow.role`, which were null on
+ten consecutive turns despite detailed instructions: **a rule buried in a
+17.8k-character single-paragraph system instruction does not reliably reach the
+output.** The fix there was to stop asking and derive it. The equivalent here is
+harder — "change the venue to X" needs a field and a value pulled from free
+text, which is a real parse rather than a regex over trade words — but it is the
+direction that has actually worked twice.
+
+Worth doing as its own piece, with the eval harness measuring whether the model
+picks it up, rather than more wording changes measured by hand.
 
 **R4b — two packages on one proposal.** Still the largest item on the list.
 `proposalSchema.packageSnapshotId` is a single required string, and the pricing
