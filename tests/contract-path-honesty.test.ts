@@ -84,3 +84,33 @@ test("recording is primary wherever no signing app is offered", () => {
     "both RecordSignedAgreement sites must promote recording when nothing else works",
   );
 });
+
+/**
+ * The same promise sat in two places and only one was fixed first time — the
+ * exact shape of `copy-outlives-the-change`: sweep by claim, not by directory.
+ *
+ * Allowed only where it is true: `project-booking-workspace.tsx` makes it
+ * inside a `signingOffered` branch, where a provider really does reuse an
+ * approved template.
+ */
+test("nothing claims StudioCue reuses an imported agreement by itself", () => {
+  for (const path of [
+    "features/today/setup-gaps.ts",
+    "components/setup/setup-conversation.tsx",
+  ]) {
+    const text = readFileSync(`${process.cwd()}/${path}`, "utf8");
+    // Comments explaining the old copy are fine; the claim is not.
+    const claims = text
+      .split("\n")
+      .filter((line) => !line.trim().startsWith("*") && !line.trim().startsWith("//"))
+      .join("\n");
+    assert.ok(
+      !/reuses it for every client/i.test(claims),
+      `${path} still promises StudioCue reuses the agreement`,
+    );
+    assert.ok(
+      !/agreement is ready to send/i.test(claims),
+      `${path} still implies StudioCue sends the agreement`,
+    );
+  }
+});

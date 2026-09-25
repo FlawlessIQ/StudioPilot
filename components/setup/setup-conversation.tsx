@@ -39,10 +39,24 @@ const QUESTIONS: Question[] = [
     doneLabel: "Your packages are ready to use in proposals.",
   },
   {
+    /**
+     * StudioCue does not write, render or send a contract.
+     *
+     * This said "import it once, StudioCue keeps your wording and signer
+     * fields, then reuses it for every client" and promised "your agreement is
+     * ready to send". Both are true only once a signing app is connected, and
+     * the reference studio had none: he imported his agreement, waited, and
+     * told us "never got a contract to sign, so couldn't complete the run
+     * through" — then asked "is it making the contract for me?".
+     *
+     * The same promise sat on the Today card and is fixed there too. This is
+     * the one a new studio meets first, which makes it the more expensive of
+     * the two.
+     */
     key: "agreement",
-    ask: "What agreement do your clients sign?",
-    why: "Import it once. StudioCue keeps your wording and signer fields, then reuses it for every client.",
-    doneLabel: "Your agreement is ready to send.",
+    ask: "How do your clients sign?",
+    why: "StudioCue doesn't write your contract. Send your own and record the signature on the job, or connect a signing app to have it sent and tracked for you.",
+    doneLabel: "StudioCue knows how you handle signatures.",
   },
   {
     key: "questionnaire",
