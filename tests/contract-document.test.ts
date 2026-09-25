@@ -277,3 +277,46 @@ test("the imported body is found whichever extractor wrote it", () => {
   assert.equal(importedAgreementText("C"), "C");
   assert.equal(importedAgreementText(null), "");
 });
+
+/**
+ * The shape production actually handed us (2026-09-25): an agreement imported
+ * from a PDF as one unbroken line, clauses marked only by "Label:" openers, and
+ * no placeholder anywhere for the couple, the date or the price. It would have
+ * gone out as a wall of terms naming nobody.
+ */
+const flattenedImport =
+  "It is agreed that the following terms form part of this Contract. Booking Fee: A retainer per crew member is required when the client signs. Dates are reserved when it is paid. Payment & Prices: No images are released until payment is complete. Prices hold for 90 days after the event. Cancellation: The retainer is non-refundable. Rescheduling is subject to a 25% fee. Limitation of Liability: Liability is limited to the money paid. Neither party is liable for indirect losses. Copyright: All images remain the property of the studio.";
+
+test("a flattened import is split back into its clauses, labels in bold", () => {
+  const conversion = convertImportedAgreement(flattenedImport);
+  assert.equal(conversion.clausesRestored, 5);
+  for (const label of ["Booking Fee", "Payment & Prices", "Cancellation", "Limitation of Liability", "Copyright"]) {
+    assert.match(conversion.body, new RegExp(`\\n\\n\\*\\*${label.replace("&", "\\&")}:\\*\\* `));
+  }
+  // Nothing of the studio's wording is lost or reordered.
+  assert.match(conversion.body, /Rescheduling is subject to a 25% fee\.\n\n\*\*Limitation/);
+});
+
+test("an agreement that never names the couple gets a details section filled from the job", () => {
+  const conversion = convertImportedAgreement(flattenedImport);
+  assert.equal(conversion.detailsAdded, true);
+  assert.match(conversion.body, /^## The details\n/);
+  assert.match(conversion.body, /\{\{client\.names\}\}/);
+  assert.match(conversion.body, /\{\{price\.total\}\}/);
+  assert.match(conversion.body, /\n## Terms\n/);
+  const { document, unresolved } = resolveContractDocument({
+    template: { title: "Agreement", body: conversion.body, customFields: conversion.customFields },
+    sources: { ...sources, event: { ...sources.event, venue: "The Barn" } },
+    overrides: {},
+  });
+  assert.deepEqual(unresolved, []);
+  const text = JSON.stringify(document);
+  assert.match(text, /Erin Walsh & Joe DeMattia/);
+  assert.match(text, /\$6,400\.00/);
+});
+
+test("an agreement that already names the couple is not given a second details section", () => {
+  assert.equal(convertImportedAgreement(importedGabeStyle).detailsAdded, false);
+  // Text that already has its line breaks is left as written.
+  assert.equal(convertImportedAgreement(importedGabeStyle).clausesRestored, 0);
+});

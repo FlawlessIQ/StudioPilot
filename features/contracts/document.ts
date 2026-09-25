@@ -576,7 +576,55 @@ export type ImportedAgreementConversion = {
   customFields: ContractCustomField[];
   mapped: Array<{ placeholder: string; key: string }>;
   signatureLinesRemoved: number;
+  /** The agreement had no place for the couple, date or price, so a details section was added. */
+  detailsAdded: boolean;
+  /** The text arrived as one run and was split back into its clauses. */
+  clausesRestored: number;
 };
+
+/**
+ * A clause label as agreements write them: "Booking Fee:", "Payment & Prices:",
+ * "Limitation of Liability:" — a capitalised run of up to five words and a colon.
+ */
+const CLAUSE_LABEL =
+  /(^|[.!?]["”’)]?\s+)([A-Z][A-Za-z’']*(?:\s+(?:&|and|of|the|or|[A-Z][A-Za-z’']*)){0,4}):\s+/g;
+
+/**
+ * Put back the paragraph breaks an extractor flattened.
+ *
+ * Found on production: an agreement imported from a PDF arrived as a single
+ * 3,000-character line, so the contract rendered as one wall of text. Its
+ * clauses were still marked — every one opened with a label and a colon — so
+ * each labelled clause becomes its own paragraph, the label in bold. Text that
+ * already has its line breaks is left exactly as written.
+ */
+export function restoreClauseBreaks(text: string): { text: string; restored: number } {
+  const lines = text.split("\n").filter((line) => line.trim());
+  const longest = Math.max(0, ...lines.map((line) => line.length));
+  if (lines.length > 3 && longest < 800) return { text, restored: 0 };
+  let restored = 0;
+  const rebuilt = text.replace(CLAUSE_LABEL, (_, before: string, label: string) => {
+    restored += 1;
+    return `${before.trimEnd()}${before ? "\n\n" : ""}**${label}:** `;
+  });
+  return restored >= 2 ? { text: rebuilt, restored } : { text, restored: 0 };
+}
+
+/**
+ * Where a contract names who, when and how much, when the studio's own
+ * agreement never did. Every value is filled from the job; the studio sees it
+ * in the editor and may move or reword it before saving.
+ */
+export const DETAILS_SECTION = [
+  "## The details",
+  "This agreement is between {{studio.legal_name}} (\"the Studio\") and {{client.names}} (\"the Client\") for {{event.type}} coverage on {{event.date}} at {{event.venue}}.",
+  "",
+  "- Package: {{package.name}}",
+  "- Total: {{price.total}}",
+  "- Retainer: {{price.retainer}}",
+  "",
+  "{{payment.schedule}}",
+].join("\n");
 
 /**
  * Turn an imported agreement's text into a template the studio then reviews.
@@ -606,7 +654,8 @@ export function convertImportedAgreement(text: string): ImportedAgreementConvers
     return `{{${key}}}`;
   };
   let signatureLinesRemoved = 0;
-  const lines = normaliseText(text).split("\n").flatMap((line) => {
+  const restoredText = restoreClauseBreaks(normaliseText(text));
+  const lines = restoredText.text.split("\n").flatMap((line) => {
     if (line.trim() && SIGNATURE_LINE.test(line.trim())) {
       signatureLinesRemoved += 1;
       return [];
@@ -641,12 +690,25 @@ export function convertImportedAgreement(text: string): ImportedAgreementConvers
       lines.splice(firstIndex, 1);
     }
   }
-  const body = lines
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim()
-    .slice(0, TEMPLATE_BODY_MAX);
-  return { title, body, customFields, mapped, signatureLinesRemoved };
+  // An agreement with nowhere for the couple's names, the date or the price
+  // would go out as terms alone. The studio's own words stay untouched; the
+  // details go above them.
+  const essentials = ["client.names", "event.date", "price.total"];
+  const detailsAdded = !mapped.some((entry) => essentials.includes(entry.key));
+  const joined = lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  const body = (detailsAdded ? `${DETAILS_SECTION}\n\n## Terms\n${joined}` : joined).slice(
+    0,
+    TEMPLATE_BODY_MAX,
+  );
+  return {
+    title,
+    body,
+    customFields,
+    mapped,
+    signatureLinesRemoved,
+    detailsAdded,
+    clausesRestored: restoredText.restored,
+  };
 }
 
 /**

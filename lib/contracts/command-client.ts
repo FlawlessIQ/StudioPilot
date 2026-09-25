@@ -35,6 +35,8 @@ export type AgreementDraft = {
   customFields: ContractCustomField[];
   mapped: Array<{ placeholder: string; key: string }>;
   signatureLinesRemoved: number;
+  detailsAdded: boolean;
+  clausesRestored: number;
 };
 
 export async function agreementDraftFromImport(templateId: string) {

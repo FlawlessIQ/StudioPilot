@@ -190,6 +190,12 @@ export function AgreementEditor() {
           draft.signatureLinesRemoved
             ? `${draft.signatureLinesRemoved} paper signature line${draft.signatureLinesRemoved === 1 ? "" : "s"} removed — StudioCue adds the signatures.`
             : null,
+          draft.clausesRestored
+            ? `It arrived as one block of text, so it was split back into its ${draft.clausesRestored} clauses.`
+            : null,
+          draft.detailsAdded
+            ? "It had no place for the couple's names, the date or the price, so a details section was added at the top — filled from each job."
+            : null,
           "Read it through, then save.",
         ]
           .filter(Boolean)

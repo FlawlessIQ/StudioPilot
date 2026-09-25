@@ -33,9 +33,7 @@ export function sampleContractSources(studioName: string, today: string): Contra
  * legal terms: each section says what belongs there, and the studio replaces
  * it with its own wording.
  */
-export const STARTER_AGREEMENT = `# Photography Services Agreement
-
-This agreement is between {{studio.legal_name}} ("the Studio") and {{client.names}} ("the Client") for {{event.type}} coverage on {{event.date}} at {{event.venue}}.
+export const STARTER_AGREEMENT = `This agreement is between {{studio.legal_name}} ("the Studio") and {{client.names}} ("the Client") for {{event.type}} coverage on {{event.date}} at {{event.venue}}.
 
 ## 1. Services
 The Studio will provide the {{package.name}}: {{package.coverage}}. Included:
