@@ -286,7 +286,10 @@ export function SettingsShell() {
       const top = Math.round(target.getBoundingClientRect().top);
       // Where it should sit: below the sticky header (the panel's scroll-margin).
       const want = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
-      if (Math.abs(top - want) > 2) target.scrollIntoView({ block: "start" });
+      // Instant, not the page's smooth default: a link should land, not glide
+      // 3,000px — and a smooth scroll restarted every tick never settles (nor
+      // runs at all in a background tab).
+      if (Math.abs(top - want) > 2) target.scrollIntoView({ block: "start", behavior: "instant" });
       steady = lastTop === top ? steady + 1 : 0;
       lastTop = top;
       if (steady >= 3) stop();
