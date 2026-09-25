@@ -127,6 +127,17 @@ export const contractMergeFields = [
   { key: "form.answers", label: "Details form answers (list)", example: "Ceremony start: 3:00 PM", block: true },
   { key: "studio.name", label: "Studio name", example: "Hart Light Photography" },
   { key: "studio.legal_name", label: "Studio legal name", example: "Hart Light Photography LLC" },
+  /**
+   * The letterhead, available as fields as well as in the header.
+   *
+   * Studios write these into their own wording — "Jobs outside a 25 mile radius
+   * of {{studio.address}}", "questions to {{studio.phone}}" — and a field they
+   * can place beats a header they cannot move.
+   */
+  { key: "studio.address", label: "Studio address", example: "2 Green Village Rd, Suite 209, Madison NJ 07940" },
+  { key: "studio.phone", label: "Studio phone", example: "201.320.4296" },
+  { key: "studio.email", label: "Studio email", example: "info@yourstudio.com" },
+  { key: "studio.website", label: "Studio website", example: "www.yourstudio.com" },
   { key: "contract.date", label: "Date prepared", example: "September 25, 2026" },
 ] as const;
 
@@ -177,7 +188,15 @@ export type ContractSources = {
    * unfilled placeholder like any other, rather than an empty heading.
    */
   formAnswers: Array<{ question: string; answer: string }>;
-  studio: { name: string; legalName: string | null };
+  studio: {
+    name: string;
+    legalName: string | null;
+    /** The letterhead, from the tenant's branding. Null where unset. */
+    address: string | null;
+    phone: string | null;
+    email: string | null;
+    website: string | null;
+  };
   /** YYYY-MM-DD, the day the contract was prepared. */
   contractDate: string;
 };
@@ -278,6 +297,14 @@ function recordValue(key: string, sources: ContractSources): string | null {
       const items = sources.package.deliverables.map((item) => item.trim()).filter(Boolean);
       return items.length ? items.join("; ") : null;
     }
+    case "studio.address":
+      return nonEmpty(sources.studio.address);
+    case "studio.phone":
+      return nonEmpty(sources.studio.phone);
+    case "studio.email":
+      return nonEmpty(sources.studio.email);
+    case "studio.website":
+      return nonEmpty(sources.studio.website);
     case "form.answers": {
       // Inline fallback for a field written mid-sentence, the same shape the
       // other block fields take. Nothing submitted reads as missing, not blank.

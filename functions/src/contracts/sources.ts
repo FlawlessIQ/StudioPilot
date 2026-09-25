@@ -165,6 +165,17 @@ export async function loadContractSources(
           text(tenant.get("businessName")) ||
           text(tenant.get("legalName")),
         legalName: text(tenant.get("legalName")) || null,
+        /**
+         * The letterhead, from the same branding record the emails use, so a
+         * studio sets its address once and every document it sends carries it.
+         */
+        address: text(record(tenant.get("emailBranding")).postalAddress) || null,
+        phone: text(record(tenant.get("emailBranding")).phone) || null,
+        email:
+          text(record(tenant.get("emailBranding")).replyTo) ||
+          text(tenant.get("contactEmail")) ||
+          null,
+        website: text(record(tenant.get("emailBranding")).websiteUrl) || null,
       },
       contractDate: input.today,
     },

@@ -27,7 +27,14 @@ export function sampleContractSources(studioName: string, today: string): Contra
     { question: "Ceremony start", answer: "3:00 PM" },
     { question: "Getting ready address", answer: "The Lodge, 14 Mill Lane" },
   ],
-  studio: { name: studioName || "Your studio", legalName: null },
+  studio: {
+      name: studioName,
+      legalName: null,
+      address: "2 Green Village Rd, Suite 209, Madison NJ 07940",
+      phone: "201.320.4296",
+      email: "info@example.com",
+      website: "www.example.com",
+    },
     contractDate: today,
   };
 }

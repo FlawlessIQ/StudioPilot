@@ -82,6 +82,14 @@ export async function contractPdfInput(
     db.doc(`agreementTemplateVersions/${text(contract.get("templateVersionId"))}`).get(),
   ]);
   const tenant = await db.doc(`tenants/${String(contract.get("tenantId"))}`).get();
+  // The letterhead lives with the email branding, so a studio sets it once.
+  const branding = (tenant.get("emailBranding") ?? {}) as {
+    logoUrl?: string | null;
+    postalAddress?: string | null;
+    phone?: string | null;
+    replyTo?: string | null;
+    websiteUrl?: string | null;
+  };
   const timeZone =
     text(project.get("timezone")) || text(tenant.get("timezone")) || "America/New_York";
   const when = (iso: unknown) => formatSigningTime(text(iso), timeZone);
@@ -124,6 +132,15 @@ export async function contractPdfInput(
     entity: contract,
     payload: {
       tenant_name: tenantName,
+      /**
+       * The studio's letterhead, from the same branding record its emails and
+       * proposals use — set once, on every document it sends.
+       */
+      logo_url: branding.logoUrl ?? "",
+      studio_address: branding.postalAddress ?? "",
+      studio_phone: branding.phone ?? "",
+      studio_email: branding.replyTo ?? "",
+      studio_website: branding.websiteUrl ?? "",
       project_id: String(contract.get("projectId")),
       contract_id: contract.id,
       title: document.title,

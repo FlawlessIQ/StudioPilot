@@ -16,6 +16,9 @@ type Branding = {
   primaryColor: string;
   logoUrl: string;
   replyTo: string;
+  postalAddress: string;
+  phone: string;
+  websiteUrl: string;
 };
 
 const previewDefaults: Branding = {
@@ -24,6 +27,9 @@ const previewDefaults: Branding = {
   primaryColor: "#315F48",
   logoUrl: "",
   replyTo: "",
+  postalAddress: "",
+  phone: "",
+  websiteUrl: "",
 };
 
 export function EmailBranding() {
@@ -58,6 +64,9 @@ export function EmailBranding() {
             ).toUpperCase(),
             logoUrl: String(emailBranding?.logoUrl ?? ""),
             replyTo: String(emailBranding?.replyTo ?? ""),
+            postalAddress: String(emailBranding?.postalAddress ?? ""),
+            phone: String(emailBranding?.phone ?? ""),
+            websiteUrl: String(emailBranding?.websiteUrl ?? ""),
           });
         }
       } catch (caught: unknown) {
@@ -257,6 +266,45 @@ export function EmailBranding() {
               placeholder="https://yourstudio.com/logo.png"
               value={branding.logoUrl}
               onChange={(event) => update("logoUrl", event.target.value)}
+            />
+          </label>
+          {/**
+            * The letterhead.
+            *
+            * Every studio agreement opens with a mark and the business's
+            * address beside it. StudioCue held a brand name and nothing else,
+            * so a contract could only print the name — it looked like
+            * StudioCue's document rather than the studio's own. Set here
+            * because it is the same on every document a studio ever sends, and
+            * retyping it per agreement is how it ends up wrong on one.
+            */}
+          <label>
+            Business address <span>(shown on contracts)</span>
+            <input
+              maxLength={240}
+              onChange={(event) => update("postalAddress", event.target.value)}
+              placeholder="2 Green Village Rd, Suite 209, Madison NJ 07940"
+              value={branding.postalAddress}
+            />
+          </label>
+          <label>
+            Phone <span>(optional)</span>
+            <input
+              inputMode="tel"
+              maxLength={40}
+              onChange={(event) => update("phone", event.target.value)}
+              placeholder="201.320.4296"
+              value={branding.phone}
+            />
+          </label>
+          <label>
+            Website <span>(optional)</span>
+            <input
+              inputMode="url"
+              onChange={(event) => update("websiteUrl", event.target.value)}
+              placeholder="https://yourstudio.com"
+              type="url"
+              value={branding.websiteUrl}
             />
           </label>
           <label>

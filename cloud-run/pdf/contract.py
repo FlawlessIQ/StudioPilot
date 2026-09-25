@@ -10,6 +10,8 @@ Nothing here decides anything. The caller has already verified the signatures;
 this only draws them.
 """
 
+import io
+import urllib.request
 from html import escape
 from io import BytesIO
 from typing import Any, Literal
@@ -20,6 +22,7 @@ from reportlab.lib.pagesizes import LETTER
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import (
+    Image,
     KeepTogether,
     ListFlowable,
     ListItem,
@@ -75,6 +78,14 @@ class Event(BaseModel):
 
 class ContractRequest(BaseModel):
     tenant_name: str = Field(min_length=1, max_length=160)
+    # The studio's letterhead. All optional: a contract generated before these
+    # existed must still render, and a studio that has set none still gets its
+    # name.
+    logo_url: str = Field(default="", max_length=2000)
+    studio_address: str = Field(default="", max_length=240)
+    studio_phone: str = Field(default="", max_length=40)
+    studio_email: str = Field(default="", max_length=320)
+    studio_website: str = Field(default="", max_length=200)
     project_id: str = Field(min_length=1, max_length=120)
     contract_id: str = Field(min_length=1, max_length=120)
     title: str = Field(min_length=1, max_length=200)
@@ -95,6 +106,59 @@ def _inline_markup(content: list[Inline] | None) -> str:
             text = f"<b>{text}</b>"
         pieces.append(text)
     return "".join(pieces) or "&nbsp;"
+
+
+def _letterhead(data, brand, small):
+    """Logo and contact block, or the studio's name where there is neither.
+
+    Every studio agreement opens the same way: a mark on the left and the
+    business's address, phone and email beside it. StudioCue printed the brand
+    name alone, so a contract looked like StudioCue's document rather than the
+    studio's own.
+
+    Falls back on anything unexpected, because a letterhead that will not fetch
+    must not take a signed contract down with it.
+    """
+    lines = [
+        escape(value)
+        for value in (
+            data.studio_address,
+            data.studio_phone,
+            data.studio_email,
+            data.studio_website,
+        )
+        if value
+    ]
+    contact = Paragraph("<br/>".join(lines), small) if lines else None
+    mark = Paragraph(escape(data.tenant_name.upper()), brand)
+    if data.logo_url:
+        try:
+            with urllib.request.urlopen(data.logo_url, timeout=5) as response:
+                raw = response.read(2 * 1024 * 1024)
+            logo = Image(io.BytesIO(raw))
+            ratio = logo.imageHeight / logo.imageWidth if logo.imageWidth else 1
+            logo.drawWidth = min(1.7 * inch, logo.imageWidth)
+            logo.drawHeight = logo.drawWidth * ratio
+            if logo.drawHeight > 0.58 * inch:
+                logo.drawHeight = 0.58 * inch
+                logo.drawWidth = logo.drawHeight / ratio if ratio else logo.drawWidth
+            mark = logo
+        except Exception:
+            pass
+    if not contact:
+        return mark
+    table = Table([[mark, contact]], colWidths=[3.1 * inch, 3.1 * inch])
+    table.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ]
+        )
+    )
+    return table
 
 
 def build_contract_pdf(data: ContractRequest) -> bytes:
@@ -139,7 +203,7 @@ def build_contract_pdf(data: ContractRequest) -> bytes:
         canvas.restoreState()
 
     story: list[Any] = [
-        Paragraph(escape(data.tenant_name.upper()), brand),
+        _letterhead(data, brand, small),
         Spacer(1, 0.18 * inch),
         Paragraph(escape(data.title), title),
     ]

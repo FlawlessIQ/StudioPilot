@@ -22,6 +22,22 @@ const brandingSchema = z.object({
     z.string().trim().url().startsWith("https://"),
   ]),
   replyTo: z.union([z.literal(""), z.string().trim().email().max(254)]),
+  /**
+   * The studio's letterhead: what sits in the header of its own contract.
+   *
+   * Every studio agreement starts the same way — a logo on the left and the
+   * business's address, phone and email on the right. StudioCue held a brand
+   * name and nothing else, so a contract could only ever print the name. The
+   * reference studio put it plainly: "everyone can upload a logo. Address goes
+   * in header. They upload their agreement."
+   *
+   * Stored on the tenant rather than typed into each agreement, because it is
+   * the same on every document a studio ever sends and retyping it is how it
+   * ends up wrong on one of them.
+   */
+  postalAddress: z.string().trim().max(240),
+  phone: z.string().trim().max(40),
+  websiteUrl: z.union([z.literal(""), z.string().trim().url().max(200)]),
 });
 
 async function requireOwner(tenantId: string, userId: string) {
@@ -72,6 +88,9 @@ export const tenantBrandingCommand = onRequest(
         primaryColor: input.primaryColor.toUpperCase(),
         logoUrl: input.logoUrl || null,
         replyTo: input.replyTo || null,
+        postalAddress: input.postalAddress || null,
+        phone: input.phone || null,
+        websiteUrl: input.websiteUrl || null,
       };
       const auditReference = db.collection("auditEvents").doc();
       const batch = db.batch();
