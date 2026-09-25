@@ -173,8 +173,25 @@ export function AcceptClientInvitation({
     });
     const tenantId =
       typeof result.tenantId === "string" ? result.tenantId : null;
+    const projectId =
+      typeof result.projectId === "string" ? result.projectId : null;
     if (tenantId) {
       window.localStorage.setItem("studiohub.activeTenantId", tenantId);
+    }
+    /**
+     * Open the job this invitation was for.
+     *
+     * The portal opens whichever job it remembers from last time. A couple who
+     * already had a job with this studio accepted an invitation to a new one
+     * and landed on the old one — on a production walk, a booked wedding whose
+     * contract read "complete", while the proposal they had just been sent sat
+     * unopened. The invitation names its job; that is the one to show.
+     */
+    if (tenantId && projectId) {
+      window.localStorage.setItem(
+        `studiohub.activeClientProjectId.${tenantId}`,
+        projectId,
+      );
     }
     setActivation("accepted");
     setMessage("Your secure project portal is ready.");
