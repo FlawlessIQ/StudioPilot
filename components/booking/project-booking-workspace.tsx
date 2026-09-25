@@ -837,17 +837,38 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     </small>
                   </span>
                 </p>
-                <button
-                  className="button"
-                  disabled={busy !== null}
-                  onClick={() => void createContract()}
-                  type="button"
-                >
-                  {busy === "contract" ? "Sending…" : "Try again"}
-                  <ArrowRight size={15} />
-                </button>
+                {/**
+                  * "Try again" is only an answer when there is something to
+                  * try again with.
+                  *
+                  * With no signing app connected the send cannot succeed, so
+                  * offering a retry as the prominent control sends a studio
+                  * round a loop that cannot end — the reference studio sat on
+                  * exactly this screen and told us "never got a contract to
+                  * sign, so couldn't complete the run through". Recording the
+                  * signature they took themselves is the path, and below it
+                  * `primary` opens it rather than folding it shut.
+                  */}
+                {signingOffered ? (
+                  <button
+                    className="button"
+                    disabled={busy !== null}
+                    onClick={() => void createContract()}
+                    type="button"
+                  >
+                    {busy === "contract" ? "Sending…" : "Try again"}
+                    <ArrowRight size={15} />
+                  </button>
+                ) : (
+                  <p className="booking-contract-manual-hint">
+                    No signing app is connected, so StudioCue cannot send this
+                    for signature. Send your agreement the way you do today,
+                    then record the signature below.
+                  </p>
+                )}
                 {proposal ? (
                   <RecordSignedAgreement
+                    primary={!signingOffered}
                     onRecorded={(message) => {
                       // The branch this control lives in unmounts as soon as
                       // the contract exists, taking any notice inside it with

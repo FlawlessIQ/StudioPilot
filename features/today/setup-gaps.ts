@@ -73,16 +73,41 @@ export function setupGaps(
     });
   }
 
+  /**
+   * What this card promised, and what the product actually does.
+   *
+   * It read "Import your agreement — import it once and StudioCue reuses it
+   * for every client", and pointed at the import flow. StudioCue does not
+   * draft or render a contract from an imported agreement: the import writes
+   * an `agreementTemplates` document that nothing in the codebase reads, and
+   * `hasAgreementTemplate` actually resolves to a *signing provider's*
+   * template id, or to a provider being connected at all.
+   *
+   * So the reference studio imported his agreement, waited for a contract, and
+   * told us "never got a contract to sign, so couldn't complete the run
+   * through" — then asked, reasonably, "is it making the contract for me?".
+   * No. It never was.
+   *
+   * The card now says the two things that are true. Sending your own agreement
+   * and recording the signature needs no setup and always works, so this is
+   * not a blocker in the way a missing package is — it is a choice between two
+   * working paths, and the card names both.
+   */
   if (!state.hasAgreementTemplate) {
     const blocked = signals.projectsNeedingAgreement[0] ?? null;
     gaps.push({
       key: "agreement",
-      title: "Import your agreement",
+      title: "How you send contracts",
       detail: blocked
-        ? `${blocked} accepted their proposal and is waiting on a contract.`
-        : "Import it once and StudioCue reuses it for every client.",
-      actionLabel: "Import the agreement",
-      href: "/studio/import",
+        ? `${blocked} accepted their proposal and needs a contract. Send yours the way you do today and record the signature on the job — or connect a signing app to have StudioCue send and track it.`
+        : "StudioCue doesn't write your contract. Send your own and record the signature, or connect a signing app to have it sent and tracked for you.",
+      actionLabel: blocked ? "Record a signature" : "Set up signing",
+      /**
+       * Straight to the job that is waiting, because that is where the control
+       * lives. The old link went to the import flow, which is the one place
+       * that could not help.
+       */
+      href: blocked ? "/studio/projects" : "/studio/integrations",
       blocking: Boolean(blocked),
       blockedProjectName: blocked,
     });
