@@ -17,6 +17,7 @@ import {
   resolveCoverage,
 } from "../packages/coverage.js";
 import { vertexEndpoint } from "./vertex-endpoint.js";
+import { separateGreeting } from "./reply-format.js";
 
 type Json = Record<string, unknown>;
 const record = (value: unknown): Json =>
@@ -343,9 +344,14 @@ async function generateDraft(input: {
       return { ok: false as const, issues: "The response was not valid JSON." };
     }
   };
+  // The greeting gets its own line before anyone reviews the draft.
+  const tidy = (data: z.infer<typeof modelOutputSchema>) => ({
+    ...data,
+    body: separateGreeting(data.body),
+  });
   const firstRaw = await callModel([firstTurn]);
   const first = parse(firstRaw);
-  if (first.ok) return first.data;
+  if (first.ok) return tidy(first.data);
   const repairRaw = await callModel([
     firstTurn,
     { role: "model", parts: [{ text: firstRaw }] },
@@ -359,7 +365,7 @@ async function generateDraft(input: {
     },
   ]);
   const repaired = parse(repairRaw);
-  if (repaired.ok) return repaired.data;
+  if (repaired.ok) return tidy(repaired.data);
   throw new Error("AI_OUTPUT_INVALID");
 }
 

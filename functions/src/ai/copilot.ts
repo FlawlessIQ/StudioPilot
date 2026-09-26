@@ -41,6 +41,7 @@ import {
   resolveCoverage,
 } from "../packages/coverage.js";
 import { vertexEndpoint } from "./vertex-endpoint.js";
+import { separateGreeting } from "./reply-format.js";
 
 type Json = Record<string, unknown>;
 
@@ -1540,7 +1541,8 @@ async function buildProposalActions(
         sourceReferences,
         structuredOutput: {
           subject: proposal.subject,
-          body: proposal.body,
+          // The greeting on its own line, before anyone reviews it.
+          body: separateGreeting(proposal.body),
           recipientEmail,
           recipientName,
           projectName,

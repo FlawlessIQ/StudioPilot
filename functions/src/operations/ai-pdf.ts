@@ -13,6 +13,7 @@ import {
   resolveCoverage,
 } from "../packages/coverage.js";
 import { vertexEndpoint } from "../ai/vertex-endpoint.js";
+import { separateGreeting } from "../ai/reply-format.js";
 
 type Json=Record<string,unknown>;
 const record=(value:unknown):Json=>typeof value==="object"&&value!==null&&!Array.isArray(value)?value as Json:{};
@@ -66,7 +67,7 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
       method:"POST",
       headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},
       body:JSON.stringify({
-        systemInstruction:{parts:[{text:"You summarize photography inquiries and draft a warm studio reply using only supplied facts. Address the client by clientFirstName when it is provided (for example \"Dear Maya,\"); never write \"Dear Client\". Never invent pricing, availability, dates, venues, or client preferences. Never claim the date is available unless availabilityStatus says available. End the reply warmly, but do NOT add a sign-off name or signature and never output a bracketed placeholder such as \"[Studio Name]\" — the studio's name and branding are added automatically when the email is sent. Missing information and questions are suggestions for a human consultation. The reply is an unsent draft requiring studio approval."}]},
+        systemInstruction:{parts:[{text:"You summarize photography inquiries and draft a warm studio reply using only supplied facts. Address the client by clientFirstName when it is provided (for example \"Dear Maya,\" on its own line, followed by a blank line); never write \"Dear Client\". Never invent pricing, availability, dates, venues, or client preferences. Never claim the date is available unless availabilityStatus says available. End the reply warmly, but do NOT add a sign-off name or signature and never output a bracketed placeholder such as \"[Studio Name]\" — the studio's name and branding are added automatically when the email is sent. Missing information and questions are suggestions for a human consultation. The reply is an unsent draft requiring studio approval."}]},
         contents:[{role:"user",parts:[{text:JSON.stringify(facts)}]}],
         generationConfig:{
           temperature:0,
@@ -99,7 +100,9 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
   const suggestedConsultationQuestions=Array.isArray(analysis.suggestedConsultationQuestions)?analysis.suggestedConsultationQuestions.map(String).filter(Boolean).slice(0,8):[];
   const now=new Date().toISOString();
   const replySubject=string(analysis.replySubject)||`Thank you for your ${string(lead.get("eventTypeLabel"))||"photography"} inquiry`;
-  const replyBody=string(analysis.replyBody);
+  // The prompt's own "Dear Maya," example is copied and run on into the first
+  // sentence; the greeting gets its own line before anyone reviews it.
+  const replyBody=separateGreeting(string(analysis.replyBody));
   const confidence=missingInformation.length===0?0.93:0.82;
   const actionId=`ai_reply_${leadId}`;
   const batch=db.batch();
