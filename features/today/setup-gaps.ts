@@ -21,6 +21,33 @@ export type SetupGapKey =
   | "questionnaire"
   | "availability";
 
+/**
+ * Setup's questions in the order they're asked (components/setup), and what
+ * each is called when Today says which comes next. One list, so Today's "Next:"
+ * and setup's order can't disagree.
+ */
+export const SETUP_ORDER: ReadonlyArray<SetupGapKey> = [
+  "inquiries",
+  "availability",
+  "packages",
+  "agreement",
+  "questionnaire",
+];
+
+export const SETUP_STEP_NAME: Record<SetupGapKey, string> = {
+  inquiries: "how inquiries reach you",
+  availability: "when clients can book a call",
+  packages: "what you charge",
+  agreement: "how clients sign",
+  questionnaire: "your details form",
+};
+
+/** The first unanswered question, in setup's order. */
+export function nextSetupStep(gaps: ReadonlyArray<{ key: SetupGapKey }>): SetupGapKey | null {
+  const open = new Set(gaps.map((gap) => gap.key));
+  return SETUP_ORDER.find((key) => open.has(key)) ?? null;
+}
+
 export type SetupGap = {
   key: SetupGapKey;
   /** What the studio is missing, in its own words. */

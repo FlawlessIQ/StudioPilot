@@ -175,6 +175,38 @@ export async function setContractTemplate(
 }
 
 /**
+ * Start connecting a provider, and come back to `returnTo` afterwards
+ * (a /studio/ path). Returns the provider's consent URL to navigate to.
+ *
+ * Integrations has its own copy of this with its notices; setup's calendar
+ * question uses this one so the studio lands back in setup, not Integrations.
+ */
+export async function startProviderConnect(
+  provider: IntegrationProvider,
+  tenantId: string,
+  returnTo: string,
+): Promise<string> {
+  const endpoint = process.env.NEXT_PUBLIC_INTEGRATION_FUNCTIONS_URL;
+  if (!endpoint) throw new Error("Connecting isn't available in this environment.");
+  const { auth } = getFirebaseClient();
+  const user = auth.currentUser;
+  if (!user) throw new Error("Sign in before connecting.");
+  const appCheckToken = await getOptionalAppCheckToken();
+  const response = await fetch(`${endpoint.replace(/\/$/, "")}/integrationOAuth`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${await user.getIdToken()}`,
+      ...(appCheckToken ? { "x-firebase-appcheck": appCheckToken } : {}),
+    },
+    body: JSON.stringify({ provider, tenantId, action: "connect", returnTo }),
+  });
+  const result = (await response.json()) as { url?: string; error?: string };
+  if (!response.ok || !result.url) throw new Error(result.error ?? "Connecting could not start.");
+  return result.url;
+}
+
+/**
  * "I send my own agreement and record the signature" — setup's answer to
  * "How do your clients sign?" for a studio StudioCue doesn't send contracts
  * for. null withdraws it.

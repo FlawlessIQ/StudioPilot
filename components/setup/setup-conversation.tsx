@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import type { ReactNode } from "react";
 import {
   ArrowRight,
+  CalendarCheck,
   Check,
   CircleAlert,
   Copy,
@@ -14,10 +16,11 @@ import { AppShell } from "@/components/layout/app-shell";
 import { useSetupState } from "@/components/setup/use-setup-state";
 import { LeadCaptureRoutes } from "@/components/intake/lead-capture-setup";
 import { fromSetup } from "@/components/setup/back-to-setup";
-import { setSignatureMode } from "@/lib/integrations/command-client";
+import { setSignatureMode, startProviderConnect } from "@/lib/integrations/command-client";
+import { sendBookingCommand } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import type { SetupGapKey } from "@/features/today/setup-gaps";
+import { SETUP_ORDER, type SetupGap, type SetupGapKey } from "@/features/today/setup-gaps";
 
 /**
  * Setup as a conversation.
@@ -25,9 +28,10 @@ import type { SetupGapKey } from "@/features/today/setup-gaps";
  * Phase 3 of "Today & Jobs". A new studio's assets already exist somewhere —
  * a price list, a contract, a questionnaire — so setup asks five questions
  * and hands each answer to the import machinery, rather than presenting a
- * library of tools to discover. The first is how inquiries reach StudioCue,
- * answered right here in the same sheets Today and Settings use. Every question is skippable: what is skipped
- * comes back in Today at the moment it blocks real work.
+ * library of tools to discover. Most are answered right on this page: the
+ * inquiry routes open their sheets here, hours take one tap, the agreement
+ * answer is one tap, and the details form starts answered. Every question is
+ * skippable: what is skipped comes back in Today when it blocks real work.
  */
 
 type Question = {
@@ -37,18 +41,29 @@ type Question = {
   doneLabel: string;
 };
 
+/**
+ * In the order a new studio needs them: inquiries in, then when it can talk to
+ * them, then what it charges, how they sign, and what it asks before the day
+ * (docs/onboarding-assessment-2026-09-26.md, "setup v2").
+ */
 const QUESTIONS: Question[] = [
   {
     /**
      * First, because until inquiries arrive StudioCue has nothing to do. It
      * used to sit under the four questions as a "forward by hand" strip,
      * uncounted, so setup could say "Your studio is set up" with nothing
-     * coming in (docs/onboarding-assessment-2026-09-26.md).
+     * coming in.
      */
     key: "inquiries",
     ask: "How do inquiries reach you?",
     why: "Your website form can send StudioCue a copy, your inbox can pass them on, or you forward one by hand. Each arrives filled in, with a reply drafted.",
     doneLabel: "Inquiries are reaching StudioCue.",
+  },
+  {
+    key: "availability",
+    ask: "When can clients book a call?",
+    why: "Pick your hours and clients book a consultation themselves. Connect Google Calendar too, and times you're busy are never offered.",
+    doneLabel: "Clients can book a time that suits you both.",
   },
   {
     key: "packages",
@@ -66,10 +81,6 @@ const QUESTIONS: Question[] = [
      * the reference studio had none: he imported his agreement, waited, and
      * told us "never got a contract to sign, so couldn't complete the run
      * through" — then asked "is it making the contract for me?".
-     *
-     * The same promise sat on the Today card and is fixed there too. This is
-     * the one a new studio meets first, which makes it the more expensive of
-     * the two.
      */
     key: "agreement",
     ask: "How do your clients sign?",
@@ -79,14 +90,10 @@ const QUESTIONS: Question[] = [
   {
     key: "questionnaire",
     ask: "What do you ask couples before the day?",
-    why: "Forward the form you already send and confirm the draft — locations, timings, family names.",
-    doneLabel: "Your details form is ready to assign.",
-  },
-  {
-    key: "availability",
-    ask: "When do you take consultations?",
-    why: "Set your hours and clients can pick a time themselves, without the back-and-forth.",
-    doneLabel: "Clients can book a time that suits you both.",
+    why: "Paste or upload the form you already send and confirm the draft — locations, timings, family names.",
+    // Every new studio starts with StudioCue's starter forms, so this is
+    // usually done before the studio arrives; it says so, and offers theirs.
+    doneLabel: "StudioCue's starter forms are ready to send — or use your own.",
   },
 ];
 
@@ -100,11 +107,80 @@ const NATIVE_AGREEMENT_HREF = "/studio/contracts/agreement";
 const NATIVE_AGREEMENT_WHY =
   "Bring in the agreement you already use. StudioCue writes each client's contract from it, with their details and the price they accepted, and they sign in their portal.";
 
+// Asked in the one shared order Today's "Next:" also follows.
+const ORDERED = SETUP_ORDER.map((key) => QUESTIONS.find((question) => question.key === key)!);
+
+const IMPORT_PRICES = fromSetup("/studio/import?kind=Package");
+const IMPORT_FORM = fromSetup("/studio/import?kind=Questionnaire");
+
 export function SetupConversation() {
   const workspace = useWorkspace();
-  const { gaps, complete, loading, refresh } = useSetupState();
+  const { gaps, complete, loading, refresh, calendarConnected } = useSetupState();
   const gapByKey = new Map(gaps.map((gap) => [gap.key, gap]));
   const answered = QUESTIONS.length - gaps.length;
+
+  /** What a question offers when it isn't answered yet. */
+  const answer = (question: Question, gap: SetupGap): ReactNode => {
+    switch (question.key) {
+      case "inquiries":
+        // Answered in place: the three routes open their sheets here.
+        return <LeadCaptureRoutes />;
+      case "availability":
+        return <HoursAnswer onAnswered={refresh} />;
+      case "packages":
+        return (
+          <div className="setup-answer-row">
+            <Link className="button button-dark" href={IMPORT_PRICES}>
+              Paste or upload your prices <ArrowRight size={14} />
+            </Link>
+            <Link className="setup-answer-link" href={fromSetup("/studio/packages/new")}>
+              Add one by hand
+            </Link>
+          </div>
+        );
+      case "agreement":
+        return gap.href === NATIVE_AGREEMENT_HREF ? (
+          <div className="setup-answer-row">
+            <Link className="button button-dark" href={fromSetup(gap.href)}>
+              {gap.actionLabel} <ArrowRight size={14} />
+            </Link>
+          </div>
+        ) : (
+          /* It linked to Integrations, where no signing app is offered: a
+             dead end, and the one step setup could never tick. */
+          <SendOwnAgreement onAnswered={refresh} />
+        );
+      case "questionnaire":
+        return (
+          <div className="setup-answer-row">
+            <Link className="button button-dark" href={IMPORT_FORM}>
+              Paste or upload your form <ArrowRight size={14} />
+            </Link>
+          </div>
+        );
+    }
+  };
+
+  /** What an answered question still offers. */
+  const afterwards = (question: Question): ReactNode => {
+    if (question.key === "availability")
+      return (
+        <div className="setup-answer-row">
+          <Link className="setup-answer-link" href={fromSetup("/studio/settings/consultation-availability")}>
+            Change hours
+          </Link>
+        </div>
+      );
+    if (question.key === "questionnaire")
+      return (
+        <div className="setup-answer-row">
+          <Link className="setup-answer-link" href={IMPORT_FORM}>
+            Use your own form instead
+          </Link>
+        </div>
+      );
+    return null;
+  };
 
   return (
     <AppShell active="Studio settings">
@@ -119,7 +195,7 @@ export function SetupConversation() {
           <p className="setup-lede">
             {complete
               ? "Everything StudioCue needs is in place. Change any of it whenever your studio does."
-              : "Five questions. You already have the answers — most of them are a document you can paste. Skip anything; StudioCue will bring it back when a job actually needs it."}
+              : "Five questions, most answered right here. Skip anything; StudioCue will bring it back when a job actually needs it."}
           </p>
           {!loading ? (
             <p className="setup-progress">
@@ -129,7 +205,7 @@ export function SetupConversation() {
         </header>
 
         <ol className="setup-questions">
-          {QUESTIONS.map((question, index) => {
+          {ORDERED.map((question, index) => {
             const gap = gapByKey.get(question.key);
             const done = !gap;
             return (
@@ -161,23 +237,15 @@ export function SetupConversation() {
                       <CircleAlert size={12} /> {gap.detail}
                     </span>
                   ) : null}
-                  {/* Answered in place: the three routes open their sheets here. */}
-                  {!done && question.key === "inquiries" ? <LeadCaptureRoutes /> : null}
+                  {!loading && gap ? answer(question, gap) : null}
+                  {!loading && done ? afterwards(question) : null}
+                  {/* Beside the hours it decides, answered or not; optional,
+                      so it never counts towards the five. */}
+                  {!loading && question.key === "availability" ? (
+                    <CalendarConnect connected={calendarConnected} />
+                  ) : null}
                 </div>
-                {!done && gap && question.key === "inquiries" ? null : !done &&
-                  gap &&
-                  question.key === "agreement" &&
-                  gap.href !== NATIVE_AGREEMENT_HREF ? (
-                  /* It linked to Integrations, where no signing app is offered:
-                     a dead end, and the one step setup could never tick. */
-                  <SendOwnAgreement onAnswered={refresh} />
-                ) : !done && gap ? (
-                  <Link className="button button-dark" href={fromSetup(gap.href)}>
-                    {gap.actionLabel} <ArrowRight size={14} />
-                  </Link>
-                ) : (
-                  <span className="setup-question-done">Done</span>
-                )}
+                {done ? <span className="setup-question-done">Done</span> : null}
               </li>
             );
           })}
@@ -192,6 +260,95 @@ export function SetupConversation() {
         </p>
       </div>
     </AppShell>
+  );
+}
+
+/**
+ * Consultation hours in one tap: Mon–Fri, 9–5 is what the settings page
+ * pre-fills anyway, but it only counted once saved there — two pages away.
+ */
+function HoursAnswer({ onAnswered }: { onAnswered: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  return (
+    <div className="setup-answer-row">
+      <button
+        className="button button-dark"
+        disabled={busy}
+        onClick={() => {
+          setBusy(true);
+          setNotice(null);
+          sendBookingCommand({
+            type: "setConsultationSettings",
+            idempotencyKey: crypto.randomUUID(),
+            input: {
+              durationMinutes: 45,
+              bufferMinutes: 15,
+              mode: "closed_default",
+              windows: (["mon", "tue", "wed", "thu", "fri"] as const).map((day) => ({
+                day,
+                startMinute: 9 * 60,
+                endMinute: 17 * 60,
+              })),
+              unavailableWindows: [],
+              blockedDates: [],
+            },
+          })
+            .then(() => onAnswered())
+            .catch((caught: unknown) => setNotice(friendlyError(caught, "Those hours couldn't be saved. Try again.")))
+            .finally(() => setBusy(false));
+        }}
+        type="button"
+      >
+        {busy ? <LoaderCircle className="spin" size={14} /> : <Check size={14} />}
+        Use Mon–Fri, 9–5
+      </button>
+      <Link className="setup-answer-link" href={fromSetup("/studio/settings/consultation-availability")}>
+        Choose my own hours
+      </Link>
+      {notice ? <small className="setup-answer-notice" role="status">{notice}</small> : null}
+    </div>
+  );
+}
+
+/**
+ * Google Calendar, offered where it matters: beside the hours it keeps honest.
+ * Connecting comes back here (the OAuth flow's returnTo), not to Integrations.
+ */
+function CalendarConnect({ connected }: { connected: boolean }) {
+  const workspace = useWorkspace();
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  if (connected)
+    return (
+      <p className="setup-calendar is-connected">
+        <CalendarCheck size={14} /> Google Calendar connected — busy times are never offered.
+      </p>
+    );
+  return (
+    <p className="setup-calendar">
+      <CalendarCheck size={14} />
+      <button
+        className="setup-answer-link"
+        disabled={busy || !workspace.tenantId}
+        onClick={() => {
+          if (!workspace.tenantId) return;
+          setBusy(true);
+          setNotice(null);
+          startProviderConnect("google_calendar", workspace.tenantId, "/studio/setup")
+            .then((url) => window.location.assign(url))
+            .catch((caught: unknown) => {
+              setNotice(friendlyError(caught, "Google Calendar couldn't be connected. Try Integrations."));
+              setBusy(false);
+            });
+        }}
+        type="button"
+      >
+        {busy ? "Opening Google…" : "Connect Google Calendar"}
+      </button>
+      <span>(optional)</span>
+      {notice ? <small className="setup-answer-notice" role="status">{notice}</small> : null}
+    </p>
   );
 }
 

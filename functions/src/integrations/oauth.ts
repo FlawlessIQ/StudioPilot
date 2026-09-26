@@ -36,6 +36,17 @@ const startSchema = z.object({
    * and should not be asked to grant access to take card payments.
    */
   payments: z.boolean().default(false),
+  /**
+   * Where to land after connecting, when it isn't Integrations — setup's
+   * calendar question sends the studio back to setup rather than to a page it
+   * never chose to visit. A path inside the studio app only; anything else is
+   * refused, so this can't be turned into an open redirect.
+   */
+  returnTo: z
+    .string()
+    .max(200)
+    .regex(/^\/studio\/[A-Za-z0-9/_-]*$/)
+    .optional(),
 });
 type Config = {
   clientId: string;
@@ -488,6 +499,7 @@ export const integrationOAuth = onRequest(
             verifier,
             redirectUri,
             scopes: current.scopes,
+            returnTo: input.returnTo ?? null,
             expiresAt: new Date(now.valueOf() + 10 * 60000).toISOString(),
             createdAt: now.toISOString(),
           });
@@ -742,8 +754,14 @@ export const integrationOAuth = onRequest(
         providerEventId: null,
       });
       await batch.commit();
+      // Checked again on the way out: the state document is ours, but the
+      // rule belongs where the redirect happens.
+      const savedReturn = String(saved.get("returnTo") ?? "");
+      const landing = /^\/studio\/[A-Za-z0-9/_-]*$/.test(savedReturn)
+        ? savedReturn
+        : "/studio/integrations";
       response.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app"}/studio/integrations?connected=${provider}`,
+        `${process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app"}${landing}?connected=${provider}`,
       );
     } catch (caught: unknown) {
       const message = caught instanceof Error ? caught.message : "OAUTH_FAILED";

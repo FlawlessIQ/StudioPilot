@@ -131,3 +131,47 @@ test("setup isn't finished until inquiries reach StudioCue", () => {
   assert.equal(setupComplete(everythingElse), true);
   assert.equal(setupGaps(everythingElse, quiet).length, 0);
 });
+
+import { readFileSync } from "node:fs";
+import { SETUP_ORDER, nextSetupStep } from "@/features/today/setup-gaps";
+
+const source = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
+
+test("setup asks in one order, and Today's 'Next' follows it", () => {
+  assert.deepEqual(SETUP_ORDER, ["inquiries", "availability", "packages", "agreement", "questionnaire"]);
+  const gaps = setupGaps({ ...nothingConfigured, hasInquiryCapture: true }, quiet);
+  // Inquiries answered: next is hours, not whatever the engine listed first.
+  assert.equal(nextSetupStep(gaps), "availability");
+  assert.equal(nextSetupStep([]), null);
+  const conversation = source("components/setup/setup-conversation.tsx");
+  assert.match(conversation, /SETUP_ORDER\.map/);
+  assert.match(source("components/today/use-today-inbox.ts"), /next: nextSetupStep\(setup\.gaps\)/);
+});
+
+test("setup v2 answers what it can in place, and sends the rest to the right door", () => {
+  const conversation = source("components/setup/setup-conversation.tsx");
+  // Hours in one tap, the same Mon–Fri 9–5 the settings page pre-fills.
+  assert.match(conversation, /type: "setConsultationSettings"/);
+  assert.match(conversation, /Use Mon–Fri, 9–5/);
+  // Google Calendar beside the hours, coming back to setup.
+  assert.match(conversation, /startProviderConnect\("google_calendar", workspace\.tenantId, "\/studio\/setup"\)/);
+  // Prices and forms open the import already set to that kind.
+  assert.match(conversation, /\/studio\/import\?kind=Package/);
+  assert.match(conversation, /\/studio\/import\?kind=Questionnaire/);
+  // Help's checklist is setup's, not a third list.
+  const checklist = source("components/dashboard/setup-checklist.tsx");
+  assert.match(checklist, /useSetupState\(\)/);
+  assert.match(checklist, /SETUP_ORDER\.map/);
+});
+
+test("connecting a calendar can return to setup, and only ever to a studio page", () => {
+  const oauth = source("functions/src/integrations/oauth.ts");
+  // Accepted on the way in only as a /studio/ path…
+  assert.match(oauth, /returnTo: z\s*\.string\(\)\s*\.max\(200\)\s*\.regex\(\/\^\\\/studio\\\//);
+  // …and checked again where the redirect happens, falling back to Integrations.
+  assert.match(oauth, /: "\/studio\/integrations";/);
+  const rule = /^\/studio\/[A-Za-z0-9/_-]*$/;
+  assert.ok(rule.test("/studio/setup"));
+  for (const hostile of ["https://evil.example", "//evil.example", "/studio/../../x?y", "/studio/setup?next=//evil"])
+    assert.equal(rule.test(hostile), false, hostile);
+});

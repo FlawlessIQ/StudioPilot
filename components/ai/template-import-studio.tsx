@@ -180,11 +180,34 @@ function importStatusLabel(status: string | undefined) {
   return status.replaceAll("_", " ");
 }
 
+/**
+ * What setup opened this for (`?kind=`). Setup's "What do you charge?" said
+ * "paste your price list", and pasted text was pre-selected as an email
+ * template (docs/onboarding-assessment-2026-09-26.md). With a kind, the paste
+ * option says what to paste, sources are named for it, and it's what's
+ * pre-selected. The server still reads the content and can find more.
+ */
+const KIND_COPY: Partial<Record<ImportKind, { paste: string; name: string }>> = {
+  Package: { paste: "Paste your price list", name: "Pasted price list" },
+  Questionnaire: { paste: "Paste your details form", name: "Pasted details form" },
+};
+
+function isImportKind(value: string | null | undefined): value is ImportKind {
+  return ["Email journey", "Contract", "Questionnaire", "Schedule", "Package", "Workflow"].includes(
+    String(value),
+  );
+}
+
 export function TemplateImportStudio({
   resumeSessionId,
+  kind: requestedKind = null,
 }: {
   resumeSessionId?: string | null;
+  /** From `?kind=`; ignored unless it names a kind this page imports. */
+  kind?: string | null;
 }) {
+  const initialKind = isImportKind(requestedKind) ? requestedKind : null;
+  const kindCopy = initialKind ? KIND_COPY[initialKind] ?? null : null;
   const inputRef = useRef<HTMLInputElement>(null);
   const reviewRef = useRef<HTMLDivElement>(null);
   const [sourceMode, setSourceMode] = useState<SourceMode>("files");
@@ -266,6 +289,7 @@ export function TemplateImportStudio({
   }, [resumeSessionId]);
 
   const suggestions = useMemo(() => {
+    if (initialKind && (files.length || emailText.trim() || websiteUrl.trim())) return [initialKind];
     const kinds = new Set<ImportKind>(files.map((file) => file.kind));
     if (emailText.trim()) kinds.add("Email journey");
     if (websiteUrl.trim()) {
@@ -273,7 +297,7 @@ export function TemplateImportStudio({
       kinds.add("Package");
     }
     return Array.from(kinds);
-  }, [emailText, files, websiteUrl]);
+  }, [emailText, files, initialKind, websiteUrl]);
   const planKinds = review ? kindsFromReview(review) : suggestions;
 
   function addFiles(incoming: FileList | File[]) {
@@ -296,7 +320,7 @@ export function TemplateImportStudio({
               name: validation.candidate.name,
               size: validation.candidate.sizeBytes,
               type: validation.candidate.contentType,
-              kind: inferKind(file.name),
+              kind: initialKind ?? inferKind(file.name),
               file,
             },
           ]
@@ -424,7 +448,7 @@ export function TemplateImportStudio({
           name:
             sourceMode === "website"
               ? `Imported page · ${new URL(websiteUrl).hostname}`
-              : "Imported studio email",
+              : kindCopy?.name ?? "Imported studio email",
           ...(sourceMode === "website"
             ? { url: websiteUrl.trim() }
             : { content: emailText.trim() }),
@@ -665,7 +689,10 @@ export function TemplateImportStudio({
                   type="button"
                 >
                   <Icon size={18} />
-                  <span><strong>{mode.label}</strong><small>{mode.detail}</small></span>
+                  <span>
+                    <strong>{mode.id === "email" && kindCopy ? "Paste it" : mode.label}</strong>
+                    <small>{mode.id === "email" && kindCopy ? kindCopy.paste : mode.detail}</small>
+                  </span>
                 </button>
               );
             })}

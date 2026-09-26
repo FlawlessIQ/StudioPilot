@@ -66,7 +66,7 @@ export function HelpCenter() {
 
       <section className="help-section">
         <p className="section-label">Set up your studio</p>
-        <SetupChecklist alwaysExpanded />
+        <SetupChecklist />
       </section>
 
       <section className="help-section">

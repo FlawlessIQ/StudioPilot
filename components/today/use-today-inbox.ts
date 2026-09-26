@@ -8,6 +8,7 @@ import { displayableScheduleItems } from "@/features/schedules/item-clock";
 import { todayLocalIso } from "@/lib/format/event-date";
 import { activeProjectStates } from "@/features/dashboard/active-states";
 import { useSetupState } from "@/components/setup/use-setup-state";
+import { nextSetupStep, type SetupGapKey } from "@/features/today/setup-gaps";
 import { homeMetrics, type HomeMetrics } from "@/features/dashboard/home-metrics";
 import {
   bookedValueCents,
@@ -42,6 +43,8 @@ export function useTodayInbox(): {
   setup: {
     complete: boolean;
     answered: number;
+    /** The next unanswered setup question, in setup's order. */
+    next: SetupGapKey | null;
     brandNew: boolean;
     noInquiriesEver: boolean;
   };
@@ -267,6 +270,7 @@ export function useTodayInbox(): {
      */
     setup: {
       complete: setup.complete,
+      next: nextSetupStep(setup.gaps),
       answered: [
         setup.state.hasInquiryCapture !== false,
         setup.state.hasActivePackage,

@@ -24,6 +24,7 @@ import { formatCents } from "@/lib/format/money";
 import { AppShell } from "@/components/layout/app-shell";
 import { useTodayInbox } from "@/components/today/use-today-inbox";
 import { LeadCaptureStart } from "@/components/intake/lead-capture-setup";
+import { SETUP_STEP_NAME } from "@/features/today/setup-gaps";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { greetingFor } from "@/features/dashboard/home-metrics";
 import { greetingName } from "@/features/auth/session-failure";
@@ -460,9 +461,9 @@ export function TodayInbox() {
                     : "Finish setting up your studio."}
                 </strong>
                 <small>
-                  {setup.answered}{" "} of 5 answered — how inquiries reach you, your
-                  prices, your agreement, your details form, and when you take
-                  consultations.
+                  {`${setup.answered} of 5 answered.${
+                    setup.next ? ` Next: ${SETUP_STEP_NAME[setup.next]}.` : ""
+                  }`}
                 </small>
               </div>
               <Link

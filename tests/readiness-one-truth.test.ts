@@ -244,7 +244,6 @@ test("a single job's readiness is derived, not read from the stored field", () =
     "components/live/tenant-records.tsx",
     "components/reporting/live-reports.tsx",
     "components/booking/studio-calendar.tsx",
-    "components/dashboard/studio-dashboard.tsx",
     "components/dashboard/priority-signals.tsx",
     // Aggregate metrics across every project, not one job's number.
     "features/dashboard/home-metrics.ts",

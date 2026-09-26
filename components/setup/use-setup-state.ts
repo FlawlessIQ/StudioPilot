@@ -31,6 +31,8 @@ export function useSetupState(): {
   loading: boolean;
   /** Read the tenant-keyed documents again, after an answer is saved here. */
   refresh: () => void;
+  /** Google Calendar is connected. Offered beside hours; not a question of its own. */
+  calendarConnected: boolean;
 } {
   const workspace = useWorkspace();
   const packages = useTenantDocuments("packages");
@@ -96,6 +98,10 @@ export function useSetupState(): {
     };
   }, [workspace.loading, workspace.tenantId, reads]);
 
+  const calendarConnected = (connections.records ?? []).some(
+    (connection) =>
+      text(connection.provider) === "google_calendar" && text(connection.status) === "connected",
+  );
   const signingConnected = (connections.records ?? []).some(
     (connection) =>
       ["docusign", "dropbox_sign"].includes(text(connection.provider)) &&
@@ -178,6 +184,7 @@ export function useSetupState(): {
     gaps,
     complete: setupComplete(state),
     refresh: () => setReads((count) => count + 1),
+    calendarConnected,
     loading: dataIsLive && (packages.records === null || tenantDocs === null),
   };
 }

@@ -12,9 +12,9 @@ export const metadata: Metadata = {
 export default async function TemplateImportPage({
   searchParams,
 }: {
-  searchParams: Promise<{ session?: string; from?: string }>;
+  searchParams: Promise<{ session?: string; from?: string; kind?: string }>;
 }) {
-  const { session, from } = await searchParams;
+  const { session, from, kind } = await searchParams;
   return (
     // The breadcrumb label comes from studioRouteLabels in the shell, not
     // from this prop — app/studio/layout.tsx mounts the shell and a
@@ -23,7 +23,7 @@ export default async function TemplateImportPage({
     <AppShell active="Library">
       <div className="template-import-shell">
         <BackToSetup fallback={{ href: "/studio/library", label: "Back to library" }} from={from} />
-        <TemplateImportStudio resumeSessionId={session ?? null} />
+        <TemplateImportStudio kind={kind ?? null} resumeSessionId={session ?? null} />
       </div>
     </AppShell>
   );

@@ -1,111 +1,48 @@
 "use client";
 
 import Link from "next/link";
+import type { ComponentType } from "react";
 import {
   ArrowRight,
+  CalendarClock,
   Check,
-  Circle,
-  CalendarCheck,
+  ClipboardList,
+  Inbox,
   Package,
-  FolderKanban,
-  UserPlus,
-  ExternalLink,
+  PenLine,
 } from "lucide-react";
-import { useTenantDocuments } from "@/components/live/tenant-records";
-import { useWorkspace } from "@/features/auth/workspace-context";
+import { useSetupState } from "@/components/setup/use-setup-state";
+import {
+  SETUP_ORDER,
+  SETUP_STEP_NAME,
+  type SetupGapKey,
+} from "@/features/today/setup-gaps";
 
-type SetupStep = {
-  label: string;
-  detail: string;
-  href: string;
-  done: boolean;
-  icon: typeof Circle;
+/**
+ * Help's "Set up your studio": the same five questions as /studio/setup, in
+ * the same order, read from the same state.
+ *
+ * It used to be its own list of five different steps (preview the form,
+ * offerings, calendar, first project, invite team), so Help, setup and Today
+ * each said something different about how set up a studio was
+ * (docs/onboarding-assessment-2026-09-26.md). Every step now leads into setup,
+ * where it's answered.
+ */
+const ICONS: Record<SetupGapKey, ComponentType<{ size?: number }>> = {
+  inquiries: Inbox,
+  availability: CalendarClock,
+  packages: Package,
+  agreement: PenLine,
+  questionnaire: ClipboardList,
 };
 
-export function SetupChecklist({
-  alwaysExpanded = false,
-}: {
-  // The Help hub shows the full checklist as a standing reference — never the
-  // hidden-when-complete or compact-when-busy variants used inline elsewhere.
-  alwaysExpanded?: boolean;
-} = {}) {
-  const workspace = useWorkspace();
-  const { records: projects } = useTenantDocuments("projects");
-  const { records: packages } = useTenantDocuments("packages");
-  const { records: connections } = useTenantDocuments("integrationConnections");
-  const { records: memberships } = useTenantDocuments("memberships");
-  const calendarConnected = Boolean(
-    connections?.some(
-      (connection) =>
-        connection.provider === "google_calendar" &&
-        connection.status === "connected",
-    ),
-  );
-  const steps: SetupStep[] = [
-    {
-      label: "Preview your inquiry form",
-      detail: "Confirm your studio name and client-facing language.",
-      href: workspace.tenantSlug
-        ? `/inquiry?studio=${encodeURIComponent(workspace.tenantSlug)}`
-        : "/studio/setup",
-      done: Boolean(workspace.tenantSlug),
-      icon: ExternalLink,
-    },
-    {
-      label: "Import or create your offerings",
-      detail: "Upload what you already use and let StudioCue rebuild it.",
-      href: "/studio/import",
-      done: Boolean(packages?.length),
-      icon: Package,
-    },
-    {
-      label: "Connect your calendar",
-      detail: "Prevent consultation and event-date conflicts.",
-      href: "/studio/integrations",
-      done: calendarConnected,
-      icon: CalendarCheck,
-    },
-    {
-      label: "Create your first project",
-      detail: "Start with the client and event essentials.",
-      href: "/studio/projects/new",
-      done: Boolean(projects?.length),
-      icon: FolderKanban,
-    },
-    {
-      label: "Invite your team",
-      detail: "Add a coordinator, admin, or photographer when ready.",
-      href: "/studio/team",
-      done: (memberships?.length ?? 0) > 1,
-      icon: UserPlus,
-    },
-  ];
-  const completed = steps.filter((step) => step.done).length;
-  if (completed === steps.length && !alwaysExpanded) return null;
-  const next = steps.find((step) => !step.done);
-  const hasActiveWork = Boolean(projects?.length);
+const capitalise = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
 
-  if (hasActiveWork && next && !alwaysExpanded) {
-    const Icon = next.icon;
-    return (
-      <details className="studio-setup-compact">
-        <summary>
-          <span>{next.done ? <Check size={16} /> : <Icon size={16} />}</span>
-          <span>
-            <small>Finish setting up StudioCue</small>
-            <strong>{next.label}</strong>
-          </span>
-          <em>{completed} of {steps.length}</em>
-        </summary>
-        <div>
-          <p>{next.detail}</p>
-          <Link className="ds-btn ds-btn-primary" href={next.href}>
-            Continue setup <ArrowRight size={16} />
-          </Link>
-        </div>
-      </details>
-    );
-  }
+export function SetupChecklist() {
+  const { gaps, loading } = useSetupState();
+  const open = new Set(gaps.map((gap) => gap.key));
+  const completed = SETUP_ORDER.filter((key) => !open.has(key)).length;
+  const total = SETUP_ORDER.length;
 
   return (
     <section className="ds-card ds-setup">
@@ -113,29 +50,32 @@ export function SetupChecklist({
         <div>
           <span className="ds-eyebrow">Get started</span>
           <h2>Set up your studio workspace</h2>
-          <p>Complete these essentials to start moving real projects through StudioCue.</p>
+          <p>Five questions, most answered in a tap. Skip anything and come back when you need it.</p>
         </div>
-        <span className="ds-badge ds-badge-brass">{completed} of {steps.length} complete</span>
+        {!loading ? (
+          <span className="ds-badge ds-badge-brass">{`${completed} of ${total} complete`}</span>
+        ) : null}
       </div>
-      <div className="ds-setup-track" aria-label={`${completed} of ${steps.length} setup steps complete`}>
-        <i style={{ width: `${(completed / steps.length) * 100}%` }} />
+      <div className="ds-setup-track" aria-label={`${completed} of ${total} setup steps complete`}>
+        <i style={{ width: `${(completed / total) * 100}%` }} />
       </div>
       <div className="ds-setup-steps">
-        {steps.map((step) => {
-          const Icon = step.icon;
+        {SETUP_ORDER.map((key) => {
+          const Icon = ICONS[key];
+          const done = !loading && !open.has(key);
           return (
-            <Link className={step.done ? "is-done" : ""} href={step.href} key={step.label}>
-              <span>{step.done ? <Check size={16} /> : <Icon size={16} />}</span>
-              <div><strong>{step.label}</strong><small>{step.detail}</small></div>
+            <Link className={done ? "is-done" : ""} href="/studio/setup" key={key}>
+              <span>{done ? <Check size={16} /> : <Icon size={16} />}</span>
+              <div>
+                <strong>{capitalise(SETUP_STEP_NAME[key])}</strong>
+              </div>
             </Link>
           );
         })}
       </div>
-      {next ? (
-        <Link className="ds-btn ds-btn-primary" href={next.href}>
-          Continue setup <ArrowRight size={16} />
-        </Link>
-      ) : null}
+      <Link className="ds-btn ds-btn-primary" href="/studio/setup">
+        {completed === total ? "Review setup" : "Continue setup"} <ArrowRight size={16} />
+      </Link>
     </section>
   );
 }
