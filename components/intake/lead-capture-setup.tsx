@@ -25,7 +25,7 @@ import {
   OUTLOOK_RULES,
   gmailFilterQuery,
   gmailSearchLink,
-  senderDomains,
+  forwardingConditions,
   type FormSource,
 } from "@/features/intake/forwarding-filters";
 import { NOTIFICATION_GUIDES, type NotificationGuide } from "@/features/intake/form-notification-guides";
@@ -347,6 +347,14 @@ export function LeadCaptureView({
       </div>
 
       {error ? <p className="form-notice">{error}</p> : null}
+      {/* Loaded, but no address: the routes below can't work. It showed
+          "…" and greyed-out rows, and said nothing. */}
+      {setup && !address ? (
+        <p className="form-notice">
+          Your StudioCue address isn&apos;t ready yet. Email support@studio-cue.com and we&apos;ll
+          sort it out.
+        </p>
+      ) : null}
 
       <div className="capture-status" aria-live="polite">
         <span aria-hidden="true" className={live ? "capture-dot is-live" : "capture-dot"} />
@@ -764,7 +772,7 @@ function InboxRoute({
   const family = chosen ?? detected ?? "google";
   const [sources, setSources] = useState<FormSource[]>([]);
   const query = gmailFilterQuery(sources);
-  const senders = senderDomains(sources);
+  const conditions = forwardingConditions(sources);
 
   const steps: Step[] = [
     {
@@ -859,12 +867,36 @@ function InboxRoute({
       title: family === "microsoft" ? "Add an Outlook rule" : "Add a forwarding rule",
       body: (
         <>
-          <p className="capture-lead">Forward mail from:</p>
-          <div className="capture-chips">
-            {senders.map((sender) => (
-              <span className="capture-chip is-static" key={sender}>{sender}</span>
-            ))}
-          </div>
+          {conditions.senders.length ? (
+            <>
+              <p className="capture-lead">Forward mail from:</p>
+              <div className="capture-chips">
+                {conditions.senders.map((sender) => (
+                  <span className="capture-chip is-static" key={sender}>{sender}</span>
+                ))}
+              </div>
+            </>
+          ) : null}
+          {conditions.subjectContains.length ? (
+            <>
+              <p className="capture-lead">…whose subject contains:</p>
+              <div className="capture-chips">
+                {conditions.subjectContains.map((phrase) => (
+                  <span className="capture-chip is-static" key={phrase}>{phrase}</span>
+                ))}
+              </div>
+            </>
+          ) : null}
+          {conditions.messageContains.length ? (
+            <>
+              <p className="capture-lead">Or mail whose message contains:</p>
+              <div className="capture-chips">
+                {conditions.messageContains.map((phrase) => (
+                  <span className="capture-chip is-static" key={phrase}>{phrase}</span>
+                ))}
+              </div>
+            </>
+          ) : null}
           <p className="capture-lead">To:</p>
           <Pasteable label="Copy" value={address} />
           {family === "microsoft" ? (

@@ -557,3 +557,21 @@ test("'not an inquiry' retires the reply drafted to it", () => {
     "the drafts are read before the first write",
   );
 });
+
+import { forwardingConditions } from "../features/intake/forwarding-filters";
+
+test("an Outlook rule gets conditions a rule can hold, not a phrase listed as a sender", () => {
+  const conditions = forwardingConditions(["squarespace", "wordpress", "wix"]);
+  assert.deepEqual(conditions.senders, ["squarespace.info", "wix-forms.com", "crm.wix.com", "wixsiteautomations.com"]);
+  // Squarespace's subject narrowing is kept, as a condition.
+  assert.deepEqual(conditions.subjectContains, ["Form Submission"]);
+  // WordPress has no sender of its own: its phrase is a message condition.
+  assert.deepEqual(conditions.messageContains, ["sent from a contact form on"]);
+  assert.ok(!conditions.senders.some((sender) => sender.includes(" ")), "no phrase listed as a sender");
+});
+
+test("changing the studio's address says the forwarding address changes too", () => {
+  const read = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
+  assert.match(read("features/tenants/identity.ts"), /forwarding address changes with it/);
+  assert.match(read("components/intake/lead-capture-setup.tsx"), /Your StudioCue address isn&apos;t ready yet/);
+});

@@ -23,8 +23,9 @@ import { LeadCaptureSetup } from "@/components/intake/lead-capture-setup";
  * list you had never visited. A studio with no inquiries yet had no route at
  * all — and that studio is precisely the one with a mailbox full of them.
  *
- * It is now on Today while no inquiry has ever arrived, in the setup flow, and
- * in Studio settings under Communications.
+ * It is now on the inquiries list; Today, setup and Studio settings →
+ * Inquiry capture offer the fuller setup (LeadCaptureStart,
+ * LeadCaptureRoutes, LeadCaptureSetup).
  */
 export function useInquiryForwardingAddress(): string | null {
   const workspace = useWorkspace();

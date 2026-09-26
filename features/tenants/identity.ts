@@ -87,7 +87,9 @@ export function slugChangeConsequence(
   next: string,
 ): string | null {
   if (current === next) return null;
-  return `Your inquiry form moves to /inquiry?studio=${next}. Links you have already shared with ${current} keep working.`;
+  // The forwarding address is built from the same slug, so it changes too;
+  // the old one keeps working (inbound resolves slug aliases).
+  return `Your inquiry form moves to /inquiry?studio=${next}, and your StudioCue forwarding address changes with it. Links and forwarding rules you already set up with ${current} keep working.`;
 }
 
 /**

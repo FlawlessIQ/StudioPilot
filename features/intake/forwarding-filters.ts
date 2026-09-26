@@ -72,9 +72,31 @@ export function gmailFilterQuery(sources: readonly FormSource[]): string {
  * domains, plus WordPress's phrase, which has no sender of its own.
  */
 export function senderDomains(sources: readonly FormSource[]): string[] {
+  return forwardingConditions(sources).senders;
+}
+
+/**
+ * A rule for Outlook or another provider, as conditions it can hold: who the
+ * mail is from, and — where a sender alone would catch too much, or there is
+ * no sender — what the subject or message says. The rule step used to list
+ * WordPress's phrase as a sender and drop Squarespace's subject altogether.
+ */
+export function forwardingConditions(sources: readonly FormSource[]): {
+  senders: string[];
+  subjectContains: string[];
+  messageContains: string[];
+} {
   const terms = sources.flatMap((source) => TERMS[source]);
-  const readable = terms.map((term) => (term.startsWith("from:") ? term.slice(5) : term.startsWith("subject:") ? "" : term));
-  return [...new Set(readable.filter(Boolean))];
+  const unquote = (value: string) => value.replace(/^"|"$/g, "");
+  return {
+    senders: [...new Set(terms.filter((term) => term.startsWith("from:")).map((term) => term.slice(5)))],
+    subjectContains: [
+      ...new Set(terms.filter((term) => term.startsWith("subject:")).map((term) => unquote(term.slice(8)))),
+    ],
+    messageContains: [
+      ...new Set(terms.filter((term) => term.startsWith('"')).map(unquote)),
+    ],
+  };
 }
 
 /** Opens Gmail on that search, where "Create filter" is one click away. */
