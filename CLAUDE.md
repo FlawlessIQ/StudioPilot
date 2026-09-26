@@ -193,6 +193,40 @@ git config core.hooksPath .githooks
 
 Bypass only for a deliberate history rewrite: `git push --no-verify`.
 
+### Two agents, one working tree
+
+The drift above is about two **checkouts**. On 2026-09-25 a second, worse
+version appeared: two agent sessions working in **the same checkout** at the
+same time, both committing to `main`.
+
+`git add -A` stages whatever is dirty, including the other session's
+half-written files. It happened in both directions within three hours. One
+session's commit carried another's new component and tests under a message
+that described neither; four commits going the other way carried lead-capture
+work and three planning docs. Nothing was lost, because both sets happened to
+be complete when they were swept — but a file caught mid-edit would have been
+committed, pushed and deployed, and the commit message would have pointed at
+the wrong author's intent while doing it.
+
+It also produced a test failure that did not exist: a suite run while the other
+session was writing files reported one red test, and the count moved between
+two consecutive runs.
+
+**So, whenever another session may be live in this directory:**
+
+1. **Stage explicit paths. Never `git add -A`.** This is the whole fix; the
+   rest is diagnosis.
+2. **Read `git status --short` before staging.** Files you do not recognise are
+   probably another session mid-edit. Leave them.
+3. **Re-run a surprising test failure before chasing it.** Check whether the
+   suite count moved.
+4. `ListAgents` shows the other sessions on this machine, and `SendMessage`
+   reaches them — coordinating costs one message and is cheaper than
+   untangling a commit afterwards.
+
+Do not fix a mis-attributed commit by rewriting history: a force-push over a
+shared `main` is worse than a wrong commit message.
+
 ## Where to read more
 
 `docs/architecture.md` is the authoritative overview. Domain-specific docs: `data-model.md`, `workflow-engine.md`, `readiness-engine.md`, `booking-gate.md`, `booking-integrations.md`, `proposals.md`, `communications.md`, `webhooks.md`, `crew-operations.md`, `post-event-operations.md`, `saas-operations.md`, `security.md`, `deployment.md`, and ADRs in `docs/adr/`.
