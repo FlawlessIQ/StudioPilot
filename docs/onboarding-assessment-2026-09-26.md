@@ -161,8 +161,35 @@ checklist reads the same state.
 - **Found on the way:** twenty places where the build ran two words together
   (`d1a6374`, and `jsx-lost-space` now checks inline elements).
 
-Still open: 6, 7, 9, 11 (signup), 13–16 (one checklist, import copy, names),
-calendar connect inside the hours question, and the plan carried through signup.
+Later the same day:
+
+- **Setup v2** (`363a336`): the order from "The shortest path"; hours in one
+  tap; Google Calendar beside the hours, returning to setup; import opened on
+  the right kind; Today's "Next: …"; Help reads the same checklist (13); the
+  dead dashboard is deleted.
+- **Signup** (`d15eb4b`):
+  - 6: stay signed in, and verifying carries on by itself;
+  - 7: "Card required, nothing charged for 14 days" up front;
+  - 9: the Checkout `session_id` fallback, and a message after 15s;
+  - 10: the website's plan carried to the picker;
+  - 11: onboarding checks sign-in and verification on arrival, and the
+    resend is honest;
+  - the inbox setup is pre-filled.
+- **Polish** (`6731acd`):
+  - 14: contract import only where it will be used; imported forms get the
+    job type their name says;
+  - 15: the sender is shown, the reply wording matches what happens, the
+    fields are named for what they do, and Studio details no longer promises
+    a logo;
+  - 16: no "Nothing is waiting" under "Let's get you set up";
+  - "Review setup" once setup is done.
+- **Inquiry capture** (`d2b67f7`): Outlook rule conditions; a missing address
+  says so; the web-address warning mentions forwarding.
+
+Still open, and needing a decision: **Continue with Google** (the Google
+provider isn't configured in Firebase Auth; turning it on is a console change
+on the verified OAuth project), and **the card before first value** (7, now
+disclosed up front).
 
 ## Suggested order
 
