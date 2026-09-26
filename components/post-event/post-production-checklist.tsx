@@ -154,7 +154,7 @@ export function PostProductionChecklist({
       {inboxAddress && steps.gallery_ready?.complete !== true ? (
         <div className="post-production-inbox">
           <p>
-            <strong>Skip the ticking.</strong> Add this address when your gallery
+            <strong>Skip the ticking.</strong>{" "}Add this address when your gallery
             provider emails the couple (or forward that email here). Editing and
             gallery-ready mark themselves, and the release is prepared for you.
           </p>

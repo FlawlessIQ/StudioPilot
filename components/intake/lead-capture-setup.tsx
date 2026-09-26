@@ -954,7 +954,7 @@ function TestStep({ setup, actions }: { setup: LeadCaptureSetupState; actions: L
           <li><span>Press <strong>Start the test</strong>.</span></li>
           <li>
             <span>
-              Open your <strong>live website</strong> in a new tab and fill in your contact form as
+              Open your <strong>live website</strong>{" "}in a new tab and fill in your contact form as
               a couple would. Your own name and email are fine.
             </span>
           </li>

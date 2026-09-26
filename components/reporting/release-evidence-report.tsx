@@ -130,9 +130,9 @@ export function ReleaseEvidenceReport() {
           </p>
         </div>
         <span className="release-verdict-tally" aria-hidden="true">
-          <b className="is-pass">{loading ? "—" : passed}</b> pass
-          <b className="is-amber">{loading ? "—" : amber}</b> amber
-          <b className="is-fail">{loading ? "—" : failed}</b> not met
+          <b className="is-pass">{loading ? "—" : passed}</b>{" "}pass{" "}
+          <b className="is-amber">{loading ? "—" : amber}</b>{" "}amber{" "}
+          <b className="is-fail">{loading ? "—" : failed}</b>{" "}not met
         </span>
       </section>
 

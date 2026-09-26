@@ -37,13 +37,22 @@ test("no JSX text loses its space against an adjacent expression", () => {
             sibling.expression.text === " ";
           const before = spacer(node.children[index - 1]) ? undefined : node.children[index - 1];
           const after = spacer(node.children[index + 1]) ? undefined : node.children[index + 1];
+          // An element (a link, <strong>) loses the space exactly as an
+          // expression does: "Connect Google Calendarand times" shipped on the
+          // Calendar page, 2026-09-26, and this scanner only looked at {value}.
+          // Only words that sit inline with the text — a link, bold, code.
+          // An icon beside a label or an input after one needs no space.
+          const INLINE = new Set(["a", "Link", "strong", "em", "b", "i", "code"]);
+          const inline = (sibling: ts.JsxChild) =>
+            ts.isJsxExpression(sibling) ||
+            (ts.isJsxElement(sibling) && INLINE.has(sibling.openingElement.tagName.getText()));
           const line = parsed.getLineAndCharacterOfPosition(child.getStart()).line + 1;
           const where = `${file}:${line} — ${raw.trim().replace(/\s+/g, " ").slice(0, 48)}`;
           // A leading space after an expression, in a chunk that wraps.
-          if (before && ts.isJsxExpression(before) && /^[ \t]+[A-Za-z]/.test(raw) && raw.includes("\n"))
+          if (before && inline(before) && /^[ \t]+[A-Za-z]/.test(raw) && raw.includes("\n"))
             offenders.push(where);
           // A trailing space before an expression, swallowed with the newline.
-          if (after && ts.isJsxExpression(after) && /[A-Za-z0-9,.:;)]\s*\n\s*$/.test(raw))
+          if (after && inline(after) && /[A-Za-z0-9,.:;)]\s*\n\s*$/.test(raw))
             offenders.push(where);
         });
       }

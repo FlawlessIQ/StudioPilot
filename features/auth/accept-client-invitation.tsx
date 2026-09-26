@@ -408,7 +408,7 @@ export function AcceptClientInvitation({
               <InvitationJoin
                 intro={
                   <p>
-                    <strong>{preview.studioName}</strong> invited you to the
+                    <strong>{preview.studioName}</strong>{" "}invited you to the
                     portal for {preview.projectName}.
                   </p>
                 }

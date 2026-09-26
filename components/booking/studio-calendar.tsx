@@ -559,7 +559,7 @@ export function StudioCalendar() {
         ) : calendarStatus === "unavailable" && !calendarConnected ? (
           <p className="ds-cal-note">
             Only StudioCue bookings are shown.{" "}
-            <a href="/studio/integrations">Connect Google Calendar</a> and times you&apos;re
+            <a href="/studio/integrations">Connect Google Calendar</a>{" "}and times you&apos;re
             busy there are blocked out here, and never offered to clients.
           </p>
         ) : calendarStatus === "unavailable" ? (

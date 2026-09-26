@@ -676,7 +676,7 @@ function ThreadComposer({
               <span className="thread-ask-mark">
                 <Sparkles aria-hidden="true" size={12} />
               </span>
-              Ask Cue
+              Ask Cue{" "}
               <em>
                 <ShieldCheck aria-hidden="true" size={11} /> Reads this
                 job&rsquo;s records · changes nothing

@@ -96,7 +96,7 @@ export function PreviewShell({ children }: { children: React.ReactNode }) {
         <div className="ds-main">
           <header className="ds-topbar">
             <span className="ds-crumb">
-              <b>Workspace ·</b> Home
+              <b>Workspace ·</b>{" "}Home
             </span>
             <span className="ds-search">
               <Search size={16} />

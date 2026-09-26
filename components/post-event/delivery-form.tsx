@@ -637,7 +637,7 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
       </details>
       {!postProductionOpen ? (
         <p className="delivery-gate-notice form-span" role="status">
-          <strong>Not cleared for release yet.</strong> Post-production opens
+          <strong>Not cleared for release yet.</strong>{" "}Post-production opens
           after the event. The gallery can be recorded once the cards are backed
           up, the edit is finished and the gallery is ready.
         </p>

@@ -366,7 +366,7 @@ export function AgreementEditor() {
           <p className="native-contract-note">
             <code>#</code> or <code>##</code> starts a heading, <code>-</code> a bullet, <code>**bold**</code>{" "}
             makes text bold. Put <code>{"{{payment.schedule}}"}</code> or{" "}
-            <code>{"{{package.deliverables}}"}</code> on a line of its own for a table or a list.
+            <code>{"{{package.deliverables}}"}</code>{" "}on a line of its own for a table or a list.
           </p>
           {customFields.length ? (
             <div className="agreement-custom-fields">

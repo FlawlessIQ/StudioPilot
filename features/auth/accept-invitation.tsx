@@ -101,7 +101,7 @@ export function AcceptInvitation({ token }: { token: string }) {
       intro={
         <p>
           <Users />
-          <strong>{preview.studioName}</strong> invited you to their workspace
+          <strong>{preview.studioName}</strong>{" "}invited you to their workspace
           {" "}{roleNames[preview.role] ? ` as ${roleNames[preview.role]}` : ""}.
         </p>
       }

@@ -90,7 +90,7 @@ export function InquiryForwardingAddress() {
       <span>
         <strong>Inquiry by email, The Knot or WeddingWire?</strong>
         <small>
-          Forward it to <code>{address}</code> and it becomes an inquiry here,
+          Forward it to <code>{address}</code>{" "}and it becomes an inquiry here,
           with the date checked and a reply drafted.
         </small>
       </span>

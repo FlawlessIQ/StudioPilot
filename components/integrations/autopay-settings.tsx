@@ -86,7 +86,7 @@ export function AutopaySettings() {
             Autopay charges cards through QuickBooks Payments, a merchant account
             Intuit approves for your business. StudioCue can&rsquo;t apply for
             you. In QuickBooks, go to{" "}
-            <em>Settings → Account and settings → Payments</em> and apply. Approval usually takes a few business days.
+            <em>Settings → Account and settings → Payments</em>{" "}and apply. Approval usually takes a few business days.
             Until it&rsquo;s approved, couples can&rsquo;t save a card.
           </p>
           <a

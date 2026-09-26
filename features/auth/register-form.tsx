@@ -150,7 +150,7 @@ export function RegisterForm({
         <ShieldAlert size={23} />
         <h2>Account created — one step left</h2>
         <p>
-          Your account for <strong>{sentTo}</strong> is ready, but we couldn’t
+          Your account for <strong>{sentTo}</strong>{" "}is ready, but we couldn’t
           send the verification link just now. Sign in with the password you
           just chose and we’ll offer to send it again.
         </p>

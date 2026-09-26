@@ -104,7 +104,7 @@ export function SignInForm({
       </label>
       <label>
         <span className="label-row">
-          Password
+          Password{" "}
           <Link href={forgotPasswordHref}>
             Forgot password?
           </Link>

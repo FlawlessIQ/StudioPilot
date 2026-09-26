@@ -76,7 +76,7 @@ export default function WeddingPhotographersPage() {
       <p className="marketing-pricing-note">
         Also built for other event work — the same accountable workflow, tuned
         to each: <Link href="/corporate-photographers">corporate</Link> and{" "}
-        <Link href="/sports-photographers">sports</Link> photography.
+        <Link href="/sports-photographers">sports</Link>{" "}photography.
       </p>
     </MarketingLayout>
   );

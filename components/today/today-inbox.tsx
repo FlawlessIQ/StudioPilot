@@ -598,7 +598,7 @@ export function TodayInbox() {
                 type="button"
               >
                 <ShieldCheck size={15} />
-                {inbox.fyi.length}{" "} handled for you
+                {inbox.fyi.length}{" "} handled for you{" "}
                 <em>{showHandled ? "Hide" : "Show"}</em>
               </button>
               {showHandled ? (
