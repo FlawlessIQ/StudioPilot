@@ -10,8 +10,11 @@ import {
   CircleAlert,
   Clock3,
   LoaderCircle,
+  Pencil,
+  Send,
   ShieldCheck,
   Sparkles,
+  X,
 } from "lucide-react";
 import { KindGlyph } from "@/components/library/kind-glyph";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
@@ -32,6 +35,7 @@ import {
 } from "@/features/today/inbox";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { runAiQueueCommand } from "@/lib/ai-actions/command-client";
+import { runCrmCommand } from "@/lib/crm/command-client";
 
 const DATE_LABEL = new Intl.DateTimeFormat("en-US", {
   weekday: "long",
@@ -105,6 +109,8 @@ export function TodayInbox() {
   // The AI action being reviewed in the sheet — the whole point of the rethink:
   // review this exact prepared task in context, without leaving Today.
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  // Opened from an inquiry card's "Edit": the review sheet starts in the editor.
+  const [reviewEditing, setReviewEditing] = useState(false);
   const isPhone = useIsPhone();
   const reviewingAction =
     reviewingId != null
@@ -126,11 +132,17 @@ export function TodayInbox() {
   // todayHeadline. Studio plumbing keeps its rank in the queue below.
   const lead = todayHeadline(act, approve);
   const leadHref =
-    lead?.action.kind === "link"
+    lead?.action.kind === "link" || lead?.action.kind === "inquiry"
       ? lead.action.href
       : (lead?.jobHref ?? "/studio/projects");
+  // The hero links; sending happens on the card itself, so an inquiry hero
+  // says where the link goes rather than "Send reply".
   const leadLabel =
-    lead?.action.kind === "link" ? lead.action.label : "Open it";
+    lead?.action.kind === "link"
+      ? lead.action.label
+      : lead?.action.kind === "inquiry"
+        ? "Review & reply"
+        : "Open it";
 
   // The hero *is* the first item of the queue, shown larger. Listing it
   // again immediately beneath — same title, same button — reads as a bug.
@@ -350,7 +362,19 @@ export function TodayInbox() {
                           .filter(Boolean)
                           .join(" · ") || summary}
               </p>
-              {!loading && lead ? (
+              {!loading && lead?.action.kind === "inquiry" && lead.action.reply ? (
+                // The headline inquiry is lifted out of the list below, so its
+                // reply is answered here or not at all.
+                <InquiryActions
+                  action={lead.action}
+                  onCleared={() => clear(lead.id)}
+                  onEdit={(actionId) => {
+                    setReviewEditing(true);
+                    setReviewingId(actionId);
+                  }}
+                  variant="hero"
+                />
+              ) : !loading && lead ? (
                 <Link className="today-hero-go" href={leadHref}>
                   {leadLabel} <ArrowRight size={15} />
                 </Link>
@@ -552,6 +576,11 @@ export function TodayInbox() {
                       <TodayCard
                         item={item}
                         key={item.id}
+                        onCleared={() => clear(item.id)}
+                        onEdit={(actionId) => {
+                          setReviewEditing(true);
+                          setReviewingId(actionId);
+                        }}
                         showEvidence={index === 0}
                         tone="act"
                       />
@@ -602,17 +631,32 @@ export function TodayInbox() {
           this rises as a bottom sheet. */}
       <SheetDialog
         label="Review prepared action"
-        onClose={() => setReviewingId(null)}
+        onClose={() => {
+          setReviewingId(null);
+          setReviewEditing(false);
+        }}
         open={reviewingAction != null}
         width="wide"
       >
         {reviewingAction ? (
           <AiQueueCard
             action={reviewingAction}
+            // Keyed so "Edit" on one card and "Review" on another never share
+            // an editor's half-typed state.
+            key={`${reviewingAction.id}-${reviewEditing ? "edit" : "review"}`}
             onDecision={(id) => {
-              clear(id);
+              // Approve-lane cards are keyed `ai-<actionId>`; clearing the bare
+              // id left the decided card on screen until the next refresh.
+              clear(`ai-${id}`);
+              // A reply sent from the sheet answers the inquiry card too.
+              const inquiry = [...inbox.act].find(
+                (item) => item.action.kind === "inquiry" && item.action.reply?.actionId === id,
+              );
+              if (inquiry) clear(inquiry.id);
               setReviewingId(null);
+              setReviewEditing(false);
             }}
+            startEditing={reviewEditing}
           />
         ) : null}
       </SheetDialog>
@@ -716,6 +760,7 @@ function TodayCard({
   tone,
   onCleared,
   onReview,
+  onEdit,
   showEvidence = true,
 }: {
   item: TodayItem;
@@ -723,6 +768,8 @@ function TodayCard({
   onCleared?: () => void;
   /** Opens the full review sheet for this prepared action, in context. */
   onReview?: (actionId: string) => void;
+  /** Opens the review sheet already editing — an inquiry's drafted reply. */
+  onEdit?: (actionId: string) => void;
   /** False on all but the first card of a band — see the call site. */
   showEvidence?: boolean;
 }) {
@@ -749,7 +796,9 @@ function TodayCard({
 
   return (
     <article
-      className={`today-card is-${tone} band-${item.band}${item.kind ? " has-glyph" : ""}`}
+      className={`today-card is-${tone} band-${item.band}${item.kind ? " has-glyph" : ""}${
+        item.action.kind === "inquiry" && item.action.reply ? " has-reply" : ""
+      }`}
     >
       {/* The queue is the other genuinely mixed list in the product: an
           invoice, a crew gap and a drafted email, one after another, all
@@ -799,7 +848,14 @@ function TodayCard({
       </div>
 
       <div className="today-card-actions">
-        {item.action.kind === "approve" ? (
+        {item.action.kind === "inquiry" ? (
+          <InquiryActions
+            action={item.action}
+            onCleared={onCleared}
+            onEdit={onEdit}
+            variant="card"
+          />
+        ) : item.action.kind === "approve" ? (
           <>
             <button
               className="today-card-primary"
@@ -851,5 +907,150 @@ function TodayCard({
         )}
       </div>
     </article>
+  );
+}
+
+type InquiryAction = Extract<TodayItem["action"], { kind: "inquiry" }>;
+
+/**
+ * Answer a new inquiry without leaving Today.
+ *
+ * With a drafted reply: its opening lines, then **Send reply** (approving the
+ * draft sends it, on the lead's own thread), **Edit** (the review sheet, in
+ * the editor), and **Not an inquiry**. Without one, the lead page is where
+ * the reply is prepared, so the card links there.
+ *
+ * "Not an inquiry" archives the lead, teaches capture to skip that sender,
+ * and retires the pending reply draft — so it asks once before doing it.
+ */
+function InquiryActions({
+  action,
+  onCleared,
+  onEdit,
+  variant,
+}: {
+  action: InquiryAction;
+  onCleared?: () => void;
+  onEdit?: (actionId: string) => void;
+  variant: "card" | "hero";
+}) {
+  const [busy, setBusy] = useState<"send" | "remove" | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const reply = action.reply;
+
+  async function send() {
+    if (!reply) return;
+    setBusy("send");
+    setNotice(null);
+    try {
+      await runAiQueueCommand({
+        type: "decideAiAction",
+        input: { actionId: reply.actionId, decision: "approved" },
+      });
+      onCleared?.();
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "That reply couldn't be sent. Open it to review."));
+      setBusy(null);
+    }
+  }
+
+  async function notAnInquiry() {
+    setBusy("remove");
+    setNotice(null);
+    try {
+      await runCrmCommand("markLeadNotInquiry", { leadId: action.leadId });
+      onCleared?.();
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "That couldn't be removed. Try again."));
+      setBusy(null);
+      setConfirming(false);
+    }
+  }
+
+  const primaryClass = variant === "hero" ? "today-hero-go" : "today-card-primary";
+  const secondaryClass =
+    variant === "hero" ? "today-hero-secondary" : "today-card-secondary";
+
+  return (
+    <div className={`today-inquiry-actions is-${variant}`}>
+      {reply?.preview ? (
+        <blockquote className="today-card-preview today-inquiry-reply">
+          <small>
+            Reply ready{reply.recipient ? ` to ${reply.recipient}` : ""}
+          </small>
+          {reply.preview.subject ? <strong>{reply.preview.subject}</strong> : null}
+          <p>{reply.preview.body}</p>
+        </blockquote>
+      ) : null}
+      {confirming ? (
+        <div className="today-inquiry-confirm" role="group" aria-label="Not an inquiry">
+          <span>Remove it? StudioCue will skip this sender from now on.</span>
+          <button
+            className={primaryClass}
+            disabled={busy !== null}
+            onClick={() => void notAnInquiry()}
+            type="button"
+          >
+            {busy === "remove" ? <LoaderCircle className="spin" size={14} /> : <X size={14} />}
+            {busy === "remove" ? "Removing…" : "Yes, not an inquiry"}
+          </button>
+          <button
+            className={secondaryClass}
+            disabled={busy !== null}
+            onClick={() => setConfirming(false)}
+            type="button"
+          >
+            Keep it
+          </button>
+        </div>
+      ) : (
+        <div className="today-inquiry-buttons">
+          {reply ? (
+            <button
+              className={primaryClass}
+              disabled={busy !== null}
+              onClick={() => void send()}
+              type="button"
+            >
+              {busy === "send" ? <LoaderCircle className="spin" size={14} /> : <Send size={14} />}
+              {busy === "send" ? "Sending…" : "Send reply"}
+            </button>
+          ) : (
+            <Link className={primaryClass} href={action.href}>
+              Review &amp; reply <ArrowRight size={14} />
+            </Link>
+          )}
+          {reply ? (
+            <button
+              className={secondaryClass}
+              disabled={busy !== null}
+              onClick={() => onEdit?.(reply.actionId)}
+              type="button"
+            >
+              <Pencil size={13} /> Edit
+            </button>
+          ) : null}
+          <button
+            className={secondaryClass}
+            disabled={busy !== null}
+            onClick={() => setConfirming(true)}
+            type="button"
+          >
+            Not an inquiry
+          </button>
+          {reply ? (
+            <Link className={secondaryClass} href={action.href}>
+              Details
+            </Link>
+          ) : null}
+        </div>
+      )}
+      {notice ? (
+        <span className="today-card-notice" role="status">
+          {notice}
+        </span>
+      ) : null}
+    </div>
   );
 }

@@ -536,3 +536,18 @@ test("the capture collections are server-written and owner/admin-read", () => {
   const allowlist = readFileSync(`${process.cwd()}/scripts/configure-production-function-invokers.sh`, "utf8");
   assert.match(allowlist, /leadcapturehealthscheduler/);
 });
+
+test("'not an inquiry' retires the reply drafted to it", () => {
+  // Otherwise the draft stays approvable in AI review, and sending it would
+  // email a newsletter or a vendor. The read happens in the transaction,
+  // before its writes.
+  const source = readFileSync(`${process.cwd()}/functions/src/crm/commands.ts`, "utf8");
+  const start = source.indexOf('if (command.type === "markLeadNotInquiry")');
+  const block = source.slice(start, source.indexOf("lead.not_inquiry", start));
+  assert.match(block, /capability", "==", "inquiry_reply_draft"/);
+  assert.match(block, /status: "dismissed"/);
+  assert.ok(
+    block.indexOf("pendingReplies") < block.indexOf("transaction.update(leadReference"),
+    "the drafts are read before the first write",
+  );
+});

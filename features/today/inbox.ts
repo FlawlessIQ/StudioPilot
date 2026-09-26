@@ -54,6 +54,23 @@ export type TodayAction =
       href: string;
       preview: { subject: string | null; body: string } | null;
     }
+  /**
+   * A new inquiry, answered from the card. `reply` is the drafted reply
+   * waiting for review, when there is one: Send approves it (which sends it),
+   * Edit opens it for editing, and the card can also be marked "not an
+   * inquiry". `href` is the lead page, for everything else.
+   */
+  | {
+      kind: "inquiry";
+      label: string;
+      href: string;
+      leadId: string;
+      reply: {
+        actionId: string;
+        recipient: string | null;
+        preview: { subject: string | null; body: string } | null;
+      } | null;
+    }
   /** Nothing to do — the engines handled it. */
   | { kind: "none"; label: string };
 
@@ -313,6 +330,59 @@ function previewOf(
   };
 }
 
+const asRecord = (value: unknown): Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+
+/** The lead an inquiry reply draft answers, from its source references. */
+function draftLeadId(sourceReferences: unknown): string | null {
+  const references = Array.isArray(sourceReferences) ? sourceReferences : [];
+  for (const reference of references) {
+    const entry = asRecord(reference);
+    if (text(entry.entityType) === "lead" && text(entry.entityId)) return text(entry.entityId);
+  }
+  return null;
+}
+
+/**
+ * Each lead's reply draft still waiting for review, newest first when a lead
+ * somehow has two (a regenerated draft). Snoozed drafts are left in the
+ * queue's own handling, not pulled onto the inquiry card.
+ */
+function pendingInquiryReplies(actions: TodayRecord[], now: string): Map<string, TodayRecord> {
+  const byLead = new Map<string, TodayRecord>();
+  for (const action of actions) {
+    if (text(action.status) !== "review_required") continue;
+    if (text(action.capability) !== "inquiry_reply_draft") continue;
+    const snoozed = text(action.snoozedUntil);
+    if (snoozed && snoozed > now) continue;
+    const leadId = draftLeadId(action.sourceReferences);
+    if (!leadId) continue;
+    const current = byLead.get(leadId);
+    if (!current || text(action.createdAt) > text(current.createdAt)) byLead.set(leadId, action);
+  }
+  return byLead;
+}
+
+/**
+ * Whether a draft answers an inquiry the studio has closed — archived, lost,
+ * or marked "not an inquiry". Unknown leads are not closed: a draft whose
+ * lead simply isn't loaded keeps its card.
+ */
+function inquiryDraftLeadClosed(
+  sourceReferences: unknown,
+  leadById: Map<string, TodayRecord>,
+): boolean {
+  const leadId = draftLeadId(sourceReferences);
+  const lead = leadId ? leadById.get(leadId) : undefined;
+  if (!lead || text(lead.projectId)) return false;
+  return (
+    lead.notInquiry === true ||
+    ["lost", "archived"].includes(text(lead.status).toLowerCase())
+  );
+}
+
 /**
  * Whole calendar days from today to a date, in the reader's own timezone.
  *
@@ -461,6 +531,10 @@ export function todayInbox(input: TodayInput): TodayInbox {
   const fyi: TodayItem[] = [];
 
   // ── Act · inquiries ────────────────────────────────────────────────
+  // The reply drafted for each open inquiry rides on the inquiry's own card,
+  // rather than as a second card in "Prepared for you" about the same couple.
+  const replyForLead = pendingInquiryReplies(rows(input.aiActions), input.now);
+  const mergedReplies = new Set<string>();
   for (const lead of rows(input.leads)) {
     const status = text(lead.status).toLowerCase();
     if (["converted", "lost", "archived"].includes(status)) continue;
@@ -477,6 +551,8 @@ export function todayInbox(input: TodayInput): TodayInbox {
     // type; the venue is the one thing only this line says.
     const facts = [text(lead.venue) || text(lead.city)].filter(Boolean);
     const leadEvent = text(lead.eventDate) || null;
+    const reply = replyForLead.get(lead.id) ?? null;
+    if (reply) mergedReplies.add(reply.id);
     act.push({
       id: `lead-${lead.id}`,
       lane: "act",
@@ -489,9 +565,17 @@ export function todayInbox(input: TodayInput): TodayInbox {
       projectId: null,
       projectName: null,
       action: {
-        kind: "link",
-        label: "Review & reply",
+        kind: "inquiry",
+        label: reply ? "Send reply" : "Review & reply",
         href: `/studio/leads/${lead.id}`,
+        leadId: lead.id,
+        reply: reply
+          ? {
+              actionId: reply.id,
+              recipient: text(asRecord(reply.structuredOutput).recipientEmail) || null,
+              preview: previewOf(reply.structuredOutput),
+            }
+          : null,
       },
       jobHref: null,
       facts: [
@@ -934,6 +1018,11 @@ export function todayInbox(input: TodayInput): TodayInbox {
   // ── Approve · AI-prepared work ─────────────────────────────────────
   for (const action of rows(input.aiActions)) {
     if (text(action.status) !== "review_required") continue;
+    // Already on its inquiry's card, above.
+    if (mergedReplies.has(action.id)) continue;
+    // A reply to an inquiry the studio closed — archived, lost, or marked
+    // "not an inquiry" — must not wait to be approved and sent.
+    if (inquiryDraftLeadClosed(action.sourceReferences, leadById)) continue;
     const snoozed = text(action.snoozedUntil);
     if (snoozed && snoozed > input.now) continue;
     if (!jobStillOpen(action.projectId)) continue;

@@ -1490,3 +1490,110 @@
     font-size: 16px;
   }
 }
+
+/* ── An inquiry answered from Today: reply preview, Send / Edit / Not an
+   inquiry. See InquiryActions in components/today/today-inbox.tsx. ── */
+.today-inquiry-actions {
+  display: grid;
+  flex: 1 1 100%;
+  gap: 10px;
+  min-width: 0;
+}
+
+.today-inquiry-buttons,
+.today-inquiry-confirm {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.today-inquiry-confirm > span {
+  color: var(--ink, #1d2420);
+  flex: 1 1 100%;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.today-inquiry-reply {
+  margin: 0;
+}
+
+.today-inquiry-reply small {
+  color: var(--card-small, #5f6a63);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+/* Three lines is enough to know what's being sent; Edit shows the rest. */
+.today-inquiry-reply p {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  display: -webkit-box;
+  overflow: hidden;
+}
+
+/* The hero is dark: the same parts, in its colours. */
+.today-inquiry-actions.is-hero {
+  margin-top: 14px;
+  max-width: 560px;
+}
+
+.today-inquiry-actions.is-hero .today-hero-go {
+  border: 0;
+  cursor: pointer;
+  margin-top: 0;
+}
+
+.today-inquiry-actions.is-hero .today-inquiry-reply {
+  background: rgb(255 255 255 / 10%);
+}
+
+.today-inquiry-actions.is-hero .today-inquiry-reply small,
+.today-inquiry-actions.is-hero .today-inquiry-reply p {
+  color: rgb(255 255 255 / 78%);
+}
+
+.today-inquiry-actions.is-hero .today-inquiry-reply strong,
+.today-inquiry-actions.is-hero .today-inquiry-confirm > span {
+  color: #fff;
+}
+
+.today-hero-secondary {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: rgb(255 255 255 / 82%);
+  cursor: pointer;
+  display: inline-flex;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  gap: 5px;
+  line-height: 1;
+  padding: 0;
+  text-decoration: none;
+}
+
+.today-hero-secondary:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+.today-hero-secondary:disabled,
+.today-inquiry-actions .today-hero-go:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* A card carrying a drafted reply needs the width: the preview and its
+   buttons sit under the body, never squeezed into the right-hand column. */
+@media (min-width: 720px) {
+  .today-card.has-reply > .today-card-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+  .today-card.has-reply.has-glyph > .today-card-actions {
+    grid-column: 2 / -1;
+  }
+}

@@ -1970,6 +1970,27 @@ export const crmCommand = onRequest(
           const sender = capture?.get("notificationSender");
           const settingsReference = db.doc(`leadCaptureSettings/${command.tenantId}`);
           const settings = await transaction.get(settingsReference);
+          // A reply drafted to this "inquiry" must not stay approvable: sent,
+          // it would email a newsletter or a vendor. Read with the rest,
+          // before any write, and retired below. Equality filters only, so
+          // no composite index is needed.
+          const pendingReplies = await transaction.get(
+            db
+              .collection("aiActions")
+              .where("tenantId", "==", command.tenantId)
+              .where("capability", "==", "inquiry_reply_draft")
+              .where("status", "==", "review_required"),
+          );
+          const repliesToRetire = pendingReplies.docs.filter((draft) => {
+            const references = draft.get("sourceReferences");
+            return (
+              Array.isArray(references) &&
+              references.some(
+                (reference: Record<string, unknown> | null) =>
+                  reference?.entityType === "lead" && reference?.entityId === command.input.leadId,
+              )
+            );
+          });
           transaction.update(leadReference, {
             status: "archived",
             needsConfirmation: false,
@@ -1998,6 +2019,19 @@ export const crmCommand = onRequest(
               },
               { merge: true },
             );
+          }
+          for (const draft of repliesToRetire) {
+            transaction.update(draft.ref, {
+              status: "dismissed",
+              decision: {
+                actorId: identity.uid,
+                action: "dismissed",
+                decidedAt: timestamp,
+                note: "The lead was marked not an inquiry.",
+                editDelta: null,
+              },
+              updatedAt: timestamp,
+            });
           }
           const notInquiryAuditId = randomUUID();
           transaction.create(db.doc(`auditEvents/${notInquiryAuditId}`), {

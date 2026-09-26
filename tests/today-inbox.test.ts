@@ -526,3 +526,75 @@ test("the studio's own name is never used as who the work is for", () => {
   });
   assert.equal(inbox.approve[0]?.detail, "Studio workflow");
 });
+
+const replyDraft = (leadId: string, overrides: Record<string, unknown> = {}) => ({
+  id: `ai_reply_${leadId}`,
+  status: "review_required",
+  capability: "inquiry_reply_draft",
+  title: "Reply to Emma Hart",
+  projectId: null,
+  createdAt: "2026-08-20T10:00:00.000Z",
+  sourceReferences: [{ entityType: "lead", entityId: leadId, label: "Original inquiry" }],
+  structuredOutput: {
+    subject: "Thank you for your wedding inquiry",
+    body: "Hi Emma, congratulations — June 12 is free.",
+    recipientEmail: "emma@example.com",
+  },
+  ...overrides,
+});
+
+test("an inquiry's drafted reply is answered on the inquiry's own card", () => {
+  // It used to be two cards about one couple: "New inquiry — Emma Hart"
+  // (a link) and, in Prepared for you, "Reply to Emma Hart" (Approve).
+  const inbox = todayInbox({
+    ...base,
+    leads: [{ id: "lead-emma", status: "new", displayName: "Emma Hart" }],
+    aiActions: [replyDraft("lead-emma")],
+  });
+  const card = inbox.act.find((item) => item.id === "lead-lead-emma");
+  assert.equal(card?.action.kind, "inquiry");
+  if (card?.action.kind === "inquiry") {
+    assert.equal(card.action.label, "Send reply");
+    assert.equal(card.action.leadId, "lead-emma");
+    assert.equal(card.action.href, "/studio/leads/lead-emma");
+    assert.equal(card.action.reply?.actionId, "ai_reply_lead-emma");
+    assert.equal(card.action.reply?.recipient, "emma@example.com");
+    assert.match(card.action.reply?.preview?.body ?? "", /June 12 is free/);
+  }
+  assert.equal(
+    inbox.approve.some((item) => item.id === "ai-ai_reply_lead-emma"),
+    false,
+    "the draft must not also be a second card in Prepared for you",
+  );
+});
+
+test("an inquiry with no draft yet links to where the reply is prepared", () => {
+  const inbox = todayInbox({ ...base, leads: [{ id: "lead-2", status: "new" }] });
+  const card = inbox.act.find((item) => item.id === "lead-lead-2");
+  assert.equal(card?.action.kind, "inquiry");
+  if (card?.action.kind === "inquiry") {
+    assert.equal(card.action.reply, null);
+    assert.equal(card.action.label, "Review & reply");
+  }
+});
+
+test("a reply to an inquiry marked 'not an inquiry' can't be approved from Today", () => {
+  for (const lead of [
+    { id: "lead-news", status: "archived", notInquiry: true },
+    { id: "lead-news", status: "lost" },
+  ]) {
+    const inbox = todayInbox({ ...base, leads: [lead], aiActions: [replyDraft("lead-news")] });
+    assert.equal(inbox.act.length, 0);
+    assert.equal(inbox.approve.length, 0, `${lead.status}: its draft must not wait to be sent`);
+  }
+});
+
+test("a snoozed reply stays with the queue's own snooze, not on the card", () => {
+  const inbox = todayInbox({
+    ...base,
+    leads: [{ id: "lead-s", status: "new" }],
+    aiActions: [replyDraft("lead-s", { snoozedUntil: "2026-08-25T00:00:00.000Z" })],
+  });
+  const card = inbox.act.find((item) => item.id === "lead-lead-s");
+  assert.equal(card?.action.kind === "inquiry" ? card.action.reply : "wrong kind", null);
+});

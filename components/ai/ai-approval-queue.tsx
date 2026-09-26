@@ -72,16 +72,19 @@ function relativeTime(value: unknown) {
 export function AiQueueCard({
   action,
   onDecision,
+  startEditing = false,
 }: {
   action: RecordValue;
   onDecision: (id: string, status: string) => void;
+  /** Open with the editor showing — Today's inquiry card "Edit" button. */
+  startEditing?: boolean;
 }) {
   const output = object(action.structuredOutput);
   // Message drafts (subject + body) get a friendly editor and preview instead
   // of raw JSON — the DraftCard pattern.
   const isMessageDraft =
     typeof output.subject === "string" && typeof output.body === "string";
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(startEditing);
   const [editor, setEditor] = useState(object(action.structuredOutput));
   const [subjectDraft, setSubjectDraft] = useState(text(output.subject));
   const [bodyDraft, setBodyDraft] = useState(text(output.body));
