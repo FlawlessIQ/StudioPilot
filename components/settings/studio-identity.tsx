@@ -229,7 +229,9 @@ export function StudioIdentitySettings() {
               }
               value={identity.timezone}
             >
-              {TIMEZONES.map((zone) => (
+              {/* A zone detected at signup may not be in the short list;
+                  it's shown rather than silently displaying the first one. */}
+              {[...new Set([identity.timezone, ...TIMEZONES])].map((zone) => (
                 <option key={zone} value={zone}>
                   {zone.replace("_", " ")}
                 </option>

@@ -254,12 +254,19 @@ export function SettingsShell() {
 }
 
 /** One section on its own page, with the way back to the hub. */
-export function SettingsSectionPage({ sectionKey }: { sectionKey: SectionKey }) {
+export function SettingsSectionPage({
+  sectionKey,
+  backToSetup = false,
+}: {
+  sectionKey: SectionKey;
+  /** Opened from a setup question: the way back is setup, not the hub. */
+  backToSetup?: boolean;
+}) {
   const Section = SECTION_COMPONENT[sectionKey];
   return (
     <div className="saas-page settings-section-page">
-      <Link className="settings-section-back" href="/studio/settings">
-        <ChevronLeft aria-hidden="true" size={16} /> Studio settings
+      <Link className="settings-section-back" href={backToSetup ? "/studio/setup" : "/studio/settings"}>
+        <ChevronLeft aria-hidden="true" size={16} /> {backToSetup ? "Back to setup" : "Studio settings"}
       </Link>
       <Section />
     </div>

@@ -1,5 +1,6 @@
 "use client";
-import { useState, type FormEvent } from "react";
+import { useState, useSyncExternalStore, type FormEvent } from "react";
+import { currencyForTimezone, detectedTimezone } from "@/features/auth/locale-defaults";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { invalidateMembershipCache } from "@/lib/firebase/membership-cache";
@@ -23,7 +24,21 @@ const TIMEZONES: ReadonlyArray<{ value: string; label: string }> = [
   { value: "Australia/Sydney", label: "Australia/Sydney" },
 ];
 
+const noSubscribe = () => () => undefined;
+
 export function OnboardingForm() {
+  // The browser's own timezone, once hydrated; the server renders the old
+  // default, so the two never disagree mid-hydration. The selects are keyed on
+  // it, so they re-mount with the detected defaults rather than keeping the
+  // server's.
+  const zone = useSyncExternalStore(
+    noSubscribe,
+    () => detectedTimezone() ?? "America/New_York",
+    () => "America/New_York",
+  );
+  const zones = TIMEZONES.some((option) => option.value === zone)
+    ? TIMEZONES
+    : [{ value: zone, label: zone.replaceAll("_", " ") }, ...TIMEZONES];
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // P4/P7: distinct states so the wall can offer a resend, and success stops
@@ -101,7 +116,9 @@ export function OnboardingForm() {
           },
           body: JSON.stringify({
             businessName: String(data.get("businessName")),
-            legalName: String(data.get("legalName")),
+            // Not asked here: it was the studio name again for almost every
+            // studio. Agreements use it; it's editable in Studio details.
+            legalName: String(data.get("businessName")),
             timezone: String(data.get("timezone")),
             currency: String(data.get("currency")),
           }),
@@ -144,7 +161,7 @@ export function OnboardingForm() {
       // A comped studio is already granted access, so send it straight into the
       // workspace rather than the plan picker; everyone else picks a plan.
       window.location.assign(
-        result.checkoutRequired === false ? "/studio" : "/studio/subscription",
+        result.checkoutRequired === false ? "/studio/setup" : "/studio/subscription",
       );
     } catch (caught: unknown) {
       setNotice(
@@ -207,29 +224,21 @@ export function OnboardingForm() {
           minLength={2}
           placeholder="Alder & Muse Photography"
         />
-      </label>
-      <label>
-        Legal business name <span className="required-mark">Required</span>
-        <input
-          name="legalName"
-          required
-          minLength={2}
-          placeholder="Alder & Muse Photography LLC"
-        />
+        <small>Your legal business name for agreements can be changed any time in Studio details.</small>
       </label>
       <label>
         Timezone <span className="required-mark">Required</span>
-        <select name="timezone" defaultValue="America/New_York">
-          {TIMEZONES.map((zone) => (
-            <option key={zone.value} value={zone.value}>
-              {zone.label}
+        <select defaultValue={zone} key={zone} name="timezone">
+          {zones.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
             </option>
           ))}
         </select>
       </label>
       <label>
         Currency <span className="required-mark">Required</span>
-        <select name="currency" defaultValue="USD">
+        <select defaultValue={currencyForTimezone(zone)} key={zone} name="currency">
           <option value="USD">USD</option>
           <option value="CAD">CAD</option>
           <option value="GBP">GBP</option>

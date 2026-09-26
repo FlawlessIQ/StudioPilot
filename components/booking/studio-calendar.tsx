@@ -119,6 +119,14 @@ export function StudioCalendar() {
 
   const tenantId = workspace.tenantId ?? "";
   const { records: projects } = useTenantDocuments("projects");
+  // Whether Google Calendar was ever connected. The availability query says
+  // "unavailable" either way, and told a studio that had simply never
+  // connected that sync was down (docs/onboarding-assessment-2026-09-26.md).
+  const { records: connections } = useTenantDocuments("integrationConnections");
+  const calendarConnected = (connections ?? []).some(
+    (connection) =>
+      connection.provider === "google_calendar" && connection.status === "connected",
+  );
 
   // "Schedule consultation" on a project links here with ?project=<id>. Read it
   // (post-mount, so SSR and first paint match) to show whose consultation this
@@ -548,6 +556,12 @@ export function StudioCalendar() {
         </div>
         {loadingSettings || consultationsLoading ? (
           <p className="ds-cal-note">Loading availability…</p>
+        ) : calendarStatus === "unavailable" && !calendarConnected ? (
+          <p className="ds-cal-note">
+            Only StudioCue bookings are shown.{" "}
+            <a href="/studio/integrations">Connect Google Calendar</a> and times you&apos;re
+            busy there are blocked out here, and never offered to clients.
+          </p>
         ) : calendarStatus === "unavailable" ? (
           <p className="ds-cal-note">
             Live calendar sync is unavailable right now — only internal bookings are shown.

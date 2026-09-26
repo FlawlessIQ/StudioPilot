@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { BackToSetup } from "@/components/setup/back-to-setup";
 import { TemplateImportStudio } from "@/components/ai/template-import-studio";
 import { AppShell } from "@/components/layout/app-shell";
 
@@ -13,9 +12,9 @@ export const metadata: Metadata = {
 export default async function TemplateImportPage({
   searchParams,
 }: {
-  searchParams: Promise<{ session?: string }>;
+  searchParams: Promise<{ session?: string; from?: string }>;
 }) {
-  const { session } = await searchParams;
+  const { session, from } = await searchParams;
   return (
     // The breadcrumb label comes from studioRouteLabels in the shell, not
     // from this prop — app/studio/layout.tsx mounts the shell and a
@@ -23,9 +22,7 @@ export default async function TemplateImportPage({
     // here: the import studio had no way out of it but the sidebar.
     <AppShell active="Library">
       <div className="template-import-shell">
-        <Link className="back-link" href="/studio/library">
-          <ArrowLeft size={15} /> Back to library
-        </Link>
+        <BackToSetup fallback={{ href: "/studio/library", label: "Back to library" }} from={from} />
         <TemplateImportStudio resumeSessionId={session ?? null} />
       </div>
     </AppShell>

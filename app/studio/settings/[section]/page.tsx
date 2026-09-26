@@ -19,15 +19,18 @@ export async function generateMetadata({
 
 export default async function SettingsSectionRoute({
   params,
+  searchParams,
 }: {
   params: Promise<{ section: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const { section } = await params;
+  const { from } = await searchParams;
   const found = settingsSectionBySlug(section);
   if (!found) notFound();
   return (
     <AppShell active="Settings">
-      <SettingsSectionPage sectionKey={found.key} />
+      <SettingsSectionPage backToSetup={from === "setup"} sectionKey={found.key} />
     </AppShell>
   );
 }

@@ -54,7 +54,10 @@ export function LiveSubscription() {
   // studio, which re-bootstraps the workspace and opens the gate app-wide.
   useEffect(() => {
     if (checkoutOutcome === "success" && trialActive) {
-      const timer = setTimeout(() => window.location.assign("/studio"), 1200);
+      // Into setup, not Today: a studio that has just started its trial has
+      // nothing on Today yet, and setup had no way in but a card there
+      // (docs/onboarding-assessment-2026-09-26.md).
+      const timer = setTimeout(() => window.location.assign("/studio/setup"), 1200);
       return () => clearTimeout(timer);
     }
     return undefined;

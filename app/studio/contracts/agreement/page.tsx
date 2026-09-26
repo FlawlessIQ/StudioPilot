@@ -1,11 +1,18 @@
 import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
 import { AgreementEditor } from "@/components/contracts/agreement-editor";
+import { BackToSetup } from "@/components/setup/back-to-setup";
 
-export default function AgreementPage() {
+export default async function AgreementPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string }>;
+}) {
+  const { from } = await searchParams;
   return (
     <AppShell active="Contracts">
       <div className="live-domain-page">
+        <BackToSetup fallback={null} from={from} />
         <header className="page-heading">
           <div>
             <p className="eyebrow">

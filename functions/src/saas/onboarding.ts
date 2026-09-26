@@ -10,7 +10,20 @@ import { starterQuestionnaires } from "../planning/starter-questionnaires.js";
 const inputSchema = z.object({
   businessName: z.string().trim().min(2).max(120),
   legalName: z.string().trim().min(2).max(160),
-  timezone: z.string().min(1).max(80),
+  // Detected from the browser at signup now, so check it names a real zone:
+  // every date the studio sees is formatted in it.
+  timezone: z
+    .string()
+    .min(1)
+    .max(80)
+    .refine((zone) => {
+      try {
+        new Intl.DateTimeFormat("en-US", { timeZone: zone });
+        return true;
+      } catch {
+        return false;
+      }
+    }, "Unknown timezone"),
   currency: z
     .string()
     .length(3)

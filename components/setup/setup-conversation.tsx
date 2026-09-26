@@ -13,6 +13,7 @@ import {
 import { AppShell } from "@/components/layout/app-shell";
 import { useSetupState } from "@/components/setup/use-setup-state";
 import { LeadCaptureRoutes } from "@/components/intake/lead-capture-setup";
+import { fromSetup } from "@/components/setup/back-to-setup";
 import { setSignatureMode } from "@/lib/integrations/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -171,7 +172,7 @@ export function SetupConversation() {
                      a dead end, and the one step setup could never tick. */
                   <SendOwnAgreement onAnswered={refresh} />
                 ) : !done && gap ? (
-                  <Link className="button button-dark" href={gap.href}>
+                  <Link className="button button-dark" href={fromSetup(gap.href)}>
                     {gap.actionLabel} <ArrowRight size={14} />
                   </Link>
                 ) : (
