@@ -98,3 +98,15 @@ test("an unmapped command type still gets a safe generic sentence", () => {
     "Approving runs some new command.",
   );
 });
+
+test("an inquiry reply's create_communication_draft is the email itself, not a command", () => {
+  // The server sends inquiry replies on approval (by capability); the draft's
+  // downstream only names that path. The sheet said "Approving runs create
+  // communication draft" above a reply approving emailed to the couple.
+  const reply = { ...draft, downstreamCommandType: "create_communication_draft" };
+  assert.equal(dispatchesOnApproval(reply), true);
+  assert.match(approvalConsequenceSentence(reply, readable), /^Approving emails this to /);
+  // Without a recipient it is still honest: saved, not sent.
+  assert.equal(dispatchesOnApproval({ ...reply, recipient: null }), false);
+  assert.match(approvalConsequenceSentence({ ...reply, recipient: null }, readable), /saves the draft/);
+});

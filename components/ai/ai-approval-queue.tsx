@@ -517,7 +517,9 @@ export function AiQueueCard({
           type="button"
         >
           {busy === "approved" ? <LoaderCircle className="spin" /> : <Check />}
-          {output.outward === true ? "Approve & send" : "Approve"}
+          {/* Named by what the server will do: an inquiry reply with a recipient
+              is emailed on approval even without `outward` set. */}
+          {output.outward === true || approvingSends ? "Approve & send" : "Approve"}
         </button>
         {text(output.kind) === "studio_command" ? null : (
           <button

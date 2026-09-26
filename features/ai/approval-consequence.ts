@@ -28,12 +28,29 @@ export type ApprovalConsequenceInput = {
 };
 
 /**
+ * The command a draft names, when it is a command at all.
+ *
+ * An inquiry reply names `create_communication_draft` as its downstream —
+ * which is not another command but the email path itself: the server sends
+ * inquiry and planning replies on approval, keyed by capability. Read as "a
+ * command", it made the review sheet say "Approving runs create communication
+ * draft" above a reply that approving emails to the couple — the 2026-08-26
+ * failure this file exists to prevent — and then offer "Send reply now" for a
+ * reply that had already gone. Found reviewing Today's inquiry card, 2026-09-26.
+ */
+function commandOf(input: ApprovalConsequenceInput): string | null {
+  return input.downstreamCommandType === "create_communication_draft"
+    ? null
+    : input.downstreamCommandType;
+}
+
+/**
  * Whether approving this draft sends it, rather than merely saving it.
  *
  * Mirrors the `queued` condition in `approvedCommunicationDispatch`.
  */
 export function dispatchesOnApproval(input: ApprovalConsequenceInput): boolean {
-  if (input.downstreamCommandType) return false;
+  if (commandOf(input)) return false;
   return (
     validEmail(input.recipient) &&
     (input.subject ?? "").trim().length > 0 &&
@@ -66,10 +83,11 @@ export function approvalConsequenceSentence(
   input: ApprovalConsequenceInput,
   readable: (value: string) => string,
 ): string {
-  if (input.downstreamCommandType) {
+  const command = commandOf(input);
+  if (command) {
     return (
-      COMMAND_CONSEQUENCE[input.downstreamCommandType] ??
-      `Approving runs ${readable(input.downstreamCommandType).toLowerCase()}.`
+      COMMAND_CONSEQUENCE[command] ??
+      `Approving runs ${readable(command).toLowerCase()}.`
     );
   }
   if (dispatchesOnApproval(input)) {
