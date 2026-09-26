@@ -1,5 +1,10 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { getFirestore } from "firebase-admin/firestore";
+import {
+  getFirestore,
+  type DocumentReference,
+  type DocumentSnapshot,
+  type WriteBatch,
+} from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
@@ -10,8 +15,10 @@ import {
 } from "./stripe-checkout.js";
 
 const billingCommandSchema = z.object({
-  type: z.enum(["createCheckout", "createPortal"]),
+  type: z.enum(["createCheckout", "createPortal", "confirmCheckout"]),
   tenantId: z.string(),
+  /** confirmCheckout: the Checkout Session Stripe returned to (session_id). */
+  sessionId: z.string().regex(/^cs_[A-Za-z0-9_]+$/).max(200).optional(),
   plan: z.enum(["studio", "multi_brand"]).optional(),
   cadence: z.enum(["monthly", "yearly"]).optional(),
 });
@@ -137,6 +144,73 @@ export const billingCommand = onRequest(
       }
       const secret = process.env.STRIPE_SECRET_KEY;
       if (!secret) throw new Error("STRIPE_NOT_CONFIGURED");
+      if (parsed.type === "confirmCheckout") {
+        // The studio is back from Checkout; if the webhook hasn't landed, the
+        // Session says what happened. Only a completed session for this studio
+        // counts, and it's written exactly as the webhook would write it.
+        if (!parsed.sessionId) throw new Error("SESSION_REQUIRED");
+        const sessionResponse = await fetch(
+          `https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(parsed.sessionId)}?expand[]=subscription`,
+          { headers: { authorization: `Bearer ${secret}` } },
+        );
+        const session = (await sessionResponse.json()) as {
+          status?: string;
+          metadata?: Record<string, unknown>;
+          subscription?: Record<string, unknown> | string | null;
+          error?: { message?: string };
+        };
+        if (!sessionResponse.ok) throw new Error(session.error?.message ?? "STRIPE_REQUEST_FAILED");
+        const sessionSubscription =
+          session.subscription && typeof session.subscription === "object" ? session.subscription : null;
+        const sessionTenant = String(
+          session.metadata?.tenantId ??
+            (sessionSubscription?.metadata as Record<string, unknown> | undefined)?.tenantId ??
+            "",
+        );
+        if (sessionTenant !== parsed.tenantId) throw new Error("FORBIDDEN");
+        if (session.status !== "complete" || !sessionSubscription) {
+          response.status(200).json({ confirmed: false, status: session.status ?? null });
+          return;
+        }
+        const subscriptionReference = db.doc(`subscriptions/${parsed.tenantId}`);
+        const current = await subscriptionReference.get();
+        const now = new Date().toISOString();
+        const batch = db.batch();
+        const { status, plan } = await writeSubscriptionFromStripe(
+          batch,
+          subscriptionReference,
+          current,
+          parsed.tenantId,
+          sessionSubscription,
+          false,
+          now,
+        );
+        batch.set(
+          db.doc(`auditEvents/stripe_return_${parsed.sessionId}`),
+          {
+            id: `stripe_return_${parsed.sessionId}`,
+            tenantId: parsed.tenantId,
+            projectId: null,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "subscription.confirmed_on_return",
+            entityType: "subscription",
+            entityId: parsed.tenantId,
+            timestamp: now,
+            before: current.exists ? { status: current.get("status"), plan: current.get("plan") } : null,
+            after: { status, plan },
+            ipAddress: request.ip ?? null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId: parsed.sessionId,
+            automationRunId: null,
+            providerEventId: null,
+          },
+          { merge: true },
+        );
+        await batch.commit();
+        response.status(200).json({ confirmed: true, status, plan });
+        return;
+      }
       const subscription = await db
         .doc(`subscriptions/${parsed.tenantId}`)
         .get();
@@ -276,69 +350,15 @@ export const stripeWebhook = onRequest(
       }
       const subscriptionReference = db.doc(`subscriptions/${tenantId}`);
       const current = await subscriptionReference.get();
-      const items = object.items as
-        | {
-            data?: Array<{
-              price?: { id?: string };
-              current_period_start?: number;
-              current_period_end?: number;
-            }>;
-          }
-        | undefined;
-      const firstItem = items?.data?.[0];
-      const priceId = firstItem?.price?.id ?? current.get("stripePriceId") ?? null;
-      // Resolve the period from the object/item/trial (see resolveSubscriptionPeriod
-      // — the top-level current_period_* fields are absent on recent API versions),
-      // then fall back to the stored value.
-      const period = resolveSubscriptionPeriod(object, firstItem);
-      const mappedPlan = priceId ? planForPrice(priceId) : undefined;
-      // The entry plan is the floor for a subscription whose price we
-      // cannot map. It was "solo", which no longer exists — a webhook for an
-      // unrecognised price would have written a plan key nothing can resolve.
-      const plan =
-        mappedPlan ??
-        (current.get("plan") as keyof typeof entitlements | undefined) ??
-        "studio";
-      const status =
-        event.type === "customer.subscription.deleted"
-          ? "cancelled"
-          : normalizeStatus(object.status);
       const batch = db.batch();
-      batch.set(
+      const { status, plan } = await writeSubscriptionFromStripe(
+        batch,
         subscriptionReference,
-        {
-          id: tenantId,
-          tenantId,
-          plan,
-          cadence:
-            priceId && mappedPlan
-              ? cadenceForPrice(priceId)
-              : (current.get("cadence") ?? "monthly"),
-          status,
-          stripeCustomerId: String(
-            object.customer ?? current.get("stripeCustomerId") ?? "",
-          ),
-          stripeSubscriptionId: String(
-            object.id ?? current.get("stripeSubscriptionId") ?? "",
-          ),
-          stripePriceId: priceId,
-          currentPeriodStart:
-            period.start ?? (current.get("currentPeriodStart") ?? null),
-          currentPeriodEnd:
-            period.end ?? (current.get("currentPeriodEnd") ?? null),
-          cancelAtPeriodEnd: Boolean(object.cancel_at_period_end),
-          entitlements: entitlements[plan],
-          internalUserCount: current.get("internalUserCount") ?? 0,
-          brandCount: current.get("brandCount") ?? 1,
-          activeSubcontractorCount:
-            current.get("activeSubcontractorCount") ?? 0,
-          createdAt: current.get("createdAt") ?? now,
-          updatedAt: now,
-          createdBy: current.get("createdBy") ?? "stripe",
-          updatedBy: "stripe",
-          archivedAt: null,
-        },
-        { merge: true },
+        current,
+        tenantId,
+        object,
+        event.type === "customer.subscription.deleted",
+        now,
       );
       batch.create(eventReference, {
         id: `stripe_${event.id}`,
@@ -376,3 +396,84 @@ export const stripeWebhook = onRequest(
     }
   },
 );
+
+/**
+ * The subscription as Stripe reports it, written onto ours.
+ *
+ * Shared by the webhook and by confirmCheckout, which provisions from the
+ * Checkout Session a studio returns with, so a late or failed webhook no longer
+ * leaves a paid-up studio on "Starting your trial…" (docs/onboarding-
+ * assessment-2026-09-26.md). The same object gives the same record whichever
+ * arrives first, and a merge makes the second harmless.
+ */
+async function writeSubscriptionFromStripe(
+  batch: WriteBatch,
+  subscriptionReference: DocumentReference,
+  current: DocumentSnapshot,
+  tenantId: string,
+  object: Record<string, unknown>,
+  deleted: boolean,
+  now: string,
+): Promise<{ status: string; plan: string }> {
+  const items = object.items as
+    | {
+        data?: Array<{
+          price?: { id?: string };
+          current_period_start?: number;
+          current_period_end?: number;
+        }>;
+      }
+    | undefined;
+  const firstItem = items?.data?.[0];
+  const priceId = firstItem?.price?.id ?? current.get("stripePriceId") ?? null;
+  // Resolve the period from the object/item/trial (see resolveSubscriptionPeriod
+  // — the top-level current_period_* fields are absent on recent API versions),
+  // then fall back to the stored value.
+  const period = resolveSubscriptionPeriod(object, firstItem);
+  const mappedPlan = priceId ? planForPrice(priceId) : undefined;
+  // The entry plan is the floor for a subscription whose price we
+  // cannot map. It was "solo", which no longer exists — a webhook for an
+  // unrecognised price would have written a plan key nothing can resolve.
+  const plan =
+    mappedPlan ??
+    (current.get("plan") as keyof typeof entitlements | undefined) ??
+    "studio";
+  const status = deleted ? "cancelled" : normalizeStatus(object.status);
+  batch.set(
+    subscriptionReference,
+    {
+      id: tenantId,
+      tenantId,
+      plan,
+      cadence:
+        priceId && mappedPlan
+          ? cadenceForPrice(priceId)
+          : (current.get("cadence") ?? "monthly"),
+      status,
+      stripeCustomerId: String(
+        object.customer ?? current.get("stripeCustomerId") ?? "",
+      ),
+      stripeSubscriptionId: String(
+        object.id ?? current.get("stripeSubscriptionId") ?? "",
+      ),
+      stripePriceId: priceId,
+      currentPeriodStart:
+        period.start ?? (current.get("currentPeriodStart") ?? null),
+      currentPeriodEnd:
+        period.end ?? (current.get("currentPeriodEnd") ?? null),
+      cancelAtPeriodEnd: Boolean(object.cancel_at_period_end),
+      entitlements: entitlements[plan],
+      internalUserCount: current.get("internalUserCount") ?? 0,
+      brandCount: current.get("brandCount") ?? 1,
+      activeSubcontractorCount:
+        current.get("activeSubcontractorCount") ?? 0,
+      createdAt: current.get("createdAt") ?? now,
+      updatedAt: now,
+      createdBy: current.get("createdBy") ?? "stripe",
+      updatedBy: "stripe",
+      archivedAt: null,
+    },
+    { merge: true },
+  );
+  return { status, plan };
+}

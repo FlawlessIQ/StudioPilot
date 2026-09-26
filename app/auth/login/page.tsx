@@ -13,9 +13,9 @@ export const metadata: Metadata = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; verified?: string }>;
 }) {
-  const { next } = await searchParams;
+  const { next, verified } = await searchParams;
   // An invitation is one way a client arrives here; following "Review
   // proposal" from a studio's email is another, and that one showed them
   // "Sign in to your studio" — a page addressed to somebody else, on a
@@ -68,6 +68,13 @@ export default async function LoginPage({
           </Link>
         ) : null}
         <div className="auth-form-wrap">
+          {/* Arriving from a verification link with nowhere else to go: say it
+              worked, rather than a bare sign-in form that reads like a loop. */}
+          {verified === "1" ? (
+            <p className="form-notice" role="status">
+              <CircleCheck size={15} /> Email verified. Sign in to carry on.
+            </p>
+          ) : null}
           <span className="eyebrow">{isClientArrival ? "Client portal access" : "Welcome back"}</span>
           <h1>{isClientArrival ? "Sign in to open your project" : "Sign in to your studio"}</h1>
           <p>

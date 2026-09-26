@@ -44,7 +44,9 @@ export default async function RegisterPage({
                 must not promise otherwise, and must match the landing page
                 the studio arrived from. A client invite genuinely needs no
                 card: clients never pay. */}
-            {isClientInvite ? "No card required" : "No charge until it renews"}
+            {/* Said up front (docs/onboarding-assessment-2026-09-26.md): the
+                card was first mentioned after naming the studio. */}
+            {isClientInvite ? "No card required" : "Card required, nothing charged for 14 days"}
           </span>
           <span>
             <CircleCheck size={15} /> Verified email required

@@ -80,7 +80,12 @@ export const buildStripeCheckoutParams = ({
   // (audit deferred item P11-methods). Pin the method rather than inheriting the
   // account's globally-enabled set, which is shared with other FlawlessIQ products.
   params.set("payment_method_types[0]", "card");
-  params.set("success_url", `${appUrl}/studio/subscription?checkout=success`);
+  // Stripe fills in the session id, so the return can confirm the trial if the
+  // webhook is late (billingCommand confirmCheckout).
+  params.set(
+    "success_url",
+    `${appUrl}/studio/subscription?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+  );
   params.set("cancel_url", `${appUrl}/studio/subscription?checkout=cancelled`);
   if (firstCheckout) {
     // First checkout: anchor a full 14-day trial at checkout time. Gives the

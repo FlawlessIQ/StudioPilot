@@ -112,7 +112,7 @@ export default function MarketingHome() {
                 <Check size={15} /> 14-day trial
               </span>
               <span>
-                <Check size={15} /> No charge until it renews
+                <Check size={15} /> Card required, nothing charged for 14 days
               </span>
               <span>
                 <Check size={15} /> Guided setup
@@ -410,7 +410,7 @@ export default function MarketingHome() {
                 <Check size={15} /> 14-day trial
               </span>
               <span>
-                <Check size={15} /> No charge until it renews
+                <Check size={15} /> Card required, nothing charged for 14 days
               </span>
               <span>
                 <Check size={15} /> Guided setup

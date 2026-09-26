@@ -1,5 +1,5 @@
 "use client";
-import { useState, useSyncExternalStore, type FormEvent } from "react";
+import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
 import { currencyForTimezone, detectedTimezone } from "@/features/auth/locale-defaults";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
@@ -49,6 +49,51 @@ export function OnboardingForm() {
   const [resendState, setResendState] = useState<"idle" | "sending" | "sent">(
     "idle",
   );
+  const [checkoutNext, setCheckoutNext] = useState(true);
+
+  /**
+   * Who is here, before they type anything.
+   *
+   * A signed-out visitor used to fill in the form and then be told "Your
+   * session ended", with no link; an unverified owner filled it in and then hit
+   * the verification wall, losing what they'd typed. Both are answered on
+   * arrival now (docs/onboarding-assessment-2026-09-26.md).
+   */
+  useEffect(() => {
+    if (!process.env.NEXT_PUBLIC_ONBOARDING_FUNCTIONS_URL) return;
+    const { auth } = getFirebaseClient();
+    let active = true;
+    void auth.authStateReady().then(async () => {
+      const user = auth.currentUser;
+      if (!active) return;
+      if (!user) {
+        window.location.replace(`/auth/login?next=${encodeURIComponent("/auth/onboarding")}`);
+        return;
+      }
+      await user.reload().catch(() => undefined);
+      if (active && !user.emailVerified) setPhase("needs_verification");
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // While on the wall, look every few seconds: verifying on a phone carries
+  // this page on by itself.
+  useEffect(() => {
+    if (phase !== "needs_verification") return;
+    const { auth } = getFirebaseClient();
+    const timer = window.setInterval(() => {
+      const user = auth.currentUser;
+      if (!user) return;
+      void user.reload().then(async () => {
+        if (!user.emailVerified) return;
+        await user.getIdToken(true).catch(() => undefined);
+        setPhase("form");
+      });
+    }, 4000);
+    return () => window.clearInterval(timer);
+  }, [phase]);
 
   async function resendVerification() {
     setResendState("sending");
@@ -62,6 +107,9 @@ export function OnboardingForm() {
         input: { email, next: "/auth/onboarding" },
       });
       setResendState("sent");
+      // One link a minute: the server quietly skips a second request inside
+      // that window, so the button waits it out rather than claiming a send.
+      window.setTimeout(() => setResendState("idle"), 60_000);
     } catch {
       setResendState("idle");
       setNotice(
@@ -139,6 +187,7 @@ export function OnboardingForm() {
         );
       // P7: terminal success, form stays disabled so a bounce can't invite a
       // second submit.
+      setCheckoutNext(result.checkoutRequired !== false);
       setPhase("done");
       // Card-required trial: onboarding created the studio with an `incomplete`
       // subscription and no access. Rather than assuming Studio-monthly and
@@ -174,8 +223,9 @@ export function OnboardingForm() {
   if (phase === "done") {
     return (
       <div className="command-success">
-        <h2>Your studio is ready</h2>
-        <p>Opening your workspace…</p>
+        {/* It opened a plan picker, not a workspace: say what's next. */}
+        <h2>{checkoutNext ? "One last step: start your trial" : "Your studio is ready"}</h2>
+        <p>{checkoutNext ? "Opening the plan picker…" : "Opening your workspace…"}</p>
       </div>
     );
   }
@@ -185,8 +235,8 @@ export function OnboardingForm() {
       <div className="command-success">
         <h2>Verify your email first</h2>
         <p>
-          Your studio is one step away. Confirm your email address, then come
-          back and start your trial.
+          Your studio is one step away. Open the link we emailed you — this page
+          carries on by itself once you have.
         </p>
         <button
           className="button button-dark"
@@ -195,14 +245,15 @@ export function OnboardingForm() {
           onClick={() => void resendVerification()}
         >
           {resendState === "sent"
-            ? "Verification email sent"
+            ? "Link on its way"
             : resendState === "sending"
               ? "Sending…"
               : "Resend verification email"}
         </button>
         {resendState === "sent" ? (
           <p role="status">
-            Sent. Open the link, then reload this page to continue.
+            A verification link is on its way. Nothing after a minute? Check
+            spam, then you can ask for another.
           </p>
         ) : null}
         {notice ? (

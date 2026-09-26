@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import { BrainCircuit, CheckCircle2, CreditCard, UsersRound } from "lucide-react";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -11,6 +11,11 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { planEntitlements } from "@/features/subscriptions/entitlements";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { chosenPlan } from "@/features/subscriptions/chosen-plan";
+import { getAppCheckToken } from "@/lib/firebase/app-check";
+import { activeMembership } from "@/lib/firebase/active-membership";
+
+const noSubscribe = () => () => undefined;
 
 type Subscription = Record<string, unknown>;
 
@@ -36,11 +41,18 @@ export function LiveSubscription() {
     };
   }, [workspace.tenantId]);
   const plan = String(subscription?.plan ?? "studio");
+  // Before a trial there is no current plan, only the one picked on the
+  // website (if any); after, the subscription says.
+  const picked = useSyncExternalStore(noSubscribe, chosenPlan, () => null);
   const status = String(subscription?.status ?? (dataIsLive ? "loading" : "trialing"));
   // How the studio arrived: back from Stripe Checkout (?checkout=success — the
   // trial is being provisioned by the webhook and this live page flips to
   // trialing on its own) or a cancelled session. Drives the banner below.
-  const checkoutOutcome = useSearchParams().get("checkout");
+  const searchParams = useSearchParams();
+  const checkoutOutcome = searchParams.get("checkout");
+  const checkoutSession = searchParams.get("session_id");
+  // Past this, "a few seconds" was no longer true: say so, and what to do.
+  const [slowActivation, setSlowActivation] = useState(false);
   const trialActive = status === "trialing" || status === "active";
   // The studio has created its workspace but never completed Checkout: no
   // trial, no Stripe customer, no usage. Show a focused "choose a plan to start
@@ -62,6 +74,25 @@ export function LiveSubscription() {
     }
     return undefined;
   }, [checkoutOutcome, trialActive]);
+
+  /**
+   * Back from Checkout: confirm from the Session rather than only waiting on
+   * the webhook. The trial used to start from the webhook alone, and "Starting
+   * your trial…" had no end if it was late (docs/onboarding-assessment-
+   * 2026-09-26.md). Harmless if the webhook already landed.
+   */
+  useEffect(() => {
+    if (checkoutOutcome !== "success" || !checkoutSession || trialActive) return;
+    let active = true;
+    void confirmCheckoutSession(checkoutSession).catch(() => undefined);
+    const timer = window.setTimeout(() => {
+      if (active) setSlowActivation(true);
+    }, 15_000);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [checkoutOutcome, checkoutSession, trialActive]);
   // P8: say it in plain language, not the Stripe enum + plan slug ("trialing ·
   // studio"), and show the date the studio actually wants — when the trial ends
   // or when it renews. Stripe holds it; the page was hiding it.
@@ -122,9 +153,14 @@ export function LiveSubscription() {
         </div>
         <div className="subscription-status">
           <StatusBadge tone={["active", "trialing"].includes(status) ? "success" : "warning"}>
-            {statusLabel} · {planCards.find((card) => card.key === plan)?.name ?? plan.replaceAll("_", " ")}
+            {preTrial
+              ? statusLabel
+              : `${statusLabel} · ${planCards.find((card) => card.key === plan)?.name ?? plan.replaceAll("_", " ")}`}
           </StatusBadge>
-          {periodEndLabel ? (
+          {/* Before checkout the date is the trial end the studio hasn't
+              started yet — "Trial not started" beside "Current period ends…"
+              read as a contradiction. */}
+          {periodEndLabel && !preTrial ? (
             <small className="subscription-period">
               {status === "trialing"
                 ? `Trial ends ${periodEndLabel}`
@@ -151,7 +187,9 @@ export function LiveSubscription() {
                   : "Your subscription needs attention"}
           </strong>
           <p style={{ margin: "6px 0 0" }}>
-            {checkoutOutcome === "success"
+            {checkoutOutcome === "success" && slowActivation
+              ? "This is taking longer than usual. Your card is saved with Stripe; refresh in a minute, and if your studio still hasn't opened, email support@studio-cue.com."
+              : checkoutOutcome === "success"
               ? "We're confirming your card with Stripe. This page updates on its own the moment your trial is live — usually a few seconds."
               : status === "incomplete"
                 ? "Add a card below to start your 14-day trial and open your studio. You won't be charged until the trial ends."
@@ -205,13 +243,20 @@ export function LiveSubscription() {
         </div>
         <div className="plan-grid">
           {planCards.map((card) => (
-            <article className={`panel plan-card plan-card-${card.key} ${card.key === plan ? "is-current" : ""}`} key={card.key}>
+            <article
+              className={`panel plan-card plan-card-${card.key} ${(preTrial ? card.key === picked : card.key === plan) ? "is-current" : ""}`}
+              key={card.key}
+            >
               <div>
                 <span>
                   <small>{card.key === "studio" ? "Most popular" : "StudioCue plan"}</small>
                   <h2>{card.name}</h2>
                 </span>
-                {card.key === plan ? <StatusBadge tone="success">Current</StatusBadge> : null}
+                {preTrial ? (
+                  card.key === picked ? <StatusBadge tone="success">You picked this</StatusBadge> : null
+                ) : card.key === plan ? (
+                  <StatusBadge tone="success">Current</StatusBadge>
+                ) : null}
               </div>
               <strong>{card.monthly}<small>/month</small></strong>
               <p>or {card.yearly} annually · two months free</p>
@@ -257,4 +302,27 @@ export function LiveSubscription() {
       </section>
     </div>
   );
+}
+
+/** Ask the server to confirm a returned Checkout Session (billingCommand). */
+async function confirmCheckoutSession(sessionId: string): Promise<void> {
+  const endpoint = process.env.NEXT_PUBLIC_BILLING_FUNCTIONS_URL;
+  if (!endpoint) return;
+  const { auth, firestore } = getFirebaseClient();
+  await auth.authStateReady();
+  const user = auth.currentUser;
+  if (!user) return;
+  const membership = await activeMembership(firestore, user.uid);
+  const tenantId = membership.data().tenantId;
+  if (typeof tenantId !== "string") return;
+  const token = await getAppCheckToken();
+  await fetch(`${endpoint.replace(/\/$/, "")}/billingCommand`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${await user.getIdToken()}`,
+      ...(token ? { "x-firebase-appcheck": token } : {}),
+    },
+    body: JSON.stringify({ type: "confirmCheckout", tenantId, sessionId }),
+  });
 }

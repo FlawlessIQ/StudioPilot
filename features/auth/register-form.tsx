@@ -1,5 +1,5 @@
 "use client";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import {
   createUserWithEmailAndPassword,
@@ -9,6 +9,7 @@ import {
 import { ArrowRight, CheckCircle2, LoaderCircle, ShieldAlert } from "lucide-react";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { requestBrandedAuthEmail } from "@/lib/auth/email-client";
+import { rememberChosenPlan } from "@/features/subscriptions/chosen-plan";
 import { authIsLive } from "@/lib/runtime-mode";
 export function RegisterForm({
   next,
@@ -24,6 +25,17 @@ export function RegisterForm({
   >("idle");
   const [message, setMessage] = useState("");
   const safeNext = next?.startsWith("/") && !next.startsWith("//") ? next : null;
+  /**
+   * Where verifying leads. A new studio owner goes straight on to setting up
+   * the studio; it used to be sign-in, after being signed out here, so the
+   * owner typed their password twice in two minutes
+   * (docs/onboarding-assessment-2026-09-26.md).
+   */
+  const verifiedNext = safeNext ?? (intent === "studio" ? "/auth/onboarding" : null);
+  // "Start with Multi-Brand" on the website: remembered for the plan picker.
+  useEffect(() => {
+    rememberChosenPlan(new URLSearchParams(window.location.search).get("plan"));
+  }, []);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setState("submitting");
@@ -88,7 +100,7 @@ export function RegisterForm({
         idempotencyKey: crypto.randomUUID(),
         input: {
           email,
-          next: safeNext,
+          next: verifiedNext,
         },
       });
       setSentTo(email);
@@ -96,7 +108,7 @@ export function RegisterForm({
       setMessage(
         intent === "client"
           ? "The secure link will return you to your invitation."
-          : "Open it, then sign in and we\u2019ll set your studio up.",
+          : "Open it on this device or your phone \u2014 this page carries on by itself once you have.",
       );
     } catch {
       // P2: the account is real but the verification email did not go out. This
@@ -109,9 +121,11 @@ export function RegisterForm({
       setState("created_unverified");
       setMessage("");
     } finally {
-      // Always, so a failed send never leaves the browser holding a session for
-      // an account that has not verified its address.
-      await signOut(auth).catch(() => {});
+      // An invited client signs in again from the invitation, as before. A
+      // studio owner stays signed in: the onboarding page is where an
+      // unverified owner is stopped (its verification wall offers a resend),
+      // and this page moves on by itself once they verify.
+      if (intent === "client") await signOut(auth).catch(() => {});
     }
   }
   /**
@@ -123,6 +137,9 @@ export function RegisterForm({
    * account had been created and the page looked like it had not moved.
    * `/studio/projects/new` already resolves its own success this way.
    */
+  if (state === "sent" && intent === "studio" && authIsLive) {
+    return <CheckYourEmail sentTo={sentTo} message={message} />;
+  }
   if (state === "sent") {
     return (
       <div className="command-success">
@@ -232,5 +249,64 @@ export function RegisterForm({
         Already registered? <Link href={safeNext ? `/auth/login?next=${encodeURIComponent(safeNext)}` : "/auth/login"}>Sign in</Link>
       </p>
     </form>
+  );
+}
+
+/**
+ * "Check your email", for a new studio owner who is still signed in: it looks
+ * every few seconds and carries on to setting up the studio the moment the
+ * address is verified — here or on a phone.
+ */
+function CheckYourEmail({ sentTo, message }: { sentTo: string; message: string }) {
+  const [checking, setChecking] = useState(false);
+  useEffect(() => {
+    const { auth } = getFirebaseClient();
+    let stopped = false;
+    const look = async () => {
+      const user = auth.currentUser;
+      if (!user || stopped) return;
+      await user.reload().catch(() => undefined);
+      if (user.emailVerified && !stopped) {
+        stopped = true;
+        // A fresh token carries the verified claim the server checks.
+        await user.getIdToken(true).catch(() => undefined);
+        window.location.assign("/auth/onboarding");
+      }
+    };
+    const timer = window.setInterval(() => void look(), 4000);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+  return (
+    <div className="command-success">
+      <CheckCircle2 size={23} />
+      <h2>Check your email</h2>
+      <p>
+        We sent a verification link to <strong>{sentTo}</strong>. {message}
+      </p>
+      <button
+        className="button button-dark"
+        disabled={checking}
+        onClick={() => {
+          setChecking(true);
+          const { auth } = getFirebaseClient();
+          const user = auth.currentUser;
+          void (user ? user.reload() : Promise.resolve())
+            .then(async () => {
+              if (user?.emailVerified) {
+                await user.getIdToken(true);
+                window.location.assign("/auth/onboarding");
+              } else setChecking(false);
+            })
+            .catch(() => setChecking(false));
+        }}
+        type="button"
+      >
+        {checking ? <LoaderCircle className="spin" size={15} /> : <ArrowRight size={15} />}
+        I&apos;ve verified — continue
+      </button>
+    </div>
   );
 }

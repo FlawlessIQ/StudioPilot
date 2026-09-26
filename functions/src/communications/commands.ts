@@ -206,10 +206,16 @@ export const communicationsCommand = onRequest(
           db.doc(`leadCaptureSettings/${command.tenantId}`).get(),
         ]);
         const slug = String(tenant.get("publicSlug") ?? "");
+        // The inbox the setup asks about, pre-filled: the studio's contact
+        // address, its email-branding reply-to, then the signed-in owner's own
+        // email. Nothing set contactEmail, so this was always blank. Only used
+        // to pick which instructions to show; nothing is written.
+        const branding = tenant.get("emailBranding") as { replyTo?: unknown } | undefined;
         const mailbox =
           command.input.mailbox ??
           (typeof tenant.get("contactEmail") === "string" ? String(tenant.get("contactEmail")) : null) ??
-          null;
+          (typeof branding?.replyTo === "string" && branding.replyTo ? branding.replyTo : null) ??
+          (typeof identity.email === "string" ? identity.email : null);
         const lastTestId = settings.get("lastTestCaptureId");
         const lastTest =
           typeof lastTestId === "string" && lastTestId

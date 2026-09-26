@@ -54,7 +54,7 @@ test("no studio signup surface promises that no card is needed", () => {
         `${path}:${index + 1} promises a studio no card is needed, but ` +
           "onboarding starts a non-comped studio `incomplete` and routes it " +
           "to Stripe Checkout. Say what the landing page says: " +
-          '"No charge until it renews".',
+          '"Card required, nothing charged for 14 days".',
       );
     }
   }

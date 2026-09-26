@@ -58,7 +58,7 @@ test("Checkout honours the tenant's existing trial end, not a fresh 14 days (P10
   assert.equal(params.has("subscription_data[trial_period_days]"), false);
   assert.equal(
     params.get("success_url"),
-    "https://studio-cue.com/studio/subscription?checkout=success",
+    "https://studio-cue.com/studio/subscription?checkout=success&session_id={CHECKOUT_SESSION_ID}",
   );
   assert.equal(params.get("subscription_data[metadata][tenantId]"), "tenant_a");
   assert.equal(params.get("metadata[tenantId]"), "tenant_a");

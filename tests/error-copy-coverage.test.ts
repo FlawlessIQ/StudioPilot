@@ -134,6 +134,8 @@ const USER_FACING_HANDLERS = [
  */
 const GENERIC_ON_PURPOSE: Record<string, string> = {
   // Our own invariants. A studio cannot act on these and did not cause them.
+  SESSION_REQUIRED:
+    "confirmCheckout without a session id — the subscription page only calls it when Stripe returned one",
   CHECKPOINT_ID_FAILED: "id generation disagreed with itself — our bug",
   INVALID_CHECKPOINT_DEPENDENCY:
     "a template declares a dependency key it does not contain — our bug, caught by tests/workflow-starter-templates.test.ts",
