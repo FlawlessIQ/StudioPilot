@@ -142,6 +142,28 @@ a real, card-required trial.
 Today keeps one card ("n of 5 done, next: …") until all five are done. Help's
 checklist reads the same state.
 
+## Status — 2026-09-26: shipped the same day
+
+- **P0-1: agreement answerable.** "I send my own agreement" (`15b4aa1`).
+- **P0-2: preview creates no lead** (`15b4aa1`).
+- **3: inquiry capture is setup question 1,** answered in place (`a94da93`).
+- **4: Copy link for StudioCue's form** on setup (`a94da93`).
+- **5: calendar copy.** "Connect Google Calendar", not "unavailable" (`b8cad42`).
+  Connecting from the hours question itself is still open.
+- **8: land on setup after checkout,** and on comped signup (`b8cad42`).
+- **10, partly:**
+  - legal name dropped;
+  - timezone and currency detected;
+  - server validates the timezone (`b8cad42`);
+  - the plan carried from the marketing site is still open.
+- **12: "Back to setup"** on import, new package, settings sections and the agreement (`b8cad42`).
+- **17: the route label no longer overpromises** (`a94da93`).
+- **Found on the way:** twenty places where the build ran two words together
+  (`d1a6374`, and `jsx-lost-space` now checks inline elements).
+
+Still open: 6, 7, 9, 11 (signup), 13–16 (one checklist, import copy, names),
+calendar connect inside the hours question, and the plan carried through signup.
+
 ## Suggested order
 
 1. **Quick wins (≈1 day), no design decisions needed:**
