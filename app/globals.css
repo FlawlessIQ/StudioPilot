@@ -3336,45 +3336,57 @@ textarea:focus-visible {
   display: none;
 }
 
+/* Sized to be read without leaning in: it was 11px labels, 13px copy and
+   45px fields, and read as small on a desk (2026-09-26). 16px field text also
+   stops iOS zooming the page when a field is tapped. */
 .auth-form-wrap {
   margin: auto;
-  max-width: 410px;
+  max-width: 460px;
   width: 100%;
 }
 
+.auth-form-wrap > .eyebrow {
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+
 .auth-form-wrap h1 {
-  font-size: 35px;
+  font-size: 42px;
   letter-spacing: -0.05em;
-  margin: 8px 0 9px;
+  line-height: 1.1;
+  margin: 8px 0 12px;
 }
 
 .auth-form-wrap > p {
   color: var(--muted);
-  font-size: 13px;
-  margin: 0 0 30px;
+  font-size: 16px;
+  line-height: 1.5;
+  margin: 0 0 34px;
 }
 
 .sign-in-form {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 22px;
 }
 
 .sign-in-form label {
   color: #444a46;
   display: flex;
   flex-direction: column;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 620;
-  gap: 7px;
+  gap: 9px;
 }
 
-.sign-in-form input {
+.sign-in-form input,
+.sign-in-form select {
   border: 1px solid var(--line-strong);
-  border-radius: 9px;
+  border-radius: 11px;
   color: var(--ink);
-  min-height: 45px;
-  padding: 0 13px;
+  font-size: 16px;
+  min-height: 54px;
+  padding: 0 16px;
   width: 100%;
 }
 
@@ -3398,7 +3410,7 @@ textarea:focus-visible {
   border: 0;
   color: #476353;
   cursor: pointer;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 650;
   padding: 0;
 }
@@ -3421,12 +3433,14 @@ textarea:focus-visible {
   height: 100%;
   justify-content: center;
   position: absolute;
-  right: 6px;
+  right: 8px;
   top: 0;
-  width: 34px;
+  width: 42px;
 }
 
 .sign-in-submit {
+  font-size: 16px;
+  min-height: 54px;
   width: 100%;
 }
 
@@ -3447,7 +3461,7 @@ textarea:focus-visible {
 .form-success,
 .demo-note {
   border-radius: 8px;
-  font-size: 10px;
+  font-size: 13px;
   line-height: 1.5;
   margin: -5px 0;
   padding: 9px 11px;
@@ -3466,7 +3480,7 @@ textarea:focus-visible {
 
 .sign-up-copy {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 14px;
   text-align: center;
 }
 
@@ -3479,7 +3493,7 @@ textarea:focus-visible {
 .auth-legal {
   bottom: 22px;
   color: #8a918b;
-  font-size: 9px;
+  font-size: 12px;
   left: 0;
   position: absolute;
   text-align: center;
@@ -10144,12 +10158,14 @@ textarea:focus-visible {
   position: relative;
 }
 
+/* Centred whatever the field's height (the auth fields grew to 54px). */
 .input-with-icon > svg {
   color: var(--muted);
-  left: 13px;
+  left: 15px;
   pointer-events: none;
   position: absolute;
-  top: 14px;
+  top: 50%;
+  transform: translateY(-50%);
   z-index: 1;
 }
 
@@ -14489,7 +14505,7 @@ label {
    Size it for a phone. */
 @media (max-width: 640px) {
   .auth-form-wrap h1 {
-    font-size: clamp(26px, 7vw, 29px);
+    font-size: clamp(28px, 8vw, 34px);
     line-height: 1.08;
   }
 }
@@ -17562,7 +17578,7 @@ label {
   }
   .sign-in-form .required-mark {
     display: inline;
-    font-size: 9.5px;
+    font-size: 11px;
     margin-left: 6px;
   }
 }

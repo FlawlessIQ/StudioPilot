@@ -207,6 +207,30 @@
 }
 .ds-root .auth-legal { color: var(--ds-muted); }
 
+/* The auth form's larger fields and button (globals.css, 2026-09-26) lost to
+   the design system's .ds-root input / .ds-root .button rules — 42px, and
+   "font: inherit" (14px). Matched here with enough specificity to win, on the
+   auth form only. */
+.ds-root .auth-form-wrap .sign-in-form input:not([type="checkbox"]):not([type="radio"]),
+.ds-root .auth-form-wrap .sign-in-form select {
+  border-radius: 11px;
+  font-size: 16px;
+  min-height: 54px;
+  padding: 0 16px;
+}
+/* Room for the show/hide eye, and for a leading icon where there is one. */
+.ds-root .auth-form-wrap .sign-in-form .password-field > input:not([type="checkbox"]):not([type="radio"]) {
+  padding-right: 52px;
+}
+.ds-root .auth-form-wrap .sign-in-form .input-with-icon > input:not([type="checkbox"]):not([type="radio"]) {
+  padding-left: 44px;
+}
+.ds-root .auth-form-wrap .sign-in-form .sign-in-submit {
+  border-radius: 11px;
+  font-size: 16px;
+  min-height: 54px;
+}
+
 /* =========================================================================
    Marketing & public (/, /features, /pricing, industries, legal) — editorial
    ========================================================================= */
