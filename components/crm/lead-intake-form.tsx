@@ -49,9 +49,18 @@ const defaultValues: Omit<PublicLeadIntake, "tenantSlug"> = {
 export function LeadIntakeForm({
   tenantSlug,
   brandName,
+  preview = false,
 }: {
   tenantSlug: string;
   brandName: string;
+  /**
+   * The studio looking at its own form (`?preview=studio`). A submit shows
+   * what a couple sees and saves nothing. It used to create a real lead, and
+   * the first lead a studio ever has hides Today's "Get your inquiries in"
+   * card for good and ticks setup's "How do inquiries reach you?" — so a
+   * studio testing its form was told capture was done.
+   */
+  preview?: boolean;
 }) {
   const hydrated = useSyncExternalStore(
     () => () => undefined,
@@ -113,7 +122,7 @@ export function LeadIntakeForm({
     setServerError(null);
     const endpoint = process.env.NEXT_PUBLIC_CRM_FUNCTIONS_URL;
 
-    if (!endpoint) {
+    if (!endpoint || preview) {
       setResult({
         leadId: `DEMO-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
         duplicate: false,
@@ -174,7 +183,12 @@ export function LeadIntakeForm({
             We may follow up about: {result.missingInformation.join(", ")}.
           </small>
         ) : null}
-        {!process.env.NEXT_PUBLIC_CRM_FUNCTIONS_URL ? (
+        {preview ? (
+          <small className="demo-disclosure">
+            Preview: this is what a couple sees. Nothing was saved, and no inquiry
+            was created.
+          </small>
+        ) : !process.env.NEXT_PUBLIC_CRM_FUNCTIONS_URL ? (
           <small className="demo-disclosure">
             Development preview: no record was persisted because the CRM Functions URL
             is not configured.
@@ -186,6 +200,11 @@ export function LeadIntakeForm({
 
   return (
     <form className="inquiry-form" onSubmit={submit} noValidate>
+      {preview ? (
+        <p className="demo-disclosure" role="note">
+          You&apos;re previewing your form. Try it — submitting won&apos;t create an inquiry.
+        </p>
+      ) : null}
       <div className="form-section-heading">
         <span>01</span>
         <div><h2>Tell us about you</h2><p>We’ll use these details only to respond to your inquiry.</p></div>

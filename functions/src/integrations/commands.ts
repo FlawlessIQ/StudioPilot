@@ -75,6 +75,25 @@ const commandSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     /**
+     * How the studio's clients sign, when StudioCue doesn't send contracts.
+     *
+     * Setup asks "How do your clients sign?", and for a studio without a
+     * signing app or StudioCue signing there was no answer it could give: the
+     * step could never be ticked, so setup stopped at "n of 5" for good
+     * (docs/onboarding-assessment-2026-09-26.md). "record_own" is the answer
+     * most studios have: they send their own agreement and record the
+     * signature on the job. null withdraws it.
+     *
+     * Written as one field, so the template, StudioCue-agreement and
+     * auto-send settings beside it are untouched.
+     */
+    type: z.literal("setSignatureMode"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ mode: z.enum(["record_own"]).nullable() }),
+  }),
+  z.object({
+    /**
      * Offer autopay to this studio's couples.
      *
      * Turning it on needs a QuickBooks connection that granted the payments
@@ -276,6 +295,48 @@ export const integrationsCommand = onRequest(
           });
 
           const output = { templateId, templateName: templateId ? templateName : null };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        if (command.type === "setSignatureMode") {
+          const { mode } = command.input;
+          const tenantReference = db.doc(`tenants/${command.tenantId}`);
+          const tenant = await transaction.get(tenantReference);
+          if (!tenant.exists) throw new Error("TENANT_NOT_FOUND");
+          const before =
+            ((tenant.get("defaultContractSettings") as { signatureMode?: string } | undefined) ?? {})
+              .signatureMode ?? null;
+          transaction.update(tenantReference, {
+            "defaultContractSettings.signatureMode": mode,
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          const auditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${auditId}`), {
+            id: auditId,
+            tenantId: command.tenantId,
+            projectId: null,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "integration.signature_mode_set",
+            entityType: "tenant",
+            entityId: command.tenantId,
+            timestamp,
+            before: { signatureMode: before },
+            after: { signatureMode: mode },
+            ipAddress: request.ip ?? null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          const output = { signatureMode: mode };
           transaction.create(commandReference, {
             tenantId: command.tenantId,
             idempotencyKey: command.idempotencyKey,

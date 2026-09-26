@@ -13,6 +13,8 @@ import {
 import { AppShell } from "@/components/layout/app-shell";
 import { useSetupState } from "@/components/setup/use-setup-state";
 import { LeadCaptureRoutes } from "@/components/intake/lead-capture-setup";
+import { setSignatureMode } from "@/lib/integrations/command-client";
+import { friendlyError } from "@/lib/ai/friendly-error";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import type { SetupGapKey } from "@/features/today/setup-gaps";
 
@@ -70,7 +72,7 @@ const QUESTIONS: Question[] = [
      */
     key: "agreement",
     ask: "How do your clients sign?",
-    why: "StudioCue doesn't write your contract. Send your own and record the signature on the job, or connect a signing app to have it sent and tracked for you.",
+    why: "StudioCue doesn't write your contract. Most studios send their own and record the signature on the job — if that's you, say so and StudioCue stops asking.",
     doneLabel: "StudioCue knows how you handle signatures.",
   },
   {
@@ -99,7 +101,7 @@ const NATIVE_AGREEMENT_WHY =
 
 export function SetupConversation() {
   const workspace = useWorkspace();
-  const { gaps, complete, loading } = useSetupState();
+  const { gaps, complete, loading, refresh } = useSetupState();
   const gapByKey = new Map(gaps.map((gap) => [gap.key, gap]));
   const answered = QUESTIONS.length - gaps.length;
 
@@ -161,7 +163,14 @@ export function SetupConversation() {
                   {/* Answered in place: the three routes open their sheets here. */}
                   {!done && question.key === "inquiries" ? <LeadCaptureRoutes /> : null}
                 </div>
-                {!done && gap && question.key === "inquiries" ? null : !done && gap ? (
+                {!done && gap && question.key === "inquiries" ? null : !done &&
+                  gap &&
+                  question.key === "agreement" &&
+                  gap.href !== NATIVE_AGREEMENT_HREF ? (
+                  /* It linked to Integrations, where no signing app is offered:
+                     a dead end, and the one step setup could never tick. */
+                  <SendOwnAgreement onAnswered={refresh} />
+                ) : !done && gap ? (
                   <Link className="button button-dark" href={gap.href}>
                     {gap.actionLabel} <ArrowRight size={14} />
                   </Link>
@@ -221,5 +230,36 @@ function HostedFormLink({ slug }: { slug: string }) {
         </Link>
       </div>
     </section>
+  );
+}
+
+/** "I send my own agreement": the answer, saved in one tap. */
+function SendOwnAgreement({ onAnswered }: { onAnswered: () => void }) {
+  const workspace = useWorkspace();
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  return (
+    <div className="setup-question-answer">
+      <button
+        className="button button-dark"
+        disabled={busy || !workspace.tenantId}
+        onClick={() => {
+          if (!workspace.tenantId) return;
+          setBusy(true);
+          setNotice(null);
+          setSignatureMode("record_own", workspace.tenantId)
+            .then(() => onAnswered())
+            .catch((caught: unknown) => {
+              setNotice(friendlyError(caught, "That couldn't be saved. Try again."));
+            })
+            .finally(() => setBusy(false));
+        }}
+        type="button"
+      >
+        {busy ? <LoaderCircle className="spin" size={14} /> : <Check size={14} />}
+        I send my own agreement
+      </button>
+      {notice ? <small role="status">{notice}</small> : null}
+    </div>
   );
 }

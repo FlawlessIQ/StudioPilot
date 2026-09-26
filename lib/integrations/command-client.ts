@@ -175,6 +175,43 @@ export async function setContractTemplate(
 }
 
 /**
+ * "I send my own agreement and record the signature" — setup's answer to
+ * "How do your clients sign?" for a studio StudioCue doesn't send contracts
+ * for. null withdraws it.
+ */
+export async function setSignatureMode(
+  mode: "record_own" | null,
+  tenantId: string,
+): Promise<{ persisted: boolean }> {
+  const endpoint = process.env.NEXT_PUBLIC_INTEGRATION_FUNCTIONS_URL;
+  if (!endpoint) return { persisted: false };
+  const { auth } = getFirebaseClient();
+  const user = auth.currentUser;
+  if (!user) throw new Error("Sign in before answering how clients sign.");
+  const appCheckToken = await getOptionalAppCheckToken();
+  const response = await fetch(`${endpoint.replace(/\/$/, "")}/integrationsCommand`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${await user.getIdToken()}`,
+      ...(appCheckToken ? { "x-firebase-appcheck": appCheckToken } : {}),
+    },
+    body: JSON.stringify({
+      type: "setSignatureMode",
+      tenantId,
+      idempotencyKey: crypto.randomUUID(),
+      input: { mode },
+    }),
+  });
+  const payload = (await response.json()) as Record<string, unknown>;
+  if (!response.ok) {
+    throw new Error(String(payload.error ?? "Your answer could not be saved."));
+  }
+  markTenantRecordsWritten();
+  return { persisted: true };
+}
+
+/**
  * Turns a provider's test mode on or off.
  *
  * Test-mode signatures are watermarked and not legally binding, so this is

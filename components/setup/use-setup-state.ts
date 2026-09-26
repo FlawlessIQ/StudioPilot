@@ -29,6 +29,8 @@ export function useSetupState(): {
   gaps: SetupGap[];
   complete: boolean;
   loading: boolean;
+  /** Read the tenant-keyed documents again, after an answer is saved here. */
+  refresh: () => void;
 } {
   const workspace = useWorkspace();
   const packages = useTenantDocuments("packages");
@@ -41,12 +43,14 @@ export function useSetupState(): {
   const connections = useTenantDocuments("integrationConnections");
   const [tenantDocs, setTenantDocs] = useState<{
     agreement: boolean;
+    recordsOwnSignatures: boolean;
     nativeAgreement: boolean;
     nativeSigning: boolean;
     availability: boolean;
     captured: boolean;
   } | null>(null);
 
+  const [reads, setReads] = useState(0);
   useEffect(() => {
     if (!dataIsLive || workspace.loading || !workspace.tenantId) return;
     let active = true;
@@ -71,6 +75,9 @@ export function useSetupState(): {
       const windows = availability?.get("windows");
       setTenantDocs({
         agreement: Boolean(templateId),
+        // "I send my own agreement and record the signature": an answer, and
+        // for most studios the true one (setSignatureMode).
+        recordsOwnSignatures: text(contractSettings?.signatureMode) === "record_own",
         nativeSigning,
         // StudioCue's own agreement counts only where StudioCue writes contracts.
         nativeAgreement:
@@ -87,7 +94,7 @@ export function useSetupState(): {
     return () => {
       active = false;
     };
-  }, [workspace.loading, workspace.tenantId]);
+  }, [workspace.loading, workspace.tenantId, reads]);
 
   const signingConnected = (connections.records ?? []).some(
     (connection) =>
@@ -103,6 +110,7 @@ export function useSetupState(): {
     // mean the studio can send an agreement without pasting an id.
     hasAgreementTemplate:
       Boolean(tenantDocs?.agreement) ||
+      Boolean(tenantDocs?.recordsOwnSignatures) ||
       Boolean(tenantDocs?.nativeAgreement) ||
       signingConnected,
     nativeSigning: Boolean(tenantDocs?.nativeSigning),
@@ -169,6 +177,7 @@ export function useSetupState(): {
     state,
     gaps,
     complete: setupComplete(state),
+    refresh: () => setReads((count) => count + 1),
     loading: dataIsLive && (packages.records === null || tenantDocs === null),
   };
 }

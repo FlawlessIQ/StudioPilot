@@ -92,3 +92,15 @@ test("every field the schema requires is marked required on the form", () => {
     assert.match(form, pattern, `${field} is required but not marked`);
   }
 });
+
+test("a studio previewing its own form creates no inquiry", () => {
+  // A preview submit created a real lead, which hid Today's "Get your
+  // inquiries in" card for good and ticked setup's capture question.
+  const read = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
+  assert.match(read("app/inquiry/page.tsx"), /preview=\{preview === "studio"\}/);
+  const form = read("components/crm/lead-intake-form.tsx");
+  assert.match(form, /if \(!endpoint \|\| preview\)/, "a preview never reaches publicLeadIntake");
+  assert.match(form, /Nothing was saved/);
+  // Setup's own Preview link says it's the studio looking.
+  assert.match(read("components/setup/setup-conversation.tsx"), /&preview=studio/);
+});

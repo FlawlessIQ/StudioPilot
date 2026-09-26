@@ -119,7 +119,7 @@ export default async function InquiryPage({
             <span><LockKeyhole size={18} /><strong>Private by default</strong><small>Your details stay within this studio workspace.</small></span>
           </div>
         </aside>
-        <LeadIntakeForm brandName={tenant.name} tenantSlug={tenant.slug} />
+        <LeadIntakeForm brandName={tenant.name} preview={preview === "studio"} tenantSlug={tenant.slug} />
       </div>
     </main>
   );

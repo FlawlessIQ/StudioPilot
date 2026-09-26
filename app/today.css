@@ -782,6 +782,19 @@
   margin-top: 10px;
 }
 
+.setup-question-answer {
+  display: grid;
+  gap: 6px;
+  grid-column: 2;
+  justify-items: start;
+  margin-top: 10px;
+}
+
+.setup-question-answer small {
+  color: #b0522d;
+  font-size: 12.5px;
+}
+
 .setup-question-done {
   color: #2e7042;
   font-size: 12px;

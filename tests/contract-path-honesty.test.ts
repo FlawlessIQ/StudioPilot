@@ -152,3 +152,22 @@ test("the setup conversation's native promise is gated on the native link", () =
   // The default question copy still says the honest thing.
   assert.match(conversation, /StudioCue doesn't write your contract\./);
 });
+
+test("a studio StudioCue doesn't sign for can still answer how its clients sign", () => {
+  // The question could never be ticked without a signing app or StudioCue
+  // signing, so setup stopped short for good (onboarding assessment 2026-09-26).
+  const read = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
+  const conversation = read("components/setup/setup-conversation.tsx");
+  assert.match(conversation, /I send my own agreement/);
+  assert.match(conversation, /setSignatureMode\("record_own"/);
+  // The answer counts.
+  const state = read("components/setup/use-setup-state.ts");
+  assert.match(state, /signatureMode\) === "record_own"/);
+  assert.match(state, /recordsOwnSignatures\) \|\|/);
+  // And it is written as one field, leaving the template, StudioCue-agreement
+  // and auto-send settings beside it alone.
+  const command = read("functions/src/integrations/commands.ts");
+  const branch = command.slice(command.indexOf('command.type === "setSignatureMode"'), command.indexOf('command.type === "setAutopay"'));
+  assert.match(branch, /"defaultContractSettings\.signatureMode": mode/);
+  assert.doesNotMatch(branch, /defaultContractSettings: \{/);
+});
