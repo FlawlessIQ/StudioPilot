@@ -24,8 +24,8 @@ export const SETTINGS_SECTIONS: ReadonlyArray<{
   title: string;
   subtitle: string;
 }> = [
-  { key: "identity", slug: "studio-details", title: "Studio details", subtitle: "Name, logo, and how clients see you" },
-  { key: "branding", slug: "email-branding", title: "Email branding", subtitle: "Colours and sender name on client emails" },
+  { key: "identity", slug: "studio-details", title: "Studio details", subtitle: "Names, timezone, and your inquiry link" },
+  { key: "branding", slug: "email-branding", title: "Email branding", subtitle: "Logo, colours and sender name on client emails" },
   { key: "availability", slug: "consultation-availability", title: "Consultation availability", subtitle: "When clients can book a call" },
   { key: "templates", slug: "email-templates", title: "Email templates", subtitle: "Design the branded template" },
   { key: "drafts", slug: "automatic-drafts", title: "Automatic drafts", subtitle: "Which lifecycle emails are drafted for you" },

@@ -14,6 +14,7 @@ import {
   type StudioAssetType,
 } from "./extraction.js";
 import { productEvent } from "../operations/product-events.js";
+import { questionnaireEventType } from "./event-type-guess.js";
 import {
   importedDeliveryDefaults,
   importedMessageTemplate,
@@ -740,7 +741,7 @@ export async function activateStudioImport(input: {
               id: templateId,
               ...shared,
               name: version.get("name"),
-              eventTypeId: "wedding",
+              eventTypeId: questionnaireEventType(version.get("name")),
               status: "active",
               sections: importedQuestionnaireSections(
                 version.get("structuredContent"),

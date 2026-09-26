@@ -484,7 +484,10 @@ export function TodayInbox() {
               ways in — the website form, the inbox, a forward by hand — each
               open their setup sheet here, without leaving Today. */}
           {!loading && setup.noInquiriesEver ? <LeadCaptureStart /> : null}
-          {!loading && waiting === 0 ? (
+          {/* Not beneath "Let's get you set up": a brand-new studio has
+              nothing waiting because it has nothing yet, and the setup card
+              above is what to do. */}
+          {!loading && waiting === 0 && !(setup.brandNew && !setup.complete) ? (
             <section className="today-clear">
               <span className="today-clear-icon">
                 <Check size={20} />

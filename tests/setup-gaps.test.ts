@@ -175,3 +175,25 @@ test("connecting a calendar can return to setup, and only ever to a studio page"
   for (const hostile of ["https://evil.example", "//evil.example", "/studio/../../x?y", "/studio/setup?next=//evil"])
     assert.equal(rule.test(hostile), false, hostile);
 });
+
+test("setup polish: the places that said the wrong thing now say the right one", () => {
+  // A brand-new studio isn't told "Nothing is waiting on you" under "Let's get you set up".
+  assert.match(source("components/today/today-inbox.tsx"), /waiting === 0 && !\(setup\.brandNew && !setup\.complete\)/);
+  // "Finish setting up" on a finished studio reads as a wrong nag.
+  assert.match(source("components/settings/settings-shell.tsx"), /title: "Review setup"/);
+  // Studio details has no logo; Email branding does.
+  const sections = source("features/settings/sections.ts");
+  assert.match(sections, /"Names, timezone, and your inquiry link"/);
+  assert.match(sections, /"Logo, colours and sender name on client emails"/);
+  // Who email comes from, and where replies go, said as they are.
+  const branding = source("components/settings/email-branding.tsx");
+  assert.match(branding, /NEXT_PUBLIC_EMAIL_FROM_ADDRESS/);
+  assert.match(branding, /replies come back into Messages/);
+  assert.doesNotMatch(branding, /Replies go to \{branding\.replyTo/);
+  assert.match(source("apphosting.yaml"), /NEXT_PUBLIC_EMAIL_FROM_ADDRESS\s+value: studio@studio-cue\.com/);
+  // A contract import is offered, and explained, only for what it will do.
+  assert.match(source("components/ai/template-import-studio.tsx"), /kinds\.filter\(\(kind\) => kind !== "Contract"\)/);
+  assert.match(source("components/ai/studio-import-review-workspace.tsx"), /it won&apos;t be used on bookings/);
+  // Imported forms are for the job type they name.
+  assert.match(source("functions/src/studio-import/review.ts"), /eventTypeId: questionnaireEventType\(/);
+});

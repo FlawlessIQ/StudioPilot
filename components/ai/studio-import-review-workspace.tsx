@@ -32,6 +32,7 @@ import {
 import { StructuredContentFields } from "@/components/ai/structured-content-fields";
 import { statusLabel } from "@/features/format/status-label";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { useNativeSigning } from "@/components/contracts/use-native-signing";
 
 const labels: Record<string, string> = {
   message_template: "Message",
@@ -116,6 +117,7 @@ export function StudioImportReviewWorkspace({
       ),
     [review.drafts],
   );
+  const nativeSigning = useNativeSigning();
   const [selectedId, setSelectedId] = useState(
     visibleDrafts[0]?.id ?? "",
   );
@@ -454,6 +456,15 @@ export function StudioImportReviewWorkspace({
             </div>
             <span>{Math.round(selected.confidence * 100)}% AI confidence</span>
           </div>
+          {/* An imported contract becomes an agreement only where StudioCue
+              writes contracts; elsewhere it was saved as a template nothing
+              reads (docs/onboarding-assessment-2026-09-26.md). Say so. */}
+          {selected.assetType === "contract" && !nativeSigning.loading && !nativeSigning.enabled ? (
+            <p className="form-notice" role="note">
+              StudioCue doesn&apos;t send contracts for your studio, so activating this only
+              keeps a copy — it won&apos;t be used on bookings. Reject it to skip.
+            </p>
+          ) : null}
           <label>
             <span>Template name</span>
             <input

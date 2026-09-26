@@ -30,6 +30,7 @@ import { InquiryForwardingSettings } from "@/components/crm/inquiry-forwarding-a
 import { DataControls } from "@/components/settings/data-controls";
 import { EmailBranding } from "@/components/settings/email-branding";
 import { StudioIdentitySettings } from "@/components/settings/studio-identity";
+import { useSetupState } from "@/components/setup/use-setup-state";
 import {
   SETTINGS_SECTIONS,
   legacySettingsTarget,
@@ -145,7 +146,10 @@ const GROUPS: Array<{ label: string; items: HubItem[] }> = [
 ];
 
 /** Where a hub item goes and what it says, whichever kind it is. */
-function resolve(item: HubItem) {
+function resolve(item: HubItem, setupComplete = false) {
+  // "Finish setting up" on a studio that has: it reads as a nag that's wrong.
+  if (item.kind === "link" && item.href === "/studio/setup" && setupComplete)
+    return { ...item, title: "Review setup", subtitle: "Everything's answered — change any of it" };
   if (item.kind === "link") return item;
   const section = SETTINGS_SECTIONS.find((entry) => entry.key === item.key)!;
   return {
@@ -158,6 +162,7 @@ function resolve(item: HubItem) {
 
 export function SettingsShell() {
   const isPhone = useIsPhone();
+  const { complete: setupComplete } = useSetupState();
   const router = useRouter();
 
   // Links written before each section had a page — `?section=forwarding`
@@ -200,7 +205,7 @@ export function SettingsShell() {
             <p className="settings-group-label">{group.label}</p>
             <div className="settings-destinations">
               {group.items.map((item) => {
-                const { href, icon: Icon, title, subtitle } = resolve(item);
+                const { href, icon: Icon, title, subtitle } = resolve(item, setupComplete);
                 return (
                   <Link href={href} key={href}>
                     <span className="settings-destination-icon">
@@ -232,7 +237,7 @@ export function SettingsShell() {
           <p className="settings-group-label">{group.label}</p>
           <div className="settings-group-card">
             {group.items.map((item) => {
-              const { href, icon: Icon, title, subtitle } = resolve(item);
+              const { href, icon: Icon, title, subtitle } = resolve(item, setupComplete);
               return (
                 <Link className="settings-row" href={href} key={href}>
                   <span className="settings-row-icon">

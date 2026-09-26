@@ -39,6 +39,7 @@ import {
 import { kindTone, type LibraryKind } from "@/features/library/kinds";
 import { kindIcon } from "@/components/library/kind-glyph";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { useNativeSigning } from "@/components/contracts/use-native-signing";
 
 type SourceMode = "files" | "email" | "website";
 type ImportKind =
@@ -208,6 +209,10 @@ export function TemplateImportStudio({
 }) {
   const initialKind = isImportKind(requestedKind) ? requestedKind : null;
   const kindCopy = initialKind ? KIND_COPY[initialKind] ?? null : null;
+  const nativeSigning = useNativeSigning();
+  // Once known to be off, contracts aren't offered or pre-selected.
+  const offered = (kinds: ImportKind[]) =>
+    !nativeSigning.loading && !nativeSigning.enabled ? kinds.filter((kind) => kind !== "Contract") : kinds;
   const inputRef = useRef<HTMLInputElement>(null);
   const reviewRef = useRef<HTMLDivElement>(null);
   const [sourceMode, setSourceMode] = useState<SourceMode>("files");
@@ -298,7 +303,10 @@ export function TemplateImportStudio({
     }
     return Array.from(kinds);
   }, [emailText, files, initialKind, websiteUrl]);
-  const planKinds = review ? kindsFromReview(review) : suggestions;
+  // An imported contract becomes a StudioCue agreement only where StudioCue
+  // writes contracts; anywhere else it was saved as a template nothing reads
+  // (docs/onboarding-assessment-2026-09-26.md), so it isn't offered.
+  const planKinds = offered(review ? kindsFromReview(review) : suggestions);
 
   function addFiles(incoming: FileList | File[]) {
     const checked = Array.from(incoming).map((file) => {

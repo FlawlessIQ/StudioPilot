@@ -179,7 +179,7 @@ export function EmailBranding() {
 
         <div className="email-branding-fields">
           <label>
-            Studio name
+            Name on client emails
             <input
               required
               minLength={2}
@@ -308,7 +308,7 @@ export function EmailBranding() {
             />
           </label>
           <label>
-            Reply-to email <span>(optional)</span>
+            Where to alert you <span>(optional)</span>
             <input
               type="email"
               inputMode="email"
@@ -369,9 +369,16 @@ export function EmailBranding() {
             </li>
           </ul>
         </div>
+        {/* It said "Replies go to your studio inbox", but client replies come
+            back into Messages; this address is where StudioCue tells you one
+            arrived. And the address the email is sent from was shown nowhere
+            (docs/onboarding-assessment-2026-09-26.md). */}
         <footer>
           <Mail aria-hidden="true" />
-          Replies go to {branding.replyTo || "your studio inbox"}
+          Sent as {branding.brandName || "your studio"}{" "}
+          &lt;{process.env.NEXT_PUBLIC_EMAIL_FROM_ADDRESS ?? "studio@studio-cue.com"}&gt;. Client
+          replies come back into Messages, and we let you know at{" "}
+          {branding.replyTo || "your sign-in email"}.
         </footer>
       </aside>
     </section>

@@ -51,3 +51,14 @@ test("the calendar tells a studio that never connected how to, not that sync is 
   assert.match(calendar, /calendarStatus === "unavailable" && !calendarConnected/);
   assert.match(calendar, /Connect Google Calendar/);
 });
+
+import { questionnaireEventType } from "../functions/src/studio-import/event-type-guess";
+
+test("an imported details form is for the job type its name says", () => {
+  assert.equal(questionnaireEventType("Corporate Shoot Brief"), "corporate");
+  assert.equal(questionnaireEventType("Headshot questionnaire"), "corporate");
+  assert.equal(questionnaireEventType("Team & League Day"), "sports");
+  assert.equal(questionnaireEventType("Wedding Planning Questionnaire"), "wedding");
+  assert.equal(questionnaireEventType("Our questionnaire"), "wedding", "a name that says nothing keeps the old answer");
+  assert.equal(questionnaireEventType(null), "wedding");
+});
