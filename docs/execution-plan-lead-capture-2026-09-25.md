@@ -26,12 +26,12 @@ Google's review runs alongside and is the only thing that can hold Phase 3.
 
 | # | Task | Owner | Notes |
 |---|---|---|---|
-| 0.1 | **Google brand verification + publish status** for the `studiohub-prod` OAuth app (already published — confirm in the console), with the existing Calendar scopes (`calendar.freebusy`, `calendar.events.owned`) | Conor (prompt in `docs/google-oauth-verification-prompt.md`) | 2–3 business days for brand; sensitive scopes a few weeks |
-| 0.2 | **Choose a CASA lab** (TAC Security's AL1 package is the cheapest listed, ~$540–$1,800/yr), and have their scanner requirements ready | Conor | CASA is requested by Google *after* the restricted-scope submission; knowing the lab shortens it |
+| 0.1 | ✅ **Done before this plan:** brand and Calendar approved 2026-08-25; checked in the console 2026-09-25. ~~**Google brand verification + publish status** for the `studiohub-prod` OAuth app (already published — confirm in the console), with the existing Calendar scopes (`calendar.freebusy`, `calendar.events.owned`)~~ | — | Any consent-screen edit reopens review |
+| 0.2 | **Choose a CASA lab.** Only needed if `gmail.readonly` goes ahead (deferred). TAC Security's AL1 Basic is **$675/yr**, the cheapest published; see `docs/google-oauth-gmail-verification-drafts.md` | Conor | CASA is requested by Google *after* the restricted-scope submission; knowing the lab shortens it |
 | 0.3 | Add `gmail.readonly` and `gmail.send` to the consent screen **only when Phase 3's build can be demoed** — Google wants a demo video of the real flow | us, end of Phase 3 | Submitting unused scopes gets rejected |
 | 0.4 | **Microsoft Cloud Partner Program** account + publisher domain verification (`studio-cue.com`) + an Entra app registration | Conor | Free; needed so Microsoft 365 tenants don't block consent |
 | 0.5 | **Collect real form emails** — 3–5 from Gabe's Wix form, plus one each from Squarespace, Showit, WordPress CF7, Pixieset, The Knot, WeddingWire (test submissions to our own sites where needed). Saved raw (`.eml`) into `tests/fixtures/form-emails/` | Conor + us | The parser is built against these, not samples (`fixtures-must-match-real-names`) |
-| 0.6 | Privacy policy: an "Email connections" section (what's read, what's stored, Limited Use statement) — required for Google review | us | Draft ready for 0.1 |
+| 0.6 | Privacy policy: an "Email connections" section (what's read, what's stored, Limited Use statement) — required for Google review | us | **Drafted** in `docs/google-oauth-gmail-verification-drafts.md` §4–5; publish when the Gmail API ships, not before |
 
 ---
 
@@ -201,3 +201,11 @@ Built: 1.1–1.17, 1.19–1.25, with these deviations:
 
 Open: real notification emails from the pilot studio's own form (the fixtures
 follow each builder's documented format), and the production walk.
+
+### Update 2026-09-26
+
+- **Setup rebuilt as Studio settings → Inquiry capture** (its own page, `/studio/settings/inquiry-capture`). It has three routes, each a step-by-step sheet: website form (second recipient), inbox filter, by hand. The same routes appear on Today's empty state.
+- **New route: the form emails StudioCue directly.** It works for Wix (via a contact), CF7, WPForms, Gravity Forms and paid Jotform. Squarespace, Showit, Pixieset and Google Forms can't, and are pointed to the inbox route.
+- **The reader and the Gmail filter now recognise `weddingpro.com`** (The Knot and WeddingWire leads) and **`pixiesetmail.com`** (`4622fa7`).
+- **The silence email** links to the Inquiry capture page.
+- **Phase 3** (Gmail API) is deferred: see the status section in `lead-capture-plan-2026-09-25.md`.
