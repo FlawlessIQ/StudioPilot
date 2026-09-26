@@ -75,7 +75,9 @@ test("settings carries it as a findable, permanent home", () => {
   const shell = read("components/settings/settings-shell.tsx");
   assert.match(shell, /key: "forwarding"/);
   assert.match(shell, /forwarding: InquiryForwardingSettings/);
-  assert.match(shell, /Inquiry capture/);
+  // Its own page, named as the panel names itself.
+  const sections = read("features/settings/sections.ts");
+  assert.match(sections, /slug: "inquiry-capture", title: "Inquiry capture"/);
 });
 
 /**

@@ -78,7 +78,7 @@ export const leadCaptureHealthScheduler = onSchedule(
           type: "studio_capture_silent",
           recipient,
           silentDays,
-          actionUrl: `${appUrl}/studio/settings`,
+          actionUrl: `${appUrl}/studio/settings/inquiry-capture`,
           status: "queued",
           attempts: 0,
           createdAt: nowIso,

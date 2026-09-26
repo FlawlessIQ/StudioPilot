@@ -97,7 +97,7 @@ export function InquiryForwardingAddress() {
       <CopyAddress address={address} />
       {/* Setting it up to happen by itself lives in settings, where the three
           routes each open their own step-by-step sheet. */}
-      <Link className="inquiry-forwarding-setup" href="/studio/settings?section=forwarding">
+      <Link className="inquiry-forwarding-setup" href="/studio/settings/inquiry-capture">
         Capture every inquiry automatically <ChevronRight aria-hidden="true" size={14} />
       </Link>
     </div>

@@ -11371,6 +11371,50 @@ textarea:focus-visible {
   color: var(--muted);
 }
 
+/* The hub: every section one click away, grouped, no panel on the page. */
+.settings-hub {
+  display: grid;
+  gap: 26px;
+}
+
+.settings-hub-group {
+  display: grid;
+  gap: 2px;
+}
+
+/* auto-fill, not auto-fit: a group of one keeps a card's width instead of
+   stretching across the page. */
+.settings-hub .settings-destinations {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+.settings-hub-group > .settings-group-label {
+  font-family: inherit;
+  line-height: 1.4;
+}
+
+/* A section's own page: the way back, then the panel. */
+.settings-section-page {
+  display: grid;
+  gap: 14px;
+  justify-items: stretch;
+}
+
+.settings-section-back {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 600;
+  gap: 4px;
+  justify-self: start;
+  text-decoration: none;
+}
+
+.settings-section-back:hover {
+  color: var(--ink);
+}
+
 /* Jobs list · what a job is worth, and what is still owed on it. Replaces
    the readiness column, which was blank on seven rows in ten. */
 .value-cell {

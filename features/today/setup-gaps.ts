@@ -161,7 +161,7 @@ export function setupGaps(
         ? `${signals.openInquiries} ${signals.openInquiries === 1 ? "inquiry is" : "inquiries are"} waiting — set hours and clients can pick a time themselves.`
         : "Clients can then book a time without the back-and-forth.",
       actionLabel: "Set hours",
-      href: "/studio/settings#consultation-availability",
+      href: "/studio/settings/consultation-availability",
       blocking: blocked,
       blockedProjectName: null,
     });
