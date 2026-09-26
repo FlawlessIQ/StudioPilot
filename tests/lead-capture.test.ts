@@ -496,16 +496,22 @@ test("an Outlook rule gets the same sources as sender domains", () => {
 test("a form that can email only one address is never pointed at StudioCue", () => {
   for (const guide of NOTIFICATION_GUIDES) {
     if (guide.supported) {
-      assert.ok(guide.path.length >= 3, `${guide.label} needs its click path`);
+      assert.ok(guide.steps.length >= 3, `${guide.label} needs its instructions`);
+      // The step that needs the address offers it to copy — the one thing a
+      // studio must not retype.
+      assert.ok(guide.steps.some((step) => step.action === "copy"), `${guide.label} offers the address`);
+      if (guide.steps.some((step) => step.action === "open")) assert.ok(guide.link, `${guide.label} opens somewhere`);
+      // Button names in bold, so the instruction matches what's on screen.
+      assert.ok(guide.steps.every((step) => /\*\*[^*]+\*\*/.test(step.text)), `${guide.label} names its buttons`);
     } else {
       // Pointing a one-recipient form at StudioCue would stop the studio
       // getting its own inquiries; the setup must say why and offer the inbox.
-      assert.equal(guide.path.length, 0, `${guide.label} must not offer a path`);
+      assert.equal(guide.steps.length, 0, `${guide.label} must not offer instructions`);
       assert.ok(guide.note, `${guide.label} must say why`);
     }
   }
   const unsupported = NOTIFICATION_GUIDES.filter((guide) => !guide.supported).map((guide) => guide.key);
-  assert.deepEqual(unsupported.sort(), ["google_forms", "pixieset", "showit", "squarespace"]);
+  assert.deepEqual(unsupported.sort(), ["google_forms", "other", "pixieset", "showit", "squarespace"]);
 });
 
 test("capture health speaks up once when inquiries stop", () => {

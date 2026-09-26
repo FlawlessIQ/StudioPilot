@@ -425,7 +425,13 @@ function CaptureSheets({
 
 /* ── Building blocks ──────────────────────────────────────────────────── */
 
-type Step = { title: string; body: ReactNode; ready?: boolean };
+type Step = {
+  title: string;
+  /** One line under the title: what this step is for, in plain words. */
+  intro?: string;
+  body: ReactNode;
+  ready?: boolean;
+};
 
 /** One step per screen, with a progress bar and Back / Next. */
 function Steps({ eyebrow, steps, onDone }: { eyebrow: string; steps: Step[]; onDone: () => void }) {
@@ -446,6 +452,7 @@ function Steps({ eyebrow, steps, onDone }: { eyebrow: string; steps: Step[]; onD
           <span className="capture-step-number">{at + 1}</span>
           {step.title}
         </h3>
+        {step.intro ? <p className="capture-step-intro">{step.intro}</p> : null}
       </header>
       <div className="capture-step">{step.body}</div>
       <footer>
@@ -575,8 +582,39 @@ function FormRoute({
   const [builder, setBuilder] = useState<NotificationGuide["key"] | null>(null);
   const guide = NOTIFICATION_GUIDES.find((item) => item.key === builder) ?? null;
 
+  const how: Step = {
+    title: "How this works",
+    intro: "About three minutes. Have your website builder open in another tab.",
+    body: (
+      <ol className="capture-flow">
+        <li>
+          <LayoutTemplate aria-hidden="true" size={18} />
+          <span>
+            <strong>A couple fills in your website&apos;s contact form</strong>
+            <small>Nothing about your website changes.</small>
+          </span>
+        </li>
+        <li>
+          <MailPlus aria-hidden="true" size={18} />
+          <span>
+            <strong>Your form emails you, as it does now — and a copy to StudioCue</strong>
+            <small>You add one address to the form&apos;s email settings. That&apos;s the setup.</small>
+          </span>
+        </li>
+        <li>
+          <Inbox aria-hidden="true" size={18} />
+          <span>
+            <strong>It lands in StudioCue as an inquiry</strong>
+            <small>Names, date, venue and the rest filled in, the date checked, a reply drafted for you to approve.</small>
+          </span>
+        </li>
+      </ol>
+    ),
+  };
+
   const pick: Step = {
     title: "Which website builder?",
+    intro: "The service that runs the contact form on your website — usually where you sign in to edit your site.",
     ready: Boolean(guide),
     body: (
       <Chips
@@ -594,14 +632,19 @@ function FormRoute({
         eyebrow="From your website form"
         onDone={onDone}
         steps={[
+          how,
           pick,
           {
-            title: `${guide.label} can't do this`,
+            title: guide.key === "other" ? "Use your inbox instead" : `${guide.label} can't send a copy`,
+            intro: guide.note,
             body: (
               <>
-                <p className="capture-lead">{guide.note}</p>
+                <p className="capture-lead">
+                  Your form already emails you. A filter in your inbox can pass those
+                  emails on to StudioCue instead — same result, set up in Gmail or Outlook.
+                </p>
                 <button className="button button-dark button-sm" onClick={onUseInbox} type="button">
-                  <MailPlus size={14} /> Use your inbox instead
+                  <MailPlus size={14} /> Set it up from your inbox
                 </button>
               </>
             ),
@@ -616,21 +659,55 @@ function FormRoute({
       eyebrow="From your website form"
       onDone={onDone}
       steps={[
+        how,
         pick,
         {
-          title: "Add your StudioCue address",
+          title: guide ? `Add StudioCue in ${guide.label}` : "Add your StudioCue address",
+          intro:
+            "Your form keeps emailing you exactly as before. This adds StudioCue as a second recipient, so it gets a copy of each inquiry.",
           body: guide ? (
             <>
-              <Pasteable label="Copy" value={address} />
-              <Path steps={guide.path} />
-              {guide.link ? <OpenLink href={guide.link} label={`Open ${guide.label}`} /> : null}
+              <ol className="capture-howto">
+                {guide.steps.map((step) => (
+                  <li key={step.text}>
+                    <span>
+                      <Rich text={step.text} />
+                    </span>
+                    {step.action === "copy" ? (
+                      <Pasteable label="Copy" value={address} />
+                    ) : step.action === "open" && guide.link ? (
+                      <OpenLink href={guide.link} label={`Open ${guide.label}`} />
+                    ) : null}
+                  </li>
+                ))}
+              </ol>
               {guide.note ? <Tip>{guide.note}</Tip> : null}
+              <p className="capture-next">Done? Press <strong>Next</strong> and send yourself a test.</p>
             </>
           ) : null,
         },
-        { title: "Send a test", body: <TestStep actions={actions} setup={setup} /> },
+        {
+          title: "Send a test",
+          intro: "Check it works end to end, the way a couple would use it.",
+          body: <TestStep actions={actions} setup={setup} />,
+        },
       ]}
     />
+  );
+}
+
+/** An instruction with the builder's own button names in bold (`**Save**`). */
+function Rich({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(/(\*\*[^*]+\*\*)/).map((part, index) =>
+        part.startsWith("**") && part.endsWith("**") ? (
+          <strong key={index}>{part.slice(2, -2)}</strong>
+        ) : (
+          part
+        ),
+      )}
+    </>
   );
 }
 
@@ -844,10 +921,22 @@ function TestStep({ setup, actions }: { setup: LeadCaptureSetupState; actions: L
 
   return (
     <div className="capture-test">
+      {!waiting && !test ? (
+        <ol className="capture-howto is-compact">
+          <li><span>Press <strong>Start the test</strong>.</span></li>
+          <li>
+            <span>
+              Open your <strong>live website</strong> in a new tab and fill in your contact form as
+              a couple would. Your own name and email are fine.
+            </span>
+          </li>
+          <li><span>Come back here. It appears within a minute, showing what StudioCue read from each field.</span></li>
+        </ol>
+      ) : null}
       {waiting ? (
         <div className="capture-waiting">
           <LoaderCircle className="spin" size={16} />
-          <span><strong>Fill in your website form now.</strong> It shows up here.</span>
+          <span><strong>Waiting for your form…</strong> Fill it in now; it usually shows up within a minute.</span>
           <button
             className="button button-light button-sm"
             disabled={busy}
@@ -856,6 +945,10 @@ function TestStep({ setup, actions }: { setup: LeadCaptureSetupState; actions: L
           >
             Cancel
           </button>
+          <small className="capture-trouble">
+            Nothing after a couple of minutes? Check the change was saved, and that you
+            submitted the form on your published site, not the editor&apos;s preview.
+          </small>
         </div>
       ) : (
         <button
@@ -875,6 +968,10 @@ function TestStep({ setup, actions }: { setup: LeadCaptureSetupState; actions: L
           </p>
           {test.fields.length ? (
             <>
+              <p className="capture-lead">
+                Check each field went to the right place. Change any that didn&apos;t, then press{" "}
+                <strong>Looks right</strong>. The test itself won&apos;t become an inquiry.
+              </p>
               <ul className="capture-fields">
                 {test.fields.map((field) => (
                   <li key={field.normalisedLabel}>
@@ -909,7 +1006,7 @@ function TestStep({ setup, actions }: { setup: LeadCaptureSetupState; actions: L
                         ),
                       ),
                     "The form's fields could not be saved.",
-                    "Saved. This form is read this way from now on.",
+                    "Saved. You're set up — new inquiries from this form will arrive in Today.",
                   )
                 }
                 type="button"

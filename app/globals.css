@@ -18512,6 +18512,119 @@ label {
   padding-top: 16px;
 }
 
+/* A line under a step's title: what the step is for. */
+.capture-step-intro {
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* "How this works": three moments, each an icon and two lines. */
+.capture-flow {
+  display: grid;
+  gap: 14px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+
+.capture-flow li {
+  align-items: flex-start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 36px minmax(0, 1fr);
+}
+
+.capture-flow svg {
+  background: var(--soft);
+  border-radius: 10px;
+  box-sizing: content-box;
+  color: var(--accent);
+  padding: 9px;
+}
+
+.capture-flow span {
+  display: grid;
+  gap: 2px;
+  padding-top: 2px;
+}
+
+.capture-flow strong {
+  font-size: 14.5px;
+}
+
+.capture-flow small {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* Numbered instructions, with the button names in bold and the one thing a
+   step needs (the address, the builder) right under it. */
+.capture-howto {
+  counter-reset: howto;
+  display: grid;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+
+.capture-howto li {
+  align-items: start;
+  counter-increment: howto;
+  display: grid;
+  gap: 8px 12px;
+  grid-template-columns: 24px minmax(0, 1fr);
+}
+
+.capture-howto li::before {
+  align-items: center;
+  background: var(--soft);
+  border-radius: 50%;
+  color: var(--ink);
+  content: counter(howto);
+  display: flex;
+  font-size: 12px;
+  font-weight: 700;
+  height: 24px;
+  justify-content: center;
+  width: 24px;
+}
+
+.capture-howto li > span {
+  font-size: 14.5px;
+  line-height: 1.5;
+  padding-top: 2px;
+}
+
+.capture-howto li > .capture-paste,
+.capture-howto li > .button {
+  grid-column: 2;
+  justify-self: start;
+}
+
+.capture-howto.is-compact li > span {
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.capture-next {
+  color: var(--muted);
+  font-size: 13.5px;
+  margin: 0;
+}
+
+.capture-trouble {
+  color: var(--muted);
+  flex: 1 1 100%;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
 .capture-lead {
   color: var(--ink-soft);
   font-size: 14px;
