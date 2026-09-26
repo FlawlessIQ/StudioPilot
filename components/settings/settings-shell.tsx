@@ -194,7 +194,10 @@ export function SettingsShell() {
         </header>
         {GROUPS.map((group) => (
           <section aria-label={group.label} className="settings-hub-group" key={group.label}>
-            <h2 className="settings-group-label">{group.label}</h2>
+            {/* A <p>, as on the phone: the studio's h2 rule sets the serif display
+                face, which made these small caps labels read as headings. The
+                section's aria-label already names the group. */}
+            <p className="settings-group-label">{group.label}</p>
             <div className="settings-destinations">
               {group.items.map((item) => {
                 const { href, icon: Icon, title, subtitle } = resolve(item);
