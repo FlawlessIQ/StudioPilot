@@ -460,10 +460,9 @@ export function TodayInbox() {
                     : "Finish setting up your studio."}
                 </strong>
                 <small>
-                  {setup.answered}{" "} of 4 answered — your prices, your agreement,
-                  your details form, and when you take consultations. Your
-                  inquiry form is already live either way, and you can forward
-                  inquiries you already have from anywhere.
+                  {setup.answered}{" "} of 5 answered — how inquiries reach you, your
+                  prices, your agreement, your details form, and when you take
+                  consultations.
                 </small>
               </div>
               <Link

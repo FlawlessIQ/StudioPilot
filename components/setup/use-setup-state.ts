@@ -44,6 +44,7 @@ export function useSetupState(): {
     nativeAgreement: boolean;
     nativeSigning: boolean;
     availability: boolean;
+    captured: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -56,7 +57,9 @@ export function useSetupState(): {
         doc(firestore, "consultationSettings", workspace.tenantId),
       ).catch(() => null),
       getDoc(doc(firestore, "tenantFeatures", workspace.tenantId)).catch(() => null),
-    ]).then(([tenant, availability, features]) => {
+      // Owner/admin-readable; for anyone else the read fails and leads decide.
+      getDoc(doc(firestore, "leadCaptureSettings", workspace.tenantId)).catch(() => null),
+    ]).then(([tenant, availability, features, capture]) => {
       if (!active) return;
       const contractSettings = tenant?.get("defaultContractSettings") as
         | Record<string, unknown>
@@ -75,6 +78,10 @@ export function useSetupState(): {
         availability:
           (Array.isArray(windows) && windows.length > 0) ||
           text(availability?.get("mode")) === "open_default",
+        // A real capture, or the studio's own test coming through.
+        captured:
+          Boolean(text(capture?.get("lastCaptureAt"))) ||
+          Boolean(text(capture?.get("lastTestCaptureAt"))),
       });
     });
     return () => {
@@ -103,6 +110,13 @@ export function useSetupState(): {
       (item) => text(item.status) === "active",
     ),
     hasConsultationAvailability: Boolean(tenantDocs?.availability),
+    // Inquiries reach StudioCue: captured (forwarded, or the form emailing
+    // StudioCue directly), a passed test, or StudioCue's own inquiry form.
+    hasInquiryCapture:
+      Boolean(tenantDocs?.captured) ||
+      (leads.records ?? []).some(
+        (lead) => Boolean(text(lead.captureId)) || text(lead.source) === "public_inquiry",
+      ),
   };
 
   const nameOf = (projectId: unknown) =>

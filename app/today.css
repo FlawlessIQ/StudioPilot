@@ -818,6 +818,19 @@
   text-decoration: none;
 }
 
+/* "How do inquiries reach you?" is answered in place: its route buttons sit
+   under the question, each opening its sheet. */
+.setup-question-body .capture-start-routes {
+  margin-top: 8px;
+}
+
+.setup-aside > .setup-aside-actions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 14px;
+}
+
 .setup-footnote {
   margin: 0;
   color: var(--muted, #8a938d);

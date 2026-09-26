@@ -1,16 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import {
   ArrowRight,
   Check,
   CircleAlert,
+  Copy,
   ExternalLink,
   LoaderCircle,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { useSetupState } from "@/components/setup/use-setup-state";
-import { InquiryForwardingAddress } from "@/components/crm/inquiry-forwarding-address";
+import { LeadCaptureRoutes } from "@/components/intake/lead-capture-setup";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import type { SetupGapKey } from "@/features/today/setup-gaps";
 
@@ -18,9 +20,10 @@ import type { SetupGapKey } from "@/features/today/setup-gaps";
  * Setup as a conversation.
  *
  * Phase 3 of "Today & Jobs". A new studio's assets already exist somewhere —
- * a price list, a contract, a questionnaire — so setup asks four questions
+ * a price list, a contract, a questionnaire — so setup asks five questions
  * and hands each answer to the import machinery, rather than presenting a
- * library of tools to discover. Every question is skippable: what is skipped
+ * library of tools to discover. The first is how inquiries reach StudioCue,
+ * answered right here in the same sheets Today and Settings use. Every question is skippable: what is skipped
  * comes back in Today at the moment it blocks real work.
  */
 
@@ -32,6 +35,18 @@ type Question = {
 };
 
 const QUESTIONS: Question[] = [
+  {
+    /**
+     * First, because until inquiries arrive StudioCue has nothing to do. It
+     * used to sit under the four questions as a "forward by hand" strip,
+     * uncounted, so setup could say "Your studio is set up" with nothing
+     * coming in (docs/onboarding-assessment-2026-09-26.md).
+     */
+    key: "inquiries",
+    ask: "How do inquiries reach you?",
+    why: "Your website form can send StudioCue a copy, your inbox can pass them on, or you forward one by hand. Each arrives filled in, with a reply drafted.",
+    doneLabel: "Inquiries are reaching StudioCue.",
+  },
   {
     key: "packages",
     ask: "What do you charge?",
@@ -101,7 +116,7 @@ export function SetupConversation() {
           <p className="setup-lede">
             {complete
               ? "Everything StudioCue needs is in place. Change any of it whenever your studio does."
-              : "Four questions. You already have the answers — most of them are a document you can paste. Skip anything; StudioCue will bring it back when a job actually needs it."}
+              : "Five questions. You already have the answers — most of them are a document you can paste. Skip anything; StudioCue will bring it back when a job actually needs it."}
           </p>
           {!loading ? (
             <p className="setup-progress">
@@ -143,8 +158,10 @@ export function SetupConversation() {
                       <CircleAlert size={12} /> {gap.detail}
                     </span>
                   ) : null}
+                  {/* Answered in place: the three routes open their sheets here. */}
+                  {!done && question.key === "inquiries" ? <LeadCaptureRoutes /> : null}
                 </div>
-                {!done && gap ? (
+                {!done && gap && question.key === "inquiries" ? null : !done && gap ? (
                   <Link className="button button-dark" href={gap.href}>
                     {gap.actionLabel} <ArrowRight size={14} />
                   </Link>
@@ -156,28 +173,7 @@ export function SetupConversation() {
           })}
         </ol>
 
-        {/* The form is one door in; the forwarding address is the other, and
-            it is the one a studio switching from email actually needs on day
-            one — they already have a mailbox full of inquiries. */}
-        <InquiryForwardingAddress />
-
-        <section className="setup-aside">
-          <div>
-            <strong>Your inquiry form is already live.</strong>
-            <p>
-              Share this link and inquiries arrive in Today, read and ready to
-              reply to.
-            </p>
-          </div>
-          {workspace.tenantSlug ? (
-            <Link
-              href={`/inquiry?studio=${encodeURIComponent(workspace.tenantSlug)}`}
-              target="_blank"
-            >
-              Preview it <ExternalLink size={13} />
-            </Link>
-          ) : null}
-        </section>
+        {workspace.tenantSlug ? <HostedFormLink slug={workspace.tenantSlug} /> : null}
 
         <p className="setup-footnote">
           Prefer to wander? Everything here also lives in{" "}
@@ -186,5 +182,44 @@ export function SetupConversation() {
         </p>
       </div>
     </AppShell>
+  );
+}
+
+/**
+ * StudioCue's own inquiry form — the other way in, for a studio without a
+ * website form of its own. It said "Share this link" with no link to share:
+ * only a Preview. Now the full address copies in one tap.
+ */
+function HostedFormLink({ slug }: { slug: string }) {
+  const [copied, setCopied] = useState(false);
+  const path = `/inquiry?studio=${encodeURIComponent(slug)}`;
+  return (
+    <section className="setup-aside">
+      <div>
+        <strong>No website form? Use StudioCue&apos;s.</strong>
+        <p>
+          It&apos;s already live. Link to it from your website or Instagram and
+          inquiries arrive in Today, read and ready to reply to.
+        </p>
+      </div>
+      <div className="setup-aside-actions">
+        <button
+          className="button button-light button-sm"
+          onClick={() => {
+            void navigator.clipboard?.writeText(`${window.location.origin}${path}`).then(() => {
+              setCopied(true);
+              window.setTimeout(() => setCopied(false), 2000);
+            });
+          }}
+          type="button"
+        >
+          {copied ? <Check size={14} /> : <Copy size={14} />}
+          {copied ? "Copied" : "Copy link"}
+        </button>
+        <Link href={`${path}&preview=studio`} target="_blank">
+          Preview <ExternalLink size={13} />
+        </Link>
+      </div>
+    </section>
   );
 }

@@ -228,7 +228,6 @@ export function LeadCaptureStartView({
   setup: LeadCaptureSetupState & { address: string };
   actions: LeadCaptureActions;
 }) {
-  const [sheet, setSheet] = useState<SheetKey | null>(null);
   return (
     <section aria-labelledby="capture-start-title" className="capture-start">
       <span aria-hidden="true" className="capture-start-icon">
@@ -238,6 +237,26 @@ export function LeadCaptureStartView({
         <strong id="capture-start-title">Get your inquiries in</strong>
         <small>Each one arrives filled in, with a reply drafted.</small>
       </div>
+      <CaptureRouteButtons actions={actions} setup={setup} />
+    </section>
+  );
+}
+
+/**
+ * The three ways in as buttons, each opening its step-by-step sheet in
+ * place. Today's card and the setup question both use it, so a studio meets
+ * the same flow wherever it starts.
+ */
+function CaptureRouteButtons({
+  setup,
+  actions,
+}: {
+  setup: LeadCaptureSetupState & { address: string };
+  actions: LeadCaptureActions;
+}) {
+  const [sheet, setSheet] = useState<SheetKey | null>(null);
+  return (
+    <>
       <div className="capture-start-routes">
         {ROUTES.map((route) => (
           <button className="capture-start-route" key={route.key} onClick={() => setSheet(route.key)} type="button">
@@ -248,11 +267,20 @@ export function LeadCaptureStartView({
         ))}
       </div>
       <CaptureSheets actions={actions} address={setup.address} onChange={setSheet} setup={setup} sheet={sheet} />
-    </section>
+    </>
   );
 }
 
-
+/**
+ * The setup question "How do inquiries reach you?": the same three routes,
+ * loaded on their own. Renders nothing where capture isn't available — the
+ * question's own link to Settings still works there.
+ */
+export function LeadCaptureRoutes() {
+  const { setup, actions, unavailable } = useLeadCaptureSetup();
+  if (unavailable || !setup?.address) return null;
+  return <CaptureRouteButtons actions={actions} setup={{ ...setup, address: setup.address }} />;
+}
 
 /* ── The panel ────────────────────────────────────────────────────────── */
 
@@ -270,7 +298,7 @@ const ROUTES: Array<{
     icon: LayoutTemplate,
     title: "From your website form",
     short: "Website form",
-    subtitle: "Wix, WordPress or Jotform: one setting",
+    subtitle: "Wix, WordPress or paid Jotform",
     badge: "Easiest",
   },
   {

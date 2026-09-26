@@ -268,6 +268,7 @@ export function useTodayInbox(): {
     setup: {
       complete: setup.complete,
       answered: [
+        setup.state.hasInquiryCapture !== false,
         setup.state.hasActivePackage,
         setup.state.hasAgreementTemplate,
         setup.state.hasQuestionnaireTemplate,

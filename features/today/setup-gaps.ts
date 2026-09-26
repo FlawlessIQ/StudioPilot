@@ -15,6 +15,7 @@
  */
 
 export type SetupGapKey =
+  | "inquiries"
   | "packages"
   | "agreement"
   | "questionnaire"
@@ -45,6 +46,13 @@ export type SetupState = {
   nativeSigning?: boolean;
   hasQuestionnaireTemplate: boolean;
   hasConsultationAvailability: boolean;
+  /**
+   * Inquiries have reached StudioCue by capture (website form, inbox
+   * forwarding, a forward by hand), a successful capture test, or StudioCue's
+   * own inquiry form. Optional so callers that don't read it keep their
+   * answer: only an explicit `false` makes it a gap.
+   */
+  hasInquiryCapture?: boolean;
 };
 
 export type SetupSignals = {
@@ -63,6 +71,21 @@ export function setupGaps(
   signals: SetupSignals,
 ): SetupGap[] {
   const gaps: SetupGap[] = [];
+
+  // First, because it's what a new studio feels on day one: until inquiries
+  // arrive here, StudioCue has nothing to do. Never blocking — no job waits
+  // on it — so it lives in setup, not Today's act lane.
+  if (state.hasInquiryCapture === false) {
+    gaps.push({
+      key: "inquiries",
+      title: "Choose how inquiries reach you",
+      detail: "Your website form, your inbox, or a forward by hand.",
+      actionLabel: "Set it up",
+      href: "/studio/settings/inquiry-capture",
+      blocking: false,
+      blockedProjectName: null,
+    });
+  }
 
   if (!state.hasActivePackage) {
     const blocked = signals.projectsNeedingPackage[0] ?? null;
@@ -173,6 +196,7 @@ export function setupGaps(
 /** Setup is finished when nothing is missing. */
 export function setupComplete(state: SetupState): boolean {
   return (
+    state.hasInquiryCapture !== false &&
     state.hasActivePackage &&
     state.hasAgreementTemplate &&
     state.hasQuestionnaireTemplate &&

@@ -38,7 +38,7 @@ const COLD_START_SURFACES = [
 
 test("the forwarding address is reachable with no inquiries and no jobs", () => {
   const reachable = COLD_START_SURFACES.filter((surface) =>
-    /InquiryForwarding(Address|Settings)|LeadCaptureStart/.test(read(surface)),
+    /InquiryForwarding(Address|Settings)|LeadCaptureStart|LeadCaptureRoutes/.test(read(surface)),
   );
   assert.ok(
     reachable.length > 0,
@@ -100,7 +100,7 @@ test("more than one surface renders it", () => {
     .flatMap((root) => tsxFiles(`${process.cwd()}/${root}`))
     .filter((file) => !file.endsWith("inquiry-forwarding-address.tsx"))
     .filter((file) =>
-      /<InquiryForwarding(Address|Settings)\s*\/>|<LeadCaptureStart\s*\/>|forwarding: InquiryForwardingSettings/.test(
+      /<InquiryForwarding(Address|Settings)\s*\/>|<LeadCapture(Start|Routes)\s*\/>|forwarding: InquiryForwardingSettings/.test(
         readFileSync(file, "utf8"),
       ),
     )

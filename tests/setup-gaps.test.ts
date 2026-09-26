@@ -107,3 +107,27 @@ test("only blocking gaps reach Today, and they rank with exceptions", () => {
   // Work has stopped, so it leads the lane.
   assert.equal(inbox.act[0]?.id, "setup-packages");
 });
+
+test("how inquiries reach StudioCue is the first setup question, and never blocks", () => {
+  // It sat under setup as an uncounted "forward by hand" strip, so a studio
+  // could be "set up" with nothing coming in (onboarding assessment 2026-09-26).
+  const gaps = setupGaps({ ...nothingConfigured, hasInquiryCapture: false }, { ...quiet, openInquiries: 3 });
+  assert.equal(gaps.length, 5);
+  assert.equal(gaps[0]?.key, "inquiries");
+  assert.equal(gaps[0]?.blocking, false, "no job waits on it; it belongs in setup, not Today's act lane");
+  assert.equal(gaps[0]?.href, "/studio/settings/inquiry-capture");
+});
+
+test("setup isn't finished until inquiries reach StudioCue", () => {
+  const everythingElse: SetupState = {
+    hasActivePackage: true,
+    hasAgreementTemplate: true,
+    hasQuestionnaireTemplate: true,
+    hasConsultationAvailability: true,
+  };
+  assert.equal(setupComplete({ ...everythingElse, hasInquiryCapture: false }), false);
+  assert.equal(setupComplete({ ...everythingElse, hasInquiryCapture: true }), true);
+  // A caller that doesn't read capture keeps the answer it had.
+  assert.equal(setupComplete(everythingElse), true);
+  assert.equal(setupGaps(everythingElse, quiet).length, 0);
+});
