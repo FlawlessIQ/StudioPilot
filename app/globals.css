@@ -8468,6 +8468,14 @@ textarea:focus-visible {
   padding-bottom: 26px;
 }
 
+/* The header's status pill ("Profile active", "Not submitted") sits in a grid
+   on phones and stretched to the full width, reading as a bar rather than a
+   label (docs/ui-audit-2026-09-27.md). */
+.crew-portal-hero > .status-badge {
+  justify-self: start;
+  width: max-content;
+}
+
 .crew-profile-detail > .panel,
 .crew-upcoming-card,
 .crew-invitation-card,

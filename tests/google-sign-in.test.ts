@@ -37,3 +37,13 @@ test("the Google window opens straight from the click: auth and App Check are wa
   // frame and an App Check token before window.open, so both are prepared early.
   assert.match(google, /useEffect\(\(\) => \{[\s\S]*getFirebaseClient\(\)[\s\S]*getToken\(appCheck\)/);
 });
+
+test("crew signing in get a crew page: no trial link, no Google", () => {
+  const page = readFileSync("app/auth/login/page.tsx", "utf8");
+  assert.match(page, /next\?\.startsWith\("\/crew"\)/);
+  assert.match(page, /Sign in to your crew workspace/);
+  const form = readFileSync("features/auth/sign-in-form.tsx", "utf8");
+  assert.match(form, /intent === "crew" \? \(\s*<p className="sign-up-copy">First time here\? Open the link in your invitation email\./);
+  // Google stays studio-only.
+  assert.match(form, /intent === "studio" && !mockMode \? <GoogleSignIn/);
+});

@@ -105,9 +105,29 @@ on QuickBooks; revisit Stripe only for studios without it.
   endpoint) and `QUICKBOOKS_PAYMENTS_BASE_URL` (functions, optional override;
   sandbox is inferred from a sandbox accounting base URL).
 
+### Decision, 2026-09-27: turn it on
+
+Conor decided QuickBooks Payments autopay goes on. Nothing in StudioCue hides
+it — Integrations → Autopay is live for every studio — so "on" is three steps
+outside the code, in this order:
+
+1. **Intuit approves StudioCue's production app for the payments scope**
+   (`com.intuit.quickbooks.payment`), on the Intuit Developer portal. Until
+   then a production connect asking for payments is refused by Intuit.
+2. **The studio has a QuickBooks Payments merchant account** (applied for in
+   QuickBooks itself).
+3. **The studio reconnects QuickBooks for payments and switches autopay on**
+   (Integrations → Autopay, steps 2 and 3).
+
+On 2026-09-27 all four QuickBooks connections held the accounting scope only.
+
 ### Still to verify with Intuit sandbox / a pilot
 
-- That Intuit's tokens endpoint accepts the browser request (CORS) from
-  studio-cue.com. If not, tokenise through Intuit's JS library instead.
+- ~~That Intuit's tokens endpoint accepts the browser request (CORS) from
+  studio-cue.com.~~ **Verified 2026-09-27:** a preflight from
+  `Origin: https://studio-cue.com` to both
+  `api.intuit.com` and `sandbox.api.intuit.com` `/quickbooks/v4/payments/tokens`
+  returns `access-control-allow-origin: https://studio-cue.com` for POST with
+  `content-type`.
 - The charge → Payment → reconcile path against a real sandbox company.
 - Intuit app approval for the payments scope in production.

@@ -22,6 +22,12 @@ export default async function LoginPage({
   // product they have never heard of.
   const fromInvitation = next?.startsWith("/auth/client-invite?token=") ?? false;
   const isClientArrival = fromInvitation || (next?.startsWith("/client") ?? false);
+  // Crew signed out of their workspace, or following an offer. They saw
+  // "Sign in to your studio" and "Start a free trial" — a page for somebody
+  // else (docs/ui-audit-2026-09-27.md).
+  const isCrewArrival =
+    !isClientArrival &&
+    ((next?.startsWith("/crew") ?? false) || (next?.startsWith("/auth/crew-invite") ?? false));
   const backHref = fromInvitation && next ? next : "/";
   return (
     <main className="auth-page">
@@ -75,14 +81,27 @@ export default async function LoginPage({
               <CircleCheck size={15} /> Email verified. Sign in to carry on.
             </p>
           ) : null}
-          <span className="eyebrow">{isClientArrival ? "Client portal access" : "Welcome back"}</span>
-          <h1>{isClientArrival ? "Sign in to open your project" : "Sign in to your studio"}</h1>
+          <span className="eyebrow">
+            {isClientArrival ? "Client portal access" : isCrewArrival ? "Crew workspace" : "Welcome back"}
+          </span>
+          <h1>
+            {isClientArrival
+              ? "Sign in to open your project"
+              : isCrewArrival
+                ? "Sign in to your crew workspace"
+                : "Sign in to your studio"}
+          </h1>
           <p>
             {isClientArrival
               ? "Use the exact email address that received the invitation. We’ll return you to the project automatically."
-              : "Continue to your projects, clients, and operations workspace."}
+              : isCrewArrival
+                ? "Use the email your studio invited. Your offers, schedules and paperwork are waiting."
+                : "Continue to your projects, clients, and operations workspace."}
           </p>
-          <SignInForm intent={isClientArrival ? "client" : "studio"} next={next} />
+          <SignInForm
+            intent={isClientArrival ? "client" : isCrewArrival ? "crew" : "studio"}
+            next={next}
+          />
           {isClientArrival ? <MagicLinkRequest next={next ?? null} /> : null}
         </div>
         <p className="auth-legal">

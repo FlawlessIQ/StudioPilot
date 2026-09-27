@@ -192,8 +192,11 @@ new owner goes from one click to naming the studio: no password, no
 verification email. Invited clients keep the email flow (their invitation is
 for an exact address).
 
-Still open, and needing a decision: **the card before first value** (7, now
-disclosed up front).
+**Decided 2026-09-27: the card stays before setup** (7). A new studio adds its
+card at the end of signup, as now; it is disclosed up front ("Card required,
+nothing charged for 14 days"). The Google sign-in screen naming
+studio-cue.com rather than firebaseapp.com is **on hold** (it needs an OAuth
+redirect change).
 
 ## Suggested order
 
