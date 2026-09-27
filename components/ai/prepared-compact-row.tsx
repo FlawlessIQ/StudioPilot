@@ -41,17 +41,38 @@ export type PreparedItem =
 export function PreparedCompactRow({
   item,
   onOpen,
+  versions = 1,
+  stale = null,
 }: {
   item: PreparedItem;
   onOpen: () => void;
+  /** How many versions of this decision are pending, this one included. */
+  versions?: number;
+  /** Why it is out of date for the job, when it is. */
+  stale?: string | null;
 }) {
   const record = item.record;
+  const flags =
+    versions > 1 || stale ? (
+      <span className="prepared-compact-flags">
+        {stale ? <span className="is-stale">Out of date</span> : null}
+        {versions > 1 ? (
+          <span>
+            {versions - 1} older {versions - 1 === 1 ? "version" : "versions"}
+          </span>
+        ) : null}
+      </span>
+    ) : null;
   if (item.kind === "ai") {
     const confidence = object(record.confidence);
     const capability = text(record.capability);
     const affected = object(list(record.sourceReferences)[0]);
     return (
-      <button type="button" className="prepared-compact-row" onClick={onOpen}>
+      <button
+        type="button"
+        className={stale ? "prepared-compact-row is-stale" : "prepared-compact-row"}
+        onClick={onOpen}
+      >
         <span className="prepared-compact-icon">
           <BrainCircuit size={16} />
         </span>
@@ -65,6 +86,7 @@ export function PreparedCompactRow({
             {" · "}
             {relativeTime(record.updatedAt ?? record.createdAt)}
           </em>
+          {flags}
         </span>
         <span
           className={`ai-confidence is-${text(confidence.label) || "medium"}`}
@@ -87,6 +109,7 @@ export function PreparedCompactRow({
           {text(record.title) || text(proposal.summary) || "Approve automation step"}
         </strong>
         <em>{relativeTime(record.updatedAt ?? record.createdAt)}</em>
+        {flags}
       </span>
       <ChevronRight size={18} className="prepared-compact-chevron" />
     </button>

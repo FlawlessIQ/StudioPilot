@@ -558,6 +558,69 @@
   transform: scale(0.99);
 }
 
+/* Desktop too, since 2026-09-27: the job page listed every pending draft as a
+   full card, 21 of them on one job. */
+.ds-root .prepared-compact-row:hover {
+  border-color: var(--ds-brass);
+}
+
+.ds-root .prepared-compact-row.is-stale {
+  background: var(--ds-canvas);
+}
+
+.ds-root .prepared-compact-row.is-stale strong {
+  color: var(--ds-ink-soft);
+}
+
+.ds-root .prepared-compact-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.ds-root .prepared-compact-flags > span {
+  background: var(--ds-line-soft);
+  border-radius: 999px;
+  color: var(--ds-ink-soft);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+}
+
+.ds-root .prepared-compact-flags > span.is-stale {
+  background: #fdecd4;
+  color: #8a4b0f;
+}
+
+.ds-root .prepared-stale-banner {
+  align-items: center;
+  background: #fff7eb;
+  border: 1px solid #f3d7ae;
+  border-radius: var(--ds-r-sm);
+  color: #6b3d0c;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  gap: 10px 12px;
+  line-height: 1.45;
+  padding: 11px 13px;
+}
+
+.ds-root .prepared-stale-banner > svg {
+  color: #b86a14;
+  flex: none;
+}
+
+.ds-root .prepared-stale-banner > span {
+  flex: 1 1 260px;
+}
+
+.ds-root .prepared-stale-banner .button {
+  font-size: 13px;
+  min-height: 34px;
+}
+
 /* The unified mobile job plan: prepared decisions (above, via the tray) then
    the journey as one prioritized list — open steps tappable and tagged by who
    owes them, done steps ticked. Replaces the separate minimap + "everything

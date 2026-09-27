@@ -1,7 +1,7 @@
 "use client";
 
-import { Check, Sparkles } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Check, Sparkles, TriangleAlert } from "lucide-react";
+import { useMemo, useState } from "react";
 import {
   AiQueueCard,
   AutomationApprovalCard,
@@ -13,89 +13,126 @@ import {
 } from "@/components/ai/prepared-compact-row";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import {
+  groupPrepared,
+  staleReason,
+  type PreparedGroup,
+} from "@/features/ai/prepared-groups";
+import { runAiQueueCommand } from "@/lib/ai-actions/command-client";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 type RecordValue = Record<string, unknown> & { id: string };
 
 const text = (value: unknown) => (typeof value === "string" ? value : "");
 
-// A phone shows a short preview of the queue, not the whole thing expanded.
-// 15 full approval cards stacked above the journey is the endless scroll the
-// job page had; three compact rows and a count is not.
-function useIsPhone() {
-  const [phone, setPhone] = useState(false);
-  useEffect(() => {
-    const query = window.matchMedia("(max-width: 760px)");
-    const sync = () => setPhone(query.matches);
-    sync();
-    query.addEventListener("change", sync);
-    return () => query.removeEventListener("change", sync);
-  }, []);
-  return phone;
-}
-
-const PHONE_PREVIEW = 3;
+/**
+ * How many decisions show before "Show all". Enough to act on today; the
+ * rest is one click away rather than a scroll past every one.
+ */
+const PREVIEW = 5;
 
 type TrayItem = PreparedItem;
 
+/**
+ * The job's prepared decisions: one compact row per decision, each opening
+ * its full card in a sheet.
+ *
+ * It rendered every pending draft as a full card — preview, "why", five
+ * buttons — so a job with 21 pending was an endless scroll, and 15 of those 21
+ * were versions of the same retainer reminder, on a job whose retainer was
+ * already paid (docs/ui-audit-2026-09-27.md). Now versions of one decision
+ * fold into one row (features/ai/prepared-groups.ts), out-of-date ones say
+ * so, and the older versions can be dismissed together.
+ */
 export function ProjectPreparedTray({ projectId }: { projectId: string }) {
   const workspace = useWorkspace();
   const privileged = ["studio_owner", "studio_admin"].includes(
     workspace.role ?? "",
   );
-  const isPhone = useIsPhone();
   const aiState = useTenantDocuments("aiActions");
   const automationState = useTenantDocuments("automationApprovals", {
     enabled: privileged,
   });
+  const { records: projects } = useTenantDocuments("projects");
+  const projectState = text(
+    (projects ?? []).find((project) => project.id === projectId)?.state,
+  );
   const [decisions, setDecisions] = useState<Record<string, string>>({});
-  const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [reviewingKey, setReviewingKey] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
-  const aiActions = useMemo(
-    () =>
-      (aiState.records ?? []).filter(
-        (item) =>
-          text(item.projectId) === projectId &&
-          ["review_required", "queued", "running"].includes(
-            decisions[item.id] ?? text(item.status),
-          ),
-      ),
-    [aiState.records, decisions, projectId],
-  );
-  const approvals = useMemo(
-    () =>
-      (automationState.records ?? []).filter(
-        (item) =>
-          text(item.projectId) === projectId &&
-          (decisions[item.id] ?? text(item.status)) === "pending",
-      ),
-    [automationState.records, decisions, projectId],
-  );
-  const onDecision = (id: string, status: string) => {
-    setDecisions((current) => ({ ...current, [id]: status }));
-    // Once a decision lands the card leaves the queue — close the sheet with it
-    // rather than leaving a decided card open over the list.
-    setReviewingId((current) => (current === id ? null : current));
-  };
+  const [clearing, setClearing] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
   const items = useMemo<TrayItem[]>(
     () => [
-      ...aiActions.map((record) => ({
-        kind: "ai" as const,
-        record: record as RecordValue,
-      })),
-      ...approvals.map((record) => ({
-        kind: "automation" as const,
-        record: record as RecordValue,
-      })),
+      ...(aiState.records ?? [])
+        .filter(
+          (item) =>
+            text(item.projectId) === projectId &&
+            ["review_required", "queued", "running"].includes(
+              decisions[item.id] ?? text(item.status),
+            ),
+        )
+        .map((record) => ({ kind: "ai" as const, record: record as RecordValue })),
+      ...(automationState.records ?? [])
+        .filter(
+          (item) =>
+            text(item.projectId) === projectId &&
+            (decisions[item.id] ?? text(item.status)) === "pending",
+        )
+        .map((record) => ({ kind: "automation" as const, record: record as RecordValue })),
     ],
-    [aiActions, approvals],
+    [aiState.records, automationState.records, decisions, projectId],
   );
-  const count = items.length;
-  const reviewing = useMemo(
-    () => items.find((item) => item.record.id === reviewingId) ?? null,
-    [items, reviewingId],
+  const groups = useMemo(() => groupPrepared(items), [items]);
+  const staleOf = (group: PreparedGroup<TrayItem>) =>
+    staleReason(group.topic, projectState);
+  // Out-of-date drafts go last: what is still worth deciding comes first.
+  const ordered = [...groups].sort(
+    (a, b) => Number(Boolean(staleOf(a))) - Number(Boolean(staleOf(b))),
   );
+  const staleDrafts = groups
+    .filter((group) => staleOf(group))
+    .flatMap((group) => group.entries.filter((entry) => entry.kind === "ai"));
+  const staleReasons = [...new Set(groups.map(staleOf).filter(Boolean))];
+  const visible = showAll ? ordered : ordered.slice(0, PREVIEW);
+  const reviewing = groups.find((group) => group.key === reviewingKey) ?? null;
 
-  const visible = isPhone && !showAll ? items.slice(0, PHONE_PREVIEW) : items;
+  const onDecision = (id: string, status: string) => {
+    setDecisions((current) => ({ ...current, [id]: status }));
+    // Once the lead is decided the sheet has done its job; the older versions,
+    // if any, are still in the list as their own row.
+    setReviewingKey(null);
+  };
+
+  /** Dismiss several drafts at once: the older versions, or the stale ones. */
+  async function dismissAll(entries: TrayItem[], label: string) {
+    const drafts = entries.filter((entry) => entry.kind === "ai");
+    if (!drafts.length) return;
+    setClearing(label);
+    setNotice(null);
+    let done = 0;
+    try {
+      for (const entry of drafts) {
+        await runAiQueueCommand({
+          type: "decideAiAction",
+          input: { actionId: entry.record.id, decision: "dismissed" },
+        });
+        done += 1;
+        setDecisions((current) => ({ ...current, [entry.record.id]: "dismissed" }));
+      }
+      setNotice(`Dismissed ${done} ${done === 1 ? "draft" : "drafts"}. Nothing was sent.`);
+    } catch (caught: unknown) {
+      setNotice(
+        `${done ? `Dismissed ${done}, then ` : ""}${friendlyError(caught, "the rest could not be dismissed.")}`,
+      );
+    } finally {
+      setClearing(null);
+    }
+  }
+
+  const count = groups.length;
+  const drafts = items.length;
 
   return (
     <section className="project-prepared-tray">
@@ -104,44 +141,58 @@ export function ProjectPreparedTray({ projectId }: { projectId: string }) {
         <div>
           <p className="eyebrow">Prepared for you</p>
           <h2>{count ? `${count} ${count === 1 ? "decision" : "decisions"} ready` : "Nothing needs approval"}</h2>
-          <p>StudioCue prepares the work here. You retain every consequential decision.</p>
+          <p>
+            {drafts > count
+              ? `${drafts} drafts, grouped where they're versions of the same thing. Open one to review it.`
+              : "StudioCue prepares the work here. You retain every consequential decision."}
+          </p>
         </div>
       </header>
+      {staleDrafts.length ? (
+        <div className="prepared-stale-banner" role="status">
+          <TriangleAlert aria-hidden="true" size={16} />
+          <span>
+            <strong>
+              {`${staleDrafts.length} ${staleDrafts.length === 1 ? "draft is" : "drafts are"} out of date.`}
+            </strong>{" "}
+            {staleReasons.join(" ")}
+          </span>
+          <button
+            className="button button-light"
+            disabled={clearing !== null}
+            onClick={() => void dismissAll(staleDrafts, "stale")}
+            type="button"
+          >
+            {clearing === "stale" ? "Dismissing…" : "Dismiss them"}
+          </button>
+        </div>
+      ) : null}
+      {notice ? (
+        <p className="form-notice" role="status">
+          {notice}
+        </p>
+      ) : null}
       {count ? (
-        isPhone ? (
-          // Phone: a compact, tappable queue. The full card — preview, "why",
-          // and the Approve / Edit / Reject controls — opens in a bottom sheet
-          // for the one you choose, in place, instead of 15 expanded cards.
-          <div className="project-prepared-compact">
-            {visible.map((item) => (
-              <CompactRow
-                key={item.record.id}
-                item={item}
-                onOpen={() => setReviewingId(item.record.id)}
-              />
-            ))}
-            {items.length > PHONE_PREVIEW ? (
-              <button
-                type="button"
-                className="prepared-compact-more"
-                onClick={() => setShowAll((current) => !current)}
-              >
-                {showAll
-                  ? "Show fewer"
-                  : `Show ${items.length - PHONE_PREVIEW} more`}
-              </button>
-            ) : null}
-          </div>
-        ) : (
-          <div className="project-prepared-list">
-            {aiActions.map((action) => (
-              <AiQueueCard action={action as RecordValue} key={action.id} onDecision={onDecision} />
-            ))}
-            {approvals.map((approval) => (
-              <AutomationApprovalCard approval={approval as RecordValue} key={approval.id} onDecision={onDecision} />
-            ))}
-          </div>
-        )
+        <div className="project-prepared-compact">
+          {visible.map((group) => (
+            <CompactRow
+              item={group.lead}
+              key={group.key}
+              onOpen={() => setReviewingKey(group.key)}
+              stale={staleOf(group)}
+              versions={group.entries.length}
+            />
+          ))}
+          {ordered.length > PREVIEW ? (
+            <button
+              type="button"
+              className="prepared-compact-more"
+              onClick={() => setShowAll((current) => !current)}
+            >
+              {showAll ? "Show fewer" : `Show all ${ordered.length}`}
+            </button>
+          ) : null}
+        </div>
       ) : (
         <div className="project-prepared-empty">
           <Check size={17} />
@@ -153,18 +204,63 @@ export function ProjectPreparedTray({ projectId }: { projectId: string }) {
       )}
       <SheetDialog
         label="Review prepared decision"
-        onClose={() => setReviewingId(null)}
+        onClose={() => setReviewingKey(null)}
         open={reviewing != null}
       >
         {reviewing ? (
-          reviewing.kind === "ai" ? (
-            <AiQueueCard action={reviewing.record} onDecision={onDecision} />
-          ) : (
-            <AutomationApprovalCard
-              approval={reviewing.record}
-              onDecision={onDecision}
-            />
-          )
+          <div className="prepared-review">
+            {staleOf(reviewing) || reviewing.entries.length > 1 ? (
+              <div
+                className={
+                  staleOf(reviewing) ? "prepared-review-note is-stale" : "prepared-review-note"
+                }
+              >
+                <span>
+                  {staleOf(reviewing) ? (
+                    <strong>Out of date. {staleOf(reviewing)}</strong>
+                  ) : null}
+                  {reviewing.entries.length > 1
+                    ? ` This is the newest of ${reviewing.entries.length} versions.`
+                    : ""}
+                </span>
+                {staleOf(reviewing) ? (
+                  <button
+                    className="button button-dark"
+                    disabled={clearing !== null}
+                    onClick={() =>
+                      void dismissAll(reviewing.entries, reviewing.key).then(() =>
+                        setReviewingKey(null),
+                      )
+                    }
+                    type="button"
+                  >
+                    {clearing === reviewing.key
+                      ? "Dismissing…"
+                      : `Dismiss ${reviewing.entries.length > 1 ? `all ${reviewing.entries.length}` : "it"}`}
+                  </button>
+                ) : reviewing.entries.some((entry, index) => index > 0 && entry.kind === "ai") ? (
+                  <button
+                    className="button button-light"
+                    disabled={clearing !== null}
+                    onClick={() => void dismissAll(reviewing.entries.slice(1), reviewing.key)}
+                    type="button"
+                  >
+                    {clearing === reviewing.key
+                      ? "Dismissing…"
+                      : `Dismiss the ${reviewing.entries.length - 1} older`}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+            {reviewing.lead.kind === "ai" ? (
+              <AiQueueCard action={reviewing.lead.record} onDecision={onDecision} />
+            ) : (
+              <AutomationApprovalCard
+                approval={reviewing.lead.record}
+                onDecision={onDecision}
+              />
+            )}
+          </div>
         ) : (
           <span />
         )}

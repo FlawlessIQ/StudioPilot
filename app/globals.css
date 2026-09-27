@@ -12876,6 +12876,64 @@ form:has(> .address-field) > .address-field,
 
 .sheet-close:hover { background: var(--line, #e2e7e2); color: var(--ink); }
 
+/* A prepared decision opened from the job page: a note about its versions
+   (or why it is out of date) above the card itself. */
+.prepared-review {
+  display: grid;
+}
+
+.prepared-review > .ai-queue-card {
+  border: 0;
+  border-radius: inherit;
+  box-shadow: none;
+  margin: 0;
+  padding: 30px 20px 20px;
+}
+
+.prepared-review-note + .ai-queue-card {
+  padding-top: 16px;
+}
+
+.prepared-review-note {
+  align-items: center;
+  background: #f4f6f2;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  gap: 10px 14px;
+  justify-content: space-between;
+  line-height: 1.45;
+  padding: 16px 60px 14px 20px;
+}
+
+.prepared-review-note.is-stale {
+  background: #fff7eb;
+  color: #6b3d0c;
+}
+
+.prepared-review-note > span {
+  flex: 1 1 240px;
+}
+
+.prepared-review-note .button {
+  border-radius: 11px;
+  font-size: 13px;
+  font-weight: 600;
+  min-height: 36px;
+}
+
+.prepared-review-note .button-dark {
+  background: linear-gradient(160deg, #12c084 0%, #0a7a55 100%);
+  border-color: transparent;
+  color: #f3fbf7;
+}
+
+.prepared-review-note .button-light {
+  background: #fff;
+  border-color: #e8eaf0;
+  color: #191b20;
+}
+
 /* ── Crew hub ─────────────────────────────────────────────────────────
    The Crew page with no job open: a one-line job picker, then the people and
    their assignments as tabs (components/crew/crew-hub.tsx). */
