@@ -84,3 +84,19 @@ test("Cue saves nothing stale and retires what it repeats, never sending anythin
   assert.match(copilot, /for \(const entry of \[\.\.\.freshProposalActions, \.\.\.freshCommandActions\]\)/);
   assert.match(copilot, /for \(const retired of retiredProposals\)[\s\S]{0,120}status: "dismissed"/);
 });
+
+test("Cue and the job page agree on which records a draft answers", async () => {
+  const { answeredRecords: cueAnswered } = await import("../functions/src/ai/proposal-supersede");
+  const { answeredRecords: pageAnswered } = await import("../features/ai/prepared-groups");
+  const record = {
+    id: "x",
+    sourceReferences: [
+      { entityType: "project", entityId: "job-1" },
+      { entityType: "contact", entityId: "c-1" },
+      { entityType: "questionnaire_response", entityId: "r-2" },
+      { entityType: "message", entityId: "m-1" },
+    ],
+  };
+  assert.equal(cueAnswered(record), pageAnswered(record));
+  assert.equal(cueAnswered(record), "message:m-1,questionnaire_response:r-2");
+});

@@ -55,13 +55,31 @@ export function preparedTopic(entry: PreparedEntry): string | null {
   return TOPICS.find(([, pattern]) => pattern.test(haystack))?.[0] ?? null;
 }
 
+/**
+ * The records a draft answers, other than the job and the client every draft
+ * on the job shares. Two drafts answering different records — two forms the
+ * couple filled in, two emails they sent — are two decisions, however alike
+ * their titles: Gabe and Dionne's planning questionnaire and venue form each
+ * got a follow-up titled "Approve questionnaire follow-up", and folding them
+ * together offered to dismiss one as an "older version" of the other.
+ */
+export function answeredRecords(record: PreparedRecord): string {
+  const sources = Array.isArray(record.sourceReferences) ? record.sourceReferences : [];
+  return sources
+    .map(object)
+    .filter((source) => !["project", "contact"].includes(text(source.entityType)))
+    .map((source) => `${text(source.entityType)}:${text(source.entityId)}`)
+    .sort()
+    .join(",");
+}
+
 function groupKey(entry: PreparedEntry, topic: string | null): string {
   const record = entry.record;
   const output = object(record.structuredOutput);
   const recipient = text(output.recipientEmail).toLowerCase();
   // Without a recognised topic, only identical titles are the same decision.
   const subject = topic ?? text(record.title).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  return [entry.kind, text(record.capability), recipient, subject || record.id].join("|");
+  return [entry.kind, text(record.capability), recipient, answeredRecords(record), subject || record.id].join("|");
 }
 
 function timeOf(record: PreparedRecord): number {

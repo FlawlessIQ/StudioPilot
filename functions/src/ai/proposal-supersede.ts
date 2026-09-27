@@ -50,6 +50,21 @@ export function proposalTopic(action: Json): string | null {
   return TOPICS.find(([, pattern]) => pattern.test(haystack))?.[0] ?? null;
 }
 
+/**
+ * The records a proposal answers beyond the job and its client. Proposals
+ * answering different records are different decisions (see the job page's
+ * `answeredRecords`, features/ai/prepared-groups.ts).
+ */
+export function answeredRecords(action: Json): string {
+  const sources = Array.isArray(action.sourceReferences) ? action.sourceReferences : [];
+  return sources
+    .map(object)
+    .filter((source) => !["project", "contact"].includes(text(source.entityType)))
+    .map((source) => `${text(source.entityType)}:${text(source.entityId)}`)
+    .sort()
+    .join(",");
+}
+
 /** What a proposal is about: two with the same key are versions of one decision. */
 export function proposalKey(action: Json): string {
   const output = object(action.structuredOutput);
@@ -60,6 +75,7 @@ export function proposalKey(action: Json): string {
     text(action.projectId),
     text(action.capability),
     text(output.recipientEmail).toLowerCase(),
+    answeredRecords(action),
     subject || text(action.id),
   ].join("|");
 }

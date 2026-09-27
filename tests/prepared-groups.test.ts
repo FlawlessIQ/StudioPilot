@@ -54,3 +54,31 @@ test("the job page shows compact rows at every width, not a card per draft", () 
   assert.doesNotMatch(tray, /project-prepared-list/);
   assert.match(tray, /groupPrepared\(items\)/);
 });
+
+test("drafts answering different forms stay separate decisions", () => {
+  // Gabe and Dionne: a planning questionnaire and a venue form, each with its
+  // own follow-up, both titled the same before titles named the form.
+  const followUp = (id: string, response: string, form: string) => ({
+    kind: "ai" as const,
+    record: {
+      id,
+      title: "Approve questionnaire follow-up",
+      capability: "planning_followup_draft",
+      createdAt: "2026-09-24T17:00:00Z",
+      structuredOutput: { recipientEmail: "couple@example.com" },
+      sourceReferences: [{ entityType: "questionnaire_response", entityId: response, label: form }],
+    },
+  });
+  const groups = groupPrepared([
+    followUp("a", "response-1", "Wedding Planning Questionnaire"),
+    followUp("b", "response-2", "Wedding Photography Venue Form"),
+  ]);
+  assert.equal(groups.length, 2);
+  assert.ok(groups.every((group) => group.entries.length === 1));
+});
+
+test("questionnaire drafts are titled with the form they answer", () => {
+  const generator = readFileSync("functions/src/operations/ai-pdf.ts", "utf8");
+  assert.match(generator, /title:`Review planning flags: \$\{String\(response\.get\("templateName"\)/);
+  assert.match(generator, /title:`Approve follow-up: \$\{String\(response\.get\("templateName"\)/);
+});
