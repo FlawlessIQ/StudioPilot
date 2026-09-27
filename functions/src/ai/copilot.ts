@@ -42,6 +42,11 @@ import {
 } from "../packages/coverage.js";
 import { vertexEndpoint } from "./vertex-endpoint.js";
 import { separateGreeting } from "./reply-format.js";
+import {
+  proposalTopic,
+  proposalsToRetire,
+  staleReason,
+} from "./proposal-supersede.js";
 
 type Json = Record<string, unknown>;
 
@@ -2661,9 +2666,58 @@ export const aiCopilotCommand = onRequest(
         projectNames,
         allowedProjectIds,
       );
+      /**
+       * Cue's drafts replace their own earlier versions instead of piling up
+       * (functions/src/ai/proposal-supersede.ts). For every job this turn
+       * touched: nothing out of date for the job is saved, and pending Cue
+       * proposals that this turn repeats, or that are out of date, are retired
+       * — dismissed with a note, never sent.
+       */
+      const touchedProjectIds = [
+        ...new Set(
+          [
+            ...proposalActions.map((entry) => String(entry.action.projectId)),
+            ...commandActions.map((entry) => String(entry.action.projectId)),
+            ...(input.projectId && allowedProjectIds.has(input.projectId)
+              ? [input.projectId]
+              : []),
+          ].filter(Boolean),
+        ),
+      ];
+      const projectStates = new Map<string, string>();
+      const pendingProposals: Array<Record<string, unknown>> = [];
+      await Promise.all(
+        touchedProjectIds.map(async (touchedId) => {
+          const [projectSnapshot, pendingSnapshot] = await Promise.all([
+            db.doc(`projects/${touchedId}`).get(),
+            db
+              .collection("aiActions")
+              .where("tenantId", "==", input.tenantId)
+              .where("projectId", "==", touchedId)
+              .limit(300)
+              .get(),
+          ]);
+          if (projectSnapshot.exists && projectSnapshot.get("tenantId") === input.tenantId)
+            projectStates.set(touchedId, String(projectSnapshot.get("state") ?? ""));
+          for (const document of pendingSnapshot.docs)
+            pendingProposals.push({ ...document.data(), id: document.id });
+        }),
+      );
+      const stillCurrent = (entry: { action: Record<string, unknown> }) =>
+        !staleReason(
+          proposalTopic(entry.action),
+          projectStates.get(String(entry.action.projectId)) ?? "",
+        );
+      const freshProposalActions = proposalActions.filter(stillCurrent);
+      const freshCommandActions = commandActions.filter(stillCurrent);
+      const retiredProposals = proposalsToRetire(
+        pendingProposals,
+        [...freshProposalActions, ...freshCommandActions].map((entry) => entry.action),
+        projectStates,
+      ).slice(0, 300);
       const proposalActionIds = [
-        ...proposalActions.map((entry) => entry.id),
-        ...commandActions.map((entry) => entry.id),
+        ...freshProposalActions.map((entry) => entry.id),
+        ...freshCommandActions.map((entry) => entry.id),
       ];
       // A launched conversational flow — its project recovered above and
       // validated to the caller's scope. The model only chose the type (and
@@ -2800,8 +2854,10 @@ export const aiCopilotCommand = onRequest(
         ],
         factCount: safeResult.facts.length,
         citationCount: safeResult.citations.length,
-        proposalCount: proposalActions.length,
-        actionProposalCount: commandActions.length,
+        proposalCount: freshProposalActions.length,
+        actionProposalCount: freshCommandActions.length,
+        // Earlier Cue drafts this turn replaced or found out of date.
+        retiredProposalCount: retiredProposals.length,
         /**
          * What this turn cost, in tokens, across every call it made.
          *
@@ -2818,8 +2874,22 @@ export const aiCopilotCommand = onRequest(
       };
       const interactionId = `ai_${randomUUID()}`;
       const batch = db.batch();
-      for (const entry of [...proposalActions, ...commandActions]) {
+      for (const entry of [...freshProposalActions, ...freshCommandActions]) {
         batch.set(db.doc(`aiActions/${entry.id}`), entry.action);
+      }
+      for (const retired of retiredProposals) {
+        batch.update(db.doc(`aiActions/${retired.id}`), {
+          status: "dismissed",
+          decision: {
+            actorId: identity.uid,
+            action: "dismissed",
+            decidedAt: now,
+            note: retired.note,
+            editDelta: null,
+          },
+          updatedAt: now,
+          updatedBy: identity.uid,
+        });
       }
       batch.create(db.doc(`aiInteractions/${interactionId}`), {
         id: interactionId,

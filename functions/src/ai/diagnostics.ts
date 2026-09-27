@@ -72,6 +72,8 @@ export type CopilotDiagnostics = {
   citationCount: number;
   proposalCount: number;
   actionProposalCount: number;
+  /** Earlier Cue drafts the turn replaced or found out of date (proposal-supersede). */
+  retiredProposalCount?: number;
   /**
    * Which prompt produced this. The system instruction is the least-tested,
    * highest-leverage artifact in Cue; without a fingerprint on every turn there
