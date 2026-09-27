@@ -37,7 +37,10 @@ import {
   type CrewRequirementSettings,
 } from "@/features/crew/requirements";
 import { VendorRecordActions } from "@/components/planning/vendor-record-actions";
-import { CrewRecordActions } from "@/components/crew/crew-record-actions";
+import {
+  CrewRecordActions,
+  crewActionsProps,
+} from "@/components/crew/crew-record-actions";
 import { TaskRecordActions } from "@/components/tasks/task-record-actions";
 import { stateTone } from "@/lib/status-tone";
 import { KindGlyph } from "@/components/library/kind-glyph";
@@ -1062,33 +1065,7 @@ function renderRowActions(
     );
   }
   if (kind === "crew") {
-    return (
-      <CrewRecordActions
-        crew={{
-          id: record.id,
-          name: String(record.name ?? ""),
-          email: String(record.email ?? ""),
-          specialties: Array.isArray(record.specialties)
-            ? record.specialties.map(String)
-            : [],
-          trades: Array.isArray(record.trades) ? record.trades.map(String) : [],
-          serviceAreas: Array.isArray(record.serviceAreas)
-            ? record.serviceAreas.map(String)
-            : [],
-          travelRadiusMiles: Number(record.travelRadiusMiles ?? 0),
-          rateType: String(record.rateType ?? "event"),
-          rateCents: Number(record.rateCents ?? 0),
-          notes: typeof record.notes === "string" ? record.notes : null,
-          inviteStatus: String(record.inviteStatus ?? "not_invited"),
-          w9Status: String(record.w9Status ?? "missing"),
-          insuranceStatus: String(record.insuranceStatus ?? "missing"),
-          contractStatus: String(record.contractStatus ?? "missing"),
-          hasAccount:
-            typeof record.userId === "string" && record.userId.length > 0,
-          archived: Boolean(record.archivedAt),
-        }}
-      />
-    );
+    return <CrewRecordActions crew={crewActionsProps(record)} />;
   }
   return null;
 }

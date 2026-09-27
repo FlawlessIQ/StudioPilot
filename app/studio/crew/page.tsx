@@ -2,7 +2,7 @@ import Link from "next/link";
 import { UserPlus } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { CrewCascadeWorkspace } from "@/components/crew/crew-cascade-workspace";
-import { CrewPlanProjectPicker } from "@/components/crew/crew-plan-project-picker";
+import { CrewHub } from "@/components/crew/crew-hub";
 import { DirectInviteForm } from "@/components/crew/direct-invite-form";
 import {
   LiveDomainView,
@@ -13,9 +13,9 @@ import { PeopleSectionNav } from "@/components/layout/people-section-nav";
 export default async function StudioCrewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ project?: string }>;
+  searchParams: Promise<{ project?: string; view?: string }>;
 }) {
-  const { project } = await searchParams;
+  const { project, view } = await searchParams;
   return (
     <AppShell active="Crew">
       <div className="live-domain-page">
@@ -33,44 +33,29 @@ export default async function StudioCrewPage({
           </Link>
         </header>
         <PeopleSectionNav />
-        {project ? <ProjectContextBar projectId={project} /> : null}
         {project ? (
           <>
+            {/* One job's crew plan: who to ask for each role, and the offers
+                already made for it. */}
+            <ProjectContextBar projectId={project} />
             <CrewCascadeWorkspace projectId={project} />
             <DirectInviteForm projectId={project} />
+            <section>
+              <div className="section-heading-row">
+                <div>
+                  <p className="eyebrow">This job</p>
+                  <h2>Offers and assignments</h2>
+                </div>
+              </div>
+              <LiveDomainView domain="crew_assignments" projectId={project} />
+            </section>
           </>
         ) : (
-          <CrewPlanProjectPicker />
+          // Staff a job, then the people and their work as tabs — see
+          // components/crew/crew-hub.tsx. "Crew" are the people you hire for a
+          // job; "Team" are the people in your studio.
+          <CrewHub initialView={view === "assignments" ? "assignments" : "crew"} />
         )}
-        <section>
-          <div className="section-heading-row">
-            <div>
-              <p className="eyebrow">Upcoming work</p>
-              <h2>Assignments</h2>
-            </div>
-          </div>
-          <LiveDomainView domain="crew_assignments" projectId={project} />
-        </section>
-        <section>
-          <div className="section-heading-row">
-            <div>
-              {/* One word per concept. This page is "Crew" under a nav item
-                  called "People", with a "Team" tab beside it and a section
-                  headed "Collaborators" — four words for two ideas. Crew are
-                  the people you hire for a job; Team are the people in your
-                  studio. */}
-              <p className="eyebrow">Directory</p>
-              <h2>Your crew</h2>
-            </div>
-          </div>
-          {/* Per-person editing and removal. The studio owns the directory
-              entry; the person owns their own contact details. See
-              components/crew/crew-record-actions.tsx. */}
-          <LiveDomainView
-            domain="crew_profiles"
-            rowActions="crew"
-          />
-        </section>
       </div>
     </AppShell>
   );

@@ -12876,6 +12876,449 @@ form:has(> .address-field) > .address-field,
 
 .sheet-close:hover { background: var(--line, #e2e7e2); color: var(--ink); }
 
+/* ── Crew hub ─────────────────────────────────────────────────────────
+   The Crew page with no job open: a one-line job picker, then the people and
+   their assignments as tabs (components/crew/crew-hub.tsx). */
+.crew-hub {
+  display: grid;
+  gap: 18px;
+}
+
+.crew-hub-staff {
+  align-items: center;
+  display: grid;
+  gap: 12px 16px;
+  grid-template-columns: auto minmax(180px, 1fr) minmax(320px, 1.4fr);
+  padding: 16px 18px;
+}
+
+.crew-hub-staff-icon {
+  align-items: center;
+  background: var(--ds-claret-soft, #d9f4ea);
+  border-radius: 12px;
+  color: var(--ds-claret-deep, #0a7a55);
+  display: flex;
+  height: 40px;
+  justify-content: center;
+  width: 40px;
+}
+
+.crew-hub-staff-copy {
+  display: grid;
+  gap: 2px;
+}
+
+.crew-hub-staff-copy strong {
+  font-size: 15px;
+}
+
+.crew-hub-staff-copy small {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.crew-hub-staff-form {
+  display: flex;
+  gap: 8px;
+}
+
+.crew-hub-staff-form select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.crew-hub-staff-form .button {
+  flex: none;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.crew-hub-tabs {
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 4px;
+}
+
+.crew-hub-tabs button {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  gap: 7px;
+  margin-bottom: -1px;
+  padding: 10px 14px;
+}
+
+.crew-hub-tabs button span,
+.crew-hub-filters button span {
+  background: var(--soft, #f2f5f2);
+  border-radius: 999px;
+  color: var(--ink-soft, #56605a);
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+}
+
+.crew-hub-tabs button[aria-selected="true"] {
+  border-bottom-color: var(--ds-claret, #0ea372);
+  color: var(--ink);
+}
+
+.crew-hub-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.crew-hub-toolbar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.crew-hub-search {
+  align-items: center;
+  display: flex;
+  flex: 0 1 360px;
+  position: relative;
+}
+
+.crew-hub-search > svg {
+  color: var(--muted);
+  left: 12px;
+  pointer-events: none;
+  position: absolute;
+}
+
+.ds-root .crew-hub-search > input:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
+  padding-left: 34px;
+  width: 100%;
+}
+
+.crew-hub-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.crew-hub-filters button {
+  align-items: center;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-soft, #56605a);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  gap: 6px;
+  padding: 7px 12px;
+}
+
+.crew-hub-filters button[aria-pressed="true"] {
+  background: var(--ink, #191b20);
+  border-color: var(--ink, #191b20);
+  color: #fff;
+}
+
+.crew-hub-filters button[aria-pressed="true"] span {
+  background: rgb(255 255 255 / 18%);
+  color: #fff;
+}
+
+.crew-hub-empty {
+  align-items: center;
+  background: var(--surface, #fff);
+  border: 1px dashed var(--line-strong, #d7dcd7);
+  border-radius: 14px;
+  color: var(--muted);
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  margin: 0;
+  padding: 28px 16px;
+  text-align: center;
+}
+
+.crew-hub-empty strong {
+  color: var(--ink);
+}
+
+.crew-card-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+}
+
+.crew-card {
+  align-content: start;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgb(24 34 28 / 4%);
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+/* Editing opens a full form: give it the row. */
+.crew-card:has(details[open]) {
+  grid-column: 1 / -1;
+}
+
+.crew-card > header {
+  align-items: center;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+}
+
+.crew-card-avatar {
+  background: linear-gradient(150deg, var(--ds-brass, #c99a3f), var(--ds-brass-deep, #977325));
+  border-radius: 999px;
+  color: #fdf4ef;
+  display: grid;
+  font-size: 13px;
+  font-weight: 600;
+  height: 40px;
+  place-items: center;
+  width: 40px;
+}
+
+.crew-card-name {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.crew-card-name strong {
+  font-size: 15px;
+}
+
+.crew-card-name strong,
+.crew-card-name small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crew-card-name small,
+.crew-card-muted {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.crew-card-muted {
+  margin: 0;
+}
+
+.crew-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.crew-card-tags li {
+  background: var(--soft, #f2f5f2);
+  border-radius: 999px;
+  color: var(--ink-soft, #56605a);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+}
+
+.crew-card-tags li.is-trade {
+  background: var(--ds-claret-soft, #d9f4ea);
+  color: var(--ds-claret-deep, #0a7a55);
+}
+
+.crew-card-facts {
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  margin: 0;
+  padding-top: 12px;
+}
+
+.crew-card-facts > div {
+  display: grid;
+  gap: 4px;
+}
+
+.crew-card-facts dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.crew-card-facts dd {
+  font-size: 13.5px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.crew-card-facts .status-badge {
+  text-transform: capitalize;
+}
+
+.crew-card > footer.record-row-actions {
+  align-items: center;
+}
+
+.crew-card-open {
+  align-items: center;
+  background: var(--ink, #191b20);
+  border-radius: 999px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 12.5px;
+  font-weight: 600;
+  gap: 6px;
+  line-height: 1;
+  padding: 8px 13px;
+  text-decoration: none;
+}
+
+.crew-card-open:hover {
+  filter: brightness(1.15);
+}
+
+.crew-assignment-list {
+  background: var(--surface, #fff);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  display: grid;
+  overflow: hidden;
+}
+
+.crew-assignment-row {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  color: inherit;
+  display: grid;
+  gap: 8px 18px;
+  grid-template-columns: 128px minmax(200px, 1.6fr) minmax(90px, 0.6fr) minmax(90px, 0.6fr) auto 16px;
+  padding: 13px 18px;
+  text-decoration: none;
+}
+
+.crew-assignment-row:first-child {
+  border-top: 0;
+}
+
+.crew-assignment-row:hover {
+  background: var(--soft, #f7f9f7);
+}
+
+.crew-assignment-date {
+  align-items: center;
+  color: var(--ink-soft, #56605a);
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 600;
+  gap: 6px;
+}
+
+.crew-assignment-job {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.crew-assignment-job strong,
+.crew-assignment-job small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crew-assignment-job small {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.crew-assignment-fact {
+  display: grid;
+  font-size: 13px;
+  font-weight: 600;
+  gap: 2px;
+}
+
+.crew-assignment-fact small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.crew-assignment-go {
+  color: var(--muted);
+}
+
+@media (max-width: 900px) {
+  .crew-hub-staff {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .crew-hub-staff-form {
+    grid-column: 1 / -1;
+  }
+  .crew-assignment-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .crew-assignment-date {
+    grid-column: 1;
+    order: 0;
+  }
+  .crew-assignment-row > .status-badge {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+  .crew-assignment-job {
+    grid-column: 1 / -1;
+  }
+  .crew-assignment-fact {
+    display: flex;
+    gap: 6px;
+  }
+  .crew-assignment-go {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .crew-hub-staff {
+    padding: 14px;
+  }
+  .crew-hub-staff-copy small {
+    display: none;
+  }
+  .crew-hub-staff-form {
+    flex-direction: column;
+  }
+  .crew-hub-search {
+    flex-basis: 100%;
+  }
+  .crew-card-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Saying a closeout requirement is done without StudioCue seeing it: the
    reason, its caveat and the buttons, stacked. It had no rules, so the label,
    field and caveat ran together on one line. */

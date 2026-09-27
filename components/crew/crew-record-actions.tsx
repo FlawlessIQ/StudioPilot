@@ -21,6 +21,32 @@ import { sendCrewCommand } from "@/lib/crew/command-client";
  * person, who edits them in their own workspace. Name and email are disabled
  * once they have an account, because the email is how they sign in.
  */
+/** A crew profile document, as the props `CrewRecordActions` takes. */
+export function crewActionsProps(
+  record: Record<string, unknown> & { id: string },
+) {
+  const strings = (value: unknown) =>
+    Array.isArray(value) ? value.map(String) : [];
+  return {
+    id: record.id,
+    name: String(record.name ?? ""),
+    email: String(record.email ?? ""),
+    specialties: strings(record.specialties),
+    trades: strings(record.trades),
+    serviceAreas: strings(record.serviceAreas),
+    travelRadiusMiles: Number(record.travelRadiusMiles ?? 0),
+    rateType: String(record.rateType ?? "event"),
+    rateCents: Number(record.rateCents ?? 0),
+    notes: typeof record.notes === "string" ? record.notes : null,
+    inviteStatus: String(record.inviteStatus ?? "not_invited"),
+    w9Status: String(record.w9Status ?? "missing"),
+    insuranceStatus: String(record.insuranceStatus ?? "missing"),
+    contractStatus: String(record.contractStatus ?? "missing"),
+    hasAccount: typeof record.userId === "string" && record.userId.length > 0,
+    archived: Boolean(record.archivedAt),
+  };
+}
+
 export function CrewRecordActions({
   crew,
 }: {
