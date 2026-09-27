@@ -225,7 +225,8 @@
 .ds-root .auth-form-wrap .sign-in-form .input-with-icon > input:not([type="checkbox"]):not([type="radio"]) {
   padding-left: 44px;
 }
-.ds-root .auth-form-wrap .sign-in-form .sign-in-submit {
+.ds-root .auth-form-wrap .sign-in-form .sign-in-submit,
+.ds-root .auth-form-wrap .sign-in-form .sign-in-google {
   border-radius: 11px;
   font-size: 16px;
   min-height: 54px;

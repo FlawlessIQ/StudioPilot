@@ -3449,6 +3449,37 @@ textarea:focus-visible {
   opacity: 0.7;
 }
 
+/* "Continue with Google": a light button the size of the fields, then a
+   quiet rule before the email fields. */
+.sign-in-google {
+  font-size: 16px;
+  gap: 10px;
+  min-height: 54px;
+  width: 100%;
+}
+
+.sign-in-google:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.sign-in-divider {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 13px;
+  gap: 12px;
+  margin: -4px 0;
+}
+
+.sign-in-divider::before,
+.sign-in-divider::after {
+  background: var(--line, #e3e1dc);
+  content: "";
+  flex: 1;
+  height: 1px;
+}
+
 .spin {
   animation: spin 900ms linear infinite;
 }

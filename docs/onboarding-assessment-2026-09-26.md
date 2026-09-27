@@ -186,9 +186,13 @@ Later the same day:
 - **Inquiry capture** (`d2b67f7`): Outlook rule conditions; a missing address
   says so; the web-address warning mentions forwarding.
 
-Still open, and needing a decision: **Continue with Google** (the Google
-provider isn't configured in Firebase Auth; turning it on is a console change
-on the verified OAuth project), and **the card before first value** (7, now
+2026-09-27: **Continue with Google** on studio sign-in and signup (the
+provider was switched on in Firebase Auth). Google verifies the address, so a
+new owner goes from one click to naming the studio: no password, no
+verification email. Invited clients keep the email flow (their invitation is
+for an exact address).
+
+Still open, and needing a decision: **the card before first value** (7, now
 disclosed up front).
 
 ## Suggested order

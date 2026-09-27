@@ -4,14 +4,11 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { collection,getDocs,limit,query,where } from "firebase/firestore";
 import { ArrowRight, Eye, EyeOff, LoaderCircle } from "lucide-react";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { authIsLive } from "@/lib/runtime-mode";
-import {
-  destinationAfterSignIn,
-  type SignInMembership,
-} from "@/features/auth/workspace-routing";
+import { destinationForSignedInUser } from "@/lib/auth/after-sign-in";
+import { GoogleSignIn } from "@/features/auth/google-sign-in";
 
 type FormState = {
   status: "idle" | "submitting" | "error";
@@ -68,19 +65,7 @@ export function SignInForm({
         router.push(safeNext);
         return;
       }
-      const token=await auth.currentUser?.getIdTokenResult();
-      const memberships=await getDocs(query(collection(firestore,"memberships"),where("userId","==",auth.currentUser?.uid??""),where("status","==","active"),limit(20)));
-      const preferred=window.localStorage.getItem("studiohub.activeTenantId");
-      const membership=memberships.docs.find((item)=>item.data().tenantId===preferred)??memberships.docs[0];
-      if(membership)window.localStorage.setItem("studiohub.activeTenantId",String(membership.data().tenantId));
-      const activeMemberships=memberships.docs.map((item)=>({
-        tenantId:String(item.data().tenantId??""),
-        role:String(item.data().role??"") as SignInMembership["role"],
-      })).filter((item)=>Boolean(item.tenantId));
-      router.push(destinationAfterSignIn({
-        memberships:activeMemberships,
-        platformAdmin:token?.claims.platformAdmin===true,
-      }));
+      router.push(await destinationForSignedInUser(auth, firestore));
     } catch {
       setFormState({
         status: "error",
@@ -91,6 +76,10 @@ export function SignInForm({
 
   return (
     <form className="sign-in-form" onSubmit={handleSubmit}>
+      {/* Studio sign-in only: an invited client signs in as the exact address
+          the invitation went to, which the email field (and the magic link
+          below it) keeps in front of them. */}
+      {intent === "studio" && !mockMode ? <GoogleSignIn next={safeNext} /> : null}
       <label>
         Email address
         <input

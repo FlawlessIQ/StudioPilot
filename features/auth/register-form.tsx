@@ -9,6 +9,7 @@ import {
 import { ArrowRight, CheckCircle2, LoaderCircle, ShieldAlert } from "lucide-react";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { requestBrandedAuthEmail } from "@/lib/auth/email-client";
+import { GoogleSignIn } from "@/features/auth/google-sign-in";
 import { rememberChosenPlan } from "@/features/subscriptions/chosen-plan";
 import { authIsLive } from "@/lib/runtime-mode";
 export function RegisterForm({
@@ -186,6 +187,9 @@ export function RegisterForm({
   }
   return (
     <form className="sign-in-form" onSubmit={submit}>
+      {/* Google has verified the address already: no email to wait for, no
+          password, straight on to naming the studio. */}
+      {intent === "studio" && authIsLive ? <GoogleSignIn next={safeNext} /> : null}
       <label>
         Your name <span className="required-mark">Required</span>
         <input
