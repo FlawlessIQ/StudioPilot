@@ -250,7 +250,7 @@ export function EmailBranding() {
                 style={{ maxHeight: 64, maxWidth: 220 }}
               />
               <button
-                className="ghost-button"
+                className="button button-ghost branding-logo-remove"
                 onClick={() => update("logoUrl", "")}
                 type="button"
               >

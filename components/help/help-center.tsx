@@ -65,12 +65,12 @@ export function HelpCenter() {
       </header>
 
       <section className="help-section">
-        <p className="section-label">Set up your studio</p>
+        <p className="eyebrow">Set up your studio</p>
         <SetupChecklist />
       </section>
 
       <section className="help-section">
-        <p className="section-label">How StudioCue works</p>
+        <p className="eyebrow">How StudioCue works</p>
         <div className="help-concepts">
           {CONCEPTS.map((concept) => {
             const Icon = concept.icon;
@@ -101,7 +101,7 @@ export function HelpCenter() {
       </section>
 
       <section className="help-section">
-        <p className="section-label">Still stuck?</p>
+        <p className="eyebrow">Still stuck?</p>
         <div className="help-links">
           <Link className="panel help-link is-primary" href="/studio/copilot">
             <span className="help-link-icon">

@@ -1009,7 +1009,9 @@ export function LiveDomainView({
                   Open
                 </Link>
               ) : null}
-              {actions}
+              {/* One cell for all of a row's controls, so they sit side by
+                  side; each used to take a full-width line of its own. */}
+              <div className="record-row-actions">{actions}</div>
             </article>
           );
         }

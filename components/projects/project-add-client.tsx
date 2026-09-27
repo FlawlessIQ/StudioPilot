@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { LoaderCircle, UserPlus } from "lucide-react";
+import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { runCrmCommand } from "@/lib/crm/command-client";
@@ -17,7 +18,7 @@ import { runCrmCommand } from "@/lib/crm/command-client";
  * it or not this age group the men care about this shit!"
  *
  * Folded shut like the other job controls, because most jobs have their people
- * already.
+ * already, and opened in a sheet rather than inline beside the job's title.
  */
 export function ProjectAddClient({
   projectId,
@@ -29,12 +30,14 @@ export function ProjectAddClient({
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   if (archived) return null;
 
   async function save(values: FormData) {
     setBusy(true);
     setNotice(null);
+    setError(null);
     try {
       const text = (key: string) => String(values.get(key) ?? "").trim();
       const result = await runCrmCommand("addProjectClient", {
@@ -52,7 +55,7 @@ export function ProjectAddClient({
       refreshTenantRecords("projects", "contacts");
       setOpen(false);
     } catch (caught: unknown) {
-      setNotice(friendlyError(caught, "That person could not be added."));
+      setError(friendlyError(caught, "That person could not be added."));
     } finally {
       setBusy(false);
     }
@@ -61,45 +64,66 @@ export function ProjectAddClient({
   return (
     <>
       <button
-        aria-expanded={open}
-        className="ghost-button"
-        onClick={() => setOpen((value) => !value)}
+        className="project-title-action"
+        onClick={() => {
+          setError(null);
+          setOpen(true);
+        }}
         type="button"
       >
-        <UserPlus aria-hidden size={14} /> {open ? "Cancel" : "Add a client"}
+        <UserPlus aria-hidden size={14} /> Add a client
       </button>
-      {open ? (
+      <SheetDialog label="Add a client" onClose={() => setOpen(false)} open={open}>
         <form
-          className="record-edit-form"
+          className="record-sheet"
           onSubmit={(event) => {
             event.preventDefault();
             void save(new FormData(event.currentTarget));
           }}
         >
-          <label>
-            First name
-            <input maxLength={80} name="firstName" required />
-          </label>
-          <label>
-            Last name
-            <input maxLength={80} name="lastName" required />
-          </label>
-          <label>
-            Email
-            <input name="email" required type="email" />
-          </label>
-          <label>
-            Phone
-            <input maxLength={30} name="phone" />
-          </label>
-          <button className="primary-button" disabled={busy} type="submit">
-            {busy ? <LoaderCircle aria-hidden className="spin" size={14} /> : null}
-            {busy ? "Adding…" : "Add to this job"}
-          </button>
+          <header>
+            <p className="eyebrow">The job</p>
+            <h3>Add a client to this job</h3>
+            <p>Usually the partner. They&apos;ll get this job&apos;s client emails from now on.</p>
+          </header>
+          <div className="record-sheet-fields">
+            <label>
+              First name
+              <input autoComplete="off" maxLength={80} name="firstName" required />
+            </label>
+            <label>
+              Last name
+              <input autoComplete="off" maxLength={80} name="lastName" required />
+            </label>
+            <label>
+              Email
+              <input autoComplete="off" name="email" required type="email" />
+            </label>
+            <label>
+              <span>
+                Phone <small>optional</small>
+              </span>
+              <input autoComplete="off" maxLength={30} name="phone" type="tel" />
+            </label>
+          </div>
+          {error ? (
+            <p className="form-error" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <footer>
+            <button className="button button-light" onClick={() => setOpen(false)} type="button">
+              Cancel
+            </button>
+            <button className="button button-dark" disabled={busy} type="submit">
+              {busy ? <LoaderCircle aria-hidden className="spin" size={14} /> : null}
+              {busy ? "Adding…" : "Add to this job"}
+            </button>
+          </footer>
         </form>
-      ) : null}
+      </SheetDialog>
       {notice ? (
-        <p className="record-edit-notice" role="status">
+        <p className="project-title-notice" role="status">
           {notice}
         </p>
       ) : null}

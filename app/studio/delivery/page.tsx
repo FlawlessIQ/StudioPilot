@@ -13,24 +13,29 @@ export default async function DeliveryPage({
   return (
     <AppShell active="Delivery">
       <div className="live-domain-page">
-        <header className="page-heading">
-          <div>
-            <p className="eyebrow">Gallery handoff</p>
-            <h1>Delivery</h1>
-            {/* Was "StudioCue checks the balance, the contract and the crew
-                before anything reaches the couple". It checks none of those —
-                the delivery gate requires the backup, the finished edit and a
-                ready gallery, which is what the checklist below tracks. Copy
-                describing the wrong check sent the walk of 2026-08-26 looking
-                for a balance problem that did not exist. */}
-            <p>
-              Work through post-production, then record the gallery. StudioCue
-              will not release a delivery until the cards are backed up, the
-              editing is finished and the gallery is ready.
-            </p>
-          </div>
-        </header>
-        {project ? <ProjectContextBar projectId={project} /> : null}
+        {/* Opened for a job, the job's bar is the heading, as on Booking and
+            Plan, so the job's tabs stay put between tabs. */}
+        {project ? (
+          <ProjectContextBar projectId={project} />
+        ) : (
+          <header className="page-heading">
+            <div>
+              <p className="eyebrow">Gallery handoff</p>
+              <h1>Delivery</h1>
+              {/* Was "StudioCue checks the balance, the contract and the crew
+                  before anything reaches the couple". It checks none of those —
+                  the delivery gate requires the backup, the finished edit and a
+                  ready gallery, which is what the checklist below tracks. Copy
+                  describing the wrong check sent the walk of 2026-08-26 looking
+                  for a balance problem that did not exist. */}
+              <p>
+                Work through post-production, then record the gallery. StudioCue
+                will not release a delivery until the cards are backed up, the
+                editing is finished and the gallery is ready.
+              </p>
+            </div>
+          </header>
+        )}
         {/* Before the gallery, because it gates the gallery. */}
         {project ? <PostProductionChecklist projectId={project} /> : null}
         <section className="panel">

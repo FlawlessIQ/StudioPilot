@@ -475,10 +475,15 @@ export const membershipCommand = onRequest(
         `memberships/${parsed.input.membershipId}`,
       );
       const member = await reference.get();
+      // Team changes are for the studio's own staff. A client's portal or a
+      // crew member's account is a membership too, and the Team page used to
+      // list them with a role picker, so one change of that picker made a
+      // client a coordinator. Their access is managed where they are listed.
       if (
         !member.exists ||
         member.get("tenantId") !== parsed.tenantId ||
         member.get("role") === "studio_owner" ||
+        !internalRoles.has(String(member.get("role"))) ||
         member.get("userId") === identity.uid
       ) {
         throw new Error("MEMBER_NOT_EDITABLE");

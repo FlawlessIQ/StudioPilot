@@ -104,7 +104,13 @@ test("the team screen offers the role in both the invite and the change", () => 
     `${process.cwd()}/components/team/team-management.tsx`,
     "utf8",
   );
-  assert.equal(source.split('value="staff_videographer"').length - 1, 2);
+  // Both selects are built from the one list, so neither can drop a role.
+  assert.equal(source.split("ASSIGNABLE_ROLES.map(").length - 1, 2);
+  const roles = readFileSync(
+    `${process.cwd()}/features/team/role-summaries.ts`,
+    "utf8",
+  );
+  assert.match(roles, /"staff_videographer",\n\] as const/);
 });
 
 /** The invitation says what they are being invited as. */

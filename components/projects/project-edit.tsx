@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { LoaderCircle, PencilLine } from "lucide-react";
+import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { runCrmCommand } from "@/lib/crm/command-client";
@@ -17,7 +18,9 @@ import { runCrmCommand } from "@/lib/crm/command-client";
  * him to "open the project details page", which had no such control.
  *
  * Folded shut, like the client equivalent: on most jobs on most days a studio
- * is not editing, and the header is for reading.
+ * is not editing, and the header is for reading. It opens in a sheet: inline,
+ * the form spilled into the title line with each label running into its
+ * field (docs/ui-audit-2026-09-27.md).
  */
 export function ProjectEdit({
   project,
@@ -36,6 +39,7 @@ export function ProjectEdit({
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // An archived job is not editable, and the control should not be there to
   // press — the command refuses it too, but a button that only ever fails is
@@ -45,6 +49,7 @@ export function ProjectEdit({
   async function save(values: FormData) {
     setBusy(true);
     setNotice(null);
+    setError(null);
     try {
       const text = (key: string) => String(values.get(key) ?? "").trim();
       const nextDate = text("eventDate");
@@ -65,7 +70,7 @@ export function ProjectEdit({
       refreshTenantRecords("projects");
       setOpen(false);
     } catch (caught: unknown) {
-      setNotice(friendlyError(caught, "That job could not be updated."));
+      setError(friendlyError(caught, "That job could not be updated."));
     } finally {
       setBusy(false);
     }
@@ -74,68 +79,89 @@ export function ProjectEdit({
   return (
     <>
       <button
-        className="ghost-button"
-        onClick={() => setOpen((value) => !value)}
+        className="project-title-action"
+        onClick={() => {
+          setError(null);
+          setOpen(true);
+        }}
         type="button"
-        aria-expanded={open}
       >
-        <PencilLine aria-hidden size={14} /> {open ? "Cancel" : "Edit job"}
+        <PencilLine aria-hidden size={14} /> Edit job
       </button>
-      {open ? (
+      <SheetDialog label="Edit job" onClose={() => setOpen(false)} open={open}>
         <form
-          className="record-edit-form"
+          className="record-sheet"
           onSubmit={(event) => {
             event.preventDefault();
             void save(new FormData(event.currentTarget));
           }}
         >
-          <label>
-            Job name
-            <input defaultValue={project.name} maxLength={200} name="name" required />
-          </label>
-          <label>
-            Event date
-            <input
-              defaultValue={project.eventDate}
-              name="eventDate"
-              required
-              type="date"
-            />
-          </label>
-          <label>
-            Event type
-            <input
-              defaultValue={project.eventType}
-              maxLength={80}
-              name="eventType"
-              required
-            />
-          </label>
-          <label>
-            Venue
-            <input defaultValue={project.venueName ?? ""} maxLength={200} name="venueName" />
-          </label>
-          <label>
-            City
-            <input defaultValue={project.city ?? ""} maxLength={120} name="city" />
-          </label>
-          <label>
-            Time zone
-            <input
-              defaultValue={project.timezone}
-              maxLength={80}
-              name="timezone"
-              required
-            />
-          </label>
-          <button className="primary-button" disabled={busy} type="submit">
-            {busy ? <LoaderCircle aria-hidden className="spin" size={14} /> : null}
-            {busy ? "Saving…" : "Save changes"}
-          </button>
+          <header>
+            <p className="eyebrow">The job</p>
+            <h3>Edit job details</h3>
+            <p>Changes show everywhere this job appears, including client emails from now on.</p>
+          </header>
+          <div className="record-sheet-fields">
+            <label className="is-wide">
+              Job name
+              <input defaultValue={project.name} maxLength={200} name="name" required />
+            </label>
+            <label>
+              Event date
+              <input
+                defaultValue={project.eventDate}
+                name="eventDate"
+                required
+                type="date"
+              />
+            </label>
+            <label>
+              Event type
+              <input
+                defaultValue={project.eventType}
+                maxLength={80}
+                name="eventType"
+                required
+              />
+            </label>
+            <label>
+              Venue
+              <input defaultValue={project.venueName ?? ""} maxLength={200} name="venueName" />
+            </label>
+            <label>
+              City
+              <input defaultValue={project.city ?? ""} maxLength={120} name="city" />
+            </label>
+            <label className="is-wide">
+              <span>
+                Time zone <small>the event&apos;s local time, e.g. America/New_York</small>
+              </span>
+              <input
+                defaultValue={project.timezone}
+                maxLength={80}
+                name="timezone"
+                required
+              />
+            </label>
+          </div>
+          {error ? (
+            <p className="form-error" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <footer>
+            <button className="button button-light" onClick={() => setOpen(false)} type="button">
+              Cancel
+            </button>
+            <button className="button button-dark" disabled={busy} type="submit">
+              {busy ? <LoaderCircle aria-hidden className="spin" size={14} /> : null}
+              {busy ? "Saving…" : "Save changes"}
+            </button>
+          </footer>
         </form>
-      ) : null}
+      </SheetDialog>
       {notice ? (
-        <p className="record-edit-notice" role="status">
+        <p className="project-title-notice" role="status">
           {notice}
         </p>
       ) : null}

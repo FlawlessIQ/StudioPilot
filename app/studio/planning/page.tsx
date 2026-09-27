@@ -14,14 +14,20 @@ export default async function PlanningPage({ searchParams }: { searchParams: Pro
   return (
     <AppShell active="Planning">
       <div className="project-plan-hub">
-        <header className="page-heading page-heading-echo">
-          <div>
-            <p className="eyebrow">The job</p>
-            <h1>Plan</h1>
-            <p>One place for the client facts, timeline, crew, requirements, and files that make the event ready.</p>
-          </div>
-        </header>
-        {project ? <ProjectContextBar projectId={project} /> : null}
+        {/* Opened for a job, the job's bar is the heading, as on Booking: a
+            page title above it pushed the job's tabs down, so they jumped
+            between tabs (docs/ui-audit-2026-09-27.md). */}
+        {project ? (
+          <ProjectContextBar projectId={project} />
+        ) : (
+          <header className="page-heading page-heading-echo">
+            <div>
+              <p className="eyebrow">The job</p>
+              <h1>Plan</h1>
+              <p>One place for the client facts, timeline, crew, requirements, and files that make the event ready.</p>
+            </div>
+          </header>
+        )}
         {project ? (
           <>
             {/* The brief leads: what needs you, what is out with others, and

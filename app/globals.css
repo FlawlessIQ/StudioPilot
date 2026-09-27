@@ -11106,7 +11106,7 @@ textarea:focus-visible {
    These two rendered at 15x15 CSS pixels, side by side, one of them the
    destructive Remove — small enough that the likeliest outcome of aiming at
    Edit on a phone was deleting the entry instead. WCAG 2.5.5 asks for 44. */
-.crew-availability-actions button { align-items: center; display: inline-flex; justify-content: center; min-height: 44px; min-width: 44px; }
+.crew-availability-actions button { align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; color: var(--ink); cursor: pointer; display: inline-flex; justify-content: center; min-height: 44px; min-width: 44px; }
 /* "Directions", tapped by a second photographer standing outside a venue.
    36px tall before this. */
 .crew-event-location a, .crew-event-contact a { align-items: center; display: inline-flex; gap: 5px; min-height: 44px; }
@@ -12876,6 +12876,405 @@ form:has(> .address-field) > .address-field,
 
 .sheet-close:hover { background: var(--line, #e2e7e2); color: var(--ink); }
 
+/* Saying a closeout requirement is done without StudioCue seeing it: the
+   reason, its caveat and the buttons, stacked. It had no rules, so the label,
+   field and caveat ran together on one line. */
+.closeout-attest-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+  max-width: 32rem;
+}
+
+.closeout-attest-form label {
+  display: grid;
+  font-size: 12.5px;
+  font-weight: 620;
+  gap: 6px;
+}
+
+.closeout-attest-form small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.closeout-attest-form > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.email-branding-fields .branding-logo-remove {
+  justify-self: start;
+}
+
+/* Settings → Crew offers, as a card like the other sections. */
+.crew-offer-settings > .crm-form {
+  display: grid;
+  gap: 20px;
+}
+
+.crew-offer-settings-fields {
+  display: grid;
+  gap: 18px;
+}
+
+.crew-offer-settings-fields > label:not(.form-checkbox) {
+  display: grid;
+  font-size: 13px;
+  font-weight: 620;
+  gap: 6px;
+  max-width: 22rem;
+}
+
+.crew-offer-settings-fields small {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.crew-offer-settings .crew-offer-window {
+  max-width: 8rem;
+}
+
+.crew-offer-settings > .crm-form > .button {
+  justify-self: start;
+}
+
+/* Team: invitations and members, one row per person. Named apart from the
+   old .team-list rules, which placed cells by child position and collapsed
+   as soon as a row gained a control. */
+.team-invite-form .team-role-hint {
+  color: var(--muted);
+  font-size: 12.5px;
+  grid-column: 1 / -1;
+  line-height: 1.45;
+  margin: -2px 0 0;
+}
+
+.team-people {
+  display: grid;
+}
+
+.team-people > .panel-heading {
+  padding-bottom: 14px;
+}
+
+.team-people > .panel-heading p:not(.eyebrow) {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 4px 0 0;
+}
+
+.team-person {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 8px 16px;
+  grid-template-columns: 36px minmax(160px, 1.3fr) minmax(170px, 1fr) auto;
+  padding: 14px 0;
+}
+
+.team-avatar {
+  background: linear-gradient(150deg, var(--ds-brass, #b0894a), var(--ds-brass-deep, #8a6a35));
+  border-radius: 999px;
+  color: #fdf4ef;
+  display: grid;
+  font-size: 12px;
+  font-weight: 600;
+  height: 36px;
+  place-items: center;
+  width: 36px;
+}
+
+.team-avatar.is-pending {
+  background: var(--soft, #f2f5f2);
+  border: 1px dashed var(--line-strong, #d7dcd7);
+  color: var(--muted);
+}
+
+.team-person-name,
+.team-person-role {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.team-person-name strong,
+.team-person-name small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-person small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.team-person-role select {
+  width: 100%;
+}
+
+.team-person-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.team-person-actions .button {
+  font-size: 13px;
+  min-height: 34px;
+  padding: 0 12px;
+}
+
+.team-person-actions .team-remove {
+  color: var(--rose-dark, #9b3b3b);
+}
+
+.team-person-summary {
+  color: var(--muted);
+  font-size: 12.5px;
+  grid-column: 3 / -1;
+  line-height: 1.45;
+  margin: -2px 0 0;
+}
+
+.team-confirm {
+  align-items: center;
+  background: var(--soft, #f2f5f2);
+  border-radius: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  grid-column: 2 / -1;
+  justify-content: space-between;
+  padding: 11px 13px;
+}
+
+.team-confirm > span:first-child {
+  flex: 1 1 260px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.team-confirm > span:last-child {
+  display: flex;
+  gap: 8px;
+}
+
+.team-confirm .button {
+  font-size: 13px;
+  min-height: 34px;
+}
+
+@media (max-width: 620px) {
+  /* One column: the role's description under the role, then the button. */
+  .team-invite-form .team-role-hint {
+    margin: -6px 0 2px;
+    order: 1;
+  }
+  .team-invite-form > .button {
+    order: 2;
+  }
+}
+
+@media (max-width: 760px) {
+  .team-person {
+    grid-template-columns: 36px minmax(0, 1fr);
+  }
+  .team-person-role,
+  .team-person-actions,
+  .team-person-summary,
+  .team-confirm {
+    grid-column: 2 / -1;
+  }
+  .team-person-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+}
+
+/* A short record form in a sheet: a heading, a two-column grid of labelled
+   fields, and the actions at the foot. Editing a job and adding its second
+   client use it; they used to open unstyled forms inline beside the job's
+   title, with each label running into its field across the line. */
+.record-sheet {
+  display: grid;
+  gap: 18px;
+  padding: 26px 24px 22px;
+}
+
+.record-sheet > header {
+  display: grid;
+  gap: 4px;
+  padding-right: 40px;
+}
+
+.record-sheet > header .eyebrow {
+  margin: 0;
+}
+
+.record-sheet > header h3 {
+  font-size: 22px;
+  margin: 0;
+}
+
+.record-sheet > header p {
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.record-sheet-fields {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.record-sheet-fields label {
+  color: var(--ink-soft, #56605a);
+  display: grid;
+  font-size: 12.5px;
+  font-weight: 600;
+  gap: 6px;
+}
+
+.record-sheet-fields label small {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.record-sheet-fields .is-wide {
+  grid-column: 1 / -1;
+}
+
+/* The sheet renders at the end of <body>, outside the design system's scope,
+   so its fields are styled here rather than inheriting the app's inputs. */
+.record-sheet-fields :is(input, select, textarea) {
+  background: #fbfcfa;
+  border: 1px solid #d7ddd7;
+  border-radius: 11px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  min-height: 44px;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.record-sheet-fields :is(input, select, textarea):focus {
+  background: #fff;
+  border-color: #789080;
+  box-shadow: 0 0 0 4px rgb(65 106 80 / 10%);
+  outline: 0;
+}
+
+.record-sheet > footer {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.record-sheet .form-error {
+  margin: 0;
+}
+
+/* Outside the design system's scope (see above), so the app's buttons and
+   eyebrow are matched here: the studio's green primary, a white secondary. */
+.record-sheet .eyebrow {
+  color: #977325;
+}
+
+.record-sheet .button {
+  border-radius: 11px;
+  font-weight: 600;
+  min-height: 42px;
+}
+
+.record-sheet .button-dark {
+  background: linear-gradient(160deg, #12c084 0%, #0a7a55 100%);
+  border-color: transparent;
+  box-shadow: 0 1px 2px rgb(24 34 28 / 8%), inset 0 1px 0 rgb(255 255 255 / 14%);
+  color: #f3fbf7;
+}
+
+.record-sheet .button-dark:hover {
+  filter: brightness(1.06);
+}
+
+.record-sheet .button-light {
+  background: #fff;
+  border-color: #e8eaf0;
+  color: #191b20;
+}
+
+@media (max-width: 620px) {
+  .record-sheet {
+    padding: 22px 18px 18px;
+  }
+  .record-sheet-fields {
+    grid-template-columns: 1fr;
+  }
+  .record-sheet > footer .button {
+    flex: 1 1 auto;
+  }
+}
+
+/* The job's own controls beside its name: small outlined buttons, icon and
+   label on one line. */
+.project-title-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.project-title-action {
+  align-items: center;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #e2e7e2);
+  border-radius: 999px;
+  color: var(--ink-soft, #56605a);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  gap: 6px;
+  line-height: 1;
+  padding: 8px 13px;
+  white-space: nowrap;
+}
+
+.project-title-action > svg {
+  display: inline-block;
+  flex: none;
+}
+
+.project-title-action:hover {
+  border-color: var(--ds-claret, #2f6b4f);
+  color: var(--ink);
+}
+
+.project-title-actions .project-title-notice {
+  background: #eef3ee;
+  border-radius: 8px;
+  color: #526757;
+  flex-basis: 100%;
+  font-size: 13px;
+  margin: 2px 0 0;
+  padding: 7px 11px;
+}
+
 @media (max-width: 640px) {
   .sheet-backdrop {
     padding: 0;
@@ -14302,7 +14701,8 @@ label {
   }
   /* The row's edit/remove disclosure takes its own full-width line. */
   .live-domain-table > article > .record-edit,
-  .live-domain-table > article > .ds-people-invite {
+  .live-domain-table > article > .ds-people-invite,
+  .live-domain-table > article > .record-row-actions {
     flex: 1 1 100%;
     order: 9;
     margin-top: 3px;

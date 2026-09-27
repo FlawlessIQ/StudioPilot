@@ -16,6 +16,7 @@ import {
   Mail,
   MapPin,
   Phone,
+  Send,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
@@ -661,39 +662,45 @@ export function LiveClientCards({
             ) : (
               <span />
             )}
-            {/* Correcting and archiving a client — the two things this page
-                could never do. See components/clients/client-record-actions. */}
-            <ClientRecordActions
-              archived={Boolean(client.archivedAt)}
-              client={{
-                id: client.id,
-                firstName: String(client.firstName ?? ""),
-                lastName: String(client.lastName ?? ""),
-                displayName: name,
-                email,
-                phone:
-                  typeof client.phone === "string" ? client.phone : null,
-                company:
-                  typeof client.company === "string" ? client.company : null,
-                notes: typeof client.notes === "string" ? client.notes : null,
-              }}
-            />
-            {!client.portalUserId && email ? (
-              <details className="ds-people-invite">
-                <summary>Invite to portal</summary>
-                <div>
-                  <ClientPortalInvite
-                    contactId={client.id}
-                    initialInvitations={invitationsByContact[client.id] ?? []}
-                    invitationStatusError={invitationStatusErrorKey === inviteContactIdsKey}
-                    loadingProjects={loadingProjects}
-                    projectLoadError={Boolean(projectError)}
-                    projectIds={projectIds}
-                    projects={projects}
-                  />
-                </div>
-              </details>
-            ) : null}
+            {/* A row's controls side by side, as small buttons; each used to
+                take a full-width line of its own (docs/ui-audit-2026-09-27.md). */}
+            <div className="record-row-actions">
+              {/* Correcting and archiving a client — the two things this page
+                  could never do. See components/clients/client-record-actions. */}
+              <ClientRecordActions
+                archived={Boolean(client.archivedAt)}
+                client={{
+                  id: client.id,
+                  firstName: String(client.firstName ?? ""),
+                  lastName: String(client.lastName ?? ""),
+                  displayName: name,
+                  email,
+                  phone:
+                    typeof client.phone === "string" ? client.phone : null,
+                  company:
+                    typeof client.company === "string" ? client.company : null,
+                  notes: typeof client.notes === "string" ? client.notes : null,
+                }}
+              />
+              {!client.portalUserId && email ? (
+                <details className="ds-people-invite">
+                  <summary>
+                    <Send aria-hidden="true" size={14} /> Invite to portal
+                  </summary>
+                  <div>
+                    <ClientPortalInvite
+                      contactId={client.id}
+                      initialInvitations={invitationsByContact[client.id] ?? []}
+                      invitationStatusError={invitationStatusErrorKey === inviteContactIdsKey}
+                      loadingProjects={loadingProjects}
+                      projectLoadError={Boolean(projectError)}
+                      projectIds={projectIds}
+                      projects={projects}
+                    />
+                  </div>
+                </details>
+              ) : null}
+            </div>
           </article>
         );
       })}

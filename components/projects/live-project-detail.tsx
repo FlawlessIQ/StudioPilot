@@ -1100,27 +1100,29 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           <p className="eyebrow">The job</p>
           <div className="project-title-line">
             <h1>{String(project.name)}</h1>
-            <ProjectAddClient
-              archived={Boolean(project.archivedAt)}
-              projectId={String(project.id)}
-            />
-            <ProjectEdit
-              project={{
-                id: String(project.id),
-                name: String(project.name ?? ""),
-                eventDate:
-                  typeof project.eventDate === "string" ? project.eventDate : "",
-                eventType: String(project.eventType ?? ""),
-                venueName:
-                  typeof project.venueName === "string" ? project.venueName : null,
-                city: typeof project.city === "string" ? project.city : null,
-                timezone:
-                  typeof project.timezone === "string"
-                    ? project.timezone
-                    : "America/New_York",
-                archived: Boolean(project.archivedAt),
-              }}
-            />
+            <div className="project-title-actions">
+              <ProjectAddClient
+                archived={Boolean(project.archivedAt)}
+                projectId={String(project.id)}
+              />
+              <ProjectEdit
+                project={{
+                  id: String(project.id),
+                  name: String(project.name ?? ""),
+                  eventDate:
+                    typeof project.eventDate === "string" ? project.eventDate : "",
+                  eventType: String(project.eventType ?? ""),
+                  venueName:
+                    typeof project.venueName === "string" ? project.venueName : null,
+                  city: typeof project.city === "string" ? project.city : null,
+                  timezone:
+                    typeof project.timezone === "string"
+                      ? project.timezone
+                      : "America/New_York",
+                  archived: Boolean(project.archivedAt),
+                }}
+              />
+            </div>
           </div>
           {/* "Wedding photography" was printed under every job, including the
               video-led ones. The event type is what the studio called it; the

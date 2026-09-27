@@ -1227,7 +1227,7 @@ export function StudioProposalComposer() {
                           </button>
                         </article>
                       ))}
-                      <label className="proposal-discount-field">
+                      <label className="proposal-field proposal-discount-field">
                         Discount (optional)
                         <input
                           inputMode="decimal"

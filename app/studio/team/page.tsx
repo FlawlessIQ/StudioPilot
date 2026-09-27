@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { UsersRound } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { TeamManagement } from "@/components/team/team-management";
 import { PeopleSectionNav } from "@/components/layout/people-section-nav";
@@ -19,11 +18,10 @@ export default function TeamPage() {
             <p className="eyebrow">People & permissions</p>
             <h1>Team</h1>
             <p>
-              Invite staff, assign least-privilege roles, and revoke access
-              without sharing tenant credentials.
+              Invite the people who work with you, and choose what each can
+              see and do.
             </p>
           </div>
-          <UsersRound />
         </header>
         <PeopleSectionNav />
         <TeamManagement />

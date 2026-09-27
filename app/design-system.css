@@ -3198,8 +3198,56 @@
 /* A row that grew actions keeps the table grid — the cells are laid out by
    `.live-domain-table > article`, so this must not redeclare `display` or the
    columns collapse into a stack. The actions are one full-width cell. */
-.live-domain-row-has-actions > .record-edit {
+.live-domain-row-has-actions > .record-edit,
+.live-domain-row-has-actions > .record-row-actions {
   grid-column: 1 / -1;
+}
+
+/* A row's controls (edit, archive, invite, share): small outlined buttons on
+   one line, icon beside its label. Each used to be a full-width line of its
+   own, the icon stacked above the words. An opened one takes the full width
+   so its form has room; the others stay on the line above. */
+.record-row-actions {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  grid-column: 1 / -1;
+}
+
+.record-row-actions > details {
+  flex: 0 0 auto;
+  grid-column: auto;
+}
+
+.record-row-actions > details[open] {
+  flex: 1 1 100%;
+  order: 2;
+}
+
+.record-row-actions > details > summary {
+  align-items: center;
+  border: 1px solid var(--ds-line);
+  border-radius: 999px;
+  display: inline-flex;
+  gap: 6px;
+  line-height: 1;
+  padding: 7px 12px;
+  width: max-content;
+}
+
+.record-row-actions > details > summary > svg {
+  display: inline-block;
+  flex: none;
+}
+
+.record-row-actions > details > summary:hover {
+  border-color: var(--ds-brass);
+}
+
+.record-row-actions > details[open] > summary {
+  background: var(--ds-brass-soft);
+  border-color: var(--ds-brass);
 }
 
 .live-domain-row-open {
@@ -3271,20 +3319,9 @@
   .ds-people-message {
     order: 3;
   }
-  .ds-people-row > .ds-people-invite {
-    flex: 0 0 auto;
-    order: 4;
-    grid-column: auto;
-    padding: 7px 12px;
-    border: 1px solid var(--ds-line);
-    border-radius: 9px;
-    line-height: 1;
-  }
-  .ds-people-row > .ds-people-invite > summary {
-    font-size: 12px;
-  }
-  .ds-people-row > .ds-people-invite[open] {
+  .ds-people-row > .record-row-actions {
     flex: 1 1 100%;
+    order: 4;
   }
 }
 .project-planning-copilot {

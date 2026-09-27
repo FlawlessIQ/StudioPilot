@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, LoaderCircle } from "lucide-react";
+import { CheckCircle2, LoaderCircle, UserRoundCheck } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendCrewCommand } from "@/lib/crew/command-client";
@@ -78,81 +78,97 @@ export function CrewOfferSettings() {
     }
   }
 
+  // A card with a heading, like every other settings section. Alone on its
+  // own page it rendered as two bare checkboxes and an inline field
+  // (docs/ui-audit-2026-09-27.md).
   return (
-    <form
-      className="crm-form"
-      onSubmit={(event) => {
-        event.preventDefault();
-        void save();
-      }}
-    >
-      <div className="crm-form-grid">
-        <label className="form-checkbox">
-          <input
-            checked={effectiveAuto}
-            onChange={(event) => {
-              setAutoOffer(event.target.checked);
-              setSaved(false);
-            }}
-            type="checkbox"
-          />
-          <span>Send prepared crew offers as soon as a job is booked</span>
-          <small>
-            Off, the plan waits on the job for you to send. On, the first name
-            for each role is asked straight away — including the fee. Imported
-            bookings are never offered automatically, because they were usually
-            staffed before they reached StudioCue.
-          </small>
-        </label>
-        <label className="form-checkbox">
-          <input
-            checked={effectiveInsurance}
-            onChange={(event) => {
-              setRequireInsurance(event.target.checked);
-              setSaved(false);
-            }}
-            type="checkbox"
-          />
-          <span>Crew must carry their own liability insurance</span>
-          <small>
-            Off for most studios — your own policy covers the people you bring.
-            On, every offer asks them to upload a certificate before the day.
-            The W-9 is always asked for, and the certificate you send a venue is
-            a separate thing set on each job.
-          </small>
-        </label>
-        <label>
-          Response window (hours)
-          <input
-            max="168"
-            min="1"
-            onChange={(event) => {
-              setWindowHours(event.target.value);
-              setSaved(false);
-            }}
-            type="number"
-            value={effectiveWindow}
-          />
-          <small>
-            How long each person has before the offer moves to the next name.
-          </small>
-        </label>
-      </div>
-      {error ? (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      ) : null}
-      {saved ? (
-        <p className="form-notice" role="status">
-          <CheckCircle2 size={15} /> Saved. This applies to jobs booked from
-          now on.
-        </p>
-      ) : null}
-      <button className="button button-dark" disabled={busy} type="submit">
-        {busy ? <LoaderCircle className="spin" size={16} /> : null}
-        Save
-      </button>
-    </form>
+    <section className="panel crew-offer-settings" aria-labelledby="crew-offer-settings-title">
+      <form
+        className="crm-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void save();
+        }}
+      >
+        <div className="email-branding-heading">
+          <span className="data-control-icon">
+            <UserRoundCheck aria-hidden="true" />
+          </span>
+          <div>
+            <p className="eyebrow">Crew</p>
+            <h2 id="crew-offer-settings-title">Crew offers</h2>
+            <p>How the crew you plan for a job are asked, and what they must send before the day.</p>
+          </div>
+        </div>
+        <div className="crm-form-grid crew-offer-settings-fields">
+          <label className="form-checkbox">
+            <input
+              checked={effectiveAuto}
+              onChange={(event) => {
+                setAutoOffer(event.target.checked);
+                setSaved(false);
+              }}
+              type="checkbox"
+            />
+            <span>Send prepared crew offers as soon as a job is booked</span>
+            <small>
+              Off, the plan waits on the job for you to send. On, the first name
+              for each role is asked straight away — including the fee. Imported
+              bookings are never offered automatically, because they were usually
+              staffed before they reached StudioCue.
+            </small>
+          </label>
+          <label className="form-checkbox">
+            <input
+              checked={effectiveInsurance}
+              onChange={(event) => {
+                setRequireInsurance(event.target.checked);
+                setSaved(false);
+              }}
+              type="checkbox"
+            />
+            <span>Crew must carry their own liability insurance</span>
+            <small>
+              Off for most studios — your own policy covers the people you bring.
+              On, every offer asks them to upload a certificate before the day.
+              The W-9 is always asked for, and the certificate you send a venue is
+              a separate thing set on each job.
+            </small>
+          </label>
+          <label>
+            Response window (hours)
+            <input
+              className="crew-offer-window"
+              max="168"
+              min="1"
+              onChange={(event) => {
+                setWindowHours(event.target.value);
+                setSaved(false);
+              }}
+              type="number"
+              value={effectiveWindow}
+            />
+            <small>
+              How long each person has before the offer moves to the next name.
+            </small>
+          </label>
+        </div>
+        {error ? (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {saved ? (
+          <p className="form-notice" role="status">
+            <CheckCircle2 size={15} /> Saved. This applies to jobs booked from
+            now on.
+          </p>
+        ) : null}
+        <button className="button button-dark" disabled={busy} type="submit">
+          {busy ? <LoaderCircle className="spin" size={16} /> : null}
+          Save
+        </button>
+      </form>
+    </section>
   );
 }

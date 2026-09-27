@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Fraunces, Instrument_Sans } from "next/font/google";
 import { RegisterServiceWorker } from "@/components/pwa/register-service-worker";
 import { ErrorReporter } from "@/components/observability/error-reporter";
+import { IconButtonTitles } from "@/components/ui/icon-button-titles";
 import { SITE_URL } from "@/lib/site";
 import "./globals.css";
 import "./design-system.css";
@@ -107,6 +108,7 @@ export default function RootLayout({
       >
         <ErrorReporter />
         <RegisterServiceWorker />
+        <IconButtonTitles />
         {children}
       </body>
     </html>

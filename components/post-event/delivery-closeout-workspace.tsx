@@ -441,7 +441,7 @@ export function DeliveryCloseoutWorkspace({
                   ) : null}
                   {!met && requirementIsAttestable(key) ? (
                     <button
-                      className="closeout-attest"
+                      className="button button-quiet button-sm closeout-attest"
                       disabled={busy !== null}
                       onClick={() => setAttesting(key)}
                       type="button"

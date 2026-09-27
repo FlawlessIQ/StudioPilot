@@ -8,16 +8,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import {
-  Check,
-  Clipboard,
-  LoaderCircle,
-  ShieldCheck,
-  UserMinus,
-  UserPlus,
-  UsersRound,
-  X,
-} from "lucide-react";
+import { Check, Clipboard, LoaderCircle, ShieldCheck, UserPlus } from "lucide-react";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   useWorkspace,
@@ -28,6 +19,11 @@ import { runMembershipCommand } from "@/lib/memberships/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { formatDueDate } from "@/lib/format/event-date";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import {
+  ASSIGNABLE_ROLES,
+  ROLE_SUMMARY,
+  type AssignableRole,
+} from "@/features/team/role-summaries";
 
 type MemberRow = {
   id: string;
@@ -52,6 +48,12 @@ export function TeamManagement() {
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [inviteRole, setInviteRole] = useState<AssignableRole>("studio_coordinator");
+  /** A suspend or remove waiting on "yes": the member and what was asked. */
+  const [confirming, setConfirming] = useState<{
+    id: string;
+    action: "suspend" | "remove";
+  } | null>(null);
 
   const load = useCallback(async () => {
     if (!dataIsLive || !workspace.tenantId || workspace.role !== "studio_owner")
@@ -96,7 +98,16 @@ export function TeamManagement() {
               status: String(value.status),
             };
           })
-          .filter((member) => member.status !== "revoked"),
+          // Studio staff only. Clients with portal access and crew with an
+          // account are memberships too; they belong on the Clients and Crew
+          // tabs, and listed here they showed as "Studio Admin" (the picker's
+          // first option) with a role picker that could promote them.
+          .filter(
+            (member) =>
+              member.status !== "revoked" &&
+              (member.role === "studio_owner" ||
+                (ASSIGNABLE_ROLES as readonly string[]).includes(member.role)),
+          ),
       );
       setInvitations(
         invitationSnapshot.docs
@@ -152,7 +163,7 @@ export function TeamManagement() {
         typeof result.inviteUrl === "string" ? result.inviteUrl : null;
       setInviteUrl(sharedUrl);
       setNotice(
-        "Invitation created. Outbound email remains gated until the sending domain is approved; you can securely copy the link now.",
+        `Invitation sent to ${String(data.get("email"))}. The link below works too, if you'd rather send it yourself.`,
       );
       form.reset();
       await load();
@@ -174,7 +185,7 @@ export function TeamManagement() {
         tenantId: workspace.tenantId,
         input: { invitationId },
       });
-      setNotice("Invitation revoked.");
+      setNotice("Invitation cancelled. The link no longer works.");
       await load();
     } catch (caught: unknown) {
       setNotice(
@@ -190,6 +201,8 @@ export function TeamManagement() {
     update: { role?: string; status?: string },
   ) {
     if (!workspace.tenantId) return;
+    const member = members.find((item) => item.id === membershipId);
+    setConfirming(null);
     setBusy(membershipId);
     try {
       await runMembershipCommand({
@@ -201,7 +214,16 @@ export function TeamManagement() {
           reason: "Studio Owner updated workspace access from Team settings.",
         },
       });
-      setNotice("Member access updated and audited.");
+      const name = member?.displayName ?? "They";
+      setNotice(
+        update.role
+          ? `${name} is now ${workspaceRoleLabel(update.role)}.`
+          : update.status === "suspended"
+            ? `${name} is suspended and can't sign in until you reactivate them.`
+            : update.status === "revoked"
+              ? `${name} no longer has access to this studio.`
+              : `${name} can sign in again.`,
+      );
       await load();
     } catch (caught: unknown) {
       setNotice(
@@ -228,41 +250,54 @@ export function TeamManagement() {
       <section className="panel team-state">
         <ShieldCheck />
         <span>
-          <strong>Studio Owner access required</strong>
+          <strong>Only the studio owner can manage the team</strong>
           <small>
-            Team roles, invitations, and user limits affect tenant security.
+            Ask them to invite people or change what someone can do.
           </small>
         </span>
       </section>
     );
   }
 
+  const initials = (name: string) =>
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join("");
+
   return (
     <div className="team-management">
       <section className="panel team-invite-panel">
         <div className="panel-heading">
           <div>
-            <p className="eyebrow">Workspace access</p>
-            <h2>Invite a team member</h2>
+            <p className="eyebrow">Invite</p>
+            <h2>Add someone to your studio</h2>
+            <p>They&apos;ll get an email with a link to join. Choose what they can do.</p>
           </div>
-          <UserPlus />
         </div>
         <form className="team-invite-form" onSubmit={(event) => void invite(event)}>
           <label>
             Name
-            <input name="displayName" required minLength={2} />
+            <input autoComplete="off" name="displayName" required minLength={2} />
           </label>
           <label>
             Email
-            <input name="email" required type="email" />
+            <input autoComplete="off" name="email" required type="email" />
           </label>
           <label>
             Role
-            <select name="role" defaultValue="studio_coordinator">
-              <option value="studio_admin">Studio Admin</option>
-              <option value="studio_coordinator">Studio Coordinator</option>
-              <option value="staff_photographer">Staff Photographer</option>
-              <option value="staff_videographer">Staff Videographer</option>
+            <select
+              name="role"
+              onChange={(event) => setInviteRole(event.target.value as AssignableRole)}
+              value={inviteRole}
+            >
+              {ASSIGNABLE_ROLES.map((role) => (
+                <option key={role} value={role}>
+                  {workspaceRoleLabel(role)}
+                </option>
+              ))}
             </select>
           </label>
           <button
@@ -271,121 +306,175 @@ export function TeamManagement() {
             type="submit"
           >
             {busy === "invite" ? <LoaderCircle className="spin" /> : <UserPlus />}
-            Create invitation
+            Send invitation
           </button>
+          <p className="team-role-hint">{ROLE_SUMMARY[inviteRole]}</p>
         </form>
         {inviteUrl ? (
           <div className="team-invite-link">
             <Check />
             <span>
-              <strong>One-time invitation link</strong>
+              <strong>Invitation link</strong>
               <small>{inviteUrl}</small>
             </span>
             <button
               type="button"
               onClick={() => void navigator.clipboard.writeText(inviteUrl)}
             >
-              <Clipboard size={15} /> Copy
+              <Clipboard size={15} /> Copy link
             </button>
           </div>
         ) : null}
       </section>
 
       {invitations.length ? (
-        <section className="panel team-list">
+        <section className="panel team-people">
           <div className="panel-heading">
             <div>
-              <p className="eyebrow">Pending</p>
-              <h2>Open invitations</h2>
+              <p className="eyebrow">Waiting to join</p>
+              <h2>Invitations</h2>
             </div>
           </div>
           {invitations.map((invitation) => (
-            <article key={invitation.id}>
-              <UserPlus />
-              <span>
+            <article className="team-person" key={invitation.id}>
+              <span className="team-avatar is-pending">{initials(invitation.displayName)}</span>
+              <span className="team-person-name">
                 <strong>{invitation.displayName}</strong>
                 <small>{invitation.email}</small>
               </span>
-              <span>
+              <span className="team-person-role">
                 <strong>{workspaceRoleLabel(invitation.role)}</strong>
-                <small>
-                  Expires {formatDueDate(invitation.expiresAt)}
-                </small>
+                <small>Link expires {formatDueDate(invitation.expiresAt)}</small>
               </span>
-              <StatusBadge tone="warning">Pending</StatusBadge>
-              <button
-                aria-label={`Revoke invitation for ${invitation.displayName}`}
-                disabled={busy === invitation.id}
-                onClick={() => void revokeInvitation(invitation.id)}
-                type="button"
-              >
-                <X size={16} />
-              </button>
+              <span className="team-person-actions">
+                <StatusBadge tone="warning">Invited</StatusBadge>
+                <button
+                  className="button button-light"
+                  disabled={busy === invitation.id}
+                  onClick={() => void revokeInvitation(invitation.id)}
+                  type="button"
+                >
+                  Cancel invitation
+                </button>
+              </span>
             </article>
           ))}
         </section>
       ) : null}
 
-      <section className="panel team-list">
+      <section className="panel team-people">
         <div className="panel-heading">
           <div>
-            <p className="eyebrow">Active access</p>
+            <p className="eyebrow">Your team</p>
             <h2>Team members</h2>
+            <p>Everyone who can sign in to this studio.</p>
           </div>
-          <UsersRound />
         </div>
-        {members.map((member) => (
-          <article key={member.id}>
-            <UsersRound />
-            <span>
-              <strong>{member.displayName}</strong>
-              <small>{member.email}</small>
-            </span>
-            {member.role === "studio_owner" ? (
-              <span>
-                <strong>Studio Owner</strong>
-                <small>Tenant owner</small>
+        {members.map((member) => {
+          const isOwner = member.role === "studio_owner";
+          const suspended = member.status === "suspended";
+          const asking = confirming?.id === member.id ? confirming.action : null;
+          return (
+            <article className="team-person" key={member.id}>
+              <span className="team-avatar">{initials(member.displayName)}</span>
+              <span className="team-person-name">
+                <strong>{member.displayName}</strong>
+                <small>{member.email}</small>
               </span>
-            ) : (
-              <select
-                aria-label={`Role for ${member.displayName}`}
-                value={member.role}
-                disabled={busy === member.id}
-                onChange={(event) =>
-                  void updateMember(member.id, { role: event.target.value })
-                }
-              >
-                <option value="studio_admin">Studio Admin</option>
-                <option value="studio_coordinator">Studio Coordinator</option>
-                <option value="staff_photographer">Staff Photographer</option>
-                <option value="staff_videographer">Staff Videographer</option>
-              </select>
-            )}
-            <StatusBadge tone={member.status === "active" ? "success" : "warning"}>
-              {member.status}
-            </StatusBadge>
-            {member.role !== "studio_owner" ? (
-              <button
-                aria-label={`${member.status === "active" ? "Suspend" : "Reactivate"} ${member.displayName}`}
-                disabled={busy === member.id}
-                onClick={() =>
-                  void updateMember(member.id, {
-                    status: member.status === "active" ? "suspended" : "active",
-                  })
-                }
-                type="button"
-              >
-                {member.status === "active" ? (
-                  <UserMinus size={16} />
+              {isOwner ? (
+                <span className="team-person-role">
+                  <strong>Studio Owner</strong>
+                  <small>Owns the studio, the plan and billing</small>
+                </span>
+              ) : (
+                <label className="team-person-role">
+                  <small>Role</small>
+                  <select
+                    disabled={busy === member.id}
+                    onChange={(event) =>
+                      void updateMember(member.id, { role: event.target.value })
+                    }
+                    value={member.role}
+                  >
+                    {ASSIGNABLE_ROLES.map((role) => (
+                      <option key={role} value={role}>
+                        {workspaceRoleLabel(role)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <span className="team-person-actions">
+                <StatusBadge tone={suspended ? "warning" : "success"}>
+                  {suspended ? "Suspended" : "Active"}
+                </StatusBadge>
+                {isOwner ? null : suspended ? (
+                  <button
+                    className="button button-light"
+                    disabled={busy === member.id}
+                    onClick={() => void updateMember(member.id, { status: "active" })}
+                    type="button"
+                  >
+                    Reactivate
+                  </button>
                 ) : (
-                  <Check size={16} />
+                  <button
+                    className="button button-light"
+                    disabled={busy === member.id}
+                    onClick={() => setConfirming({ id: member.id, action: "suspend" })}
+                    type="button"
+                  >
+                    Suspend
+                  </button>
                 )}
-              </button>
-            ) : (
-              <span />
-            )}
-          </article>
-        ))}
+                {isOwner ? null : (
+                  <button
+                    className="button button-quiet team-remove"
+                    disabled={busy === member.id}
+                    onClick={() => setConfirming({ id: member.id, action: "remove" })}
+                    type="button"
+                  >
+                    Remove
+                  </button>
+                )}
+              </span>
+              {!isOwner ? (
+                <p className="team-person-summary">
+                  {ROLE_SUMMARY[member.role as AssignableRole] ?? ""}
+                </p>
+              ) : null}
+              {asking ? (
+                <div className="team-confirm" role="alert">
+                  <span>
+                    {asking === "suspend"
+                      ? `Suspend ${member.displayName}? They can't sign in until you reactivate them. Nothing they did is lost.`
+                      : `Remove ${member.displayName} from your studio? They lose access straight away. To bring them back, invite them again.`}
+                  </span>
+                  <span>
+                    <button
+                      className="button button-dark"
+                      onClick={() =>
+                        void updateMember(member.id, {
+                          status: asking === "suspend" ? "suspended" : "revoked",
+                        })
+                      }
+                      type="button"
+                    >
+                      {asking === "suspend" ? "Suspend" : "Remove"}
+                    </button>
+                    <button
+                      className="button button-light"
+                      onClick={() => setConfirming(null)}
+                      type="button"
+                    >
+                      Keep access
+                    </button>
+                  </span>
+                </div>
+              ) : null}
+            </article>
+          );
+        })}
       </section>
       {notice ? (
         <p className="form-notice" role="status">
