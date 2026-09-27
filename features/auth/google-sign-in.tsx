@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { getToken } from "firebase/app-check";
 import { LoaderCircle } from "lucide-react";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { destinationForSignedInUser } from "@/lib/auth/after-sign-in";
@@ -18,6 +19,12 @@ import { googleSignInMessage } from "@/features/auth/google-sign-in-errors";
  *
  * A popup, not a redirect: the auth handler lives on firebaseapp.com, and
  * browsers that partition third-party storage lose a redirect's result there.
+ *
+ * Safari opens a popup only if it opens right away after the click. Firebase
+ * waits for two things first: its hidden sign-in frame and an App Check token
+ * (a reCAPTCHA round trip). Cold, that took long enough for Safari to block
+ * the window, while Chrome, which allows more time, opened it. Both are
+ * prepared when the button appears, so the click opens the window at once.
  */
 export function GoogleSignIn({
   next,
@@ -30,6 +37,18 @@ export function GoogleSignIn({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    try {
+      // Creating Auth starts the sign-in frame loading (Firebase does this
+      // up front on Safari and mobile), and a cached App Check token means
+      // Firebase has nothing to fetch between the click and the popup.
+      const { appCheck } = getFirebaseClient();
+      if (appCheck) void getToken(appCheck).catch(() => undefined);
+    } catch {
+      // Not configured here: the click reports it.
+    }
+  }, []);
 
   async function start() {
     setBusy(true);

@@ -30,3 +30,10 @@ test("password and Google sign-in route through the same destination", () => {
   assert.match(google, /signInWithPopup/);
   assert.doesNotMatch(google, /signInWithRedirect/);
 });
+
+test("the Google window opens straight from the click: auth and App Check are warmed on mount", () => {
+  const google = readFileSync("features/auth/google-sign-in.tsx", "utf8");
+  // Safari blocks a popup opened after a slow await; Firebase awaits its
+  // frame and an App Check token before window.open, so both are prepared early.
+  assert.match(google, /useEffect\(\(\) => \{[\s\S]*getFirebaseClient\(\)[\s\S]*getToken\(appCheck\)/);
+});
