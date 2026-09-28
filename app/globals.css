@@ -16763,6 +16763,24 @@ label {
   color: var(--muted);
 }
 
+/* Closing an inquiry: one reason, from a short list. */
+.inquiry-close-reasons {
+  border: 0;
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+}
+.inquiry-close-reasons legend {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.inquiry-close-reasons label {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
 /* Consultation settings: the ways a couple can choose to meet. */
 .consultation-formats {
   border: 0;

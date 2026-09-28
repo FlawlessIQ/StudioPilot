@@ -149,3 +149,46 @@ test("Today answers an inquiry-stage job on its inquiry card, once, and not agai
   // An inquiry is not an event on the books.
   assert.equal(answered.upcoming.length, 0);
 });
+
+test("a quiet couple's drafted follow-up rides on their card, and never in the approval lane", () => {
+  const quiet = thread([["inbound", "2026-09-20T10:00:00Z"], ["outbound", "2026-09-21T10:00:00Z"]]);
+  const inbox = todayInbox({
+    now: "2026-09-25T13:00:00Z",
+    projects: [job("p1", "LEAD", { leadId: "l1" })],
+    leads: [{ id: "l1", projectId: "p1", status: "converted", displayName: "Sarah Nolan", createdAt: "2026-09-20T10:00:00Z" }],
+    conversations: [quiet],
+    aiActions: [
+      {
+        id: "nudge",
+        status: "review_required",
+        capability: "inquiry_follow_up",
+        createdAt: "2026-09-24T14:00:00Z",
+        structuredOutput: { leadId: "l1", subject: "Following up", body: "Hi Sarah", recipientEmail: "s@example.test" },
+      },
+    ],
+  });
+  const card = inbox.act.find((item) => item.projectId === "p1");
+  assert.equal(card?.title, "Follow up with Sarah Nolan");
+  assert.ok(card?.action.kind === "inquiry" && card.action.followUp && card.action.reply?.actionId === "nudge");
+  assert.equal(inbox.approve.length, 0);
+});
+
+test("two weeks quiet offers the close; a closed inquiry leaves Today", () => {
+  const quiet = thread([["inbound", "2026-09-01T10:00:00Z"], ["outbound", "2026-09-02T10:00:00Z"]]);
+  const lead = { id: "l1", projectId: "p1", status: "converted", displayName: "Sarah Nolan", closeSuggestedAt: "2026-09-16T14:00:00Z" };
+  const offered = todayInbox({
+    now: "2026-09-16T15:00:00Z",
+    projects: [job("p1", "LEAD", { leadId: "l1" })],
+    leads: [lead],
+    conversations: [quiet],
+  });
+  const card = offered.act.find((item) => item.projectId === "p1");
+  assert.equal(card?.action.kind, "close_inquiry");
+  const closed = todayInbox({
+    now: "2026-09-16T15:00:00Z",
+    projects: [job("p1", "LOST", { leadId: "l1" })],
+    leads: [{ ...lead, status: "lost" }],
+    conversations: [quiet],
+  });
+  assert.equal(closed.act.filter((item) => item.projectId === "p1").length, 0);
+});

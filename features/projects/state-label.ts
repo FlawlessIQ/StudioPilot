@@ -26,6 +26,7 @@ const LABELS: Record<string, string> = {
   CLOSED: "Closed",
   CANCELLED: "Cancelled",
   ARCHIVED: "Archived",
+  LOST: "Closed inquiry",
 };
 
 /** The plain-English name of a project state. */
@@ -69,6 +70,7 @@ const ADVANCE_ACTIONS: Record<string, string> = {
   CLOSED: "Confirm the job is closed",
   CANCELLED: "Confirm the job is cancelled",
   ARCHIVED: "Confirm the job is archived",
+  LOST: "Close the inquiry",
 };
 
 /**

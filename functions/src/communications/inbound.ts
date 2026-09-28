@@ -21,6 +21,7 @@ import {
   inquiryTokenFromRecipients,
 } from "./forwarded-inquiry.js";
 import { captureInquiry } from "../intake/capture.js";
+import { reopenOnReply } from "../intake/follow-ups.js";
 import {
   dkimPassesFor,
   shortAddressTrust,
@@ -469,6 +470,17 @@ export const sendgridInboundMessage = onRequest(
       subject: parsed.subject || conversation.subject,
       preview: body.slice(0, 240),
       occurredAt: now,
+    });
+
+    // A couple writing to an inquiry the studio closed reopens it
+    // (intake/follow-ups.ts). Not fatal: the message is saved either way.
+    await reopenOnReply(db, {
+      tenantId: conversation.tenantId,
+      projectId: conversation.projectId,
+      leadId: conversation.leadId,
+      now,
+    }).catch((caught: unknown) => {
+      console.warn(`[inbound] reopening a closed inquiry failed: ${String(caught).slice(0, 160)}`);
     });
 
     // A one-tap approval, so a studio holding a phone at a wedding can send a

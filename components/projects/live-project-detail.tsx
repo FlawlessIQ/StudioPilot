@@ -75,6 +75,8 @@ import { friendlyError } from "@/lib/ai/friendly-error";
 import { ArchiveToggle } from "@/components/records/archive-toggle";
 import { ProjectEdit } from "@/components/projects/project-edit";
 import { ProjectAddClient } from "@/components/projects/project-add-client";
+import { ProjectInquiryClose } from "@/components/projects/project-inquiry-close";
+import { preBookingStates } from "@/features/inquiries/stages";
 import {
   refreshTenantRecords,
   useTenantDocuments,
@@ -1092,9 +1094,16 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
 
   return (
     <div className="project-detail-page">
-      <Link className="back-link" href="/studio/projects">
-        <ArrowLeft size={15} /> All projects
-      </Link>
+      {/* An inquiry lives under Inquiries until it books; its way back goes there. */}
+      {preBookingStates.has(String(project.state)) || String(project.state) === "LOST" ? (
+        <Link className="back-link" href="/studio/leads">
+          <ArrowLeft size={15} /> All inquiries
+        </Link>
+      ) : (
+        <Link className="back-link" href="/studio/projects">
+          <ArrowLeft size={15} /> All projects
+        </Link>
+      )}
       <header className="project-detail-header">
         <div>
           <p className="eyebrow">The job</p>
@@ -1105,6 +1114,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
                 archived={Boolean(project.archivedAt)}
                 projectId={String(project.id)}
               />
+              <ProjectInquiryClose projectId={String(project.id)} state={String(project.state)} />
               <ProjectEdit
                 project={{
                   id: String(project.id),

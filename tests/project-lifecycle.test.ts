@@ -12,7 +12,8 @@ test("every live project state sits in one of the five arcs", () => {
   // as "not started". Only the states that have left the lifecycle may.
   // POSTPONED is in the arcs somewhere, but the state no longer says
   // where — drawing nothing beats guessing.
-  const left = new Set(["CANCELLED", "ARCHIVED", "POSTPONED"]);
+  // LOST is an inquiry that ended without booking: it never entered the arcs.
+  const left = new Set(["CANCELLED", "ARCHIVED", "POSTPONED", "LOST"]);
   for (const state of projectStateSchema.options) {
     const phase = projectPhase(state);
     if (left.has(state)) {

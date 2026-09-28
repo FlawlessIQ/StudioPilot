@@ -160,6 +160,10 @@ scheduler_services=(
   # advancing again.
   emaildeliveryreconciler
   finalinvoicescheduler
+  # Drafts follow-ups for inquiries that went quiet, and offers the close.
+  # Missing here, it would 403 after the next invoker reset and quiet couples
+  # would silently stop being followed up.
+  inquiryfollowupscheduler
   # Tells a studio when inbox capture goes quiet (forwarding broke). Missing
   # here, it would 403 after the next invoker reset and say nothing.
   leadcapturehealthscheduler

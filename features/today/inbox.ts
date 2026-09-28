@@ -69,11 +69,24 @@ export type TodayAction =
    * Edit opens it for editing, and the card can also be marked "not an
    * inquiry". `href` is the lead page, for everything else.
    */
+  /**
+   * An inquiry that went quiet two weeks ago: close it as "went quiet", or
+   * keep it open another week (functions/src/intake/follow-ups.ts).
+   */
+  | { kind: "close_inquiry"; label: string; leadId: string; projectId: string | null; href: string }
   | {
       kind: "inquiry";
       label: string;
       href: string;
       leadId: string;
+      projectId?: string | null;
+      /**
+       * The reply is a follow-up to a couple who went quiet: the card offers
+       * "They replied elsewhere" instead of "Not an inquiry".
+       */
+      followUp?: boolean;
+      /** The date is already booked: the card offers "Close — date taken". */
+      dateTaken?: boolean;
       reply: {
         actionId: string;
         recipient: string | null;
@@ -578,6 +591,34 @@ export function todayInbox(input: TodayInput): TodayInbox {
   // The reply drafted for each open inquiry rides on the inquiry's own card,
   // rather than as a second card in "Prepared for you" about the same couple.
   const replyForLead = pendingInquiryReplies(rows(input.aiActions), input.now);
+  // Follow-ups drafted for couples who went quiet, newest per lead.
+  const followUpForLead = new Map<string, TodayRecord>();
+  for (const action of rows(input.aiActions)) {
+    if (text(action.status) !== "review_required" || text(action.capability) !== "inquiry_follow_up") continue;
+    const snoozed = text(action.snoozedUntil);
+    if (snoozed && snoozed > input.now) continue;
+    const leadId = text(asRecord(action.structuredOutput).leadId);
+    if (!leadId) continue;
+    const current = followUpForLead.get(leadId);
+    if (!current || text(action.createdAt) > text(current.createdAt)) followUpForLead.set(leadId, action);
+  }
+  // The same, by job: a couple who wrote twice has two leads and one job, and
+  // the draft may hang off either lead.
+  const byJob = (drafts: Map<string, TodayRecord>) => {
+    const map = new Map<string, TodayRecord>();
+    for (const draft of drafts.values()) {
+      const projectId = text(draft.projectId);
+      if (!projectId) continue;
+      const current = map.get(projectId);
+      if (!current || text(draft.createdAt) > text(current.createdAt)) map.set(projectId, draft);
+    }
+    return map;
+  };
+  const followUpForJob = byJob(followUpForLead);
+  const replyForJob = byJob(replyForLead);
+  // Inquiry drafts whose moment has passed: the couple owes the next word, or
+  // the inquiry moved past its first conversation. Never offered on Today.
+  const staleInquiryDrafts = new Set<string>();
   const mergedReplies = new Set<string>();
   const maybeInquiries: TodayMaybeInquiry[] = [];
   const inquiryJobById = new Map(rows(input.projects).map((project) => [project.id, project]));
@@ -593,10 +634,19 @@ export function todayInbox(input: TodayInput): TodayInbox {
     // once it moves on (a consultation booked), the journey takes over.
     const job = text(lead.projectId) ? inquiryJobById.get(text(lead.projectId)) : undefined;
     if (status === "converted" || job) {
-      if (!job || text(job.state) !== "LEAD" || job.archivedAt) continue;
+      if (!job || text(job.state) !== "LEAD" || job.archivedAt) {
+        const stale = replyForLead.get(lead.id);
+        if (stale) staleInquiryDrafts.add(stale.id);
+        continue;
+      }
       // One card per couple: a couple who wrote twice has two leads and one
       // job, and the job is what the studio answers.
-      if (inquiryCardProjectIds.has(job.id)) continue;
+      if (inquiryCardProjectIds.has(job.id)) {
+        // Its reply draft is a second answer to the same couple.
+        const duplicate = replyForLead.get(lead.id);
+        if (duplicate) staleInquiryDrafts.add(duplicate.id);
+        continue;
+      }
       inquiryCardProjectIds.add(job.id);
     }
     const nextMove = inquiryNextMove({
@@ -605,8 +655,45 @@ export function todayInbox(input: TodayInput): TodayInbox {
       leadId: lead.id,
       receivedAt: arrivedAt(lead),
     });
-    // Answered, and waiting on the couple: nothing for the studio to do yet.
-    if (nextMove.owner === "couple" && lead.needsConfirmation !== true) continue;
+    // Answered, and waiting on the couple: nothing for the studio to do —
+    // unless a follow-up is drafted, or it has been quiet long enough to close.
+    let followUp: TodayRecord | null = null;
+    if (nextMove.owner === "couple" && lead.needsConfirmation !== true) {
+      const staleReply = replyForLead.get(lead.id) ?? (job ? replyForJob.get(job.id) : undefined);
+      if (staleReply) staleInquiryDrafts.add(staleReply.id);
+      followUp = followUpForLead.get(lead.id) ?? (job ? followUpForJob.get(job.id) : undefined) ?? null;
+      const closeOffer = !followUp && Boolean(text(lead.closeSuggestedAt));
+      if (!followUp && !closeOffer) continue;
+      if (closeOffer) {
+        const quietName =
+          text(lead.displayName) || `${text(lead.firstName)} ${text(lead.lastName)}`.trim() || "This inquiry";
+        act.push({
+          id: `lead-${lead.id}`,
+          lane: "act",
+          kind: "message",
+          title: `${quietName} went quiet`,
+          detail: "Two weeks since your last message and two follow-ups. Close it, or keep it open another week.",
+          evidence: "Closing records why; if they write again it reopens by itself",
+          projectId: job?.id ?? null,
+          projectName: job ? text(job.name) || null : null,
+          action: {
+            kind: "close_inquiry",
+            label: "Close — went quiet",
+            leadId: lead.id,
+            projectId: job?.id ?? null,
+            href: job ? `/studio/projects/${job.id}` : `/studio/leads/${lead.id}`,
+          },
+          jobHref: job ? `/studio/projects/${job.id}` : null,
+          facts: [waitingFact(nextMove.waitingSince, now), eventFact(text(lead.eventDate) || null, now)].filter(
+            (fact): fact is string => Boolean(fact),
+          ),
+          band: "later",
+          eventDate: text(lead.eventDate) || null,
+          score: score({ lane: "act", severity: "step", updatedAt: nextMove.waitingSince, now }),
+        });
+        continue;
+      }
+    }
     // A capture the reader wasn't sure was an inquiry is asked about beside
     // the queue, not in it: a newsletter must never outrank a couple.
     if (lead.needsConfirmation === true) {
@@ -634,7 +721,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
     // type; the venue is the one thing only this line says.
     const facts = [text(lead.venue) || text(lead.city)].filter(Boolean);
     const leadEvent = text(lead.eventDate) || null;
-    const reply = replyForLead.get(lead.id) ?? null;
+    const reply = followUp ?? replyForLead.get(lead.id) ?? (job ? replyForJob.get(job.id) : undefined) ?? null;
     if (reply) mergedReplies.add(reply.id);
     const inquiryHref = job ? `/studio/projects/${job.id}` : `/studio/leads/${lead.id}`;
     act.push({
@@ -644,22 +731,28 @@ export function todayInbox(input: TodayInput): TodayInbox {
       kind: "message",
       // A nameless inquiry is titled once, not "New inquiry — New inquiry".
       // Once the studio has written, a card here means the couple answered.
-      title: nextMove.replied
-        ? `${name || "Your inquiry"} wrote back`
-        : name
-          ? `New inquiry — ${name}`
-          : "New inquiry",
-      detail:
-        facts.join(" · ") ||
-        (nextMove.replied ? "Waiting on your reply" : "Waiting on your first reply"),
+      title: followUp
+        ? `Follow up with ${name || "this inquiry"}`
+        : nextMove.replied
+          ? `${name || "Your inquiry"} wrote back`
+          : name
+            ? `New inquiry — ${name}`
+            : "New inquiry",
+      detail: followUp
+        ? "They haven't replied yet. A short follow-up is ready — or tell StudioCue they answered elsewhere."
+        : facts.join(" · ") ||
+          (nextMove.replied ? "Waiting on your reply" : "Waiting on your first reply"),
       evidence: leadEvidence(lead),
       projectId: job?.id ?? null,
       projectName: job ? text(job.name) || null : null,
       action: {
         kind: "inquiry",
-        label: reply ? "Send reply" : "Review & reply",
+        label: followUp ? "Send follow-up" : reply ? "Send reply" : "Review & reply",
         href: inquiryHref,
         leadId: lead.id,
+        projectId: job?.id ?? null,
+        followUp: Boolean(followUp),
+        dateTaken: Boolean(text(lead.eventDate)) && lead.availabilityStatus === "conflict",
         reply: reply
           ? {
               actionId: reply.id,
@@ -1146,6 +1239,10 @@ export function todayInbox(input: TodayInput): TodayInbox {
     if (text(action.status) !== "review_required") continue;
     // Already on its inquiry's card, above.
     if (mergedReplies.has(action.id)) continue;
+    // A follow-up only belongs on its couple's card, while they're still
+    // quiet; anywhere else it is a nudge to someone who may have answered.
+    if (text(action.capability) === "inquiry_follow_up") continue;
+    if (staleInquiryDrafts.has(action.id)) continue;
     // A reply to an inquiry the studio closed — archived, lost, or marked
     // "not an inquiry" — must not wait to be approved and sent.
     if (inquiryDraftLeadClosed(action.sourceReferences, leadById)) continue;

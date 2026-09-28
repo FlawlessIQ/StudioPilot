@@ -25,6 +25,9 @@ export const aiCapabilitySchema = z.enum([
   // this as a communication capability that dispatches on approval; it was
   // missing from this enum, so an action carrying it failed client validation.
   "planning_followup_draft",
+  // A follow-up to an inquiry that went quiet (functions/src/intake/follow-ups.ts):
+  // a template, not model-written, and still sent only on approval.
+  "inquiry_follow_up",
 ]);
 
 export const aiAuthorityBoundarySchema = z.enum([

@@ -215,6 +215,7 @@ const kindAliases: Record<string, LibraryKind> = {
   // AI capabilities — what the draft on the approval card is a draft *of*.
   message_draft: "message",
   inquiry_reply_draft: "message",
+  inquiry_follow_up: "message",
   delivery_message_draft: "delivery",
   review_request_draft: "review",
   consultation_summary: "calendar",

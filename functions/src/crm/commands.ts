@@ -9,6 +9,48 @@ import { reconcileProjectReadiness } from "../workflow/readiness-triggers.js";
 import { teamRoleForEmail } from "./team-email.js";
 import { afterConversion, convertInquiryToJob } from "../intake/convert.js";
 
+/** An inquiry's states before booking — the ones it can be closed from. */
+const PRE_BOOKING = ["LEAD", "CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING"];
+
+/**
+ * An inquiry by its job or its lead: the job (if it is one) and every lead
+ * behind it — a couple who wrote twice has two.
+ */
+async function readInquiryInTransaction(
+  transaction: FirebaseFirestore.Transaction,
+  input: { tenantId: string; projectId: string | null; leadId: string | null },
+): Promise<{
+  project: FirebaseFirestore.DocumentSnapshot | null;
+  leads: FirebaseFirestore.DocumentSnapshot[];
+}> {
+  const db = getFirestore();
+  let projectId = input.projectId;
+  if (!projectId && input.leadId) {
+    const lead = await transaction.get(db.doc(`leads/${input.leadId}`));
+    if (!lead.exists || lead.get("tenantId") !== input.tenantId) throw new Error("LEAD_NOT_FOUND");
+    projectId = typeof lead.get("projectId") === "string" && lead.get("projectId") ? String(lead.get("projectId")) : null;
+    if (!projectId) return { project: null, leads: [lead] };
+  }
+  if (!projectId) throw new Error("INQUIRY_NOT_FOUND");
+  const project = await transaction.get(db.doc(`projects/${projectId}`));
+  if (!project.exists || project.get("tenantId") !== input.tenantId) throw new Error("PROJECT_NOT_FOUND");
+  const leads = await transaction.get(
+    db.collection("leads").where("tenantId", "==", input.tenantId).where("projectId", "==", projectId),
+  );
+  return { project, leads: leads.docs };
+}
+
+const inquiryLifecycleCommands: ReadonlySet<string> = new Set([
+  "closeInquiry",
+  "reopenInquiry",
+  "inquiryHeardElsewhere",
+  "keepInquiryOpen",
+]);
+type InquiryLifecycleCommand = Extract<
+  z.infer<typeof commandSchema>,
+  { type: "closeInquiry" | "reopenInquiry" | "inquiryHeardElsewhere" | "keepInquiryOpen" }
+>;
+
 /** Commands after which an inquiry may have become ready to be a job. */
 const commandsThatCanConvert: ReadonlySet<string> = new Set(["updateLead"]);
 import { invalidCommandResponse } from "../security/invalid-command.js";
@@ -86,16 +128,17 @@ const projectStates = [
   "CANCELLED",
   "POSTPONED",
   "ARCHIVED",
+  "LOST",
 ] as const;
 
 const transitions: Readonly<
   Record<(typeof projectStates)[number], readonly string[]>
 > = {
-  LEAD: ["CONSULTATION", "CANCELLED", "ARCHIVED"],
-  CONSULTATION: ["PROPOSAL", "CANCELLED", "POSTPONED"],
-  PROPOSAL: ["CONTRACT_PENDING", "CANCELLED", "POSTPONED"],
-  CONTRACT_PENDING: ["RETAINER_PENDING", "CANCELLED", "POSTPONED"],
-  RETAINER_PENDING: ["BOOKED", "CANCELLED", "POSTPONED"],
+  LEAD: ["CONSULTATION", "CANCELLED", "ARCHIVED", "LOST"],
+  CONSULTATION: ["PROPOSAL", "CANCELLED", "POSTPONED", "LOST"],
+  PROPOSAL: ["CONTRACT_PENDING", "CANCELLED", "POSTPONED", "LOST"],
+  CONTRACT_PENDING: ["RETAINER_PENDING", "CANCELLED", "POSTPONED", "LOST"],
+  RETAINER_PENDING: ["BOOKED", "CANCELLED", "POSTPONED", "LOST"],
   /**
    * `EVENT_COMPLETE` from BOOKED and PLANNING, not only from READY.
    *
@@ -122,6 +165,8 @@ const transitions: Readonly<
   CANCELLED: ["ARCHIVED"],
   POSTPONED: ["CONSULTATION", "BOOKED", "PLANNING", "CANCELLED"],
   ARCHIVED: [],
+  // Reopened to where it closed from, or put away.
+  LOST: ["LEAD", "CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING", "ARCHIVED"],
 };
 
 const evidenceControlledTransitions = new Set([
@@ -384,6 +429,57 @@ const commandSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: z.object({ leadId: z.string().min(1) }),
+  }),
+  z.object({
+    /**
+     * End an inquiry that didn't book, and say why.
+     *
+     * The only way to take a real inquiry off the list used to be "Not an
+     * inquiry", which also taught capture to ignore that couple's address. A
+     * close records a reason and teaches nothing; the job goes to LOST and
+     * reopens by itself if the couple writes again.
+     */
+    type: z.literal("closeInquiry"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1).nullable().default(null),
+      leadId: z.string().min(1).nullable().default(null),
+      reason: z.enum(["went_quiet", "booked_elsewhere", "budget", "date_taken", "not_a_fit", "other"]),
+    }),
+  }),
+  z.object({
+    type: z.literal("reopenInquiry"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1).nullable().default(null),
+      leadId: z.string().min(1).nullable().default(null),
+    }),
+  }),
+  z.object({
+    /**
+     * "They replied, just not here": the couple answered in the studio's own
+     * inbox. Follow-ups restart their clock from now and any drafted nudge is
+     * withdrawn, so nobody is chased who already answered.
+     */
+    type: z.literal("inquiryHeardElsewhere"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1).nullable().default(null),
+      leadId: z.string().min(1).nullable().default(null),
+    }),
+  }),
+  z.object({
+    /** Not ready to close a quiet inquiry: ask again in a week. */
+    type: z.literal("keepInquiryOpen"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1).nullable().default(null),
+      leadId: z.string().min(1).nullable().default(null),
+    }),
   }),
   z.object({
     /**
@@ -2091,6 +2187,156 @@ export const crmCommand = onRequest(
             leadId: command.input.leadId,
             ignoredSender: learn ? (sender as string) : null,
           };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        // One branch for the four inquiry-lifecycle commands, which share
+        // their reads and their receipt.
+        if (inquiryLifecycleCommands.has(command.type)) {
+          const lifecycle = command as InquiryLifecycleCommand;
+          const kind = lifecycle.type;
+          const inquiry = await readInquiryInTransaction(transaction, {
+            tenantId: lifecycle.tenantId,
+            projectId: lifecycle.input.projectId,
+            leadId: lifecycle.input.leadId,
+          });
+          const leadIds = inquiry.leads.map((lead) => lead.id);
+          // Drafts that answer or chase this couple. Equality filters only.
+          const pendingDrafts = leadIds.length
+            ? (
+                await transaction.get(
+                  db
+                    .collection("aiActions")
+                    .where("tenantId", "==", command.tenantId)
+                    .where("status", "==", "review_required"),
+                )
+              ).docs.filter((draft) => {
+                const output = (draft.get("structuredOutput") ?? {}) as Record<string, unknown>;
+                const references = Array.isArray(draft.get("sourceReferences"))
+                  ? (draft.get("sourceReferences") as Array<Record<string, unknown>>)
+                  : [];
+                const forThisCouple =
+                  leadIds.includes(String(output.leadId ?? "")) ||
+                  references.some(
+                    (reference) => reference?.entityType === "lead" && leadIds.includes(String(reference.entityId)),
+                  );
+                const capability = String(draft.get("capability") ?? "");
+                return (
+                  forThisCouple &&
+                  (capability === "inquiry_follow_up" ||
+                    (kind === "closeInquiry" && capability === "inquiry_reply_draft"))
+                );
+              })
+            : [];
+          const retire = (note: string) => {
+            for (const draft of pendingDrafts) {
+              transaction.update(draft.ref, {
+                status: "dismissed",
+                decision: { actorId: identity.uid, action: "dismissed", decidedAt: timestamp, note, editDelta: null },
+                updatedAt: timestamp,
+              });
+            }
+          };
+          let output: Record<string, unknown> = { projectId: inquiry.project?.id ?? null, leadIds };
+
+          if (lifecycle.type === "closeInquiry") {
+            if (inquiry.project) {
+              const state = String(inquiry.project.get("state"));
+              if (!PRE_BOOKING.includes(state)) throw new Error("INQUIRY_NOT_CLOSABLE");
+              transaction.update(inquiry.project.ref, {
+                state: "LOST",
+                lostFromState: state,
+                lostReason: lifecycle.input.reason,
+                lostAt: timestamp,
+                stateVersion: Number(inquiry.project.get("stateVersion") ?? 0) + 1,
+                nextAction: null,
+                updatedAt: timestamp,
+                updatedBy: identity.uid,
+              });
+            }
+            for (const lead of inquiry.leads) {
+              transaction.update(lead.ref, {
+                status: "lost",
+                lostReason: lifecycle.input.reason,
+                lostAt: timestamp,
+                closeSuggestedAt: null,
+                updatedAt: timestamp,
+                updatedBy: identity.uid,
+              });
+            }
+            retire("The inquiry was closed.");
+            output = { ...output, state: "LOST", reason: lifecycle.input.reason };
+          } else if (kind === "reopenInquiry") {
+            if (inquiry.project) {
+              if (inquiry.project.get("state") !== "LOST") throw new Error("INQUIRY_NOT_CLOSED");
+              const back = String(inquiry.project.get("lostFromState") || "LEAD");
+              transaction.update(inquiry.project.ref, {
+                state: PRE_BOOKING.includes(back) ? back : "LEAD",
+                lostReason: null,
+                lostAt: null,
+                stateVersion: Number(inquiry.project.get("stateVersion") ?? 0) + 1,
+                updatedAt: timestamp,
+                updatedBy: identity.uid,
+              });
+            }
+            for (const lead of inquiry.leads) {
+              transaction.update(lead.ref, {
+                status: inquiry.project ? "converted" : "new",
+                lostReason: null,
+                lostAt: null,
+                closeSuggestedAt: null,
+                closeDeferredUntil: null,
+                updatedAt: timestamp,
+                updatedBy: identity.uid,
+              });
+            }
+            output = { ...output, reopened: true };
+          } else if (kind === "inquiryHeardElsewhere") {
+            for (const lead of inquiry.leads) {
+              transaction.update(lead.ref, {
+                heardElsewhereAt: timestamp,
+                closeSuggestedAt: null,
+                updatedAt: timestamp,
+                updatedBy: identity.uid,
+              });
+            }
+            retire("The couple replied outside StudioCue.");
+          } else {
+            const inAWeek = new Date(Date.parse(timestamp) + 7 * 86_400_000).toISOString();
+            for (const lead of inquiry.leads) {
+              transaction.update(lead.ref, {
+                closeSuggestedAt: null,
+                closeDeferredUntil: inAWeek,
+                updatedAt: timestamp,
+                updatedBy: identity.uid,
+              });
+            }
+          }
+          const inquiryAuditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${inquiryAuditId}`), {
+            id: inquiryAuditId,
+            tenantId: command.tenantId,
+            projectId: inquiry.project?.id ?? null,
+            actorId: identity.uid,
+            actorType: "user",
+            action: `inquiry.${kind}`,
+            entityType: inquiry.project ? "project" : "lead",
+            entityId: inquiry.project?.id ?? leadIds[0] ?? null,
+            timestamp,
+            before: { state: inquiry.project?.get("state") ?? null },
+            after: output,
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
           transaction.create(commandReference, {
             tenantId: command.tenantId,
             idempotencyKey: command.idempotencyKey,

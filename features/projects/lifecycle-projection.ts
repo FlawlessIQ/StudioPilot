@@ -57,6 +57,7 @@ const stateStage: Record<ProjectState, ProjectLifecycleProjection["currentStage"
   CANCELLED: "Inquiry",
   POSTPONED: "Planning",
   ARCHIVED: "Delivery",
+  LOST: "Inquiry",
 };
 
 const text = (value: unknown): string =>

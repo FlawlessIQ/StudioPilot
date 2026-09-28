@@ -383,6 +383,10 @@ export function TodayInbox() {
                   }}
                   variant="hero"
                 />
+              ) : !loading && lead?.action.kind === "close_inquiry" ? (
+                <span className="today-inquiry-buttons">
+                  <CloseInquiryActions action={lead.action} onCleared={() => clear(lead.id)} />
+                </span>
               ) : !loading && lead ? (
                 <Link className="today-hero-go" href={leadHref}>
                   {leadLabel} <ArrowRight size={15} />
@@ -932,6 +936,8 @@ function TodayCard({
               Review
             </button>
           </>
+        ) : item.action.kind === "close_inquiry" ? (
+          <CloseInquiryActions action={item.action} onCleared={onCleared} />
         ) : item.action.kind === "automation" ? (
           <button
             className="today-card-primary"
@@ -1013,6 +1019,26 @@ function InquiryActions({
     }
   }
 
+  /** Close, or "they replied elsewhere" — either way the card is done. */
+  async function lifecycle(
+    type: "closeInquiry" | "inquiryHeardElsewhere",
+    extra: Record<string, unknown>,
+  ) {
+    setBusy("remove");
+    setNotice(null);
+    try {
+      await runCrmCommand(type, {
+        projectId: action.projectId ?? null,
+        leadId: action.projectId ? null : action.leadId,
+        ...extra,
+      });
+      onCleared?.();
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "That didn't go through. Try again."));
+      setBusy(null);
+    }
+  }
+
   async function notAnInquiry() {
     setBusy("remove");
     setNotice(null);
@@ -1035,7 +1061,8 @@ function InquiryActions({
       {reply?.preview ? (
         <blockquote className="today-card-preview today-inquiry-reply">
           <small>
-            Reply ready{reply.recipient ? ` to ${reply.recipient}` : ""}
+            {action.followUp ? "Follow-up ready" : "Reply ready"}
+            {reply.recipient ? ` to ${reply.recipient}` : ""}
           </small>
           {reply.preview.subject ? <strong>{reply.preview.subject}</strong> : null}
           <p>{reply.preview.body}</p>
@@ -1078,7 +1105,7 @@ function InquiryActions({
               type="button"
             >
               {busy === "send" ? <LoaderCircle className="spin" size={14} /> : <Send size={14} />}
-              {busy === "send" ? "Sending…" : "Send reply"}
+              {busy === "send" ? "Sending…" : action.followUp ? "Send follow-up" : "Send reply"}
             </button>
           ) : (
             <Link className={primaryClass} href={action.href}>
@@ -1095,14 +1122,37 @@ function InquiryActions({
               <Pencil size={13} /> Edit
             </button>
           ) : null}
-          <button
-            className={secondaryClass}
-            disabled={busy !== null}
-            onClick={() => setConfirming(true)}
-            type="button"
-          >
-            Not an inquiry
-          </button>
+          {action.followUp ? (
+            // They may well have answered in the studio's own inbox, which
+            // StudioCue can't see: say so, and nobody is chased who replied.
+            <button
+              className={secondaryClass}
+              disabled={busy !== null}
+              onClick={() => void lifecycle("inquiryHeardElsewhere", {})}
+              type="button"
+            >
+              They replied elsewhere
+            </button>
+          ) : (
+            <button
+              className={secondaryClass}
+              disabled={busy !== null}
+              onClick={() => setConfirming(true)}
+              type="button"
+            >
+              Not an inquiry
+            </button>
+          )}
+          {action.dateTaken ? (
+            <button
+              className={secondaryClass}
+              disabled={busy !== null}
+              onClick={() => void lifecycle("closeInquiry", { reason: "date_taken" })}
+              type="button"
+            >
+              Close — date taken
+            </button>
+          ) : null}
           {reply ? (
             <Link className={secondaryClass} href={action.href}>
               Details
@@ -1116,5 +1166,51 @@ function InquiryActions({
         </span>
       ) : null}
     </div>
+  );
+}
+
+type CloseInquiryAction = Extract<TodayItem["action"], { kind: "close_inquiry" }>;
+
+/**
+ * Two weeks quiet: close it as "went quiet", or give it another week. A
+ * closed inquiry reopens by itself if the couple writes again, so closing is
+ * the tidy default rather than a door shut.
+ */
+function CloseInquiryActions({ action, onCleared }: { action: CloseInquiryAction; onCleared?: () => void }) {
+  const [busy, setBusy] = useState<"close" | "keep" | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  async function decide(type: "closeInquiry" | "keepInquiryOpen") {
+    setBusy(type === "closeInquiry" ? "close" : "keep");
+    setNotice(null);
+    try {
+      await runCrmCommand(type, {
+        projectId: action.projectId,
+        leadId: action.projectId ? null : action.leadId,
+        ...(type === "closeInquiry" ? { reason: "went_quiet" } : {}),
+      });
+      onCleared?.();
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "That didn't go through. Try again."));
+      setBusy(null);
+    }
+  }
+  return (
+    <>
+      <button className="today-card-primary" disabled={busy !== null} onClick={() => void decide("closeInquiry")} type="button">
+        {busy === "close" ? <LoaderCircle className="spin" size={14} /> : <Check size={14} />}
+        {busy === "close" ? "Closing…" : action.label}
+      </button>
+      <button className="today-card-secondary" disabled={busy !== null} onClick={() => void decide("keepInquiryOpen")} type="button">
+        Keep it open
+      </button>
+      <Link className="today-card-secondary" href={action.href}>
+        Open
+      </Link>
+      {notice ? (
+        <span className="today-card-notice" role="status">
+          {notice}
+        </span>
+      ) : null}
+    </>
   );
 }

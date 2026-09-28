@@ -197,7 +197,7 @@ export const aiActionCommand = onRequest(
         const downstream = record(action.get("downstreamCommand"));
         const communicationApproval =
           decision === "approved" &&
-          ["inquiry_reply_draft", "planning_followup_draft"].includes(
+          ["inquiry_reply_draft", "planning_followup_draft", "inquiry_follow_up"].includes(
             text(action.get("capability")),
           );
         const communicationDraftId = communicationApproval

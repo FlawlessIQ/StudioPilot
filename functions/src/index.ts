@@ -191,3 +191,4 @@ export { questionnaireReminderScheduler } from "./planning/questionnaire-reminde
 export { projectPurgeCommand } from "./projects/purge-command.js";
 export { contractReminderScheduler } from "./contracts/reminders.js";
 export { leadCaptureHealthScheduler } from "./intake/health-scheduler.js";
+export { inquiryFollowUpScheduler } from "./intake/follow-up-scheduler.js";

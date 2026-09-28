@@ -34,6 +34,9 @@ const RANK: Record<string, number> = {
   // Cancelled deliberately keeps its rank rather than dropping to zero: the
   // records are still on file and screens should read them as they were.
   CANCELLED: 5,
+  // A closed inquiry never booked, whatever stage it closed from; ranked just
+  // past a lead so it is not mistaken for one.
+  LOST: 1,
 };
 
 export function stageRank(state: string): number {

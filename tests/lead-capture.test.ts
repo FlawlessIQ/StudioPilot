@@ -9,6 +9,7 @@ import { fillsFor } from "../functions/src/intake/enrich";
 import { moveLeadThreadsToProject } from "../functions/src/intake/lead-thread";
 import { convertInquiryToJob, projectIdForLead } from "../functions/src/intake/convert";
 import { detailsOf, resolveInquiryLink, saveCoupleDetails, withInquiryLink } from "../functions/src/intake/inquiry-link";
+import { advanceFollowUp, followUpStep, reopenOnReply } from "../functions/src/intake/follow-ups";
 import { providerFromMx } from "../functions/src/intake/mailbox-provider";
 import { captureSilent, silenceThreshold } from "../functions/src/intake/health-scheduler";
 import { conversationIdFor } from "../functions/src/communications/conversation";
@@ -753,4 +754,84 @@ test("a link for an inquiry marked not-an-inquiry stops working", async () => {
   const token = String(store.get("inquiryLinks/l1")!.token);
   await assert.rejects(resolveInquiryLink(db, token), /INQUIRY_LINK_NOT_FOUND/);
   await assert.rejects(resolveInquiryLink(db, "x".repeat(43)), /INQUIRY_LINK_NOT_FOUND/);
+});
+
+const day = (n: number) => new Date(Date.parse("2026-10-01T12:00:00.000Z") + n * 86_400_000).toISOString();
+
+test("follow-ups count from the studio's last word before the quiet, not from each nudge", () => {
+  const base = { lastInboundAt: day(-1), lastOutboundAt: day(0), heardElsewhereAt: null, closeDeferredUntil: null };
+  assert.equal(followUpStep({ ...base, round: null, now: day(2) }).kind, "none");
+  const first = followUpStep({ ...base, round: null, now: day(3) });
+  assert.equal(first.kind, "first");
+  // The day-3 nudge was sent: the thread's last outbound moves, the round doesn't.
+  const round = { ...first.round!, firstDraftedAt: day(3) };
+  assert.equal(followUpStep({ ...base, lastOutboundAt: day(3), round, now: day(6) }).kind, "none");
+  const second = followUpStep({ ...base, lastOutboundAt: day(3), round, now: day(7) });
+  assert.equal(second.kind, "second");
+  const quiet = { ...round, secondDraftedAt: day(7) };
+  assert.equal(followUpStep({ ...base, lastOutboundAt: day(7), round: quiet, now: day(14) }).kind, "close");
+  // Kept open for a week: not offered again until it passes.
+  assert.equal(
+    followUpStep({ ...base, lastOutboundAt: day(7), round: quiet, closeDeferredUntil: day(21), now: day(15) }).kind,
+    "none",
+  );
+});
+
+test("the couple writing back, or replying elsewhere, ends the round", () => {
+  const round = { startedAt: day(0), firstDraftedAt: day(3), secondDraftedAt: null, closeSuggestedAt: null };
+  const wroteBack = followUpStep({
+    lastInboundAt: day(4), lastOutboundAt: day(3), heardElsewhereAt: null, closeDeferredUntil: null, round, now: day(8),
+  });
+  assert.deepEqual(wroteBack, { kind: "none", round: null });
+  const elsewhere = followUpStep({
+    lastInboundAt: day(-1), lastOutboundAt: day(3), heardElsewhereAt: day(5), closeDeferredUntil: null, round, now: day(8),
+  });
+  assert.equal(elsewhere.kind, "first", "a new round starts from when they were heard from");
+  assert.equal(elsewhere.round!.startedAt, day(5));
+});
+
+test("a quiet inquiry gets a templated follow-up on its couple's card, with their link", async () => {
+  const { db, store } = fakeFirestore({
+    ...seed(),
+    "tenants/t1": { id: "t1", name: "Hart Light", brandName: "Hart Light" },
+    "consultationSettings/t1": { tenantId: "t1" },
+    "projects/p1": { id: "p1", tenantId: "t1", state: "LEAD", archivedAt: null },
+    "leads/l1": {
+      id: "l1", tenantId: "t1", projectId: "p1", status: "converted", email: "emma@example.test",
+      firstName: "Emma", displayName: "Emma Hart", eventDate: "2027-06-12", primaryContactId: "c1",
+    },
+    "conversations/conv1": {
+      id: "conv1", tenantId: "t1", projectId: "p1", leadId: "l1", lastInboundAt: day(-1), lastOutboundAt: day(0),
+      lastMessageAt: day(0), lastMessageDirection: "outbound",
+    },
+  });
+  const step = await advanceFollowUp(db, await db.doc("leads/l1").get() as never, day(3));
+  assert.equal(step, "first");
+  const draft = rows(store, "aiActions")[0]!;
+  assert.equal(draft.capability, "inquiry_follow_up");
+  assert.equal(draft.status, "review_required");
+  const output = draft.structuredOutput as Record<string, unknown>;
+  assert.equal(output.recipientEmail, "emma@example.test");
+  assert.match(String(output.body), /^Hi Emma,\n\nJust checking my note reached you/);
+  assert.match(String(output.body), /\/i\/[\w-]{43}\n\nWarmly,\nHart Light$/);
+  // Run again the same day: nothing new.
+  await advanceFollowUp(db, await db.doc("leads/l1").get() as never, day(3));
+  assert.equal(rows(store, "aiActions").length, 1);
+  // The couple books a call: the pending nudge is withdrawn.
+  store.get("projects/p1")!.state = "CONSULTATION";
+  await advanceFollowUp(db, await db.doc("leads/l1").get() as never, day(4));
+  assert.equal(rows(store, "aiActions")[0]!.status, "dismissed");
+});
+
+test("a closed inquiry reopens to where it was when the couple writes again", async () => {
+  const { db, store } = fakeFirestore({
+    ...seed(),
+    "projects/p1": { id: "p1", tenantId: "t1", state: "LOST", lostFromState: "CONSULTATION", lostReason: "went_quiet", stateVersion: 3 },
+    "leads/l1": { id: "l1", tenantId: "t1", projectId: "p1", status: "lost" },
+  });
+  assert.equal(await reopenOnReply(db, { tenantId: "t1", projectId: "p1", leadId: "l1", now }), true);
+  assert.equal(store.get("projects/p1")!.state, "CONSULTATION");
+  assert.equal(store.get("projects/p1")!.lostReason, null);
+  assert.equal(store.get("leads/l1")!.status, "converted");
+  assert.equal(await reopenOnReply(db, { tenantId: "t1", projectId: "p1", leadId: "l1", now }), false);
 });

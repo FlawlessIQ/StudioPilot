@@ -7,6 +7,10 @@
  */
 
 const FRIENDLY_BY_CODE: Record<string, string> = {
+  // Closing and reopening an inquiry (crmCommand closeInquiry / reopenInquiry).
+  INQUIRY_NOT_FOUND: "That inquiry couldn't be found. Refresh and try again.",
+  INQUIRY_NOT_CLOSABLE: "This couple has booked, so it's a job now rather than an inquiry to close.",
+  INQUIRY_NOT_CLOSED: "This inquiry is already open.",
   // The couple's inquiry link (functions/src/intake/inquiry-link.ts).
   EVENT_DATE_REQUIRED: "Add your wedding date first, so the studio can check it's free.",
   FORMAT_NOT_OFFERED: "Please choose one of the ways the studio meets.",

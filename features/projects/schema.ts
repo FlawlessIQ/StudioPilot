@@ -19,6 +19,13 @@ export const projectStateSchema = z.enum([
   "CANCELLED",
   "POSTPONED",
   "ARCHIVED",
+  /**
+   * An inquiry that ended without booking: went quiet, booked elsewhere,
+   * budget, date taken. Not CANCELLED, which is a booked wedding called off.
+   * Reopens to the stage it closed from (`lostFromState`) — on its own when
+   * the couple writes again.
+   */
+  "LOST",
 ]);
 
 export type ProjectState = z.infer<typeof projectStateSchema>;

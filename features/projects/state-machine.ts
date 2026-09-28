@@ -3,11 +3,11 @@ import type { ProjectState } from "./schema";
 export const allowedProjectTransitions: Readonly<
   Record<ProjectState, readonly ProjectState[]>
 > = {
-  LEAD: ["CONSULTATION", "CANCELLED", "ARCHIVED"],
-  CONSULTATION: ["PROPOSAL", "CANCELLED", "POSTPONED"],
-  PROPOSAL: ["CONTRACT_PENDING", "CANCELLED", "POSTPONED"],
-  CONTRACT_PENDING: ["RETAINER_PENDING", "CANCELLED", "POSTPONED"],
-  RETAINER_PENDING: ["BOOKED", "CANCELLED", "POSTPONED"],
+  LEAD: ["CONSULTATION", "CANCELLED", "ARCHIVED", "LOST"],
+  CONSULTATION: ["PROPOSAL", "CANCELLED", "POSTPONED", "LOST"],
+  PROPOSAL: ["CONTRACT_PENDING", "CANCELLED", "POSTPONED", "LOST"],
+  CONTRACT_PENDING: ["RETAINER_PENDING", "CANCELLED", "POSTPONED", "LOST"],
+  RETAINER_PENDING: ["BOOKED", "CANCELLED", "POSTPONED", "LOST"],
   /**
    * `EVENT_COMPLETE` from BOOKED and PLANNING, not only from READY.
    *
@@ -34,6 +34,8 @@ export const allowedProjectTransitions: Readonly<
   CANCELLED: ["ARCHIVED"],
   POSTPONED: ["CONSULTATION", "BOOKED", "PLANNING", "CANCELLED"],
   ARCHIVED: [],
+  // Reopened to where it closed from, or put away.
+  LOST: ["LEAD", "CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING", "ARCHIVED"],
 };
 
 export function canTransition(from: ProjectState, to: ProjectState): boolean {
