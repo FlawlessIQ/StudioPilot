@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  envelopeSender,
   eventDateFrom,
+  headerValue,
+  inboundRecipients,
   inquiryAddressFor,
   inquirySignatureMatches,
   inquiryTokenFromRecipients,
@@ -79,4 +82,62 @@ test("the forwarding address is signed per studio", () => {
   assert.equal(token?.slug, "alder-and-muse");
   assert.equal(inquirySignatureMatches("tenant_abc", token!.signature), true);
   assert.equal(inquirySignatureMatches("tenant_other", token!.signature), false);
+});
+
+test("a Gmail filter auto-forward is found by its envelope, not its To header", () => {
+  // Gmail keeps the original headers when a filter forwards: To: is still the
+  // studio's own mailbox, and only the envelope names the inquiry address.
+  const fields = {
+    envelope: JSON.stringify({
+      to: ["inquiries+gr-productions.Ab3dEf9GhIj@inbound.studio-cue.com"],
+      from: "gabe+caf_=inquiries+gr-productions.Ab3dEf9GhIj=inbound.studio-cue.com@gmail.com",
+    }),
+    to: "gabe@grproductions.com",
+  };
+  const headers = { To: "gabe@grproductions.com", From: "Wix Forms <no-reply@crm.wix.com>" };
+  const recipients = inboundRecipients(fields, headers);
+  assert.deepEqual(inquiryTokenFromRecipients(recipients), {
+    slug: "gr-productions",
+    signature: "Ab3dEf9GhIj",
+  });
+  assert.equal(
+    envelopeSender(fields),
+    "gabe+caf_=inquiries+gr-productions.ab3def9ghij=inbound.studio-cue.com@gmail.com",
+  );
+});
+
+test("a hand forward, with the address in To, still resolves", () => {
+  const recipients = inboundRecipients(
+    { to: "inquiries+gr-productions.Ab3dEf9GhIj@inbound.studio-cue.com" },
+    {},
+  );
+  assert.equal(inquiryTokenFromRecipients(recipients)?.slug, "gr-productions");
+});
+
+test("a missing or malformed envelope falls back to the headers", () => {
+  const recipients = inboundRecipients(
+    { envelope: "not json" },
+    { to: "inquiries+gr-productions.Ab3dEf9GhIj@inbound.studio-cue.com" },
+  );
+  assert.equal(inquiryTokenFromRecipients(recipients)?.slug, "gr-productions");
+  assert.equal(envelopeSender({ envelope: "not json" }), null);
+});
+
+test("headers are found whatever case the sender wrote them in", () => {
+  assert.equal(headerValue({ "Message-Id": "<a@b>" }, "Message-ID"), "<a@b>");
+  assert.equal(headerValue({}, "Message-ID"), undefined);
+});
+
+test("the public form rate limit keys on the couple, not the relay", async () => {
+  const { requestFingerprint } = await import("../functions/src/crm/security.ts");
+  const behindRelay = (client: string) =>
+    ({
+      header: (name: string) =>
+        ({ "x-studiohub-client-ip": client, "x-forwarded-for": "10.0.0.1" })[name.toLowerCase()],
+      ip: "10.0.0.1",
+    }) as unknown as Parameters<typeof requestFingerprint>[0];
+  const first = requestFingerprint(behindRelay("203.0.113.7"), "lead:t1");
+  const second = requestFingerprint(behindRelay("198.51.100.4"), "lead:t1");
+  assert.notEqual(first, second);
+  assert.equal(first, requestFingerprint(behindRelay("203.0.113.7"), "lead:t1"));
 });

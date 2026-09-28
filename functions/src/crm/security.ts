@@ -27,8 +27,18 @@ export async function requireIdentity(request: Request): Promise<DecodedIdToken>
   return getAuth().verifyIdToken(authorization.slice("Bearer ".length), true);
 }
 
+/**
+ * A rate-limit key for whoever is on the other end.
+ *
+ * Behind the App Hosting relay, `x-forwarded-for` and `request.ip` are the
+ * relay's own address, so keying on them put every visitor to a studio's
+ * inquiry form in one bucket — the sixth couple in an hour got a 429. The
+ * relay passes the browser's address as `x-studiohub-client-ip`; functions are
+ * private, so only the relay can have set it.
+ */
 export function requestFingerprint(request: Request, scope: string): string {
+  const client = request.header("x-studiohub-client-ip")?.trim();
   const forwarded = request.header("x-forwarded-for")?.split(",")[0]?.trim();
-  const address = forwarded || request.ip || "unknown";
+  const address = client || forwarded || request.ip || "unknown";
   return createHash("sha256").update(`${scope}|${address}`).digest("hex");
 }

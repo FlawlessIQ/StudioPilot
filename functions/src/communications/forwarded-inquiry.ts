@@ -43,6 +43,64 @@ export function inquiryAddressFor(tenantId: string, slug: string): string | null
   return `inquiries+${slug}.${sign(tenantId, secret)}@${inbound}`;
 }
 
+/** A header by name, whatever case the sending server wrote it in. */
+export function headerValue(headers: Record<string, string>, name: string): string | undefined {
+  const wanted = name.toLowerCase();
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() === wanted) return value;
+  }
+  return undefined;
+}
+
+function envelopeOf(fields: { envelope?: string }): { to: string[]; from: string | null } {
+  try {
+    const parsed = JSON.parse(fields.envelope ?? "") as { to?: unknown; from?: unknown };
+    return {
+      to: Array.isArray(parsed.to) ? parsed.to.map(String) : [],
+      from: typeof parsed.from === "string" && parsed.from.includes("@") ? parsed.from.trim().toLowerCase() : null,
+    };
+  } catch {
+    return { to: [], from: null };
+  }
+}
+
+/**
+ * Every address this message was delivered to, envelope first.
+ *
+ * The envelope is where the message was actually sent; the `To:` header is
+ * only what the original author wrote. They differ exactly when it matters: a
+ * Gmail filter that auto-forwards a website's form notification keeps the
+ * original headers, so `To:` still names the studio's own mailbox and only the
+ * envelope carries the inquiry address. Reading `to` first quarantined every
+ * such forward — the studio's main way in — while a hand forward, which
+ * rewrites `To:`, worked and hid it.
+ */
+export function inboundRecipients(
+  fields: { envelope?: string; to?: string; cc?: string },
+  headers: Record<string, string>,
+): string {
+  return [
+    ...envelopeOf(fields).to,
+    fields.to,
+    fields.cc,
+    headerValue(headers, "To"),
+    headerValue(headers, "Cc"),
+  ]
+    .filter((value): value is string => Boolean(value && value.trim()))
+    .join(",");
+}
+
+/**
+ * Who handed this message to our mail server, lower-cased, or null.
+ *
+ * Distinct from `From:`. A Gmail filter forward keeps the form builder in
+ * `From:` and rewrites the envelope sender to the forwarding mailbox
+ * (`studio+caf_=…@gmail.com`), which is what says the studio sent it on.
+ */
+export function envelopeSender(fields: { envelope?: string }): string | null {
+  return envelopeOf(fields).from;
+}
+
 /** `<slug>.<signature>` from a recipient list, or null. */
 export function inquiryTokenFromRecipients(recipients: string): { slug: string; signature: string } | null {
   const match = recipients.match(/inquiries\+([a-z0-9-]{2,80})\.([A-Za-z0-9_-]{11})@/i);

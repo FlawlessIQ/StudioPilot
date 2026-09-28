@@ -15,6 +15,9 @@ import {
 import { conversationIdFromReplyToken } from "./reply-address.js";
 import {
   inquirySignatureMatches,
+  envelopeSender,
+  headerValue,
+  inboundRecipients,
   inquiryTokenFromRecipients,
 } from "./forwarded-inquiry.js";
 import { captureInquiry } from "../intake/capture.js";
@@ -58,6 +61,8 @@ type ParsedInbound = {
   inquiry: { slug: string; signature: string } | null;
   from: string;
   fromName: string | null;
+  /** The envelope sender — who handed the message to us, not who wrote it. */
+  envelopeFrom: string | null;
   subject: string;
   text: string;
   /** The HTML part, for notifications that send no plain text. */
@@ -103,23 +108,22 @@ function parseMultipart(request: Request) {
       try {
         const headers = headerMap(fields.headers ?? "");
         const messageId =
-          headers["Message-ID"]?.trim() ||
+          headerValue(headers, "Message-ID")?.trim() ||
           createHash("sha256").update(request.rawBody).digest("hex");
-        const sender = addressOf(fields.from ?? headers.From ?? "");
+        const sender = addressOf(fields.from ?? headerValue(headers, "From") ?? "");
+        const recipients = inboundRecipients(fields, headers);
+        const replyTo = headerValue(headers, "Reply-To");
         resolve({
           messageId,
-          token: replyTokenFromRecipients(
-            fields.to ?? fields.envelope ?? headers.To ?? "",
-          ),
-          inquiry: inquiryTokenFromRecipients(
-            fields.to ?? fields.envelope ?? headers.To ?? "",
-          ),
+          token: replyTokenFromRecipients(recipients),
+          inquiry: inquiryTokenFromRecipients(recipients),
           from: sender.email,
           fromName: sender.name,
-          subject: normalizeSubject(fields.subject ?? headers.Subject ?? ""),
+          envelopeFrom: envelopeSender(fields),
+          subject: normalizeSubject(fields.subject ?? headerValue(headers, "Subject") ?? ""),
           text: (fields.text ?? "").slice(0, MAX_BODY_LENGTH * 2),
           html: fields.html ? fields.html.slice(0, MAX_BODY_LENGTH * 6) : null,
-          replyTo: headers["Reply-To"] ? addressOf(headers["Reply-To"]).email : null,
+          replyTo: replyTo ? addressOf(replyTo).email : null,
           headers,
         });
       } catch (caught) {
