@@ -182,11 +182,25 @@ test("Zoom meeting summaries: seen when the first summary arrives", async () => 
   const arrived = zoom({ record: { state: "waiting" }, zoomSummaries: true });
   assert.equal(arrived.state, "done");
   assert.equal(arrived.detected, true);
+  // Held: StudioCue's approved Zoom app can't receive summaries yet (no
+  // meeting:read:summary scope, event subscription off), so the step is shown
+  // nowhere — not on the Zoom tile, not by Cue, not on Today.
+  const { OUTSIDE_STEPS, outsideStepAvailable, outsideStepReminder } = await import("../features/outside-steps/registry");
+  assert.equal(OUTSIDE_STEPS.zoom_meeting_summaries.available, false);
+  assert.equal(outsideStepAvailable("zoom_meeting_summaries"), false);
   const { outsideStepForQuestion } = await import("../features/outside-steps/share");
-  assert.equal(outsideStepForQuestion("Why am I not getting Zoom summaries?"), "zoom_meeting_summaries");
-  assert.equal(outsideStepForQuestion("How do I turn on meeting summaries?"), "zoom_meeting_summaries");
-  assert.equal(outsideStepForQuestion("Book a Zoom call with Maya"), null);
-  // The Zoom tile shows the step once Zoom is connected.
+  assert.equal(outsideStepForQuestion("Why am I not getting Zoom summaries?"), null);
+  assert.equal(
+    outsideStepReminder("zoom_meeting_summaries", zoom({ record: { state: "waiting", at: "2026-01-01T00:00:00Z" } }), new Date()),
+    null,
+  );
   const manager = readFileSync("components/integrations/integration-manager.tsx", "utf8");
-  assert.match(manager, /stepId="zoom_meeting_summaries"/);
+  assert.match(manager, /outsideStepAvailable\("zoom_meeting_summaries"\)/);
+});
+
+test("a connection records the scopes the provider granted, not the ones asked for", () => {
+  const oauth = readFileSync("functions/src/integrations/oauth.ts", "utf8");
+  assert.match(oauth, /typeof token\.scope === "string" && token\.scope\.trim\(\)/);
+  assert.match(oauth, /scopes: grantedScopes,/);
+  assert.match(oauth, /grantedScopes\.includes\("meeting:read:summary"\)/);
 });

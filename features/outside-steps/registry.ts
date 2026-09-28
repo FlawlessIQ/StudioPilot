@@ -58,6 +58,12 @@ export type OutsideStep = {
   /** The reminder, when a wait runs long. `{days}` is replaced. */
   reminder?: { title: string; detail: string };
   /**
+   * False while StudioCue itself can't yet use what the step turns on — shown
+   * nowhere, because telling a studio to flip a switch that leads nowhere is
+   * worse than saying nothing.
+   */
+  available?: boolean;
+  /**
    * For a step StudioCue detects, a way for the studio to say it has started
    * while the proof is still on its way — "I've set it up" before the first
    * inquiry arrives.
@@ -166,6 +172,11 @@ export const OUTSIDE_STEPS: Record<OutsideStepId, OutsideStep> = {
     detection: "automatic",
     home: "/studio/integrations",
     markLabel: "I've turned it on",
+    // Held until StudioCue's Zoom app can receive summaries. As approved on
+    // 2026-09-28 it has no meeting:read:summary scope and its event
+    // subscription is off, so Zoom sends StudioCue neither the summary nor
+    // the "summary completed" event. Turn this on once both are approved.
+    available: false,
     instructions: [
       {
         title: "Open your Zoom settings",
@@ -276,6 +287,7 @@ export function outsideStepReminder(
   now: Date,
 ): OutsideStepReminder | null {
   const step = OUTSIDE_STEPS[id];
+  if (step.available === false) return null;
   if (status.state === "attention")
     return {
       stepId: id,
@@ -300,4 +312,9 @@ export function outsideStepReminder(
     urgent: false,
     since: status.since,
   };
+}
+
+/** Whether a step is shown anywhere yet (see `available`). */
+export function outsideStepAvailable(id: OutsideStepId): boolean {
+  return OUTSIDE_STEPS[id].available !== false;
 }

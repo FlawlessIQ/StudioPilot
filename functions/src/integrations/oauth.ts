@@ -585,6 +585,13 @@ export const integrationOAuth = onRequest(
         provider === "stripe"
           ? null
           : new Date(Date.now() + Number(token.expires_in ?? 3600) * 1000).toISOString();
+      const requestedScopes = Array.isArray(saved.get("scopes"))
+        ? (saved.get("scopes") as string[])
+        : config(provider).scopes;
+      const grantedScopes =
+        typeof token.scope === "string" && token.scope.trim()
+          ? token.scope.split(/[\s,]+/).filter(Boolean)
+          : requestedScopes;
       const credential: Record<string, unknown> = {
         accessToken: token.access_token,
         refreshToken: token.refresh_token ?? null,
@@ -694,15 +701,19 @@ export const integrationOAuth = onRequest(
           provider,
           status: "connected",
           providerAccountId: accountId || null,
-          meetingSummaryEnabled: provider === "zoom" ? true : null,
+          meetingSummaryEnabled:
+            provider === "zoom" ? grantedScopes.includes("meeting:read:summary") : null,
           displayName,
           encryptedCredentialRef: credentialReference,
           selectedResourceId: null,
-          // What this authorization actually asked for — a QuickBooks
-          // connection made for autopay also carries the payments scope.
-          scopes: Array.isArray(saved.get("scopes"))
-            ? (saved.get("scopes") as string[])
-            : config(provider).scopes,
+          // What the provider actually granted, where it says: Zoom and
+          // Google return the granted scopes with the token, and a scope the
+          // app isn't approved for is quietly left out. Recording what we
+          // asked for instead said StudioCue could read Zoom summaries on an
+          // app Zoom had approved without that scope. Where the provider
+          // doesn't say (QuickBooks), it is what we asked for — a connection
+          // made for autopay also carries the payments scope.
+          scopes: grantedScopes,
           connectedAt: now,
           // A fresh authorization proves the provider issued a token; it does
           // not prove the credential can do any work, and this write must not

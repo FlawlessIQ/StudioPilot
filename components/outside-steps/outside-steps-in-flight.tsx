@@ -2,7 +2,7 @@
 
 import { OutsideStepCard } from "@/components/outside-steps/outside-step-card";
 import { useOutsideSteps } from "@/components/outside-steps/use-outside-steps";
-import { OUTSIDE_STEP_IDS } from "@/features/outside-steps/registry";
+import { OUTSIDE_STEP_IDS, outsideStepAvailable } from "@/features/outside-steps/registry";
 
 /**
  * The outside steps a studio has started and not finished, in one place.
@@ -15,8 +15,8 @@ import { OUTSIDE_STEP_IDS } from "@/features/outside-steps/registry";
 export function OutsideStepsInFlight() {
   const { statuses } = useOutsideSteps();
   if (!statuses) return null;
-  const inFlight = OUTSIDE_STEP_IDS.filter((id) =>
-    ["waiting", "attention"].includes(statuses[id].state),
+  const inFlight = OUTSIDE_STEP_IDS.filter(
+    (id) => outsideStepAvailable(id) && ["waiting", "attention"].includes(statuses[id].state),
   );
   if (!inFlight.length) return null;
   return (

@@ -28,6 +28,11 @@ const QUESTION_PATTERNS: Record<OutsideStepId, RegExp> = {
  * with the application.
  */
 export function outsideStepForQuestion(question: string): OutsideStepId | null {
+  const found = matchQuestion(question);
+  return found && OUTSIDE_STEPS[found].available !== false ? found : null;
+}
+
+function matchQuestion(question: string): OutsideStepId | null {
   const text = question.trim();
   if (!text) return null;
   if (QUESTION_PATTERNS.quickbooks_payments_reconnect.test(text)) return "quickbooks_payments_reconnect";

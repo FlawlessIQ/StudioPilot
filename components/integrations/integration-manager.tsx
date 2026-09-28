@@ -25,6 +25,7 @@ import { dataIsLive } from "@/lib/runtime-mode";
 import { setCapabilityProvider } from "@/lib/integrations/command-client";
 import { OutsideStepCard } from "@/components/outside-steps/outside-step-card";
 import { useOutsideSteps } from "@/components/outside-steps/use-outside-steps";
+import { outsideStepAvailable } from "@/features/outside-steps/registry";
 import {
   eligibleProvidersFor,
   resolveActiveProvider,
@@ -702,6 +703,7 @@ export function IntegrationManager() {
 
               {connected &&
               definition.provider === "zoom" &&
+              outsideStepAvailable("zoom_meeting_summaries") &&
               outsideSteps &&
               outsideSteps.zoom_meeting_summaries.state !== "done" ? (
                 <OutsideStepCard
