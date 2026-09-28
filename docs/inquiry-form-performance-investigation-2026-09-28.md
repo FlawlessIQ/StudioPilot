@@ -21,6 +21,26 @@ It loads the same code bundle as the real form.
 | Time to first byte | ~1.06 s | < 300 ms |
 | DOM content loaded | ~1.8 s on a desktop connection | a phone will be several times slower |
 
+### Typing test, production, desktop-class machine (after Phase 0, 2026-09-28)
+
+Run on the FlawlessIQ form (`flawlessiq-14313514`). Nothing was submitted.
+
+- **Keystrokes: smooth.** Across 29 characters in First name and 42 in
+  Venue, no input event took over 16 ms and there were no long tasks.
+- **So the lag Gabe felt is not the typing itself on a fast machine.** That
+  points at phone-class hardware (hydration time and the 685 KB of CSS),
+  at typing erased before hydration (cause 1), or at the suggestions.
+- **Suggestions: 538–752 ms per request**, plus the 260 ms debounce, so
+  about 0.8–1 s from a pause to a list on a good connection. The target is
+  ~400 ms.
+- **City no longer changes while a venue is typed.** "The Barn at Hope, 12
+  Main Street, Hope, NJ" left City empty. Before Phase 0.5 it would have
+  become "12 Main Street".
+- Time to first byte was 1.28 s this run.
+
+Still needed: a phone-class profile. This browser pane can't throttle the
+CPU, so it's either Gabe's device or DevTools at 4× CPU.
+
 ## Likely causes, ranked
 
 ### 1. Anything typed before the page is ready gets erased (high confidence)

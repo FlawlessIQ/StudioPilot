@@ -27,7 +27,21 @@ questions still open.
 
 ---
 
-## Phase 0 — Fix what is wrong today (one sitting each)
+## Phase 0 — Fix what is wrong today (one sitting each) — **DONE 2026-09-28**
+
+**Shipped in `1246502`.**
+- **Functions:** all 90 deployed, invoker grants re-applied, and the
+  freshness check reports 89 current and 0 behind. The deployed bundles of
+  `postEventCommand`, `sendgridInboundCoi` and `proposalCommand` were read
+  and contain the fixes.
+- **App:** `build-2026-09-28-031` SUCCEEDED on the same commit.
+- **0.1:** production has 0 discounted proposals or snapshots, so nothing
+  was affected.
+- **0.5:** walked on production; City stays empty while a venue is typed.
+- **Also:** delivery notes are now internal only. The portal API returned
+  them without ever showing them.
+- **Not yet walked on production:** 0.2–0.4. Each needs a real release or a
+  real inbound email; see "Only Conor can do these".
 
 These are independent of each other and of every later phase.
 
