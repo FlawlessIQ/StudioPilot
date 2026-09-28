@@ -265,7 +265,9 @@ export function normalizeZoomWebhook(
   const meetingId = String(object.id ?? object.meeting_id ?? "");
   const eventTimestamp = Number(payload.event_ts);
   if (!accountId || !meetingId || !Number.isFinite(eventTimestamp)) return null;
-  const meetingUuid = asString(object.uuid) || null;
+  // meeting.ended names these uuid/topic; meeting.summary_completed names
+  // them meeting_uuid/meeting_topic.
+  const meetingUuid = asString(object.uuid) || asString(object.meeting_uuid) || null;
   const occurredAt = new Date(eventTimestamp).toISOString();
   return {
     providerEventId: digest(
@@ -278,10 +280,29 @@ export function normalizeZoomWebhook(
     meetingId,
     meetingUuid,
     occurredAt,
-    topic: asString(object.topic) || null,
+    topic: asString(object.topic) || asString(object.meeting_topic) || null,
     startedAt:
       asString(object.start_time) || asString(object.meeting_start_time) || null,
     endedAt:
       asString(object.end_time) || asString(object.meeting_end_time) || null,
   };
+}
+
+/**
+ * The Zoom account id carried in a Zoom OAuth access token. Zoom's access
+ * tokens are JWTs whose payload names the account as `aid`, so the account is
+ * known at connect time without the user-profile scope /v2/users/me needs.
+ * Read straight from Zoom's token response over TLS, so the claim is taken
+ * as issued rather than re-verified here. Null when the token is not a JWT.
+ */
+export function zoomAccountIdFromAccessToken(accessToken: string): string | null {
+  const segment = accessToken.split(".")[1];
+  if (!segment) return null;
+  try {
+    const claims = JSON.parse(Buffer.from(segment, "base64url").toString("utf8")) as unknown;
+    const accountId = asRecord(claims).aid;
+    return typeof accountId === "string" && accountId.trim() ? accountId.trim() : null;
+  } catch {
+    return null;
+  }
 }

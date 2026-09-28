@@ -170,14 +170,29 @@ Two things in the approved app stop the consultation-summary pipeline
   including `meeting.summary_completed`, the event that queues the summary job.
 
 To turn summaries on (a change to the Zoom app, then Zoom's review):
-1. Production → Scopes → add `meeting:read:summary`.
+1. Production → Scopes → add `meeting:read:summary`. **Done 2026-09-28.**
 2. Production → Features → Access → Event Subscription on; endpoint
-   `https://zoomwebhook-yehtrtcieq-uk.a.run.app` (the `zoomWebhook` function,
-   already public; validation is handled); subscribe to **Meeting summary
+   `https://studio-cue.com/api/webhooks/zoom` — the App Hosting relay, **not**
+   the raw `zoomWebhook` URL, which is private (`invoker: "private"`) and
+   answers Zoom with a 403. Subscribe to **Meeting summary has been
    completed**. The secret token must match `ZOOM_WEBHOOK_SECRET_TOKEN`.
+   **Done 2026-09-28:** the stored token had never matched the production
+   app's (64 chars vs Zoom's 22); set to version 4, fingerprint-checked, and
+   Zoom's validation passed through the relay.
 3. Submit for review. After approval: set `available` back to true on the
    `zoom_meeting_summaries` outside step, and studios reconnect Zoom so their
    token carries the new scope.
+
+To test the relay by hand, sign `v0:{timestamp}:{body}` with the secret and
+send `x-zm-request-timestamp` in **seconds** — milliseconds fail the 300 s
+window with a 401 that looks like a bad secret.
+
+Found on the way and fixed: `zoomWebhook` finds the studio by
+`providerAccountId`, but every Zoom connection stored it as null (the only
+lookup was `/v2/users/me`, whose scope we don't request), so every event would
+have answered `CONNECTION_NOT_FOUND`. The OAuth callback now reads the account
+from the access token's `aid` claim; connections made before that are matched
+through the consultation that holds the meeting id, and backfilled.
 
 Found on the way and fixed (`1a5fc59`): connections recorded the scopes
 StudioCue *asked for*, so every Zoom connection claimed

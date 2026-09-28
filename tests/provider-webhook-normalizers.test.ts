@@ -5,6 +5,7 @@ import {
   normalizeDropboxSignWebhook,
   normalizeQuickBooksWebhooks,
   normalizeZoomWebhook,
+  zoomAccountIdFromAccessToken,
 } from "../functions/src/booking/webhook-normalizers.ts";
 import { zoomWebhookSignature } from "../functions/src/booking/zoom-webhook.ts";
 import { zoomSummaryText } from "../functions/src/operations/provider-runtime.ts";
@@ -161,6 +162,32 @@ test("Zoom meeting summary events normalize deterministically", () => {
   assert.equal(first.meetingId, "987654321");
   assert.equal(first.accountId, "zoom-account-a");
   assert.equal(first.providerEventId, second?.providerEventId);
+});
+
+test("Zoom summary events read Zoom's meeting_uuid and meeting_topic names", () => {
+  const event = normalizeZoomWebhook({
+    event: "meeting.summary_completed",
+    event_ts: 1786629600000,
+    payload: {
+      account_id: "zoom-account-a",
+      object: {
+        meeting_id: 987654321,
+        meeting_uuid: "meeting-uuid-a",
+        meeting_topic: "Smith consultation",
+      },
+    },
+  });
+  assert.equal(event?.meetingUuid, "meeting-uuid-a");
+  assert.equal(event?.topic, "Smith consultation");
+});
+
+test("Zoom's account id comes from the access token's aid claim", () => {
+  const jwt = (claims: object) =>
+    ["e30", Buffer.from(JSON.stringify(claims)).toString("base64url"), "sig"].join(".");
+  assert.equal(zoomAccountIdFromAccessToken(jwt({ uid: "user-a", aid: "account-a" })), "account-a");
+  assert.equal(zoomAccountIdFromAccessToken(jwt({ uid: "user-a" })), null);
+  assert.equal(zoomAccountIdFromAccessToken("not-a-jwt"), null);
+  assert.equal(zoomAccountIdFromAccessToken("a.%%%.c"), null);
 });
 
 test("Zoom normalizer ignores unsupported or incomplete events", () => {

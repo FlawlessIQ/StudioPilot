@@ -1,7 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
-import { normalizeZoomWebhook } from "./webhook-normalizers.js";
+import { normalizeZoomWebhook, type ZoomWebhookEvent } from "./webhook-normalizers.js";
 
 const safeId = (value: string) =>
   createHash("sha256").update(value).digest("hex");
@@ -24,6 +24,39 @@ function signatureMatches(
   const left = Buffer.from(expected);
   const right = Buffer.from(supplied);
   return left.length === right.length && timingSafeEqual(left, right);
+}
+
+/**
+ * Connections made before the account id was read from the token carry
+ * providerAccountId null, so an account lookup finds nothing. The meeting
+ * still identifies the studio: StudioCue created it, and the consultation
+ * holds its id. One consultation, in a tenant whose Zoom is connected, is a
+ * match — and the account id is backfilled so the next event resolves
+ * directly. Anything ambiguous stays unmatched rather than guessed.
+ */
+async function connectionForMeeting(
+  event: ZoomWebhookEvent,
+): Promise<QueryDocumentSnapshot | null> {
+  const db = getFirestore();
+  const consultations = await db
+    .collection("consultations")
+    .where("meetingId", "==", event.meetingId)
+    .limit(2)
+    .get();
+  const consultation = consultations.size === 1 ? consultations.docs[0] : null;
+  if (!consultation) return null;
+  const tenantId = String(consultation.get("tenantId") ?? "");
+  if (!tenantId) return null;
+  const connections = await db
+    .collection("integrationConnections")
+    .where("tenantId", "==", tenantId)
+    .where("provider", "==", "zoom")
+    .limit(1)
+    .get();
+  const connection = connections.docs[0];
+  if (!connection || connection.get("providerAccountId")) return null;
+  await connection.ref.update({ providerAccountId: event.accountId });
+  return connection;
 }
 
 export const zoomWebhook = onRequest(
@@ -96,7 +129,8 @@ export const zoomWebhook = onRequest(
       .where("providerAccountId", "==", event.accountId)
       .limit(1)
       .get();
-    const connection = connections.docs[0];
+    const connection =
+      connections.docs[0] ?? (await connectionForMeeting(event));
     if (!connection) {
       response.status(404).json({ error: "CONNECTION_NOT_FOUND" });
       return;

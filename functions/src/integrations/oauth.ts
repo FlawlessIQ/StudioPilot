@@ -10,6 +10,7 @@ import {
 import { studioHubCors } from "../security/cors.js";
 import { checkProviderConnection } from "../operations/provider-runtime.js";
 import { providerUsesPkce } from "./oauth-strategy.js";
+import { zoomAccountIdFromAccessToken } from "../booking/webhook-normalizers.js";
 import { QUICKBOOKS_PAYMENTS_SCOPE } from "../billing/autopay-core.js";
 import {
   docusignOAuthBaseUrl,
@@ -632,19 +633,22 @@ export const integrationOAuth = onRequest(
         credential.accountId = accountId;
         displayName = body.account?.email_address ?? provider;
       } else if (provider === "zoom") {
-        // Zoom's account id is stored and never read. Every Zoom operation
-        // addresses /v2/users/me/... using the meeting scopes above — the
-        // health probe, meeting creation, and summary fetch in
-        // provider-runtime.ts — unlike Docusign (accountId) and QuickBooks
-        // (realmId), which genuinely need theirs.
-        //
+        // API calls never need Zoom's account id — they address
+        // /v2/users/me/... — but zoomWebhook does: a signed event names only
+        // the account, and providerAccountId is how it finds the studio. It
+        // comes from the access token's `aid` claim, which needs no scope.
+        const tokenAccountId = zoomAccountIdFromAccessToken(String(token.access_token));
+        if (tokenAccountId) {
+          accountId = tokenAccountId;
+          credential.accountId = accountId;
+        }
         // /v2/users/me needs a user-profile scope this app deliberately does
         // not request, so the call fails by design and treating that as fatal
         // rejected the whole connection with ZOOM_ACCOUNT_LOOKUP_FAILED
         // *after* a successful token exchange — the studio had already granted
         // consent, and the only remedy on offer was to widen the scope for a
-        // value nothing consumes. Best effort instead: take the friendlier
-        // label when the scope happens to be granted, connect when it is not.
+        // display label. Best effort instead: take the friendlier label when
+        // the scope happens to be granted, connect when it is not.
         const account = await fetch("https://api.zoom.us/v2/users/me", {
           headers: { authorization: `Bearer ${String(token.access_token)}` },
         }).catch(() => null);
