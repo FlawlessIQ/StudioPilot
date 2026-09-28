@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, CreditCard, ExternalLink, LoaderCircle, TriangleAlert } from "lucide-react";
+import { CheckCircle2, CreditCard, LoaderCircle, TriangleAlert } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
 import { autopayStudioState } from "@/features/billing/autopay";
 import { setAutopay, startQuickBooksPaymentsConnect } from "@/lib/integrations/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { OutsideStepCard } from "@/components/outside-steps/outside-step-card";
+import { outsideStepStatus, type OutsideStepRecord } from "@/features/outside-steps/registry";
 
 /**
  * Autopay: couples save a card at the deposit and the final balance charges
@@ -15,6 +17,9 @@ import { friendlyError } from "@/lib/ai/friendly-error";
  * The card leads with what the studio has to do outside StudioCue, because
  * nothing here works without it: QuickBooks Payments is a merchant account
  * Intuit approves per business, and StudioCue cannot apply on anyone's behalf.
+ * Both outside steps are guided and tracked by the shared outside-step card
+ * (features/outside-steps): the application, which the studio tells us
+ * about, and the payments permission, which StudioCue sees for itself.
  */
 export function AutopaySettings() {
   const workspace = useWorkspace();
@@ -32,6 +37,15 @@ export function AutopaySettings() {
     connection: quickbooks ?? null,
     tenant: tenant ?? null,
     methods: methods ?? [],
+  });
+  const recorded = (tenant?.outsideSteps ?? {}) as Record<string, OutsideStepRecord>;
+  const applyStatus = outsideStepStatus("quickbooks_payments_apply", {
+    record: recorded.quickbooks_payments_apply,
+    activeCards: state.activeCards,
+    paymentsRefused: state.paymentsRefused,
+  });
+  const reconnectStatus = outsideStepStatus("quickbooks_payments_reconnect", {
+    paymentsGranted: state.step >= 3,
   });
 
   async function reconnect() {
@@ -78,28 +92,7 @@ export function AutopaySettings() {
         </p>
       </header>
 
-      <div className="autopay-requirement" role="note">
-        <TriangleAlert aria-hidden="true" size={16} />
-        <div>
-          <strong>You need QuickBooks Payments first</strong>
-          <p>
-            Autopay charges cards through QuickBooks Payments, a merchant account
-            Intuit approves for your business. StudioCue can&rsquo;t apply for
-            you. In QuickBooks, go to{" "}
-            <em>Settings → Account and settings → Payments</em>{" "}and apply. Approval usually takes a few business days.
-            Until it&rsquo;s approved, couples can&rsquo;t save a card.
-          </p>
-          <a
-            className="autopay-requirement-link"
-            href="https://quickbooks.intuit.com/payments/"
-            rel="noreferrer"
-            target="_blank"
-          >
-            About QuickBooks Payments <ExternalLink aria-hidden="true" size={13} />
-          </a>
-        </div>
-      </div>
-
+      <OutsideStepCard stepId="quickbooks_payments_apply" status={applyStatus} />
       <ol className="autopay-steps">
         <li className={state.step > 1 ? "is-done" : "is-current"}>
           <span>Connect QuickBooks</span>
@@ -107,18 +100,19 @@ export function AutopaySettings() {
         </li>
         <li className={state.step > 2 ? "is-done" : state.step === 2 ? "is-current" : ""}>
           <span>Let StudioCue take payments through QuickBooks</span>
-          {state.step === 2 ? (
-            <>
-              <small>
-                Reconnect QuickBooks and approve the extra &ldquo;payments&rdquo;
-                permission. Do this once your QuickBooks Payments application is
-                approved.
-              </small>
-              <button className="button button-sm" disabled={busy} onClick={() => void reconnect()} type="button">
-                {busy ? <LoaderCircle className="spin" size={14} /> : null}
-                Reconnect QuickBooks for payments
-              </button>
-            </>
+          {state.step >= 2 ? (
+            <OutsideStepCard
+              action={
+                state.step === 2 ? (
+                  <button className="button button-dark" disabled={busy} onClick={() => void reconnect()} type="button">
+                    {busy ? <LoaderCircle className="spin" size={14} /> : null}
+                    Reconnect QuickBooks for payments
+                  </button>
+                ) : undefined
+              }
+              status={reconnectStatus}
+              stepId="quickbooks_payments_reconnect"
+            />
           ) : null}
         </li>
         <li className={state.enabled ? "is-done" : state.step === 3 ? "is-current" : ""}>

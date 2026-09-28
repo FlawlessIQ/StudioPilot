@@ -344,3 +344,41 @@ export async function startQuickBooksPaymentsConnect(tenantId: string): Promise<
   if (!response.ok || !payload.url) throw new Error(payload.error ?? "QuickBooks could not be reconnected.");
   return payload.url;
 }
+
+/**
+ * Where a step outside StudioCue stands, as the studio tells it — "I've
+ * applied" (waiting) or "Approved" (done); null clears it. See
+ * features/outside-steps/registry.ts.
+ */
+export async function setOutsideStep(
+  stepId: string,
+  state: "waiting" | "done" | null,
+  tenantId: string,
+): Promise<{ persisted: boolean }> {
+  const endpoint = process.env.NEXT_PUBLIC_INTEGRATION_FUNCTIONS_URL;
+  if (!endpoint) return { persisted: false };
+  const { auth } = getFirebaseClient();
+  const user = auth.currentUser;
+  if (!user) throw new Error("Sign in before updating this step.");
+  const appCheckToken = await getOptionalAppCheckToken();
+  const response = await fetch(`${endpoint.replace(/\/$/, "")}/integrationsCommand`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${await user.getIdToken()}`,
+      ...(appCheckToken ? { "x-firebase-appcheck": appCheckToken } : {}),
+    },
+    body: JSON.stringify({
+      type: "setOutsideStep",
+      tenantId,
+      idempotencyKey: crypto.randomUUID(),
+      input: { stepId, state },
+    }),
+  });
+  const payload = (await response.json()) as Record<string, unknown>;
+  if (!response.ok) {
+    throw new Error(String(payload.error ?? "That step could not be updated."));
+  }
+  markTenantRecordsWritten();
+  return { persisted: true };
+}

@@ -4,12 +4,9 @@ import { useCallback, useEffect, useMemo, useState, type ComponentType, type Rea
 import {
   Check,
   ChevronRight,
-  Copy,
-  ExternalLink,
   FlaskConical,
   Forward,
   Inbox,
-  Info,
   LayoutTemplate,
   LoaderCircle,
   MailPlus,
@@ -18,6 +15,7 @@ import {
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendCommunicationsCommand } from "@/lib/communications/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { Copyable, OpenLink, Path, Rich, Tip } from "@/components/outside-steps/guide-parts";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
 import {
   FORM_SOURCES,
@@ -509,56 +507,6 @@ function Steps({ eyebrow, steps, onDone }: { eyebrow: string; steps: Step[]; onD
   );
 }
 
-/** A click path in someone else's app, as chips: Settings › Mail › Rules. */
-function Path({ steps }: { steps: string[] }) {
-  return (
-    <ol className="capture-path">
-      {steps.map((step) => (
-        <li key={step}>
-          <span>{step}</span>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-function Tip({ children }: { children: ReactNode }) {
-  return (
-    <p className="capture-tip">
-      <Info aria-hidden="true" size={14} />
-      <span>{children}</span>
-    </p>
-  );
-}
-
-function OpenLink({ href, label }: { href: string; label: string }) {
-  return (
-    <a className="button button-light button-sm" href={href} rel="noreferrer" target="_blank">
-      {label} <ExternalLink size={12} />
-    </a>
-  );
-}
-
-function Copyable({ value, label }: { value: string; label: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      className="button button-light button-sm"
-      onClick={() => {
-        void navigator.clipboard?.writeText(value).then(() => {
-          setCopied(true);
-          window.setTimeout(() => setCopied(false), 2000);
-        });
-      }}
-      type="button"
-    >
-      {copied ? <Check size={14} /> : <Copy size={14} />}
-      {copied ? "Copied" : label}
-    </button>
-  );
-}
-
-/** The thing to paste, big enough to read and one tap to copy. */
 function Pasteable({ value, label }: { value: string; label: string }) {
   return (
     <div className="capture-paste">
@@ -733,20 +681,6 @@ function FormRoute({
 }
 
 /** An instruction with the builder's own button names in bold (`**Save**`). */
-function Rich({ text }: { text: string }) {
-  return (
-    <>
-      {text.split(/(\*\*[^*]+\*\*)/).map((part, index) =>
-        part.startsWith("**") && part.endsWith("**") ? (
-          <strong key={index}>{part.slice(2, -2)}</strong>
-        ) : (
-          part
-        ),
-      )}
-    </>
-  );
-}
-
 /* ── Route 2: the inbox forwards form emails on ───────────────────────── */
 
 const FAMILY_OPTIONS: ReadonlyArray<{ key: MailFamily; label: string }> = [
