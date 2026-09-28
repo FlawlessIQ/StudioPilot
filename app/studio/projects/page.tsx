@@ -16,7 +16,7 @@ export default async function ProjectsPage({
     <AppShell active="Jobs">
       <div className="crm-page">
         <div className="dashboard-heading">
-          <div><p className="eyebrow">Your work</p><h1>Jobs</h1><p>Every wedding and event you are working on, and what each one needs next.</p></div>
+          <div><p className="eyebrow">Your work</p><h1>Jobs</h1><p>Every booked wedding and event, and what each one needs next. Couples who haven&apos;t booked yet are under <Link href="/studio/leads">Inquiries</Link>.</p></div>
           <span className="dashboard-heading-actions">
             {/* Studios arrive with a year of weddings already booked. */}
             <Link className="button button-light" href="/studio/projects/import"><Upload size={16} /> Import bookings</Link>

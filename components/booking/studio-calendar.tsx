@@ -45,6 +45,7 @@ import { useTenantDocuments, type TenantDocument } from "@/components/live/tenan
 import { demoTenantDocuments } from "@/features/live/demo-records";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { liveProjects } from "@/features/projects/put-away";
+import { bookedStates } from "@/features/inquiries/stages";
 
 type SettingsShape = Pick<
   ConsultationSettings,
@@ -258,6 +259,11 @@ export function StudioCalendar() {
   const projectsByDate = useMemo(() => {
     const map = new Map<string, TenantDocument[]>();
     for (const project of projects ?? []) {
+      // The calendar holds what's on the books. An inquiry's date is a
+      // question the couple asked — every inquiry is a job now, and showing
+      // them all as events read as a diary full of weddings nobody had booked.
+      // Cancelled and archived work was never on the books either.
+      if (!bookedStates.has(String(project.state ?? "")) || project.archivedAt) continue;
       const date = safeEventDate(project.eventDate);
       if (!date) continue;
       const key = format(date, "yyyy-MM-dd");

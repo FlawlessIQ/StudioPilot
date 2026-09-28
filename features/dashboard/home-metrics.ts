@@ -13,6 +13,7 @@ import {
   eventDateHasPassed,
   todayLocalIso,
 } from "@/lib/format/event-date";
+import { preBookingStates } from "@/features/inquiries/stages";
 
 export type MetricRecord = Record<string, unknown> & { id: string };
 
@@ -45,8 +46,14 @@ const cents = (value: unknown): number => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+/**
+ * Booked work in flight. An inquiry is a job from the moment it arrives, but
+ * its date is not an event on the books and its readiness of zero is not work
+ * falling behind — counting them made every inquiry "needs attention".
+ */
 function isActive(project: MetricRecord): boolean {
-  return activeProjectStates.has(text(project.state));
+  const state = text(project.state);
+  return activeProjectStates.has(state) && !preBookingStates.has(state);
 }
 
 export function homeMetrics(input: {

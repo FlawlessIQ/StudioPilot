@@ -1,5 +1,6 @@
 import { contractPdfInput, storeSealedContract } from "../contracts/seal.js";
 import { enrichCapturedLead } from "../intake/enrich.js";
+import { convertInquiryToJob } from "../intake/convert.js";
 import { createHash } from "node:crypto";
 import { consumeAiQuota } from "../saas/usage.js";
 import { gatherAnswerFacts } from "../communications/answer-facts.js";
@@ -32,6 +33,12 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
   // (functions/src/intake/enrich.ts), so the summary and the reply draft work
   // from the fuller lead. A no-op for leads from the public form.
   await enrichCapturedLead(db,initial,{mock:process.env.PROVIDER_MOCK_MODE==="true",accessToken:cloudAccessToken});
+  // Reading the message may have found the date the form didn't carry; an
+  // inquiry with a date is a job (intake/convert.ts). A no-op otherwise.
+  const enriched=await db.doc(`leads/${leadId}`).get();
+  if(!string(enriched.get("projectId"))&&string(enriched.get("eventDate"))){
+    await convertInquiryToJob(db,{tenantId:string(enriched.get("tenantId")),leadId,now:new Date().toISOString()});
+  }
   const lead=await db.doc(`leads/${leadId}`).get();
   const missing=Array.isArray(lead.get("missingInformation"))?lead.get("missingInformation") as unknown[]:[];
   let analysis:Json;
@@ -117,7 +124,8 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
   batch.set(db.doc(`aiActions/${actionId}`),{
     id:actionId,
     tenantId:job.get("tenantId"),
-    projectId:null,
+    // On the job when the inquiry already is one, so the draft sits with it.
+    projectId:string(lead.get("projectId"))||null,
     actorId:"vertex-ai-worker",
     title:`Reply to ${string(lead.get("displayName"))||"new inquiry"}`,
     capability:"inquiry_reply_draft",

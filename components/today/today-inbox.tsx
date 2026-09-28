@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { KindGlyph } from "@/components/library/kind-glyph";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
-import { AiQueueCard } from "@/components/ai/ai-approval-queue";
+import { AiQueueCard, AutomationApprovalCard } from "@/components/ai/ai-approval-queue";
 import { countdownPhrase } from "@/lib/format/event-date";
 import { formatCents } from "@/lib/format/money";
 import { AppShell } from "@/components/layout/app-shell";
@@ -103,8 +103,15 @@ const BAND_LABEL: Record<TodayBand, string> = {
  */
 export function TodayInbox() {
   const workspace = useWorkspace();
-  const { inbox, metrics, booked, handled, journeys, loading, setup, aiActions } =
+  const { inbox, metrics, booked, handled, journeys, loading, setup, aiActions, automationApprovals } =
     useTodayInbox();
+  // A workflow step waiting for approval, decided here rather than on a
+  // separate review page.
+  const [approvalId, setApprovalId] = useState<string | null>(null);
+  const reviewingApproval =
+    approvalId != null
+      ? automationApprovals.find((record) => record.id === approvalId) ?? null
+      : null;
   const [cleared, setCleared] = useState<Set<string>>(new Set());
   const [showHandled, setShowHandled] = useState(false);
   const [showAllPrepared, setShowAllPrepared] = useState(false);
@@ -529,6 +536,7 @@ export function TodayInbox() {
                         key={item.id}
                         onCleared={() => clear(item.id)}
                         onReview={setReviewingId}
+                        onReviewApproval={setApprovalId}
                         tone="approve"
                       />
                     ))}
@@ -622,6 +630,12 @@ export function TodayInbox() {
                   {inbox.fyi.map((item) => (
                     <TodayCard item={item} key={item.id} tone="fyi" />
                   ))}
+                  {/* Every receipt — failed and scheduled ones too, with
+                      retry and cancel — lives on the activity page, which
+                      left the nav when Today took over its approvals. */}
+                  <Link className="today-card-secondary" href="/studio/ai-queue">
+                    All activity, including anything that failed <ArrowRight size={14} />
+                  </Link>
                 </div>
               ) : null}
             </section>
@@ -672,6 +686,22 @@ export function TodayInbox() {
               setReviewEditing(false);
             }}
             startEditing={reviewEditing}
+          />
+        ) : null}
+      </SheetDialog>
+      <SheetDialog
+        label="Review workflow step"
+        onClose={() => setApprovalId(null)}
+        open={reviewingApproval != null}
+        width="wide"
+      >
+        {reviewingApproval ? (
+          <AutomationApprovalCard
+            approval={reviewingApproval}
+            onDecision={(id) => {
+              clear(`automation-approval-${id}`);
+              setApprovalId(null);
+            }}
           />
         ) : null}
       </SheetDialog>
@@ -775,6 +805,7 @@ function TodayCard({
   tone,
   onCleared,
   onReview,
+  onReviewApproval,
   onEdit,
   showEvidence = true,
 }: {
@@ -783,6 +814,8 @@ function TodayCard({
   onCleared?: () => void;
   /** Opens the full review sheet for this prepared action, in context. */
   onReview?: (actionId: string) => void;
+  /** Opens a workflow approval in its sheet. */
+  onReviewApproval?: (approvalId: string) => void;
   /** Opens the review sheet already editing — an inquiry's drafted reply. */
   onEdit?: (actionId: string) => void;
   /** False on all but the first card of a band — see the call site. */
@@ -899,6 +932,16 @@ function TodayCard({
               Review
             </button>
           </>
+        ) : item.action.kind === "automation" ? (
+          <button
+            className="today-card-primary"
+            onClick={() => {
+              if (item.action.kind === "automation") onReviewApproval?.(item.action.approvalId);
+            }}
+            type="button"
+          >
+            {item.action.label} <ArrowRight size={14} />
+          </button>
         ) : item.action.kind === "link" ? (
           <>
             <Link className="today-card-primary" href={item.action.href}>

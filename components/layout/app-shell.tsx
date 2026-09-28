@@ -12,7 +12,7 @@ import {
   FolderKanban,
   LibraryBig,
   LifeBuoy,
-  ListChecks,
+  Inbox,
   Menu,
   MessageSquareText,
   Plus,
@@ -53,6 +53,10 @@ const navSections = [
     items: [
       { label: "Today", href: "/studio", icon: CircleGauge },
       { label: "Cue", href: "/studio/copilot", icon: Sparkles },
+      // Everyone who hasn't booked. It had no entry at all: the list was
+      // reachable only by backing out of an inquiry opened from Today, so a
+      // studio could not see its pipeline without an inquiry to start from.
+      { label: "Inquiries", href: "/studio/leads", icon: Inbox },
       { label: "Jobs", href: "/studio/projects", icon: FolderKanban },
     ],
   },
@@ -62,7 +66,9 @@ const navSections = [
       { label: "Calendar", href: "/studio/calendar", icon: CalendarDays },
       { label: "Messages", href: "/studio/messages", icon: MessageSquareText },
       { label: "Clients", href: "/studio/clients", icon: UsersRound },
-      { label: "AI review", href: "/studio/ai-queue", icon: ListChecks },
+      // AI review left the nav: Today shows every approval waiting on the
+      // studio, and a second list of the same drafts read as a second queue
+      // to clear. The page stays addressable for its activity history.
       { label: "Insights", href: "/studio/reports", icon: ChartNoAxesColumn },
     ],
   },
@@ -86,18 +92,20 @@ const navSections = [
 // are direct; "More" opens the full drawer (every other section). Kept explicit
 // rather than sliced from navSections so the phone's primary nav is a decision,
 // not a side effect of section order.
+// Inquiries took Clients' slot: answering the couples who haven't booked is
+// daily work on a phone; the address book is reached from More.
 const mobileTabs = [
   { label: "Today", href: "/studio", icon: CircleGauge },
+  { label: "Inquiries", href: "/studio/leads", icon: Inbox },
   { label: "Jobs", href: "/studio/projects", icon: FolderKanban },
   { label: "Cue", href: "/studio/copilot", icon: Sparkles },
-  { label: "Clients", href: "/studio/clients", icon: UsersRound },
 ] as const;
-const primaryTabGroups = new Set(["Today", "Jobs", "Cue", "Clients"]);
+const primaryTabGroups = new Set(["Today", "Inquiries", "Jobs", "Cue"]);
 
 const activeGroups: Record<string, string[]> = {
-  Today: ["Today", "Dashboard", "Notifications", "Leads", "Inquiries"],
+  Today: ["Today", "Dashboard", "Notifications", "AI review", "AI queue"],
+  Inquiries: ["Inquiries", "Leads"],
   Cue: ["Cue", "Copilot"],
-  "AI review": ["AI review"],
   Insights: ["Insights"],
   Messages: ["Messages"],
   Jobs: [

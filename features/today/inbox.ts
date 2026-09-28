@@ -38,12 +38,20 @@ import { countdownPhrase, formatDueDate } from "@/lib/format/event-date";
 import { providerName as readable } from "@/lib/format/provider-name";
 import { taskIsSettled } from "@/features/tasks/schema";
 import type { OutsideStepReminder } from "@/features/outside-steps/registry";
+import { inquiryNextMove } from "@/features/inquiries/next-move";
+import { preBookingStates } from "@/features/inquiries/stages";
 
 export type TodayLane = "act" | "approve" | "fyi";
 
 export type TodayAction =
   /** Navigate to the surface that completes the moment. */
   | { kind: "link"; label: string; href: string }
+  /**
+   * A workflow step waiting for approval, decided in a sheet on Today. It
+   * used to link to the AI review page — the only thing that page still did
+   * that Today couldn't.
+   */
+  | { kind: "automation"; label: string; approvalId: string }
   /**
    * Approve AI-prepared work in place. `preview` is the drafted content
    * itself, so the card can show the work before it is released.
@@ -180,6 +188,11 @@ export type TodayInput = {
    */
   projects?: TodayRecord[] | null;
   leads?: TodayRecord[] | null;
+  /**
+   * Message threads, so an inquiry's card follows whose move it is
+   * (features/inquiries/next-move.ts) instead of assuming nobody replied.
+   */
+  conversations?: TodayRecord[] | null;
   tasks?: TodayRecord[] | null;
   aiActions?: TodayRecord[] | null;
   automationApprovals?: TodayRecord[] | null;
@@ -561,9 +574,33 @@ export function todayInbox(input: TodayInput): TodayInbox {
   const replyForLead = pendingInquiryReplies(rows(input.aiActions), input.now);
   const mergedReplies = new Set<string>();
   const maybeInquiries: TodayMaybeInquiry[] = [];
+  const inquiryJobById = new Map(rows(input.projects).map((project) => [project.id, project]));
+  // Jobs that are still at the inquiry stage and came from an inquiry: their
+  // inquiry card below is their one Today item, so the journey doesn't add a
+  // second card about the same couple.
+  const inquiryCardProjectIds = new Set<string>();
   for (const lead of rows(input.leads)) {
     const status = text(lead.status).toLowerCase();
-    if (["converted", "lost", "archived"].includes(status)) continue;
+    if (["lost", "archived"].includes(status)) continue;
+    // Every dated inquiry becomes a job on arrival. While that job is still
+    // at the inquiry stage the couple is still an inquiry, answered here;
+    // once it moves on (a consultation booked), the journey takes over.
+    const job = text(lead.projectId) ? inquiryJobById.get(text(lead.projectId)) : undefined;
+    if (status === "converted" || job) {
+      if (!job || text(job.state) !== "LEAD" || job.archivedAt) continue;
+      // One card per couple: a couple who wrote twice has two leads and one
+      // job, and the job is what the studio answers.
+      if (inquiryCardProjectIds.has(job.id)) continue;
+      inquiryCardProjectIds.add(job.id);
+    }
+    const nextMove = inquiryNextMove({
+      conversations: rows(input.conversations),
+      projectId: job?.id ?? null,
+      leadId: lead.id,
+      receivedAt: arrivedAt(lead),
+    });
+    // Answered, and waiting on the couple: nothing for the studio to do yet.
+    if (nextMove.owner === "couple" && lead.needsConfirmation !== true) continue;
     // A capture the reader wasn't sure was an inquiry is asked about beside
     // the queue, not in it: a newsletter must never outrank a couple.
     if (lead.needsConfirmation === true) {
@@ -593,21 +630,29 @@ export function todayInbox(input: TodayInput): TodayInbox {
     const leadEvent = text(lead.eventDate) || null;
     const reply = replyForLead.get(lead.id) ?? null;
     if (reply) mergedReplies.add(reply.id);
+    const inquiryHref = job ? `/studio/projects/${job.id}` : `/studio/leads/${lead.id}`;
     act.push({
       id: `lead-${lead.id}`,
       lane: "act",
       // An inquiry is a message that has not been answered yet.
       kind: "message",
       // A nameless inquiry is titled once, not "New inquiry — New inquiry".
-      title: name ? `New inquiry — ${name}` : "New inquiry",
-      detail: facts.join(" · ") || "Waiting on your first reply",
+      // Once the studio has written, a card here means the couple answered.
+      title: nextMove.replied
+        ? `${name || "Your inquiry"} wrote back`
+        : name
+          ? `New inquiry — ${name}`
+          : "New inquiry",
+      detail:
+        facts.join(" · ") ||
+        (nextMove.replied ? "Waiting on your reply" : "Waiting on your first reply"),
       evidence: leadEvidence(lead),
-      projectId: null,
-      projectName: null,
+      projectId: job?.id ?? null,
+      projectName: job ? text(job.name) || null : null,
       action: {
         kind: "inquiry",
         label: reply ? "Send reply" : "Review & reply",
-        href: `/studio/leads/${lead.id}`,
+        href: inquiryHref,
         leadId: lead.id,
         reply: reply
           ? {
@@ -617,10 +662,10 @@ export function todayInbox(input: TodayInput): TodayInbox {
             }
           : null,
       },
-      jobHref: null,
+      jobHref: job ? `/studio/projects/${job.id}` : null,
       facts: [
         // How long they have waited comes first: that is what bands this card.
-        arrivalFact(arrivedAt(lead), now),
+        arrivalFact(nextMove.waitingSince ?? arrivedAt(lead), now),
         eventFact(leadEvent, now),
         // Whether the date is free is the first thing a studio asks of an
         // inquiry; it's already known, so say it.
@@ -635,13 +680,13 @@ export function todayInbox(input: TodayInput): TodayInbox {
       // wedding is close: couples book 12–18 months out, so banding a fresh
       // lead by its event date buries the most time-critical thing a studio
       // owns under jobs it has already won.
-      band: leadBand(arrivedAt(lead), now),
+      band: leadBand(nextMove.waitingSince ?? arrivedAt(lead), now),
       eventDate: leadEvent,
       score: score({
         lane: "act",
         severity: "inquiry",
         eventDate: text(lead.eventDate) || null,
-        updatedAt: arrivedAt(lead) ?? changedAt(lead),
+        updatedAt: nextMove.waitingSince ?? arrivedAt(lead) ?? changedAt(lead),
         now,
       }),
     });
@@ -940,6 +985,8 @@ export function todayInbox(input: TodayInput): TodayInbox {
   );
   let inMotion = 0;
   for (const position of input.journeys ?? []) {
+    // The inquiry card is this couple's Today item while they are one.
+    if (inquiryCardProjectIds.has(position.projectId)) continue;
     if (position.owner !== "studio") {
       if (position.owner) inMotion += 1;
       continue;
@@ -1139,7 +1186,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
         kind: "approve",
         label: "Approve",
         actionId: action.id,
-        href: "/studio/ai-queue",
+        href: action.projectId ? `/studio/projects/${text(action.projectId)}` : "/studio",
         preview: previewOf(action.structuredOutput),
       },
       jobHref: action.projectId
@@ -1169,6 +1216,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
     label: string;
     projectId?: unknown;
     updatedAt?: string | null;
+    action?: TodayAction;
   }) => {
     approve.push({
       id: item.id,
@@ -1179,7 +1227,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
       evidence: "StudioCue prepared this — you decide",
       projectId: text(item.projectId) || null,
       projectName: nameFor(item.projectId),
-      action: { kind: "link", label: item.label, href: item.href },
+      action: item.action ?? { kind: "link", label: item.label, href: item.href },
       jobHref: item.projectId
         ? `/studio/projects/${text(item.projectId)}`
         : null,
@@ -1205,10 +1253,11 @@ export function todayInbox(input: TodayInput): TodayInbox {
       kind: "automation",
       title: `Approve ${readable(approval.actionType) || "a workflow step"}`,
       detail: nameFor(approval.projectId) ?? "Studio workflow",
-      href: "/studio/ai-queue",
+      href: "/studio",
       label: "Review",
       projectId: approval.projectId,
       updatedAt: changedAt(approval),
+      action: { kind: "automation", label: "Review", approvalId: approval.id },
     });
   }
   for (const draft of rows(input.communicationDrafts)) {
@@ -1282,7 +1331,10 @@ export function todayInbox(input: TodayInput): TodayInbox {
   approve.sort(byScore);
   fyi.sort(byScore);
 
+  // What's coming up is what the studio has won: an inquiry's date is a
+  // question the couple asked, not an event on the books.
   const upcoming = (input.journeys ?? [])
+    .filter((position) => !preBookingStates.has(position.state))
     .map((position) => ({
       projectId: position.projectId,
       name: position.projectName,

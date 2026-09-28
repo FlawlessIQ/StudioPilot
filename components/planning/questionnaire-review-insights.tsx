@@ -134,7 +134,7 @@ export function QuestionnaireReviewInsights({ projectId }: { projectId: string }
             <section><h4><CircleAlert size={15} /> Risks or conflicts</h4>{review.planningRisks.length || review.contradictions.length ? <ul>{[...review.planningRisks, ...review.contradictions].map((item) => <li key={item}>{item}</li>)}</ul> : <p>No conflicts were suggested.</p>}</section>
             <section><h4><MessageCircleQuestion size={15} /> Follow-up questions</h4>{review.suggestedQuestions.length ? <ul>{review.suggestedQuestions.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No follow-up questions were suggested.</p>}</section>
           </div>
-          <Link className="button button-dark" href="/studio/ai-queue">
+          <Link className="button button-dark" href={`/studio/projects/${projectId}`}>
             Review prepared follow-up
           </Link>
         </article>

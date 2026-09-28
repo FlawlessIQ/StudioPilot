@@ -25,6 +25,7 @@ import { actionsPerWedding } from "@/features/reporting/actions-per-wedding";
 import { workflowScorecard } from "@/features/operations/workflow-scorecard";
 import { formatCents } from "@/lib/format/money";
 import { analyseFunnel } from "@/features/operations/funnel";
+import { bookedStates } from "@/features/inquiries/stages";
 
 function csvCell(value: unknown) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
@@ -100,8 +101,11 @@ export function LiveReports() {
       return counts;
     }, {}),
   ).sort((a, b) => b[1] - a[1]);
+  // Weddings the studio has won. Every inquiry is a job from the moment it
+  // arrives, so counting all jobs counted every couple who ever asked.
+  const bookedProjects = projects.filter((project) => bookedStates.has(String(project.state)));
   const projectTypes = Object.entries(
-    projects.reduce<Record<string, number>>((counts, project) => {
+    bookedProjects.reduce<Record<string, number>>((counts, project) => {
       const key = String(project.eventType ?? "Other");
       counts[key] = (counts[key] ?? 0) + 1;
       return counts;
@@ -153,7 +157,11 @@ export function LiveReports() {
     ),
   );
   const funnel = analyseFunnel([
-    { label: "Inquiries", value: leadsState.records?.length ?? 0 },
+    // Spam the studio dismissed is not an inquiry that didn't book.
+    {
+      label: "Inquiries",
+      value: (leadsState.records ?? []).filter((lead) => lead.notInquiry !== true).length,
+    },
     { label: "Consultations", value: consultations.length },
     { label: "Proposals sent", value: proposalsSent.length },
     {
@@ -302,7 +310,7 @@ export function LiveReports() {
       <section className="report-metrics">
         <article className="panel report-metric-card report-metric-projects">
           <span className="report-metric-icon"><BriefcaseBusiness /></span>
-          <span className="report-metric-copy"><small>Projects</small><strong>{loading ? "—" : projects.length}</strong><span>Filtered event records</span></span>
+          <span className="report-metric-copy"><small>Booked jobs</small><strong>{loading ? "—" : bookedProjects.length}</strong><span>Booked, in the filtered range</span></span>
         </article>
         <article className="panel report-metric-card report-metric-readiness">
           <span className="report-metric-icon"><Gauge /></span>
@@ -344,7 +352,7 @@ export function LiveReports() {
             {projectTypes.map(([type, count]) => (
               <article key={type}>
                 <span><strong>{type}</strong><small>{count} {count === 1 ? "project" : "projects"}</small></span>
-                <i><b style={{ width: `${projects.length ? (count / projects.length) * 100 : 0}%` }} /></i>
+                <i><b style={{ width: `${bookedProjects.length ? (count / bookedProjects.length) * 100 : 0}%` }} /></i>
               </article>
             ))}
             {!projectTypes.length ? (

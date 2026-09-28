@@ -9,6 +9,7 @@ import {
   CalendarRange,
   ContactRound,
   FolderKanban,
+  Inbox,
   ListTodo,
   Plus,
   Search,
@@ -20,6 +21,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { KindGlyph } from "@/components/library/kind-glyph";
 import { formatDueDate } from "@/lib/format/event-date";
 import type { LibraryKind } from "@/features/library/kinds";
+import { preBookingStates } from "@/features/inquiries/stages";
 
 type SearchResult = {
   id: string;
@@ -28,12 +30,13 @@ type SearchResult = {
   href: string;
   kind:
     | "Project"
+    | "Inquiry"
     | "Client"
     | "Task"
     | "Contract"
     | "Schedule"
     | "Message"
-    | "AI review";
+    | "Approval";
 };
 
 /**
@@ -50,8 +53,9 @@ const searchResultGlyphs: Record<
   { kind: LibraryKind | null; icon?: typeof FolderKanban }
 > = {
   Project: { kind: null, icon: FolderKanban },
+  Inquiry: { kind: null, icon: Inbox },
   Client: { kind: null, icon: ContactRound },
-  "AI review": { kind: null, icon: BrainCircuit },
+  Approval: { kind: null, icon: BrainCircuit },
   Task: { kind: "task" },
   Contract: { kind: "contract" },
   Schedule: { kind: "schedule" },
@@ -90,6 +94,7 @@ export function GlobalSearch() {
   const { records: aiActions } = useTenantDocuments("aiActions", {
     enabled: operator,
   });
+  const { records: leads } = useTenantDocuments("leads", { enabled: operator });
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -116,6 +121,10 @@ export function GlobalSearch() {
       ...(projects ?? []).map((project) => ({
         id: `project-${project.id}`,
         label: text(project.name) || "Untitled project",
+        // A couple who hasn't booked is an inquiry, and says so.
+        kind: preBookingStates.has(text(project.state))
+          ? ("Inquiry" as const)
+          : ("Project" as const),
         detail: [
           text(project.eventType),
           // Search results are read at a glance; a machine date is the one
@@ -125,8 +134,24 @@ export function GlobalSearch() {
           .filter(Boolean)
           .join(" · "),
         href: `/studio/projects/${project.id}`,
-        kind: "Project" as const,
       })),
+      // Inquiries that aren't a job yet (no date, or not confirmed): found by
+      // the couple's name or email, which is how a studio remembers them.
+      ...(leads ?? [])
+        .filter((lead) => !text(lead.projectId) && lead.notInquiry !== true)
+        .map((lead) => ({
+          id: `lead-${lead.id}`,
+          label:
+            text(lead.displayName) ||
+            `${text(lead.firstName)} ${text(lead.lastName)}`.trim() ||
+            text(lead.email) ||
+            "Inquiry",
+          detail: [text(lead.email), text(lead.eventDate) ? formatDueDate(lead.eventDate) : ""]
+            .filter(Boolean)
+            .join(" · "),
+          href: `/studio/leads/${lead.id}`,
+          kind: "Inquiry" as const,
+        })),
       ...(contacts ?? []).map((contact) => ({
         id: `client-${contact.id}`,
         label: text(contact.displayName) || text(contact.email) || "Client",
@@ -194,8 +219,9 @@ export function GlobalSearch() {
             text(action.title) ||
             `Review ${text(action.capability).replaceAll("_", " ")}`,
           detail: "AI approval required",
-          href: "/studio/ai-queue",
-          kind: "AI review" as const,
+          // Approvals are worked where they belong: on the job, or on Today.
+          href: text(action.projectId) ? `/studio/projects/${text(action.projectId)}` : "/studio",
+          kind: "Approval" as const,
         })),
     ];
     return values
@@ -207,6 +233,7 @@ export function GlobalSearch() {
       .slice(0, 10);
   }, [
     aiActions,
+    leads,
     contacts,
     contracts,
     messages,
@@ -296,7 +323,7 @@ export function GlobalSearch() {
                   </Link>
                 ) : null}
                 {operator ? (
-                  <Link href="/studio/ai-queue" onClick={close}>
+                  <Link href="/studio" onClick={close}>
                     <BrainCircuit size={17} />
                     <span>
                       <strong>Review prepared work</strong>

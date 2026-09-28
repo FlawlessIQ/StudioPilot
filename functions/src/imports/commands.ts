@@ -106,6 +106,15 @@ async function contactsByEmail(
   return found;
 }
 
+/**
+ * An inquiry that became a job on arrival and was never taken further. It is
+ * not a booking: importing the real booking supersedes it rather than being
+ * refused as a duplicate of it.
+ */
+function isUntouchedInquiry(project: DocumentSnapshot): boolean {
+  return project.get("origin") === "inquiry" && project.get("state") === "LEAD";
+}
+
 /** A job already in StudioCue for this couple on this date. */
 async function existingBookingFor(
   db: Firestore,
@@ -125,6 +134,7 @@ async function existingBookingFor(
       (project) =>
         !project.get("archivedAt") &&
         project.get("state") !== "CANCELLED" &&
+        !isUntouchedInquiry(project) &&
         (project.get("importKey") === key ||
           (primaryContactId !== null &&
             Array.isArray(project.get("clientContactIds")) &&
@@ -234,12 +244,41 @@ export async function importExistingBooking(input: {
   // Derived from the couple and the date, so two imports of the same booking
   // racing past the check above still cannot both land: the second create
   // fails at the database.
+  // The couple's inquiry, if it became a job on arrival, is the same wedding:
+  // put away with the import rather than left open beside the booking.
+  const supersededInquiries =
+    known.get(primaryEmail) === undefined
+      ? []
+      : (
+          await db
+            .collection("projects")
+            .where("tenantId", "==", input.tenantId)
+            .where("clientContactIds", "array-contains", known.get(primaryEmail)!.id)
+            .limit(10)
+            .get()
+        ).docs.filter(
+          (project) =>
+            isUntouchedInquiry(project) &&
+            !project.get("archivedAt") &&
+            project.get("eventDate") === input.booking.eventDate,
+        );
   const projectId = `imported_${createHash("sha256")
     .update(`${input.tenantId}|${bookingImportKey(input.booking)}`)
     .digest("hex")
     .slice(0, 32)}`;
   const contactIds: string[] = [];
   const batch = db.batch();
+  for (const inquiry of supersededInquiries) {
+    batch.update(inquiry.ref, {
+      state: "ARCHIVED",
+      stateVersion: Number(inquiry.get("stateVersion") ?? 0) + 1,
+      archivedAt: input.timestamp,
+      supersededBy: projectId,
+      nextAction: null,
+      updatedAt: input.timestamp,
+      updatedBy: input.actorId,
+    });
+  }
   let contactsCreated = 0;
   let contactsMatched = 0;
 

@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { applyMessageToConversation } from "../communications/conversation.js";
+import { convertInquiryToJob } from "./convert.js";
 import {
   BUILDER_LABEL,
   MARKETPLACES,
@@ -47,7 +48,14 @@ export type CaptureOutcome =
   | "duplicate";
 
 const OPEN_LEAD_STATUSES = ["new", "reviewing", "qualified", "consultation_scheduled", "proposal_ready"];
+/** A date is taken once a couple is past the first conversation. */
 const ACTIVE_STATES = ["CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING", "BOOKED", "PLANNING", "READY"];
+/**
+ * A couple writing again joins the job they already have — including one
+ * still at the inquiry stage, which is where most second emails land now
+ * that every dated inquiry becomes a job on arrival.
+ */
+const ATTACH_STATES = ["LEAD", ...ACTIVE_STATES];
 
 type Settings = {
   forms?: Record<string, { fieldMapping?: Record<string, LeadFieldKey | "ignore"> }>;
@@ -271,7 +279,7 @@ export async function captureInquiry(input: {
         .limit(10)
         .get();
       const active = projects.docs.find(
-        (project) => ACTIVE_STATES.includes(String(project.get("state"))) && !project.get("archivedAt"),
+        (project) => ATTACH_STATES.includes(String(project.get("state"))) && !project.get("archivedAt"),
       );
       if (active) {
         await attachMessage(db, {
@@ -311,12 +319,19 @@ export async function captureInquiry(input: {
     now,
   });
   const outcome: CaptureOutcome = read.verdict === "inquiry" ? "lead_created" : "maybe_created";
-  await writeCapture(outcome, { leadId });
+  // A confirmed inquiry with a date is a job from now on; the rest wait for
+  // the studio to confirm, or for the date (intake/convert.ts).
+  const conversion =
+    outcome === "lead_created"
+      ? await convertInquiryToJob(db, { tenantId, leadId, now })
+      : null;
+  const projectId = conversion?.converted ? conversion.projectId : null;
+  await writeCapture(outcome, { leadId, projectId });
   await db.doc(`leadCaptureSettings/${tenantId}`).set(
     { tenantId, lastCaptureAt: now, lastCaptureId: captureId, updatedAt: now },
     { merge: true },
   );
-  return { outcome, leadId, projectId: null, captureId };
+  return { outcome, leadId, projectId, captureId };
 }
 
 async function writeLead(
@@ -504,12 +519,46 @@ async function attachMessage(
     now: string;
   },
 ) {
-  const participant = {
-    contactId: null,
-    email: input.fields.email,
-    phone: input.fields.phone,
-    name: [input.fields.firstName, input.fields.lastName].filter(Boolean).join(" ") || null,
-  };
+  return recordInquiryMessage(db, {
+    tenantId: input.tenantId,
+    leadId: input.leadId,
+    projectId: input.projectId,
+    participant: {
+      email: input.fields.email,
+      phone: input.fields.phone,
+      name: [input.fields.firstName, input.fields.lastName].filter(Boolean).join(" ") || null,
+    },
+    subject: input.subject,
+    body: input.fields.message,
+    provider: "inquiry_capture",
+    providerMessageId: input.providerMessageId,
+    formBuilder: input.read.builder,
+    now: input.now,
+  });
+}
+
+/**
+ * An inquiry's words, as an inbound message on its thread — whichever door it
+ * came through. The website form uses this too, so every inquiry starts its
+ * thread with what the couple wrote.
+ */
+export async function recordInquiryMessage(
+  db: Firestore,
+  input: {
+    tenantId: string;
+    leadId: string | null;
+    projectId: string | null;
+    participant: { email: string | null; phone: string | null; name: string | null };
+    subject: string;
+    body: string;
+    provider: string;
+    providerMessageId: string;
+    formBuilder: string | null;
+    now: string;
+  },
+) {
+  const participant = { contactId: null, ...input.participant };
+  const fields = { message: input.body };
   const conversationId = await applyMessageToConversation(db, {
     tenantId: input.tenantId,
     projectId: input.projectId,
@@ -518,7 +567,7 @@ async function attachMessage(
     channel: "email",
     direction: "inbound",
     subject: input.subject || null,
-    preview: input.fields.message.slice(0, 280),
+    preview: fields.message.slice(0, 280),
     occurredAt: input.now,
   });
   const messageId = `inquiry_${createHash("sha256")
@@ -536,19 +585,19 @@ async function attachMessage(
       channel: "email",
       visibility: "shared",
       subject: input.subject || null,
-      body: input.fields.message,
-      bodyPreview: input.fields.message.slice(0, 280),
-      provider: "inquiry_capture",
+      body: fields.message,
+      bodyPreview: fields.message.slice(0, 280),
+      provider: input.provider,
       providerMessageId: input.providerMessageId,
-      senderEmail: input.fields.email,
+      senderEmail: participant.email,
       senderName: participant.name,
-      formBuilder: input.read.builder,
+      formBuilder: input.formBuilder,
       status: "received",
       receivedAt: input.now,
       createdAt: input.now,
       updatedAt: input.now,
-      createdBy: "inquiry-capture",
-      updatedBy: "inquiry-capture",
+      createdBy: input.provider,
+      updatedBy: input.provider,
       archivedAt: null,
     },
     { merge: true },

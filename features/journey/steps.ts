@@ -180,7 +180,13 @@ export type JourneyInput = {
   state: ProjectState | string;
   eventDate: string | null; // YYYY-MM-DD
   today: string; // YYYY-MM-DD
-  lead: { id: string; status: string } | null;
+  /**
+   * The inquiry this job came from. `replied` is read from the thread
+   * (features/inquiries/next-move.ts); without it, only a lead's status can
+   * say, and "converted" no longer means anyone replied — every dated
+   * inquiry is converted on arrival.
+   */
+  lead: { id: string; status: string; replied?: boolean } | null;
   hasConsultation: boolean;
   proposalStatus: string | null;
   contractStatus: string | null;
@@ -385,7 +391,7 @@ export function projectJourney(input: JourneyInput): {
 
   // First reply only exists when the project came from a lead.
   if (input.lead) {
-    const replied = input.lead.status !== "new" || stateRank >= 1;
+    const replied = input.lead.replied ?? (input.lead.status !== "new" || stateRank >= 1);
     push({
       key: "first_reply",
       title: "First reply",
@@ -395,7 +401,10 @@ export function projectJourney(input: JourneyInput): {
       status: replied ? "complete" : "current",
       action: replied
         ? null
-        : { kind: "link", label: "Review reply", href: `/studio/leads/${input.lead.id}` },
+        : // The drafted reply waits in the job's prepared tray. The inquiry's
+          // own page now hands straight back to the job, so linking there went
+          // in a circle.
+          { kind: "link", label: "Review reply", href: `/studio/projects/${input.projectId}#prepared` },
     });
   }
 
@@ -877,7 +886,7 @@ export function projectJourney(input: JourneyInput): {
       dayBeforeDone || !dayBeforeDue || eventBehindThem
         ? null
         : input.dayBeforeDraftStatus === "review_required"
-          ? { kind: "link", label: "Approve the checklist", href: "/studio/ai-queue" }
+          ? { kind: "link", label: "Approve the checklist", href: `/studio/projects/${input.projectId}` }
           : {
               kind: "draft",
               label: "Draft the checklist",
@@ -1009,10 +1018,10 @@ export function projectJourney(input: JourneyInput): {
     { label: string; href: string } | null
   > = {
     inquiry: input.lead
-      ? { label: "Open inquiry", href: `/studio/leads/${input.lead.id}` }
+      ? { label: "Open the thread", href: `/studio/projects/${input.projectId}#prepared` }
       : null,
     first_reply: input.lead
-      ? { label: "Open inquiry", href: `/studio/leads/${input.lead.id}` }
+      ? { label: "Review reply", href: `/studio/projects/${input.projectId}#prepared` }
       : null,
     consultation: { label: "Open calendar", href: project("/studio/calendar") },
     proposal: { label: "Open proposal", href: project("/studio/proposals") },
@@ -1026,7 +1035,7 @@ export function projectJourney(input: JourneyInput): {
     crew: { label: "Open crew", href: project("/studio/crew") },
     coi: { label: "Open insurance", href: project("/studio/insurance") },
     final_balance: { label: "Open invoices", href: project("/studio/invoices") },
-    day_before: { label: "Open review queue", href: "/studio/ai-queue" },
+    day_before: { label: "Open the job", href: `/studio/projects/${input.projectId}` },
     event_day: { label: "Open event day", href: project("/studio/event-day") },
     delivery: { label: "Open delivery", href: project("/studio/delivery") },
     album_review: { label: "Open reviews", href: project("/studio/reviews") },

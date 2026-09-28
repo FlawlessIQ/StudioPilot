@@ -181,7 +181,7 @@ test("day-before checklist becomes the action within two days of the event", () 
   assert.equal(withDraftWaiting.current?.action?.kind, "link");
   assert.ok(
     withDraftWaiting.current?.action?.kind === "link" &&
-      withDraftWaiting.current.action.href === "/studio/ai-queue",
+      withDraftWaiting.current.action.href === `/studio/projects/${base.projectId}`,
   );
 });
 

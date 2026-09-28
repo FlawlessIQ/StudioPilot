@@ -38,6 +38,8 @@ export type Conversation = {
   studioUnreadCount: number;
   clientUnreadCount: number;
   messageCount: number;
+  lastInboundAt?: string | null;
+  lastOutboundAt?: string | null;
   status: "open" | "archived";
   archivedAt: string | null;
 };
@@ -99,6 +101,10 @@ export function conversationIdFor(input: {
   )}`;
 }
 
+function latest(current: string | null | undefined, next: string): string {
+  return current && current > next ? current : next;
+}
+
 export function foldMessageIntoConversation(
   current: Conversation | null,
   delta: ConversationDelta,
@@ -138,6 +144,14 @@ export function foldMessageIntoConversation(
     studioUnreadCount: inbound ? (current?.studioUnreadCount ?? 0) + 1 : 0,
     clientUnreadCount: inbound ? 0 : (current?.clientUnreadCount ?? 0) + 1,
     messageCount: (current?.messageCount ?? 0) + 1,
+    // When each side last spoke, so "who owes the next message" is read from
+    // the thread rather than kept by hand (features/inquiries/next-move.ts).
+    lastInboundAt: inbound
+      ? latest(current?.lastInboundAt, delta.occurredAt)
+      : (current?.lastInboundAt ?? null),
+    lastOutboundAt: inbound
+      ? (current?.lastOutboundAt ?? null)
+      : latest(current?.lastOutboundAt, delta.occurredAt),
     status: inbound ? "open" : (current?.status ?? "open"),
     archivedAt: inbound ? null : (current?.archivedAt ?? null),
   };

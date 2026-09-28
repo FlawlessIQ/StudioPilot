@@ -255,8 +255,8 @@ function JourneyActionButton({
       setDone(true);
       setNotice(
         result.mode === "preview"
-          ? "Preview: the draft would wait in AI review."
-          : "Drafted — approve it in AI review.",
+          ? "Preview: the draft would wait for your approval on this job."
+          : "Drafted — it's waiting for your approval on this job.",
       );
     } catch (caught: unknown) {
       setNotice(
@@ -270,8 +270,8 @@ function JourneyActionButton({
   return (
     <span className="journey-step-draft">
       {done ? (
-        <Link className="journey-step-action" href="/studio/ai-queue">
-          Open AI review <ArrowRight size={14} />
+        <Link className="journey-step-action" href={`/studio/projects/${projectId}`}>
+          Review the draft <ArrowRight size={14} />
         </Link>
       ) : (
         <button

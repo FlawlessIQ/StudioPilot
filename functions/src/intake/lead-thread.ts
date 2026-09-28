@@ -16,6 +16,12 @@ import {
  * left behind as a pointer (`movedTo`), because the reply address already in
  * the couple's mailbox still names it — inbound follows the pointer.
  */
+function laterOf(a: string | null | undefined, b: string | null | undefined): string | null {
+  if (!a) return b ?? null;
+  if (!b) return a;
+  return a > b ? a : b;
+}
+
 export async function moveLeadThreadsToProject(
   db: Firestore,
   input: { tenantId: string; leadId: string; projectId: string; now: string },
@@ -56,6 +62,10 @@ export async function moveLeadThreadsToProject(
           studioUnreadCount: (other?.studioUnreadCount ?? 0) + current.studioUnreadCount,
           clientUnreadCount: (other?.clientUnreadCount ?? 0) + current.clientUnreadCount,
           messageCount: (other?.messageCount ?? 0) + current.messageCount,
+          // Each side's latest word, from whichever thread holds it: the
+          // Inquiries list and Today read whose move it is from these.
+          lastInboundAt: laterOf(other?.lastInboundAt, current.lastInboundAt),
+          lastOutboundAt: laterOf(other?.lastOutboundAt, current.lastOutboundAt),
           status: "open",
           archivedAt: null,
           updatedAt: input.now,

@@ -135,7 +135,7 @@ export function ProjectPreparedTray({ projectId }: { projectId: string }) {
   const drafts = items.length;
 
   return (
-    <section className="project-prepared-tray">
+    <section className="project-prepared-tray" id="prepared">
       <header>
         <span><Sparkles size={18} /></span>
         <div>

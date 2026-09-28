@@ -3,6 +3,20 @@ import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requestFingerprint, requireAppCheck } from "./security.js";
+import { recordInquiryMessage } from "../intake/capture.js";
+import { afterConversion, convertInquiryToJob } from "../intake/convert.js";
+
+/** A couple's job still open to their next message: any stage before delivery. */
+const JOINABLE_STATES = [
+  "LEAD",
+  "CONSULTATION",
+  "PROPOSAL",
+  "CONTRACT_PENDING",
+  "RETAINER_PENDING",
+  "BOOKED",
+  "PLANNING",
+  "READY",
+];
 import { studioHubCors } from "../security/cors.js";
 import { findTenantBySlug } from "./tenant-by-slug.js";
 
@@ -238,7 +252,9 @@ export const publicLeadIntake = onRequest(
       firstName: input.firstName,
       lastName: input.lastName,
       partnerName: input.partnerName,
-      email: input.email,
+      // Stored as matched: inbox capture looks leads up by lower-cased email,
+      // and a mixed-case form entry was invisible to it.
+      email: normalizedEmail,
       phone: input.phone,
       availabilityStatus,
       aiSummary,
@@ -302,6 +318,60 @@ export const publicLeadIntake = onRequest(
       updatedAt: timestamp,
     });
     await batch.commit();
+
+    // The couple's own words open the inquiry's thread, as they do for an
+    // inquiry captured from the inbox, so the studio's reply and the couple's
+    // answer sit under what they asked.
+    await recordInquiryMessage(db, {
+      tenantId,
+      leadId,
+      projectId: null,
+      participant: { email: normalizedEmail, phone: input.phone, name: displayName },
+      subject: `${input.eventType} inquiry`,
+      body: input.message,
+      provider: "inquiry_form",
+      providerMessageId: leadId,
+      formBuilder: null,
+      now: timestamp,
+    }).catch((caught: unknown) => {
+      console.warn(`[intake] recording the form inquiry on its thread failed: ${String(caught).slice(0, 160)}`);
+    });
+
+    // A couple already in conversation with the studio joins the job they
+    // have; anyone else's inquiry becomes a job now (intake/convert.ts).
+    try {
+      const existingJob = existingContact
+        ? (
+            await db
+              .collection("projects")
+              .where("tenantId", "==", tenantId)
+              .where("clientContactIds", "array-contains", existingContact.id)
+              .limit(10)
+              .get()
+          ).docs.find(
+            (project) =>
+              JOINABLE_STATES.includes(String(project.get("state"))) && !project.get("archivedAt"),
+          )
+        : undefined;
+      if (existingJob) {
+        await db.doc(`leads/${leadId}`).update({
+          projectId: existingJob.id,
+          status: "converted",
+          convertedAt: timestamp,
+          convertedBy: systemActor,
+          autoConverted: true,
+          duplicateOfLeadId: duplicateLead?.id ?? existingJob.get("leadId") ?? null,
+          updatedAt: timestamp,
+        });
+        await afterConversion(db, { tenantId, leadId, projectId: existingJob.id, now: timestamp });
+      } else {
+        await convertInquiryToJob(db, { tenantId, leadId, now: timestamp, actor: systemActor });
+      }
+    } catch (caught: unknown) {
+      // The inquiry is saved either way; an unconverted lead still shows on
+      // Today and can be converted by hand.
+      console.warn(`[intake] converting the form inquiry failed: ${String(caught).slice(0, 160)}`);
+    }
 
     response.status(201).json({
       leadId,

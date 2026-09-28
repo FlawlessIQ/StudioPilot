@@ -54,7 +54,7 @@ export function TodayMaybeInquiries({
               leadId={item.leadId}
               onAnswered={() => {
                 onAnswered(item.leadId);
-                refreshTenantRecords("leads");
+                refreshTenantRecords("leads", "projects", "conversations", "contacts");
               }}
             />
           </li>

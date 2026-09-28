@@ -171,12 +171,18 @@ export function useSetupState(): {
           !formedProjects.has(project.id),
       )
       .map((project) => text(project.name) || "A job"),
-    openInquiries: (leads.records ?? []).filter(
-      (lead) =>
-        !["converted", "lost", "archived"].includes(
-          text(lead.status).toLowerCase(),
-        ),
-    ).length,
+    // Couples who could book a call: open leads that aren't a job yet, and
+    // jobs still at the inquiry stage (every dated inquiry is one).
+    openInquiries:
+      (leads.records ?? []).filter(
+        (lead) =>
+          !text(lead.projectId) &&
+          lead.needsConfirmation !== true &&
+          !["converted", "lost", "archived"].includes(text(lead.status).toLowerCase()),
+      ).length +
+      (projects.records ?? []).filter(
+        (project) => text(project.state) === "LEAD" && !project.archivedAt,
+      ).length,
   });
 
   return {

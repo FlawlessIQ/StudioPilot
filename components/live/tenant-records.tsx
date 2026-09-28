@@ -48,6 +48,7 @@ import { formatCents } from "@/lib/format/money";
 import { useTodayInbox } from "@/components/today/use-today-inbox";
 import { ReadinessMeter } from "@/components/ui/readiness-meter";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { preBookingStates } from "@/features/inquiries/stages";
 import {
   ClientPortalInvite,
   type ClientInvitationStatus,
@@ -102,6 +103,7 @@ const projectScopedCollections = new Set([
   "albumWorkflows",
   "projectCloseouts",
   "messages",
+  "conversations",
   "communicationDrafts",
   "aiActions",
   "actionReceipts",
@@ -114,6 +116,19 @@ const projectScopedCollections = new Set([
   "deliveryRecords",
   "reviewRequests",
 ]);
+
+/**
+ * How many records a tenant-wide read takes.
+ *
+ * The read is unordered, so a cap below the tenant's real count drops records
+ * at random — and every dated inquiry now becomes a job, with a lead and a
+ * thread, so these three grow with every inquiry a studio receives. Below the
+ * higher cap, a busy season of inquiries could push a booked wedding off the
+ * Jobs list, Today and the calendar without any error.
+ */
+function tenantReadLimit(collectionName: string): number {
+  return ["projects", "leads", "conversations", "contacts"].includes(collectionName) ? 1000 : 100;
+}
 
 function tenantRecordsKey(
   collectionName: string,
@@ -198,7 +213,7 @@ async function tenantDocuments(
     query(
       collection(firestore, collectionName),
       where("tenantId", "==", tenantId),
-      limit(100),
+      limit(tenantReadLimit(collectionName)),
     ),
   );
   return snapshot.docs.map(
@@ -708,7 +723,7 @@ export function LiveClientCards({
   );
 }
 
-function LiveRecordsState({
+export function LiveRecordsState({
   kind,
   state,
   detail,
@@ -806,6 +821,11 @@ export function LiveProjectRows({
         .filter((item) =>
           view === "archived" ? isPutAway(item) : !isPutAway(item),
         )
+        // Not booked yet is an inquiry, listed under Inquiries: a couple
+        // becomes a job here when they book.
+        .filter(
+          (item) => view === "archived" || !preBookingStates.has(String(item.state ?? "")),
+        )
         .filter(
           (item) =>
             type === "all" || String(item.eventType).toLowerCase() === type,
@@ -882,13 +902,17 @@ export function LiveProjectRows({
     return (
       <LiveRecordsState
         kind="empty"
-        state={filtered ? "No projects in this view" : "No projects yet"}
+        state={filtered ? "No jobs in this view" : "No booked jobs yet"}
         detail={
           filtered
             ? "Nothing matches the current filters. Clear them, or create a project."
-            : "Create your first project and StudioCue starts tracking it from the inquiry."
+            : "A couple becomes a job here when they book. Everyone still deciding is under Inquiries."
         }
-        action={{ href: "/studio/projects/new", label: "Create project" }}
+        action={
+          filtered
+            ? { href: "/studio/projects/new", label: "Create project" }
+            : { href: "/studio/leads", label: "Open Inquiries" }
+        }
       />
     );
   }
@@ -1116,7 +1140,7 @@ export function LiveMaybeInquiries() {
             <MaybeInquiryPrompt
               compact
               leadId={item.id}
-              onAnswered={() => refreshTenantRecords("leads")}
+              onAnswered={() => refreshTenantRecords("leads", "projects", "conversations", "contacts")}
             />
           </li>
         ))}
@@ -1133,6 +1157,16 @@ export function LiveLeadDetail({ id }: { id: string }) {
     ? crmLeads.find((item) => item.id === id)
     : null;
   const lead = liveLead ?? (demoLead as TenantDocument | undefined);
+  // An inquiry that is a job is worked on the job: one thread, one place to
+  // reply, book the consultation and send the proposal. The inquiry's own
+  // page is for what hasn't become one yet — a maybe, or one without a date.
+  const router = useRouter();
+  const jobId = typeof lead?.projectId === "string" ? lead.projectId : "";
+  useEffect(() => {
+    if (jobId) router.replace(`/studio/projects/${jobId}`);
+  }, [jobId, router]);
+  if (jobId)
+    return <LiveRecordsState kind="loading" state="Opening the job…" detail="This inquiry is on its job now." />;
   if (loading)
     return <LiveRecordsState kind="loading" state="Loading inquiry…" detail="Opening the latest client details." />;
   if (error)
@@ -1220,7 +1254,7 @@ export function LiveLeadDetail({ id }: { id: string }) {
       {lead.needsConfirmation === true && !converted ? (
         <MaybeInquiryPrompt
           leadId={lead.id}
-          onAnswered={() => refreshTenantRecords("leads")}
+          onAnswered={() => refreshTenantRecords("leads", "projects", "conversations", "contacts")}
         />
       ) : null}
       {typeof lead.eventDate === "string" && lead.eventDate && lead.availabilityStatus === "conflict" ? (
@@ -1256,7 +1290,7 @@ export function LiveLeadDetail({ id }: { id: string }) {
           <LeadDetailsEditor
             key={String(lead.updatedAt ?? "")}
             lead={lead}
-            onSaved={() => refreshTenantRecords("leads")}
+            onSaved={() => refreshTenantRecords("leads", "projects", "conversations", "contacts")}
           />
         ) : null}
         {email ? <a className="button button-dark" href={`mailto:${email}`}><Mail /> Email client</a> : null}
@@ -1353,7 +1387,7 @@ export function LiveLeadDetail({ id }: { id: string }) {
               Grounded in the original inquiry. No availability or pricing was
               invented.
             </span>
-            <Link href="/studio/ai-queue">
+            <Link href="/studio">
               Review, edit, or approve <ArrowRight size={14} />
             </Link>
           </footer>
@@ -1398,7 +1432,7 @@ function DraftReplyButton({ leadId }: { leadId: string }) {
           "Preview: a personalized reply draft would be prepared for review.",
         );
       } else {
-        setNotice("Reply drafted — it's waiting in AI review.");
+        setNotice("Reply drafted — it's waiting on Today.");
         router.refresh();
       }
     } catch (caught: unknown) {
@@ -1452,7 +1486,8 @@ async function createContactFromLead(
     email: typeof lead.email === "string" && lead.email ? lead.email : null,
     phone: typeof lead.phone === "string" && lead.phone ? lead.phone : null,
     company: null,
-    contactTypes: ["client"],
+    // A prospect until they book; booking makes them a client.
+    contactTypes: ["prospect"],
   });
   const contactId = String(created.result.contactId ?? "");
   if (!contactId)

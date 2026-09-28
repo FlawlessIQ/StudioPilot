@@ -310,7 +310,7 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
             projectId: String(data.get("projectId")),
           });
           setNotice(
-            "Gallery delivery recorded. A delivery email draft is waiting in AI review.",
+            "Gallery delivery recorded. A delivery email draft is waiting for your approval on this job.",
           );
         } catch {
           setNotice(

@@ -16705,6 +16705,22 @@ label {
   }
 }
 
+/* Inquiries pipeline rows on phones: name and whose move on line one, then the
+   date, whether it's free and the stage chip together on line two — three
+   short facts side by side rather than three more stacked lines. */
+@media (max-width: 660px) {
+  .ds-root .crm-leads-table.inquiry-pipeline-table article > span:nth-of-type(2) {
+    flex: 1 1 auto;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+  }
+  .ds-root .crm-leads-table.inquiry-pipeline-table article > span:nth-of-type(2) small {
+    white-space: nowrap;
+  }
+}
+
 /* ============================================================================
    Cue — a Claude/ChatGPT-style chat. One conversation surface: the greeting is
    Cue's first message, suggestions sit above a single docked input, and on

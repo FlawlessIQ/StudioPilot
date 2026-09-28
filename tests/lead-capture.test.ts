@@ -7,6 +7,7 @@ import { readInquiryEmail, type InquiryEmail } from "../functions/src/intake/for
 import { gmailForwardingConfirmation } from "../functions/src/intake/gmail-forwarding";
 import { fillsFor } from "../functions/src/intake/enrich";
 import { moveLeadThreadsToProject } from "../functions/src/intake/lead-thread";
+import { convertInquiryToJob, projectIdForLead } from "../functions/src/intake/convert";
 import { providerFromMx } from "../functions/src/intake/mailbox-provider";
 import { captureSilent, silenceThreshold } from "../functions/src/intake/health-scheduler";
 import { conversationIdFor } from "../functions/src/communications/conversation";
@@ -153,20 +154,40 @@ test("a Squarespace notification becomes a filled-in lead with its own thread", 
   assert.deepEqual(lead.servicesRequested, ["photography", "videography"]);
   assert.ok(store.has(`aiJobs/lead_intake_${result.leadId}`), "the reply is drafted by the intake job");
 
-  // The inquiry is the first message on the lead's thread, keyed so the
-  // studio's reply (sent with the lead id) lands on the same conversation.
-  const expectedThread = conversationIdFor({
+  // A confirmed inquiry with a date is a job on arrival: quiet, at the
+  // inquiry stage, and joined to the lead and the couple's contact.
+  assert.ok(result.projectId, "the inquiry became a job");
+  assert.equal(lead.status, "converted");
+  assert.equal(lead.autoConverted, true);
+  assert.equal(lead.projectId, result.projectId);
+  const job = store.get(`projects/${result.projectId}`)!;
+  assert.equal(job.state, "LEAD");
+  assert.equal(job.origin, "inquiry");
+  assert.equal(job.eventDate, "2027-06-12");
+  assert.equal(job.leadId, result.leadId);
+  assert.deepEqual(job.clientContactIds, [lead.primaryContactId]);
+  assert.deepEqual(store.get(`contacts/${lead.primaryContactId}`)!.contactTypes, ["prospect"]);
+
+  // The inquiry is the first message on the job's thread; the lead's own
+  // thread is left as a pointer, because reply addresses already sent name it.
+  const leadThread = conversationIdFor({
     tenantId: "t1",
     leadId: result.leadId,
     participant: { email: "emma.hart@example.com" },
   });
-  assert.equal(lead.conversationId, expectedThread);
-  const conversation = store.get(`conversations/${expectedThread}`)!;
+  const jobThread = conversationIdFor({
+    tenantId: "t1",
+    projectId: String(result.projectId),
+    participant: { email: "emma.hart@example.com" },
+  });
+  assert.equal(store.get(`conversations/${leadThread}`)!.movedTo, jobThread);
+  const conversation = store.get(`conversations/${jobThread}`)!;
   assert.equal(conversation.leadId, result.leadId);
   assert.equal(conversation.studioUnreadCount, 1);
   const messages = rows(store, "messages");
   assert.equal(messages.length, 1);
   assert.equal(messages[0]!.leadId, result.leadId);
+  assert.equal(messages[0]!.projectId, result.projectId);
 
   const settings = store.get("leadCaptureSettings/t1")!;
   assert.equal(settings.lastCaptureAt, now);
@@ -182,7 +203,7 @@ test("the same email arriving twice is captured once", async () => {
   assert.equal(rows(store, "leads").length, 1);
 });
 
-test("the couple writing again is attached to their open lead, not a second one", async () => {
+test("the couple writing again joins the job their inquiry became, not a second one", async () => {
   const { db, store } = fakeFirestore(seed());
   const email = fixture("squarespace-text");
   const first = await captureInquiry({ db, tenantId: "t1", email, providerMessageId: "<m1>", route: "forward", now });
@@ -194,10 +215,10 @@ test("the couple writing again is attached to their open lead, not a second one"
     route: "forward",
     now: "2026-09-26T10:00:00.000Z",
   });
-  assert.equal(again.outcome, "attached_to_lead");
-  assert.equal(again.leadId, first.leadId);
+  assert.equal(again.outcome, "attached_to_project");
+  assert.equal(again.projectId, first.projectId);
   assert.equal(rows(store, "leads").length, 1);
-  assert.equal(store.get(`leads/${first.leadId}`)!.inquiryCount, 2);
+  assert.equal(rows(store, "projects").length, 1);
   assert.equal(rows(store, "messages").length, 2);
 });
 
@@ -356,12 +377,14 @@ test("Today says which form an inquiry came from, and whether the date is free",
 
 test("the lead's thread follows it onto the job", async () => {
   const { db, store } = fakeFirestore(seed());
+  // Held for review, so it stays a lead until moved by hand here.
   const captured = await captureInquiry({
     db,
     tenantId: "t1",
     email: fixture("squarespace-text"),
     providerMessageId: "<m1>",
     route: "forward",
+    reviewReason: "held for the test",
     now,
   });
   const leadThread = String(store.get(`leads/${captured.leadId}`)!.conversationId);
@@ -598,4 +621,67 @@ test("changing the studio's address says the forwarding address changes too", ()
   const read = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
   assert.match(read("features/tenants/identity.ts"), /forwarding address changes with it/);
   assert.match(read("components/intake/lead-capture-setup.tsx"), /Your StudioCue address isn&apos;t ready yet/);
+});
+
+test("an inquiry waits for its date, then becomes one job however often it is asked", async () => {
+  const { db, store } = fakeFirestore({
+    ...seed(),
+    "tenants/t1": { id: "t1", name: "Hart Light", timezone: "America/New_York" },
+    "leads/l1": {
+      id: "l1",
+      tenantId: "t1",
+      status: "new",
+      needsConfirmation: false,
+      eventDate: null,
+      email: "Maren@Example.test",
+      firstName: "Maren",
+      lastName: "Castillo",
+      displayName: "Maren Castillo",
+      eventTypeLabel: "Wedding",
+      archivedAt: null,
+    },
+  });
+  assert.deepEqual(await convertInquiryToJob(db, { tenantId: "t1", leadId: "l1", now }), {
+    converted: false,
+    reason: "no_date",
+  });
+  assert.equal(rows(store, "projects").length, 0);
+
+  store.get("leads/l1")!.eventDate = "2027-10-09";
+  const first = await convertInquiryToJob(db, { tenantId: "t1", leadId: "l1", now });
+  assert.deepEqual(first, { converted: true, projectId: projectIdForLead("t1", "l1"), created: true });
+  const job = store.get(`projects/${projectIdForLead("t1", "l1")}`)!;
+  assert.equal(job.name, "Maren Castillo Wedding");
+  assert.equal(job.timezone, "America/New_York");
+  assert.equal(job.nextAction, "Reply to the inquiry");
+  const contact = store.get(`contacts/${job.clientContactIds && (job.clientContactIds as string[])[0]}`)!;
+  assert.equal(contact.normalizedEmail, "maren@example.test");
+  assert.deepEqual(contact.contactTypes, ["prospect"]);
+
+  const again = await convertInquiryToJob(db, { tenantId: "t1", leadId: "l1", now });
+  assert.deepEqual(again, { converted: true, projectId: first.converted ? first.projectId : "", created: false });
+  assert.equal(rows(store, "projects").length, 1);
+  assert.equal(rows(store, "contacts").length, 1);
+});
+
+test("a maybe, a closed lead and another studio's lead never become jobs", async () => {
+  const lead = (extra: Record<string, unknown>) => ({
+    tenantId: "t1",
+    status: "new",
+    needsConfirmation: false,
+    eventDate: "2027-10-09",
+    email: "a@example.test",
+    archivedAt: null,
+    ...extra,
+  });
+  const { db, store } = fakeFirestore({
+    ...seed(),
+    "leads/maybe": lead({ needsConfirmation: true }),
+    "leads/closed": lead({ status: "archived" }),
+    "leads/other": lead({ tenantId: "t2" }),
+  });
+  assert.equal((await convertInquiryToJob(db, { tenantId: "t1", leadId: "maybe", now })).converted, false);
+  assert.equal((await convertInquiryToJob(db, { tenantId: "t1", leadId: "closed", now })).converted, false);
+  assert.equal((await convertInquiryToJob(db, { tenantId: "t1", leadId: "other", now })).converted, false);
+  assert.equal(rows(store, "projects").length, 0);
 });

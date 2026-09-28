@@ -64,6 +64,9 @@ export const conversationSchema = z.object({
   /** Waiting on the client, for the portal's own unread badge. */
   clientUnreadCount: z.number().int().nonnegative(),
   messageCount: z.number().int().nonnegative(),
+  /** When each side last spoke; absent on threads older than the field. */
+  lastInboundAt: z.string().nullable().optional(),
+  lastOutboundAt: z.string().nullable().optional(),
   status: conversationStatusSchema,
   archivedAt: z.string().nullable(),
 });
@@ -162,6 +165,10 @@ function uniqueChannels(
  * still counts toward totals and channels, but cannot rewrite the thread's
  * headline to something stale.
  */
+function latest(current: string | null | undefined, next: string): string {
+  return current && current > next ? current : next;
+}
+
 export function foldMessageIntoConversation(
   current: Conversation | null,
   delta: ConversationDelta,
@@ -197,6 +204,14 @@ export function foldMessageIntoConversation(
     studioUnreadCount: inbound ? (current?.studioUnreadCount ?? 0) + 1 : 0,
     clientUnreadCount: inbound ? 0 : (current?.clientUnreadCount ?? 0) + 1,
     messageCount: (current?.messageCount ?? 0) + 1,
+    // When each side last spoke, so "who owes the next message" is read from
+    // the thread rather than kept by hand (features/inquiries/next-move.ts).
+    lastInboundAt: inbound
+      ? latest(current?.lastInboundAt, delta.occurredAt)
+      : (current?.lastInboundAt ?? null),
+    lastOutboundAt: inbound
+      ? (current?.lastOutboundAt ?? null)
+      : latest(current?.lastOutboundAt, delta.occurredAt),
     // A thread the studio archived reopens when the client writes again;
     // a studio reply on an archived thread does not resurrect it.
     status: inbound ? "open" : (current?.status ?? "open"),

@@ -771,7 +771,7 @@ export function BookingAutopilotWorkspace({
               <small>Source</small>
               <strong>Consultation notes + project facts</strong>
               <span><ShieldCheck /> No inferred price, availability, or agreement</span>
-              <Link href="/studio/ai-queue">See what Cue based this on <ArrowRight /></Link>
+              <Link href={`/studio/projects/${projectId}`}>See what Cue based this on <ArrowRight /></Link>
             </aside>
           </section>
 
@@ -843,9 +843,9 @@ export function BookingAutopilotWorkspace({
           <CircleAlert />
           <span>
             <strong>AI preparation needs attention.</strong>
-            <small>Open AI review to inspect the failed or blocked action.</small>
+            <small>Open the job to see the failed or blocked action.</small>
           </span>
-          <Link href="/studio/ai-queue">Open AI review <ArrowRight /></Link>
+          <Link href={`/studio/projects/${projectId}`}>Open the job <ArrowRight /></Link>
         </section>
       )}
       {notice ? <p className="booking-autopilot-notice" role="status">{notice}</p> : null}

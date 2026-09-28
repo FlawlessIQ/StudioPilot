@@ -7,7 +7,10 @@ import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { studioHubCors } from "../security/cors.js";
 import { reconcileProjectReadiness } from "../workflow/readiness-triggers.js";
 import { teamRoleForEmail } from "./team-email.js";
-import { moveLeadThreadsToProject } from "../intake/lead-thread.js";
+import { afterConversion, convertInquiryToJob } from "../intake/convert.js";
+
+/** Commands after which an inquiry may have become ready to be a job. */
+const commandsThatCanConvert: ReadonlySet<string> = new Set(["updateLead"]);
 import { invalidCommandResponse } from "../security/invalid-command.js";
 import {
   archiveBlockedBy,
@@ -1961,7 +1964,25 @@ export const crmCommand = onRequest(
           if (!lead.exists || lead.get("tenantId") !== command.tenantId) {
             throw new Error("LEAD_NOT_FOUND");
           }
-          if (lead.get("projectId")) throw new Error("LEAD_NOT_CONVERTIBLE");
+          // An inquiry that became a job on arrival is still only an inquiry:
+          // "not an inquiry" puts its untouched job away with it. A job the
+          // studio has moved on, or made by hand, is not undone from here.
+          const linkedProjectId = lead.get("projectId");
+          const linkedProject =
+            typeof linkedProjectId === "string" && linkedProjectId
+              ? await transaction.get(db.doc(`projects/${linkedProjectId}`))
+              : null;
+          if (
+            linkedProject &&
+            !(
+              linkedProject.exists &&
+              linkedProject.get("tenantId") === command.tenantId &&
+              linkedProject.get("origin") === "inquiry" &&
+              linkedProject.get("state") === "LEAD"
+            )
+          ) {
+            throw new Error("LEAD_NOT_CONVERTIBLE");
+          }
           const captureId = lead.get("captureId");
           const capture =
             typeof captureId === "string" && captureId
@@ -1999,6 +2020,16 @@ export const crmCommand = onRequest(
             updatedAt: timestamp,
             updatedBy: identity.uid,
           });
+          if (linkedProject?.exists) {
+            transaction.update(linkedProject.ref, {
+              state: "ARCHIVED",
+              stateVersion: Number(linkedProject.get("stateVersion") ?? 0) + 1,
+              archivedAt: timestamp,
+              nextAction: null,
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            });
+          }
           // A capture from a person's own address (a manual forward, a reply)
           // must not teach capture to ignore that person. Only a sender that
           // isn't the lead itself is remembered.
@@ -2045,7 +2076,11 @@ export const crmCommand = onRequest(
             entityId: command.input.leadId,
             timestamp,
             before: { status: lead.get("status") ?? "new" },
-            after: { status: "archived", ignoredSender: learn ? sender : null },
+            after: {
+              status: "archived",
+              ignoredSender: learn ? sender : null,
+              archivedProjectId: linkedProject?.exists ? linkedProject.id : null,
+            },
             ipAddress: null,
             userAgent: request.header("user-agent") ?? null,
             correlationId,
@@ -2221,17 +2256,27 @@ export const crmCommand = onRequest(
        */
       const converted = result as { convertedLeadId?: string | null; projectId?: string };
       if (converted.convertedLeadId && converted.projectId) {
+        await afterConversion(db, {
+          tenantId: command.tenantId,
+          leadId: converted.convertedLeadId,
+          projectId: converted.projectId,
+          now: new Date().toISOString(),
+        });
+      }
+      /**
+       * An edit can make an inquiry a job: the studio confirming a "maybe",
+       * or adding the date it arrived without. convertInquiryToJob decides,
+       * and does nothing for a lead that isn't ready or already is one.
+       */
+      if (commandsThatCanConvert.has(command.type)) {
         try {
-          await moveLeadThreadsToProject(db, {
+          await convertInquiryToJob(db, {
             tenantId: command.tenantId,
-            leadId: converted.convertedLeadId,
-            projectId: converted.projectId,
+            leadId: (command.input as { leadId: string }).leadId,
             now: new Date().toISOString(),
           });
         } catch (caught: unknown) {
-          console.warn(
-            `[crm] moving the lead thread onto the job failed: ${String(caught).slice(0, 160)}`,
-          );
+          console.warn(`[crm] converting the edited inquiry failed: ${String(caught).slice(0, 160)}`);
         }
       }
       /**

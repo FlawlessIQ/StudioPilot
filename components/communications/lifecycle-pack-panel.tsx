@@ -114,7 +114,7 @@ export function LifecyclePackPanel() {
       </div>
       <p className="communications-lifecycle-note">
         StudioCue prepares these messages on schedule for every booked project.
-        Drafts wait in the AI review queue unless a message is explicitly set
+        Drafts wait for your approval on Today unless a message is explicitly set
         to send automatically.
       </p>
       <ul className="communications-lifecycle-list">

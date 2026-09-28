@@ -1,0 +1,151 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { inquiryNextMove } from "../features/inquiries/next-move.ts";
+import { foldMessageIntoConversation } from "../features/messaging/conversation.ts";
+import { inquiryPipeline } from "../features/inquiries/pipeline.ts";
+import { todayInbox } from "../features/today/inbox.ts";
+
+const participant = { contactId: null, email: "emma@example.test", phone: null, name: "Emma" };
+
+function thread(steps: Array<["inbound" | "outbound", string]>) {
+  let current = null as ReturnType<typeof foldMessageIntoConversation> | null;
+  for (const [direction, occurredAt] of steps) {
+    current = foldMessageIntoConversation(current, {
+      tenantId: "t1",
+      projectId: "p1",
+      leadId: "l1",
+      participant,
+      channel: "email",
+      direction,
+      subject: "Wedding",
+      preview: "…",
+      occurredAt,
+    });
+  }
+  return current!;
+}
+
+test("a fresh inquiry with no thread is the studio's to answer, from when it arrived", () => {
+  const move = inquiryNextMove({ conversations: [], projectId: "p1", receivedAt: "2026-09-28T10:00:00Z" });
+  assert.equal(move.owner, "studio");
+  assert.equal(move.replied, false);
+  assert.equal(move.waitingSince, "2026-09-28T10:00:00Z");
+});
+
+test("once the studio replies, the couple owes the next message", () => {
+  const conversation = thread([
+    ["inbound", "2026-09-28T10:00:00Z"],
+    ["outbound", "2026-09-28T11:00:00Z"],
+  ]);
+  const move = inquiryNextMove({ conversations: [conversation], projectId: "p1" });
+  assert.equal(move.owner, "couple");
+  assert.equal(move.replied, true);
+  assert.equal(move.waitingSince, "2026-09-28T11:00:00Z");
+});
+
+test("when the couple writes back, it is the studio's move again", () => {
+  const conversation = thread([
+    ["inbound", "2026-09-28T10:00:00Z"],
+    ["outbound", "2026-09-28T11:00:00Z"],
+    ["inbound", "2026-09-30T09:00:00Z"],
+  ]);
+  const move = inquiryNextMove({ conversations: [conversation], projectId: "p1" });
+  assert.equal(move.owner, "studio");
+  assert.equal(move.replied, true);
+  assert.equal(move.waitingSince, "2026-09-30T09:00:00Z");
+});
+
+test("a lead thread left behind as a pointer is not counted twice", () => {
+  const live = thread([["inbound", "2026-09-28T10:00:00Z"]]);
+  const moved = { ...thread([["outbound", "2026-09-29T10:00:00Z"]]), movedTo: live.id };
+  const move = inquiryNextMove({ conversations: [live, moved], projectId: "p1", leadId: "l1" });
+  assert.equal(move.owner, "studio");
+});
+
+test("threads older than the per-side fields still read by their last message", () => {
+  const legacy = { projectId: "p1", lastMessageAt: "2026-09-28T11:00:00Z", lastMessageDirection: "outbound" };
+  assert.equal(inquiryNextMove({ conversations: [legacy], projectId: "p1" }).owner, "couple");
+});
+
+
+const job = (id: string, state: string, extra: Record<string, unknown> = {}) => ({
+  id,
+  state,
+  name: `${id} Wedding`,
+  eventDate: "2027-06-12",
+  createdAt: "2026-09-28T10:00:00Z",
+  archivedAt: null,
+  ...extra,
+});
+
+test("the pipeline lists inquiry-stage jobs and unconverted leads, once each, and never booked work", () => {
+  const rows = inquiryPipeline({
+    projects: [
+      job("fresh", "LEAD", { leadId: "l1" }),
+      job("consulting", "CONSULTATION"),
+      job("booked", "BOOKED"),
+      job("gone", "ARCHIVED", { archivedAt: "2026-09-01T00:00:00Z" }),
+    ],
+    leads: [
+      { id: "l1", projectId: "fresh", status: "converted", displayName: "Sarah Nolan" },
+      { id: "l2", projectId: "fresh", status: "converted", displayName: "Sarah Nolan" },
+      { id: "l3", status: "new", displayName: "No Date Yet", createdAt: "2026-09-27T10:00:00Z" },
+      { id: "maybe", status: "new", needsConfirmation: true },
+      { id: "spam", status: "archived", notInquiry: true, archivedAt: "2026-09-02T00:00:00Z" },
+    ],
+    conversations: [],
+  });
+  assert.deepEqual(rows.map((row) => row.id).sort(), ["consulting", "fresh", "l3"]);
+  assert.equal(rows.find((row) => row.id === "fresh")!.name, "Sarah Nolan");
+  assert.equal(rows.find((row) => row.id === "fresh")!.stage, "new");
+  // Nobody has written on it, so a consultation-stage job owes no message.
+  assert.equal(rows.find((row) => row.id === "consulting")!.owner, null);
+});
+
+test("an answered inquiry moves to Talking and waits on the couple", () => {
+  const [row] = inquiryPipeline({
+    projects: [job("p1", "LEAD", { leadId: "l1" })],
+    leads: [{ id: "l1", projectId: "p1", status: "converted" }],
+    conversations: [thread([["inbound", "2026-09-28T10:00:00Z"], ["outbound", "2026-09-28T12:00:00Z"]])],
+  });
+  assert.equal(row!.stage, "talking");
+  assert.equal(row!.owner, "couple");
+});
+
+test("Today answers an inquiry-stage job on its inquiry card, once, and not again after the reply", () => {
+  const input = {
+    now: "2026-09-28T13:00:00Z",
+    projects: [job("p1", "LEAD", { leadId: "l1" })],
+    leads: [
+      { id: "l1", projectId: "p1", status: "converted", displayName: "Sarah Nolan", createdAt: "2026-09-28T10:00:00Z" },
+      { id: "l2", projectId: "p1", status: "converted", displayName: "Sarah Nolan", createdAt: "2026-09-28T11:00:00Z" },
+    ],
+    journeys: [
+      {
+        projectId: "p1",
+        projectName: "Sarah Nolan Wedding",
+        eventDate: "2027-06-12",
+        state: "LEAD",
+        stepTitle: "First reply",
+        stepDetail: "",
+        owner: "studio" as const,
+        actionLabel: "Review reply",
+        actionHref: "/studio/projects/p1#prepared",
+        updatedAt: null,
+      },
+    ],
+  };
+  const unanswered = todayInbox(input);
+  const cards = unanswered.act.filter((item) => item.projectId === "p1");
+  assert.equal(cards.length, 1, "one card for the couple, not one per lead plus a journey card");
+  assert.equal(cards[0]!.action.kind, "inquiry");
+  assert.equal(cards[0]!.jobHref, "/studio/projects/p1");
+
+  const answered = todayInbox({
+    ...input,
+    conversations: [thread([["inbound", "2026-09-28T10:00:00Z"], ["outbound", "2026-09-28T12:00:00Z"]])],
+  });
+  assert.equal(answered.act.filter((item) => item.projectId === "p1").length, 0);
+  // An inquiry is not an event on the books.
+  assert.equal(answered.upcoming.length, 0);
+});

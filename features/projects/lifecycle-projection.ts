@@ -103,7 +103,7 @@ function route(projectId: string, domain: string): string {
     delivery: `/studio/delivery?project=${projectId}`,
     reviews: `/studio/reviews?project=${projectId}`,
     tasks: `/studio/tasks?project=${projectId}`,
-    automations: "/studio/ai-queue",
+    automations: `/studio/projects/${projectId}`,
   };
   return direct[domain] ?? `/studio/projects/${projectId}`;
 }

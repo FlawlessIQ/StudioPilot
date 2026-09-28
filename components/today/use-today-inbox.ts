@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
+import { inquiryNextMove } from "@/features/inquiries/next-move";
 import { useOutsideSteps } from "@/components/outside-steps/use-outside-steps";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { invoiceIsOverdue, projectJourney } from "@/features/journey/steps";
@@ -82,6 +83,8 @@ export function useTodayInbox(): {
   journeys: TodayJourneyPosition[];
   /** Raw AI action records, for opening a specific review in a sheet. */
   aiActions: TodayRecord[];
+  /** Raw workflow approvals, for deciding one in a sheet on Today. */
+  automationApprovals: TodayRecord[];
   loading: boolean;
 } {
   const workspace = useWorkspace();
@@ -100,6 +103,7 @@ export function useTodayInbox(): {
     records: useKeptWhileReloading(leadsRead.records, workspace.tenantId),
   };
   const tasks = useTenantDocuments("tasks");
+  const conversations = useTenantDocuments("conversations");
   const aiActions = useTenantDocuments("aiActions");
   const actionReceipts = useTenantDocuments("actionReceipts");
   const automationApprovals = useTenantDocuments("automationApprovals", {
@@ -166,7 +170,17 @@ export function useTodayInbox(): {
         state: text(project.state),
         eventDate: text(project.eventDate) || null,
         today,
-        lead: lead ? { id: lead.id, status: text(lead.status) || "new" } : null,
+        lead: lead
+          ? {
+              id: lead.id,
+              status: text(lead.status) || "new",
+              replied: inquiryNextMove({
+                conversations: conversations.records ?? [],
+                projectId,
+                leadId: lead.id,
+              }).replied,
+            }
+          : null,
         hasConsultation:
           forProject(consultations.records, projectId).length > 0,
         proposalStatus:
@@ -261,6 +275,7 @@ export function useTodayInbox(): {
     now: new Date().toISOString(),
     projects: projects.records,
     leads: leads.records,
+    conversations: conversations.records,
     tasks: tasks.records,
     aiActions: aiActions.records,
     actionReceipts: actionReceipts.records,
@@ -287,6 +302,7 @@ export function useTodayInbox(): {
     // The raw AI action records, so Today can open a specific prepared action's
     // full review in a sheet without re-fetching.
     aiActions: aiActions.records ?? [],
+    automationApprovals: automationApprovals.records ?? [],
     /**
      * How far through the four setup questions this studio is, and whether it
      * has any real work yet.

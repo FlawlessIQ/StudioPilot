@@ -6,6 +6,7 @@ import {
 } from "@/features/packages/coverage";
 import { crewRequiredFromCoverage } from "@/features/crew/staffing-plan";
 import { useTenantDocuments } from "@/components/live/tenant-records";
+import { inquiryNextMove } from "@/features/inquiries/next-move";
 import {
   invoiceIsOverdue,
   projectJourney,
@@ -55,6 +56,7 @@ export function useProjectJourney({
   readinessEvidence: ReadinessEvidence;
 } {
   const leads = useTenantDocuments("leads");
+  const conversations = useTenantDocuments("conversations");
   const consultations = useTenantDocuments("consultations");
   const proposals = useTenantDocuments("proposals");
   const contracts = useTenantDocuments("contracts");
@@ -124,7 +126,17 @@ export function useProjectJourney({
     state: projectState,
     eventDate,
     today: todayLocalIso(),
-    lead: lead ? { id: lead.id, status: text(lead.status) || "new" } : null,
+    lead: lead
+          ? {
+              id: lead.id,
+              status: text(lead.status) || "new",
+              replied: inquiryNextMove({
+                conversations: conversations.records ?? [],
+                projectId,
+                leadId: lead.id,
+              }).replied,
+            }
+          : null,
     hasConsultation: forProject(consultations.records).length > 0,
     proposalStatus:
       text(
