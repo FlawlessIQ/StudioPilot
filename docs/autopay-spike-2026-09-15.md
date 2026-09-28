@@ -121,6 +121,20 @@ outside the code, in this order:
 
 On 2026-09-27 all four QuickBooks connections held the accounting scope only.
 
+**2026-09-28, step 1 done.** On the Intuit Developer portal, StudioCue's
+production app (App ID `a424b3f3-…`, "In production"):
+- **Permissions:** `com.intuit.quickbooks.payment` ticked and saved (by Conor)
+  beside `com.intuit.quickbooks.accounting`.
+- **Settings → Regulated industries:** changed from "None of the above" to
+  "Payments / money movement" (Intuit: "any app that will connect to the
+  Payments API should also be included in this category").
+- **Compliance:** still "Completed — Approved" after both changes; no
+  re-assessment was requested. If Intuit reopens it, the answers are drafted in
+  `docs/intuit-payments-assessment-draft.md`.
+
+Not yet observed: a real consent screen listing the payments scope. The first
+studio to press "Reconnect for payments" will show it.
+
 ### Still to verify with Intuit sandbox / a pilot
 
 - ~~That Intuit's tokens endpoint accepts the browser request (CORS) from
