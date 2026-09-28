@@ -23,6 +23,8 @@ import { getOptionalAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { setCapabilityProvider } from "@/lib/integrations/command-client";
+import { OutsideStepCard } from "@/components/outside-steps/outside-step-card";
+import { useOutsideSteps } from "@/components/outside-steps/use-outside-steps";
 import {
   eligibleProvidersFor,
   resolveActiveProvider,
@@ -306,6 +308,7 @@ function relativeCheck(value: string | null): string {
 }
 
 export function IntegrationManager() {
+  const outsideStepsState = useOutsideSteps();
   const [connections, setConnections] = useState<Connection[]>([]);
   const [selections, setSelections] = useState<CapabilitySelections>({});
   const [tenantId, setTenantId] = useState<string | null>(null);
@@ -557,6 +560,9 @@ export function IntegrationManager() {
     }
   }
 
+  // A connected tool can still need a switch flipped in its own settings —
+  // Zoom's meeting summaries, which the consultation notes depend on.
+  const { statuses: outsideSteps } = outsideStepsState;
   // What each connected tool is doing, what nothing covers yet, and where
   // there is a real choice. The page used to list every provider as a wide
   // row, then repeat the same facts as a routing table beneath them, so the
@@ -693,6 +699,16 @@ export function IntegrationManager() {
                     : "Connected — another tool does its jobs"
                   : definition.capabilities.join(" · ")}
               </p>
+
+              {connected &&
+              definition.provider === "zoom" &&
+              outsideSteps &&
+              outsideSteps.zoom_meeting_summaries.state !== "done" ? (
+                <OutsideStepCard
+                  status={outsideSteps.zoom_meeting_summaries}
+                  stepId="zoom_meeting_summaries"
+                />
+              ) : null}
 
               {/* A gated provider says why instead of offering a button that
                   can only fail: it is waiting on an approval outside the

@@ -36,6 +36,8 @@ export function useOutsideSteps(): {
   const tenants = useTenantDocuments("tenants", { enabled: allowed });
   const connections = useTenantDocuments("integrationConnections", { enabled: allowed });
   const methods = useTenantDocuments("paymentMethods", { enabled: allowed });
+  // Zoom sent a summary: the job StudioCue queues when one arrives.
+  const providerJobs = useTenantDocuments("providerJobs", { enabled: allowed });
   const generation = useTenantRecordsGeneration();
   const [captured, setCaptured] = useState<boolean | null>(null);
 
@@ -80,6 +82,9 @@ export function useOutsideSteps(): {
           paymentsRefused: autopay.paymentsRefused,
           paymentsGranted: autopay.step >= 3,
           captured: Boolean(captured),
+          zoomSummaries: (providerJobs.records ?? []).some(
+            (job) => job.type === "capture_zoom_meeting_summary",
+          ),
         }),
       ]),
     ) as Record<OutsideStepId, OutsideStepStatus>;
@@ -88,5 +93,13 @@ export function useOutsideSteps(): {
       (reminder): reminder is OutsideStepReminder => reminder !== null,
     );
     return { statuses, reminders };
-  }, [allowed, captured, connections.records, methods.records, tenants.records, workspace.tenantId]);
+  }, [
+    allowed,
+    captured,
+    connections.records,
+    methods.records,
+    providerJobs.records,
+    tenants.records,
+    workspace.tenantId,
+  ]);
 }

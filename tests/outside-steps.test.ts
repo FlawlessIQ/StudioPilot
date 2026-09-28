@@ -173,3 +173,20 @@ test("the guide offers the hand-offs, and Cue shows the step under its answer", 
   const cue = readFileSync("components/ai/copilot-workspace.tsx", "utf8");
   assert.match(cue, /<CueOutsideStep question=\{question\} \/>/);
 });
+
+test("Zoom meeting summaries: seen when the first summary arrives", async () => {
+  const zoom = (signals: Parameters<typeof outsideStepStatus>[1]) =>
+    outsideStepStatus("zoom_meeting_summaries", signals);
+  assert.equal(zoom({}).state, "not_started");
+  assert.equal(zoom({ record: { state: "waiting", at: "2026-09-28T10:00:00Z" } }).state, "waiting");
+  const arrived = zoom({ record: { state: "waiting" }, zoomSummaries: true });
+  assert.equal(arrived.state, "done");
+  assert.equal(arrived.detected, true);
+  const { outsideStepForQuestion } = await import("../features/outside-steps/share");
+  assert.equal(outsideStepForQuestion("Why am I not getting Zoom summaries?"), "zoom_meeting_summaries");
+  assert.equal(outsideStepForQuestion("How do I turn on meeting summaries?"), "zoom_meeting_summaries");
+  assert.equal(outsideStepForQuestion("Book a Zoom call with Maya"), null);
+  // The Zoom tile shows the step once Zoom is connected.
+  const manager = readFileSync("components/integrations/integration-manager.tsx", "utf8");
+  assert.match(manager, /stepId="zoom_meeting_summaries"/);
+});

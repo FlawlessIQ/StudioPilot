@@ -17,6 +17,7 @@ export const OUTSIDE_STEP_IDS = [
   "quickbooks_payments_apply",
   "quickbooks_payments_reconnect",
   "inquiry_capture",
+  "zoom_meeting_summaries",
 ] as const;
 
 export type OutsideStepId = (typeof OUTSIDE_STEP_IDS)[number];
@@ -155,6 +156,34 @@ export const OUTSIDE_STEPS: Record<OutsideStepId, OutsideStep> = {
       },
     ],
   },
+  zoom_meeting_summaries: {
+    id: "zoom_meeting_summaries",
+    title: "Turn on meeting summaries in Zoom",
+    where: "Zoom",
+    why: "After each consultation StudioCue turns Zoom's summary into notes and a follow-up draft — but Zoom only makes one when meeting summaries are on.",
+    who: "You, or whoever manages your Zoom account",
+    unlocks: "Consultation notes and a follow-up draft after every call",
+    detection: "automatic",
+    home: "/studio/integrations",
+    markLabel: "I've turned it on",
+    instructions: [
+      {
+        title: "Open your Zoom settings",
+        text: "Sign in at zoom.us, choose your profile picture → **My account** → **Settings**, then the **Zoom AI** tab.",
+        path: ["My account", "Settings", "Zoom AI"],
+        link: { href: "https://zoom.us/profile/setting", label: "Open Zoom settings" },
+      },
+      {
+        title: "Turn on meeting summaries",
+        text: "Under **Meeting**, switch on **Meeting summary with AI**, then tick **Auto-start when meeting starts** so you don't have to remember on each call.",
+        tip: "Needs a paid Zoom plan (Pro or higher). If the switch is greyed out, your Zoom account admin has locked it and needs to turn it on for you.",
+      },
+      {
+        title: "Hold a consultation",
+        text: "StudioCue ticks this off by itself when the first summary arrives after a consultation booked through StudioCue.",
+      },
+    ],
+  },
 };
 
 export type OutsideStepRecord = { state?: unknown; at?: unknown };
@@ -180,6 +209,8 @@ type Signals = {
   paymentsRefused?: boolean;
   /** An inquiry, or the studio's test, arrived by capture. */
   captured?: boolean;
+  /** Zoom has sent StudioCue a meeting summary. */
+  zoomSummaries?: boolean;
 };
 
 const text = (value: unknown) => (typeof value === "string" ? value : "");
@@ -209,6 +240,13 @@ export function outsideStepStatus(id: OutsideStepId, signals: Signals): OutsideS
     if (recorded === "waiting" || recorded === "done")
       return { state: "waiting", label: "Set up — waiting for the first inquiry", detected: false, since };
     return { state: "not_started", label: "Not set up", detected: false, since: null };
+  }
+  if (id === "zoom_meeting_summaries") {
+    if (signals.zoomSummaries)
+      return { state: "done", label: "Summaries are arriving", detected: true, since };
+    if (recorded === "waiting" || recorded === "done")
+      return { state: "waiting", label: "Turned on — waiting for your next consultation", detected: false, since };
+    return { state: "not_started", label: "Not turned on yet", detected: false, since: null };
   }
   // quickbooks_payments_reconnect: Intuit's grant is the proof.
   if (signals.paymentsGranted)
