@@ -5,6 +5,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { z } from "zod";
 import { inquiryAddressFor } from "./forwarded-inquiry.js";
+import { shortInquiryAddressFor } from "../intake/short-address.js";
 import { detectMailboxProvider } from "../intake/mailbox-provider.js";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
@@ -166,6 +167,16 @@ function canApprove(role: string) {
   return role === "studio_owner" || role === "studio_admin";
 }
 
+
+/**
+ * The address a studio is shown: the short `<slug>@…` one, trusted by sender
+ * (intake/short-address.ts). The signed address is the fallback for a slug
+ * that can't be a mailbox name, and keeps working for filters set up with it.
+ */
+function forwardingAddressFor(tenantId: string, slug: string): string | null {
+  return shortInquiryAddressFor(slug) ?? inquiryAddressFor(tenantId, slug);
+}
+
 export const communicationsCommand = onRequest(
   // The signing secret mints the studio's inquiry forwarding address.
   { cors: studioHubCors, invoker: "private", secrets: ["INBOUND_REPLY_SIGNING_SECRET"] },
@@ -196,7 +207,7 @@ export const communicationsCommand = onRequest(
         const tenant = await db.doc(`tenants/${command.tenantId}`).get();
         const slug = String(tenant.get("publicSlug") ?? "");
         response.status(200).json({
-          address: slug ? inquiryAddressFor(command.tenantId, slug) : null,
+          address: slug ? forwardingAddressFor(command.tenantId, slug) : null,
         });
         return;
       }
@@ -225,7 +236,9 @@ export const communicationsCommand = onRequest(
           | { code?: string; link?: string; forAddress?: string; receivedAt?: string }
           | undefined;
         response.status(200).json({
-          address: slug ? inquiryAddressFor(command.tenantId, slug) : null,
+          address: slug ? forwardingAddressFor(command.tenantId, slug) : null,
+          // Still accepted, forever: studios set filters up with it.
+          signedAddress: slug ? inquiryAddressFor(command.tenantId, slug) : null,
           mailbox: mailbox ? { email: mailbox, ...(await detectMailboxProvider(mailbox)) } : null,
           // Gmail's code is only useful for a day or so; older ones are noise.
           forwardingConfirmation:
@@ -282,6 +295,21 @@ export const communicationsCommand = onRequest(
         const reference = db.doc(`leadCaptureSettings/${command.tenantId}`);
         await db.runTransaction(async (transaction) => {
           const current = await transaction.get(reference);
+          // The form's sender, from the test capture being mapped. Saving a
+          // mapping is the studio saying "this form is my inquiry form", so
+          // its notifications are trusted at the short address from now on.
+          const lastTestId = current.get("lastTestCaptureId");
+          const lastTest =
+            typeof lastTestId === "string" && lastTestId
+              ? await transaction.get(db.doc(`inboundCaptures/${lastTestId}`))
+              : null;
+          const sender =
+            lastTest?.exists &&
+            lastTest.get("tenantId") === command.tenantId &&
+            lastTest.get("formKey") === command.input.formKey &&
+            typeof lastTest.get("notificationSender") === "string"
+              ? String(lastTest.get("notificationSender"))
+              : null;
           const forms =
             (current.get("forms") as Record<string, Record<string, unknown>> | undefined) ?? {};
           const existing = forms[command.input.formKey] ?? {};
@@ -295,6 +323,7 @@ export const communicationsCommand = onRequest(
                   ...existing,
                   label: command.input.formLabel ?? existing.label ?? null,
                   fieldMapping: command.input.mapping,
+                  ...(sender ? { sender } : {}),
                   updatedAt: now,
                 },
               },

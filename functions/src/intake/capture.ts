@@ -116,6 +116,14 @@ export async function captureInquiry(input: {
   email: InquiryEmail;
   providerMessageId: string;
   route: CaptureRoute;
+  /** Which forwarding address it came to; the short one is trusted by sender. */
+  address?: "signed" | "short";
+  /**
+   * Set when the message came to the short address from a sender StudioCue
+   * can't vouch for: it is read as usual but held for the studio to confirm,
+   * and never attached to an existing couple's thread.
+   */
+  reviewReason?: string | null;
   now: string;
 }): Promise<{ outcome: CaptureOutcome; leadId: string | null; projectId: string | null; captureId: string }> {
   const { db, tenantId, now } = input;
@@ -146,13 +154,17 @@ export async function captureInquiry(input: {
   });
   const formKey = formKeyFor(first);
   const mapping = settings.forms?.[formKey]?.fieldMapping;
-  const read = mapping
+  const mapped = mapping
     ? readInquiryEmail(input.email, {
         today: now.slice(0, 10),
         studioMapping: mapping,
         learnedInquirySenders: settings.inquirySenders,
       })
     : first;
+  const heldForReview = Boolean(input.reviewReason);
+  const read: InquiryRead = heldForReview
+    ? { ...mapped, verdict: "unsure", verdictReason: input.reviewReason! }
+    : mapped;
   const fields = leadFieldsFrom(read);
 
   const writeCapture = async (
@@ -163,6 +175,8 @@ export async function captureInquiry(input: {
       id: captureId,
       tenantId,
       route: input.route,
+      address: input.address ?? "signed",
+      heldForReview,
       providerMessageId: input.providerMessageId,
       notificationSender: read.notificationSender,
       subject: input.email.subject.slice(0, 300),
@@ -208,8 +222,10 @@ export async function captureInquiry(input: {
     return { outcome: "test", leadId: null, projectId: null, captureId };
   }
 
-  // Already know them? Attach rather than duplicate.
-  if (fields.email) {
+  // Already know them? Attach rather than duplicate. Not for a message held
+  // for review: an unverified sender must not be able to speak in a couple's
+  // thread by naming the couple's address.
+  if (fields.email && !heldForReview) {
     const [openLeads, contacts] = await Promise.all([
       db
         .collection("leads")

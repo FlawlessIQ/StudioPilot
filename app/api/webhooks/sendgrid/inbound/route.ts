@@ -5,6 +5,12 @@ export const dynamic = "force-dynamic";
 
 const maxInboundBytes = 20 * 1024 * 1024;
 
+/**
+ * A bare `<slug>@inbound.…` recipient. Only the inbound parse host receives
+ * mail here, so any bare local part on it is a studio's short address.
+ */
+const shortInquiryAddress = /(?:^|[\s,<"';:[])[a-z0-9-]{2,80}@inbound\.[a-z0-9.-]+/i;
+
 async function serviceAuthorization(target: string): Promise<string | null> {
   const { GoogleAuth } = await import("google-auth-library");
   const identityClient = await new GoogleAuth().getIdTokenClient(target);
@@ -45,6 +51,14 @@ export async function POST(request: Request): Promise<Response> {
       // A client replying to a studio message. Checked after gallery so the
       // narrower prefixes keep priority, and the COI default stays the fallback
       // for anything unrecognised.
+      functionName = "sendgridInboundMessage";
+    } else if (
+      !/coi\+/i.test(recipients) &&
+      shortInquiryAddress.test(recipients)
+    ) {
+      // The studio's short address, `<slug>@<inbound domain>`. It has no `+`
+      // part, so nothing above claims it; the message function resolves the
+      // slug and decides how far to trust the sender.
       functionName = "sendgridInboundMessage";
     }
   } catch {

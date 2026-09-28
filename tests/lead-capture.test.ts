@@ -201,6 +201,30 @@ test("the couple writing again is attached to their open lead, not a second one"
   assert.equal(rows(store, "messages").length, 2);
 });
 
+test("an unverified sender at the short address is held, and never joins a couple's thread", async () => {
+  const { db, store } = fakeFirestore(seed());
+  const email = fixture("squarespace-text");
+  const first = await captureInquiry({ db, tenantId: "t1", email, providerMessageId: "<m1>", route: "forward", now });
+  const held = await captureInquiry({
+    db,
+    tenantId: "t1",
+    email,
+    providerMessageId: "<m2>",
+    route: "forward",
+    address: "short",
+    reviewReason: "Sent to your StudioCue address from someone@example.test, which StudioCue doesn't recognise yet.",
+    now: "2026-09-26T10:00:00.000Z",
+  });
+  assert.equal(held.outcome, "maybe_created");
+  assert.notEqual(held.leadId, first.leadId);
+  assert.equal(store.get(`leads/${first.leadId}`)!.inquiryCount, 1);
+  assert.equal(store.get(`leads/${held.leadId}`)!.needsConfirmation, true);
+  const capture = rows(store, "inboundCaptures").find((row) => row.leadId === held.leadId)!;
+  assert.equal(capture.address, "short");
+  assert.equal(capture.heldForReview, true);
+  assert.match(String(capture.verdictReason), /doesn't recognise/);
+});
+
 test("an inquiry from a client with a live job is attached to the job", async () => {
   const { db, store } = fakeFirestore({
     ...seed(),

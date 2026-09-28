@@ -1,6 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import Busboy from "busboy";
-import { getFirestore } from "firebase-admin/firestore";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { onRequest, type Request } from "firebase-functions/v2/https";
 import {
   applyMessageToConversation,
@@ -21,6 +21,12 @@ import {
   inquiryTokenFromRecipients,
 } from "./forwarded-inquiry.js";
 import { captureInquiry } from "../intake/capture.js";
+import {
+  dkimPassesFor,
+  shortAddressTrust,
+  shortInquirySlugFromRecipients,
+  type InboundAuthentication,
+} from "../intake/short-address.js";
 import { gmailForwardingConfirmation } from "../intake/gmail-forwarding.js";
 import { findTenantBySlug } from "../crm/tenant-by-slug.js";
 import { gatherAnswerFacts } from "./answer-facts.js";
@@ -63,6 +69,10 @@ type ParsedInbound = {
   fromName: string | null;
   /** The envelope sender — who handed the message to us, not who wrote it. */
   envelopeFrom: string | null;
+  /** What SendGrid's SPF and DKIM checks said. */
+  auth: InboundAuthentication;
+  /** The studio slug of a short `<slug>@<inbound domain>` address, or null. */
+  shortInquirySlug: string | null;
   subject: string;
   text: string;
   /** The HTML part, for notifications that send no plain text. */
@@ -120,6 +130,8 @@ function parseMultipart(request: Request) {
           from: sender.email,
           fromName: sender.name,
           envelopeFrom: envelopeSender(fields),
+          auth: { spf: fields.SPF ?? fields.spf ?? null, dkim: fields.dkim ?? null },
+          shortInquirySlug: shortInquirySlugFromRecipients(recipients),
           subject: normalizeSubject(fields.subject ?? headerValue(headers, "Subject") ?? ""),
           text: (fields.text ?? "").slice(0, MAX_BODY_LENGTH * 2),
           html: fields.html ? fields.html.slice(0, MAX_BODY_LENGTH * 6) : null,
@@ -140,6 +152,34 @@ async function studioAddresses(db: FirebaseFirestore.Firestore, tenantId: string
   const branding = (tenant.get("emailBranding") ?? {}) as Record<string, unknown>;
   const notify = await studioNotificationAddress(db, tenantId).catch(() => null);
   return [branding.replyTo, tenant.get("contactEmail"), tenant.get("email"), notify]
+    .filter((value): value is string => typeof value === "string" && value.includes("@"))
+    .map((value) => value.trim().toLowerCase());
+}
+
+/**
+ * Every mailbox that is the studio's own: its configured addresses, its
+ * owners', admins' and coordinators' sign-in emails, and any Gmail account
+ * that asked to forward to StudioCue. Trust for the short address rests on
+ * this list, so it is built only from what the studio controls.
+ */
+async function studioMailboxes(
+  db: FirebaseFirestore.Firestore,
+  tenantId: string,
+  settings: FirebaseFirestore.DocumentSnapshot,
+): Promise<string[]> {
+  const [configured, memberships] = await Promise.all([
+    studioAddresses(db, tenantId),
+    db.collection("memberships").where("tenantId", "==", tenantId).limit(50).get(),
+  ]);
+  const staff = memberships.docs
+    .filter(
+      (membership) =>
+        membership.get("status") === "active" &&
+        ["studio_owner", "studio_admin", "studio_coordinator"].includes(String(membership.get("role"))),
+    )
+    .map((membership) => membership.get("normalizedEmail") ?? membership.get("email"));
+  const forwarding = (settings.get("forwardingMailboxes") as unknown[] | undefined) ?? [];
+  return [...configured, ...staff, ...forwarding]
     .filter((value): value is string => typeof value === "string" && value.includes("@"))
     .map((value) => value.trim().toLowerCase());
 }
@@ -217,11 +257,19 @@ export const sendgridInboundMessage = onRequest(
     // notification is automated mail by every header it carries — that is what
     // it is — and the filter exists to keep out-of-office replies off client
     // threads, not to discard the inquiries a studio forwards on purpose.
-    if (parsed.inquiry) {
-      const tenantDocument = await findTenantBySlug(db, parsed.inquiry.slug);
+    //
+    // Two addresses reach this branch. The signed one proves itself with its
+    // signature. The short one (`<slug>@…`) is guessable, so it is trusted by
+    // who sent the message instead — see intake/short-address.ts — and a
+    // sender it can't vouch for goes to "Maybe an inquiry", never dropped.
+    const inquirySlug = parsed.inquiry?.slug ?? parsed.shortInquirySlug;
+    if (inquirySlug) {
+      const tenantDocument = await findTenantBySlug(db, inquirySlug);
       if (
         !tenantDocument ||
-        !inquirySignatureMatches(tenantDocument.id, parsed.inquiry.signature)
+        (parsed.inquiry
+          ? !inquirySignatureMatches(tenantDocument.id, parsed.inquiry.signature)
+          : false)
       ) {
         await quarantine("INQUIRY_ADDRESS_INVALID", parsed, rawHash);
         response.status(200).json({ status: "quarantined", reason: "UNMATCHED" });
@@ -234,11 +282,21 @@ export const sendgridInboundMessage = onRequest(
         subject: parsed.subject,
         text: parsed.text || (parsed.html ?? ""),
       });
-      if (confirmation) {
+      // Signed by Google, or it is just someone's email claiming to be one. The
+      // short address is guessable, so there an unsigned "confirmation" is not
+      // shown at all; on the signed address it is shown but teaches nothing.
+      const confirmationSigned = dkimPassesFor(parsed.auth, "google.com");
+      if (confirmation && (confirmationSigned || parsed.inquiry)) {
         await db.doc(`leadCaptureSettings/${tenantDocument.id}`).set(
           {
             tenantId: tenantDocument.id,
             forwardingConfirmation: { ...confirmation, receivedAt: now },
+            // The Gmail account asking to forward here is the studio's: Gmail
+            // only sends this when that account's owner adds the address.
+            // Remembered so its filter forwards are recognised as the studio.
+            ...(confirmation.forAddress && confirmationSigned
+              ? { forwardingMailboxes: FieldValue.arrayUnion(confirmation.forAddress) }
+              : {}),
             updatedAt: now,
           },
           { merge: true },
@@ -251,9 +309,29 @@ export const sendgridInboundMessage = onRequest(
         response.status(200).json({ status: "quarantined", reason: "EMPTY_BODY" });
         return;
       }
+      let reviewReason: string | null = null;
+      if (!parsed.inquiry) {
+        const settings = await db.doc(`leadCaptureSettings/${tenantDocument.id}`).get();
+        const forms = (settings.get("forms") as Record<string, { sender?: unknown }> | undefined) ?? {};
+        const trust = shortAddressTrust({
+          from: parsed.from,
+          envelopeFrom: parsed.envelopeFrom,
+          auth: parsed.auth,
+          own: await studioMailboxes(db, tenantDocument.id, settings),
+          confirmed: [
+            ...((settings.get("inquirySenders") as string[] | undefined) ?? []),
+            ...Object.values(forms)
+              .map((form) => form.sender)
+              .filter((sender): sender is string => typeof sender === "string"),
+          ],
+        });
+        reviewReason = trust.trusted ? null : trust.reason;
+      }
       const captured = await captureInquiry({
         db,
         tenantId: tenantDocument.id,
+        address: parsed.inquiry ? "signed" : "short",
+        reviewReason,
         email: {
           from: parsed.from,
           fromName: parsed.fromName,

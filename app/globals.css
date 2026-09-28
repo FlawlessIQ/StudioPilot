@@ -19907,6 +19907,14 @@ label {
   grid-row: 1 / span 2;
 }
 
+.capture-address-hint {
+  color: var(--muted);
+  font-size: 12px;
+  grid-column: 1 / -1;
+  line-height: 1.4;
+  margin: 6px 0 0;
+}
+
 .capture-routes {
   border: 1px solid var(--line);
   border-radius: 14px;

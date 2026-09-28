@@ -48,6 +48,8 @@ type TestField = { label: string; normalisedLabel: string; value: string; key: s
 
 export type LeadCaptureSetupState = {
   address: string | null;
+  /** The older signed address, still accepted; shown so a filter set up with it isn't doubted. */
+  signedAddress?: string | null;
   mailbox: { email: string; domain: string; provider: string } | null;
   forwardingConfirmation: { code?: string; link?: string; forAddress?: string; receivedAt?: string } | null;
   lastCaptureAt: string | null;
@@ -376,6 +378,13 @@ export function LeadCaptureView({
         <small>Your StudioCue address</small>
         <code>{address ?? "…"}</code>
         {address ? <Copyable label="Copy" value={address} /> : null}
+        {address ? (
+          <p className="capture-address-hint">
+            {setup?.signedAddress && setup.signedAddress !== address
+              ? "Save it as a contact called StudioCue and your email app fills it in when you forward. Already forwarding to your longer StudioCue address? That keeps working — nothing to change."
+              : "Save it as a contact called StudioCue and your email app fills it in when you forward."}
+          </p>
+        ) : null}
       </div>
 
       <div className="capture-routes">
