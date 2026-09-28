@@ -40,8 +40,28 @@ questions still open.
 - **0.5:** walked on production; City stays empty while a venue is typed.
 - **Also:** delivery notes are now internal only. The portal API returned
   them without ever showing them.
-- **Not yet walked on production:** 0.2–0.4. Each needs a real release or a
-  real inbound email; see "Only Conor can do these".
+- **0.2 and 0.3 walked on production (FlawlessIQ, "Delivery Walk Test",
+  since archived).** A real double-click on Release produced exactly **1
+  delivery, 1 delivery email (1 in the inbox), 2 review requests and 0 AI
+  drafts**. The button showed "Releasing…" and locked.
+- **Found by that walk and fixed in the follow-up commit:**
+  - **A quiet imported job could not be marked shot.** The quiet card hid
+    "Yes, we shot it", so Gabe's imported weddings could never reach
+    editing or delivery unless he brought the couple in first. Now shown,
+    because it contacts no one.
+  - **The checklist matched a `"SHOT"` state that doesn't exist**, so a shot
+    wedding was told "Opens after the event". It now matches
+    `EVENT_COMPLETE`.
+  - **The delivery step promised "the email drafts itself"**, which stopped
+    being true with 0.3. For a shot job it now reads "Confirm editing has
+    started, then record the gallery".
+- **Walk friction, not fixed yet:**
+  - Import refuses past-dated weddings, so a studio can't import one it has
+    already shot and still has to deliver. **This belongs to H4.**
+  - "Did this go ahead?" in the rail links to the event-day page, which has
+    no way to answer it.
+- **Not walked yet:** 0.4 (COI inbound). It needs a real email to a `coi+`
+  address.
 
 These are independent of each other and of every later phase.
 

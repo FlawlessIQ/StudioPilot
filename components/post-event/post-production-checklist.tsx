@@ -76,7 +76,10 @@ export function PostProductionChecklist({
     const state = String(
       (projects ?? []).find((item) => item.id === projectId)?.state ?? "",
     );
-    const shot = ["SHOT", "POST_PRODUCTION"].includes(state);
+    // EVENT_COMPLETE is the state; "Shot" is only its label. Matching on
+    // "SHOT" meant this branch never ran, and a shot wedding was still told
+    // to wait for the event (walked on production, 2026-09-28).
+    const shot = ["EVENT_COMPLETE", "POST_PRODUCTION"].includes(state);
     return (
       <section className="panel post-production-pending">
         <div className="panel-heading">

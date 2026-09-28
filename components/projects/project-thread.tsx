@@ -405,6 +405,21 @@ function ThreadNextMove({
               you&rsquo;re ready, and StudioCue picks the job up from there.
             </small>
           </div>
+          {/* Saying the wedding happened contacts no one, so quiet is no
+              reason to hide it. Hiding it left an imported wedding whose date
+              had passed with no way to be marked shot, and so no way to be
+              edited or delivered, unless the couple was brought in first
+              (walked on production, 2026-09-28). */}
+          {current?.advance?.targetState === "EVENT_COMPLETE" ? (
+            <div className="thread-next-actions">
+              <MarkDoneButton
+                advance={current.advance}
+                onChanged={onChanged}
+                projectId={projectId}
+                stateVersion={stateVersion}
+              />
+            </div>
+          ) : null}
         </div>
       </div>
     );

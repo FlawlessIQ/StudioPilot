@@ -130,3 +130,31 @@ test("only a chosen venue fills City, and only an empty one", () => {
   assert.match(apply, /if \(!place\?\.verified \|\| getValues\("city"\)\.trim\(\)\) return;/);
   assert.match(apply, /shouldValidate: Boolean\(place\?\.verified\)/);
 });
+
+/**
+ * Walked on production, 2026-09-28: an imported wedding whose date had passed
+ * could not be marked shot while it was quiet. The quiet card replaced the
+ * next move entirely, including "Yes, we shot it", which contacts no one.
+ */
+test("a quiet imported job can still be marked shot", () => {
+  const thread = source("components/projects/project-thread.tsx");
+  const quiet = thread.slice(
+    thread.indexOf("Nothing is being sent to this couple."),
+    thread.indexOf("if (interruption) {"),
+  );
+  assert.match(quiet, /current\?\.advance\?\.targetState === "EVENT_COMPLETE"/);
+  assert.match(quiet, /<MarkDoneButton/);
+});
+
+/** "SHOT" is a label, not a state, so the branch built for shot jobs never ran. */
+test("the checklist recognises a shot job by its real state", () => {
+  const checklist = source("components/post-event/post-production-checklist.tsx");
+  assert.match(checklist, /\["EVENT_COMPLETE", "POST_PRODUCTION"\]\.includes\(state\)/);
+  assert.doesNotMatch(checklist, /\["SHOT"/);
+});
+
+test("the delivery step no longer promises a drafted email", () => {
+  const steps = source("features/journey/steps.ts");
+  assert.doesNotMatch(steps, /the email drafts itself/);
+  assert.match(steps, /Confirm editing has started, then record the gallery/);
+});

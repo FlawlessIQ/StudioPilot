@@ -936,9 +936,15 @@ export function projectJourney(input: JourneyInput): {
   push({
     key: "delivery",
     title: "Gallery delivered",
+    // The email is sent when the gallery is released; nothing is drafted.
+    // A shot job also has to be moved to editing before the gallery can be
+    // recorded, and the step used to send the studio straight to a page that
+    // could not take it yet.
     detail: deliveryDone
       ? "Delivered with follow-ups running"
-      : "Record the gallery — the email drafts itself",
+      : String(input.state) === "EVENT_COMPLETE"
+        ? "Confirm editing has started, then record the gallery"
+        : "Record the gallery — the couple is emailed when you release it",
     status: deliveryDone
       ? "complete"
       : afterEvent || stateRank >= 8
