@@ -1,5 +1,16 @@
 # Prompt: start Google OAuth verification for StudioCue
 
+> **Superseded — kept for the record.** Google already verified this app:
+> branding and data access were approved on **2026-08-25**, after two rounds
+> (an inaccessible demo video and missing privacy disclosures, then the AI/ML
+> Limited Use questions). `calendar.events.owned` was approved;
+> `calendar.freebusy` is classed non-sensitive. The app is External and In
+> production. Evidence: the Gmail thread "OAuth Verification Request
+> Acknowledgement". There is nothing to submit for Calendar. Any edit to the
+> consent screen (support email, logo, domains) or any new scope reopens
+> review. Gmail scopes are a separate, later submission; see
+> `docs/google-oauth-gmail-verification-drafts.md`.
+
 Copy everything below the line into the AI that will do this. It is written to
 be self-contained. It expects to work in the Google Cloud Console in a browser
 where Conor is signed in, with Conor available to approve anything that costs
@@ -39,9 +50,11 @@ delivery. Each studio connects its own Google account.
 - The app appears to be **published** ("In production"), not in Testing: a
   studio's Calendar connection from August 27 still refreshed on September 22,
   and Testing-mode tokens die after 7 days. Confirm on the **Audience** page.
-- Our internal docs say the brand and Calendar scopes were **never submitted
-  for verification**. Confirm on the **Verification Center** page.
-- Scopes the app requests today (both "sensitive"):
+- The brand and Calendar scopes were **verified on 2026-08-25** (this prompt
+  was written before that was found). Confirm on the **Verification Center**
+  page.
+- Scopes the app requests today (`calendar.events.owned` is sensitive;
+  `calendar.freebusy` is classed non-sensitive):
   - `https://www.googleapis.com/auth/calendar.freebusy`: read free/busy
     intervals only, to offer clients consultation times when the studio is
     genuinely free.
