@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useOutsideSteps } from "@/components/outside-steps/use-outside-steps";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -28,6 +29,28 @@ const record = (value: unknown): Record<string, unknown> =>
     : {};
 
 type Row = Record<string, unknown> & { id: string };
+
+/**
+ * The last loaded records while a refresh is in flight, for the same studio.
+ *
+ * A refresh drops the cache to null so no page paints a pre-write list. For
+ * Today, null leads or projects *is* the loading state: answering one "maybe
+ * an inquiry" flipped the whole page to "Catching up…", unmounted the queue
+ * and threw the reader back to the top. Today hides what was just answered
+ * itself (its `cleared` set), so the list from before the write is safe to
+ * keep on screen until the fresh read lands. Keyed by tenant so a studio
+ * switch never shows the previous studio's records.
+ */
+function useKeptWhileReloading(
+  records: Row[] | null,
+  tenantId: string | null,
+): Row[] | null {
+  const [kept, setKept] = useState<{ tenantId: string | null; records: Row[] } | null>(null);
+  if (records !== null && (kept?.records !== records || kept.tenantId !== tenantId))
+    setKept({ tenantId, records });
+  if (records !== null) return records;
+  return kept && kept.tenantId === tenantId ? kept.records : null;
+}
 
 /**
  * Everything Today needs, read once.
@@ -68,8 +91,14 @@ export function useTodayInbox(): {
 
   const setup = useSetupState();
   const packageSnapshots = useTenantDocuments("packageSnapshots");
-  const projects = useTenantDocuments("projects");
-  const leads = useTenantDocuments("leads");
+  const projectsRead = useTenantDocuments("projects");
+  const leadsRead = useTenantDocuments("leads");
+  const projects = {
+    records: useKeptWhileReloading(projectsRead.records, workspace.tenantId),
+  };
+  const leads = {
+    records: useKeptWhileReloading(leadsRead.records, workspace.tenantId),
+  };
   const tasks = useTenantDocuments("tasks");
   const aiActions = useTenantDocuments("aiActions");
   const actionReceipts = useTenantDocuments("actionReceipts");

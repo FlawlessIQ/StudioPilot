@@ -1078,9 +1078,10 @@ export function LiveLeadRows({ view, q }: { view: string; q: string }) {
 /**
  * "Maybe an inquiry" — captures the reader wasn't sure about.
  *
- * Kept off Today and out of the Open list so a newsletter never outranks a
- * couple, but never dropped: each one is a tap to keep or file away, and the
- * answer teaches capture about that sender.
+ * Kept out of Today's queue and the Open list so a newsletter never outranks
+ * a couple, but never dropped: Today asks about them beside the queue, and
+ * each one is a tap to keep or file away. The answer teaches capture about
+ * that sender.
  */
 export function LiveMaybeInquiries() {
   const { records } = useTenantDocuments("leads");
@@ -1114,7 +1115,7 @@ export function LiveMaybeInquiries() {
             </Link>
             <MaybeInquiryPrompt
               compact
-              lead={item}
+              leadId={item.id}
               onAnswered={() => refreshTenantRecords("leads")}
             />
           </li>
@@ -1218,7 +1219,7 @@ export function LiveLeadDetail({ id }: { id: string }) {
       </header>
       {lead.needsConfirmation === true && !converted ? (
         <MaybeInquiryPrompt
-          lead={lead}
+          leadId={lead.id}
           onAnswered={() => refreshTenantRecords("leads")}
         />
       ) : null}

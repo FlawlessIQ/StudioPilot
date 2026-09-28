@@ -116,10 +116,29 @@ export type TodayUpcomingEvent = {
   inDays: number;
 };
 
+/**
+ * A capture the reader wasn't sure was an inquiry. Listed beside the queue,
+ * never in it: it is not counted, never headlines, and never outranks a
+ * couple — but it is answered from Today instead of a tray nobody visits.
+ */
+export type TodayMaybeInquiry = {
+  leadId: string;
+  /** Who sent it: a name, an email, or "Unknown sender". */
+  sender: string;
+  /** Where it came from, in the same words as an inquiry card. */
+  evidence: string;
+  /** The opening of the message, trimmed for one line. */
+  snippet: string;
+  arrivedAt: string | null;
+  href: string;
+};
+
 export type TodayInbox = {
   act: TodayItem[];
   approve: TodayItem[];
   fyi: TodayItem[];
+  /** Possible inquiries awaiting a yes or no, newest first. */
+  maybeInquiries: TodayMaybeInquiry[];
   /** The next events on the books — context beside the queue. */
   upcoming: TodayUpcomingEvent[];
   /** Jobs in flight with nothing owed by the studio right now. */
@@ -541,12 +560,27 @@ export function todayInbox(input: TodayInput): TodayInbox {
   // rather than as a second card in "Prepared for you" about the same couple.
   const replyForLead = pendingInquiryReplies(rows(input.aiActions), input.now);
   const mergedReplies = new Set<string>();
+  const maybeInquiries: TodayMaybeInquiry[] = [];
   for (const lead of rows(input.leads)) {
     const status = text(lead.status).toLowerCase();
     if (["converted", "lost", "archived"].includes(status)) continue;
-    // A capture the reader wasn't sure was an inquiry waits in the Leads
-    // tray, not at the top of Today: a newsletter must never outrank a couple.
-    if (lead.needsConfirmation === true) continue;
+    // A capture the reader wasn't sure was an inquiry is asked about beside
+    // the queue, not in it: a newsletter must never outrank a couple.
+    if (lead.needsConfirmation === true) {
+      const name =
+        text(lead.displayName) ||
+        `${text(lead.firstName)} ${text(lead.lastName)}`.trim();
+      const message = text(lead.message).replace(/\s+/g, " ").trim();
+      maybeInquiries.push({
+        leadId: lead.id,
+        sender: name || text(lead.email) || "Unknown sender",
+        evidence: leadEvidence(lead),
+        snippet: message.length > 140 ? `${message.slice(0, 139).trimEnd()}…` : message,
+        arrivedAt: arrivedAt(lead),
+        href: `/studio/leads/${lead.id}`,
+      });
+      continue;
+    }
     const name =
       text(lead.displayName) ||
       `${text(lead.firstName)} ${text(lead.lastName)}`.trim();
@@ -1260,10 +1294,15 @@ export function todayInbox(input: TodayInput): TodayInbox {
     .sort((left, right) => left.inDays - right.inDays)
     .slice(0, 4);
 
+  maybeInquiries.sort((left, right) =>
+    (right.arrivedAt ?? "").localeCompare(left.arrivedAt ?? ""),
+  );
+
   return {
     act,
     approve,
     fyi,
+    maybeInquiries,
     upcoming,
     inMotion,
     summary: todaySummary({

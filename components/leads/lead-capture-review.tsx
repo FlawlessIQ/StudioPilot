@@ -212,11 +212,11 @@ export function LeadDetailsEditor({ lead, onSaved }: { lead: Lead; onSaved: () =
  * is not asked twice about the same form.
  */
 export function MaybeInquiryPrompt({
-  lead,
+  leadId,
   onAnswered,
   compact = false,
 }: {
-  lead: Lead;
+  leadId: string;
   onAnswered: (answer: "inquiry" | "not_inquiry") => void;
   compact?: boolean;
 }) {
@@ -229,8 +229,8 @@ export function MaybeInquiryPrompt({
     try {
       const response =
         choice === "inquiry"
-          ? await runCrmCommand("updateLead", { leadId: lead.id, confirmInquiry: true })
-          : await runCrmCommand("markLeadNotInquiry", { leadId: lead.id });
+          ? await runCrmCommand("updateLead", { leadId, confirmInquiry: true })
+          : await runCrmCommand("markLeadNotInquiry", { leadId });
       if (!response.persisted) {
         setNotice("Preview: your answer would be saved.");
         return;
@@ -249,8 +249,8 @@ export function MaybeInquiryPrompt({
         <span>
           <strong>Is this an inquiry?</strong>
           <small>
-            We weren&apos;t sure, so it isn&apos;t on Today yet. Your answer teaches
-            StudioCue about this sender.
+            We weren&apos;t sure, so it isn&apos;t in your queue yet. Your answer
+            teaches StudioCue about this sender.
           </small>
         </span>
       )}

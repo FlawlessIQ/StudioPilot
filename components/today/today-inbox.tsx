@@ -37,6 +37,7 @@ import {
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { runAiQueueCommand } from "@/lib/ai-actions/command-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
+import { TodayMaybeInquiries } from "@/components/today/today-maybe-inquiries";
 
 const DATE_LABEL = new Intl.DateTimeFormat("en-US", {
   weekday: "long",
@@ -592,6 +593,17 @@ export function TodayInbox() {
                 );
               })}
             </section>
+          ) : null}
+
+          {/* Beside the queue, not in it: not counted, never the headline,
+              always below the work that is certainly real. */}
+          {!loading ? (
+            <TodayMaybeInquiries
+              items={inbox.maybeInquiries.filter(
+                (item) => !cleared.has(`maybe-${item.leadId}`),
+              )}
+              onAnswered={(leadId) => clear(`maybe-${leadId}`)}
+            />
           ) : null}
 
           {inbox.fyi.length ? (

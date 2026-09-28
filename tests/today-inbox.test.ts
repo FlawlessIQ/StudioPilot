@@ -598,3 +598,67 @@ test("a snoozed reply stays with the queue's own snooze, not on the card", () =>
   const card = inbox.act.find((item) => item.id === "lead-lead-s");
   assert.equal(card?.action.kind === "inquiry" ? card.action.reply : "wrong kind", null);
 });
+
+test("a capture we weren't sure about is asked about beside the queue, never in it", () => {
+  const inbox = todayInbox({
+    ...base,
+    leads: [
+      {
+        id: "couple",
+        status: "new",
+        displayName: "Amara Ito",
+        source: "website_form",
+        receivedAt: "2026-08-19T09:00:00.000Z",
+      },
+      {
+        id: "maybe-old",
+        status: "new",
+        needsConfirmation: true,
+        email: "deals@vendor.example",
+        source: "forwarded_email",
+        message: "  Spring   promo:\n 20% off albums  ",
+        receivedAt: "2026-08-18T09:00:00.000Z",
+      },
+      {
+        id: "maybe-new",
+        status: "new",
+        needsConfirmation: true,
+        firstName: "Sam",
+        lastName: "Reed",
+        source: "website_form",
+        message: "x".repeat(200),
+        receivedAt: "2026-08-20T08:00:00.000Z",
+      },
+      { id: "maybe-archived", status: "archived", needsConfirmation: true },
+    ],
+  });
+  // Only the couple is in the queue, and so only the couple can headline.
+  assert.deepEqual(inbox.act.map((item) => item.id), ["lead-couple"]);
+  assert.equal(todayHeadline(inbox.act, inbox.approve)?.id, "lead-couple");
+  assert.match(inbox.summary, /^1 /);
+  // The maybes are listed newest first; an archived one is already answered.
+  assert.deepEqual(
+    inbox.maybeInquiries.map((item) => item.leadId),
+    ["maybe-new", "maybe-old"],
+  );
+  const [newest, oldest] = inbox.maybeInquiries;
+  assert.equal(newest?.sender, "Sam Reed");
+  assert.equal(newest?.evidence, "From your website form");
+  assert.equal(newest?.snippet.length, 140);
+  assert.ok(newest?.snippet.endsWith("…"));
+  assert.equal(newest?.href, "/studio/leads/maybe-new");
+  // No name falls back to the address; whitespace collapses for one line.
+  assert.equal(oldest?.sender, "deals@vendor.example");
+  assert.equal(oldest?.evidence, "Forwarded from your inbox");
+  assert.equal(oldest?.snippet, "Spring promo: 20% off albums");
+});
+
+test("with only maybes, Today is still clear", () => {
+  const inbox = todayInbox({
+    ...base,
+    leads: [{ id: "maybe", status: "new", needsConfirmation: true }],
+  });
+  assert.equal(inbox.act.length, 0);
+  assert.equal(inbox.summary, "Nothing needs you right now.");
+  assert.equal(inbox.maybeInquiries[0]?.sender, "Unknown sender");
+});

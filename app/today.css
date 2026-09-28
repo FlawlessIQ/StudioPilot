@@ -501,6 +501,108 @@
   font-weight: 700;
 }
 
+/* ── Maybe an inquiry ──────────────────────────────────────────────
+   Beside the queue, deliberately quieter than it: a dashed frame (the same
+   language as "handled for you"), one compact row per email, the two
+   answers on the row itself. */
+
+.today-maybe {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px dashed var(--line, #dfe4df);
+  border-radius: 14px;
+}
+
+.today-maybe-intro {
+  margin: 0;
+  color: var(--muted, #6b7570);
+  font-size: 13px;
+}
+
+.today-maybe ul {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.today-maybe li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-top: 1px solid var(--line, #e6eae4);
+}
+
+.today-maybe-what {
+  display: grid;
+  flex: 1 1 240px;
+  gap: 2px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.today-maybe-what strong {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.today-maybe-what small {
+  overflow: hidden;
+  color: var(--muted, #6b7570);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.today-maybe-what:hover strong {
+  text-decoration: underline;
+}
+
+.today-maybe-more {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  justify-self: start;
+  color: var(--accent-deep, #0b6e4f);
+  font-size: 13px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+/* Phones: the answers drop under the sender and share the width, so a row
+   stays two short lines rather than wrapping the buttons mid-row. */
+@media (max-width: 720px) {
+  .today-maybe {
+    padding: 12px;
+  }
+
+  .today-maybe .maybe-inquiry-compact,
+  .today-maybe .maybe-inquiry-compact .lead-action-row {
+    width: 100%;
+  }
+
+  .today-maybe .maybe-inquiry-compact .lead-action-row {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .today-maybe .maybe-inquiry-compact .lead-action-row > .button {
+    flex: 1 1 0;
+    gap: 6px;
+    justify-content: center;
+    min-width: 0;
+    padding-inline: 10px;
+    white-space: nowrap;
+  }
+}
+
 /* ── Handled-for-you ──────────────────────────────────────────────── */
 
 .today-handled {
