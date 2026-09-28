@@ -124,3 +124,52 @@ test("finishing a capture route's guide records the step as started", () => {
   assert.match(capture, /setOutsideStep\("inquiry_capture", "waiting"/);
   assert.match(capture, /onDone=\{finishRoute\}/);
 });
+
+test("Cue finds the step from the studio's own question, and only then", async () => {
+  const { outsideStepForQuestion } = await import("../features/outside-steps/share");
+  assert.equal(outsideStepForQuestion("How do I set up autopay?"), "quickbooks_payments_apply");
+  assert.equal(outsideStepForQuestion("Can couples save a card on file?"), "quickbooks_payments_apply");
+  assert.equal(outsideStepForQuestion("How do I reconnect QuickBooks for payments?"), "quickbooks_payments_reconnect");
+  assert.equal(outsideStepForQuestion("How do I get inquiries from my website form into StudioCue?"), "inquiry_capture");
+  assert.equal(outsideStepForQuestion("Set up inquiry capture"), "inquiry_capture");
+  // Everyday questions about the work are not setup questions.
+  for (const question of ["Reply to this inquiry", "What's due this week?", "Draft the final balance invoice", ""])
+    assert.equal(outsideStepForQuestion(question), null, question);
+});
+
+test("the steps travel as plain text someone else can follow", async () => {
+  const { outsideStepAsText, shareStepHref } = await import("../features/outside-steps/share");
+  const text = outsideStepAsText("quickbooks_payments_apply", "GR Productions");
+  assert.match(text, /^Apply for QuickBooks Payments — for GR Productions/);
+  assert.match(text, /1\. Open Payments in QuickBooks/);
+  assert.match(text, /Where: Settings → Account and settings → Payments/);
+  assert.doesNotMatch(text, /\*\*/, "no markdown left in");
+  const href = shareStepHref("quickbooks_payments_apply", "GR Productions");
+  assert.match(href, /^mailto:\?subject=/);
+  assert.match(decodeURIComponent(href), /Could you do this for GR Productions\?/);
+  // A StudioCue page means nothing to a bookkeeper: only real web links go.
+  const capture = outsideStepAsText("inquiry_capture", "GR Productions");
+  assert.doesNotMatch(capture, /Link: \/studio/);
+});
+
+test("asking for help sends the step and where it stands, and nothing about clients", async () => {
+  const { supportStepHref } = await import("../features/outside-steps/share");
+  const href = supportStepHref(
+    "quickbooks_payments_apply",
+    outsideStepStatus("quickbooks_payments_apply", { record: { state: "waiting", at: "2026-09-22T12:00:00Z" } }),
+    { studioName: "GR Productions", tenantId: "tenant_1", page: "/studio/integrations?tab=autopay" },
+  );
+  assert.match(href, /^mailto:support@studio-cue\.com\?subject=/);
+  const body = decodeURIComponent(href);
+  assert.match(body, /Step: Apply for QuickBooks Payments \(quickbooks_payments_apply\)/);
+  assert.match(body, /Status: Applied — waiting on Intuit/);
+  assert.match(body, /Studio: GR Productions \(tenant_1\)/);
+});
+
+test("the guide offers the hand-offs, and Cue shows the step under its answer", () => {
+  const card = readFileSync("components/outside-steps/outside-step-card.tsx", "utf8");
+  assert.match(card, /Send these steps to…/);
+  assert.match(card, /Stuck\? Email us/);
+  const cue = readFileSync("components/ai/copilot-workspace.tsx", "utf8");
+  assert.match(cue, /<CueOutsideStep question=\{question\} \/>/);
+});

@@ -22,6 +22,9 @@ import { CueMark } from "@/components/brand/logo";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { AiQueueCard } from "@/components/ai/ai-approval-queue";
 import { FlowRunner } from "@/components/ai/flow-runner";
+import { OutsideStepCard } from "@/components/outside-steps/outside-step-card";
+import { useOutsideSteps } from "@/components/outside-steps/use-outside-steps";
+import { outsideStepForQuestion } from "@/features/outside-steps/share";
 import { reportCopilotTurn } from "@/lib/ai/copilot-client";
 import { SignedAgreementCard } from "@/components/ai/signed-agreement-card";
 import {
@@ -661,7 +664,7 @@ function AssistantTurn({
       {result.jobObject ? (
         <JobObject job={result.jobObject} compact={Boolean(result.flow)} />
       ) : null}
-      {result.flow ? <FlowRunner flow={result.flow} /> : null}
+      {result.flow ? <FlowRunner flow={result.flow} /> : <CueOutsideStep question={question} />}
       {result.facts.length ? (
         <div>
           <h3>Verified facts</h3>
@@ -1211,5 +1214,24 @@ function CopilotVoiceSetting() {
         {saved ? <span role="status">Saved.</span> : null}
       </div>
     </details>
+  );
+}
+
+/**
+ * Asked how to do something that happens in another company's app — "how do
+ * I set up autopay?" — Cue's answer is followed by the step itself: where it
+ * stands for this studio, and the same guide Integrations opens. Matched from
+ * the studio's own words rather than left to the model, which would have to
+ * choose it (features/outside-steps/share.ts).
+ */
+function CueOutsideStep({ question }: { question?: string }) {
+  const { statuses } = useOutsideSteps();
+  const id = question ? outsideStepForQuestion(question) : null;
+  if (!id || !statuses) return null;
+  return (
+    <div className="cue-outside-step">
+      <p className="eyebrow">The step, with a guide</p>
+      <OutsideStepCard status={statuses[id]} stepId={id} />
+    </div>
   );
 }

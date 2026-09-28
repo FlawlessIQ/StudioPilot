@@ -13423,6 +13423,48 @@ form:has(> .address-field) > .address-field,
   width: 26px;
 }
 
+.cue-outside-step {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+
+.cue-outside-step .eyebrow {
+  margin: 0;
+}
+
+.outside-step-help {
+  align-items: center;
+  border-top: 1px solid #e8eaf0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 14px;
+}
+
+.outside-step-help .button {
+  align-items: center;
+  display: inline-flex;
+  font-size: 12.5px;
+  gap: 6px;
+  min-height: 34px;
+}
+
+.outside-step-support {
+  align-items: center;
+  color: #977325;
+  display: inline-flex;
+  font-size: 12.5px;
+  font-weight: 650;
+  gap: 5px;
+  margin-left: auto;
+  text-decoration: none;
+}
+
+.outside-step-support:hover {
+  text-decoration: underline;
+}
+
 .outside-step-status {
   align-items: flex-start;
   background: #f4f6f2;

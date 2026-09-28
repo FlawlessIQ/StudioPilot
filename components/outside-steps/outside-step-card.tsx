@@ -7,10 +7,17 @@ import {
   CheckCircle2,
   Clock,
   ExternalLink,
+  LifeBuoy,
   LoaderCircle,
+  Send,
 } from "lucide-react";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
-import { OpenLink, Path, Rich, Tip } from "@/components/outside-steps/guide-parts";
+import { Copyable, OpenLink, Path, Rich, Tip } from "@/components/outside-steps/guide-parts";
+import {
+  outsideStepAsText,
+  shareStepHref,
+  supportStepHref,
+} from "@/features/outside-steps/share";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import {
@@ -171,6 +178,27 @@ export function OutsideStepCard({
                     ? ` — you told us on ${since}.`
                     : ""}
             </span>
+          </div>
+          {/* Someone else does it, or it isn't working: hand it on with
+              everything they need, or ask us with the context attached. */}
+          <div className="outside-step-help">
+            <a
+              className="button button-light button-sm"
+              href={shareStepHref(stepId, workspace.tenantName)}
+            >
+              <Send aria-hidden="true" size={13} /> Send these steps to…
+            </a>
+            <Copyable label="Copy steps" value={outsideStepAsText(stepId, workspace.tenantName)} />
+            <a
+              className="outside-step-support"
+              href={supportStepHref(stepId, status, {
+                studioName: workspace.tenantName,
+                tenantId: workspace.tenantId,
+                page: typeof window === "undefined" ? step.home : window.location.pathname + window.location.search,
+              })}
+            >
+              <LifeBuoy aria-hidden="true" size={13} /> Stuck? Email us
+            </a>
           </div>
           {notice ? (
             <p className="form-error" role="alert">
