@@ -9,7 +9,6 @@ import {
 import { splitUpcomingAndPast } from "@/features/ordering/attention";
 import { liveProjects } from "@/features/projects/put-away";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { requestMessageDraft } from "@/lib/ai/message-draft-client";
 import { sendPostEventCommand } from "@/lib/post-event/command-client";
 import { useReturnToJob } from "@/lib/projects/return-to-job";
 import { parseGalleryAnnouncement } from "@/features/post-event/gallery-announcement";
@@ -276,8 +275,12 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    // One release per press. The button stays enabled during the request
+    // otherwise, and a double-click sent the couple two deliveries.
+    if (busy) return;
     const data = new FormData(event.currentTarget);
     setNotice(null);
+    setBusy(true);
     try {
       const response = await sendPostEventCommand("recordDelivery", {
         projectId: String(data.get("projectId")),
@@ -300,34 +303,20 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
       // Delivery is the step; whichever notice below lands, the job page is
       // where the studio finds out what is next.
       if (response.persisted) returnToJob({ delayMs: 1400 });
-      if (response.persisted && workspace.tenantId) {
-        // Chain the delivery email draft automatically — it waits in the AI
-        // review queue; nothing sends without approval.
-        try {
-          await requestMessageDraft({
-            tenantId: workspace.tenantId,
-            trigger: "delivery_note",
-            projectId: String(data.get("projectId")),
-          });
-          setNotice(
-            "Gallery delivery recorded. A delivery email draft is waiting for your approval on this job.",
-          );
-        } catch {
-          setNotice(
-            "Gallery delivery recorded. The portal artifact and context-aware follow-ups are ready.",
-          );
-        }
-      } else {
-        setNotice(
-          response.persisted
-            ? "Gallery delivery recorded. The portal artifact and context-aware follow-ups are ready."
-            : "Development preview: delivery gates passed; no record, email, or project state was changed.",
-        );
-      }
+      // No follow-up email draft. Recording the delivery already queues the
+      // couple's delivery email, so a chained "delivery_note" draft was a
+      // second one: approving it sent them the gallery twice.
+      setNotice(
+        response.persisted
+          ? "Gallery delivered. The couple's email is on its way and the gallery is in their portal."
+          : "Development preview: delivery gates passed; no record, email, or project state was changed.",
+      );
     } catch (caught: unknown) {
       setNotice(
         friendlyError(caught, "Delivery could not be recorded."),
       );
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -624,9 +613,13 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
           <small>Filled from your approved studio delivery instructions.</small>
         </label>
       ) : null}
+      {/* Internal. The portal API used to return these to the couple without
+          ever showing them, while the field gave no hint either way. They are
+          no longer sent; a note to the couple belongs in the delivery email. */}
       <label className="form-span">
-        Delivery notes
+        Internal notes
         <textarea name="notes" />
+        <small>For your studio only. The couple never sees these.</small>
       </label>
       <label className="delivery-album-toggle">
         <input defaultChecked name="saveStudioDefaults" type="checkbox" />
@@ -653,10 +646,10 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
       ) : null}
       <button
         className="button button-dark"
-        disabled={!interactive || gateBlocked}
+        disabled={!interactive || gateBlocked || busy}
         type="submit"
       >
-        <Send size={16} /> Record and release delivery
+        <Send size={16} /> {busy ? "Releasing…" : "Record and release delivery"}
       </button>
       <p className="form-notice form-span">
         Releasing creates the client portal delivery, schedules two review asks,

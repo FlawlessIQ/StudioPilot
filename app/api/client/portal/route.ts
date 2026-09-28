@@ -336,7 +336,8 @@ const clientRecordFields = {
     "expirationDate",
     "deliveryDate",
     "status",
-    "notes",
+    // Not "notes": the portal never showed them, the studio's form never
+    // said they were client-visible, and studios wrote internal notes there.
   ],
   albumWorkflows: [
     "deliveryRecordId",

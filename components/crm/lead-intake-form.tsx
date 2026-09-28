@@ -72,6 +72,7 @@ export function LeadIntakeForm({
   const {
     register,
     handleSubmit,
+    getValues,
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<PublicLeadIntakeInput, unknown, PublicLeadIntake>({
@@ -85,12 +86,19 @@ export function LeadIntakeForm({
    * The captured venue fills the two fields the inquiry actually submits.
    * City is required, so a chosen venue completing it saves a step; a
    * half-typed one must never wipe a city already entered by hand.
+   *
+   * Only a place picked from the list fills City, and only an empty City.
+   * Typed text used to be split on commas on every keystroke, so writing
+   * "The Barn, 12 Main St, Hope, NJ" rewrote City at each comma, over
+   * whatever the couple had already entered. Typing also no longer
+   * validates the whole form on every letter.
    */
   function applyVenue(place: CapturedPlace | null) {
     setVenue(place);
     setValue("venue", place ? placeLabel(place).slice(0, 160) : null, {
-      shouldValidate: true,
+      shouldValidate: Boolean(place?.verified),
     });
+    if (!place?.verified || getValues("city").trim()) return;
     const city = placeCity(place);
     if (city) setValue("city", city.slice(0, 120), { shouldValidate: true });
   }

@@ -1117,6 +1117,14 @@ export const planningCommand = onRequest(
         });
         const reviewed = currentRequest as DocumentData | null;
         if (parsed.input.decision === "rejected" && reviewed) {
+          // The agent's corrected PDF has to come back to the request's own
+          // coi+ address, or inbound never sees it and it lands in the
+          // studio's inbox instead. Only a hash of the token is kept on the
+          // request, so the address is read from the original request email.
+          const original = await db
+            .doc(`emailJobs/coi_request_${parsed.input.requestId}`)
+            .get();
+          const replyAddress = original.get("replyAddress");
           await db.doc(`emailJobs/coi_correction_${parsed.input.requestId}`).set({
             id: `coi_correction_${parsed.input.requestId}`,
             tenantId: parsed.tenantId,
@@ -1124,6 +1132,7 @@ export const planningCommand = onRequest(
             type: "coi_correction",
             requestId: parsed.input.requestId,
             recipient: reviewed.requestEmail,
+            ...(typeof replyAddress === "string" ? { replyAddress } : {}),
             reason: parsed.input.reason,
             status: "queued",
             attempts: 0,

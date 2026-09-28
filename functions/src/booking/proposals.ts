@@ -14,7 +14,7 @@ import {
   canCreateProposalForProject,
   canSendProposal,
 } from "./proposal-domain.js";
-import { combinePricing } from "../proposals/combined-pricing.js";
+import { combineSnapshotPricing } from "../proposals/combined-pricing.js";
 
 const authoringFields = z.object({
   expiresAt: z.string().datetime(),
@@ -467,20 +467,20 @@ export const proposalCommand = onRequest(
                 venue: project.get("venueName") ?? null,
               },
               additionalPackageSnapshotIds: additionalSnapshotIds,
-              pricingSnapshot: combinePricing(
+              // Each snapshot carries the discount the studio applied when
+              // locking it. Not recomputed here, and never invented: there is
+              // no automatic bundle discount.
+              pricingSnapshot: combineSnapshotPricing(
                 [packageData, ...additionalPackageData].map((data) => ({
                   packageName: stringValue(data.packageName, "Coverage package"),
                   currency: stringValue(data.currency, "USD"),
                   subtotalCents: numberValue(data.subtotalCents),
+                  discountCents: numberValue(data.discountCents),
                   taxCents: numberValue(data.taxCents),
                   retainerCents: numberValue(data.retainerCents),
                   totalCents: numberValue(data.totalCents),
                   lineItems: lineItems(data),
                 })),
-                // The discount the studio already applied when locking the
-                // primary package. Not recomputed here, and never invented:
-                // there is no automatic bundle discount.
-                numberValue(packageData.discountCents),
               ),
               paymentSchedule: paymentSchedule(
                 packageData,

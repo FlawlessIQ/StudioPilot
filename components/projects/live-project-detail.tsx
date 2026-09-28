@@ -841,7 +841,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
       { key: "crewAssignments", collectionName: "crewAssignments" },
       { key: "automationRuns", collectionName: "automationRuns" },
       { key: "aiActions", collectionName: "aiActions" },
-      { key: "deliveries", collectionName: "deliveries" },
+      { key: "deliveries", collectionName: "deliveryRecords" },
       { key: "reviewRequests", collectionName: "reviewRequests" },
     ];
     void Promise.all([

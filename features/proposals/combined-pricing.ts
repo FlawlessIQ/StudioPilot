@@ -86,3 +86,26 @@ export function combinePricing(
     lineItems: packages.flatMap((entry) => entry.lineItems),
   };
 }
+
+/**
+ * Combine the packages locked on a job, as their snapshots store them.
+ *
+ * A snapshot's `subtotalCents` already has that package's discount taken off
+ * (`create-snapshot.ts`), and `combinePricing` takes the discount off the
+ * combined subtotal. Passing the stored subtotal and the discount together
+ * took it off twice: a $500 discount on a $4,500 package quoted $3,500. So the
+ * subtotal goes back to what it was before the discount, and the discounts
+ * are added up and applied once. Tax and retainer stay as the snapshot
+ * computed them, on the discounted amount.
+ */
+export function combineSnapshotPricing(
+  snapshots: readonly (PackagePricing & { discountCents: number })[],
+): CombinedPricing {
+  return combinePricing(
+    snapshots.map(({ discountCents, ...entry }) => ({
+      ...entry,
+      subtotalCents: entry.subtotalCents + discountCents,
+    })),
+    snapshots.reduce((sum, entry) => sum + entry.discountCents, 0),
+  );
+}

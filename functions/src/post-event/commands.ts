@@ -446,13 +446,21 @@ export const postEventCommand = onRequest(
             });
           }
         }
-        batch.update(projectReference, {
-          state: "DELIVERED",
-          stateVersion: Number(project.get("stateVersion") ?? 0) + 1,
-          nextAction: "Monitor delivery and review request",
-          updatedAt: now,
-          updatedBy: identity.uid,
-        });
+        // The state was read above, outside this batch. Two Release clicks
+        // both read POST_PRODUCTION and each wrote a delivery, an email and
+        // two review requests. The precondition makes the second batch fail
+        // whole: the project has changed since it was read.
+        batch.update(
+          projectReference,
+          {
+            state: "DELIVERED",
+            stateVersion: Number(project.get("stateVersion") ?? 0) + 1,
+            nextAction: "Monitor delivery and review request",
+            updatedAt: now,
+            updatedBy: identity.uid,
+          },
+          { lastUpdateTime: project.updateTime! },
+        );
         batch.update(production.ref, {
           "steps.delivery_sent": {
             complete: true,
@@ -525,7 +533,14 @@ export const postEventCommand = onRequest(
           db.doc(`productEvents/${deliveryEvent.id}`),
           deliveryEvent,
         );
-        await batch.commit();
+        try {
+          await batch.commit();
+        } catch (caught: unknown) {
+          // FAILED_PRECONDITION (9): another release moved the project first.
+          if ((caught as { code?: unknown }).code === 9)
+            throw new Error("DELIVERY_ALREADY_RECORDED");
+          throw caught;
+        }
         result = {
           deliveryRecordId: deliveryId,
           projectState: "DELIVERED",

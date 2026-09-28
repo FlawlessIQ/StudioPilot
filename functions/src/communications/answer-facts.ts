@@ -15,6 +15,9 @@ function firstName(displayName: string | null): string | null {
   return first || null;
 }
 
+/** Delivery statuses that mean the couple has the link. */
+export const RELEASED_DELIVERY_STATUSES = new Set(["sent", "viewed", "downloaded"]);
+
 export async function gatherAnswerFacts(
   firestore: Firestore,
   input: { tenantId: string; projectId: string | null },
@@ -135,11 +138,18 @@ export async function gatherAnswerFacts(
     }
   }
 
-  const delivered = deliveries.docs.find(
-    (document) =>
-      String(document.get("status")) === "delivered" &&
-      typeof document.get("galleryUrl") === "string",
-  );
+  // A released delivery is "sent", then "viewed" or "downloaded". There is
+  // no "delivered" status, and matching on one meant replies never knew the
+  // couple's gallery link. Newest first, so a re-release wins.
+  const delivered = deliveries.docs
+    .filter(
+      (document) =>
+        RELEASED_DELIVERY_STATUSES.has(String(document.get("status"))) &&
+        typeof document.get("galleryUrl") === "string",
+    )
+    .sort((a, b) =>
+      String(b.get("sentAt") ?? "").localeCompare(String(a.get("sentAt") ?? "")),
+    )[0];
   if (delivered) {
     facts.gallery = {
       url: String(delivered.get("galleryUrl")),

@@ -228,6 +228,8 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "An earlier step has to be done first. The checklist shows which one.",
   PROJECT_NOT_IN_POST_PRODUCTION:
     "This job hasn't started post-production yet. Move it on from the job page, then record the gallery.",
+  DELIVERY_ALREADY_RECORDED:
+    "This delivery has already been recorded, so nothing was sent twice. Refresh to see it.",
   /**
    * Named from the code, not from the page. The delivery page says StudioCue
    * "checks the balance, the contract and the crew before anything reaches the

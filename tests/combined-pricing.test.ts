@@ -3,7 +3,10 @@ import test from "node:test";
 
 import { readFileSync } from "node:fs";
 
-import { combinePricing } from "@/features/proposals/combined-pricing";
+import {
+  combinePricing,
+  combineSnapshotPricing,
+} from "@/features/proposals/combined-pricing";
 import { combineCoverage } from "@/features/packages/coverage";
 
 const photo = {
@@ -71,6 +74,49 @@ test("tax rides on top of the discounted subtotal", () => {
   );
   assert.equal(taxed.taxCents, 1500);
   assert.equal(taxed.totalCents, 829900 - 100000 + 1500);
+});
+
+/**
+ * A locked snapshot stores its subtotal with the discount already off. Handing
+ * that and the discount to combinePricing took it off twice: a $500 discount on
+ * a $4,500 package quoted $3,500.
+ */
+test("a locked package's discount is taken off once, not twice", () => {
+  const discountedPhoto = {
+    ...photo,
+    subtotalCents: 400000,
+    discountCents: 50000,
+    retainerCents: 120000,
+    totalCents: 400000,
+  };
+  const only = combineSnapshotPricing([discountedPhoto]);
+  assert.equal(only.totalCents, 400000);
+  assert.equal(only.subtotalCents, 450000);
+  assert.equal(only.discountCents, 50000);
+  assert.equal(only.retainerCents, 120000);
+
+  const both = combineSnapshotPricing([
+    discountedPhoto,
+    { ...video, discountCents: 0 },
+  ]);
+  assert.equal(both.totalCents, 400000 + 379900);
+  assert.equal(both.discountCents, 50000);
+});
+
+test("tax on a discounted snapshot is kept as the snapshot computed it", () => {
+  const taxed = combineSnapshotPricing([
+    { ...photo, subtotalCents: 400000, discountCents: 50000, taxCents: 2000, totalCents: 402000 },
+  ]);
+  assert.equal(taxed.taxCents, 2000);
+  assert.equal(taxed.totalCents, 402000);
+});
+
+test("an undiscounted snapshot combines exactly as before", () => {
+  const both = combineSnapshotPricing([
+    { ...photo, discountCents: 0 },
+    { ...video, discountCents: 0 },
+  ]);
+  assert.deepEqual(both, combinePricing([photo, video]));
 });
 
 test("combining nothing is a programming error, not an empty proposal", () => {
@@ -150,7 +196,8 @@ test("adding a package never moves the primary", () => {
 
 test("a proposal prices every package on the job", () => {
   const proposals = source("functions/src/booking/proposals.ts");
-  assert.match(proposals, /pricingSnapshot: combinePricing\(/);
+  assert.match(proposals, /pricingSnapshot: combineSnapshotPricing\(/);
+  assert.match(proposals, /discountCents: numberValue\(data\.discountCents\)/);
   assert.match(proposals, /additionalPackageSnapshotIds: additionalSnapshotIds/);
   // A snapshot id is not a capability.
   assert.match(proposals, /snapshot\.get\("tenantId"\) === command\.tenantId/);

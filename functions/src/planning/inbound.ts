@@ -70,6 +70,17 @@ function parseMultipart(request: Request) {
   });
 }
 
+/**
+ * The states in which a certificate from the agent is still wanted. `failed`
+ * is a file that did not pass the safety scan, so a resend is the fix.
+ */
+export const ACCEPTING_STATUSES = new Set([
+  "requested",
+  "awaiting_response",
+  "correction_required",
+  "failed",
+]);
+
 export const sendgridInboundCoi = onRequest({
   cors: false,
   invoker: "private",
@@ -101,6 +112,33 @@ export const sendgridInboundCoi = onRequest({
     }
     const tenantId = String(coi.get("tenantId"));
     const projectId = String(coi.get("projectId"));
+    /**
+     * A certificate is only taken while one is being asked for. An agent
+     * resending an old PDF after the studio approved (or sent) the
+     * certificate used to replace the approved file and knock the request
+     * back to "received". The message is recorded, so a retry is a no-op and
+     * the refusal is visible, but nothing on the request changes.
+     */
+    const status = String(coi.get("status") ?? "");
+    if (!ACCEPTING_STATUSES.has(status)) {
+      await event.create({
+        tenantId,
+        projectId,
+        provider: "sendgrid",
+        providerEventId: parsed.messageId,
+        status: "ignored",
+        reason: "COI_REQUEST_NOT_ACCEPTING",
+        requestStatus: status,
+        coiRequestId: coi.id,
+        createdAt: new Date().toISOString(),
+      });
+      console.warn("COI inbound ignored: request not accepting", {
+        coiRequestId: coi.id,
+        requestStatus: status,
+      });
+      response.status(204).send();
+      return;
+    }
     const objectName = `tenants/${tenantId}/projects/${projectId}/coi/inbound/${coi.id}_${eventId}.pdf`;
     const file = getStorage().bucket().file(objectName);
     await file.save(parsed.attachment, {
@@ -111,6 +149,7 @@ export const sendgridInboundCoi = onRequest({
     const now = new Date().toISOString();
     const batch = db.batch();
     batch.create(event, { tenantId, projectId, provider: "sendgrid", providerEventId: parsed.messageId, status: "processed", createdAt: now });
+    // Unchanged since it was checked above; a decision in between wins.
     batch.update(coi.ref, {
       status: "received",
       inboundMessageId: parsed.messageId,
@@ -120,7 +159,7 @@ export const sendgridInboundCoi = onRequest({
       scanStatus: "pending",
       updatedAt: now,
       updatedBy: "sendgrid-inbound",
-    });
+    }, { lastUpdateTime: coi.updateTime });
     await batch.commit();
     response.status(204).send();
   } catch (caught: unknown) {
