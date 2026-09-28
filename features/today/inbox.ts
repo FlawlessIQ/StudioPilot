@@ -78,6 +78,12 @@ export type TodayAction =
         actionId: string;
         recipient: string | null;
         preview: { subject: string | null; body: string } | null;
+        /**
+         * False when the reply goes without the couple's booking link because
+         * the studio hasn't set consultation hours — said on the card, where
+         * the studio is about to send it.
+         */
+        bookingLinkIncluded?: boolean | null;
       } | null;
     }
   /** Nothing to do — the engines handled it. */
@@ -659,6 +665,10 @@ export function todayInbox(input: TodayInput): TodayInbox {
               actionId: reply.id,
               recipient: text(asRecord(reply.structuredOutput).recipientEmail) || null,
               preview: previewOf(reply.structuredOutput),
+              bookingLinkIncluded:
+                typeof asRecord(reply.structuredOutput).bookingLinkIncluded === "boolean"
+                  ? (asRecord(reply.structuredOutput).bookingLinkIncluded as boolean)
+                  : null,
             }
           : null,
       },

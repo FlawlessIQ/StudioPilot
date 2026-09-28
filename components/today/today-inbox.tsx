@@ -1039,6 +1039,12 @@ function InquiryActions({
           </small>
           {reply.preview.subject ? <strong>{reply.preview.subject}</strong> : null}
           <p>{reply.preview.body}</p>
+          {reply.bookingLinkIncluded === false ? (
+            <small className="today-inquiry-hint">
+              No booking link yet — <Link href="/studio/settings/consultation-availability">set your consultation hours</Link>{" "}
+              and replies will let couples pick a time themselves.
+            </small>
+          ) : null}
         </blockquote>
       ) : null}
       {confirming ? (

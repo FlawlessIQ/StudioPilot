@@ -8,6 +8,7 @@ import { gmailForwardingConfirmation } from "../functions/src/intake/gmail-forwa
 import { fillsFor } from "../functions/src/intake/enrich";
 import { moveLeadThreadsToProject } from "../functions/src/intake/lead-thread";
 import { convertInquiryToJob, projectIdForLead } from "../functions/src/intake/convert";
+import { detailsOf, resolveInquiryLink, saveCoupleDetails, withInquiryLink } from "../functions/src/intake/inquiry-link";
 import { providerFromMx } from "../functions/src/intake/mailbox-provider";
 import { captureSilent, silenceThreshold } from "../functions/src/intake/health-scheduler";
 import { conversationIdFor } from "../functions/src/communications/conversation";
@@ -684,4 +685,72 @@ test("a maybe, a closed lead and another studio's lead never become jobs", async
   assert.equal((await convertInquiryToJob(db, { tenantId: "t1", leadId: "closed", now })).converted, false);
   assert.equal((await convertInquiryToJob(db, { tenantId: "t1", leadId: "other", now })).converted, false);
   assert.equal(rows(store, "projects").length, 0);
+});
+
+test("a reply carries the couple's link before its sign-off, once, and only when hours are set", async () => {
+  const body = "Dear Maya,\n\nThank you — June 12 is free.\n\nWarmly,\nGabe";
+  const without = fakeFirestore(seed());
+  const bare = await withInquiryLink(without.db, { tenantId: "t1", leadId: "l1", body, now });
+  assert.deepEqual(bare, { body, linked: false }, "no hours, no link");
+
+  const { db, store } = fakeFirestore({ ...seed(), "consultationSettings/t1": { tenantId: "t1" } });
+  const linked = await withInquiryLink(db, { tenantId: "t1", leadId: "l1", body, now });
+  assert.equal(linked.linked, true);
+  assert.match(linked.body, /pick a time to talk — it takes two minutes: https:\/\/.+\/i\/[\w-]{43}\n\nWarmly,\nGabe$/);
+  const token = String(store.get("inquiryLinks/l1")!.token);
+  assert.ok(linked.body.includes(`/i/${token}`));
+  // The same inquiry keeps the same link, and it isn't added twice.
+  const again = await withInquiryLink(db, { tenantId: "t1", leadId: "l1", body: linked.body, now });
+  assert.equal(again.body, linked.body);
+});
+
+test("the couple's details fill only what's missing, and a date makes the inquiry a job", async () => {
+  const { db, store } = fakeFirestore({
+    ...seed(),
+    "leads/l1": {
+      id: "l1",
+      tenantId: "t1",
+      status: "new",
+      needsConfirmation: false,
+      eventDate: null,
+      venue: "The Ryland Inn",
+      email: "maya@example.test",
+      firstName: "Maya",
+      lastName: "Test",
+      displayName: "Maya Test",
+      archivedAt: null,
+    },
+    "consultationSettings/t1": { tenantId: "t1" },
+  });
+  await withInquiryLink(db, { tenantId: "t1", leadId: "l1", body: "Hi", now });
+  const token = String(store.get("inquiryLinks/l1")!.token);
+  const context = await resolveInquiryLink(db, token);
+  assert.ok(detailsOf(context.lead).missing.includes("eventDate"));
+  assert.ok(!detailsOf(context.lead).missing.includes("venue"));
+
+  const result = await saveCoupleDetails(
+    db,
+    context,
+    { eventDate: "2027-06-12", venue: "Somewhere else", partnerName: "Sam", estimatedGuestCount: 120 },
+    now,
+  );
+  const lead = store.get("leads/l1")!;
+  assert.equal(lead.venue, "The Ryland Inn", "what the studio already had is kept");
+  assert.equal(lead.eventDate, "2027-06-12");
+  assert.equal(lead.displayName, "Maya Test & Sam");
+  assert.equal((lead.fieldProvenance as Record<string, { source: string }>).eventDate!.source, "couple");
+  assert.ok(result.projectId, "the date made it a job");
+  assert.equal(store.get(`projects/${result.projectId}`)!.state, "LEAD");
+});
+
+test("a link for an inquiry marked not-an-inquiry stops working", async () => {
+  const { db, store } = fakeFirestore({
+    ...seed(),
+    "leads/l1": { id: "l1", tenantId: "t1", status: "archived", notInquiry: true },
+    "consultationSettings/t1": { tenantId: "t1" },
+  });
+  await withInquiryLink(db, { tenantId: "t1", leadId: "l1", body: "Hi", now });
+  const token = String(store.get("inquiryLinks/l1")!.token);
+  await assert.rejects(resolveInquiryLink(db, token), /INQUIRY_LINK_NOT_FOUND/);
+  await assert.rejects(resolveInquiryLink(db, "x".repeat(43)), /INQUIRY_LINK_NOT_FOUND/);
 });

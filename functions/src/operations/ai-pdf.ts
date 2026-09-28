@@ -1,6 +1,7 @@
 import { contractPdfInput, storeSealedContract } from "../contracts/seal.js";
 import { enrichCapturedLead } from "../intake/enrich.js";
 import { convertInquiryToJob } from "../intake/convert.js";
+import { withInquiryLink } from "../intake/inquiry-link.js";
 import { createHash } from "node:crypto";
 import { consumeAiQuota } from "../saas/usage.js";
 import { gatherAnswerFacts } from "../communications/answer-facts.js";
@@ -109,7 +110,12 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
   const replySubject=string(analysis.replySubject)||`Thank you for your ${string(lead.get("eventTypeLabel"))||"photography"} inquiry`;
   // The prompt's own "Dear Maya," example is copied and run on into the first
   // sentence; the greeting gets its own line before anyone reviews it.
-  const replyBody=separateGreeting(string(analysis.replyBody));
+  // The couple's own link — their details, then a time to talk — closes the
+  // reply, added here rather than asked of the model, which must never
+  // invent a link (intake/inquiry-link.ts). No hours set: no link, and the
+  // draft says why so Today can.
+  const linked=await withInquiryLink(db,{tenantId:string(lead.get("tenantId")),leadId,body:separateGreeting(string(analysis.replyBody)),now:new Date().toISOString()});
+  const replyBody=linked.body;
   const confidence=missingInformation.length===0?0.93:0.82;
   const actionId=`ai_reply_${leadId}`;
   const batch=db.batch();
@@ -138,7 +144,7 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
     sourceReferences:[{entityType:"lead",entityId:leadId,versionId:null,label:"Original inquiry",locator:"lead.message"}],
     // leadId and contactId travel with the reply so, once approved, it is sent
     // on the lead's own thread and the couple's answer comes back to it.
-    structuredOutput:{subject:replySubject,body:replyBody,recipientEmail:lead.get("email"),recipientName:lead.get("displayName")??null,leadId,contactId:lead.get("primaryContactId")??null,suggestedConsultationQuestions},
+    structuredOutput:{subject:replySubject,body:replyBody,recipientEmail:lead.get("email"),recipientName:lead.get("displayName")??null,leadId,contactId:lead.get("primaryContactId")??null,suggestedConsultationQuestions,bookingLinkIncluded:linked.linked},
     confidence:{overall:confidence,label:confidence>=0.9?"high":"medium",uncertainFields:missingInformation},
     validation:{status:replyBody?"passed":"failed",issues:replyBody?[]:[{code:"EMPTY_REPLY",severity:"blocking",message:"The reply draft is empty.",field:"body"}]},
     decision:null,
@@ -617,6 +623,19 @@ async function runInboundReplyDraft(job: DocumentSnapshot) {
     };
   }
   if (!draft.body) throw new Error("AI_DRAFT_EMPTY");
+  // Still at the inquiry stage with no call booked: the answer carries the
+  // couple's link, so replying by email leads to the same page the first
+  // reply did.
+  const inquiryLeadId = string(conversation.get("leadId"));
+  const inquiryProjectId = string(conversation.get("projectId"));
+  const inquiryProject = inquiryProjectId ? await db.doc(`projects/${inquiryProjectId}`).get() : null;
+  let bookingLinkIncluded = false;
+  if (inquiryLeadId && (!inquiryProject || inquiryProject.get("state") === "LEAD")) {
+    const linked = await withInquiryLink(db, { tenantId, leadId: inquiryLeadId, body: draft.body, now });
+    draft.body = linked.body;
+    bookingLinkIncluded = linked.linked;
+  }
+  const participant = record(conversation.get("participant"));
 
   // Quota and the action land together, so a charged action always exists and an
   // uncharged one never does.
@@ -640,11 +659,23 @@ async function runInboundReplyDraft(job: DocumentSnapshot) {
         "vertex",
       instructionVersion: "inbound_reply_v1",
       outputSchemaVersion: "message_draft_output_v1",
+      // Who it goes to and which inquiry it answers travel with it, as they do
+      // on a first reply: without them an approved draft had no recipient and
+      // stopped at "approved, not sent", and Today could not put it on the
+      // couple's card.
+      sourceReferences: inquiryLeadId
+        ? [{ entityType: "lead", entityId: inquiryLeadId, versionId: null, label: "Their reply", locator: "conversation" }]
+        : [],
       structuredOutput: {
         trigger: "inbound_reply",
         subject: draft.subject,
         body: draft.body,
         highlights: [],
+        recipientEmail: string(participant.email) || null,
+        recipientName: string(participant.name) || null,
+        contactId: string(participant.contactId) || null,
+        leadId: inquiryLeadId || null,
+        bookingLinkIncluded,
       },
       confidence: {
         overall: draft.missingInformation.length ? 0.6 : 0.85,

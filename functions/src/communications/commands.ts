@@ -545,6 +545,9 @@ export const communicationsCommand = onRequest(
           id: jobId,
           tenantId: command.tenantId,
           projectId,
+          // The inquiry a lead thread belongs to, so the send threads back
+          // onto it (operations/jobs.ts) rather than going out unthreaded.
+          leadId: (conversation.get("leadId") as string | null) ?? null,
           type: "manual_message",
           recipient,
           contactId,

@@ -35,6 +35,13 @@ export const consultationSettingsInputSchema = z
     windows: z.array(availabilityWindowSchema).max(21),
     unavailableWindows: z.array(availabilityWindowSchema).max(50).default([]),
     blockedDates: z.array(z.string().date()).max(200),
+    /**
+     * How the studio meets couples for a consultation, as the couple chooses
+     * it on their booking page. Zoom alone until the studio says otherwise;
+     * "in_person" needs somewhere to meet, `inPersonLocation`.
+     */
+    meetingFormats: z.array(z.enum(["zoom", "in_person", "phone"])).min(1).max(3).default(["zoom"]),
+    inPersonLocation: z.string().trim().max(300).nullable().default(null),
   })
   .refine(
     (settings) => settings.mode !== "open_default" || settings.windows.length > 0,
@@ -205,6 +212,8 @@ const defaultSettings: ConsultationSettingsInput = {
   })),
   unavailableWindows: [],
   blockedDates: [],
+  meetingFormats: ["zoom"],
+  inPersonLocation: null,
 };
 
 /**

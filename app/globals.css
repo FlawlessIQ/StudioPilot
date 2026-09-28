@@ -16705,6 +16705,96 @@ label {
   }
 }
 
+.today-inquiry-reply .today-inquiry-hint {
+  display: block;
+  margin-top: 8px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* The couple's inquiry page: their details, then how and when to meet. */
+.couple-details-form {
+  display: grid;
+  gap: 14px;
+}
+.couple-details-form label {
+  display: grid;
+  font-size: 13px;
+  font-weight: 600;
+  gap: 6px;
+}
+.couple-details-form input,
+.couple-details-form textarea,
+.consultation-formats-location input {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 400;
+  padding: 10px 12px;
+  width: 100%;
+}
+.couple-details-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.couple-format-choice {
+  border: 0;
+  display: grid;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 0;
+}
+.couple-format-choice legend {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.couple-format-choice label {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+}
+.couple-format-choice label span {
+  display: grid;
+  gap: 2px;
+}
+.couple-format-choice small {
+  color: var(--muted);
+}
+
+/* Consultation settings: the ways a couple can choose to meet. */
+.consultation-formats {
+  border: 0;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+.consultation-formats > p {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+.consultation-formats > label:not(.consultation-formats-location) {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+}
+.consultation-formats > label span {
+  display: grid;
+  gap: 2px;
+}
+.consultation-formats > label small {
+  color: var(--muted);
+}
+.consultation-formats-location {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 /* Inquiries pipeline rows on phones: name and whose move on line one, then the
    date, whether it's free and the stage chip together on line two — three
    short facts side by side rather than three more stacked lines. */

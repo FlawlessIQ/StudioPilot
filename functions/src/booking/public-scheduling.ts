@@ -6,6 +6,15 @@ import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { getCalendarBusyIntervals } from "../operations/provider-runtime.js";
 import { studioHubCors } from "../security/cors.js";
 import { generateConsultationSlots, getConsultationSettings } from "./availability.js";
+import {
+  detailsOf,
+  meetingOptions,
+  resolveInquiryLink,
+  saveCoupleDetails,
+  type InquiryLinkContext,
+} from "../intake/inquiry-link.js";
+
+const inquiryToken = z.string().min(32).max(200);
 
 const commandSchema = z.discriminatedUnion("type", [
   z.object({
@@ -27,6 +36,49 @@ const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("availability"),
     idempotencyKey: z.string().min(8).max(160),
     input: z.object({ token: z.string().min(32).max(200) }),
+  }),
+  // The couple's own inquiry link (intake/inquiry-link.ts): their details,
+  // then a time and a way to meet, and later a reschedule or cancel.
+  z.object({
+    type: z.literal("inquiry_preview"),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ token: inquiryToken }),
+  }),
+  z.object({
+    type: z.literal("inquiry_details"),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      token: inquiryToken,
+      details: z.object({
+        eventDate: z.string().date().nullable().optional(),
+        partnerName: z.string().trim().max(120).nullable().optional(),
+        venue: z.string().trim().max(160).nullable().optional(),
+        city: z.string().trim().max(120).nullable().optional(),
+        ceremonyTime: z.string().trim().max(40).nullable().optional(),
+        estimatedGuestCount: z.number().int().min(1).max(100000).nullable().optional(),
+        phone: z.string().trim().max(30).nullable().optional(),
+        notes: z.string().trim().max(2000).nullable().optional(),
+      }),
+    }),
+  }),
+  z.object({
+    type: z.literal("inquiry_availability"),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ token: inquiryToken }),
+  }),
+  z.object({
+    type: z.literal("inquiry_book"),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      token: inquiryToken,
+      startsAt: z.string().datetime(),
+      format: z.enum(["zoom", "in_person", "phone"]),
+    }),
+  }),
+  z.object({
+    type: z.literal("inquiry_cancel"),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ token: inquiryToken, reason: z.string().trim().max(300).nullable().optional() }),
   }),
   z.object({
     type: z.literal("book"),
@@ -60,8 +112,11 @@ async function activeLink(token: string) {
 }
 
 async function slotsFor(link: FirebaseFirestore.QueryDocumentSnapshot) {
+  return slotsForTenant(String(link.get("tenantId")));
+}
+
+async function slotsForTenant(tenantId: string) {
   const db = getFirestore();
-  const tenantId = String(link.get("tenantId"));
   const tenant = await db.doc(`tenants/${tenantId}`).get();
   const timezone = String(tenant.get("timezone") ?? "America/New_York");
   const settings = await getConsultationSettings(db, tenantId);
@@ -224,6 +279,19 @@ export const publicConsultationScheduling = onRequest(
         return;
       }
 
+      if (
+        command.type === "inquiry_preview" ||
+        command.type === "inquiry_details" ||
+        command.type === "inquiry_availability" ||
+        command.type === "inquiry_book" ||
+        command.type === "inquiry_cancel"
+      ) {
+        const context = await resolveInquiryLink(db, command.input.token);
+        const result = await handleInquiryCommand(db, context, command, now);
+        response.status(command.type === "inquiry_book" ? 201 : 200).json(result);
+        return;
+      }
+
       const link = await activeLink(command.input.token);
       const [tenant, project] = await Promise.all([
         db.doc(`tenants/${String(link.get("tenantId"))}`).get(),
@@ -337,3 +405,308 @@ export const publicConsultationScheduling = onRequest(
     }
   },
 );
+
+type InquiryCommand = Extract<
+  z.infer<typeof commandSchema>,
+  { type: "inquiry_preview" | "inquiry_details" | "inquiry_availability" | "inquiry_book" | "inquiry_cancel" }
+>;
+
+const text = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
+
+/** The couple's consultation on this inquiry that is still to happen, if any. */
+async function upcomingConsultation(
+  db: FirebaseFirestore.Firestore,
+  context: InquiryLinkContext,
+): Promise<FirebaseFirestore.QueryDocumentSnapshot | null> {
+  if (!context.project) return null;
+  const consultations = await db
+    .collection("consultations")
+    .where("tenantId", "==", context.tenantId)
+    .where("projectId", "==", context.project.id)
+    .limit(20)
+    .get();
+  const now = new Date().toISOString();
+  return (
+    consultations.docs
+      .filter((document) => document.get("status") === "scheduled" && text(document.get("startsAt")) > now)
+      .sort((left, right) => text(left.get("startsAt")).localeCompare(text(right.get("startsAt"))))[0] ?? null
+  );
+}
+
+/**
+ * What the couple did, where the studio will see it: a receipt on the job,
+ * which Today lists under "handled for you", and an audit event.
+ */
+async function recordCoupleAction(
+  db: FirebaseFirestore.Firestore,
+  context: InquiryLinkContext,
+  input: { id: string; title: string; action: string; after: Record<string, unknown>; now: string },
+) {
+  const projectId = context.project?.id ?? null;
+  const batch = db.batch();
+  batch.set(db.doc(`actionReceipts/${input.id}`), {
+    id: input.id,
+    tenantId: context.tenantId,
+    projectId,
+    title: input.title,
+    status: "completed",
+    actor: "couple",
+    createdAt: input.now,
+    updatedAt: input.now,
+  });
+  batch.set(db.doc(`auditEvents/${input.id}`), {
+    id: input.id,
+    tenantId: context.tenantId,
+    projectId,
+    actorId: "couple",
+    actorType: "client",
+    action: input.action,
+    entityType: "lead",
+    entityId: context.lead.id,
+    timestamp: input.now,
+    before: null,
+    after: input.after,
+    ipAddress: null,
+    userAgent: null,
+    correlationId: context.lead.id,
+    automationRunId: null,
+    providerEventId: null,
+  });
+  await batch.commit();
+}
+
+function whenLabel(startsAt: string, timezone: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: timezone || "America/New_York",
+  }).format(new Date(startsAt));
+}
+
+async function handleInquiryCommand(
+  db: FirebaseFirestore.Firestore,
+  context: InquiryLinkContext,
+  command: InquiryCommand,
+  now: string,
+): Promise<Record<string, unknown>> {
+  const tenant = await db.doc(`tenants/${context.tenantId}`).get();
+  const timezone = text(tenant.get("timezone")) || "America/New_York";
+
+  if (command.type === "inquiry_preview") {
+    const [options, upcoming, settings] = await Promise.all([
+      meetingOptions(db, context.tenantId),
+      upcomingConsultation(db, context),
+      db.doc(`consultationSettings/${context.tenantId}`).get(),
+    ]);
+    const { known, missing } = detailsOf(context.lead);
+    return {
+      studioName: text(tenant.get("brandName")) || text(tenant.get("businessName")) || "Your photography studio",
+      firstName: text(context.lead.get("firstName")) || null,
+      known,
+      missing,
+      detailsSubmitted: Boolean(context.lead.get("detailsSubmittedAt")),
+      formats: options.formats,
+      inPersonLocation: options.inPersonLocation,
+      durationMinutes: options.durationMinutes,
+      // Without hours set there is nothing to book; the page says so.
+      takesBookings: settings.exists,
+      timezone,
+      booked: upcoming
+        ? {
+            startsAt: upcoming.get("startsAt"),
+            endsAt: upcoming.get("endsAt"),
+            format: upcoming.get("mode"),
+            joinUrl: upcoming.get("joinUrl") ?? null,
+            location: upcoming.get("location") ?? null,
+          }
+        : null,
+    };
+  }
+
+  if (command.type === "inquiry_details") {
+    const { saved, projectId } = await saveCoupleDetails(db, context, command.input.details, now);
+    if (saved.length || command.input.details.notes) {
+      await recordCoupleAction(db, { ...context, project: projectId ? await db.doc(`projects/${projectId}`).get() : null }, {
+        id: `couple_details_${context.lead.id}_${createHash("sha256").update(now).digest("hex").slice(0, 8)}`,
+        title: `${text(context.lead.get("firstName")) || "The couple"} filled in their details`,
+        action: "inquiry.details_submitted",
+        after: { fields: saved },
+        now,
+      });
+    }
+    return { saved, hasJob: Boolean(projectId) };
+  }
+
+  if (command.type === "inquiry_availability") {
+    return slotsForTenant(context.tenantId);
+  }
+
+  if (command.type === "inquiry_cancel") {
+    const upcoming = await upcomingConsultation(db, context);
+    if (!upcoming) return { status: "nothing_to_cancel" };
+    await upcoming.ref.update({
+      status: "cancelled",
+      cancelledAt: now,
+      cancellationReason: command.input.reason || "Cancelled by the couple",
+      updatedAt: now,
+      updatedBy: "couple",
+    });
+    if (process.env.PROVIDER_MOCK_MODE !== "true") {
+      await db.doc(`providerJobs/consultation_cancel_${upcoming.id}`).set(
+        {
+          tenantId: context.tenantId,
+          projectId: context.project?.id ?? null,
+          consultationId: upcoming.id,
+          type: "cancel_consultation_resources",
+          idempotencyKey: `couple_cancel_${upcoming.id}`,
+          status: "queued",
+          createdAt: now,
+        },
+        { merge: true },
+      );
+    }
+    await recordCoupleAction(db, context, {
+      id: `couple_cancel_${upcoming.id}`,
+      title: `${text(context.lead.get("firstName")) || "The couple"} cancelled their consultation (${whenLabel(text(upcoming.get("startsAt")), timezone)})`,
+      action: "consultation.cancelled_by_couple",
+      after: { consultationId: upcoming.id, reason: command.input.reason ?? null },
+      now,
+    });
+    return { status: "cancelled" };
+  }
+
+  // inquiry_book — a new consultation, or a move of the one they have.
+  if (!context.project) throw new Error("EVENT_DATE_REQUIRED");
+  const project = context.project;
+  const options = await meetingOptions(db, context.tenantId);
+  if (!options.formats.includes(command.input.format)) throw new Error("FORMAT_NOT_OFFERED");
+  const availability = await slotsForTenant(context.tenantId);
+  const selected = availability.slots.find((slot) => slot.startsAt === command.input.startsAt);
+  if (!selected) throw new Error("TIME_NO_LONGER_AVAILABLE");
+  const contactId = text(context.lead.get("primaryContactId")) || (project.get("clientContactIds") as string[] | undefined)?.[0] || null;
+  const previous = await upcomingConsultation(db, context);
+  const consultationId = `consultation_${createHash("sha256")
+    .update(`inquiry:${context.lead.id}:${selected.startsAt}:${command.input.format}`)
+    .digest("hex")
+    .slice(0, 32)}`;
+  if (previous?.id === consultationId) {
+    return { consultationId, startsAt: selected.startsAt, endsAt: selected.endsAt, timezone: availability.timezone, status: "scheduled" };
+  }
+  const location =
+    command.input.format === "in_person"
+      ? options.inPersonLocation
+      : command.input.format === "phone"
+        ? text(context.lead.get("phone")) || null
+        : null;
+  const inquiryUrl = `${(process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app").replace(/\/$/, "")}/i/${command.input.token}`;
+  const batch = db.batch();
+  batch.create(db.doc(`consultations/${consultationId}`), {
+    id: consultationId,
+    tenantId: context.tenantId,
+    projectId: project.id,
+    contactId,
+    mode: command.input.format,
+    status: "scheduled",
+    startsAt: selected.startsAt,
+    endsAt: selected.endsAt,
+    timezone: availability.timezone,
+    location,
+    calendarEventId: null,
+    calendarHtmlLink: null,
+    meetingId: null,
+    joinUrl: null,
+    providerState: process.env.PROVIDER_MOCK_MODE === "true" ? "completed_mock" : "queued",
+    internalNotes: null,
+    reminderJobIds: [],
+    supersedesId: previous?.id ?? null,
+    // Where the couple manages it; carried by the confirmation email.
+    selfServeUrl: inquiryUrl,
+    createdAt: now,
+    updatedAt: now,
+    createdBy: "couple",
+    updatedBy: "couple",
+    archivedAt: null,
+  });
+  if (previous) {
+    batch.update(previous.ref, {
+      status: "rescheduled",
+      rescheduledAt: now,
+      supersededBy: consultationId,
+      updatedAt: now,
+      updatedBy: "couple",
+    });
+  }
+  if (project.get("state") === "LEAD") {
+    batch.update(project.ref, {
+      state: "CONSULTATION",
+      stateVersion: Number(project.get("stateVersion") ?? 0) + 1,
+      nextAction: "Complete consultation",
+      updatedAt: now,
+      updatedBy: "couple",
+    });
+  }
+  if (process.env.PROVIDER_MOCK_MODE !== "true") {
+    batch.create(db.doc(`providerJobs/consultation_${consultationId}`), {
+      id: `consultation_${consultationId}`,
+      tenantId: context.tenantId,
+      projectId: project.id,
+      type: "create_consultation_resources",
+      idempotencyKey: consultationId,
+      status: "queued",
+      attempts: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+    if (previous) {
+      batch.set(db.doc(`providerJobs/consultation_cancel_${previous.id}`), {
+        tenantId: context.tenantId,
+        projectId: project.id,
+        consultationId: previous.id,
+        type: "cancel_consultation_resources",
+        idempotencyKey: `couple_reschedule_${previous.id}`,
+        status: "queued",
+        createdAt: now,
+      }, { merge: true });
+    }
+  }
+  batch.create(db.doc(`emailJobs/consultation_confirmation_${consultationId}`), {
+    id: `consultation_confirmation_${consultationId}`,
+    tenantId: context.tenantId,
+    projectId: project.id,
+    contactId,
+    type: "consultation_confirmation",
+    startsAt: selected.startsAt,
+    location,
+    // The couple's own page: move or cancel it there.
+    rescheduleUrl: inquiryUrl,
+    status: "queued",
+    attempts: 0,
+    createdAt: now,
+    updatedAt: now,
+  });
+  await batch.commit();
+  const who = text(context.lead.get("firstName")) || "The couple";
+  const formatLabel = command.input.format === "in_person" ? "in person" : command.input.format === "phone" ? "by phone" : "on Zoom";
+  await recordCoupleAction(db, context, {
+    id: `couple_book_${consultationId}`,
+    title: previous
+      ? `${who} moved their consultation to ${whenLabel(selected.startsAt, availability.timezone)}, ${formatLabel}`
+      : `${who} booked a consultation for ${whenLabel(selected.startsAt, availability.timezone)}, ${formatLabel}`,
+    action: previous ? "consultation.rescheduled_by_couple" : "consultation.booked_by_couple",
+    after: { consultationId, startsAt: selected.startsAt, format: command.input.format, previous: previous?.id ?? null },
+    now,
+  });
+  return {
+    consultationId,
+    startsAt: selected.startsAt,
+    endsAt: selected.endsAt,
+    timezone: availability.timezone,
+    format: command.input.format,
+    location,
+    rescheduled: Boolean(previous),
+    status: "scheduled",
+  };
+}

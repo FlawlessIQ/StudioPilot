@@ -474,7 +474,14 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         ],
         action: actionUrl
           ? { label: "View consultation", url: actionUrl }
-          : undefined,
+          : safeUrl(stringValue(values, "rescheduleUrl"))
+            ? { label: "Reschedule or cancel", url: safeUrl(stringValue(values, "rescheduleUrl")) }
+            : undefined,
+        // Booked from their own inquiry link: the same page moves or cancels it.
+        secondaryAction:
+          actionUrl && safeUrl(stringValue(values, "rescheduleUrl"))
+            ? { label: "Reschedule or cancel", url: safeUrl(stringValue(values, "rescheduleUrl")) }
+            : undefined,
       };
     }
     case "consultation_invitation":

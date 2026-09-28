@@ -35,7 +35,18 @@ type FormState = {
   // `windows`. Ignored (and not sent) in closed_default mode.
   unavailable: WeeklyWindows;
   blockedDates: string[];
+  /** How the couple can choose to meet, on their booking page. */
+  meetingFormats: MeetingFormat[];
+  inPersonLocation: string;
 };
+
+type MeetingFormat = "zoom" | "in_person" | "phone";
+
+const meetingFormatOptions: Array<{ value: MeetingFormat; label: string; detail: string }> = [
+  { value: "zoom", label: "Video call", detail: "A Zoom link goes out with the confirmation." },
+  { value: "in_person", label: "In person", detail: "At the place you give below." },
+  { value: "phone", label: "Phone call", detail: "You call the number they gave you." },
+];
 
 function emptyWeek(): WeeklyWindows {
   return { sun: [], mon: [], tue: [], wed: [], thu: [], fri: [], sat: [] };
@@ -57,6 +68,8 @@ const defaultState: FormState = {
   windows: defaultWindows,
   unavailable: emptyWeek(),
   blockedDates: [],
+  meetingFormats: ["zoom"],
+  inPersonLocation: "",
 };
 
 function minutesToTime(minutes: number): string {
@@ -198,6 +211,12 @@ export function ConsultationAvailability() {
           windows: windowsFromDocField(data.windows),
           unavailable: windowsFromDocField(data.unavailableWindows),
           blockedDates: Array.isArray(data.blockedDates) ? data.blockedDates.map(String) : [],
+          meetingFormats: Array.isArray(data.meetingFormats) && data.meetingFormats.length
+            ? (data.meetingFormats.map(String).filter((value: string) =>
+                ["zoom", "in_person", "phone"].includes(value),
+              ) as MeetingFormat[])
+            : ["zoom"],
+          inPersonLocation: typeof data.inPersonLocation === "string" ? data.inPersonLocation : "",
         });
       } catch (caught: unknown) {
         if (active) {
@@ -245,6 +264,12 @@ export function ConsultationAvailability() {
           );
         }
       }
+      if (!form.meetingFormats.length) {
+        throw new Error("Choose at least one way to meet.");
+      }
+      if (form.meetingFormats.includes("in_person") && !form.inPersonLocation.trim()) {
+        throw new Error("Add where you meet in person, or untick In person.");
+      }
       const outcome = await sendBookingCommand({
         type: "setConsultationSettings",
         idempotencyKey: crypto.randomUUID(),
@@ -255,6 +280,8 @@ export function ConsultationAvailability() {
           windows: windowsToDocField(form.windows),
           unavailableWindows: form.mode === "open_default" ? windowsToDocField(form.unavailable) : [],
           blockedDates: form.blockedDates,
+          meetingFormats: form.meetingFormats,
+          inPersonLocation: form.inPersonLocation.trim() || null,
         },
       });
       setNotice(
@@ -318,6 +345,44 @@ export function ConsultationAvailability() {
             </span>
           </label>
         </div>
+
+        <fieldset className="consultation-availability-section consultation-formats">
+          <legend className="consultation-availability-section-label">How you meet</legend>
+          <p>Couples pick one of these when they book.</p>
+          {meetingFormatOptions.map((option) => (
+            <label key={option.value}>
+              <input
+                checked={form.meetingFormats.includes(option.value)}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    meetingFormats: event.target.checked
+                      ? [...current.meetingFormats, option.value]
+                      : current.meetingFormats.filter((value) => value !== option.value),
+                  }))
+                }
+                type="checkbox"
+              />
+              <span>
+                <strong>{option.label}</strong>
+                <small>{option.detail}</small>
+              </span>
+            </label>
+          ))}
+          {form.meetingFormats.includes("in_person") ? (
+            <label className="consultation-formats-location">
+              Where you meet in person
+              <input
+                maxLength={300}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, inPersonLocation: event.target.value }))
+                }
+                placeholder="The studio, 12 Main St, Madison NJ"
+                value={form.inPersonLocation}
+              />
+            </label>
+          ) : null}
+        </fieldset>
 
         <div className="consultation-availability-durations">
           <label>

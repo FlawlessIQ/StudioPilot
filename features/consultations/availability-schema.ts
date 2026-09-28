@@ -39,5 +39,12 @@ export const consultationSettingsSchema = auditFieldsSchema.extend({
   // holidays, days off — regardless of what windows/unavailableWindows say
   // for that weekday, in either mode.
   blockedDates: z.array(z.string().date()).max(200),
+  /**
+   * How the studio meets couples for a consultation, as the couple chooses
+   * it on their booking page. Zoom alone until the studio says otherwise;
+   * "in_person" needs somewhere to meet, `inPersonLocation`.
+   */
+  meetingFormats: z.array(z.enum(["zoom", "in_person", "phone"])).min(1).max(3).default(["zoom"]),
+  inPersonLocation: z.string().trim().max(300).nullable().default(null),
 });
 export type ConsultationSettings = z.infer<typeof consultationSettingsSchema>;

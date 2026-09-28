@@ -425,12 +425,14 @@ export const aiMessageDraftCommand = onRequest(
       let recipientEmail: string | null = null;
       let recipientName: string | null = null;
       let projectId: string | null = null;
+      let contactId: string | null = null;
       const context: Json = {};
 
       if (input.leadId) {
         const lead = await db.doc(`leads/${input.leadId}`).get();
         if (!lead.exists || lead.get("tenantId") !== input.tenantId)
           throw new Error("LEAD_NOT_FOUND");
+        contactId = text(lead.get("primaryContactId")) || null;
         recipientEmail = text(lead.get("email")) || null;
         recipientName =
           [text(lead.get("firstName")), text(lead.get("lastName"))]
@@ -438,7 +440,8 @@ export const aiMessageDraftCommand = onRequest(
             .join(" ") || null;
         context.lead = {
           name: recipientName,
-          eventType: lead.get("eventType"),
+          // Leads store the label; `eventType` is a project field.
+          eventType: lead.get("eventTypeLabel") ?? lead.get("eventType"),
           eventDate: lead.get("eventDate"),
           venue: lead.get("venue"),
           city: lead.get("city"),
@@ -773,6 +776,12 @@ export const aiMessageDraftCommand = onRequest(
         recipientEmail,
         recipientName,
         highlights: draft.highlights,
+        // The inquiry and contact travel with the draft, as they do on a first
+        // reply: dispatch threads the send on them, and without them a reply to
+        // an inquiry went out with no thread and the couple's answer landed in
+        // the studio's own inbox.
+        leadId: input.leadId,
+        contactId,
       };
 
       const action = {
