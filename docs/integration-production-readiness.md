@@ -152,6 +152,39 @@ Zoom Marketplace app first — worth doing only if a real account label is wante
 since nothing functional depends on it. The skip is logged as
 `integration.zoom.profile_unavailable`.
 
+### Zoom Marketplace — approved 2026-09-28 (unlisted), summaries not yet
+
+Zoom approved the StudioCue app as **unlisted**: any Zoom account can connect
+through StudioCue's link; it is not listed in the Marketplace. Production uses
+the production client ID (`_QrWsT…`), and Zoom shows "App published to
+external Zoom users". Connecting and creating, updating and deleting meetings
+work.
+
+Two things in the approved app stop the consultation-summary pipeline
+(summary → consultation notes → follow-up draft) in production:
+
+- **Scopes:** five meeting scopes were approved; `meeting:read:summary`, which
+  the summary fetch needs, is not among them. Zoom: a live app "will only be
+  able to use permission scopes that Zoom approved".
+- **Event subscription is off**, so Zoom sends `zoomWebhook` nothing —
+  including `meeting.summary_completed`, the event that queues the summary job.
+
+To turn summaries on (a change to the Zoom app, then Zoom's review):
+1. Production → Scopes → add `meeting:read:summary`.
+2. Production → Features → Access → Event Subscription on; endpoint
+   `https://zoomwebhook-yehtrtcieq-uk.a.run.app` (the `zoomWebhook` function,
+   already public; validation is handled); subscribe to **Meeting summary
+   completed**. The secret token must match `ZOOM_WEBHOOK_SECRET_TOKEN`.
+3. Submit for review. After approval: set `available` back to true on the
+   `zoom_meeting_summaries` outside step, and studios reconnect Zoom so their
+   token carries the new scope.
+
+Found on the way and fixed (`1a5fc59`): connections recorded the scopes
+StudioCue *asked for*, so every Zoom connection claimed
+`meeting:read:summary`. The OAuth callback now records what the provider
+granted (Zoom and Google return it), falling back to what was asked where the
+provider is silent (QuickBooks).
+
 ### Provider redirect URIs cannot be verified from outside
 
 Intuit, Google, and Zoom all defer `redirect_uri` validation until after the
