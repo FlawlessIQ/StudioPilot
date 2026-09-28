@@ -127,7 +127,7 @@ test("only a chosen venue fills City, and only an empty one", () => {
     form.indexOf("function applyVenue("),
     form.indexOf("}", form.indexOf("placeCity(place)")),
   );
-  assert.match(apply, /if \(!place\?\.verified \|\| getValues\("city"\)\.trim\(\)\) return;/);
+  assert.match(apply, /if \(!place\?\.verified \|\| \(getValues\("city"\) \?\? ""\)\.trim\(\)\) return;/);
   assert.match(apply, /shouldValidate: Boolean\(place\?\.verified\)/);
 });
 

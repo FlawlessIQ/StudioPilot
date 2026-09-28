@@ -82,37 +82,60 @@ async function withinRateLimit(id: string): Promise<boolean> {
   }
 }
 
+/**
+ * Which studio a slug belongs to, remembered for a few minutes.
+ *
+ * Every keystroke's suggestion request used to look the studio up again —
+ * by alias, then (after that missed) by slug — then take a Firestore
+ * transaction for the rate limit, and only then ask Google. Measured on
+ * production 2026-09-28 at 540–750 ms a request. A studio going inactive is
+ * honoured within the cache window; a miss is never cached.
+ */
+const TENANT_CACHE_MS = 5 * 60 * 1000;
+const tenantBySlug = new Map<string, { id: string; expiresAt: number }>();
+
+async function activeTenantId(slug: string): Promise<string | null> {
+  const cached = tenantBySlug.get(slug);
+  if (cached && cached.expiresAt > Date.now()) return cached.id;
+  // Old addresses still resolve, so a slug change does not break the venue
+  // lookup on a form a client already has open. See app/inquiry/page.tsx.
+  const [byAlias, bySlug] = await Promise.all([
+    adminFirestore
+      .collection("tenants")
+      .where("slugAliases", "array-contains", slug)
+      .where("status", "in", ["trial", "active"])
+      .limit(1)
+      .get(),
+    adminFirestore
+      .collection("tenants")
+      .where("publicSlug", "==", slug)
+      .where("status", "in", ["trial", "active"])
+      .limit(1)
+      .get(),
+  ]);
+  const id = (byAlias.docs[0] ?? bySlug.docs[0])?.id ?? null;
+  if (id) tenantBySlug.set(slug, { id, expiresAt: Date.now() + TENANT_CACHE_MS });
+  return id;
+}
+
 export async function POST(request: Request): Promise<Response> {
+  const started = Date.now();
   try {
     const input = requestSchema.parse(await request.json());
 
-    // Old addresses still resolve, so a slug change does not break the venue
-    // lookup on a form a client already has open. See app/inquiry/page.tsx.
-    const byAlias = await adminFirestore
-      .collection("tenants")
-      .where("slugAliases", "array-contains", input.tenantSlug)
-      .where("status", "in", ["trial", "active"])
-      .limit(1)
-      .get();
-    const tenants = byAlias.empty
-      ? await adminFirestore
-          .collection("tenants")
-          .where("publicSlug", "==", input.tenantSlug)
-          .where("status", "in", ["trial", "active"])
-          .limit(1)
-          .get()
-      : byAlias;
-    const tenant = tenants.docs[0];
-    if (!tenant) {
+    // The limit is keyed on the slug the form names, not the tenant id, so it
+    // no longer has to wait for the studio lookup: the two run together.
+    const [tenantId, allowed] = await Promise.all([
+      activeTenantId(input.tenantSlug),
+      withinRateLimit(fingerprint(request, `places:${input.tenantSlug}`)),
+    ]);
+    if (!tenantId) {
       return Response.json({ error: "STUDIO_UNAVAILABLE" }, { status: 404 });
     }
-
-    const allowed = await withinRateLimit(
-      fingerprint(request, `places:${tenant.id}`),
-    );
     if (!allowed) {
       return Response.json({ error: "RATE_LIMITED" }, { status: 429 });
     }
+    const checked = Date.now();
 
     const provider = placesProvider();
     if (input.action === "suggest") {
@@ -121,17 +144,31 @@ export async function POST(request: Request): Promise<Response> {
         country: input.country ?? null,
         sessionToken: input.sessionToken ?? null,
       });
-      return Response.json({ live: provider.live, suggestions });
+      return Response.json(
+        { live: provider.live, suggestions },
+        { headers: timing(started, checked) },
+      );
     }
     const place = await provider.resolve({
       placeId: input.placeId,
       sessionToken: input.sessionToken ?? null,
     });
-    return Response.json({ live: provider.live, place });
+    return Response.json(
+      { live: provider.live, place },
+      { headers: timing(started, checked) },
+    );
   } catch (caught: unknown) {
     // The field falls back to plain typing, so a couple can always finish
     // their inquiry whatever happens here.
     const code = caught instanceof Error ? caught.message : "PLACES_UNAVAILABLE";
     return Response.json({ error: code }, { status: 503 });
   }
+}
+
+/** Where a lookup's time went, readable in the browser's network panel. */
+function timing(started: number, checked: number): Record<string, string> {
+  const now = Date.now();
+  return {
+    "server-timing": `checks;dur=${checked - started}, places;dur=${now - checked}`,
+  };
 }

@@ -1,8 +1,6 @@
 "use client";
 
 import type { CapturedPlace, PlaceSuggestion } from "@/features/places/schema";
-import { getAppCheckToken } from "@/lib/firebase/app-check";
-import { getFirebaseClient } from "@/lib/firebase/client";
 
 /**
  * Where address lookups go.
@@ -33,7 +31,16 @@ export function newPlacesSession(): string {
     : `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+/**
+ * Firebase loads only for the studio route. The public inquiry form uses this
+ * module too, and a static import put Auth, Firestore and App Check into the
+ * one page a couple has to get through, for a lookup that needs none of them.
+ */
 async function studioHeaders(): Promise<Record<string, string>> {
+  const [{ getFirebaseClient }, { getAppCheckToken }] = await Promise.all([
+    import("@/lib/firebase/client"),
+    import("@/lib/firebase/app-check"),
+  ]);
   const { auth } = getFirebaseClient();
   const user = auth.currentUser;
   if (!user) throw new Error("NOT_SIGNED_IN");

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import Link from "next/link";
 import { ArrowLeft, LockKeyhole, ShieldCheck } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
@@ -11,7 +12,14 @@ type InquiryStudio = {
   slug: string;
 };
 
-async function studioForSlug(slug: string): Promise<InquiryStudio | null> {
+/**
+ * Once per request. `generateMetadata` and the page both need the studio, and
+ * each used to run its own lookup, so a couple waited on up to four Firestore
+ * reads, one after another, before the first byte.
+ */
+const studioForSlug = cache(lookupStudio);
+
+async function lookupStudio(slug: string): Promise<InquiryStudio | null> {
   if (!/^[a-z0-9-]{2,80}$/.test(slug)) return null;
   if (!dataIsLive && slug === "demo-studio") {
     return { name: "Aperture & Light Studio", slug };
@@ -35,18 +43,21 @@ async function studioForSlug(slug: string): Promise<InquiryStudio | null> {
    */
   let result;
   try {
-    const byAlias = await adminFirestore
-      .collection("tenants")
-      .where("slugAliases", "array-contains", slug)
-      .limit(2)
-      .get();
-    result = byAlias.empty
-      ? await adminFirestore
-          .collection("tenants")
-          .where("publicSlug", "==", slug)
-          .limit(2)
-          .get()
-      : byAlias;
+    // Both at once: the alias is tried first, but waiting for it to miss
+    // before asking for the current slug doubled the wait for most studios.
+    const [byAlias, bySlug] = await Promise.all([
+      adminFirestore
+        .collection("tenants")
+        .where("slugAliases", "array-contains", slug)
+        .limit(2)
+        .get(),
+      adminFirestore
+        .collection("tenants")
+        .where("publicSlug", "==", slug)
+        .limit(2)
+        .get(),
+    ]);
+    result = byAlias.empty ? bySlug : byAlias;
   } catch {
     return null;
   }

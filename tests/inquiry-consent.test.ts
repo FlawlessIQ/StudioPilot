@@ -33,8 +33,15 @@ test("an inquiry without consent is refused, with words a person can act on", ()
   assert.equal(publicLeadIntakeSchema.safeParse({ ...base, consent: true }).success, true);
 });
 
+/**
+ * The box itself renders unticked. There is no longer a `consent: false`
+ * default to point at: the form reads its fields from the inputs, so text a
+ * couple typed before the page finished loading is kept (2026-09-28). An
+ * unticked box is read as false.
+ */
 test("the form starts unticked", () => {
   const form = readFileSync(`${process.cwd()}/components/crm/lead-intake-form.tsx`, "utf8");
-  assert.match(form, /consent: false,/);
-  assert.doesNotMatch(form, /consent: true,/);
+  assert.match(form, /<input \{\.\.\.register\("consent"\)\} type="checkbox" \/>/);
+  assert.doesNotMatch(form, /consent: true/);
+  assert.doesNotMatch(form, /defaultChecked/);
 });

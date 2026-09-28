@@ -6,7 +6,6 @@ import { ArrowRight, CheckCircle2, LoaderCircle } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { publicLeadIntakeSchema, type PublicLeadIntake } from "@/features/leads/schema";
-import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { AddressField } from "@/components/forms/address-field";
 import {
   placeCity,
@@ -24,27 +23,39 @@ type SubmissionResult = {
   missingInformation: string[];
 };
 
-const defaultValues: Omit<PublicLeadIntake, "tenantSlug"> = {
-  firstName: "",
-  lastName: "",
-  partnerName: null,
-  email: "",
-  phone: "",
-  eventDate: "",
-  eventType: "wedding",
+/**
+ * Only the values no input holds.
+ *
+ * The page arrives as HTML and looks ready long before its JavaScript is. A
+ * couple who started typing in that gap lost it: on hydration react-hook-form
+ * writes each registered field's default into the input, and every default
+ * here was "". A field with no default is read from the input instead, so
+ * what was typed is kept (walked 2026-09-28; the form is 1.5 MB of script on
+ * a phone). The empty values still come from the inputs themselves, and the
+ * select's first option is its default. Consent stays opt-in because the box
+ * renders unticked.
+ */
+export const inquiryFormDefaults: Partial<PublicLeadIntakeInput> = {
   venue: null,
-  city: "",
-  estimatedGuestCount: null,
   servicesRequested: ["photography"],
-  budgetRange: null,
-  referralSource: null,
-  message: "",
-  // Consent a person actually gave: the box arrived ticked, so the only way to
-  // withhold it was to notice it and untick it. Opt-in is the point of asking.
-  consent: false,
   source: "public_inquiry",
-  honeypot: "",
 };
+
+/**
+ * Start the browser check while they type, not when they press Send.
+ *
+ * App Check (reCAPTCHA) used to load on submit, so Send waited for it, up to
+ * ten seconds, before the inquiry even left. Firebase is also kept out of the
+ * page until then. A failure here is ignored: submit asks again and reports it.
+ */
+let appCheckWarmed = false;
+function prewarmAppCheck() {
+  if (appCheckWarmed || !process.env.NEXT_PUBLIC_CRM_FUNCTIONS_URL) return;
+  appCheckWarmed = true;
+  void import("@/lib/firebase/app-check")
+    .then(({ getOptionalAppCheckToken }) => getOptionalAppCheckToken())
+    .catch(() => undefined);
+}
 
 export function LeadIntakeForm({
   tenantSlug,
@@ -76,7 +87,7 @@ export function LeadIntakeForm({
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<PublicLeadIntakeInput, unknown, PublicLeadIntake>({
-    defaultValues: { ...defaultValues, tenantSlug },
+    defaultValues: { ...inquiryFormDefaults, tenantSlug },
     resolver: zodResolver(publicLeadIntakeSchema),
   });
 
@@ -94,11 +105,14 @@ export function LeadIntakeForm({
    * validates the whole form on every letter.
    */
   function applyVenue(place: CapturedPlace | null) {
-    setVenue(place);
+    // The box keeps its own typing. Holding each keystroke here as well
+    // re-rendered the whole form per letter; only a chosen place (or a
+    // cleared box) is something the field needs handed back.
+    if (!place || place.verified) setVenue(place);
     setValue("venue", place ? placeLabel(place).slice(0, 160) : null, {
       shouldValidate: Boolean(place?.verified),
     });
-    if (!place?.verified || getValues("city").trim()) return;
+    if (!place?.verified || (getValues("city") ?? "").trim()) return;
     const city = placeCity(place);
     if (city) setValue("city", city.slice(0, 120), { shouldValidate: true });
   }
@@ -144,6 +158,7 @@ export function LeadIntakeForm({
     }
 
     try {
+      const { getAppCheckToken } = await import("@/lib/firebase/app-check");
       const appCheckToken = await getAppCheckToken();
       const response = await fetch(`${endpoint.replace(/\/$/, "")}/publicLeadIntake`, {
         method: "POST",
@@ -207,7 +222,12 @@ export function LeadIntakeForm({
   }
 
   return (
-    <form className="inquiry-form" onSubmit={submit} noValidate>
+    <form
+      className="inquiry-form"
+      noValidate
+      onFocusCapture={prewarmAppCheck}
+      onSubmit={submit}
+    >
       {preview ? (
         <p className="demo-disclosure" role="note">
           You&apos;re previewing your form. Try it — submitting won&apos;t create an inquiry.
