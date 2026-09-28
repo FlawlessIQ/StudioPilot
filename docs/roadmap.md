@@ -83,6 +83,62 @@ Detailed provider-console and business-owner steps are maintained in
   each role is asked at booking. Imported bookings are never offered
   automatically: they were usually staffed before they reached StudioCue.
 
+- **Build queue, 2026-09-28: planned but not started, awaiting Conor's
+  decisions.** The full write-ups are in
+  [`backlog-2026-09-18.md`](./backlog-2026-09-18.md) under "2026-09-28 — build
+  queue". The order, phases and open questions (Q1–Q25) are in
+  [`execution-plan-2026-09-28.md`](./execution-plan-2026-09-28.md).
+  1. **Documents open in one click, everywhere (H1).**
+     - Signed contracts, COIs, questionnaire file answers, run-of-show PDFs and
+       crew documents should open from the job's completed steps, the job
+       history and every list page. Today most of them are stored but not
+       linked, and the questionnaire rows can't be clicked.
+     - The fix is one file chip plus a preview sheet, used everywhere.
+     - Four decisions are open.
+     - Plan: [`document-access-plan-2026-09-28.md`](./document-access-plan-2026-09-28.md).
+  2. **One-send booking agreement and add-ons (H2).**
+     - The studio's own contract wording (uploaded and parsed) is signed as
+       Section 1. The packages and add-ons are signed as Section 2. Both go out
+       in one send.
+     - Studios get an add-on library plus custom one-off add-ons per job.
+     - **It starts with a live money fix:** a proposal discount is taken off
+       twice.
+     - Six decisions are open.
+     - Plan: [`proposal-agreement-and-addons-plan-2026-09-28.md`](./proposal-agreement-and-addons-plan-2026-09-28.md).
+  3. **COI automation (H3).**
+     - The inquiry form asks whether the venue needs a COI.
+     - The studio's insurance agent is saved once, then asked for the
+       certificate automatically once the job is booked, and chased every 3
+       days.
+     - The studio approves and sends to the venue with one click from Today.
+     - **It starts with a fix:** a late PDF can overwrite an approved COI.
+     - Six decisions are open.
+     - Plan: [`coi-automation-plan-2026-09-28.md`](./coi-automation-plan-2026-09-28.md).
+  4. **Post-wedding delivery: photo and video (H4).**
+     - Today a job can be delivered only once, with one link and photo-only
+       wording, so a film can't follow the gallery.
+     - The plan adds deliverables (photo, video, sneak peek, highlight film,
+       full film) with due dates taken from the package.
+     - Release becomes repeatable, and one click can send photos and a film
+       together.
+     - The emails, portal and review requests follow the media type.
+     - Couple links go through a StudioCue redirect, so views are real.
+     - **It starts with fixes:** a double-click sends a double delivery, and
+       the couple gets two delivery emails.
+     - Six decisions are open.
+     - Plan: [`delivery-plan-2026-09-28.md`](./delivery-plan-2026-09-28.md).
+  5. **The inquiry form is slow and unresponsive (H5).** Reported by Gabe
+     while testing as a couple.
+     - A first pass found ~1.5 MB of JavaScript and ~684 KB of CSS on a
+       single public form.
+     - Text typed before the page finishes loading is wiped on hydration.
+     - The venue box re-renders the whole form on every keystroke, and
+       overwrites City while you type.
+     - Address suggestions wait on several lookups, one after another.
+     - Next: profile on a phone-class CPU, then build a light public shell,
+       keep pre-hydration input, and add a bundle budget guard.
+     - Investigation: [`inquiry-form-performance-investigation-2026-09-28.md`](./inquiry-form-performance-investigation-2026-09-28.md).
+
 ## Phase 1 — Credential and environment safety
 
 Status: Secret Manager architecture and runtime bindings implemented. Rotation of
