@@ -15,6 +15,44 @@ they book. The studio's part is tapping Send.
 
 ---
 
+## Status (2026-09-28, end of day)
+
+All six phases are built and deployed to production (functions verified
+current, app rollouts verified by commit).
+
+| Phase | Commit | Notes |
+|---|---|---|
+| 0 | a30795f | Envelope-first recipients; per-couple form rate limit |
+| 1 | 81fd926 | Short address, trusted by sender |
+| 2–3 | c1a4bff | Inquiries become jobs; Inquiries tab; whose-move from the thread; AI review out of the nav. Three open dated leads on production were migrated (two jobs; a duplicate linked) |
+| 4 | e0712fe | `/i/<token>` — details, then time and format; self-reschedule/cancel; link in every reply |
+| 5 | 9bb5673 | Follow-ups day 3/7, close offer day 14 (`inquiryFollowUpScheduler`); LOST state; close/reopen; auto-reopen on reply |
+| 6 | (this commit) | New-inquiry alert email; Insights; maybes drafted only on confirm; dead code and statuses removed; leads server-write-only |
+
+**Deviations from the plan above**
+
+- **Phase 1 trust** reads SendGrid's `SPF`/`dkim` fields and Gmail's
+  `+caf_` envelope sender; both are unverified against a real Gmail filter
+  forward (0.3 is still owed). Failure is safe: an untrusted forward lands
+  in "Maybe an inquiry", never dropped.
+- **Phase 2** keeps the lead document as the capture record beside the job
+  rather than folding it in; a lead with a job is `converted` and its page
+  hands straight to the job.
+- **Phase 4.4 pricing** is not built — it waits on whether the studio wants
+  pricing in the first reply.
+- **Phase 5** adds "They replied elsewhere" (restarts the follow-up clock and
+  withdraws the drafted nudge) and "Keep it open" (ask again in a week).
+- **Phase 3 AI review** stays addressable, linked from Today's "handled for
+  you" for failed/scheduled receipts; it is only off the nav.
+
+**Still needs a person**
+
+- A real website-form inquiry through a Gmail filter forward on production
+  (0.3), to confirm Phase 0/1 end to end.
+- Whether the first reply should carry pricing (4.4).
+
+---
+
 ## Decisions taken (2026-09-28)
 
 | # | Decision | Taken |

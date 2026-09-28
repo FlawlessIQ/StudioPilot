@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { applyMessageToConversation } from "../communications/conversation.js";
 import { convertInquiryToJob } from "./convert.js";
+import { queueNewInquiryAlert } from "./new-inquiry-alert.js";
 import {
   BUILDER_LABEL,
   MARKETPLACES,
@@ -47,7 +48,7 @@ export type CaptureOutcome =
   | "ignored_not_inquiry"
   | "duplicate";
 
-const OPEN_LEAD_STATUSES = ["new", "reviewing", "qualified", "consultation_scheduled", "proposal_ready"];
+const OPEN_LEAD_STATUSES = ["new"];
 /** A date is taken once a couple is past the first conversation. */
 const ACTIVE_STATES = ["CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING", "BOOKED", "PLANNING", "READY"];
 /**
@@ -326,6 +327,21 @@ export async function captureInquiry(input: {
       ? await convertInquiryToJob(db, { tenantId, leadId, now })
       : null;
   const projectId = conversion?.converted ? conversion.projectId : null;
+  if (outcome === "lead_created") {
+    const lead = await db.doc(`leads/${leadId}`).get();
+    await queueNewInquiryAlert(db, {
+      tenantId,
+      leadId,
+      projectId,
+      coupleName: String(lead.get("displayName") ?? "") || fields.email || "A new couple",
+      eventDate: fields.eventDate,
+      availability: (lead.get("availabilityStatus") as string | undefined) ?? null,
+      sourceLabel: read.builder === "unknown" ? "forwarded from your inbox" : `from your ${read.builderLabel}`,
+      now,
+    }).catch((caught: unknown) => {
+      console.warn(`[intake] new-inquiry alert failed: ${String(caught).slice(0, 160)}`);
+    });
+  }
   await writeCapture(outcome, { leadId, projectId });
   await db.doc(`leadCaptureSettings/${tenantId}`).set(
     { tenantId, lastCaptureAt: now, lastCaptureId: captureId, updatedAt: now },

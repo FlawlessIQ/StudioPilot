@@ -118,6 +118,10 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
   const replyBody=linked.body;
   const confidence=missingInformation.length===0?0.93:0.82;
   const actionId=`ai_reply_${leadId}`;
+  // A "maybe" gets its summary but no drafted reply: sent, a reply to a
+  // newsletter or a vendor is worse than none. Confirming it re-runs this job
+  // (crm updateLead), and the reply is drafted then.
+  const heldAsMaybe=lead.get("needsConfirmation")===true;
   const batch=db.batch();
   batch.update(lead.ref,{
     aiSummary:summary||lead.get("aiSummary")||null,
@@ -127,7 +131,7 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
     updatedAt:now,
     updatedBy:"vertex-ai-worker",
   });
-  batch.set(db.doc(`aiActions/${actionId}`),{
+  if(!heldAsMaybe)batch.set(db.doc(`aiActions/${actionId}`),{
     id:actionId,
     tenantId:job.get("tenantId"),
     // On the job when the inquiry already is one, so the draft sits with it.

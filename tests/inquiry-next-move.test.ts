@@ -4,6 +4,7 @@ import { inquiryNextMove } from "../features/inquiries/next-move.ts";
 import { foldMessageIntoConversation } from "../features/messaging/conversation.ts";
 import { inquiryPipeline } from "../features/inquiries/pipeline.ts";
 import { todayInbox } from "../features/today/inbox.ts";
+import { inquiryInsights, replyTimeLabel } from "../features/reporting/inquiry-insights.ts";
 
 const participant = { contactId: null, email: "emma@example.test", phone: null, name: "Emma" };
 
@@ -191,4 +192,40 @@ test("two weeks quiet offers the close; a closed inquiry leaves Today", () => {
     conversations: [quiet],
   });
   assert.equal(closed.act.filter((item) => item.projectId === "p1").length, 0);
+});
+
+
+test("insights count couples once, by where StudioCue received them, with how fast and how many booked", () => {
+  const insights = inquiryInsights({
+    leads: [
+      { id: "a1", projectId: "pa", createdAt: "2026-09-01T10:00:00Z", formBuilderLabel: "Squarespace form", source: "website_form" },
+      { id: "a2", projectId: "pa", createdAt: "2026-09-02T10:00:00Z", formBuilderLabel: "Squarespace form", source: "website_form" },
+      { id: "b1", projectId: "pb", createdAt: "2026-09-03T10:00:00Z", source: "forwarded_email" },
+      { id: "c1", createdAt: "2026-09-04T10:00:00Z", source: "public_inquiry" },
+      { id: "spam", createdAt: "2026-09-04T10:00:00Z", notInquiry: true },
+      { id: "maybe", createdAt: "2026-09-04T10:00:00Z", needsConfirmation: true },
+    ],
+    projects: [
+      { id: "pa", state: "BOOKED" },
+      { id: "pb", state: "LOST", lostReason: "went_quiet" },
+    ],
+    conversations: [
+      { id: "t1", projectId: "pa", firstOutboundAt: "2026-09-01T10:30:00Z" },
+      { id: "t2", projectId: "pb", firstOutboundAt: "2026-09-03T16:00:00Z" },
+      // The acknowledgement on a thread left behind is not a reply.
+      { id: "t3", projectId: null, leadId: "c1", movedTo: "elsewhere", firstOutboundAt: "2026-09-04T10:00:01Z" },
+    ],
+  });
+  assert.equal(insights.inquiries, 3);
+  assert.equal(insights.booked, 1);
+  assert.equal(insights.winRate, 33);
+  assert.deepEqual(insights.sources.map((line) => [line.source, line.inquiries, line.booked]), [
+    ["Squarespace form", 1, 1],
+    ["Forwarded email", 1, 0],
+    ["StudioCue inquiry form", 1, 0],
+  ]);
+  assert.equal(insights.replied, 2);
+  assert.equal(insights.repliedWithinHour, 1);
+  assert.equal(replyTimeLabel(insights.medianFirstReplyHours), "3 hours");
+  assert.deepEqual(insights.closedReasons, [{ reason: "Went quiet", count: 1 }]);
 });

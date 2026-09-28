@@ -2515,6 +2515,31 @@ export const crmCommand = onRequest(
        * and does nothing for a lead that isn't ready or already is one.
        */
       if (commandsThatCanConvert.has(command.type)) {
+        // A confirmed "maybe" had its reply held back (operations/ai-pdf.ts):
+        // run the intake job again, now that it is an inquiry.
+        const edit = command.input as { leadId: string; confirmInquiry?: boolean };
+        if (edit.confirmInquiry) {
+          await db
+            .doc(`aiJobs/lead_intake_${edit.leadId}`)
+            .set(
+              {
+                id: `lead_intake_${edit.leadId}`,
+                tenantId: command.tenantId,
+                projectId: null,
+                leadId: edit.leadId,
+                type: "lead_intake_analysis",
+                status: "queued",
+                attempts: 0,
+                nextAttemptAt: null,
+                humanApprovalRequired: false,
+                updatedAt: new Date().toISOString(),
+              },
+              { merge: true },
+            )
+            .catch((caught: unknown) => {
+              console.warn(`[crm] re-queuing the confirmed inquiry's reply failed: ${String(caught).slice(0, 160)}`);
+            });
+        }
         try {
           await convertInquiryToJob(db, {
             tenantId: command.tenantId,

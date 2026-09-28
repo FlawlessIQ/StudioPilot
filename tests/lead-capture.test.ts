@@ -835,3 +835,20 @@ test("a closed inquiry reopens to where it was when the couple writes again", as
   assert.equal(store.get("leads/l1")!.status, "converted");
   assert.equal(await reopenOnReply(db, { tenantId: "t1", projectId: "p1", leadId: "l1", now }), false);
 });
+
+test("a new inquiry emails the studio once; a maybe doesn't", async () => {
+  const { db, store } = fakeFirestore({
+    "tenants/t1": { id: "t1", name: "Hart Light", contactEmail: "hello@hartlight.example" },
+  });
+  const email = fixture("squarespace-text");
+  const first = await captureInquiry({ db, tenantId: "t1", email, providerMessageId: "<a1>", route: "forward", now });
+  const alert = store.get(`emailJobs/new_inquiry_${first.leadId}`)!;
+  assert.equal(alert.type, "studio_new_inquiry");
+  assert.equal(alert.recipient, "hello@hartlight.example");
+  assert.equal(alert.actionUrl, `https://studio-cue.com/studio/projects/${first.projectId}`);
+  const maybe = await captureInquiry({
+    db, tenantId: "t1", email: { ...email, text: email.text + " " }, providerMessageId: "<a2>", route: "forward",
+    reviewReason: "held", now,
+  });
+  assert.equal(store.has(`emailJobs/new_inquiry_${maybe.leadId}`), false);
+});

@@ -22,6 +22,12 @@ function laterOf(a: string | null | undefined, b: string | null | undefined): st
   return a > b ? a : b;
 }
 
+function earlierOf(a: string | null | undefined, b: string | null | undefined): string | null {
+  if (!a) return b ?? null;
+  if (!b) return a;
+  return a < b ? a : b;
+}
+
 export async function moveLeadThreadsToProject(
   db: Firestore,
   input: { tenantId: string; leadId: string; projectId: string; now: string },
@@ -66,6 +72,7 @@ export async function moveLeadThreadsToProject(
           // Inquiries list and Today read whose move it is from these.
           lastInboundAt: laterOf(other?.lastInboundAt, current.lastInboundAt),
           lastOutboundAt: laterOf(other?.lastOutboundAt, current.lastOutboundAt),
+          firstOutboundAt: earlierOf(other?.firstOutboundAt, current.firstOutboundAt),
           status: "open",
           archivedAt: null,
           updatedAt: input.now,

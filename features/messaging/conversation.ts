@@ -67,6 +67,7 @@ export const conversationSchema = z.object({
   /** When each side last spoke; absent on threads older than the field. */
   lastInboundAt: z.string().nullable().optional(),
   lastOutboundAt: z.string().nullable().optional(),
+  firstOutboundAt: z.string().nullable().optional(),
   status: conversationStatusSchema,
   archivedAt: z.string().nullable(),
 });
@@ -212,6 +213,8 @@ export function foldMessageIntoConversation(
     lastOutboundAt: inbound
       ? (current?.lastOutboundAt ?? null)
       : latest(current?.lastOutboundAt, delta.occurredAt),
+    // The studio's first word on this thread, for "how fast do we reply".
+    firstOutboundAt: current?.firstOutboundAt ?? (inbound ? null : delta.occurredAt),
     // A thread the studio archived reopens when the client writes again;
     // a studio reply on an archived thread does not resurrect it.
     status: inbound ? "open" : (current?.status ?? "open"),

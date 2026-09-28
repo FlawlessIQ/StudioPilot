@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requestFingerprint, requireAppCheck } from "./security.js";
 import { recordInquiryMessage } from "../intake/capture.js";
 import { afterConversion, convertInquiryToJob } from "../intake/convert.js";
+import { queueNewInquiryAlert } from "../intake/new-inquiry-alert.js";
 
 /** A couple's job still open to their next message: any stage before delivery. */
 const JOINABLE_STATES = [
@@ -365,7 +366,17 @@ export const publicLeadIntake = onRequest(
         });
         await afterConversion(db, { tenantId, leadId, projectId: existingJob.id, now: timestamp });
       } else {
-        await convertInquiryToJob(db, { tenantId, leadId, now: timestamp, actor: systemActor });
+        const converted = await convertInquiryToJob(db, { tenantId, leadId, now: timestamp, actor: systemActor });
+        await queueNewInquiryAlert(db, {
+          tenantId,
+          leadId,
+          projectId: converted.converted ? converted.projectId : null,
+          coupleName: input.partnerName ? `${displayName} & ${input.partnerName}` : displayName,
+          eventDate: input.eventDate,
+          availability: availabilityStatus,
+          sourceLabel: "from your StudioCue inquiry form",
+          now: timestamp,
+        });
       }
     } catch (caught: unknown) {
       // The inquiry is saved either way; an unconverted lead still shows on

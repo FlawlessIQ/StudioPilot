@@ -40,6 +40,7 @@ export type Conversation = {
   messageCount: number;
   lastInboundAt?: string | null;
   lastOutboundAt?: string | null;
+  firstOutboundAt?: string | null;
   status: "open" | "archived";
   archivedAt: string | null;
 };
@@ -152,6 +153,8 @@ export function foldMessageIntoConversation(
     lastOutboundAt: inbound
       ? (current?.lastOutboundAt ?? null)
       : latest(current?.lastOutboundAt, delta.occurredAt),
+    // The studio's first word on this thread, for "how fast do we reply".
+    firstOutboundAt: current?.firstOutboundAt ?? (inbound ? null : delta.occurredAt),
     status: inbound ? "open" : (current?.status ?? "open"),
     archivedAt: inbound ? null : (current?.archivedAt ?? null),
   };

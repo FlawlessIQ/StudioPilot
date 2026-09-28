@@ -417,3 +417,23 @@ test("the email job carries the event's zone into the renderer", () => {
   assert.match(jobs, /project\?\.get\("timezone"\),/);
   assert.match(jobs, /tenant\?\.get\("timezone"\),/);
 });
+
+test("the new-inquiry alert names the couple, the date and whether it's free", () => {
+  const rendered = renderEmailTemplate({
+    key: "studio_new_inquiry",
+    brand,
+    recipientName: null,
+    projectName: null,
+    values: {
+      coupleName: "Sarah Nolan & Tom Reyes",
+      eventDateLabel: "June 12, 2027",
+      availability: "available",
+      sourceLabel: "from your Squarespace form",
+      actionUrl: "https://example.com/studio/projects/p1",
+    },
+  } as Parameters<typeof renderEmailTemplate>[0]);
+  assert.equal(rendered.subject, "New inquiry: Sarah Nolan & Tom Reyes, June 12, 2027");
+  assert.match(rendered.text, /They're asking about June 12, 2027 \(from your Squarespace form\)\./);
+  assert.match(rendered.text, /The date is free/);
+  assert.match(rendered.html, /https:\/\/example\.com\/studio\/projects\/p1/);
+});

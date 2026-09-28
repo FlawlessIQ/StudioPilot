@@ -72,6 +72,9 @@ export const emailTemplateKeys = [
   // Studio-facing: inbox capture has gone quiet — the forwarding filter may
   // have broken, and inquiries may be sitting unanswered in the inbox.
   "studio_capture_silent",
+  // Studio-facing: a new inquiry arrived. Speed to the first reply wins
+  // couples, and Today only helps a studio that happens to open it.
+  "studio_new_inquiry",
   // Studio-facing: the owner's own morning brief. Not a client note — it gets
   // its own framing rather than the "note from your studio" shell.
   "daily_digest",
@@ -985,6 +988,36 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           "The quickest check: fill in your own website form and see whether it appears in StudioCue within a couple of minutes.",
         ],
         action: actionUrl ? { label: "Check inquiry capture", url: actionUrl } : undefined,
+      };
+    }
+    case "studio_new_inquiry": {
+      const couple = stringValue(values, "coupleName") || "A new couple";
+      const when = stringValue(values, "eventDateLabel");
+      const availability = stringValue(values, "availability");
+      const source = stringValue(values, "sourceLabel");
+      return {
+        subject: `New inquiry: ${couple}${when ? `, ${when}` : ""}`,
+        preheader: availability === "available"
+          ? "The date is free and a reply is being prepared."
+          : availability === "conflict"
+            ? "You already have a job on that date."
+            : "A reply is being prepared.",
+        eyebrow: "New inquiry",
+        heading: `${couple} would like to talk`,
+        paragraphs: [
+          [
+            when ? `They're asking about ${when}` : "They didn't give a date yet",
+            source ? ` (${source})` : "",
+            ".",
+          ].join(""),
+          availability === "available"
+            ? "The date is free. StudioCue is drafting a reply now — it'll be on Today for you to check and send."
+            : availability === "conflict"
+              ? "You already have a job on that date. StudioCue is drafting a reply for you to check — you can close it as date taken once you've answered."
+              : "StudioCue is drafting a reply now — it'll be on Today for you to check and send.",
+          "Couples often write to several photographers at once; the first thoughtful reply tends to win.",
+        ],
+        action: actionUrl ? { label: "Open the inquiry", url: actionUrl } : undefined,
       };
     }
     case "client_message_received": {

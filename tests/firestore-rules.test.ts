@@ -394,6 +394,9 @@ test(
       await assertFails(getDoc(doc(clientDb, "crewBriefs/brief-a")));
 
       const ownerDb = environment.authenticatedContext("owner-a").firestore();
+      // Leads are read in the browser and changed only through commands.
+      await assertSucceeds(getDoc(doc(ownerDb, "leads/lead-a")));
+      await assertFails(updateDoc(doc(ownerDb, "leads/lead-a"), { status: "lost" }));
       await assertSucceeds(getDoc(doc(ownerDb, "crewMessages/crew-message-a")));
       await assertSucceeds(getDoc(doc(ownerDb, "workflowTemplates/workflow-a")));
       await assertSucceeds(getDoc(doc(ownerDb, "automationRuns/run-a")));

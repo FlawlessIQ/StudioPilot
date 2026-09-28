@@ -2,16 +2,13 @@ import { z } from "zod";
 import { auditFieldsSchema } from "@/features/tenants/schema";
 import { normalizeEmail, normalizePhone } from "@/features/contacts/schema";
 
-export const leadStatusSchema = z.enum([
-  "new",
-  "reviewing",
-  "qualified",
-  "consultation_scheduled",
-  "proposal_ready",
-  "converted",
-  "lost",
-  "archived",
-]);
+/**
+ * Where an inquiry's record stands. "converted" means it is a job (every
+ * dated inquiry becomes one on arrival); the job's own state carries the
+ * stage from there. "lost" is closed without booking, "archived" is
+ * "not an inquiry".
+ */
+export const leadStatusSchema = z.enum(["new", "converted", "lost", "archived"]);
 
 export const eventServiceSchema = z.enum([
   "photography",

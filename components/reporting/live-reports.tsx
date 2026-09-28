@@ -26,6 +26,7 @@ import { workflowScorecard } from "@/features/operations/workflow-scorecard";
 import { formatCents } from "@/lib/format/money";
 import { analyseFunnel } from "@/features/operations/funnel";
 import { bookedStates } from "@/features/inquiries/stages";
+import { inquiryInsights, replyTimeLabel } from "@/features/reporting/inquiry-insights";
 
 function csvCell(value: unknown) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
@@ -34,6 +35,7 @@ function csvCell(value: unknown) {
 export function LiveReports() {
   const projectsState = useTenantDocuments("projects");
   const leadsState = useTenantDocuments("leads");
+  const conversationsState = useTenantDocuments("conversations");
   const invoicesState = useTenantDocuments("invoiceReferences");
   const consultationsState = useTenantDocuments("consultations");
   const proposalsState = useTenantDocuments("proposals");
@@ -94,13 +96,16 @@ export function LiveReports() {
         ) / readinessTracked.length,
       )
     : 0;
-  const leadSources = Object.entries(
-    (leadsState.records ?? []).reduce<Record<string, number>>((counts, lead) => {
-      const key = String(lead.referralSource ?? "Unknown");
-      counts[key] = (counts[key] ?? 0) + 1;
-      return counts;
-    }, {}),
-  ).sort((a, b) => b[1] - a[1]);
+  // Where inquiries come from, how many book, how fast the studio answers
+  // and why the rest closed — for inquiries that arrived in the filtered range.
+  const inquiries = inquiryInsights({
+    leads: leadsState.records ?? [],
+    projects: projectsState.records ?? [],
+    conversations: conversationsState.records ?? [],
+    from: dateFrom || null,
+    to: dateTo || null,
+  });
+  const leadSources = inquiries.sources.map((line) => [line.source, line.inquiries, line.booked] as const);
   // Weddings the studio has won. Every inquiry is a job from the moment it
   // arrives, so counting all jobs counted every couple who ever asked.
   const bookedProjects = projects.filter((project) => bookedStates.has(String(project.state)));
@@ -112,6 +117,10 @@ export function LiveReports() {
     }, {}),
   );
   const maxSource = Math.max(1, ...leadSources.map(([, count]) => count));
+  const firstReplyHint =
+    inquiries.replied === 0
+      ? "Once you've replied to an inquiry"
+      : `${inquiries.repliedWithinHour} of ${inquiries.replied} answered within the hour`;
   const scoped = (records: typeof projectsState.records) =>
     (records ?? []).filter((record) => {
       const linkedProject = String(record.projectId ?? "");
@@ -327,14 +336,34 @@ export function LiveReports() {
       </section>
       <div className="report-layout">
         <section className="panel report-chart-card">
-          <div className="panel-heading"><div><h2>Lead sources</h2><p>Current intake attribution</p></div></div>
+          <div className="panel-heading">
+            <div>
+              <h2>Where inquiries come from</h2>
+              <p>
+                {inquiries.inquiries
+                  ? `${inquiries.inquiries} ${inquiries.inquiries === 1 ? "inquiry" : "inquiries"} · ${inquiries.winRate ?? 0}% booked · first reply in ${replyTimeLabel(inquiries.medianFirstReplyHours)} (median) — ${firstReplyHint}`
+                  : "Inquiries, and how many book, by where they came from"}
+              </p>
+            </div>
+          </div>
           <div className="report-bars">
-            {leadSources.map(([source, count]) => (
+            {leadSources.map(([source, count, won]) => (
               <article key={source}>
-                <span><strong>{source}</strong><small>{count} {count === 1 ? "lead" : "leads"}</small></span>
+                <span>
+                  <strong>{source}</strong>
+                  <small>
+                    {`${count} ${count === 1 ? "inquiry" : "inquiries"} · ${won} booked`}
+                  </small>
+                </span>
                 <i><b style={{ width: `${(count / maxSource) * 100}%` }} /></i>
               </article>
             ))}
+            {inquiries.closedReasons.length ? (
+              <p className="report-closed-reasons">
+                Closed without booking:{" "}
+                {inquiries.closedReasons.map((line) => `${line.reason} ${line.count}`).join(" · ")}
+              </p>
+            ) : null}
             {!leadSources.length ? (
               <div className="report-empty-chart">
                 <BarChart3 />
