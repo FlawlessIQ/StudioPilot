@@ -37,6 +37,7 @@ import {
 import { countdownPhrase, formatDueDate } from "@/lib/format/event-date";
 import { providerName as readable } from "@/lib/format/provider-name";
 import { taskIsSettled } from "@/features/tasks/schema";
+import type { OutsideStepReminder } from "@/features/outside-steps/registry";
 
 export type TodayLane = "act" | "approve" | "fyi";
 
@@ -180,6 +181,11 @@ export type TodayInput = {
    * Today — an empty studio is new, not broken.
    */
   setupGaps?: SetupGap[] | null;
+  /**
+   * Steps the studio started in another company's app that have run long, or
+   * that the other company says went wrong (features/outside-steps).
+   */
+  outsideStepReminders?: OutsideStepReminder[] | null;
 };
 
 const text = (value: unknown): string =>
@@ -986,6 +992,35 @@ export function todayInbox(input: TodayInput): TodayInbox {
       eventDate: null,
       // Setup that blocks a job ranks with exceptions: work has stopped.
       score: score({ lane: "act", severity: "exception", now }),
+    });
+  }
+
+  // ── Act · a step outside StudioCue that has run long ────────────────
+  // Only steps the studio started: an application to Intuit that has had its
+  // usual few days, a capture set up with nothing through yet, or a problem
+  // the other company reported. A wait with no end in sight otherwise sat
+  // silently on a settings card.
+  for (const reminder of input.outsideStepReminders ?? []) {
+    act.push({
+      id: `outside-${reminder.stepId}`,
+      lane: "act",
+      kind: null,
+      title: reminder.title,
+      detail: reminder.detail,
+      evidence: `Outside StudioCue · in ${reminder.where}`,
+      projectId: null,
+      projectName: null,
+      action: { kind: "link", label: "Update the step", href: reminder.href },
+      jobHref: null,
+      facts: [],
+      band: reminder.urgent ? "overdue" : "soon",
+      eventDate: null,
+      score: score({
+        lane: "act",
+        severity: reminder.urgent ? "exception" : "step",
+        updatedAt: reminder.since,
+        now,
+      }),
     });
   }
 

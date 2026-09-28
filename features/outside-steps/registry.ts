@@ -16,6 +16,7 @@
 export const OUTSIDE_STEP_IDS = [
   "quickbooks_payments_apply",
   "quickbooks_payments_reconnect",
+  "inquiry_capture",
 ] as const;
 
 export type OutsideStepId = (typeof OUTSIDE_STEP_IDS)[number];
@@ -46,6 +47,21 @@ export type OutsideStep = {
   /** Automatic: StudioCue sees it. Manual: the studio tells us. */
   detection: "automatic" | "manual";
   instructions: OutsideStepInstruction[];
+  /** Where the step's card lives in StudioCue: the reminder links here. */
+  home: string;
+  /**
+   * How many days a step the studio has started may sit before Today asks
+   * about it. Absent: no reminder for waiting.
+   */
+  waitDays?: number;
+  /** The reminder, when a wait runs long. `{days}` is replaced. */
+  reminder?: { title: string; detail: string };
+  /**
+   * For a step StudioCue detects, a way for the studio to say it has started
+   * while the proof is still on its way — "I've set it up" before the first
+   * inquiry arrives.
+   */
+  markLabel?: string;
 };
 
 export const OUTSIDE_STEPS: Record<OutsideStepId, OutsideStep> = {
@@ -58,6 +74,12 @@ export const OUTSIDE_STEPS: Record<OutsideStepId, OutsideStep> = {
     wait: "Intuit usually decides in 2–3 business days",
     unlocks: "Couples can save a card and the final balance pays itself",
     detection: "manual",
+    home: "/studio/integrations?tab=autopay",
+    waitDays: 4,
+    reminder: {
+      title: "Heard back from Intuit?",
+      detail: "You applied for QuickBooks Payments {days} days ago; Intuit usually decides in 2–3 business days. Check your email, then update the step.",
+    },
     instructions: [
       {
         title: "Open Payments in QuickBooks",
@@ -84,6 +106,7 @@ export const OUTSIDE_STEPS: Record<OutsideStepId, OutsideStep> = {
     who: "You — whoever connected QuickBooks",
     unlocks: "Switching autopay on for your couples",
     detection: "automatic",
+    home: "/studio/integrations?tab=autopay",
     instructions: [
       {
         title: "Reconnect QuickBooks",
@@ -97,6 +120,38 @@ export const OUTSIDE_STEPS: Record<OutsideStepId, OutsideStep> = {
       {
         title: "You're back in StudioCue",
         text: "StudioCue sees the new permission and ticks this off by itself.",
+      },
+    ],
+  },
+  inquiry_capture: {
+    id: "inquiry_capture",
+    title: "Send inquiries to StudioCue automatically",
+    where: "your website form or inbox",
+    why: "Every inquiry lands in StudioCue with a reply drafted, instead of waiting in your inbox for you to copy it across.",
+    who: "You, or whoever looks after your website",
+    wait: "Done as soon as the first inquiry — or your test — arrives",
+    unlocks: "Inquiries on Today with a reply ready to send",
+    detection: "automatic",
+    home: "/studio/settings/inquiry-capture",
+    waitDays: 3,
+    markLabel: "I've set it up",
+    reminder: {
+      title: "No inquiry has come through yet",
+      detail: "You set up inquiry capture {days} days ago and nothing has arrived. Send yourself a test to check it works.",
+    },
+    instructions: [
+      {
+        title: "Choose how inquiries reach StudioCue",
+        text: "In **Inquiry capture**, pick your **website form** (it emails StudioCue too) or your **inbox** (a filter forwards form emails on). Each opens its own step-by-step guide.",
+        link: { href: "/studio/settings/inquiry-capture", label: "Open Inquiry capture" },
+      },
+      {
+        title: "Make the change in your form or inbox",
+        text: "Follow the guide for your form builder or mail app. It takes a few minutes and uses your StudioCue address.",
+      },
+      {
+        title: "Send a test",
+        text: "Use **Test** in Inquiry capture. StudioCue ticks this off the moment the test — or your first real inquiry — arrives.",
       },
     ],
   },
@@ -123,6 +178,8 @@ type Signals = {
   activeCards?: number;
   /** A card was refused because QuickBooks Payments isn't active. */
   paymentsRefused?: boolean;
+  /** An inquiry, or the studio's test, arrived by capture. */
+  captured?: boolean;
 };
 
 const text = (value: unknown) => (typeof value === "string" ? value : "");
@@ -146,8 +203,63 @@ export function outsideStepStatus(id: OutsideStepId, signals: Signals): OutsideS
       return { state: "waiting", label: "Applied — waiting on Intuit", detected: false, since };
     return { state: "not_started", label: "Not started", detected: false, since: null };
   }
+  if (id === "inquiry_capture") {
+    if (signals.captured)
+      return { state: "done", label: "Inquiries are arriving", detected: true, since };
+    if (recorded === "waiting" || recorded === "done")
+      return { state: "waiting", label: "Set up — waiting for the first inquiry", detected: false, since };
+    return { state: "not_started", label: "Not set up", detected: false, since: null };
+  }
   // quickbooks_payments_reconnect: Intuit's grant is the proof.
   if (signals.paymentsGranted)
     return { state: "done", label: "Permission granted", detected: true, since };
   return { state: "not_started", label: "Not yet", detected: false, since: null };
+}
+
+export type OutsideStepReminder = {
+  stepId: OutsideStepId;
+  title: string;
+  detail: string;
+  href: string;
+  where: string;
+  /** Something went wrong, rather than a wait running long. */
+  urgent: boolean;
+  since: string | null;
+};
+
+/**
+ * What Today should say about a step, if anything: a problem the other
+ * company reported, or a wait the studio started that has run past its
+ * usual length. Steps nobody started are never nagged about.
+ */
+export function outsideStepReminder(
+  id: OutsideStepId,
+  status: OutsideStepStatus,
+  now: Date,
+): OutsideStepReminder | null {
+  const step = OUTSIDE_STEPS[id];
+  if (status.state === "attention")
+    return {
+      stepId: id,
+      title: `${step.title}: needs a look`,
+      detail: `${status.label}.`,
+      href: step.home,
+      where: step.where,
+      urgent: true,
+      since: status.since,
+    };
+  if (status.state !== "waiting" || !step.waitDays || !step.reminder || !status.since) return null;
+  const started = Date.parse(status.since);
+  if (!Number.isFinite(started)) return null;
+  const days = Math.floor((now.getTime() - started) / 86_400_000);
+  if (days < step.waitDays) return null;
+  return {
+    stepId: id,
+    title: step.reminder.title,
+    detail: step.reminder.detail.replace("{days}", String(days)),
+    href: step.home,
+    where: step.where,
+    urgent: false,
+    since: status.since,
+  };
 }

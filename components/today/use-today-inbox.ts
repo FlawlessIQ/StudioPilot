@@ -1,6 +1,7 @@
 "use client";
 
 import { useTenantDocuments } from "@/components/live/tenant-records";
+import { useOutsideSteps } from "@/components/outside-steps/use-outside-steps";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { invoiceIsOverdue, projectJourney } from "@/features/journey/steps";
 import { questionnaireHasAnswers } from "@/features/journey/substance";
@@ -226,6 +227,7 @@ export function useTodayInbox(): {
       } satisfies TodayJourneyPosition;
     });
 
+  const outsideSteps = useOutsideSteps();
   const inbox = todayInbox({
     now: new Date().toISOString(),
     projects: projects.records,
@@ -246,6 +248,7 @@ export function useTodayInbox(): {
     invoiceReferences: invoiceReferences.records,
     journeys,
     setupGaps: setup.gaps,
+    outsideStepReminders: outsideSteps.reminders,
   });
 
   const now = new Date();

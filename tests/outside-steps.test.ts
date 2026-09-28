@@ -55,3 +55,72 @@ test("Autopay guides both QuickBooks steps with the shared card", () => {
   // Three steps across, in order, not a list with a card nested in it.
   assert.match(autopay, /number=\{1\}[\s\S]*number=\{2\}/);
 });
+
+test("inquiry capture: done when an inquiry or the test arrives, waiting once set up", () => {
+  const capture = (signals: Parameters<typeof outsideStepStatus>[1]) =>
+    outsideStepStatus("inquiry_capture", signals);
+  assert.equal(capture({}).state, "not_started");
+  assert.equal(capture({ record: { state: "waiting", at: "2026-09-20T10:00:00Z" } }).state, "waiting");
+  const arrived = capture({ record: { state: "waiting" }, captured: true });
+  assert.equal(arrived.state, "done");
+  assert.equal(arrived.detected, true);
+});
+
+test("Today asks only about a started wait that has run long, or a reported problem", async () => {
+  const { outsideStepReminder } = await import("../features/outside-steps/registry");
+  const now = new Date("2026-09-28T12:00:00Z");
+  const waiting = (since: string) =>
+    outsideStepStatus("quickbooks_payments_apply", { record: { state: "waiting", at: since } });
+  // Two days in: Intuit usually takes 2–3 business days, so nothing yet.
+  assert.equal(outsideStepReminder("quickbooks_payments_apply", waiting("2026-09-26T12:00:00Z"), now), null);
+  const late = outsideStepReminder("quickbooks_payments_apply", waiting("2026-09-22T12:00:00Z"), now);
+  assert.ok(late);
+  assert.equal(late.title, "Heard back from Intuit?");
+  assert.match(late.detail, /6 days ago/);
+  assert.equal(late.href, "/studio/integrations?tab=autopay");
+  assert.equal(late.urgent, false);
+  // Never started: never nagged.
+  assert.equal(
+    outsideStepReminder("quickbooks_payments_apply", outsideStepStatus("quickbooks_payments_apply", {}), now),
+    null,
+  );
+  // Intuit refused a card: raised straight away.
+  const refused = outsideStepReminder(
+    "quickbooks_payments_apply",
+    outsideStepStatus("quickbooks_payments_apply", { paymentsRefused: true }),
+    now,
+  );
+  assert.equal(refused?.urgent, true);
+});
+
+test("a reminder becomes a Today card that links to the step", async () => {
+  const { todayInbox } = await import("../features/today/inbox");
+  const inbox = todayInbox({
+    now: "2026-09-28T12:00:00Z",
+    outsideStepReminders: [
+      {
+        stepId: "inquiry_capture",
+        title: "No inquiry has come through yet",
+        detail: "You set up inquiry capture 4 days ago and nothing has arrived.",
+        href: "/studio/settings/inquiry-capture",
+        where: "your website form or inbox",
+        urgent: false,
+        since: "2026-09-24T12:00:00Z",
+      },
+    ],
+  });
+  const card = inbox.act.find((item) => item.id === "outside-inquiry_capture");
+  assert.ok(card, "the reminder is on Today");
+  assert.deepEqual(card.action, {
+    kind: "link",
+    label: "Update the step",
+    href: "/studio/settings/inquiry-capture",
+  });
+  assert.equal(card.evidence, "Outside StudioCue · in your website form or inbox");
+});
+
+test("finishing a capture route's guide records the step as started", () => {
+  const capture = readFileSync("components/intake/lead-capture-setup.tsx", "utf8");
+  assert.match(capture, /setOutsideStep\("inquiry_capture", "waiting"/);
+  assert.match(capture, /onDone=\{finishRoute\}/);
+});

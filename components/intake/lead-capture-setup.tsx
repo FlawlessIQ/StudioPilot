@@ -17,6 +17,8 @@ import { sendCommunicationsCommand } from "@/lib/communications/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { Copyable, OpenLink, Path, Rich, Tip } from "@/components/outside-steps/guide-parts";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
+import { refreshTenantRecords } from "@/components/live/tenant-records";
+import { setOutsideStep } from "@/lib/integrations/command-client";
 import {
   FORM_SOURCES,
   GMAIL_FORWARDING_SETTINGS,
@@ -422,6 +424,18 @@ function CaptureSheets({
   actions: LeadCaptureActions;
 }) {
   const close = useCallback(() => onChange(null), [onChange]);
+  const workspace = useWorkspace();
+  // Finishing a route's guide is the studio setting capture up: recorded as
+  // the outside step started (features/outside-steps), so Today can ask if
+  // nothing has come through after a few days. The first capture — real or
+  // the test — ticks it off by itself. Best effort; the sheet closes either way.
+  const finishRoute = useCallback(() => {
+    if (!setup.lastCaptureAt && workspace.tenantId)
+      void setOutsideStep("inquiry_capture", "waiting", workspace.tenantId)
+        .then(() => refreshTenantRecords("tenants"))
+        .catch(() => undefined);
+    onChange(null);
+  }, [onChange, setup.lastCaptureAt, workspace.tenantId]);
   const setSheet = onChange;
   return (
     <>
@@ -429,13 +443,13 @@ function CaptureSheets({
         <FormRoute
           actions={actions}
           address={address}
-          onDone={close}
+          onDone={finishRoute}
           onUseInbox={() => setSheet("inbox")}
           setup={setup}
         />
       </SheetDialog>
       <SheetDialog label="From your inbox" onClose={close} open={sheet === "inbox"}>
-        <InboxRoute actions={actions} address={address} onDone={close} setup={setup} />
+        <InboxRoute actions={actions} address={address} onDone={finishRoute} setup={setup} />
       </SheetDialog>
       <SheetDialog label="Forward by hand" onClose={close} open={sheet === "manual"}>
         <ManualRoute address={address} onDone={close} />

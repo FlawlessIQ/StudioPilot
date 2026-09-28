@@ -104,7 +104,7 @@ const commandSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: z.object({
-      stepId: z.enum(["quickbooks_payments_apply", "quickbooks_payments_reconnect"]),
+      stepId: z.enum(["quickbooks_payments_apply", "quickbooks_payments_reconnect", "inquiry_capture"]),
       state: z.enum(["waiting", "done"]).nullable(),
     }),
   }),

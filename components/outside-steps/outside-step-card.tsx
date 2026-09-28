@@ -219,6 +219,27 @@ export function OutsideStepCard({
                   Not approved after all
                 </button>
               )
+            ) : step.markLabel && !status.detected ? (
+              status.state === "not_started" ? (
+                <button
+                  className="button button-dark"
+                  disabled={busy}
+                  onClick={() => void mark("waiting")}
+                  type="button"
+                >
+                  {busy ? <LoaderCircle aria-hidden className="spin" size={14} /> : null}
+                  {step.markLabel}
+                </button>
+              ) : (
+                <button
+                  className="button button-light"
+                  disabled={busy}
+                  onClick={() => void mark(null)}
+                  type="button"
+                >
+                  Not set up yet
+                </button>
+              )
             ) : null}
             {action ?? null}
             <button className="button button-light" onClick={() => setOpen(false)} type="button">

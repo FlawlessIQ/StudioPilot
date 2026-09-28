@@ -31,6 +31,7 @@ import { DataControls } from "@/components/settings/data-controls";
 import { EmailBranding } from "@/components/settings/email-branding";
 import { StudioIdentitySettings } from "@/components/settings/studio-identity";
 import { useSetupState } from "@/components/setup/use-setup-state";
+import { OutsideStepsInFlight } from "@/components/outside-steps/outside-steps-in-flight";
 import {
   SETTINGS_SECTIONS,
   legacySettingsTarget,
@@ -197,6 +198,7 @@ export function SettingsShell() {
             <p>How clients see your studio, what it connects to, and what you pay for.</p>
           </div>
         </header>
+        <OutsideStepsInFlight />
         {GROUPS.map((group) => (
           <section aria-label={group.label} className="settings-hub-group" key={group.label}>
             {/* A <p>, as on the phone: the studio's h2 rule sets the serif display
@@ -231,6 +233,7 @@ export function SettingsShell() {
         <h1>Settings</h1>
         <p>How clients see your studio, what it connects to, and what you pay for.</p>
       </header>
+      <OutsideStepsInFlight />
 
       {GROUPS.map((group) => (
         <section className="settings-group" key={group.label}>
