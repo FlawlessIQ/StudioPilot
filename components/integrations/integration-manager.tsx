@@ -658,7 +658,7 @@ export function IntegrationManager() {
           const healthText = connection?.lastError
             ? readableError(connection.lastError)
             : connection?.lastHealthLatencyMs
-              ? `Checked ${relativeCheck(connection.lastHealthCheckAt)}`
+              ? relativeCheck(connection.lastHealthCheckAt)
               : connected
                 ? relativeCheck(connection?.lastHealthCheckAt ?? null)
                 : null;
