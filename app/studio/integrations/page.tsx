@@ -1,28 +1,27 @@
 import { AppShell } from "@/components/layout/app-shell";
-import { IntegrationManager } from "@/components/integrations/integration-manager";
-import { AgreementTemplate } from "@/components/integrations/agreement-template";
-import { AutopaySettings } from "@/components/integrations/autopay-settings";
+import { IntegrationsTabs } from "@/components/integrations/integrations-tabs";
 
-export default function IntegrationsPage() {
+export default async function IntegrationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { tab } = await searchParams;
   return (
     <AppShell active="Integrations">
       <div className="integrations-page">
         <header className="integrations-heading">
           <div>
             <p className="eyebrow">Studio connections</p>
-            <h1>Your tools, working together.</h1>
+            <h1>Integrations</h1>
             <p>
-              Connect your calendar, meetings, files, contracts, and accounting.
+              The tools StudioCue works with: calendar, meetings, files and
+              accounting. Each connection is private to this workspace and can
+              be removed at any time.
             </p>
           </div>
-          <span className="integrations-heading-note">
-            Each connection is private to this workspace and can be removed at
-            any time.
-          </span>
         </header>
-        <IntegrationManager />
-        <AgreementTemplate />
-        <AutopaySettings />
+        <IntegrationsTabs initialTab={tab === "autopay" ? "autopay" : "connections"} />
       </div>
     </AppShell>
   );

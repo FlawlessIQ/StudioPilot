@@ -40,10 +40,13 @@ export function OutsideStepCard({
   stepId,
   status,
   action,
+  number,
 }: {
   stepId: OutsideStepId;
   status: OutsideStepStatus;
   action?: ReactNode;
+  /** Shown as one numbered step of a sequence (Autopay's three), not a row. */
+  number?: number;
 }) {
   const step = OUTSIDE_STEPS[stepId];
   const workspace = useWorkspace();
@@ -71,6 +74,28 @@ export function OutsideStepCard({
 
   return (
     <>
+      {number ? (
+        <button
+          className={`outside-step-tile is-${status.state}`}
+          onClick={() => setOpen(true)}
+          type="button"
+        >
+          <span className="outside-step-tile-top">
+            <span className="outside-step-tile-number">
+              {status.state === "done" ? <CheckCircle2 aria-hidden="true" size={15} /> : number}
+            </span>
+            <small>In {step.where.replace(/ \(.*\)$/, "")}</small>
+          </span>
+          <strong>{step.title}</strong>
+          <em>
+            <Icon aria-hidden="true" size={13} /> {status.label}
+            {since && status.state === "waiting" ? ` since ${since}` : ""}
+          </em>
+          <span className="outside-step-card-go">
+            {status.state === "done" ? "Details" : "Show me how"} <ArrowRight aria-hidden="true" size={14} />
+          </span>
+        </button>
+      ) : (
       <button
         className={`outside-step-card is-${status.state}`}
         onClick={() => setOpen(true)}
@@ -91,6 +116,7 @@ export function OutsideStepCard({
           {status.state === "done" ? "Details" : "Show me how"} <ArrowRight aria-hidden="true" size={14} />
         </span>
       </button>
+      )}
 
       <SheetDialog label={step.title} onClose={() => setOpen(false)} open={open}>
         <div className="record-sheet outside-step-guide">

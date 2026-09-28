@@ -12884,6 +12884,393 @@ form:has(> .address-field) > .address-field,
 
 .sheet-close:hover { background: var(--line, #e2e7e2); color: var(--ink); }
 
+/* ── Integrations ──────────────────────────────────────────────────────
+   Two tabs (Connections, Autopay); tools as a grid of tiles saying what each
+   is used for; Autopay as three steps across (components/integrations). */
+.integrations-tabs {
+  border-bottom: 1px solid var(--ds-line, var(--line));
+  display: flex;
+  gap: 4px;
+  margin-bottom: 18px;
+}
+
+.integrations-tabs button {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--ds-muted, var(--muted));
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  gap: 7px;
+  margin-bottom: -1px;
+  padding: 10px 14px;
+}
+
+.integrations-tabs button[aria-selected="true"] {
+  border-bottom-color: var(--ds-claret, #0ea372);
+  color: var(--ds-ink, var(--ink));
+}
+
+.integration-summary {
+  align-items: center;
+  background: var(--ds-paper, #fff);
+  border: 1px solid var(--ds-line, var(--line));
+  border-radius: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13.5px;
+  gap: 8px 18px;
+  padding: 12px 16px;
+}
+
+.integration-summary > span {
+  align-items: center;
+  display: inline-flex;
+  gap: 7px;
+}
+
+.integration-summary-count > svg {
+  color: var(--ds-claret-deep, #0a7a55);
+}
+
+.integration-summary-gaps {
+  color: #8a4b0f;
+}
+
+.integration-summary-gaps > svg {
+  flex: none;
+}
+
+.integration-summary-ok {
+  color: #0a7a55;
+}
+
+.integration-summary > small {
+  color: var(--ds-muted, var(--muted));
+  font-size: 12px;
+  margin-left: auto;
+}
+
+.integration-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+.integration-tile {
+  align-content: start;
+  background: var(--ds-paper, #fff);
+  border: 1px solid var(--ds-line, var(--line));
+  border-radius: 16px;
+  box-shadow: var(--ds-shadow-sm, 0 1px 2px rgb(24 34 28 / 4%));
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+}
+
+.integration-tile.is-locked {
+  background: var(--ds-canvas, #f6f7f9);
+  box-shadow: none;
+}
+
+.integration-tile:has(details[open]) {
+  grid-column: 1 / -1;
+}
+
+.integration-tile > header {
+  align-items: center;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 40px minmax(0, 1fr);
+}
+
+.integration-tile-name {
+  align-items: flex-start;
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+}
+
+.integration-tile-name strong {
+  font-size: 15px;
+}
+
+.integration-tile-copy {
+  color: var(--ds-ink-soft, #565d68);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.integration-tile-uses {
+  color: var(--ds-brass-deep, #977325);
+  font-size: 12.5px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.integration-tile.is-connected .integration-tile-uses {
+  color: #0a7a55;
+}
+
+.integration-tile > footer {
+  align-items: center;
+  border-top: 1px solid var(--ds-line, var(--line));
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  margin-top: 2px;
+  padding-top: 10px;
+}
+
+.integration-tile.is-available > footer {
+  justify-content: flex-end;
+}
+
+.integration-tile.is-locked > footer:empty {
+  display: none;
+}
+
+.integration-tile-health {
+  color: var(--ds-muted, var(--muted));
+  font-size: 12px;
+}
+
+.integration-tile-manage > summary {
+  color: var(--ds-brass-deep, #977325);
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 650;
+  list-style: none;
+}
+
+.integration-tile-manage > summary::-webkit-details-marker {
+  display: none;
+}
+
+.integration-tile-manage[open] {
+  display: grid;
+  gap: 10px;
+}
+
+.integration-tile-manage dl {
+  display: grid;
+  gap: 10px 18px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  margin: 4px 0 0;
+}
+
+.integration-tile-manage dt {
+  color: var(--ds-muted, var(--muted));
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.integration-tile-manage dd {
+  font-size: 13.5px;
+  font-weight: 600;
+  margin: 2px 0 0;
+}
+
+.integration-tile-manage p {
+  color: var(--ds-ink-soft, #565d68);
+  font-size: 13px;
+  margin: 0;
+}
+
+.integration-tile-disconnect {
+  justify-self: start;
+}
+
+.integration-center {
+  display: grid;
+  gap: 16px;
+}
+
+/* Autopay, its own tab. */
+.autopay-settings {
+  background: var(--ds-paper, #fff);
+  border: 1px solid var(--ds-line, var(--line));
+  border-radius: 16px;
+  box-shadow: var(--ds-shadow-sm, 0 1px 2px rgb(24 34 28 / 4%));
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+}
+
+.autopay-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.autopay-head h2 {
+  font-size: 20px;
+  margin: 0 0 6px;
+}
+
+.autopay-head p {
+  color: var(--ds-ink-soft, #565d68);
+  font-size: 13.5px;
+  line-height: 1.5;
+  margin: 0;
+  max-width: 62ch;
+}
+
+.autopay-state {
+  background: var(--ds-line-soft, #f2f4f7);
+  border-radius: 999px;
+  color: var(--ds-ink-soft, #565d68);
+  flex: none;
+  font-size: 12.5px;
+  font-weight: 650;
+  padding: 5px 12px;
+}
+
+.autopay-state.is-on {
+  background: #e3f5ec;
+  color: #0a7a55;
+}
+
+.autopay-stepper {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.autopay-stepper > li {
+  display: grid;
+}
+
+.outside-step-tile,
+.autopay-step-local {
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  background: var(--ds-paper, #fff);
+  border: 1px solid var(--ds-line, var(--line));
+  border-radius: 14px;
+  color: inherit;
+  display: grid;
+  font: inherit;
+  gap: 7px;
+  justify-items: start;
+  padding: 14px;
+  text-align: left;
+}
+
+.outside-step-tile {
+  cursor: pointer;
+}
+
+.outside-step-tile:hover {
+  border-color: var(--ds-brass, #c99a3f);
+}
+
+.outside-step-tile.is-done,
+.autopay-step-local.is-done {
+  background: #f3faf6;
+  border-color: #cfe9dc;
+}
+
+.outside-step-tile.is-waiting {
+  background: #fffaf0;
+  border-color: #f0dcb4;
+}
+
+.outside-step-tile.is-attention {
+  background: #fff4e6;
+  border-color: #f3c78e;
+}
+
+.autopay-step-local.is-blocked {
+  background: var(--ds-canvas, #f6f7f9);
+  color: var(--ds-muted, var(--muted));
+}
+
+.outside-step-tile-top {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.outside-step-tile-top small {
+  color: var(--ds-muted, var(--muted));
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.outside-step-tile-number {
+  align-items: center;
+  background: var(--ds-ink, #191b20);
+  border-radius: 999px;
+  color: #fff;
+  display: inline-flex;
+  flex: none;
+  font-size: 12px;
+  font-weight: 650;
+  height: 24px;
+  justify-content: center;
+  width: 24px;
+}
+
+.is-done > .outside-step-tile-number,
+.is-done .outside-step-tile-number {
+  background: #0a7a55;
+}
+
+.is-blocked > .outside-step-tile-number {
+  background: var(--ds-line, #e8eaf0);
+  color: var(--ds-muted, var(--muted));
+}
+
+.outside-step-tile strong,
+.autopay-step-local strong {
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.outside-step-tile em,
+.autopay-step-local em {
+  align-items: center;
+  color: var(--ds-ink-soft, #565d68);
+  display: inline-flex;
+  font-size: 12.5px;
+  font-style: normal;
+  gap: 5px;
+}
+
+.outside-step-tile .outside-step-card-go {
+  margin-top: 2px;
+}
+
+.autopay-step-local .autopay-toggle {
+  font-size: 13px;
+}
+
+@media (max-width: 860px) {
+  .autopay-stepper {
+    grid-template-columns: 1fr;
+  }
+  .autopay-head {
+    flex-direction: column;
+  }
+  .integration-summary > small {
+    margin-left: 0;
+  }
+}
+
 /* ── Outside steps ─────────────────────────────────────────────────────
    A step the studio takes in another company's app, as a row that says where
    it stands, opening a guide (components/outside-steps). */
@@ -13075,7 +13462,7 @@ form:has(> .address-field) > .address-field,
   .outside-step-card {
     grid-template-columns: auto minmax(0, 1fr);
   }
-  .outside-step-card-go {
+  .outside-step-card > .outside-step-card-go {
     grid-column: 2;
   }
 }

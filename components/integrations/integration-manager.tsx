@@ -31,6 +31,7 @@ import {
 import {
   isOfferedProvider,
   offeredSigningProvider,
+  providerCapabilities,
   type IntegrationCapability,
   type IntegrationProvider,
 } from "@/features/integrations/schema";
@@ -556,16 +557,68 @@ export function IntegrationManager() {
     }
   }
 
+  // What each connected tool is doing, what nothing covers yet, and where
+  // there is a real choice. The page used to list every provider as a wide
+  // row, then repeat the same facts as a routing table beneath them, so the
+  // studio scrolled past both to reach anything else (docs/ui-audit-2026-09-27.md).
+  const usedFor = (provider: Provider) =>
+    capabilityRows
+      .filter(
+        ({ resolution }) =>
+          resolution.outcome === "resolved" && resolution.provider === provider,
+      )
+      .map(({ capability }) => capabilityCopy[capability].label);
+  const gaps = capabilityRows.filter(
+    ({ capability, resolution }) =>
+      resolution.outcome !== "resolved" &&
+      !(capability === "signing" && !offeredSigningProvider()),
+  );
+  const choices = capabilityRows.filter(({ eligible }) => eligible.length > 1);
+  const providersFor = (capability: IntegrationCapability) =>
+    visibleDefinitions
+      .filter(
+        (definition) =>
+          oauthEnabled(definition.provider) &&
+          providerCapabilities[definition.provider]?.includes(capability),
+      )
+      .map((definition) => definition.label);
+  const stateOf = (definition: Definition) => {
+    const connection = connections.find((value) => value.provider === definition.provider);
+    if (connection?.status === "connected" && connection.mockMode !== true) return 0;
+    return oauthEnabled(definition.provider) ? 1 : 2;
+  };
+  const ordered = [...visibleDefinitions].sort((a, b) => stateOf(a) - stateOf(b));
+
   return (
     <div className="integration-center">
-      <section className="integration-statusbar">
-        <ShieldCheck size={16} aria-hidden="true" />
-        <strong>
-          {connectedCount
-            ? `${connectedCount} provider${connectedCount === 1 ? "" : "s"} connected`
-            : "No providers connected yet"}
-        </strong>
-        <span>Sign-in details are encrypted and never shown in the browser.</span>
+      <section className="integration-summary">
+        <span className="integration-summary-count">
+          <ShieldCheck size={16} aria-hidden="true" />
+          <strong>
+            {connectedCount
+              ? `${connectedCount} connected`
+              : "Nothing connected yet"}
+          </strong>
+        </span>
+        {gaps.length ? (
+          <span className="integration-summary-gaps">
+            <TriangleAlert size={14} aria-hidden="true" />
+            <span>
+              Not covered yet:{" "}
+              {gaps
+                .map(({ capability }) => {
+                  const options = providersFor(capability);
+                  return `${capabilityCopy[capability].label}${options.length ? ` (connect ${options.join(" or ")})` : ""}`;
+                })
+                .join(" · ")}
+            </span>
+          </span>
+        ) : connectedCount ? (
+          <span className="integration-summary-ok">
+            <CheckCircle2 size={14} aria-hidden="true" /> Everything StudioCue uses is connected.
+          </span>
+        ) : null}
+        <small>Sign-in details are encrypted and never shown in the browser.</small>
       </section>
 
       {notice ? (
@@ -590,8 +643,8 @@ export function IntegrationManager() {
         </div>
       ) : null}
 
-      <section className="ds-card ds-int-list" aria-label="Connected providers">
-        {visibleDefinitions.map((definition) => {
+      <section className="integration-grid" aria-label="Your tools">
+        {ordered.map((definition) => {
           const connection = connections.find(
             (value) => value.provider === definition.provider,
           );
@@ -601,27 +654,24 @@ export function IntegrationManager() {
           const available = oauthEnabled(definition.provider);
           const busy = busyProvider === definition.provider;
           const Icon = definition.icon;
+          const uses = connected ? usedFor(definition.provider) : [];
           const healthText = connection?.lastError
             ? readableError(connection.lastError)
             : connection?.lastHealthLatencyMs
-              ? `${relativeCheck(connection.lastHealthCheckAt)} · ${connection.lastHealthLatencyMs} ms`
+              ? `Checked ${relativeCheck(connection.lastHealthCheckAt)}`
               : connected
                 ? relativeCheck(connection?.lastHealthCheckAt ?? null)
-                : available
-                  ? "Ready to authorize"
-                  : "Setup not finished";
+                : null;
           return (
             <article
-              className={`ds-int-row ${connected ? "is-connected" : ""}`}
+              className={`integration-tile ${connected ? "is-connected" : available ? "is-available" : "is-locked"}`}
               key={definition.provider}
             >
-              <span
-                className={`ds-int-icon provider-${definition.accent}`}
-              >
-                <Icon />
-              </span>
-              <span className="ds-int-copy">
-                <span className="ds-int-name">
+              <header>
+                <span className={`ds-int-icon provider-${definition.accent}`}>
+                  <Icon />
+                </span>
+                <span className="integration-tile-name">
                   <strong>{definition.label}</strong>
                   <StatusBadge
                     dot
@@ -631,39 +681,47 @@ export function IntegrationManager() {
                       ? "Connected"
                       : available
                         ? "Ready to connect"
-                        : "Setup required"}
+                        : "Not open yet"}
                   </StatusBadge>
                 </span>
-                <p>{definition.description}</p>
-                <span className="ds-int-caps">
-                  {definition.capabilities.join(" · ")}
-                </span>
-                <span className="ds-int-meta">{healthText}</span>
-              </span>
-              <div className="ds-int-actions">
+              </header>
+              <p className="integration-tile-copy">{definition.description}</p>
+              <p className="integration-tile-uses">
+                {connected
+                  ? uses.length
+                    ? `Used for ${uses.join(", ").toLowerCase()}`
+                    : "Connected — another tool does its jobs"
+                  : definition.capabilities.join(" · ")}
+              </p>
+
+              {/* A gated provider says why instead of offering a button that
+                  can only fail: it is waiting on an approval outside the
+                  studio's control. */}
+              {!connected && !available ? (
+                <p className="ds-int-pending">
+                  <LockKeyhole size={14} aria-hidden />
+                  <span>
+                    {definition.pendingReason ?? "Not open for connection yet."}
+                  </span>
+                </p>
+              ) : null}
+
+              <footer>
                 {connected ? (
                   <>
+                    {healthText ? (
+                      <span className="integration-tile-health">{healthText}</span>
+                    ) : (
+                      <span />
+                    )}
                     <button
                       className="ds-btn ds-btn-ghost ds-btn-sm"
                       type="button"
                       disabled={busy}
-                      onClick={() =>
-                        void manage(definition.provider, "health")
-                      }
+                      onClick={() => void manage(definition.provider, "health")}
                     >
                       <RefreshCw size={14} className={busy ? "spin" : ""} />
                       Test
-                    </button>
-                    <button
-                      className="ds-btn ds-btn-ghost ds-btn-sm"
-                      type="button"
-                      disabled={busy}
-                      onClick={() =>
-                        void manage(definition.provider, "disconnect")
-                      }
-                    >
-                      <Unplug size={14} />
-                      Disconnect
                     </button>
                   </>
                 ) : available ? (
@@ -681,63 +739,48 @@ export function IntegrationManager() {
                     Connect
                   </button>
                 ) : null}
-              </div>
+              </footer>
 
-              {/* A gated provider gets an explanation instead of a primary
-                  button, because a disabled green control reading
-                  "Unavailable" offers an action, denies it, and gives no
-                  reason — it reads as a broken button rather than an external
-                  approval nobody in the studio can unblock. It spans its own
-                  row: .ds-int-actions is a flex-shrink:0 cell in a six-column
-                  grid, so a sentence placed there widens the whole list. */}
-              {!connected && !available ? (
-                <p className="ds-int-pending">
-                  <LockKeyhole size={14} aria-hidden />
-                  <span>
-                    {definition.pendingReason ?? "Not open for connection yet."}
-                  </span>
-                </p>
-              ) : null}
-
-              {connection?.diagnostics ? (
-                <details className="ds-int-detail">
-                  <summary>Connection diagnostics</summary>
-                  <dl>
-                    <div>
-                      <dt>Connection</dt>
-                      <dd>
-                        {connected
-                          ? connection?.displayName ?? definition.label
-                          : available
-                            ? "Ready to authorize"
-                            : "Setup not finished"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Credential vault</dt>
-                      <dd>
-                        {connection.diagnostics.credentialPresent
-                          ? "Available"
-                          : "Reconnect required"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Webhooks · 7 days</dt>
-                      <dd>{connection.diagnostics.webhookEvents7d ?? 0}</dd>
-                    </div>
-                    <div>
-                      <dt>Failed jobs · 7 days</dt>
-                      <dd>{connection.diagnostics.failedJobs7d ?? 0}</dd>
-                    </div>
-                    <div>
-                      <dt>Granted scopes</dt>
-                      <dd>{connection.diagnostics.scopes?.length ?? 0}</dd>
-                    </div>
-                  </dl>
+              {connected ? (
+                <details className="integration-tile-manage">
+                  <summary>Manage</summary>
+                  {connection?.diagnostics ? (
+                    <dl>
+                      <div>
+                        <dt>Credential vault</dt>
+                        <dd>
+                          {connection.diagnostics.credentialPresent
+                            ? "Available"
+                            : "Reconnect required"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Webhooks · 7 days</dt>
+                        <dd>{connection.diagnostics.webhookEvents7d ?? 0}</dd>
+                      </div>
+                      <div>
+                        <dt>Failed jobs · 7 days</dt>
+                        <dd>{connection.diagnostics.failedJobs7d ?? 0}</dd>
+                      </div>
+                      <div>
+                        <dt>Granted scopes</dt>
+                        <dd>{connection.diagnostics.scopes?.length ?? 0}</dd>
+                      </div>
+                    </dl>
+                  ) : null}
                   <p>
-                    {connection.diagnostics.recommendedAction ??
+                    {connection?.diagnostics?.recommendedAction ??
                       "Run a connection test to generate recommendations."}
                   </p>
+                  <button
+                    className="ds-btn ds-btn-ghost ds-btn-sm integration-tile-disconnect"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void manage(definition.provider, "disconnect")}
+                  >
+                    <Unplug size={14} />
+                    Disconnect {definition.label}
+                  </button>
                 </details>
               ) : null}
             </article>
@@ -745,30 +788,26 @@ export function IntegrationManager() {
         })}
       </section>
 
-      <section className="integration-routing">
-        <header>
-          <h2>Capability routing</h2>
-          <p>
-            When more than one connected provider can do a job, choose which
-            one StudioCue uses.
-          </p>
-        </header>
-        <ul className="integration-routing-list">
-          {capabilityRows.map(({ capability, eligible, resolution }) => {
-            const copy = capabilityCopy[capability];
-            const saving = savingCapability === capability;
-            const selectedValue =
-              resolution.outcome === "resolved" &&
-              eligible.length > 1
-                ? resolution.provider
-                : "";
-            return (
-              <li key={capability} className="integration-routing-row">
-                <span className="integration-routing-copy">
-                  <strong>{copy.label}</strong>
-                  <small>{copy.description}</small>
-                </span>
-                {eligible.length > 1 ? (
+      {/* A choice only when there is one: two connected tools that can both
+          do the same job. Every other routing fact is on the tiles above. */}
+      {choices.length ? (
+        <section className="integration-routing">
+          <header>
+            <h2>Choose which tool does the job</h2>
+            <p>More than one connected tool can do these. Pick the one StudioCue uses.</p>
+          </header>
+          <ul className="integration-routing-list">
+            {choices.map(({ capability, eligible, resolution }) => {
+              const copy = capabilityCopy[capability];
+              const saving = savingCapability === capability;
+              const selectedValue =
+                resolution.outcome === "resolved" ? resolution.provider : "";
+              return (
+                <li key={capability} className="integration-routing-row">
+                  <span className="integration-routing-copy">
+                    <strong>{copy.label}</strong>
+                    <small>{copy.description}</small>
+                  </span>
                   <select
                     value={selectedValue}
                     disabled={saving}
@@ -788,38 +827,12 @@ export function IntegrationManager() {
                       </option>
                     ))}
                   </select>
-                ) : (
-                  <span className="integration-routing-status">
-                    {resolution.outcome === "resolved" ? (
-                      <>
-                        <CheckCircle2 />
-                        {definitions.find(
-                          (definition) =>
-                            definition.provider === resolution.provider,
-                        )?.label ?? resolution.provider}
-                      </>
-                    ) : capability === "signing" && !offeredSigningProvider() ? (
-                      // Signing is a deliberate product hold — no signing app is
-                      // offered to connect, so "Connect a provider" would point
-                      // at nothing. State the real path instead; this is what
-                      // the separate Agreement-template card used to say.
-                      <>
-                        <FileSignature />
-                        Recorded on each booking
-                      </>
-                    ) : (
-                      <>
-                        <TriangleAlert />
-                        Connect a provider to enable this
-                      </>
-                    )}
-                  </span>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      </section>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
     </div>
   );
 }

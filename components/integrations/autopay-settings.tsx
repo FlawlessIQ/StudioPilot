@@ -80,26 +80,35 @@ export function AutopaySettings() {
   }
 
   return (
-    <section className="integration-routing autopay-settings" aria-labelledby="autopay-heading">
-      <header>
-        <h2 id="autopay-heading">
-          <CreditCard aria-hidden="true" size={17} /> Autopay
-        </h2>
-        <p>
-          Couples save a card when they pay their deposit, and the final balance
-          charges itself on its due date. A declined card gets the invoice link
-          and one retry three days later. QuickBooks records every payment.
-        </p>
+    <section className="autopay-settings" aria-labelledby="autopay-heading">
+      <header className="autopay-head">
+        <div>
+          <h2 id="autopay-heading">
+            <CreditCard aria-hidden="true" size={17} /> Autopay
+          </h2>
+          <p>
+            Couples save a card when they pay their deposit, and the final
+            balance charges itself on its due date. A declined card gets the
+            invoice link and one retry three days later. QuickBooks records
+            every payment.
+          </p>
+        </div>
+        <span className={state.enabled ? "autopay-state is-on" : "autopay-state"}>
+          {state.enabled
+            ? `On${state.activeCards ? ` · ${state.activeCards} ${state.activeCards === 1 ? "card" : "cards"} saved` : ""}`
+            : "Off"}
+        </span>
       </header>
 
-      <OutsideStepCard stepId="quickbooks_payments_apply" status={applyStatus} />
-      <ol className="autopay-steps">
-        <li className={state.step > 1 ? "is-done" : "is-current"}>
-          <span>Connect QuickBooks</span>
-          {state.step === 1 ? <small>Connect QuickBooks above first.</small> : null}
+      {/* Three steps across, in order. The first two happen in QuickBooks and
+          open a guide; the third is the switch here. They used to stack as a
+          warning box, a list, and a card nested in the list repeating its
+          own title. */}
+      <ol className="autopay-stepper">
+        <li>
+          <OutsideStepCard number={1} status={applyStatus} stepId="quickbooks_payments_apply" />
         </li>
-        <li className={state.step > 2 ? "is-done" : state.step === 2 ? "is-current" : ""}>
-          <span>Let StudioCue take payments through QuickBooks</span>
+        <li>
           {state.step >= 2 ? (
             <OutsideStepCard
               action={
@@ -110,28 +119,38 @@ export function AutopaySettings() {
                   </button>
                 ) : undefined
               }
+              number={2}
               status={reconnectStatus}
               stepId="quickbooks_payments_reconnect"
             />
-          ) : null}
+          ) : (
+            <div className="autopay-step-local is-blocked">
+              <span className="outside-step-tile-number">2</span>
+              <strong>Let StudioCue take payments through QuickBooks</strong>
+              <em>Connect QuickBooks first, on the Connections tab.</em>
+            </div>
+          )}
         </li>
-        <li className={state.enabled ? "is-done" : state.step === 3 ? "is-current" : ""}>
-          <span>Offer autopay to couples</span>
-          {state.step >= 3 ? (
-            <label className="autopay-toggle">
-              <input
-                checked={state.enabled}
-                disabled={busy}
-                onChange={(event) => void toggle(event.target.checked)}
-                type="checkbox"
-              />
-              <small>
-                {state.enabled
-                  ? `On${state.activeCards ? ` · ${state.activeCards} ${state.activeCards === 1 ? "card" : "cards"} saved` : ""}`
-                  : "Off"}
-              </small>
-            </label>
-          ) : null}
+        <li>
+          <div className={state.enabled ? "autopay-step-local is-done" : state.step >= 3 ? "autopay-step-local" : "autopay-step-local is-blocked"}>
+            <span className="outside-step-tile-number">
+              {state.enabled ? <CheckCircle2 aria-hidden="true" size={15} /> : 3}
+            </span>
+            <strong>Offer autopay to couples</strong>
+            {state.step >= 3 ? (
+              <label className="autopay-toggle">
+                <input
+                  checked={state.enabled}
+                  disabled={busy}
+                  onChange={(event) => void toggle(event.target.checked)}
+                  type="checkbox"
+                />
+                <span>{state.enabled ? "On — couples can save a card" : "Off — switch on to offer it"}</span>
+              </label>
+            ) : (
+              <em>Available once step 2 is done.</em>
+            )}
+          </div>
         </li>
       </ol>
 

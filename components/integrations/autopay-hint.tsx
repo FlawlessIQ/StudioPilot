@@ -29,7 +29,7 @@ export function AutopayHint() {
         Stop chasing final balances: with autopay, couples save a card and it
         charges on the due date. It needs a QuickBooks Payments account, which
         you apply for in QuickBooks.{" "}
-        <Link href="/studio/integrations#autopay-heading">Set up autopay</Link>
+        <Link href="/studio/integrations?tab=autopay">Set up autopay</Link>
       </span>
     </p>
   );

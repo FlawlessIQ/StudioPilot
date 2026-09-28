@@ -49,7 +49,9 @@ test("the payments permission is ticked off only when Intuit granted it", () => 
 
 test("Autopay guides both QuickBooks steps with the shared card", () => {
   const autopay = readFileSync("components/integrations/autopay-settings.tsx", "utf8");
-  assert.match(autopay, /<OutsideStepCard stepId="quickbooks_payments_apply"/);
+  assert.match(autopay, /<OutsideStepCard[^>]*stepId="quickbooks_payments_apply"/);
   assert.match(autopay, /stepId="quickbooks_payments_reconnect"/);
   assert.doesNotMatch(autopay, /autopay-requirement/);
+  // Three steps across, in order, not a list with a card nested in it.
+  assert.match(autopay, /number=\{1\}[\s\S]*number=\{2\}/);
 });
