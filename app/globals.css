@@ -17129,9 +17129,13 @@ label {
     box-shadow: 0 1px 3px rgb(19 30 23 / 6%);
     padding: 5px 5px 5px 16px;
   }
+  /* The project chip, attach and send beside the box left it ~100px wide on
+     a phone, and the placeholder wrapped over five lines. The controls drop
+     to their own line whenever the box would be narrower than 180px. */
   .ds-root .cue-composer form {
     align-items: flex-end;
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
   }
   .ds-root .cue-shell .cue-composer textarea {
@@ -17140,7 +17144,7 @@ label {
     border-radius: 0;
     box-shadow: none;
     field-sizing: content;
-    flex: 1;
+    flex: 1 1 180px;
     font-size: 16px;
     line-height: 1.4;
     margin: 0;
@@ -17155,7 +17159,7 @@ label {
     display: flex;
     flex: none;
     gap: 6px;
-    margin: 0;
+    margin: 0 0 0 auto;
   }
   .ds-root .cue-composer-row .cue-scope.is-static,
   .ds-root .cue-slashhint,
