@@ -1,6 +1,6 @@
 "use client";
 
-import { CueMark } from "@/components/brand/logo";
+import type { CSSProperties } from "react";
 import {
   createContext,
   useContext,
@@ -35,6 +35,8 @@ import {
   WorkspaceProvider,
 } from "@/features/auth/workspace-context";
 import { clientAreaItems } from "@/features/client/portal-navigation";
+import { PoweredByStudioCue, StudioBrand } from "@/components/layout/studio-brand";
+import { portalAccentStyle } from "@/features/design/studio-theme";
 
 const PortalShellContext = createContext(false);
 
@@ -228,7 +230,12 @@ function ClientPortalShell({
   if (workspace.loading) return <ClientPortalLoadingShell />;
 
   return (
-    <div className="ds-root" data-ds-theme="emerald">
+    <div
+      className="ds-root"
+      data-ds-theme="emerald"
+      // The studio's colour, clamped to read, in place of emerald's accent.
+      style={portalAccentStyle(workspace.tenantBrand?.primaryColor) as CSSProperties}
+    >
       <div className={navigationOpen ? "ds-shell ds-nav-open" : "ds-shell"}>
         <button
           aria-label="Close navigation"
@@ -244,10 +251,7 @@ function ClientPortalShell({
         >
           <div className="ds-brand-row">
             <Link className="ds-brand" href="/client" onClick={closeNavigation}>
-              <span className="ds-brand-mark ds-brand-mark-logo"><CueMark size={38} /></span>
-              <span className="ds-brand-word">
-                Studio<b>Cue</b>
-              </span>
+              <StudioBrand brand={workspace.tenantBrand} />
             </Link>
             <button
               aria-label="Close navigation"
@@ -325,6 +329,7 @@ function ClientPortalShell({
             </span>
             <LockKeyhole aria-label="Secure client access" size={15} />
           </div>
+          <PoweredByStudioCue />
         </aside>
 
         {/* The couple's primary nav, in the thumb zone. "More" opens the drawer
@@ -417,8 +422,10 @@ function ClientPortalLoadingShell() {
         <aside className="ds-sidebar" aria-label="Opening client portal">
           <div className="ds-brand-row">
             <span className="ds-brand">
-              <span className="ds-brand-mark">S</span>
-              <span className="ds-brand-word">Studio<b>Cue</b></span>
+              {/* No brand yet: it arrives with the workspace. Showing
+                  StudioCue here flashed the wrong brand before the studio's. */}
+              <span className="ds-brand-mark ds-studio-mark" aria-hidden="true" />
+              <span className="ds-brand-word ds-studio-name">Opening…</span>
             </span>
           </div>
           <div className="client-portal-skeleton-project">

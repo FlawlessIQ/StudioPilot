@@ -118,3 +118,19 @@ export function studioThemeStyle(primary?: string | null): Record<string, string
     "--kit-on-accent": theme.onAccent,
   };
 }
+
+/**
+ * The same theme for the older design-system screens (`.ds-root`), which read
+ * their accent from the `--ds-claret*` slots. The portals' "emerald" accent
+ * (#0ea372) read at about 3:1 under white text; the studio's clamped colour
+ * (or the default) reads at AA or better.
+ */
+export function portalAccentStyle(primary?: string | null): Record<string, string> {
+  const theme = studioTheme(primary);
+  return {
+    "--ds-claret": theme.accent,
+    "--ds-claret-deep": theme.accentStrong,
+    "--ds-claret-bright": theme.accent,
+    "--ds-claret-soft": theme.accentSoft,
+  };
+}

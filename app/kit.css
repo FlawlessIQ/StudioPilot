@@ -46,6 +46,12 @@
   outline-offset: 2px;
 }
 
+/* A kit piece inside an older page (the studio mark in a page header). */
+.kit.kit-inline {
+  display: inline-flex;
+  background: transparent;
+}
+
 /* ---------- Screen ---------- */
 
 .kit-screen {

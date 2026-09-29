@@ -4,12 +4,15 @@ import Link from "next/link";
 import { ArrowLeft, LockKeyhole, ShieldCheck } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { LeadIntakeForm } from "@/components/crm/lead-intake-form";
+import { KitRoot, StudioMark } from "@/components/kit/kit";
+import { resolveTenantBrand, type TenantBrand } from "@/features/branding/tenant-brand";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { adminFirestore } from "@/server/firebase/admin";
 
 type InquiryStudio = {
   name: string;
   slug: string;
+  brand: TenantBrand;
 };
 
 /**
@@ -22,7 +25,8 @@ const studioForSlug = cache(lookupStudio);
 async function lookupStudio(slug: string): Promise<InquiryStudio | null> {
   if (!/^[a-z0-9-]{2,80}$/.test(slug)) return null;
   if (!dataIsLive && slug === "demo-studio") {
-    return { name: "Aperture & Light Studio", slug };
+    const name = "Aperture & Light Studio";
+    return { name, slug, brand: resolveTenantBrand({ brandName: name }) };
   }
   /**
    * Every address the studio has ever had, not just its current one.
@@ -66,10 +70,8 @@ async function lookupStudio(slug: string): Promise<InquiryStudio | null> {
     return status === "trial" || status === "active";
   });
   if (!studio) return null;
-  return {
-    name: String(studio.get("brandName") ?? studio.get("businessName") ?? "Photography studio"),
-    slug,
-  };
+  const brand = resolveTenantBrand(studio.data(), "Photography studio");
+  return { name: brand.brandName, slug, brand };
 }
 
 export async function generateMetadata({
@@ -113,9 +115,22 @@ export default async function InquiryPage({
   }
   return (
     <main className="inquiry-page">
+      {/* The studio's own mark: a couple is writing to the studio, not to
+          StudioCue, whose logo and "Back to StudioCue" link used to head the
+          page. The back link now shows only to the studio previewing it. */}
       <header>
-        <Logo />
-        <Link href={backLink.href}><ArrowLeft size={15} /> {backLink.label}</Link>
+        <KitRoot className="kit-inline" studio={{ color: tenant.brand.primaryColor }}>
+          <span className="kit-brand">
+            <StudioMark
+              size={34}
+              studio={{ name: tenant.name, logoUrl: tenant.brand.logoUrl }}
+            />
+            <span className="kit-brand-name">{tenant.name}</span>
+          </span>
+        </KitRoot>
+        {preview === "studio" ? (
+          <Link href={backLink.href}><ArrowLeft size={15} /> {backLink.label}</Link>
+        ) : null}
       </header>
       <div className="inquiry-layout">
         <aside className="inquiry-intro">

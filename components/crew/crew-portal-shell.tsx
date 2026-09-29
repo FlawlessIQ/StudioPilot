@@ -1,6 +1,6 @@
 "use client";
 
-import { CueMark } from "@/components/brand/logo";
+import type { CSSProperties } from "react";
 import { createContext, useContext, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -19,6 +19,8 @@ import {
   useWorkspace,
   WorkspaceProvider,
 } from "@/features/auth/workspace-context";
+import { PoweredByStudioCue, StudioBrand } from "@/components/layout/studio-brand";
+import { portalAccentStyle } from "@/features/design/studio-theme";
 
 const navSections = [
   {
@@ -124,7 +126,12 @@ function CrewShell({
   // The page itself, which is what the header is asking.
   const pageTitle = crewPageTitles[routeSegment] ?? resolvedActive;
   return (
-    <div className="ds-root" data-ds-theme="emerald">
+    <div
+      className="ds-root"
+      data-ds-theme="emerald"
+      // The studio's colour, clamped to read, in place of emerald's accent.
+      style={portalAccentStyle(workspace.tenantBrand?.primaryColor) as CSSProperties}
+    >
       <div className={navigationOpen ? "ds-shell ds-nav-open" : "ds-shell"}>
         <button
           aria-label="Close navigation"
@@ -135,10 +142,7 @@ function CrewShell({
         <aside className="ds-sidebar" id="crew-navigation">
           <div className="ds-brand-row">
             <Link className="ds-brand" href="/crew" onClick={() => setNavigationOpen(false)}>
-              <span className="ds-brand-mark ds-brand-mark-logo"><CueMark size={38} /></span>
-              <span className="ds-brand-word">
-                Studio<b>Cue</b>
-              </span>
+              <StudioBrand brand={workspace.tenantBrand} />
             </Link>
             <button
               aria-label="Close navigation"
@@ -191,6 +195,7 @@ function CrewShell({
               </small>
             </div>
           </div>
+          <PoweredByStudioCue />
         </aside>
 
         {/* Crew live on their phones at venues; the bottom tab bar is their

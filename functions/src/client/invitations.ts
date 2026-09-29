@@ -9,6 +9,7 @@ import {
 } from "./invitation-mint.js";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
+import { resolveTenantBrand } from "../branding/tenant-brand.js";
 
 const input = z.discriminatedUnion("type", [
   z.object({
@@ -63,19 +64,6 @@ const equalHash = (left: string, right: string) => {
   return a.length === b.length && timingSafeEqual(a, b);
 };
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
-const safeAccentColor = (value: unknown) =>
-  typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value)
-    ? value
-    : "#345c46";
-const safeLogoUrl = (value: unknown) => {
-  if (typeof value !== "string") return null;
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" ? url.toString() : null;
-  } catch {
-    return null;
-  }
-};
 const maskedEmail = (value: string) => {
   const [local = "", domain = ""] = normalizeEmail(value).split("@");
   if (!domain) return "the invited email address";
@@ -139,24 +127,21 @@ export const clientInvitationCommand = onRequest(
                 : storedStatus === "pending"
                   ? "pending"
                   : "expired";
+        const brand = resolveTenantBrand(tenant.data(), "Your photography studio");
         response.status(200).json({
           status,
           expiresAt: String(invitation.get("expiresAt")),
-          studioName: String(
-            tenant.get("brandName") ??
-              tenant.get("businessName") ??
-              "Your photography studio",
-          ),
+          studioName: brand.brandName,
           projectName: String(project.get("name") ?? "Your photography project"),
           eventDate:
             typeof project.get("eventDate") === "string"
               ? project.get("eventDate")
               : null,
-          brandAccentColor: safeAccentColor(
-            tenant.get("brandAccentColor") ??
-              tenant.get("brandColors")?.primary,
-          ),
-          brandLogoUrl: safeLogoUrl(tenant.get("logoUrl")),
+          // Every field the brand has lived in, Settings first. This read
+          // only the old `brandAccentColor`/`logoUrl`, so a logo saved in
+          // Settings → Branding never reached the invitation page.
+          brandAccentColor: brand.primaryColor,
+          brandLogoUrl: brand.logoUrl,
           maskedEmail: maskedEmail(String(invitation.get("normalizedEmail") ?? "")),
           /**
            * The address in full, and whether it already has an account.

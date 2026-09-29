@@ -35,6 +35,7 @@ import {
   getWorkspaceBootstrap,
   type WorkspaceBootstrap,
 } from "@/lib/firebase/workspace-bootstrap";
+import { resolveTenantBrand, type TenantBrand } from "@/features/branding/tenant-brand";
 
 type WorkspaceArea = "studio" | "client" | "crew";
 
@@ -60,6 +61,11 @@ type WorkspaceState = {
   userEmail: string;
   tenantId: string | null;
   tenantName: string;
+  /**
+   * The studio's name, colour and logo, as couples and crew should see it.
+   * Absent while loading and wherever a test builds a workspace by hand.
+   */
+  tenantBrand?: TenantBrand | null;
   tenantSlug: string;
   tenantPlan: string;
   /**
@@ -92,6 +98,7 @@ const mockWorkspace: WorkspaceState = {
   userEmail: "owner@example.test",
   tenantId: "demo-tenant",
   tenantName: "StudioCue Demo Studio",
+  tenantBrand: { brandName: "StudioCue Demo Studio", primaryColor: null, logoUrl: null },
   tenantSlug: "studiocue-demo-studio",
   tenantPlan: "Studio",
   subscriptionStatus: "trialing",
@@ -353,6 +360,7 @@ export function WorkspaceProvider({
             tenantName: String(
               tenant.brandName ?? tenant.businessName ?? "Your studio",
             ),
+            tenantBrand: resolveTenantBrand(tenant),
             tenantSlug: String(tenant.publicSlug ?? ""),
             tenantPlan: String(
               tenant.subscriptionPlan

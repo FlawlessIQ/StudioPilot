@@ -5,6 +5,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
+import { resolveTenantBrand } from "../branding/tenant-brand.js";
 
 const input = z.object({
   token: z.string().min(32).max(200),
@@ -114,12 +115,14 @@ export const crewInvitationPreview = onRequest(
         hasAccount = false;
       }
       const expiresAt = String(source.get("inviteExpiresAt") ?? "");
+      const brand = resolveTenantBrand(tenant.data(), "A photography studio");
       response.status(200).json({
         kind: assignment ? "assignment" : "roster",
-        studioName:
-          String(tenant.get("brandName") ?? "") ||
-          String(tenant.get("businessName") ?? "") ||
-          "A photography studio",
+        // The studio as crew should see it: its name, colour and logo, from
+        // the same resolver as every other surface.
+        studioName: brand.brandName,
+        brandAccentColor: brand.primaryColor,
+        brandLogoUrl: brand.logoUrl,
         email,
         name: String(profile?.get("name") ?? ""),
         hasAccount,
