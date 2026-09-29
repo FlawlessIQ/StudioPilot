@@ -206,6 +206,37 @@ for mobile is paying twice. **Recommended:** put the mobile foundation (M1)
 first, then build each H-item's client/crew surface directly in the new kit.
 The studio-side (desktop) parts of H1–H4 are unaffected.
 
+## M0 — done 2026-09-28
+
+- **Overflow fixed.**
+  - The inquiry form is one field per row under 640 px.
+  - `.inquiry-layout` is `minmax(0, 1fr)` and `.inquiry-form` has
+    `min-width: 0`.
+  - Every input on a phone gets `max-width: 100%; min-width: 0`.
+  - Date and time inputs drop the native appearance, so iOS respects their
+    width. The picker still opens.
+- **Guard:** `e2e/mobile-no-horizontal-overflow.spec.ts`. It covers 27
+  couple, crew and public routes at 360/390/430 px, in Chrome **and**
+  Safari's engine (the `iphone-webkit` project). It fails if a page is wider
+  than the screen, or if any two fields share a row. The side-by-side rule
+  is what catches the iPhone bug: no desktop engine sizes a date input the
+  way iOS does, so a width check alone passed the broken page in both
+  engines. Its fast half is `tests/mobile-layout-rules.test.ts`, which runs
+  in `npm test`.
+- **Run it** against a mock build (no Firebase needed):
+  ```bash
+  NEXT_PUBLIC_DATA_MODE=mock NEXT_PUBLIC_AUTH_MODE=mock npm run build
+  NEXT_PUBLIC_DATA_MODE=mock NEXT_PUBLIC_AUTH_MODE=mock npm run start &
+  PLAYWRIGHT_CHANNEL=chrome npx playwright test e2e/mobile-no-horizontal-overflow.spec.ts --project=desktop-chromium --project=iphone-webkit
+  ```
+  `PLAYWRIGHT_CHANNEL=chrome` uses the installed Google Chrome.
+- **The mock build works again.** `AppShell`'s `useSearchParams()` had no
+  Suspense boundary, which only mattered once mock mode let the build
+  prerender the studio shell. That was what blocked every e2e run on this
+  machine.
+- **Not covered by automation:** how iOS itself draws controls. Each phase
+  still ends with a walk on a real phone.
+
 ## Phases
 
 | # | Phase | What | Notes |

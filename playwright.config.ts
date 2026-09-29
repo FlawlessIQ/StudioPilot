@@ -14,9 +14,33 @@ export default defineConfig({
     baseURL: "http://localhost:3000",
     trace: "retain-on-failure",
   },
+  // PLAYWRIGHT_CHANNEL=chrome runs the Chromium projects against the
+  // installed Google Chrome when Playwright's own Chromium is not downloaded.
+  // Set per project: a WebKit project cannot take a Chrome channel.
   projects: [
-    { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile-chromium", use: { ...devices["Pixel 7"] } },
+    {
+      name: "desktop-chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
+      },
+    },
+    {
+      // Safari's engine, the way couples and crew mostly see StudioCue. iOS
+      // draws date inputs wider than Chrome does and will not shrink them,
+      // so a phone-width check that runs only in Chrome passes pages that
+      // overflow on an iPhone. Scoped to the mobile layout checks.
+      name: "iphone-webkit",
+      testMatch: /mobile-.*\.spec\.ts$/,
+      use: { ...devices["iPhone 14"] },
+    },
+    {
+      name: "mobile-chromium",
+      use: {
+        ...devices["Pixel 7"],
+        ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
+      },
+    },
   ],
   webServer: {
     // Exercise the same optimized server artifact that Firebase App Hosting

@@ -4867,7 +4867,12 @@ textarea:focus-visible {
 
   .inquiry-layout {
     gap: 42px;
-    grid-template-columns: 1fr;
+    /* minmax(0, …), not 1fr: a bare 1fr is minmax(auto, 1fr), so the column
+       grew to fit its widest child and widened the whole page on a phone. */
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .inquiry-form {
+    min-width: 0;
   }
 
   .inquiry-intro {
@@ -19250,21 +19255,17 @@ label {
   .inquiry-page .inquiry-intro > p {
     font-size: 14px;
   }
+  /* One field per row on a phone. Pairing first/last name, date/type and
+     guests/budget left 156 px columns at 390 px, and iOS draws a date input
+     wider than that and will not shrink it, so the form ran off the screen
+     (2026-09-28). No side-by-side fields under 640 px. */
   .inquiry-form .form-grid {
-    gap: 12px 10px;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 14px;
+    grid-template-columns: minmax(0, 1fr);
   }
   .inquiry-form .form-grid > * {
     grid-column: 1 / -1;
     min-width: 0;
-  }
-  .inquiry-form .form-grid > label:has(> input[name="firstName"]),
-  .inquiry-form .form-grid > label:has(> input[name="lastName"]),
-  .inquiry-form .form-grid > label:has(> input[name="eventDate"]),
-  .inquiry-form .form-grid > label:has(> select[name="eventType"]),
-  .inquiry-form .form-grid > label:has(> input[name="estimatedGuestCount"]),
-  .inquiry-form .form-grid > label:has(> select[name="budgetRange"]) {
-    grid-column: auto;
   }
   .inquiry-form .form-grid label > small:empty {
     display: none;
@@ -20604,5 +20605,30 @@ label {
   .capture-sheet > footer .button {
     min-width: 96px;
     justify-content: center;
+  }
+}
+
+/*
+ * Phones: no input may make a page wider than the screen.
+ *
+ * iOS Safari gives date and time inputs an intrinsic width it will not give
+ * up, so `width: 100%` alone does not hold them to their column. Dropping
+ * the native appearance lets the width apply; the native picker still opens
+ * on tap. Scoped to phone widths so desktop inputs keep their look.
+ * docs/mobile-first-client-crew-plan-2026-09-28.md (M0).
+ */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    max-width: 100%;
+    min-width: 0;
+  }
+  input:is([type="date"], [type="datetime-local"], [type="time"], [type="month"]) {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    min-height: 44px;
+    text-align: left;
   }
 }

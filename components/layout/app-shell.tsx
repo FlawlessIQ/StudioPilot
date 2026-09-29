@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, Suspense, useContext, useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
@@ -205,7 +205,14 @@ export function AppShell({
     <StudioShellContext.Provider value>
       <WorkspaceProvider area="studio">
         <AuthBoundary area="studio">
-          <StudioShell active={active}>{children}</StudioShell>
+          {/* StudioShell reads useSearchParams(). Live, the auth gate keeps
+              it out of the build's prerender; in mock mode the gate is open
+              and the build refused the page without a Suspense boundary,
+              which is what blocked every e2e run. It renders only in the
+              browser either way. */}
+          <Suspense fallback={null}>
+            <StudioShell active={active}>{children}</StudioShell>
+          </Suspense>
         </AuthBoundary>
       </WorkspaceProvider>
     </StudioShellContext.Provider>
