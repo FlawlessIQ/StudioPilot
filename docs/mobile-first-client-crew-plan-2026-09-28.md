@@ -237,6 +237,51 @@ The studio-side (desktop) parts of H1–H4 are unaffected.
 - **Not covered by automation:** how iOS itself draws controls. Each phase
   still ends with a walk on a real phone.
 
+## M1 — done 2026-09-29 (1145c75, 9fd3ec7, ca234b5)
+
+- **Tokens:** `design/tokens.json` is the one source. It generates
+  `app/kit-tokens.css` (`npx tsx scripts/generate-kit-tokens.ts`), and a
+  test fails on drift.
+- **Studio theme:** `features/design/studio-theme.ts`. Any studio colour is
+  used exactly if it reads at AA against white, paper and ivory. A pale one
+  keeps its hue and is darkened until it does.
+- **Kit:** `components/kit/kit.tsx` + `app/kit.css`, scoped to `.kit`:
+  - KitRoot, Screen, AppBar with the studio mark;
+  - Button, Field, TextArea, Choices, Toggle;
+  - Card, List/Row, Pill, Note, Steps;
+  - Actions (sticky, thumb zone), TabBar.
+  - Live at **/kit** (`?color=%23RRGGBB`).
+- **Studio brand:** `features/branding/tenant-brand.ts`, mirrored in
+  functions. Portals, the inquiry page and both invitation previews now
+  show the studio.
+  - The client invitation page never showed a logo saved in Settings; that
+    is fixed.
+  - The portal accent is the clamped studio colour. Emerald's `#0ea372`
+    read at about 3:1 under white text.
+- **Passwordless:** Google on every invitation (checked against the invited
+  address), and on couple and crew sign-in. The emailed sign-in link now
+  works for crew too.
+- **Not done:**
+  - **A first-time invitee with no Google account still sets a
+    password.** Letting the invitation link itself sign them in is a
+    security decision (see below).
+  - **The light public shell** (H5 1.5) moves to M2, where the inquiry page
+    is rebuilt in the kit.
+  - **Sign in with Apple** waits for an Apple developer account.
+
+### Open: should the invitation link sign a first-time invitee in?
+
+- **Today:** the invitation arrives by email, and the person then sets a
+  password, or uses Google if their address is a Google account.
+- **The option:** the invitation token, which was emailed to that address,
+  signs them straight in (a server-minted sign-in), the way a magic link
+  does. It's the smoothest path for couples and crew with no Google account.
+- **Trade-off:** anyone the invitation email is forwarded to could sign in
+  as that person, until it's accepted or expires. That's the same exposure
+  as a magic link.
+- **Recommended:** yes, single-use and expiring with the invitation, with a
+  "not you?" line.
+
 ## Phases
 
 | # | Phase | What | Notes |
