@@ -288,7 +288,6 @@ const KNOWN_GAPS: Record<string, string> = {
   QUICKBOOKS_REALM_HOST_UNRESOLVED: "integrations",
   RATE_LIMITED: "crm",
   RECIPIENT_UNKNOWN: "communications",
-  RESPONSE_NOT_FOUND: "planning",
   RETAINER_AMOUNT_NOT_FOUND: "booking",
   REVIEW_REQUEST_NOT_FOUND: "post-event",
   SCHEDULE_NOT_FOUND: "planning",

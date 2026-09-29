@@ -11,6 +11,10 @@ import { productEvent } from "../operations/product-events.js";
 import { studioHubCors } from "../security/cors.js";
 import { mintRunOfShowShare, shareIdFor } from "./share-mint.js";
 import { parsePlannerTimeline } from "./timeline-authority.js";
+import {
+  mergeQuestionnaireAnswers,
+  questionnaireFieldRules,
+} from "./questionnaire-answers.js";
 
 const item = z.object({
   id: z.string(),
@@ -501,11 +505,22 @@ export const planningCommand = onRequest(
           snapshot.get("projectId") !== parsed.input.projectId
         )
           throw new Error("RESPONSE_NOT_FOUND");
+        const byClient = role === "client";
+        // A couple's answers are theirs to change until they submit; after
+        // that the studio has them, and reopening is a conversation.
+        if (byClient && snapshot.get("status") === "submitted")
+          throw new Error("QUESTIONNAIRE_ALREADY_SUBMITTED");
         const priorAnswers = plainRecord(snapshot.get("answers"));
+        const nextAnswers = mergeQuestionnaireAnswers({
+          prior: priorAnswers,
+          incoming: parsed.input.answers,
+          rules: questionnaireFieldRules(snapshot.get("templateSnapshot")),
+          byClient,
+        });
         const answerProvenance = {
           ...plainRecord(snapshot.get("answerProvenance")),
         };
-        const changes = Object.entries(parsed.input.answers).flatMap(
+        const changes = Object.entries(nextAnswers).flatMap(
           ([fieldId, after]) => {
             const before = priorAnswers[fieldId];
             if (JSON.stringify(before) === JSON.stringify(after)) return [];
@@ -534,7 +549,7 @@ export const planningCommand = onRequest(
           : [];
         const batch = db.batch();
         batch.update(reference, {
-          answers: parsed.input.answers,
+          answers: nextAnswers,
           answerProvenance,
           changeHistory: [...changeHistory, ...changes].slice(-200),
           hasPlanningChanges: changes.length > 0,

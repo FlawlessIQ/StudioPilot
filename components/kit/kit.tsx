@@ -340,19 +340,24 @@ export function List({ children, label }: { children: ReactNode; label?: string 
   );
 }
 
-/** One row of a List. A link when it has an `href`; a chevron then trails by default. */
+/**
+ * One row of a List. A link when it has an `href`, a button when it has an
+ * `onClick`; either way a chevron trails by default.
+ */
 export function Row({
   icon: Icon,
   title,
   subtitle,
   trailing,
   href,
+  onClick,
 }: {
   icon?: LucideIcon;
   title: ReactNode;
   subtitle?: ReactNode;
   trailing?: ReactNode;
   href?: string;
+  onClick?: () => void;
 }) {
   const body = (
     <>
@@ -367,7 +372,7 @@ export function Row({
       </span>
       <span className="kit-row-trailing">
         {trailing}
-        {href && trailing === undefined ? <ChevronRight aria-hidden="true" size={18} /> : null}
+        {(href || onClick) && trailing === undefined ? <ChevronRight aria-hidden="true" size={18} /> : null}
       </span>
     </>
   );
@@ -377,6 +382,10 @@ export function Row({
         <Link className="kit-row" href={href}>
           {body}
         </Link>
+      ) : onClick ? (
+        <button className="kit-row" onClick={onClick} type="button">
+          {body}
+        </button>
       ) : (
         <div className="kit-row">{body}</div>
       )}

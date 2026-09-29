@@ -455,6 +455,9 @@ textarea.kit-input {
   font-weight: 400;
 }
 .kit .required-mark {
+  /* globals.css floats it right, which parked it on its own line beside a
+     checkbox's wrapped label. */
+  float: none;
   margin-left: 6px;
   color: var(--kit-brass);
   font-size: 11px;
@@ -688,6 +691,14 @@ textarea.kit-input {
 }
 .kit a.kit-row {
   color: var(--kit-ink);
+}
+.kit button.kit-row {
+  width: 100%;
+  border: 0;
+  background: none;
+  color: var(--kit-ink);
+  text-align: left;
+  cursor: pointer;
 }
 .kit-row-icon {
   display: inline-flex;

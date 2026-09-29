@@ -56,6 +56,7 @@ export const KIT_CLIENT_ROUTES = new Set([
   "/client/proposal",
   "/client/contract",
   "/client/payments",
+  "/client/questionnaire",
 ]);
 
 export function PortalShell({

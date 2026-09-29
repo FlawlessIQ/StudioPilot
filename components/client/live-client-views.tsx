@@ -29,7 +29,6 @@ import {
   Star,
   UserRound,
 } from "lucide-react";
-import { ClientQuestionnaireForm } from "@/components/planning/client-questionnaire-form";
 import { PostEventAction } from "@/components/post-event/post-event-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -162,6 +161,57 @@ export function mockClientRecords(
       dueDate: "2026-08-22",
       hostedUrl: "https://example.com/secure-payment",
       lastSyncedAt: "2026-08-15T12:00:00.000Z",
+    }],
+    // The portal's record list leaves the template out; mock mode carries it
+    // so the one-section-per-screen form can be walked. `studioNotes` is
+    // internal-only: the couple never sees it, and a save must keep it.
+    questionnaireResponses: [{
+      id: "demo-questionnaire",
+      projectId: "demo-project",
+      name: "Wedding day planning",
+      status: "in_progress",
+      dueDate: "2027-05-01",
+      updatedAt: "2026-08-15T12:00:00.000Z",
+      answers: { ceremonyTime: "16:30", studioNotes: "Bring the 85mm for the vows." },
+      templateSnapshot: {
+        sections: [
+          {
+            id: "day",
+            title: "The day",
+            fields: [
+              { id: "ceremonyTime", label: "Ceremony start time", type: "time", required: true },
+              { id: "ceremonyStyle", label: "Ceremony style", type: "radio", required: true, options: ["Religious", "Civil", "Symbolic"] },
+              { id: "firstLook", label: "Are you planning a first look?", type: "radio", required: false, options: ["Yes", "No", "Not sure yet"] },
+            ],
+          },
+          {
+            id: "family",
+            title: "Family photos",
+            fields: [
+              { id: "familyPhotoList", label: "Family photo list", type: "long_text", required: true },
+              { id: "familyHelper", label: "Is someone helping gather family?", type: "radio", required: false, options: ["Yes", "No"] },
+              { id: "familyHelperName", label: "Their name and phone", type: "text", required: false, conditionalOn: { fieldId: "familyHelper", equals: "Yes" } },
+            ],
+          },
+          {
+            id: "people",
+            title: "Your people",
+            fields: [
+              { id: "plannerName", label: "Planner or coordinator", type: "text", required: false },
+              { id: "plannerPhone", label: "Their phone", type: "phone", required: false },
+              { id: "studioNotes", label: "Studio notes", type: "long_text", required: false, internalOnly: true },
+            ],
+          },
+          {
+            id: "else",
+            title: "Anything else",
+            fields: [
+              { id: "doNotPhotograph", label: "Anyone or anything we shouldn’t photograph?", type: "long_text", required: false },
+              { id: "venueRules", label: "We’ll share any venue photography rules", type: "acknowledgement", required: true },
+            ],
+          },
+        ],
+      },
     }],
     schedules: [{
       id: "demo-client-schedule",
@@ -1249,84 +1299,6 @@ export function LiveClientPackage() {
             <small>Future package edits cannot change this snapshot.</small>
           </span>
         </div>
-      </section>
-    </div>
-  );
-}
-
-export function LiveClientQuestionnaire() {
-  const portalProject = useProject();
-  const workspace = useWorkspace();
-  const responses = useProjectRecords("questionnaireResponses");
-  const ordered = useMemo(
-    () =>
-      [...responses.value].sort((left, right) => {
-        const leftComplete = left.status === "submitted" ? 1 : 0;
-        const rightComplete = right.status === "submitted" ? 1 : 0;
-        if (leftComplete !== rightComplete) return leftComplete - rightComplete;
-        const due = String(left.dueDate ?? "9999").localeCompare(
-          String(right.dueDate ?? "9999"),
-        );
-        if (due !== 0) return due;
-        return String(right.updatedAt ?? "").localeCompare(
-          String(left.updatedAt ?? ""),
-        );
-      }),
-    [responses.value],
-  );
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const current = ordered.find((response) => response.id === selectedId) ?? ordered[0];
-  if (responses.loading || responses.error || !current)
-    return <PortalPageState eyebrow="Project planning" title="Your questionnaire" description="Share the details your studio needs to plan your project." loading={responses.loading} error={responses.error} empty={!responses.loading && !responses.error ? "Your studio has not assigned a questionnaire yet." : undefined} area="questionnaire" milestones={portalProject.value?.milestones ?? null} />;
-  return (
-    <div className="client-booking-page">
-      <p className="eyebrow">Project planning</p>
-      <h1>Your questionnaire</h1>
-      <p>
-        Save your progress and return at any time. Your studio will be notified
-        when you submit the completed form.
-      </p>
-      {ordered.length > 1 ? (
-        <section className="client-questionnaire-picker" aria-label="Assigned questionnaires">
-          {ordered.map((response, index) => (
-            <button
-              className={response.id === current.id ? "is-active" : ""}
-              key={response.id}
-              onClick={() => setSelectedId(response.id)}
-              type="button"
-            >
-              <span>
-                <strong>{text(response.name ?? response.templateName, `Questionnaire ${index + 1}`)}</strong>
-                <small>
-                  {response.status === "submitted"
-                    ? "Submitted"
-                    : response.dueDate
-                      ? `Due ${date(response.dueDate)}`
-                      : "Ready to complete"}
-                </small>
-              </span>
-              <StatusBadge tone={response.status === "submitted" ? "success" : "warning"}>
-                {statusLabel(response.status) || "in progress"}
-              </StatusBadge>
-            </button>
-          ))}
-        </section>
-      ) : null}
-      {/* A bare `.panel` supplies no inset, so the form sat against the border.
-          Named so the panel-inset block in legacy-bridge.css can reach it. */}
-      <section className="panel client-questionnaire-panel">
-        <ClientQuestionnaireForm
-          key={current.id}
-          tenantId={workspace.tenantId ?? undefined}
-          projectId={text(current.projectId)}
-          responseId={current.id}
-          status={text(current.status, "in_progress")}
-          initialAnswers={
-            current.answers && typeof current.answers === "object"
-              ? (current.answers as Record<string, unknown>)
-              : {}
-          }
-        />
       </section>
     </div>
   );

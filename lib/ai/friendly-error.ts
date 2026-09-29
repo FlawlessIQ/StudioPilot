@@ -7,6 +7,10 @@
  */
 
 const FRIENDLY_BY_CODE: Record<string, string> = {
+  // The couple's questionnaire (planningCommand saveQuestionnaire).
+  QUESTIONNAIRE_ALREADY_SUBMITTED:
+    "You've already sent this to your studio. Message them if you'd like to change an answer.",
+  RESPONSE_NOT_FOUND: "This questionnaire couldn't be found. Refresh and try again.",
   // Closing and reopening an inquiry (crmCommand closeInquiry / reopenInquiry).
   INQUIRY_NOT_FOUND: "That inquiry couldn't be found. Refresh and try again.",
   INQUIRY_NOT_CLOSABLE: "This couple has booked, so it's a job now rather than an inquiry to close.",
