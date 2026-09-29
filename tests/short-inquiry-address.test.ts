@@ -5,6 +5,8 @@ import {
   shortAddressTrust,
   shortInquiryAddressFor,
   shortInquirySlugFromRecipients,
+  staffMailboxes,
+  staffUserIds,
 } from "../functions/src/intake/short-address.ts";
 
 const DOMAIN = "inbound.studio-cue.com";
@@ -110,4 +112,41 @@ test("a stranger goes to review, with a reason the studio can read", () => {
   });
   assert.equal(trust.trusted, false);
   assert.match(trust.trusted ? "" : trust.reason, /someone@example\.test/);
+});
+
+// Production, 2026-09-29: GR Productions' owner forwarded an inquiry from the
+// address he signs in with. His membership, written at signup, has no email,
+// so the forward was held as "Maybe an inquiry" from a sender StudioCue
+// "doesn't recognise yet".
+test("an owner whose membership has no email is known by their sign-in address", () => {
+  const memberships = [
+    { userId: "owner", role: "studio_owner", status: "active" },
+    { userId: "couple", role: "client", status: "active", email: "couple@example.com" },
+    { userId: "crew", role: "subcontractor", status: "active", email: "crew@example.com" },
+    { userId: "former", role: "studio_admin", status: "removed", email: "former@example.com" },
+    { userId: "coord", role: "studio_coordinator", status: "active", normalizedEmail: "coord@example.com" },
+  ];
+  assert.deepEqual(staffUserIds(memberships), ["owner", "coord"]);
+  const own = staffMailboxes(
+    memberships,
+    new Map([
+      ["owner", "Gabe_Rhodes@GRproductions.tv"],
+      ["couple", "couple-login@example.com"],
+    ]),
+  );
+  assert.deepEqual(own, ["gabe_rhodes@grproductions.tv", "coord@example.com"]);
+
+  const trust = shortAddressTrust({
+    from: "gabe_rhodes@grproductions.tv",
+    envelopeFrom: "gabe_rhodes@grproductions.tv",
+    auth: { spf: "pass", dkim: "{@grproductions.tv : pass}" },
+    own,
+    confirmed: [],
+  });
+  assert.deepEqual(trust, { trusted: true, reason: "studio_mailbox" });
+});
+
+test("without a sign-in address, the same forward is still held for review", () => {
+  const own = staffMailboxes([{ userId: "owner", role: "studio_owner", status: "active" }], new Map());
+  assert.deepEqual(own, []);
 });

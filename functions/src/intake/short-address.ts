@@ -93,6 +93,51 @@ export function canonicalMailbox(address: string | null | undefined): string | n
   return local && host ? `${local}@${host}` : null;
 }
 
+const STAFF_ROLES = new Set(["studio_owner", "studio_admin", "studio_coordinator"]);
+
+export type StaffMembership = {
+  userId?: unknown;
+  role?: unknown;
+  status?: unknown;
+  email?: unknown;
+  normalizedEmail?: unknown;
+};
+
+/**
+ * The mailboxes of a studio's active owners, admins and coordinators.
+ *
+ * A membership doesn't always carry an email — the owner's, written at signup,
+ * never has — so the user's own verified sign-in address stands in for it.
+ * Found on production: GR Productions' owner forwarded an inquiry from the
+ * address he signs in with, and it was held as a stranger's because his
+ * membership had no email on it. `userEmails` is userId → verified address.
+ */
+export function staffMailboxes(
+  memberships: readonly StaffMembership[],
+  userEmails: ReadonlyMap<string, string>,
+): string[] {
+  const addresses: string[] = [];
+  for (const membership of memberships) {
+    if (membership.status !== "active" || !STAFF_ROLES.has(String(membership.role))) continue;
+    const own = [membership.normalizedEmail, membership.email].find(
+      (value): value is string => typeof value === "string" && value.includes("@"),
+    );
+    const signIn = typeof membership.userId === "string" ? userEmails.get(membership.userId) : undefined;
+    for (const address of [own, signIn]) {
+      if (address && address.includes("@")) addresses.push(address.trim().toLowerCase());
+    }
+  }
+  return [...new Set(addresses)];
+}
+
+/** The staff whose sign-in address is needed: every active staff member. */
+export function staffUserIds(memberships: readonly StaffMembership[]): string[] {
+  return memberships
+    .filter((membership) => membership.status === "active" && STAFF_ROLES.has(String(membership.role)))
+    .map((membership) => membership.userId)
+    .filter((userId): userId is string => typeof userId === "string" && userId.length > 0);
+}
+
 function domainOf(address: string | null): string | null {
   if (!address) return null;
   const at = address.lastIndexOf("@");

@@ -1,0 +1,22 @@
+{
+  "note": "Real shape, fake details: a 123FormBuilder notification hand-forwarded from Gmail (production, 2026-09-29). Gmail's plain text writes the bold table header as `*Label* value` on one line, and follows the phone with its link target.",
+  "from": "studio@hartlight.example",
+  "fromName": "Hart Light Photography",
+  "replyTo": null,
+  "subject": "Fwd: GR PRODUCTIONS CONTACT FORM",
+  "text": "---------- Forwarded message ---------\nFrom: Jordan Ellis <noreply@123formbuilder.com>\nDate: Tue, Sep 29, 2026 at 2:46 PM\nSubject: GR PRODUCTIONS CONTACT FORM\nTo: studio@hartlight.example <studio@hartlight.example>\n\n\n*Name* Jordan Ellis\n*Phone Number* 5550142233 <(555)%20014-2233>\n*Event Date* 01/20/2027\n*Email* jordan.ellis@example.com\n*Event Venue* Home\n*Message* Hey. Having a wedding. Are you available?\nThe message has been sent from 203.0.113.7 (United States) at 2026-09-29\n14:46:22 on Chrome 153.0.0.0\nEntry ID: 707\n",
+  "html": null,
+  "expect": {
+    "builder": "123formbuilder",
+    "forwarded": true,
+    "verdict": "inquiry",
+    "contactSource": "form_field",
+    "firstName": "Jordan",
+    "lastName": "Ellis",
+    "email": "jordan.ellis@example.com",
+    "phone": "5550142233",
+    "eventDate": "2027-01-20",
+    "venue": "Home",
+    "messageIncludes": "^Hey\\. Having a wedding\\. Are you available\\?$"
+  }
+}

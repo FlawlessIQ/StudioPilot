@@ -12,9 +12,10 @@ import { eventDateFrom } from "../communications/forwarded-inquiry.js";
  *
  * Three layers, each only when the one before has nothing:
  *
- *  1. The form's own fields — `Label: value` lines, or a label on one line and
- *     its value on the next (how HTML notifications flatten to text). Mapped to
- *     lead fields by label, with the studio's own saved mapping first.
+ *  1. The form's own fields — `Label: value` lines, `*Label* value` lines (a
+ *     bold table header, as Gmail's plain text writes it), or a label on one
+ *     line and its value on the next (how HTML notifications flatten to text).
+ *     Mapped to lead fields by label, with the studio's own saved mapping first.
  *  2. The email's headers — Reply-To is where most builders put the couple.
  *  3. The free text — left for the model, which fills only what is still empty
  *     (functions/src/intake/enrich.ts). Nothing here guesses.
@@ -300,7 +301,7 @@ export function unwrapForward(text: string): Unwrapped {
 export type FormField = { label: string; value: string; key: LeadFieldKey | null };
 
 const NOISE_LINE =
-  /^\(?(sent via|this e-?mail was sent from|this is a notification|powered by|view (it )?in|unsubscribe|reply to this|manage (your )?notifications|submitted (on|at)|submission (id|date|time)|page url|form name|you('ve| have) (received|got) a new|new form submission|you have a new (form )?submission|--|__)/i;
+  /^\(?(the message has been sent from|entry id\b|sent via|this e-?mail was sent from|this is a notification|powered by|view (it )?in|unsubscribe|reply to this|manage (your )?notifications|submitted (on|at)|submission (id|date|time)|page url|form name|you('ve| have) (received|got) a new|new form submission|you have a new (form )?submission|--|__)/i;
 
 /**
  * Labelled fields. "Label: value" on one line, or a short label line followed
@@ -311,7 +312,14 @@ export function readFields(
   body: string,
   studioMapping: Record<string, LeadFieldKey | "ignore"> = {},
 ): FormField[] {
-  const lines = body.split("\n").map((line) => line.trim());
+  // Gmail's plain text writes a bold table header as `*Name* Albert Gersh`: the
+  // label and its value on one line, with no colon. Read as though it had one.
+  // Found on production with a forwarded 123FormBuilder notification, where
+  // every value landed one field down and the job was named after a phone
+  // number.
+  const lines = body
+    .split("\n")
+    .map((line) => line.trim().replace(/^\*([^*]*[a-z][^*]{0,58})\*:?[ \t]*/i, (_, label: string) => `${label.trim()}: `));
   const fields: FormField[] = [];
   const isLabelLine = (line: string) =>
     line.length >= 2 &&
@@ -335,7 +343,8 @@ export function readFields(
       continue;
     }
     const inline = /^([^:]{1,60}):\s*(.*)$/.exec(line);
-    if (inline && !/^https?$/i.test(inline[1]!.trim())) {
+    // A label has a letter in it: "14:46:22 on Chrome" is a time, not a field.
+    if (inline && /[a-z]/i.test(inline[1]!) && !/^https?$/i.test(inline[1]!.trim())) {
       const label = inline[1]!.trim();
       const key = labelToField(label, studioMapping);
       let value = inline[2]!.trim();
@@ -440,6 +449,36 @@ function eventTypeFrom(value: string): string | null {
   return value.trim().slice(0, 60) || null;
 }
 
+/**
+ * Gmail's plain text follows a link with its target: `9175932033
+ * <(917)%20593-2033>`, `Emma <mailto:emma@example.com>`. The target is not
+ * part of what the couple typed. A bare `<emma@example.com>` is kept — that is
+ * an address, and parseAddress reads it.
+ */
+export function withoutLinkTargets(value: string): string {
+  return value
+    .replace(/\s*<(?:mailto:|tel:|https?:\/\/)[^<>\s]*>/gi, "")
+    .replace(/(\S)\s*<[^<>\s@:]+>/g, "$1")
+    .trim();
+}
+
+/**
+ * Whether a value can be a person's name. A job is named after its couple, so
+ * a misread field — a label, a phone number, a link — must not become one.
+ * Nothing is better than a wrong name: an empty name is filled in by the
+ * enrichment pass, or falls back to the couple's email.
+ */
+export function plausiblePersonName(value: string | null | undefined): boolean {
+  const name = value?.trim() ?? "";
+  return (
+    name.length > 0 &&
+    name.length <= 80 &&
+    /\p{L}/u.test(name) &&
+    !/[*<>%:@=\\/{}[\]|]/.test(name) &&
+    !/\d{3}/.test(name)
+  );
+}
+
 /** Turn labelled fields into lead values, each with its source. */
 export function valuesFromFields(fields: FormField[], today: string): CapturedValues {
   const values: CapturedValues = {};
@@ -447,16 +486,24 @@ export function valuesFromFields(fields: FormField[], today: string): CapturedVa
     if (value === null || value === "" || values[key]) return;
     values[key] = { value, source: "form", label };
   };
+  const setName = (key: "firstName" | "lastName" | "partnerName", value: string | null, label: string) =>
+    set(key, plausiblePersonName(value) ? value : null, label);
   for (const field of fields) {
-    const value = field.value.trim();
+    const value = withoutLinkTargets(field.value.trim());
     switch (field.key) {
       case "fullName": {
+        if (!plausiblePersonName(value.replace(/\s+(?:&|and|\+)\s+|\s*&\s*/gi, " "))) break;
         const couple = splitCouple(value);
-        set("firstName", couple.first, field.label);
-        set("lastName", couple.last, field.label);
-        set("partnerName", couple.partner, field.label);
+        setName("firstName", couple.first, field.label);
+        setName("lastName", couple.last, field.label);
+        setName("partnerName", couple.partner, field.label);
         break;
       }
+      case "firstName":
+      case "lastName":
+      case "partnerName":
+        setName(field.key, value.slice(0, 200), field.label);
+        break;
       case "email": {
         const email = parseAddress(value).email;
         if (email && !isPlatformAddress(email)) set("email", email, field.label);
@@ -579,7 +626,7 @@ export function readInquiryEmail(input: InquiryEmail, options: {
   // A person's name in the From header, when it is the couple writing.
   const headerName =
     contactSource === "from" ? input.fromName : contactSource === "forwarded_from" ? unwrapped.fromName : null;
-  if (headerName && !values.firstName) {
+  if (headerName && !values.firstName && plausiblePersonName(headerName)) {
     const couple = splitCouple(headerName);
     if (couple.first) values.firstName = { value: couple.first, source: "header", label: "From" };
     if (couple.last && !values.lastName) values.lastName = { value: couple.last, source: "header", label: "From" };

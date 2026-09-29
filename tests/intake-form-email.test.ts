@@ -5,8 +5,11 @@ import test from "node:test";
 import {
   htmlToText,
   labelToField,
+  plausiblePersonName,
   readFields,
   readInquiryEmail,
+  valuesFromFields,
+  withoutLinkTargets,
 } from "../functions/src/intake/form-email";
 
 /**
@@ -90,4 +93,47 @@ test("a multi-line message stays whole and stops at the next field", () => {
     fields.map((field) => [field.key, field.value]),
     [["message", "line one\nline two"], ["phone", "555 0100"]],
   );
+});
+
+// Production, 2026-09-29: a forwarded 123FormBuilder notification. Gmail wrote
+// each row as `*Label* value`; the reader took each whole line as a label and
+// the next line as its value, so the job was named "*Phone Number* 917…".
+test("Gmail's `*Label* value` lines are read as label and value", () => {
+  const fields = readFields("*Name* Jordan Ellis\n*Phone Number* 5550142233\n*Event Venue* Home");
+  assert.deepEqual(
+    fields.map((field) => [field.key, field.label, field.value]),
+    [
+      ["fullName", "Name", "Jordan Ellis"],
+      ["phone", "Phone Number", "5550142233"],
+      ["venue", "Event Venue", "Home"],
+    ],
+  );
+});
+
+test("a time is not a label, and 123FormBuilder's footer is not the message", () => {
+  const fields = readFields(
+    "*Message* Are you available?\nThe message has been sent from 203.0.113.7 (United States) at 2026-09-29\n14:46:22 on Chrome 153.0.0.0\nEntry ID: 707",
+  );
+  assert.deepEqual(fields.map((field) => [field.key, field.value]), [["message", "Are you available?"]]);
+});
+
+test("a link's target is not part of the value", () => {
+  assert.equal(withoutLinkTargets("5550142233 <(555)%20014-2233>"), "5550142233");
+  assert.equal(withoutLinkTargets("emma@example.com <mailto:emma@example.com>"), "emma@example.com");
+  assert.equal(withoutLinkTargets("Emma <emma@example.com>"), "Emma <emma@example.com>");
+});
+
+test("a misread field never becomes the couple's name", () => {
+  for (const bad of ["*Phone", "Number* 5550142233 <(555)%20014-2233>", "*Phone Number* 5550142233", "14", "e@example.com", ""]) {
+    assert.equal(plausiblePersonName(bad), false, bad);
+  }
+  for (const good of ["Jordan", "Ellis", "Mary-Kate O'Neil", "Zoë", "José García"]) {
+    assert.equal(plausiblePersonName(good), true, good);
+  }
+  const values = valuesFromFields(
+    [{ label: "*Name* Albert", value: "*Phone Number* 5550142233", key: "fullName" }],
+    "2026-09-29",
+  );
+  assert.equal(values.firstName, undefined);
+  assert.equal(values.lastName, undefined);
 });

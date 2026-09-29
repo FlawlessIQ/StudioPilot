@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { plausiblePersonName } from "./form-email.js";
 import { moveLeadThreadsToProject } from "./lead-thread.js";
 
 /**
@@ -106,9 +107,14 @@ export async function convertInquiryToJob(
       contactExists = deterministic.exists;
     }
 
+    // The job is named after this. A lead written before the form reader
+    // learned Gmail's `*Label* value` lines can carry a phone number as its
+    // name; a job called that is worse than one called by the couple's email.
+    const namedAs = (value: string) =>
+      value && value.split(/\s+&\s+/).every((part) => plausiblePersonName(part)) ? value : "";
     const displayName =
-      text(lead.get("displayName")) ||
-      [text(lead.get("firstName")), text(lead.get("lastName"))].filter(Boolean).join(" ") ||
+      namedAs(text(lead.get("displayName"))) ||
+      namedAs([text(lead.get("firstName")), text(lead.get("lastName"))].filter(Boolean).join(" ")) ||
       email ||
       "New inquiry";
     const eventTypeLabel = text(lead.get("eventTypeLabel")) || text(lead.get("eventType")) || "Wedding";
@@ -117,7 +123,7 @@ export async function convertInquiryToJob(
     const existingProject = await transaction.get(projectReference);
 
     if (!contactExists) {
-      const firstName = text(lead.get("firstName")) || displayName.split(/\s+/)[0] || "Client";
+      const firstName = namedAs(text(lead.get("firstName"))) || displayName.split(/\s+/)[0] || "Client";
       transaction.create(db.doc(`contacts/${contactId}`), {
         id: contactId,
         tenantId: input.tenantId,

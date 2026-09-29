@@ -25,6 +25,9 @@ import { reopenOnReply } from "../intake/follow-ups.js";
 import {
   dkimPassesFor,
   shortAddressTrust,
+  staffMailboxes,
+  staffUserIds,
+  type StaffMembership,
   shortInquirySlugFromRecipients,
   type InboundAuthentication,
 } from "../intake/short-address.js";
@@ -172,13 +175,18 @@ async function studioMailboxes(
     studioAddresses(db, tenantId),
     db.collection("memberships").where("tenantId", "==", tenantId).limit(50).get(),
   ]);
-  const staff = memberships.docs
-    .filter(
-      (membership) =>
-        membership.get("status") === "active" &&
-        ["studio_owner", "studio_admin", "studio_coordinator"].includes(String(membership.get("role"))),
-    )
-    .map((membership) => membership.get("normalizedEmail") ?? membership.get("email"));
+  const rows = memberships.docs.map((membership) => membership.data() as StaffMembership);
+  const userIds = staffUserIds(rows);
+  const users = userIds.length
+    ? await db.getAll(...userIds.map((userId) => db.doc(`users/${userId}`)))
+    : [];
+  // Only a verified address: trust rests on this list.
+  const userEmails = new Map(
+    users
+      .filter((user) => user.get("emailVerified") === true && typeof user.get("email") === "string")
+      .map((user) => [user.id, String(user.get("email"))] as const),
+  );
+  const staff = staffMailboxes(rows, userEmails);
   const forwarding = (settings.get("forwardingMailboxes") as unknown[] | undefined) ?? [];
   return [...configured, ...staff, ...forwarding]
     .filter((value): value is string => typeof value === "string" && value.includes("@"))
