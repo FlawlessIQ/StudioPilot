@@ -1,8 +1,8 @@
 "use client";
 
-import { connectStorageEmulator, getDownloadURL, getStorage, ref } from "firebase/storage";
+import { getDownloadURL, ref } from "firebase/storage";
+import { studioStorage } from "@/lib/documents/resolve-file";
 import { sendBookingCommand } from "@/lib/booking/command-client";
-import { getFirebaseClient } from "@/lib/firebase/client";
 import type { ContractCustomField } from "@/features/contracts/document";
 import { markTenantRecordsWritten } from "@/lib/live/record-writes";
 
@@ -89,6 +89,11 @@ export async function voidContract(input: {
   return persisted(sendBookingCommand({ type: "voidContract", idempotencyKey: key(), input }));
 }
 
+/** Whether the couple sees a contract signed on paper (see SignedCopySharing). */
+export async function setSignedCopyShared(input: { contractId: string; shared: boolean }) {
+  return persisted(sendBookingCommand({ type: "setSignedCopyShared", idempotencyKey: key(), input }));
+}
+
 export async function setContractAutoSend(input: {
   enabled: boolean;
   signerName: string | null;
@@ -97,15 +102,7 @@ export async function setContractAutoSend(input: {
   return persisted(sendBookingCommand({ type: "setContractAutoSend", idempotencyKey: key(), input }));
 }
 
-let emulatorConnected = false;
-
 /** A link to a sealed contract, read through the Storage rules as whoever is signed in. */
 export async function signedCopyUrl(path: string): Promise<string> {
-  const client = getFirebaseClient();
-  const storage = getStorage(client.app);
-  if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true" && !emulatorConnected) {
-    connectStorageEmulator(storage, "127.0.0.1", 9199);
-    emulatorConnected = true;
-  }
-  return getDownloadURL(ref(storage, path));
+  return getDownloadURL(ref(studioStorage(), path));
 }

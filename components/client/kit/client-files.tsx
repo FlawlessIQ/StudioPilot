@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { KitRoot, List, Main, Pill, PoweredBy, Row } from "@/components/kit/kit";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
+import { resolveFile } from "@/lib/documents/resolve-file";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { EmptyMoment } from "@/components/client/kit/empty-moment";
 import { clientDeliverables } from "@/features/client/deliverables";
@@ -29,7 +30,7 @@ import {
   useProjectRecords,
 } from "@/components/client/live-client-views";
 
-type Shared = { id: string; name: string; detail: string; url: string | null; image: boolean };
+type Shared = { id: string; name: string; detail: string; url: string | null; path: string | null; image: boolean };
 
 /** Category keys are the studio's filing words; a couple reads these. */
 const CATEGORY: Record<string, string> = {
@@ -67,6 +68,38 @@ export function ClientFiles() {
   const deliveries = useProjectRecords("deliveryRecords");
   const albums = useProjectRecords("albumWorkflows");
   const [preview, setPreview] = useState<Shared | null>(null);
+  const [openNotice, setOpenNotice] = useState<string | null>(null);
+
+  /**
+   * A stored file, opened: its path becomes a link through the Storage rules
+   * (lib/documents/resolve-file.ts). A photo previews in the sheet; anything
+   * else opens in the phone's own viewer, in a tab opened while the tap still
+   * counts as one — after the await it would be a blocked popup.
+   */
+  async function openStored(file: Shared) {
+    if (!file.path) return;
+    setOpenNotice(null);
+    const tab = file.image ? null : window.open("", "_blank");
+    const result = await resolveFile(
+      { kind: "storage", path: file.path, label: file.name },
+      workspace.tenantId ?? null,
+    );
+    if (result.status !== "ready") {
+      tab?.close();
+      setOpenNotice(result.message);
+      return;
+    }
+    if (file.image) {
+      setPreview({ ...file, url: result.url });
+      return;
+    }
+    if (tab) {
+      tab.opener = null;
+      tab.location.href = result.url;
+    } else {
+      setOpenNotice("Allow pop-ups to open files.");
+    }
+  }
   const all = [documents, contracts, invoices, schedules, deliveries, albums];
   const loading = all.some((collection) => collection.loading);
   const error = all.map((collection) => collection.error).find(Boolean) ?? null;
@@ -88,6 +121,7 @@ export function ClientFiles() {
           : typeof record.downloadUrl === "string"
             ? record.downloadUrl
             : null,
+      path: typeof record.storagePath === "string" ? record.storagePath : null,
       image: isImage(record),
     }));
 
@@ -195,6 +229,15 @@ export function ClientFiles() {
                       </span>
                     </a>
                   </li>
+                ) : file.path ? (
+                  <Row
+                    icon={file.image ? FileImage : FileText}
+                    key={file.id}
+                    onClick={() => void openStored(file)}
+                    subtitle={file.detail}
+                    title={file.name}
+                    trailing={<ExternalLink aria-hidden size={18} />}
+                  />
                 ) : (
                   <Row
                     icon={FileText}
@@ -206,6 +249,11 @@ export function ClientFiles() {
                 ),
               )}
             </List>
+            {openNotice ? (
+              <p className="kit-caption" role="status">
+                {openNotice}
+              </p>
+            ) : null}
           </section>
         ) : null}
 

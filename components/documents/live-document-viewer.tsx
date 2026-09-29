@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink, FileText } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { doc, getDoc } from "firebase/firestore";
-import { getDownloadURL, getStorage, ref } from "firebase/storage";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { FilePreview } from "@/components/documents/file-link";
+import { resolveFile, type ResolvedFile } from "@/lib/documents/resolve-file";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatDueDate } from "@/lib/format/event-date";
 import { statusLabel } from "@/features/format/status-label";
@@ -26,18 +27,21 @@ function str(value: unknown): string | null {
  * resolving a download URL first. Provider-delivered files instead carry a
  * ready `downloadUrl`. This resolves whichever is present and gives one clear
  * way to open the file, with the metadata beside it.
+ *
+ * Resolving and previewing are the shared pieces every file chip uses
+ * (lib/documents/resolve-file.ts, components/documents/file-link.tsx), so
+ * there is one viewer, not two.
  */
 export function LiveDocumentViewer({ id }: { id: string }) {
   const workspace = useWorkspace();
   const [record, setRecord] = useState<DocRecord | null | undefined>(undefined);
-  const [url, setUrl] = useState<string | null>(null);
-  const [urlError, setUrlError] = useState<string | null>(null);
+  const [resolved, setResolved] = useState<ResolvedFile | null>(null);
 
   useEffect(() => {
     if (workspace.loading) return;
     let active = true;
     void (async () => {
-      const { app, firestore } = getFirebaseClient();
+      const { firestore } = getFirebaseClient();
       const snapshot = await getDoc(doc(firestore, "documents", id));
       if (!active) return;
       if (!snapshot.exists() || snapshot.get("tenantId") !== workspace.tenantId) {
@@ -46,27 +50,11 @@ export function LiveDocumentViewer({ id }: { id: string }) {
       }
       const data = { id: snapshot.id, ...snapshot.data() } as DocRecord;
       setRecord(data);
-      // A provider-delivered file already has a URL; a stored file has a path.
-      const direct = str(data.downloadUrl) ?? str(data.url) ?? str(data.fileUrl);
-      if (direct) {
-        setUrl(direct);
-        return;
-      }
-      const path =
-        str(data.storagePath) ?? str(data.providerFileId) ?? str(data.filePath);
-      if (!path) {
-        setUrlError("No file is attached to this document yet.");
-        return;
-      }
-      try {
-        const resolved = await getDownloadURL(ref(getStorage(app), path));
-        if (active) setUrl(resolved);
-      } catch {
-        if (active)
-          setUrlError(
-            "This file could not be opened — it may still be processing, or it was moved.",
-          );
-      }
+      const file = await resolveFile(
+        { kind: "document", id, label: str(data.name) ?? "Document" },
+        workspace.tenantId ?? null,
+      );
+      if (active) setResolved(file);
     })();
     return () => {
       active = false;
@@ -110,8 +98,6 @@ export function LiveDocumentViewer({ id }: { id: string }) {
     }
     facts.push(["Updated", when]);
   }
-  const isPdf =
-    /\.pdf(?:$|\?)/i.test(name) || /\.pdf(?:$|\?)/i.test(String(url ?? ""));
 
   return (
     <div className="live-detail-page document-viewer">
@@ -130,27 +116,6 @@ export function LiveDocumentViewer({ id }: { id: string }) {
         ) : null}
       </header>
 
-      <div className="document-viewer-open">
-        {url ? (
-          <a
-            className="button button-dark"
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <ExternalLink size={15} /> Open document
-          </a>
-        ) : urlError ? (
-          <p className="form-notice" role="status">
-            {urlError}
-          </p>
-        ) : (
-          <p className="form-notice" role="status">
-            Preparing file…
-          </p>
-        )}
-      </div>
-
       {facts.length ? (
         <section className="live-detail-grid">
           {facts.map(([label, value]) => (
@@ -162,17 +127,7 @@ export function LiveDocumentViewer({ id }: { id: string }) {
         </section>
       ) : null}
 
-      {url ? (
-        <div className="document-viewer-frame">
-          {isPdf ? (
-            <iframe title={name} src={url} />
-          ) : (
-            <a href={url} target="_blank" rel="noopener noreferrer">
-              <FileText size={17} /> Open this file in a new tab
-            </a>
-          )}
-        </div>
-      ) : null}
+      <FilePreview name={name} resolved={resolved} />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { CheckCircle2, ExternalLink, LockKeyhole, MessageCircle, RotateCw } from "lucide-react";
 import { Actions, Button, Card, List, Main, PoweredBy, Row, Steps } from "@/components/kit/kit";
 import { ClientContractSigning } from "@/components/client/contract-signing";
+import { resolveFile } from "@/lib/documents/resolve-file";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { statusLabel } from "@/features/format/status-label";
 import {
@@ -115,6 +116,24 @@ export function ClientContract() {
   const signers = Array.isArray(contract.signers) ? (contract.signers as Array<Record<string, unknown>>) : [];
   const signingUrl = typeof contract.signingUrl === "string" ? contract.signingUrl : null;
   const complete = ["completed", "signed"].includes(contractStatus);
+  const signedCopyPath = typeof contract.signedCopyPath === "string" ? contract.signedCopyPath : null;
+
+  // Opened while the tap still counts as one; after the await it's a popup.
+  async function openSignedCopy() {
+    if (!signedCopyPath) return;
+    const tab = window.open("", "_blank");
+    const result = await resolveFile(
+      { kind: "storage", path: signedCopyPath, label: "Signed agreement" },
+      workspace.tenantId ?? null,
+    );
+    if (result.status === "ready" && tab) {
+      tab.opener = null;
+      tab.location.href = result.url;
+      return;
+    }
+    tab?.close();
+    setNotice(result.status === "ready" ? "Allow pop-ups to open the signed copy." : result.message);
+  }
 
   return (
     <>
@@ -177,8 +196,15 @@ export function ClientContract() {
             : signingProvider
               ? `Only ${signingProvider} completion evidence can mark this agreement complete.`
               : "Only verified completion evidence can mark this agreement complete."}
-          {complete ? " Your studio holds the signed agreement; ask below if you’d like a copy." : ""}
+          {complete && !signedCopyPath ? " Your studio holds the signed agreement; ask below if you’d like a copy." : ""}
         </p>
+        {/* A contract signed on paper, shared by the studio (on by default):
+            it was theirs and they could only ask for it. */}
+        {complete && signedCopyPath ? (
+          <Button icon={ExternalLink} onClick={() => void openSignedCopy()} variant="secondary">
+            Open the signed copy
+          </Button>
+        ) : null}
         <Link
           className="kit-caption"
           href="/client/messages?context=Contract%20signing"

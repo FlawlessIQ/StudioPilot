@@ -1,5 +1,6 @@
 "use client";
 
+import { SignedCopySharing } from "@/components/contracts/signed-copy-sharing";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { offeredSigningProvider } from "@/features/integrations/schema";
 import { CapabilityNote } from "@/components/integrations/capability-note";
@@ -812,6 +813,9 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     : "Waiting"}
               </StatusBadge>
             </div>
+            {contractComplete && contract ? (
+              <SignedCopySharing contract={contract} showFiles={!(nativeActive && proposal)} />
+            ) : null}
             {canAttachSignedCopy ? (
               <AttachSignedCopy
                 onAttached={(message) => {

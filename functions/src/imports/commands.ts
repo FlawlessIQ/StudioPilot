@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { signedCopyDocument } from "../contracts/signed-copy-document.js";
 import {
   FieldValue,
   getFirestore,
@@ -457,11 +458,24 @@ export async function attachImportedSignedCopy(input: {
   if (!contract) throw new Error("IMPORTED_CONTRACT_NOT_FOUND");
   if (contract.get("signedDocumentId"))
     throw new Error("SIGNED_COPY_ALREADY_ATTACHED");
-  await contract.ref.update({
-    signedDocumentId: input.documentPath,
+  // Filed as a document, so it opens wherever the contract is mentioned.
+  const document = signedCopyDocument({
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    contractId: contract.id,
+    path: input.documentPath,
+    authority: "imported",
+    actorId: input.actorId,
+    now: input.timestamp,
+  });
+  const batch = db.batch();
+  batch.set(db.doc(`documents/${document.id}`), document.data);
+  batch.update(contract.ref, {
+    signedDocumentId: document.id,
     updatedAt: input.timestamp,
     updatedBy: input.actorId,
   });
+  await batch.commit();
   return { projectId: input.projectId, contractId: contract.id, attached: true };
 }
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { FileLinks } from "@/components/documents/file-link";
+import { FILE_BEARING, type FileRef } from "@/features/documents/file-ref";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   collection,
@@ -57,6 +59,8 @@ type ThreadMessage = {
   createdAt: string;
   deliveryStatus: string | null;
   preparedReply: { body: string; basedOn?: string[] } | null;
+  /** What the couple attached; the inbox dropped these entirely. */
+  files: FileRef[];
 };
 
 const channelIcon: Record<MessageChannel, typeof Mail> = {
@@ -364,6 +368,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
               preparedReply: (value.preparedReply ?? null) as
                 | { body: string; basedOn?: string[] }
                 | null,
+              files: FILE_BEARING.messages(value),
             };
           })
           .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -519,6 +524,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
               createdAt: new Date().toISOString(),
               deliveryStatus: "queued",
               preparedReply: null,
+              files: [],
             },
           ]);
         }
@@ -895,6 +901,11 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
                       ) : null}
                       <article className={`msg-bubble is-${message.direction}`}>
                         <p>{message.body ?? message.bodyPreview ?? ""}</p>
+                        {message.files.length ? (
+                          <div className="msg-bubble-files">
+                            <FileLinks files={message.files} />
+                          </div>
+                        ) : null}
                         <span className="msg-bubble-meta">
                           <time dateTime={message.createdAt}>
                             {clockLabel(message.createdAt)}

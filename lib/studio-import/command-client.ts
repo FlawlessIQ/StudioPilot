@@ -556,6 +556,8 @@ export type StudioImportReview = {
     duplicate: Record<string, unknown> | null;
     classification: Record<string, unknown> | null;
     failure: Record<string, unknown> | null;
+    /** Absent from an older functions build. */
+    storageObjectKey?: string | null;
   }>;
   drafts: StudioImportReviewDraft[];
   coverage: {

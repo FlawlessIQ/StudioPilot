@@ -1,4 +1,5 @@
 import type { ProjectState } from "@/features/projects/schema";
+import type { FileRef } from "@/features/documents/file-ref";
 import { projectStateLabel } from "@/features/projects/state-label";
 import { awaitingEventReconciliation } from "@/features/projects/job-moment";
 
@@ -173,7 +174,22 @@ export type JourneyStep = {
    * be its own defect; these are the ones that need a sentence.
    */
   explain: boolean;
+  /**
+   * The files this step produced or holds — the signed contract, the proposal
+   * PDF, the couple's answers — opened in place from the rail
+   * (docs/document-access-plan-2026-09-28.md). Empty when there are none.
+   */
+  files: FileRef[];
 };
+
+/**
+ * What the records behind a step are, when the caller has them: the specific
+ * record to open instead of a list page, and the files it carries. Plain data,
+ * so the engine stays pure.
+ */
+export type JourneyEvidence = Partial<
+  Record<JourneyStepKey, { href?: string | null; files?: readonly FileRef[] }>
+>;
 
 export type JourneyInput = {
   projectId: string;
@@ -268,6 +284,8 @@ export type JourneyInput = {
   dayBeforeDraftStatus: string | null;
   hasDelivery: boolean;
   albumOrReviewDone: boolean;
+  /** Record-specific links and files, by step. Optional; see JourneyEvidence. */
+  evidence?: JourneyEvidence;
 };
 
 const STATE_RANK: Record<string, number> = {
@@ -363,12 +381,12 @@ export function projectJourney(input: JourneyInput): {
   const push = (
     step: Omit<
       JourneyStep,
-      "record" | "owner" | "unlock" | "advance" | "explain"
+      "record" | "owner" | "unlock" | "advance" | "explain" | "files"
     > &
       Partial<
         Pick<
           JourneyStep,
-          "record" | "owner" | "unlock" | "advance" | "explain"
+          "record" | "owner" | "unlock" | "advance" | "explain" | "files"
         >
       >,
   ) =>
@@ -378,6 +396,7 @@ export function projectJourney(input: JourneyInput): {
       unlock: null,
       advance: null,
       explain: false,
+      files: [],
       ...step,
     });
 
@@ -1057,6 +1076,11 @@ export function projectJourney(input: JourneyInput): {
   };
   for (const step of steps) {
     step.record = step.record ?? recordHrefs[step.key];
+    // The specific record, when the caller knows it: "Open proposal" went to
+    // the proposals list filtered by job, one more click from the proposal.
+    const evidence = input.evidence?.[step.key];
+    if (evidence?.href && step.record) step.record = { label: step.record.label, href: evidence.href };
+    step.files = [...(evidence?.files ?? [])];
     if (step.status === "waiting_client") step.owner = "client";
     else if (step.status === "waiting_other") step.owner = "provider";
     else if (step.status === "current") step.owner = "studio";

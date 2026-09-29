@@ -457,6 +457,35 @@ async function clientRecords(
         ),
     );
   }
+  /**
+   * A contract signed on paper or imported, when the studio shares its signed
+   * copy with the couple (on by default — Q6 of docs/execution-plan-2026-09-28.md).
+   * Read from the copy's own document record, which is where that switch is.
+   */
+  const sharedSignedCopies = new Map<string, string>();
+  if (collectionName === "contracts") {
+    const filed = snapshot.docs.filter(
+      (document) =>
+        document.get("provider") !== "studiocue" &&
+        document.get("signedDocumentId") === `signed_contract_${document.id}`,
+    );
+    const copies = await Promise.all(
+      filed.map((document) => adminFirestore.doc(`documents/signed_contract_${document.id}`).get()),
+    );
+    const folder = `tenants/${tenantId}/projects/${projectId}/contracts/`;
+    copies.forEach((copy, index) => {
+      const path = String(copy.get("providerFileId") ?? "");
+      if (
+        copy.exists &&
+        copy.get("tenantId") === tenantId &&
+        copy.get("clientVisible") !== false &&
+        ["client", "shared"].includes(String(copy.get("visibility"))) &&
+        path.startsWith(folder)
+      ) {
+        sharedSignedCopies.set(filed[index]!.id, path);
+      }
+    });
+  }
   return snapshot.docs.flatMap((document) => {
     const value = document.data();
     if (
@@ -502,6 +531,22 @@ async function clientRecords(
         pick(signer, ["name", "role", "order", "status", "completedAt", "signedAt"]),
       );
     }
+    if (collectionName === "documents") {
+      // A file StudioCue stores has a path, not a URL, and the Files page
+      // listed it as "Being checked" forever
+      // (docs/document-access-plan-2026-09-28.md). The path is theirs to open
+      // through the Storage rules, which serve "client"/"shared" files on
+      // their own job once scanned clean — and only a path in this job's own
+      // folder, never the crew's subtree, is ever passed on.
+      const path =
+        [value.providerFileId, value.canonicalPath, value.storagePath].find(
+          (candidate): candidate is string => typeof candidate === "string" && candidate.length > 0,
+        ) ?? "";
+      const folder = `tenants/${tenantId}/projects/${projectId}/`;
+      if (path.startsWith(folder) && !path.slice(folder.length).startsWith("crew/")) {
+        sanitized.storagePath = path;
+      }
+    }
     if (collectionName === "contracts") {
       // The couple's copy of a sealed StudioCue contract, read through the
       // Storage rules (visibility "client"). Never the studio's own paths.
@@ -513,6 +558,8 @@ async function clientRecords(
         signedDocumentId === `signed_contract_${document.id}`
       ) {
         sanitized.signedCopyPath = `tenants/${tenantId}/projects/${projectId}/contracts/signed/${document.id}.pdf`;
+      } else if (sharedSignedCopies.has(document.id)) {
+        sanitized.signedCopyPath = sharedSignedCopies.get(document.id);
       }
     }
     if (collectionName === "schedules" && Array.isArray(sanitized.items)) {

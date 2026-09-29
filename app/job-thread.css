@@ -1177,3 +1177,18 @@
     min-height: 44px;
   }
 }
+
+/* A step's files, under its title (docs/document-access-plan-2026-09-28.md).
+   Column 2, like the reason line, so the chips don't fall into the icon column. */
+.thread-minimap li > .thread-minimap-files {
+  grid-column: 2;
+  padding: 2px 0 4px;
+}
+.thread-minimap li:has(> .thread-minimap-files) {
+  align-items: start;
+}
+
+/* A history moment's files — the signed agreement under "Agreement fully signed". */
+.thread-entry-files {
+  margin-top: 6px;
+}

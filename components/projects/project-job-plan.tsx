@@ -5,6 +5,7 @@ import Link from "next/link";
 import { groupJourneyByPhase } from "@/features/journey/phases";
 import type { JourneyStep } from "@/features/journey/steps";
 import { ProjectPreparedTray } from "@/components/projects/project-prepared-tray";
+import { FileLinks } from "@/components/documents/file-link";
 
 // One list for "what's next on this job". The journey is the spine — every
 // checkpoint already carries a status, an owner, and (when actionable) a link.
@@ -74,14 +75,28 @@ function StepRow({ step }: { step: JourneyStep }) {
       ) : null}
     </>
   );
+  // The step's files — the signed contract, the proposal PDF — open in place.
+  // Beside the row's link, not inside it: a chip is a button of its own.
+  const files =
+    step.files.length && step.status !== "upcoming" ? (
+      <div className="job-plan-files">
+        <FileLinks files={step.files} />
+      </div>
+    ) : null;
   if (href) {
     return (
       <li className={`job-plan-step is-${step.status} is-link`}>
         <Link href={href}>{inner}</Link>
+        {files}
       </li>
     );
   }
-  return <li className={`job-plan-step is-${step.status}`}>{inner}</li>;
+  return (
+    <li className={`job-plan-step is-${step.status}`}>
+      {inner}
+      {files}
+    </li>
+  );
 }
 
 export function ProjectJobPlan({

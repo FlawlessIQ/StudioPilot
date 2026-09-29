@@ -10,8 +10,10 @@ import { inquiryNextMove } from "@/features/inquiries/next-move";
 import {
   invoiceIsOverdue,
   projectJourney,
+  type JourneyEvidence,
   type JourneyStep,
 } from "@/features/journey/steps";
+import { FILE_BEARING } from "@/features/documents/file-ref";
 import {
   questionnaireHasAnswers,
 } from "@/features/journey/substance";
@@ -121,6 +123,39 @@ export function useProjectJourney({
 
   const readinessEvidence = useReadinessEvidence(projectId);
 
+  const newest = (records: Array<Record<string, unknown> & { id: string }>) =>
+    [...records].sort((left, right) => text(right.createdAt).localeCompare(text(left.createdAt)))[0];
+  const projectProposals = forProject(proposals.records);
+  // The accepted one when there is one: that is the proposal the job rests on.
+  const proposal =
+    projectProposals.find((item) => item.status === "accepted") ?? newest(projectProposals);
+  const contract = newest(forProject(contracts.records));
+  const questionnaire = forProject(questionnaires.records)[0];
+  /**
+   * The specific record behind each step, and its files
+   * (docs/document-access-plan-2026-09-28.md, 2.3). The rail's links were list
+   * pages filtered by job and nothing on it opened a file.
+   */
+  const evidence: JourneyEvidence = {
+    proposal: proposal
+      ? { href: `/studio/proposals/${proposal.id}`, files: FILE_BEARING.proposals(proposal) }
+      : undefined,
+    contract: contract ? { files: FILE_BEARING.contracts(contract) } : undefined,
+    retainer: retainerInvoice ? { files: FILE_BEARING.invoiceReferences(retainerInvoice) } : undefined,
+    final_balance: finalInvoice ? { files: FILE_BEARING.invoiceReferences(finalInvoice) } : undefined,
+    schedule_form: questionnaire
+      ? {
+          href: `/studio/questionnaires/${questionnaire.id}`,
+          files: FILE_BEARING.questionnaireResponses(questionnaire),
+        }
+      : undefined,
+    run_of_show: latestSchedule
+      ? { href: `/studio/schedules/${latestSchedule.id}`, files: FILE_BEARING.schedules(latestSchedule) }
+      : undefined,
+    coi: coi ? { files: FILE_BEARING.insuranceRequests(coi) } : undefined,
+    delivery: { files: forProject(deliveries.records).flatMap((delivery) => FILE_BEARING.deliveryRecords(delivery)) },
+  };
+
   const journey = projectJourney({
     projectId,
     state: projectState,
@@ -212,6 +247,7 @@ export function useProjectJourney({
     dayBeforeDraftStatus: text(dayBeforeAction?.status) || null,
     hasDelivery: forProject(deliveries.records).length > 0,
     albumOrReviewDone: ["REVIEW_REQUESTED", "CLOSED"].includes(projectState),
+    evidence,
   });
 
   return { ...journey, readinessEvidence };

@@ -11,6 +11,7 @@
  * Pure. The component loads records; this decides what they mean.
  */
 
+import { fileAnswerRefs, type FileRef } from "@/features/documents/file-ref";
 import {
   categorizePlanningFacts,
   type PlanningFactCategory,
@@ -65,7 +66,8 @@ export function briefStatus(steps: readonly JourneyStep[]): BriefStatus {
   };
 }
 
-export type BriefFact = { label: string; value: string };
+/** An answer that is a file carries it, so the brief can open it in place. */
+export type BriefFact = { label: string; value: string; files?: FileRef[] };
 
 export type BriefFacts = Record<PlanningFactCategory, BriefFact[]>;
 
@@ -123,7 +125,10 @@ export function briefFacts(input: {
     answers: input.answers,
   })) {
     const value = answerText(fact.value);
-    if (value) facts[fact.category].push({ label: fact.label, value });
+    // A file answer showed only its name; it opens now
+    // (docs/document-access-plan-2026-09-28.md).
+    const files = usable.find((field) => field.id === fact.fieldId)?.type === "file" ? fileAnswerRefs(fact.value) : [];
+    if (value) facts[fact.category].push({ label: fact.label, value, ...(files.length ? { files } : {}) });
   }
   return facts;
 }

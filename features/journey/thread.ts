@@ -16,6 +16,7 @@
  */
 
 import { formatDueDate } from "@/lib/format/event-date";
+import { FILE_BEARING, type FileRef } from "@/features/documents/file-ref";
 
 export type ThreadActor = "client" | "studio" | "studiocue" | "provider";
 
@@ -26,6 +27,7 @@ export type ThreadEntryKind =
   | "artifact"
   /** The engines narrating what they did. */
   | "system";
+
 
 export type ThreadArtifact = {
   type:
@@ -50,6 +52,11 @@ export type ThreadEntry = {
   title: string;
   detail: string | null;
   artifact: ThreadArtifact | null;
+  /**
+   * The files this moment produced — "Agreement fully signed" carries the
+   * signed PDF — opened in place (docs/document-access-plan-2026-09-28.md).
+   */
+  files?: FileRef[];
 };
 
 export type ThreadRecord = Record<string, unknown> & { id: string };
@@ -225,6 +232,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
               ].filter(Boolean),
               href: `/studio/proposals/${proposal.id}`,
             },
+            files: FILE_BEARING.proposals(proposal),
           }
         : null,
     );
@@ -241,6 +249,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
               ? `Viewed ${formatDueDate(text(proposal.viewedAt))}`
               : "Not opened yet",
             artifact: null,
+            files: FILE_BEARING.proposals(proposal),
           }
         : null,
     );
@@ -255,6 +264,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
             title: `${client} accepted the proposal`,
             detail: total,
             artifact: null,
+            files: FILE_BEARING.proposals(proposal),
           }
         : null,
     );
@@ -295,6 +305,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
             title: "Agreement fully signed",
             detail: "Verified by the signing provider",
             artifact: null,
+            files: FILE_BEARING.contracts(contract),
           }
         : null,
     );
@@ -324,8 +335,10 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
                   ? `due ${formatDueDate(text(invoice.dueDate))}`
                   : "",
               ].filter(Boolean),
-              href: "/studio/invoices",
+              // Unfiltered, it opened every invoice the studio had ever raised.
+              href: `/studio/invoices?project=${input.projectId}`,
             },
+            files: FILE_BEARING.invoiceReferences(invoice),
           }
         : null,
     );
@@ -340,6 +353,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
             title: `${kind} paid`,
             detail: money(invoice.amountCents, invoice.currency),
             artifact: null,
+            files: FILE_BEARING.invoiceReferences(invoice),
           }
         : null,
     );
@@ -362,7 +376,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
               type: "questionnaire",
               status,
               facts: [readable(status)],
-              href: `/studio/questionnaires?project=${input.projectId}`,
+              href: `/studio/questionnaires/${response.id}`,
             },
           }
         : null,
@@ -378,6 +392,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
             title: `${client} completed the details form`,
             detail: null,
             artifact: null,
+            files: FILE_BEARING.questionnaireResponses(response),
           }
         : null,
     );
@@ -400,8 +415,9 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
               type: "schedule",
               status,
               facts: [readable(status)],
-              href: `/studio/schedules?project=${input.projectId}`,
+              href: `/studio/schedules/${schedule.id}`,
             },
+            files: FILE_BEARING.schedules(schedule),
           }
         : null,
     );
@@ -440,6 +456,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
             title: "Certificate of insurance",
             detail: readable(request.status),
             artifact: null,
+            files: FILE_BEARING.insuranceRequests(request),
           }
         : null,
     );
@@ -467,6 +484,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
               ].filter(Boolean),
               href: `/studio/delivery?project=${input.projectId}`,
             },
+            files: FILE_BEARING.deliveryRecords(delivery),
           }
         : null,
     );

@@ -214,6 +214,9 @@ export async function readStudioImportReview(
         status: string(item.get("status")),
         classification: item.get("classification") ?? null,
         failure: item.get("failure") ?? null,
+        // So the review can open the file the drafts came from. The storage
+        // rules serve it only once scanned clean, to owners and admins.
+        storageObjectKey: string(item.get("storageObjectKey")) || null,
       };
       const sha256 = string(item.get("sha256"));
       const activationLock = sha256

@@ -1,5 +1,6 @@
 "use client";
 
+import { FileLinks } from "@/components/documents/file-link";
 import Link from "next/link";
 import { useMemo } from "react";
 import {
@@ -43,7 +44,7 @@ function FactList({ facts }: { facts: BriefFact[] }) {
       {facts.slice(0, 8).map((fact) => (
         <div key={`${fact.label}-${fact.value}`}>
           <dt>{fact.label}</dt>
-          <dd>{fact.value}</dd>
+          <dd>{fact.files?.length ? <FileLinks files={fact.files} /> : fact.value}</dd>
         </div>
       ))}
     </dl>

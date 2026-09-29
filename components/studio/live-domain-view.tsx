@@ -1,5 +1,7 @@
 "use client";
 
+import { FileLinks } from "@/components/documents/file-link";
+import { FILE_BEARING, type FileRef } from "@/features/documents/file-ref";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   jobIsOver,
@@ -136,6 +138,13 @@ type DomainConfig = {
    */
   statusLabels?: readonly [string, string];
   href?: (record: Value) => string;
+  /**
+   * The files a row holds — signed PDF, COI, hosted invoice — as chips in the
+   * row (docs/document-access-plan-2026-09-28.md). tests/file-ref.test.ts
+   * fails when a list reads a file-bearing collection and has neither this
+   * nor `href`.
+   */
+  files?: (record: Value) => FileRef[];
 };
 
 const configurations: Record<Domain, DomainConfig> = {
@@ -170,6 +179,7 @@ const configurations: Record<Domain, DomainConfig> = {
       { label: "Expires", fields: ["expiresAt"], kind: "date" },
     ],
     href: (record) => `/studio/proposals/${record.id}`,
+    files: (record) => FILE_BEARING.proposals(record),
   },
   contracts: {
     collection: "contracts",
@@ -187,6 +197,9 @@ const configurations: Record<Domain, DomainConfig> = {
       { label: "Sent", fields: ["sentAt"], kind: "date" },
       { label: "Completed", fields: ["completedAt"], kind: "date" },
     ],
+    // No contract page of its own: the job's agreement is where it lives.
+    href: (record) => `/studio/contracts?project=${encodeURIComponent(String(record.projectId ?? ""))}`,
+    files: (record) => FILE_BEARING.contracts(record),
   },
   invoices: {
     collection: "invoiceReferences",
@@ -199,6 +212,7 @@ const configurations: Record<Domain, DomainConfig> = {
       { label: "Balance", fields: ["balanceCents"], kind: "money" },
       { label: "Due", fields: ["dueDate"], kind: "date" },
     ],
+    files: (record) => FILE_BEARING.invoiceReferences(record),
   },
   questionnaires: {
     collection: "questionnaireResponses",
@@ -211,6 +225,10 @@ const configurations: Record<Domain, DomainConfig> = {
       { label: "Due", fields: ["dueDate"], kind: "date" },
       { label: "Updated", fields: ["updatedAt"], kind: "date" },
     ],
+    // Every row was a bare <article>: a submitted form could be seen and not
+    // read (docs/document-access-plan-2026-09-28.md).
+    href: (record) => `/studio/questionnaires/${record.id}`,
+    files: (record) => FILE_BEARING.questionnaireResponses(record),
   },
   vendors: {
     collection: "vendors",
@@ -235,6 +253,7 @@ const configurations: Record<Domain, DomainConfig> = {
       { label: "Scan", fields: ["scanStatus"] },
       { label: "Decision", fields: ["humanDecision"] },
     ],
+    files: (record) => FILE_BEARING.insuranceRequests(record),
   },
   schedules: {
     collection: "schedules",
@@ -251,6 +270,7 @@ const configurations: Record<Domain, DomainConfig> = {
       { label: "Version dated", fields: ["publishedAt"], kind: "date" },
     ],
     href: (record) => `/studio/schedules/${record.id}`,
+    files: (record) => FILE_BEARING.schedules(record),
   },
   crew_profiles: {
     collection: "crewProfiles",
@@ -268,6 +288,7 @@ const configurations: Record<Domain, DomainConfig> = {
     ],
     statusLabels: ["Active", "Inactive"],
     href: (record) => `/studio/crew/${record.id}`,
+    files: (record) => FILE_BEARING.crewProfiles(record),
   },
   crew_assignments: {
     collection: "crewAssignments",
@@ -281,6 +302,7 @@ const configurations: Record<Domain, DomainConfig> = {
       { label: "Paperwork items", fields: ["requirements"], kind: "count" },
     ],
     href: (record) => `/studio/crew/${record.id}`,
+    files: (record) => FILE_BEARING.crewAssignments(record),
   },
   tasks: {
     collection: "tasks",
@@ -333,6 +355,7 @@ const configurations: Record<Domain, DomainConfig> = {
       { label: "Expires", fields: ["expirationDate"], kind: "date" },
       { label: "Downloaded", fields: ["downloadedAt"], kind: "date" },
     ],
+    files: (record) => FILE_BEARING.deliveryRecords(record),
   },
   reviews: {
     collection: "reviewRequests",
@@ -423,6 +446,7 @@ const configurations: Record<Domain, DomainConfig> = {
       { label: "Sent", fields: ["sentAt"], kind: "date" },
       { label: "Mode", fields: ["deliveryMode"] },
     ],
+    files: (record) => FILE_BEARING.messages(record),
   },
   audit: {
     collection: "auditEvents",
@@ -948,6 +972,7 @@ export function LiveDomainView({
           typeof rawStatus === "boolean" && config.statusLabels
             ? config.statusLabels[rawStatus ? 0 : 1]
             : rawStatus;
+        const fileRefs = config.files?.(record) ?? [];
         const content = (
           <>
             {/*
@@ -983,7 +1008,7 @@ export function LiveDomainView({
             {/* The bare arrow means "this whole row is a link". When the row
                 has its own actions it is not one any more, so the explicit
                 "Open" cell below replaces it rather than sitting beside it. */}
-            {config.href && !rowActions ? <ArrowRight /> : null}
+            {config.href && !rowActions && !fileRefs.length ? <ArrowRight /> : null}
           </>
         );
         /**
@@ -1003,7 +1028,9 @@ export function LiveDomainView({
           * click navigate.
           */
         const actions = renderRowActions(rowActions, record);
-        if (actions) {
+        // A row with files is not one link any more: its chips are buttons
+        // of their own, so it takes the same shape as a row with actions.
+        if (actions || fileRefs.length) {
           return (
             <article className="live-domain-row-has-actions" key={record.id}>
               {content}
@@ -1014,7 +1041,10 @@ export function LiveDomainView({
               ) : null}
               {/* One cell for all of a row's controls, so they sit side by
                   side; each used to take a full-width line of its own. */}
-              <div className="record-row-actions">{actions}</div>
+              <div className="record-row-actions">
+                {fileRefs.length ? <FileLinks files={fileRefs} /> : null}
+                {actions}
+              </div>
             </article>
           );
         }

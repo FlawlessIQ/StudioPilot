@@ -1,5 +1,6 @@
 "use client";
 
+import { FileLinks } from "@/components/documents/file-link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { todayLocalIso } from "@/lib/format/event-date";
 import Link from "next/link";
@@ -323,6 +324,11 @@ function ThreadEntryCard({ entry }: { entry: ThreadEntry }) {
               Open <ArrowUpRight size={12} />
             </Link>
           ) : null}
+        </div>
+      ) : null}
+      {entry.files?.length ? (
+        <div className="thread-entry-files">
+          <FileLinks files={entry.files} />
         </div>
       ) : null}
     </article>
@@ -945,6 +951,11 @@ export function ThreadMinimap({ steps }: { steps: JourneyStep[] }) {
                     the rail. */}
                 {step.explain || step.status === "current" ? (
                   <small>{step.detail}</small>
+                ) : null}
+                {step.files.length && step.status !== "upcoming" ? (
+                  <div className="thread-minimap-files">
+                    <FileLinks files={step.files} />
+                  </div>
                 ) : null}
               </li>
             ))}

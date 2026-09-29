@@ -1,5 +1,6 @@
 "use client";
 
+import { FileLink } from "@/components/documents/file-link";
 import {
   AlertTriangle,
   ArrowLeftRight,
@@ -434,6 +435,9 @@ export function StudioImportReviewWorkspace({
               <div className="studio-import-source-file" key={source.id}>
                 <strong>{source.name}</strong>
                 <small>{statusLabel(source.status)}</small>
+                {source.storageObjectKey ? (
+                  <FileLink file={{ kind: "storage", path: source.storageObjectKey, label: source.name }} label="Open the file" />
+                ) : null}
                 {source.duplicate ? (
                   <span className="is-duplicate">
                     <ArrowLeftRight size={13} /> Exact file already imported

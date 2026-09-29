@@ -17,6 +17,7 @@ const step = (partial: Partial<JourneyStep> & Pick<JourneyStep, "key" | "status"
   unlock: null,
   advance: null,
   explain: false,
+  files: [],
   ...partial,
 });
 

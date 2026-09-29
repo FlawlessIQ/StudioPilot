@@ -339,6 +339,8 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "This job's agreement is already signed.",
   CONTRACT_ALREADY_EXISTS:
     "An agreement is already out for this job. Withdraw it first if it needs to change.",
+  SIGNED_COPY_NOT_FILED:
+    "This contract's signed copy isn't filed yet, so there's nothing to share. Attach the signed copy first.",
   CONTRACT_NOT_FOUND:
     "That agreement could not be found. Refresh the booking page.",
   NOT_A_STUDIOCUE_CONTRACT:

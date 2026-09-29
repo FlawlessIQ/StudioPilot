@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { signedCopyDocument, signedCopyDocumentId, signedCopyPrefix } from "../contracts/signed-copy-document.js";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
@@ -46,6 +47,8 @@ import {
   sendContractInput,
   setContractAutoSend,
   setContractAutoSendInput,
+  setSignedCopyShared,
+  setSignedCopySharedInput,
   voidContract,
   voidContractInput,
 } from "../contracts/commands.js";
@@ -81,6 +84,12 @@ const commandSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: setContractAutoSendInput,
+  }),
+  z.object({
+    type: z.literal("setSignedCopyShared"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: setSignedCopySharedInput,
   }),
   z.object({
     type: z.literal("voidContract"),
@@ -1027,6 +1036,16 @@ export const bookingCommand = onRequest(
           .limit(10)
           .get();
 
+        // Only a file in this job's own contracts folder: a valid request must
+        // not be able to attach another couple's document to this one. The
+        // import path already checked this; the hand-recorded path did not.
+        const signedCopyPath = command.input.signedDocumentId;
+        if (
+          signedCopyPath &&
+          !signedCopyPath.startsWith(signedCopyPrefix(command.tenantId, command.input.projectId))
+        ) {
+          throw new Error("SIGNED_COPY_PATH_MISMATCH");
+        }
         const contractId = stableId(
           "contract",
           command.tenantId,
@@ -1109,6 +1128,18 @@ export const bookingCommand = onRequest(
             updatedBy: identity.uid,
           });
         }
+        if (signedCopyPath) {
+          const document = signedCopyDocument({
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            contractId,
+            path: signedCopyPath,
+            authority: "manual_attested",
+            actorId: identity.uid,
+            now: timestamp,
+          });
+          batch.set(firestore.doc(`documents/${document.id}`), document.data);
+        }
         batch.create(firestore.doc(`contracts/${contractId}`), {
           id: contractId,
           tenantId: command.tenantId,
@@ -1133,7 +1164,8 @@ export const bookingCommand = onRequest(
           ],
           sentAt: null,
           completedAt: `${command.input.signedAt}T00:00:00.000Z`,
-          signedDocumentId: command.input.signedDocumentId,
+          // A document id, not the upload's path: filed just below.
+          signedDocumentId: signedCopyPath ? signedCopyDocumentId(contractId) : null,
           certificateDocumentId: null,
           completionEvidence: {
             kind: "manual_attestation",
@@ -2287,6 +2319,7 @@ export const bookingCommand = onRequest(
         command.type === "prepareContract" ||
         command.type === "sendContract" ||
         command.type === "setContractAutoSend" ||
+        command.type === "setSignedCopyShared" ||
         command.type === "voidContract"
       ) {
         const contractContext = {
@@ -2323,6 +2356,8 @@ export const bookingCommand = onRequest(
           result = await sendContract(contractContext, command.input);
         else if (command.type === "setContractAutoSend")
           result = await setContractAutoSend(contractContext, command.input);
+        else if (command.type === "setSignedCopyShared")
+          result = await setSignedCopyShared(contractContext, command.input);
         else result = await voidContract(contractContext, command.input);
       } else if (command.type === "previewExistingBookings") {
         result = await previewExistingBookings({

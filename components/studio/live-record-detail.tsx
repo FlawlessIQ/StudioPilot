@@ -1,5 +1,7 @@
 "use client";
 
+import { FileLink, FileLinks } from "@/components/documents/file-link";
+import { FILE_BEARING, refFromPointer, type FileRef } from "@/features/documents/file-ref";
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { statusLabel } from "@/features/format/status-label";
@@ -379,7 +381,7 @@ function CrewStudioOperations({
         {requirements.map((item, index) => {
           const status = String(item.status ?? "missing");
           const complete = ["complete", "waived"].includes(status);
-          return <article key={String(item.id ?? index)}><FileCheck2/><span><strong>{show(item.name, "Name")}</strong><small>{show(item.kind, "Kind")} · {show(status, "Status")}</small></span>{!complete ? <span className="crew-studio-inline-actions"><button className="button button-light button-sm" disabled={Boolean(busy)} type="button" onClick={() => void command("completeRequirement", { requirementId: item.id, documentId: item.documentId ?? null })}>Approve</button><button className="button button-light button-sm" disabled={Boolean(busy)} type="button" onClick={() => { const reason = window.prompt("Reason for waiving this requirement?"); if (reason?.trim()) void command("waiveRequirement", { requirementId: item.id, reason: reason.trim() }); }}>Waive</button></span> : <CheckCircle2 className="crew-studio-complete"/>}</article>;
+          return <article key={String(item.id ?? index)}><FileCheck2/><span><strong>{show(item.name, "Name")}</strong><small>{show(item.kind, "Kind")} · {show(status, "Status")}</small></span>{requirementFile(item) ? <FileLink file={requirementFile(item)!} /> : null}{!complete ? <span className="crew-studio-inline-actions"><button className="button button-light button-sm" disabled={Boolean(busy)} type="button" onClick={() => void command("completeRequirement", { requirementId: item.id, documentId: item.documentId ?? null })}>Approve</button><button className="button button-light button-sm" disabled={Boolean(busy)} type="button" onClick={() => { const reason = window.prompt("Reason for waiving this requirement?"); if (reason?.trim()) void command("waiveRequirement", { requirementId: item.id, reason: reason.trim() }); }}>Waive</button></span> : <CheckCircle2 className="crew-studio-complete"/>}</article>;
         })}
       </div>
       {assignment.status === "accepted" ? <button className="button button-light" disabled={Boolean(busy)} type="button" onClick={() => void command("completeAssignment", {})}><CheckCircle2/> Mark event work complete</button> : null}
@@ -468,6 +470,13 @@ function CrewRecordLayout({
         </div>
         <StatusBadge tone={done ? "success" : "warning"}>{status}</StatusBadge>
       </header>
+      {/* Their W-9 and insurance, openable: the directory said "received"
+          and offered no way to see what was received. */}
+      {!isAssignment && FILE_BEARING.crewProfiles(record).length ? (
+        <div className="crew-record-files">
+          <FileLinks files={FILE_BEARING.crewProfiles(record)} />
+        </div>
+      ) : null}
       {facts.length ? (
         <dl className="crew-record-facts">
           {facts.map(({ label, value, wide }) => (
@@ -490,6 +499,16 @@ function CrewRecordLayout({
       </section>
     </div>
   );
+}
+
+
+/**
+ * The file a crew member sent for a requirement, beside Approve: the studio
+ * was asked to approve a W-9 it had no way to open
+ * (docs/document-access-plan-2026-09-28.md).
+ */
+function requirementFile(item: Record<string, unknown>): FileRef | null {
+  return refFromPointer(item.documentId, typeof item.name === "string" && item.name ? item.name : "Document");
 }
 
 export function LiveRecordDetail({
@@ -627,7 +646,7 @@ export function LiveRecordDetail({
         ))}
       </section>
       {items.length ? <section className="panel live-detail-list"><div className="panel-heading"><div><h2>Schedule items</h2><p>Current immutable version</p></div></div>{items.map((item, index) => <article key={String(item.id ?? index)}><time>{show(item.startAt, "Arrival")}</time><span><strong>{show(item.title, "Title")}</strong><small>{show(item.location, "Location")}</small></span><small>{show(item.endAt, "Departure")}</small></article>)}</section> : null}
-      {requirements.length ? <section className="panel live-detail-list"><div className="panel-heading"><div><h2>Requirements</h2><p>Verified completion evidence</p></div></div>{requirements.map((item, index) => <article key={String(item.id ?? index)}><span><strong>{show(item.name, "Name")}</strong><small>{show(item.kind, "Kind")}</small></span><StatusBadge>{show(item.status, "Status")}</StatusBadge></article>)}</section> : null}
+      {requirements.length ? <section className="panel live-detail-list"><div className="panel-heading"><div><h2>Requirements</h2><p>Verified completion evidence</p></div></div>{requirements.map((item, index) => <article key={String(item.id ?? index)}><span><strong>{show(item.name, "Name")}</strong><small>{show(item.kind, "Kind")}</small></span>{requirementFile(item) ? <FileLink file={requirementFile(item)!} /> : null}<StatusBadge>{show(item.status, "Status")}</StatusBadge></article>)}</section> : null}
       {checkpoints.length ? (
         <section className="panel live-detail-list is-two-column">
           <div className="panel-heading">

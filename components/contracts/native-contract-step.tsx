@@ -1,5 +1,7 @@
 "use client";
 
+import { FileLinks } from "@/components/documents/file-link";
+import { FILE_BEARING } from "@/features/documents/file-ref";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { doc, getDoc } from "firebase/firestore";
@@ -236,7 +238,11 @@ export function NativeContractStep({
           ) : null}
         </div>
         <div className="native-contract-actions">
-          {status === "completed" ? (
+          {/* The sealed copy's own record, opened in place. Until the seal
+              lands there is no record yet, and the button says so. */}
+          {status === "completed" && live && FILE_BEARING.contracts(live).length ? (
+            <FileLinks files={FILE_BEARING.contracts(live)} />
+          ) : status === "completed" ? (
             <button className="button button-dark" onClick={() => void openSignedCopy()} type="button">
               <Download aria-hidden size={15} /> Signed copy
             </button>

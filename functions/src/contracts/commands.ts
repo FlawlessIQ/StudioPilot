@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { signedCopyDocumentId } from "./signed-copy-document.js";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
 import { mintClientInvitation } from "../client/invitation-mint.js";
@@ -859,6 +860,63 @@ export { customFieldKey };
 // ---------------------------------------------------------------------------
 // On acceptance
 // ---------------------------------------------------------------------------
+
+export const setSignedCopySharedInput = z.object({
+  contractId: z.string().min(1).max(200),
+  shared: z.boolean(),
+});
+
+/**
+ * Whether the couple sees a contract signed on paper (Q6 of
+ * docs/execution-plan-2026-09-28.md).
+ *
+ * On by default — it is their contract — and a switch the studio can turn
+ * off. Only for a signed copy that was recorded by hand or imported: a
+ * contract signed in StudioCue is always the couple's to keep.
+ */
+export async function setSignedCopyShared(
+  context: CommandContext,
+  input: z.infer<typeof setSignedCopySharedInput>,
+) {
+  requireOwnerOrAdmin(context.membership, "CONTRACT_SIGNING_PERMISSION_REQUIRED");
+  const db = getFirestore();
+  const contract = await db.doc(`contracts/${input.contractId}`).get();
+  if (!contract.exists || contract.get("tenantId") !== context.tenantId) throw new Error("CONTRACT_NOT_FOUND");
+  const documentId = signedCopyDocumentId(input.contractId);
+  if (contract.get("signedDocumentId") !== documentId || contract.get("provider") === "studiocue") {
+    throw new Error("SIGNED_COPY_NOT_FILED");
+  }
+  const document = db.doc(`documents/${documentId}`);
+  const before = await document.get();
+  if (!before.exists || before.get("tenantId") !== context.tenantId) throw new Error("SIGNED_COPY_NOT_FILED");
+  const batch = db.batch();
+  batch.update(document, {
+    clientVisible: input.shared,
+    updatedAt: context.timestamp,
+    updatedBy: context.actorId,
+  });
+  const auditId = stableId("audit_signed_copy_shared", context.tenantId, context.idempotencyKey);
+  batch.create(db.doc(`auditEvents/${auditId}`), {
+    id: auditId,
+    tenantId: context.tenantId,
+    projectId: String(contract.get("projectId") ?? "") || null,
+    actorId: context.actorId,
+    actorType: "user",
+    action: input.shared ? "contract.signed_copy_shared" : "contract.signed_copy_hidden",
+    entityType: "document",
+    entityId: documentId,
+    timestamp: context.timestamp,
+    before: { clientVisible: before.get("clientVisible") !== false },
+    after: { clientVisible: input.shared },
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent,
+    correlationId: context.idempotencyKey,
+    automationRunId: null,
+    providerEventId: null,
+  });
+  await batch.commit();
+  return { contractId: input.contractId, shared: input.shared };
+}
 
 export const setContractAutoSendInput = z.object({
   enabled: z.boolean(),

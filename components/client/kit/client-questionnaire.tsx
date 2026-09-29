@@ -1,5 +1,7 @@
 "use client";
 
+import { attachmentRef, type FileRef } from "@/features/documents/file-ref";
+import { resolveFile } from "@/lib/documents/resolve-file";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { doc, getDoc } from "firebase/firestore";
@@ -581,6 +583,9 @@ function Question({
         <span className="kit-hint">
           {value ? `${value} · uploaded securely` : "PDF, Word, JPG or PNG, up to 12 MB."}
         </span>
+        {/* Their own upload, openable once it has been checked
+            (docs/document-access-plan-2026-09-28.md, E). */}
+        {attachmentRef(answer) ? <OpenUpload file={attachmentRef(answer)!} /> : null}
       </div>
     );
 
@@ -646,5 +651,36 @@ function Question({
       type={inputType}
       value={value}
     />
+  );
+}
+
+/** A file the couple uploaded, opened in the phone's own viewer. */
+function OpenUpload({ file }: { file: FileRef }) {
+  const workspace = useWorkspace();
+  const [notice, setNotice] = useState<string | null>(null);
+  async function open() {
+    setNotice(null);
+    // Opened while the tap still counts as one; after the await it's a popup.
+    const tab = window.open("", "_blank");
+    const result = await resolveFile(file, workspace.tenantId ?? null);
+    if (result.status === "ready" && tab) {
+      tab.opener = null;
+      tab.location.href = result.url;
+      return;
+    }
+    tab?.close();
+    setNotice(result.status === "ready" ? "Allow pop-ups to open the file." : result.message);
+  }
+  return (
+    <>
+      <button className="kit-link-button" onClick={() => void open()} type="button">
+        Open {file.label}
+      </button>
+      {notice ? (
+        <span className="kit-hint" role="status">
+          {notice}
+        </span>
+      ) : null}
+    </>
   );
 }
