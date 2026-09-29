@@ -2638,13 +2638,26 @@ export const aiCopilotCommand = onRequest(
           ownerOrAdmin: broadAccess,
         });
         if (!checked.ok) return { ok: false, reason: checked.reason };
-        const duplicate = preparedActions.some(
+        /**
+         * The same act on the same job is one card. The model sometimes calls
+         * twice for one request — once bare, once with the words — and the
+         * operator saw two identical "Swap the package" cards. Only two
+         * different named things ("finish the florist task and the COI task")
+         * are two cards; a later call's words fill in an earlier bare one.
+         */
+        const duplicate = preparedActions.find(
           (entry) =>
             entry.action === checked.directive.action &&
             entry.projectId === checked.directive.projectId &&
-            entry.subject === checked.directive.subject,
+            (!entry.subject || !checked.directive.subject || entry.subject === checked.directive.subject),
         );
-        if (!duplicate) {
+        if (duplicate) {
+          duplicate.subject ??= checked.directive.subject;
+          duplicate.text ??= checked.directive.text;
+          duplicate.field ??= checked.directive.field;
+          duplicate.date ??= checked.directive.date;
+          duplicate.time ??= checked.directive.time;
+        } else {
           if (preparedActions.length >= MAX_PREPARED_ACTIONS)
             return { ok: false, reason: "three cards is the most one answer prepares; mention the rest" };
           preparedActions.push({ key: `act_${randomUUID()}`, ...checked.directive });
