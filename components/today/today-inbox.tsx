@@ -333,6 +333,11 @@ export function TodayInbox() {
   );
   const clear = (id: string) =>
     setCleared((current) => new Set(current).add(id));
+  const maybes = inbox.maybeInquiries.filter(
+    (item) => !cleared.has(`maybe-${item.leadId}`),
+  );
+  const formMaybes = maybes.filter((item) => item.fromForm);
+  const otherMaybes = maybes.filter((item) => !item.fromForm);
 
   return (
     <AppShell active="Today">
@@ -435,6 +440,19 @@ export function TodayInbox() {
 
           {!loading ? <TrustDialOffers /> : null}
 
+          {/* A website-form submission held only because its forwarder
+              couldn't be confirmed is a couple by its content. Up here, above
+              setup and the queue — Gabe forwarded one and it sat beneath
+              eleven items, where he had to ask where it went. Still not
+              counted and never the headline. */}
+          {!loading ? (
+            <TodayMaybeInquiries
+              items={formMaybes}
+              onAnswered={(leadId) => clear(`maybe-${leadId}`)}
+              variant="form"
+            />
+          ) : null}
+
           {!loading && !setup.complete && !(setup.brandNew && waiting > 0) ? (
             /**
              * The first screen a new studio ever sees.
@@ -501,7 +519,7 @@ export function TodayInbox() {
           {/* Not beneath "Let's get you set up": a brand-new studio has
               nothing waiting because it has nothing yet, and the setup card
               above is what to do. */}
-          {!loading && waiting === 0 && !(setup.brandNew && !setup.complete) ? (
+          {!loading && waiting === 0 && !(setup.brandNew && !setup.complete) && !formMaybes.length ? (
             <section className="today-clear">
               <span className="today-clear-icon">
                 <Check size={20} />
@@ -610,12 +628,11 @@ export function TodayInbox() {
           ) : null}
 
           {/* Beside the queue, not in it: not counted, never the headline,
-              always below the work that is certainly real. */}
+              always below the work that is certainly real. Form submissions
+              are asked about near the top instead (above). */}
           {!loading ? (
             <TodayMaybeInquiries
-              items={inbox.maybeInquiries.filter(
-                (item) => !cleared.has(`maybe-${item.leadId}`),
-              )}
+              items={otherMaybes}
               onAnswered={(leadId) => clear(`maybe-${leadId}`)}
             />
           ) : null}

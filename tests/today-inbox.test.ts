@@ -653,6 +653,62 @@ test("a capture we weren't sure about is asked about beside the queue, never in 
   assert.equal(oldest?.snippet, "Spring promo: 20% off albums");
 });
 
+// Production, 2026-09-29 (backlog H8): Gabe forwarded a real website-form
+// inquiry. His domain has no SPF or DKIM, so it was held as a maybe — and
+// listed beneath the whole queue, where he had to ask where it went.
+test("a form submission held only for its sender is marked to show near the top", () => {
+  const inbox = todayInbox({
+    ...base,
+    leads: [
+      {
+        id: "form",
+        status: "new",
+        needsConfirmation: true,
+        displayName: "Albert Gersh",
+        email: "albert@example.com",
+        source: "website_form",
+        formBuilderLabel: "123FormBuilder form",
+        receivedAt: "2026-08-20T08:00:00.000Z",
+      },
+      {
+        id: "marketplace",
+        status: "new",
+        needsConfirmation: true,
+        phone: "555 0100",
+        source: "marketplace_the_knot",
+        receivedAt: "2026-08-19T08:00:00.000Z",
+      },
+      {
+        id: "form-no-contact",
+        status: "new",
+        needsConfirmation: true,
+        source: "website_form",
+        receivedAt: "2026-08-18T08:00:00.000Z",
+      },
+      {
+        id: "newsletter",
+        status: "new",
+        needsConfirmation: true,
+        email: "deals@vendor.example",
+        source: "forwarded_email",
+        receivedAt: "2026-08-17T08:00:00.000Z",
+      },
+    ],
+  });
+  assert.deepEqual(
+    inbox.maybeInquiries.map((item) => [item.leadId, item.fromForm]),
+    [
+      ["form", true],
+      ["marketplace", true],
+      ["form-no-contact", false],
+      ["newsletter", false],
+    ],
+  );
+  // Still asked about, not queued: nothing is counted and nothing headlines.
+  assert.equal(inbox.act.length, 0);
+  assert.equal(todayHeadline(inbox.act, inbox.approve), null);
+});
+
 test("with only maybes, Today is still clear", () => {
   const inbox = todayInbox({
     ...base,

@@ -173,6 +173,15 @@ export type TodayMaybeInquiry = {
   snippet: string;
   arrivedAt: string | null;
   href: string;
+  /**
+   * A website form or marketplace submission with a way to reach the person —
+   * an inquiry by its content, held only because StudioCue couldn't confirm
+   * who forwarded it (a studio domain with no SPF or DKIM does this to every
+   * forward). Shown near the top of Today rather than beneath the queue:
+   * Gabe forwarded one and had to ask where it went (2026-09-29, backlog H8).
+   * Still not counted and never the headline — the sender is unconfirmed.
+   */
+  fromForm: boolean;
 };
 
 export type TodayInbox = {
@@ -727,6 +736,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
         text(lead.displayName) ||
         `${text(lead.firstName)} ${text(lead.lastName)}`.trim();
       const message = text(lead.message).replace(/\s+/g, " ").trim();
+      const source = text(lead.source);
       maybeInquiries.push({
         leadId: lead.id,
         sender: name || text(lead.email) || "Unknown sender",
@@ -734,6 +744,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
         snippet: message.length > 140 ? `${message.slice(0, 139).trimEnd()}…` : message,
         arrivedAt: arrivedAt(lead),
         href: `/studio/leads/${lead.id}`,
+        fromForm:
+          (source === "website_form" || source.startsWith("marketplace_")) &&
+          Boolean(text(lead.email) || text(lead.phone)),
       });
       continue;
     }

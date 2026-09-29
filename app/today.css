@@ -514,6 +514,15 @@
   border-radius: 14px;
 }
 
+/* A form submission held only for its forwarder sits near the top of Today,
+   so it takes a solid frame: a couple is waiting, and this is a question
+   about them, not a sweep of the mailbox. */
+.today-maybe.is-form {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--accent-deep, #0b6e4f) 35%, var(--line, #dfe4df));
+  background: color-mix(in srgb, var(--accent-deep, #0b6e4f) 4%, transparent);
+}
+
 .today-maybe-intro {
   margin: 0;
   color: var(--muted, #6b7570);

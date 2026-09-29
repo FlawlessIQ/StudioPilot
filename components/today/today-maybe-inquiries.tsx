@@ -18,27 +18,44 @@ const SHOWN = 3;
  * counted, never the headline, never above a couple), but asked about here,
  * one compact row each: Yes turns it into an inquiry card above, No files it
  * away and stops capturing that sender.
+ *
+ * `form` is the same prompt for website-form and marketplace submissions,
+ * which Today places near the top: by content they are inquiries, and only
+ * the forwarder couldn't be confirmed. Beneath a long queue, a studio that
+ * had just forwarded one could not find it (backlog H8).
  */
 export function TodayMaybeInquiries({
   items,
   onAnswered,
+  variant = "other",
 }: {
   items: TodayMaybeInquiry[];
   onAnswered: (leadId: string) => void;
+  variant?: "form" | "other";
 }) {
   if (!items.length) return null;
   const shown = items.slice(0, SHOWN);
   const more = items.length - shown.length;
+  const form = variant === "form";
+  const heading = form
+    ? items.length === 1
+      ? "New inquiry? Confirm it"
+      : "New inquiries? Confirm them"
+    : "Maybe an inquiry";
   return (
-    <section className="today-maybe" aria-label="Maybe an inquiry">
+    <section className={form ? "today-maybe is-form" : "today-maybe"} aria-label={heading}>
       <div className="today-lane-heading">
-        <h2>Maybe an inquiry</h2>
+        <h2>{heading}</h2>
         <span>{items.length}</span>
       </div>
       <p className="today-maybe-intro">
-        {items.length === 1
-          ? "One email we weren't sure about. Your answer teaches StudioCue about the sender."
-          : "Emails we weren't sure about. Your answer teaches StudioCue about each sender."}
+        {form
+          ? items.length === 1
+            ? "This came through an inquiry form, but StudioCue couldn't confirm who sent it on. Yes makes it a job."
+            : "These came through an inquiry form, but StudioCue couldn't confirm who sent them on. Yes makes each one a job."
+          : items.length === 1
+            ? "One email we weren't sure about. Your answer teaches StudioCue about the sender."
+            : "Emails we weren't sure about. Your answer teaches StudioCue about each sender."}
       </p>
       <ul>
         {shown.map((item) => (
