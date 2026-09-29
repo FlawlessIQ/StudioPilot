@@ -8,12 +8,15 @@ import {
   FileSignature,
   FileText,
   Images,
+  Play,
   Receipt,
   type LucideIcon,
 } from "lucide-react";
-import { Card, KitRoot, List, Main, Pill, PoweredBy, Row } from "@/components/kit/kit";
+import { KitRoot, List, Main, Pill, PoweredBy, Row } from "@/components/kit/kit";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { EmptyMoment } from "@/components/client/kit/empty-moment";
+import { clientDeliverables } from "@/features/client/deliverables";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
 import { statusLabel } from "@/features/format/status-label";
 import {
@@ -120,11 +123,12 @@ export function ClientFiles() {
         subtitle: statusLabel(record.status),
         href: "/client/schedule",
       })),
-    ...deliveries.value.map((record) => ({
-      id: `delivery-${record.id}`,
-      icon: Images,
-      title: "Your gallery",
-      subtitle: `Delivered ${date(record.deliveryDate ?? record.updatedAt)}`,
+    // Named as the delivery screen names them: a film is not "Your gallery".
+    ...clientDeliverables(deliveries.value).map((deliverable) => ({
+      id: `delivery-${deliverable.id}`,
+      icon: deliverable.mediaType === "video" ? Play : Images,
+      title: deliverable.title,
+      subtitle: deliverable.deliveredAt ? `Delivered ${date(deliverable.deliveredAt)}` : "Delivered",
       href: "/client/delivery",
     })),
     ...albums.value.map((record) => ({
@@ -154,13 +158,13 @@ export function ClientFiles() {
         ) : null}
 
         {nothing ? (
-          <Card>
-            <p className="kit-body" role="status">
-              {loading
-                ? "Opening your files…"
-                : "Files your studio shares, your signed agreement and your invoices will all be kept here."}
-            </p>
-          </Card>
+          <EmptyMoment
+            area="documents"
+            error={null}
+            loading={loading}
+            loadingText="Opening your files…"
+            upcoming="Files your studio shares, your signed agreement and your invoices will all be kept here."
+          />
         ) : null}
 
         {shared.length ? (

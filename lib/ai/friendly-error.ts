@@ -11,6 +11,9 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   QUESTIONNAIRE_ALREADY_SUBMITTED:
     "You've already sent this to your studio. Message them if you'd like to change an answer.",
   RESPONSE_NOT_FOUND: "This questionnaire couldn't be found. Refresh and try again.",
+  // The couple's album (postEventCommand updateAlbumStatus).
+  ALBUM_STEP_NOT_AVAILABLE:
+    "Your album has moved on since this page opened. Refresh to see where it is now.",
   // The couple's timeline (planningCommand approveSchedule).
   SCHEDULE_NOT_FOUND: "This timeline couldn't be found. Refresh to see the latest from your studio.",
   SCHEDULE_NOT_IN_REVIEW:

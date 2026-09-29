@@ -386,6 +386,44 @@ The studio-side (desktop) parts of H1–H4 are unaffected.
   (Reports/Leads panel insets on mobile) still fails; M4 doesn't touch those
   pages. The delivery critical path waits for M5.
 
+## M5 — done 2026-09-29
+
+- **Every couple page is now in the kit.** M5 also brought over the two
+  left from M3: "Your event" (`/client/project`) and "Your package"
+  (`/client/package`).
+- **Your photos and film** (the portal half of H4):
+  - Each delivery is its own card: photos, a highlight film, a sneak peek,
+    newest first.
+  - The code sits in a large copy box, and the button says what it opens
+    ("Watch your film", "Open your gallery").
+  - Expiry warnings show inside 14 days, and "I've downloaded everything"
+    appears on photos only.
+  - The host is worked out from the link (`features/post-event/link-host.ts`).
+    So a Vimeo link that a studio pastes today already reads as a film with a
+    password, before H4 records a media type.
+  - The portal now passes H4's `mediaType`/`kind`/`label` through. Files
+    names deliveries the same way (a film is no longer "Your gallery").
+- **Album:** vertical steps. Approving a design, or asking for changes, is a
+  sheet.
+  - **Server fix:** a couple can now take only the step in front of them.
+    Before, "approve" was accepted before any design was sent, and
+    "revision" was accepted after approval (`ALBUM_STEP_NOT_AVAILABLE`).
+- **Review:** a thank-you and one button, "Leave a review on Google".
+  "I've left my review" stops the reminders. The studio-facing sentence
+  about engagement tracking is gone.
+- **Empty states in the right tense:** every kit screen's empty state goes
+  through `components/client/kit/empty-moment.tsx`. The "this has passed"
+  wording the old pages had (portal-stage / portal-day) is back on the M3–M4
+  screens, which had lost it.
+- **Copy:** "photographs" is gone from the couple's navigation and notices,
+  because a video-led studio's couple is waiting on a film.
+- **Still H4 (studio side):** a second release for the same job (photos,
+  then the film weeks later) is still refused by `recordDelivery`. Until
+  H4 slice 1 lands, a job gets one delivery.
+- **Checked:** 111/111 couple flows pass in Chrome desktop, Android Chrome
+  and iPhone WebKit, including the delivery critical path that had been
+  failing since before M3.
+
 ## Phases
 
 | # | Phase | What | Notes |

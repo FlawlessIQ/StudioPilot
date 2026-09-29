@@ -62,26 +62,27 @@ export function portalEmptyNotice(
     case "delivery":
       return passed
         ? {
-            title: "Your photographs are being worked on",
+            // Not "photographs": a video-led studio's couple is waiting on a film.
+            title: "Your delivery is being worked on",
             detail:
-              "Your studio is editing and preparing your images. Your gallery will appear here, with a secure link, as soon as it is ready — message them if you would like to know when to expect it.",
+              "Your studio is editing. Your photos (and film, if it's part of your package) will appear here with their links as soon as they're ready — message them if you would like to know when to expect them.",
           }
         : {
-            title: "Your gallery will be here after the day",
+            title: "Your photos will be here after the day",
             detail:
-              "Once your studio has edited your photographs, the secure gallery link and download details appear on this page.",
+              "Once your studio has edited them, the links and access details for your photos (and film, if it's part of your package) appear on this page.",
           };
     case "reviews":
       return passed
         ? {
             title: "No review requested yet",
             detail:
-              "Once your gallery is delivered, your studio may invite you to share your experience here.",
+              "Once your photos are delivered, your studio may invite you to share your experience here.",
           }
         : {
             title: "Nothing to do here yet",
             detail:
-              "After your photographs are delivered, your studio may invite you to leave a review.",
+              "After your photos are delivered, your studio may invite you to leave a review.",
           };
   }
 }

@@ -1243,3 +1243,95 @@ textarea.kit-input {
   background: var(--kit-sunken);
   object-fit: contain;
 }
+
+/* ---------- Deliveries (the couple's photos and film) ---------- */
+
+.kit-cover {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  min-height: 112px;
+  margin: -18px -18px 0;
+  padding: 14px 18px;
+  border-radius: var(--kit-radius-card) var(--kit-radius-card) 0 0;
+  background: linear-gradient(135deg, var(--kit-accent), color-mix(in srgb, var(--kit-accent) 55%, #000));
+  color: var(--kit-on-accent);
+}
+.kit-cover-host {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  opacity: 0.85;
+  text-transform: uppercase;
+}
+.kit-code {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 10px 10px 14px;
+  border: 1px dashed var(--kit-line);
+  border-radius: var(--kit-radius-input);
+  background: var(--kit-sunken);
+}
+.kit-code-value {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.kit-code-value strong {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 18px;
+  letter-spacing: 0.04em;
+  overflow-wrap: anywhere;
+}
+.kit-code .kit-button {
+  width: auto;
+  flex-shrink: 0;
+}
+
+/* ---------- Packages ---------- */
+
+.kit .kit-package-pick {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  justify-content: space-between;
+  width: 100%;
+  min-height: var(--kit-size-tap);
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.kit-package-pick strong {
+  flex-shrink: 0;
+  font-size: 17px;
+}
+.kit-inclusions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--kit-ink-2);
+  font-size: 15px;
+}
+.kit-inclusions li {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.kit-inclusions svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: var(--kit-accent);
+}
+.kit-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}

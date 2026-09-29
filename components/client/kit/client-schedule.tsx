@@ -16,6 +16,7 @@ import { friendlyError } from "@/lib/ai/friendly-error";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { number, text, useProject, useProjectRecords } from "@/components/client/live-client-views";
+import { EmptyMoment } from "@/components/client/kit/empty-moment";
 
 type Item = Record<string, unknown>;
 type Sheet = { kind: "approve" } | { kind: "changes"; item: Item | null } | null;
@@ -54,14 +55,13 @@ export function ClientSchedule() {
           <p className="kit-eyebrow">Wedding day</p>
           <h1 className="kit-title">Your timeline</h1>
         </div>
-        <Card>
-          <p className="kit-body" role={schedules.error ? "alert" : "status"}>
-            {schedules.loading
-              ? "Opening your timeline…"
-              : schedules.error ??
-                `${studioName === "your studio" ? "Your studio" : studioName} will share the running order of your day here when it’s ready for you to check.`}
-          </p>
-        </Card>
+        <EmptyMoment
+          area="schedule"
+          error={schedules.error}
+          loading={schedules.loading}
+          loadingText="Opening your timeline…"
+          upcoming={`${studioName === "your studio" ? "Your studio" : studioName} will share the running order of your day here when it’s ready for you to check.`}
+        />
         <PoweredBy />
       </Main>
     );

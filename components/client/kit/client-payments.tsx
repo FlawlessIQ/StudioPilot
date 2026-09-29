@@ -16,6 +16,7 @@ import {
   useProjectRecords,
   useReserveYourDate,
 } from "@/components/client/live-client-views";
+import { EmptyMoment } from "@/components/client/kit/empty-moment";
 
 /** "retainer" and "final" are the system's words, not a couple's. */
 function invoiceName(kind: unknown): string {
@@ -74,13 +75,13 @@ export function ClientPayments() {
           <p className="kit-eyebrow">Payments</p>
           <h1 className="kit-title">Your payments</h1>
         </div>
-        <Card>
-          <p className="kit-body" role={invoices.error ? "alert" : "status"}>
-            {invoices.loading
-              ? "Opening your payments…"
-              : invoices.error ?? "Invoices will appear here when your studio creates them."}
-          </p>
-        </Card>
+        <EmptyMoment
+          area="payments"
+          error={invoices.error}
+          loading={invoices.loading}
+          loadingText="Opening your payments…"
+          upcoming="Invoices will appear here when your studio creates them."
+        />
         <PoweredBy />
       </Main>
     );

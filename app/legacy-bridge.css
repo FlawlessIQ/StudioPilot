@@ -2407,10 +2407,6 @@
 .crew-availability-form,
 .crew-closeout-form,
 .crew-payment-summary > .panel,
-/* The couple's portal, swept for the first time. Same position the crew
-   workspace was in until three days ago: never measured, so flush since the
-   day it was written. */
-.client-help-card,
 /* The public inquiry page: the first thing anyone outside the business ever
    sees, and the last surface the sweep did not walk. Only the "form
    unavailable" branch is bare `.panel` — the form itself supplies its own
@@ -2427,8 +2423,7 @@
   .project-plan-empty,
   .crew-availability-form,
   .crew-closeout-form,
-  .crew-payment-summary > .panel,
-  .client-help-card {
+  .crew-payment-summary > .panel {
     padding: 20px;
   }
 

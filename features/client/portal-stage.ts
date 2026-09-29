@@ -76,9 +76,9 @@ export function portalPastNotice(area: PortalArea): {
       };
     case "delivery":
       return {
-        title: "No gallery is held here",
+        title: "No delivery is held here",
         detail:
-          "Your photographs were shared another way. Message your studio if you need the link again.",
+          "Your photos were shared another way. Message your studio if you need the link again.",
       };
     case "reviews":
       return {

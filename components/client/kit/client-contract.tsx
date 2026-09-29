@@ -12,6 +12,7 @@ import {
   useProjectRecords,
   useReserveYourDate,
 } from "@/components/client/live-client-views";
+import { EmptyMoment } from "@/components/client/kit/empty-moment";
 
 /**
  * The couple's agreement, on a phone (M3 of
@@ -65,13 +66,13 @@ export function ClientContract() {
           <p className="kit-eyebrow">Agreement</p>
           <h1 className="kit-title">Your agreement</h1>
         </div>
-        <Card>
-          <p className="kit-body" role={contracts.error ? "alert" : "status"}>
-            {contracts.loading
-              ? "Opening your agreement…"
-              : contracts.error ?? "Your agreement will appear after the studio sends it for signature."}
-          </p>
-        </Card>
+        <EmptyMoment
+          area="contract"
+          error={contracts.error}
+          loading={contracts.loading}
+          loadingText="Opening your agreement…"
+          upcoming="Your agreement will appear after the studio sends it for signature."
+        />
         <PoweredBy />
       </Main>
     );

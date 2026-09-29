@@ -566,6 +566,24 @@ export const postEventCommand = onRequest(
         ]);
         if (role === "client" && !clientAllowed.has(parsed.input.status))
           throw new Error("FORBIDDEN");
+        // A couple takes the step in front of them, not any step later than
+        // where they are: approving before a design was sent, or asking to
+        // revise one that was already approved, used to be accepted.
+        const clientFrom: Record<string, string[]> = {
+          instructions_viewed: ["instructions_available"],
+          selections_received: [
+            "instructions_available",
+            "instructions_viewed",
+            "selections_pending",
+          ],
+          revision_requested: ["design_sent"],
+          approved: ["design_sent"],
+        };
+        if (
+          role === "client" &&
+          !clientFrom[parsed.input.status]?.includes(String(current.get("status")))
+        )
+          throw new Error("ALBUM_STEP_NOT_AVAILABLE");
         if (role !== "client" && !internalRoles.has(role))
           throw new Error("FORBIDDEN");
         const order = [

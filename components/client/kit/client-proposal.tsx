@@ -28,6 +28,7 @@ import {
   useProjectRecords,
   useReserveYourDate,
 } from "@/components/client/live-client-views";
+import { EmptyMoment } from "@/components/client/kit/empty-moment";
 
 /**
  * The proposal, on a phone (M3 of docs/mobile-first-client-crew-plan-2026-09-28.md).
@@ -60,14 +61,13 @@ export function ClientProposal() {
           <p className="kit-eyebrow">Your offer</p>
           <h1 className="kit-title">Your proposal</h1>
         </div>
-        <Card>
-          <p className="kit-body" role={proposals.error ? "alert" : "status"}>
-            {proposals.loading
-              ? "Opening your proposal…"
-              : proposals.error ??
-                "Your studio is still preparing your proposal. You’ll be told as soon as it’s ready."}
-          </p>
-        </Card>
+        <EmptyMoment
+          area="proposal"
+          error={proposals.error}
+          loading={proposals.loading}
+          loadingText="Opening your proposal…"
+          upcoming="Your studio is still preparing your proposal. You’ll be told as soon as it’s ready."
+        />
         <PoweredBy />
       </Main>
     );

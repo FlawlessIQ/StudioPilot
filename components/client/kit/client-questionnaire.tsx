@@ -47,6 +47,7 @@ import { getFirebaseClient } from "@/lib/firebase/client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { date, text, useProjectRecords } from "@/components/client/live-client-views";
+import { EmptyMoment } from "@/components/client/kit/empty-moment";
 
 type ResponseRecord = Record<string, unknown> & { id: string };
 
@@ -106,14 +107,13 @@ export function ClientQuestionnaire() {
           <p className="kit-eyebrow">Planning</p>
           <h1 className="kit-title">Your questionnaire</h1>
         </div>
-        <Card>
-          <p className="kit-body" role={responses.error ? "alert" : "status"}>
-            {responses.loading
-              ? "Opening your questionnaire…"
-              : responses.error ??
-                "Your studio hasn’t sent a questionnaire yet. You’ll get an email when there’s one to fill in."}
-          </p>
-        </Card>
+        <EmptyMoment
+          area="questionnaire"
+          error={responses.error}
+          loading={responses.loading}
+          loadingText="Opening your questionnaire…"
+          upcoming="Your studio hasn’t sent a questionnaire yet. You’ll get an email when there’s one to fill in."
+        />
         <PoweredBy />
       </Main>
     );

@@ -54,7 +54,8 @@ export function clientAreaItems(
       ? { label: "Event-day schedule", href: "/client/schedule", icon: "CalendarDays" }
       : null,
     navigation?.delivery
-      ? { label: "Your photographs", href: "/client/delivery", icon: "Images" }
+      // Not "photographs": a video-led studio's couple is waiting on a film.
+      ? { label: "Your photos and film", href: "/client/delivery", icon: "Images" }
       : null,
     navigation?.reviews
       ? { label: "Share a review", href: "/client/reviews", icon: "Star" }

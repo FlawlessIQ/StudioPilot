@@ -330,6 +330,13 @@ const clientRecordFields = {
     "clientReadAt",
   ],
   deliveryRecords: [
+    // mediaType/kind/label arrive with H4's deliverables
+    // (docs/delivery-plan-2026-09-28.md); the portal reads them when present.
+    "deliverableId",
+    "mediaType",
+    "kind",
+    "label",
+    "downloadedAt",
     "provider",
     "galleryUrl",
     "accessCode",

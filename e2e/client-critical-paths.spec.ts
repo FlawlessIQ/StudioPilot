@@ -42,18 +42,20 @@ test.describe("client portal critical paths", () => {
     await expect(page.getByRole("heading", { name: "Your files" })).toBeVisible();
     await expect(page.getByText("Retainer invoice")).toBeVisible();
     await expect(page.getByText("Your gallery")).toBeVisible();
+    await expect(page.getByText("Highlight film")).toBeVisible();
     await expect(page.getByText("Your album")).toBeVisible();
     await expect(page.getByText("Venue certificate of insurance")).toBeVisible();
   });
 
   test("delivery exposes gallery safeguards and meaningful album revisions", async ({ page }) => {
     await page.goto("/client/delivery");
-    await expect(page.getByRole("button", { name: "Copy" })).toBeVisible();
-    await page.getByRole("button", { name: "Request a revision" }).click();
-    const notes = page.getByLabel("What should your photographer change?");
-    await expect(notes).toBeVisible();
+    await expect(page.getByRole("button", { name: "Copy access code" })).toBeVisible();
+    // Asking for album changes is a sheet with a real note (M5).
+    await page.getByRole("button", { name: "Ask for changes" }).click();
+    const sheet = page.getByRole("dialog");
+    const notes = sheet.getByLabel("What would you like changed?");
     await notes.fill("Please replace the final image on spread four with the alternate portrait.");
-    await page.getByRole("button", { name: "Send revision notes" }).click();
-    await expect(page.getByText(/revision request was validated/i)).toBeVisible();
+    await sheet.getByRole("button", { name: "Send to your studio" }).click();
+    await expect(page.getByText(/is making your changes/)).toBeVisible();
   });
 });
