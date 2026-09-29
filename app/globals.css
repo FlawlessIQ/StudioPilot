@@ -21063,57 +21063,141 @@ label {
   font-weight: 650;
   margin-bottom: 4px;
 }
-/* A package's extras on a job (H2). */
-.job-add-ons {
+/* A package's extras on a job (H2). Rebuilt after the prod walk: labelled
+   fields, a quantity only where one applies, one line per extra. */
+.proposal-packages-list .job-add-ons {
   border-top: 1px solid var(--border);
   display: grid;
-  flex-basis: 100%;
-  gap: 10px;
-  padding-top: 10px;
+  flex: 1 1 100%;
+  gap: 14px;
+  padding-top: 14px;
 }
-.job-add-ons ul {
+.proposal-packages-list .job-add-ons-head {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  justify-content: space-between;
+}
+.proposal-packages-list .job-add-ons small,
+.proposal-packages-list .job-add-ons-empty {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin: 0;
+}
+.proposal-packages-list .job-add-ons-list {
   display: grid;
-  gap: 6px;
   list-style: none;
   margin: 0;
   padding: 0;
 }
-.job-add-ons li {
+.proposal-packages-list .job-add-ons-list > li {
   align-items: center;
-  display: flex;
-  gap: 8px;
-}
-.job-add-ons li > span {
+  border-bottom: 1px solid var(--border);
   display: grid;
-  flex: 1;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  padding: 10px 0;
+}
+.proposal-packages-list .job-add-ons-list > li:last-child {
+  border-bottom: 0;
+}
+.proposal-packages-list .job-add-ons-line {
+  display: grid;
+  gap: 2px;
   min-width: 0;
 }
-.job-add-ons small {
+.proposal-packages-list .job-add-ons-line > span {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.proposal-packages-list .job-add-ons-qty {
+  align-items: center;
+  display: inline-flex;
+  font-size: 12.5px;
+  gap: 6px;
+}
+.proposal-packages-list .job-add-ons-qty > span {
   color: var(--muted);
+  display: inline;
 }
-.job-add-ons-quantity {
-  width: 64px;
+.proposal-packages-list .job-add-ons-qty input {
+  width: 4.5rem;
 }
-.job-add-ons-custom {
-  border: 1px dashed var(--border);
-  border-radius: 10px;
+.proposal-packages-list .job-add-ons-line-total {
+  grid-column: 3;
+}
+.proposal-packages-list .job-add-ons-list > li > .job-add-ons-qty {
+  grid-column: 2;
+}
+.proposal-packages-list .job-add-ons-remove {
+  grid-column: 4;
+}
+.proposal-packages-list .job-add-ons-add,
+.proposal-packages-list .job-add-ons-custom {
+  align-items: end;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin: 0;
-  padding: 10px;
+  gap: 10px 12px;
 }
-.job-add-ons-custom > input:first-of-type {
-  flex: 1 1 180px;
+.proposal-packages-list .job-add-ons-custom {
+  background: var(--soft);
+  border-radius: 12px;
+  padding: 14px;
 }
-.job-add-ons-custom > input[type="number"] {
-  width: 96px;
+.proposal-packages-list .job-add-ons-field {
+  display: grid;
+  font-size: 13px;
+  font-weight: 620;
+  gap: 6px;
+  min-width: 7rem;
 }
-.job-add-ons footer {
+.proposal-packages-list .job-add-ons-field > span {
+  display: block;
+}
+.proposal-packages-list .job-add-ons-grow {
+  flex: 1 1 14rem;
+}
+.proposal-packages-list .job-add-ons-narrow {
+  min-width: 0;
+  width: 6rem;
+}
+.proposal-packages-list .job-add-ons-options {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+.proposal-packages-list .job-add-ons-options .form-checkbox > span {
+  display: inline;
+}
+.proposal-packages-list .job-add-ons-actions {
   align-items: center;
   display: flex;
+  flex: 1 1 100%;
   flex-wrap: wrap;
   gap: 8px;
+}
+.proposal-packages-list .job-add-ons-footer {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+@media (max-width: 560px) {
+  .proposal-packages-list .job-add-ons-list > li {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+  .proposal-packages-list .job-add-ons-line {
+    grid-column: 1 / -1;
+  }
+  .proposal-packages-list .job-add-ons-list > li > .job-add-ons-qty {
+    grid-column: 1;
+  }
+  .proposal-packages-list .job-add-ons-line-total {
+    grid-column: 2;
+  }
+  .proposal-packages-list .job-add-ons-remove {
+    grid-column: 3;
+  }
 }
 /* Agreement editor: upload your own contract, and lines that state a price (H2). */
 .agreement-upload {
@@ -21217,4 +21301,83 @@ label {
 }
 .combined-agreement-send > .button {
   justify-self: start;
+}
+/* The certificate card (walked 2026-09-29): nothing may push it wider than
+   its column, and the status line reads as a note. */
+.coi-review-list > article,
+.coi-review-list header > span {
+  min-width: 0;
+}
+.coi-review-list header strong {
+  overflow-wrap: anywhere;
+}
+.coi-review-list .coi-status-note {
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.coi-review-list .coi-discrepancy-list:empty {
+  display: none;
+}
+.add-on-editor .add-on-optional {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 500;
+  margin-left: 4px;
+}
+/* The upload button's icon beside its words, not above them. */
+.agreement-upload .agreement-upload-button {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+  white-space: nowrap;
+}
+/* Radio choices at the same size as the rest of the form's labels. */
+.coi-settings .coi-settings-source .form-checkbox span {
+  font-size: 14px;
+  font-weight: 500;
+}
+.coi-settings .coi-settings-source legend {
+  font-size: 13px;
+}
+.delivery-project-named {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+}
+.delivery-project-named small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.pdf-preview .pdf-terms-summary {
+  margin-top: 14px;
+}
+
+/*
+ * A form's fields, laid out by default (walked 2026-09-29).
+ *
+ * `crm-form-grid` was only given a layout inside particular pages, so every
+ * new form that used it — Settings → Insurance, the add-on editor — rendered
+ * its labels running inline with their inputs until someone added a rule for
+ * that page. The same failure as the panel inset: an allowlist that each new
+ * screen has to remember to join. So the default is a single column, each
+ * label above its field; a page that wants columns still sets them, and its
+ * more specific rules win.
+ */
+.crm-form-grid {
+  display: grid;
+  gap: 16px;
+}
+.crm-form-grid > label:not(.form-checkbox) {
+  display: grid;
+  font-size: 13px;
+  font-weight: 620;
+  gap: 6px;
+}
+.crm-form-grid > label:not(.form-checkbox) small {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+.crm-form-grid > .form-span {
+  grid-column: 1 / -1;
 }

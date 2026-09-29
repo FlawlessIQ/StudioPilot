@@ -128,7 +128,7 @@ export function QuestionnaireResponseView({ id }: { id: string }) {
         className="back-link"
         href={projectId ? `/studio/questionnaires?project=${encodeURIComponent(projectId)}` : "/studio/questionnaires"}
       >
-        <ArrowLeft /> {projectName ? `${projectName} questionnaires` : "Back to questionnaires"}
+        <ArrowLeft /> {projectName ? `Back to ${projectName}’s questionnaires` : "Back to questionnaires"}
       </Link>
       <header className="page-heading">
         <div>

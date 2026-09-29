@@ -405,8 +405,8 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
       <section>
         <div className="section-heading-row">
           <div>
-            <p className="eyebrow">Human review queue</p>
-            <h2>Certificates requiring action</h2>
+            <p className="eyebrow">Certificates of insurance</p>
+            <h2>{requests.length === 1 ? "This job’s certificate" : "Certificates"}</h2>
           </div>
         </div>
         <div className="coi-review-list">
@@ -435,9 +435,17 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
               return (
                 <article className="panel" key={request.id}>
                   <header>
+                    {/* The job and venue, never the record id (walked on prod: a
+                        raw "coi_request_…" id was the title, and its width
+                        pushed the badge and progress off the card). */}
                     <span>
                       <small>{String(request.venueName ?? "Venue")}</small>
-                      <strong>{request.id}</strong>
+                      <strong>
+                        {String(
+                          (projects ?? []).find((project) => project.id === request.projectId)?.name ??
+                            "Certificate of insurance",
+                        )}
+                      </strong>
                     </span>
                     <StatusBadge tone={request.status === "approved" ? "success" : "warning"}>
                       {statusLabel(request.status)}
@@ -506,7 +514,10 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
                         </li>
                       );
                     })}
-                    {!discrepancies.length ? <li><ShieldCheck size={14} /><span><strong>Nothing flagged</strong><small>Read it yourself before approving — StudioCue never decides whether a certificate is legally sufficient.</small></span></li> : null}
+                    {/* Nothing to flag until a certificate has come back and
+                        been read. */}
+                    {!discrepancies.length &&
+                    ["under_review", "approved", "sent_to_venue", "venue_acknowledged"].includes(String(request.status)) ? <li><ShieldCheck size={14} /><span><strong>Nothing flagged</strong><small>Read it yourself before approving — StudioCue never decides whether a certificate is legally sufficient.</small></span></li> : null}
                   </ul>
                   {/* Every status has its one next step (H3): approve the
                       prepared request, fill in the venue, make it in the

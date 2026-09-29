@@ -486,13 +486,14 @@ export function LeadIntakeForm({
                       <>
                         <Field
                           autoComplete="off"
-                          hint="Optional — we send it to them so you don’t have to."
+                          hint="Optional."
                           label="Venue coordinator’s name"
                           {...register("venueContactName", { setValueAs: (value) => value || null })}
                         />
                         <Field
                           autoComplete="off"
                           error={errors.venueContactEmail?.message}
+                          hint="Optional — we send the certificate to them, so you don’t have to."
                           icon={Mail}
                           inputMode="email"
                           label="Venue coordinator’s email"

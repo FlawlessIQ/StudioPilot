@@ -7,7 +7,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
-import { formatDueDate } from "@/lib/format/event-date";
+import { formatDueDate, formatEventDate } from "@/lib/format/event-date";
 import { retainerFromSchedule } from "@/features/booking/agreed-retainer";
 
 type Proposal = Record<string, unknown> & { id: string };
@@ -107,8 +107,10 @@ export function LiveProposalPreview({ id }: { id: string }) {
     <div className="proposal-preview-page">
       <Link className="back-link" href={`/studio/proposals/${id}`}><ArrowLeft /> Back to proposal</Link>
       <main className="pdf-preview">
-      <header><span>SC</span><div><small>{workspace.tenantName.toUpperCase()}</small><strong>Photography Proposal</strong></div><p>VERSION {String(proposal.version ?? 1)}</p></header>
-      <section><p className="eyebrow">Prepared for</p><h1>{String(clientName)}</h1><p>{String(eventType)} · {String(eventDate)}</p></section>
+      {/* The studio's own initial, not StudioCue's, and no claim that a film
+          package is "photography" (walked 2026-09-29). */}
+      <header><span>{(workspace.tenantName.trim()[0] ?? "S").toUpperCase()}</span><div><small>{workspace.tenantName.toUpperCase()}</small><strong>Proposal</strong></div><p>VERSION {String(proposal.version ?? 1)}</p></header>
+      <section><p className="eyebrow">Prepared for</p><h1>{String(clientName)}</h1><p>{String(eventType)} · {/^\d{4}-\d{2}-\d{2}/.test(String(eventDate)) ? formatEventDate(String(eventDate).slice(0, 10)) : String(eventDate)}</p></section>
       <section><h2>{packageName}</h2><p>{String(proposal.notes ?? snapshot?.description ?? "Scope and deliverables are preserved in this proposal version.")}</p>
         {/* Each line, then the discount and the tax on their own: one
             "Discounts and tax" figure netted the two together. */}
@@ -128,7 +130,7 @@ export function LiveProposalPreview({ id }: { id: string }) {
           <tr className="total"><td>Total</td><td>{money(total, currency)}</td></tr>
         </tbody></table>
       </section>
-      <section className="pdf-terms"><h2>Payment schedule</h2><div><span><small>Retainer</small><strong>{money(retainer, currency)}</strong></span><span><small>Remaining balance</small><strong>{money(Math.max(0, total - retainer), currency)}</strong></span></div><p>{String(proposal.termsSummary ?? "Final terms are the ones in the signed agreement.")}</p></section>
+      <section className="pdf-terms"><h2>Payment schedule</h2><div><span><small>Retainer</small><strong>{money(retainer, currency)}</strong></span><span><small>Remaining balance</small><strong>{money(Math.max(0, total - retainer), currency)}</strong></span></div><p className="pdf-terms-summary">{String(proposal.termsSummary ?? "Final terms are the ones in the signed agreement.")}</p></section>
       <footer><span>Generated {formatDueDate(new Date().toISOString())}</span><span>{workspace.tenantName}</span><span>Preview</span></footer>
       </main>
     </div>

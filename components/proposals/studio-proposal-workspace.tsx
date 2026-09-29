@@ -2000,10 +2000,13 @@ export function StudioProposalWorkspace({
                   <dt>Subtotal</dt>
                   <dd>{money(pricing.subtotalCents, currency)}</dd>
                 </div>
-                <div>
-                  <dt>Discount</dt>
-                  <dd>−{money(pricing.discountCents, currency)}</dd>
-                </div>
+                {/* Only when there is one: "−$0.00" read as a mistake. */}
+                {number(pricing.discountCents) > 0 ? (
+                  <div>
+                    <dt>Discount</dt>
+                    <dd>−{money(pricing.discountCents, currency)}</dd>
+                  </div>
+                ) : null}
                 <div>
                   <dt>Tax</dt>
                   <dd>{money(pricing.taxCents, currency)}</dd>

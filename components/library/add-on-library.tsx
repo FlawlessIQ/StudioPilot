@@ -117,7 +117,9 @@ export function AddOnLibrary() {
           />
         </label>
         <label className="form-span">
-          What the couple gets <span className="field-hint">optional</span>
+          <span>
+            What the couple gets <span className="add-on-optional">optional</span>
+          </span>
           <textarea
             maxLength={1000}
             onChange={(event) => setDraft({ ...draft, description: event.target.value })}

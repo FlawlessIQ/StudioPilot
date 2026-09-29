@@ -310,27 +310,37 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
       }}
       onSubmit={(event) => void submit(event)}
     >
-      <label className="form-span delivery-project-first">
-        Project
-        <select
-          disabled={loading || Boolean(projectId)}
-          name={projectId ? undefined : "projectId"}
-          onChange={(event) => {
-            setSelectedProjectId(event.target.value);
-            setItems(null);
-          }}
-          required
-          value={selectedProjectId}
-        >
-          <option value="">Select a project</option>
-          {deliverableFirst.map((candidate) => (
-            <option key={candidate.id} value={candidate.id}>
-              {String(candidate.name)}
-            </option>
-          ))}
-        </select>
-        {projectId ? <input name="projectId" type="hidden" value={projectId} /> : null}
-      </label>
+      {/* Opened for one job, the form names it. A disabled select showed
+          "Select a project" for an archived job it had filtered out (walked
+          2026-09-29). */}
+      {projectId ? (
+        <p className="form-span delivery-project-named">
+          <small>Releasing for</small>
+          <strong>{String(project?.name ?? "This job")}</strong>
+          <input name="projectId" type="hidden" value={projectId} />
+        </p>
+      ) : (
+        <label className="form-span delivery-project-first">
+          Project
+          <select
+            disabled={loading}
+            name="projectId"
+            onChange={(event) => {
+              setSelectedProjectId(event.target.value);
+              setItems(null);
+            }}
+            required
+            value={selectedProjectId}
+          >
+            <option value="">Select a project</option>
+            {deliverableFirst.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>
+                {String(candidate.name)}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       {!selectedProjectId ? (
         <section className="delivery-project-empty form-span">

@@ -197,3 +197,17 @@ test("a job's extras re-price its package into a new snapshot, and never re-deri
   assert.match(panel, /runCrmCommand\("setJobAddOns"/);
   assert.match(panel, /change\(`extras-\$\{packageSnapshotId\}`/);
 });
+
+test("a form's fields have a layout by default, not only on the pages that remembered one", () => {
+  const css = readFileSync("app/globals.css", "utf8");
+  // Walked 2026-09-29: Insurance settings and the add-on editor rendered their
+  // labels inline with their inputs, because crm-form-grid had no layout of
+  // its own.
+  assert.match(css, /\n\.crm-form-grid \{\n  display: grid;/);
+  assert.match(css, /\n\.crm-form-grid > label:not\(\.form-checkbox\) \{\n  display: grid;/);
+  // The extras editor labels every field it shows.
+  const extras = readFileSync("components/proposals/job-add-ons-editor.tsx", "utf8");
+  assert.match(extras, /<span>What it is<\/span>/);
+  assert.match(extras, /<span>How many<\/span>/);
+  assert.doesNotMatch(extras, /placeholder="Price"/);
+});

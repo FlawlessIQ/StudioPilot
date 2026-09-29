@@ -41,8 +41,8 @@ export default async function DeliveryPage({
         <section className="panel">
           <div className="panel-heading">
             <div>
-              <p className="eyebrow">New delivery</p>
-              <h2>Record gallery</h2>
+              <p className="eyebrow">New release</p>
+              <h2>Send photos or a film</h2>
             </div>
           </div>
           <DeliveryForm projectId={project} />
