@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { capturedPlaceSchema } from "@/features/places/schema";
 import { auditFieldsSchema } from "@/features/tenants/schema";
 import { normalizeEmail, normalizePhone } from "@/features/contacts/schema";
 
@@ -48,6 +49,19 @@ export const publicLeadIntakeSchema = z.object({
   eventDate: z.string().date("Pick the date of your event."),
   eventType: z.string().trim().min(2).max(80),
   venue: z.string().trim().max(160).nullable().default(null),
+  /**
+   * The place the address lookup found. The label was all that was kept, so
+   * a COI — which needs a real postal address — started with retyping it
+   * (H3, docs/coi-automation-plan-2026-09-28.md).
+   */
+  venuePlace: capturedPlaceSchema.nullable().default(null),
+  /** "Does your venue require a certificate of insurance?" Optional (Q19). */
+  coiRequired: z.enum(["yes", "no", "not_sure"]).nullable().default(null),
+  venueContactName: z.string().trim().max(120).nullable().default(null),
+  venueContactEmail: z.preprocess(
+    (value) => (typeof value === "string" && !value.trim() ? null : value),
+    z.string().trim().email("Check the venue coordinator's email.").nullable().default(null),
+  ),
   city: z
     .string()
     .trim()

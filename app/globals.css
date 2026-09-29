@@ -20948,3 +20948,62 @@ label {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 }
+
+/* Settings → Insurance (H3). */
+.coi-settings-source {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 14px;
+}
+.coi-settings-source legend {
+  font-weight: 650;
+  padding: 0 4px;
+}
+.coi-settings-source small {
+  color: var(--muted);
+}
+
+/* A COI request's next step, on its card (H3). */
+.coi-inline-form {
+  display: grid;
+  gap: 10px;
+}
+.coi-inline-form footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.coi-copy-list {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.coi-copy-list li {
+  align-items: center;
+  background: var(--soft);
+  border-radius: 10px;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 8px 10px;
+}
+.coi-copy-list li span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.coi-copy-list li small {
+  color: var(--muted);
+}
+.coi-copy-list li strong {
+  overflow-wrap: anywhere;
+}
+.coi-upload {
+  cursor: pointer;
+  justify-self: start;
+}

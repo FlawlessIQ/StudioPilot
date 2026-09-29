@@ -16,6 +16,7 @@ export type SettingsSectionKey =
   | "drafts"
   | "forwarding"
   | "crewOffers"
+  | "insurance"
   | "data";
 
 export const SETTINGS_SECTIONS: ReadonlyArray<{
@@ -31,6 +32,7 @@ export const SETTINGS_SECTIONS: ReadonlyArray<{
   { key: "drafts", slug: "automatic-drafts", title: "Automatic drafts", subtitle: "Which lifecycle emails are drafted for you" },
   { key: "forwarding", slug: "inquiry-capture", title: "Inquiry capture", subtitle: "Website form, inbox, or forward by hand" },
   { key: "crewOffers", slug: "crew-offers", title: "Crew offers", subtitle: "Whether booking sends the prepared offers, or you do" },
+  { key: "insurance", slug: "insurance", title: "Insurance", subtitle: "Who sends your certificates, and how far StudioCue goes on its own" },
   { key: "data", slug: "data", title: "Data & account", subtitle: "Export your data or request deletion" },
 ];
 

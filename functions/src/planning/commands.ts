@@ -1,4 +1,22 @@
 import { createHash, randomBytes } from "node:crypto";
+import {
+  coiSettingsInput,
+  readCoiSettings,
+  saveCoiSettings,
+  venueKey,
+  venueProfileFrom,
+  venueProfileId,
+} from "../coi/automation.js";
+import {
+  approveAndSendCoi,
+  approveAndSendCoiInput,
+  approvePreparedCoi,
+  approvePreparedCoiInput,
+  attachCoiUpload,
+  attachCoiUploadInput,
+  completeCoiDetails,
+  completeCoiDetailsInput,
+} from "../coi/actions.js";
 import { getFirestore, type DocumentData } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
@@ -237,9 +255,12 @@ const command = z.discriminatedUnion("type", [
       waiverOfSubrogation: z.boolean(),
       primaryNoncontributory: z.boolean(),
       specialInstructions: z.string().max(3000).nullable(),
-      submissionEmail: z.string().email(),
+      // Needed to send it on, not to ask for it (H3): the venue's address
+      // can follow once the certificate is back.
+      submissionEmail: z.string().email().nullable().default(null),
       dueDate: z.string().date(),
-      insuranceAgentEmail: z.string().email(),
+      // The saved agent when omitted (Settings → Insurance).
+      insuranceAgentEmail: z.string().email().nullable().default(null),
     }),
   }),
   z.object({
@@ -283,6 +304,37 @@ const command = z.discriminatedUnion("type", [
       projectId: z.string(),
       requestId: z.string(),
     }),
+  }),
+  // H3 — COI automation (functions/src/coi/).
+  z.object({
+    type: z.literal("saveCoiSettings"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: coiSettingsInput,
+  }),
+  z.object({
+    type: z.literal("approvePreparedCoi"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: approvePreparedCoiInput,
+  }),
+  z.object({
+    type: z.literal("completeCoiDetails"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: completeCoiDetailsInput,
+  }),
+  z.object({
+    type: z.literal("attachCoiUpload"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: attachCoiUploadInput,
+  }),
+  z.object({
+    type: z.literal("approveAndSendCoi"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: approveAndSendCoiInput,
   }),
   z.object({
     /**
@@ -480,7 +532,11 @@ export const planningCommand = onRequest(
       if (
         parsed.type === "createCoiRequest" ||
         parsed.type === "decideCoi" ||
-        parsed.type === "sendCoiToVenue"
+        parsed.type === "sendCoiToVenue" ||
+        parsed.type === "approvePreparedCoi" ||
+        parsed.type === "completeCoiDetails" ||
+        parsed.type === "attachCoiUpload" ||
+        parsed.type === "approveAndSendCoi"
       ) {
         await requireEntitlement(db, parsed.tenantId, "coiEnabled");
       }
@@ -993,6 +1049,11 @@ export const planningCommand = onRequest(
         result = { shareId, status: "revoked" };
       } else if (parsed.type === "createCoiRequest") {
         if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
+        const agentEmail =
+          parsed.input.insuranceAgentEmail ??
+          readCoiSettings(await db.doc(`coiSettings/${parsed.tenantId}`).get())?.agentEmail ??
+          null;
+        if (!agentEmail) throw new Error("COI_AGENT_EMAIL_REQUIRED");
         const requirementId = stable(
           "coi_requirement",
           parsed.tenantId,
@@ -1040,7 +1101,7 @@ export const planningCommand = onRequest(
           requirementId,
           status: "requested",
           replyTokenHash: createHash("sha256").update(token).digest("hex"),
-          requestEmail: parsed.input.insuranceAgentEmail,
+          requestEmail: agentEmail,
           venueName: parsed.input.venueLegalName,
           dueDate: parsed.input.dueDate,
           inboundMessageId: null,
@@ -1064,7 +1125,7 @@ export const planningCommand = onRequest(
           projectId: parsed.input.projectId,
           type: "coi_request",
           requestId,
-          recipient: parsed.input.insuranceAgentEmail,
+          recipient: agentEmail,
           replyAddress,
           requirement: {
             certificateHolder: parsed.input.certificateHolder,
@@ -1111,10 +1172,13 @@ export const planningCommand = onRequest(
             !current.exists ||
             current.get("tenantId") !== parsed.tenantId ||
             current.get("projectId") !== parsed.input.projectId ||
-            !["under_review", "correction_required"].includes(
-              String(current.get("status")),
+            !(
+              ["under_review", "correction_required"].includes(String(current.get("status"))) ||
+              // A PDF that failed the safety scan can only be sent back: the
+              // correction email asks the agent to send it again (H3).
+              (current.get("status") === "failed" && parsed.input.decision === "rejected")
             )
-            )
+          )
             throw new Error("COI_NOT_REVIEWABLE");
           currentRequest = current.data() ?? null;
           tx.update(reference, {
@@ -1216,7 +1280,26 @@ export const planningCommand = onRequest(
           .doc(`insuranceRequirements/${String(current.get("requirementId"))}`)
           .get();
         if (!requirement.exists) throw new Error("COI_REQUIREMENT_NOT_FOUND");
+        if (!requirement.get("submissionEmail")) throw new Error("COI_VENUE_EMAIL_REQUIRED");
+        // The venue's reply comes back to this request (C5): its original
+        // coi+ address, read from the request email.
+        const originalRequest = await db.doc(`emailJobs/coi_request_${parsed.input.requestId}`).get();
+        const venueReplyAddress = originalRequest.get("replyAddress");
+        const key =
+          (typeof requirement.get("venueKey") === "string" && requirement.get("venueKey")) ||
+          venueKey({ name: requirement.get("venueLegalName") });
+        if (key) {
+          await db.doc(`venueCoiProfiles/${venueProfileId(parsed.tenantId, String(key))}`).set({
+            ...venueProfileFrom(requirement, String(requirement.get("submissionEmail"))),
+            tenantId: parsed.tenantId,
+            venueKey: key,
+            lastRequestId: parsed.input.requestId,
+            updatedAt: now,
+            updatedBy: identity.uid,
+          });
+        }
         await db.doc(`emailJobs/coi_venue_${parsed.input.requestId}`).create({
+          ...(typeof venueReplyAddress === "string" ? { replyAddress: venueReplyAddress } : {}),
           id: `coi_venue_${parsed.input.requestId}`,
           tenantId: parsed.tenantId,
           projectId: parsed.input.projectId,
@@ -1237,6 +1320,16 @@ export const planningCommand = onRequest(
           updatedBy: identity.uid,
         });
         result = { requestId: parsed.input.requestId, status: "sent_to_venue" };
+      } else if (parsed.type === "saveCoiSettings") {
+        result = await saveCoiSettings(db, { tenantId: parsed.tenantId, actorId: identity.uid, role, now }, parsed.input);
+      } else if (parsed.type === "approvePreparedCoi") {
+        result = await approvePreparedCoi(db, { tenantId: parsed.tenantId, actorId: identity.uid, role, now }, parsed.input);
+      } else if (parsed.type === "completeCoiDetails") {
+        result = await completeCoiDetails(db, { tenantId: parsed.tenantId, actorId: identity.uid, role, now }, parsed.input);
+      } else if (parsed.type === "attachCoiUpload") {
+        result = await attachCoiUpload(db, { tenantId: parsed.tenantId, actorId: identity.uid, role, now }, parsed.input);
+      } else if (parsed.type === "approveAndSendCoi") {
+        result = await approveAndSendCoi(db, { tenantId: parsed.tenantId, actorId: identity.uid, role, now }, parsed.input);
       } else if (parsed.type === "setTimelineAuthority") {
         if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
         const project = db.doc(`projects/${parsed.input.projectId}`);

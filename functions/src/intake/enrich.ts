@@ -33,6 +33,9 @@ const extractionSchema = z.object({
   wantsPhotography: z.boolean().nullable(),
   wantsVideography: z.boolean().nullable(),
   referralSource: z.string().max(120).nullable(),
+  // "The venue needs a certificate of insurance from vendors" (H3). Only ever
+  // read as yes: a message that doesn't mention it says nothing about it.
+  venueRequiresInsurance: z.boolean().nullable().optional(),
 });
 
 export type InquiryExtraction = z.infer<typeof extractionSchema>;
@@ -54,7 +57,7 @@ async function modelExtraction(
       systemInstruction: {
         parts: [
           {
-            text: `Extract booking details from a prospective client's inquiry to a photography or videography studio. Today is ${today}. Use null for anything not explicitly stated — never guess or invent names, dates, places, numbers or contact details. eventDate must be YYYY-MM-DD and only when the message names a specific future date. partnerName is the other person getting married, when named. guestCount only when a number of guests is stated. wantsPhotography / wantsVideography only when the message says so. Return JSON only.`,
+            text: `Extract booking details from a prospective client's inquiry to a photography or videography studio. Today is ${today}. Use null for anything not explicitly stated — never guess or invent names, dates, places, numbers or contact details. eventDate must be YYYY-MM-DD and only when the message names a specific future date. partnerName is the other person getting married, when named. guestCount only when a number of guests is stated. wantsPhotography / wantsVideography only when the message says so. venueRequiresInsurance true only when the message says the venue requires vendors' certificate of insurance (COI) or liability insurance, otherwise null. Return JSON only.`,
           },
         ],
       },
@@ -80,6 +83,7 @@ async function modelExtraction(
               ["wantsPhotography", "BOOLEAN"],
               ["wantsVideography", "BOOLEAN"],
               ["referralSource", "STRING"],
+              ["venueRequiresInsurance", "BOOLEAN"],
             ].map(([key, type]) => [key, { type, nullable: true }]),
           ),
         },
@@ -111,6 +115,7 @@ function deterministic(text: string): InquiryExtraction {
     wantsPhotography: null,
     wantsVideography: null,
     referralSource: null,
+    venueRequiresInsurance: null,
   };
 }
 
@@ -144,6 +149,7 @@ export function fillsFor(
   fill("estimatedGuestCount", extraction.guestCount, "guestCount");
   fill("budgetRange", extraction.budget, "budget");
   fill("referralSource", extraction.referralSource);
+  if (extraction.venueRequiresInsurance === true) fill("coiRequired", "yes");
   // Services only replace the placeholder default when the lead's services
   // weren't read from the form.
   const provenanceSoFar = (lead.fieldProvenance ?? {}) as Record<string, unknown>;

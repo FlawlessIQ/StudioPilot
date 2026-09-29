@@ -138,7 +138,8 @@ import { SETUP_ORDER, nextSetupStep } from "@/features/today/setup-gaps";
 const source = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
 
 test("setup asks in one order, and Today's 'Next' follows it", () => {
-  assert.deepEqual(SETUP_ORDER, ["inquiries", "availability", "packages", "agreement", "questionnaire"]);
+  // Insurance last and skippable (H3): only an explicit "not said" asks it.
+  assert.deepEqual(SETUP_ORDER, ["inquiries", "availability", "packages", "agreement", "questionnaire", "insurance"]);
   const gaps = setupGaps({ ...nothingConfigured, hasInquiryCapture: true }, quiet);
   // Inquiries answered: next is hours, not whatever the engine listed first.
   assert.equal(nextSetupStep(gaps), "availability");

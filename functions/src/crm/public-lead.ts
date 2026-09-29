@@ -48,6 +48,30 @@ const intakeSchema = z.object({
   eventDate: z.string().date(),
   eventType: z.string().trim().min(2).max(80),
   venue: z.string().trim().max(160).nullable().default(null),
+  // H3: the place the lookup found, and the COI answer (mirrors
+  // features/leads/schema.ts).
+  venuePlace: z
+    .object({
+      placeId: z.string().max(400).nullable().default(null),
+      formatted: z.string().min(1).max(500),
+      name: z.string().max(300).nullable().default(null),
+      line1: z.string().max(300).nullable().default(null),
+      city: z.string().max(160).nullable().default(null),
+      region: z.string().max(160).nullable().default(null),
+      postalCode: z.string().max(40).nullable().default(null),
+      country: z.string().length(2).nullable().default(null),
+      latitude: z.number().min(-90).max(90).nullable().default(null),
+      longitude: z.number().min(-180).max(180).nullable().default(null),
+      verified: z.boolean().default(false),
+    })
+    .nullable()
+    .default(null),
+  coiRequired: z.enum(["yes", "no", "not_sure"]).nullable().default(null),
+  venueContactName: z.string().trim().max(120).nullable().default(null),
+  venueContactEmail: z.preprocess(
+    (value) => (typeof value === "string" && !value.trim() ? null : value),
+    z.string().trim().email().nullable().default(null),
+  ),
   city: z.string().trim().min(2).max(120),
   estimatedGuestCount: z
     .number()
@@ -240,6 +264,10 @@ export const publicLeadIntake = onRequest(
       eventTypeLabel: input.eventType,
       eventDate: input.eventDate,
       venue: input.venue,
+      venuePlace: input.venuePlace,
+      coiRequired: input.coiRequired,
+      venueContactName: input.venueContactName,
+      venueContactEmail: input.venueContactEmail,
       city: input.city,
       estimatedGuestCount: input.estimatedGuestCount,
       servicesRequested: input.servicesRequested,

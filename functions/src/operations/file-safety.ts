@@ -431,6 +431,8 @@ async function handleCoiScan(input: {
   requestId: string;
   status: ScanResult["status"];
   now: string;
+  /** gs:// URI of the PDF that was scanned — the one to review. */
+  object: string;
 }) {
   const db = getFirestore();
   const coi = db.doc(`insuranceRequests/${input.requestId}`);
@@ -448,7 +450,17 @@ async function handleCoiScan(input: {
       const current = await transaction.get(coi);
       if (!current.exists) throw new Error("INSURANCE_REQUEST_NOT_FOUND");
       const aiJob = db.doc(`aiJobs/coi_${input.requestId}`);
-      if ((await transaction.get(aiJob)).exists) return;
+      const existing = await transaction.get(aiJob);
+      // One review per PDF. A corrected or re-sent certificate is a new PDF,
+      // and it used to find the first one's finished job here and stop — the
+      // request sat at "received", never reviewed (found building H3).
+      if (
+        existing.exists &&
+        (!["succeeded", "dead_letter"].includes(String(existing.get("status"))) ||
+          existing.get("object") === input.object)
+      ) {
+        return;
+      }
       await consumeAiQuota(
         transaction,
         db,
@@ -458,10 +470,18 @@ async function handleCoiScan(input: {
       transaction.update(coi, {
         scanStatus: "clean",
         status: "received",
+        // The scanned PDF is the one under review, whichever path brought it
+        // (agent's email, or the studio's own upload racing its attach call).
+        temporaryObject: input.object,
         updatedAt: input.now,
         updatedBy: "file-safety",
       });
-      transaction.create(aiJob, {
+      transaction.set(aiJob, {
+        object: input.object,
+        result: null,
+        error: null,
+        nextAttemptAt: null,
+        completedAt: null,
         tenantId: current.get("tenantId"),
         projectId: current.get("projectId"),
         type: "coi_extraction",
@@ -574,6 +594,7 @@ export const fileSafetyOnFinalize = onObjectFinalized(
           requestId: metadata.coiRequestId,
           status: result.status,
           now,
+          object: `gs://${object.bucket}/${objectName}`,
         });
       }
     } catch (caught: unknown) {

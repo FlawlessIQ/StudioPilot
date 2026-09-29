@@ -477,6 +477,22 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Who sends the studio's certificates of insurance, and how far
+    // StudioCue may go on its own (H3). The agent's contact details are the
+    // studio's business: never a couple's or a crew member's to read. Keyed
+    // by tenant; `resource.data.tenantId` so a tenant-scoped list is provable.
+    match /coiSettings/{tenantId} {
+      allow read: if isPlatformAdmin()
+        || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin", "studio_coordinator"]);
+      allow write: if false;
+    }
+
+    // What each venue asked for last time, so the next COI there needs no typing.
+    match /venueCoiProfiles/{profileId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin", "studio_coordinator"]);
+      allow write: if false;
+    }
+
     match /bookingGateRuns/{runId} {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
         || (

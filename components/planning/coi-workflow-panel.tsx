@@ -1,12 +1,11 @@
 "use client";
 
+import { CoiRequestActions } from "@/components/planning/coi-request-actions";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
-  CheckCircle2,
   LoaderCircle,
   Send,
   ShieldCheck,
-  XCircle,
 } from "lucide-react";
 import {
   collection,
@@ -39,10 +38,15 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
   const workspace = useWorkspace();
   const { records: projects, loading: projectsLoading } =
     useTenantDocuments("projects");
+  // The request's details and the studio's saved agent (H3).
+  const managerRole = ["studio_owner", "studio_admin", "studio_coordinator"].includes(String(workspace.role ?? ""));
+  const { records: requirements } = useTenantDocuments("insuranceRequirements", { enabled: managerRole });
+  const { records: coiSettingsRecords } = useTenantDocuments("coiSettings", { enabled: managerRole });
+  const coiSettings = (coiSettingsRecords ?? [])[0];
+  const savedAgentEmail = typeof coiSettings?.agentEmail === "string" ? coiSettings.agentEmail : "";
   const [requests, setRequests] = useState<RequestRecord[]>([]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [reason, setReason] = useState<Record<string, string>>({});
   const returnToJob = useReturnToJob(projectId ?? null);
   /**
    * Derived, not synchronised. The page's own project wins until the studio
@@ -172,9 +176,9 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
         waiverOfSubrogation: form.get("waiverOfSubrogation") === "on",
         primaryNoncontributory: form.get("primaryNoncontributory") === "on",
         specialInstructions: String(form.get("specialInstructions")) || null,
-        submissionEmail: String(form.get("submissionEmail")),
+        submissionEmail: String(form.get("submissionEmail") ?? "") || null,
         dueDate: String(form.get("dueDate")),
-        insuranceAgentEmail: String(form.get("insuranceAgentEmail")),
+        insuranceAgentEmail: String(form.get("insuranceAgentEmail") ?? "") || null,
       });
       setNotice(
         result.persisted
@@ -190,47 +194,6 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
       }
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "Request failed."));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function decide(
-    request: RequestRecord,
-    decision: "approved" | "rejected",
-  ) {
-    setBusy(true);
-    setNotice(null);
-    try {
-      await sendPlanningCommand("decideCoi", {
-        projectId: String(request.projectId),
-        requestId: request.id,
-        decision,
-        reason: reason[request.id] ?? "",
-      });
-      setNotice(
-        decision === "approved"
-          ? "Human approval recorded; approved storage jobs were queued."
-          : "Rejection recorded and a correction request was queued.",
-      );
-    } catch (caught: unknown) {
-      setNotice(friendlyError(caught, "Decision failed."));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function sendToVenue(request: RequestRecord) {
-    setBusy(true);
-    setNotice(null);
-    try {
-      await sendPlanningCommand("sendCoiToVenue", {
-        projectId: String(request.projectId),
-        requestId: request.id,
-      });
-      setNotice("Venue delivery was queued and its status was recorded.");
-    } catch (caught: unknown) {
-      setNotice(friendlyError(caught, "Delivery failed."));
     } finally {
       setBusy(false);
     }
@@ -369,12 +332,21 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
           </label>
           <label>
             Insurance agent email
-            <input name="insuranceAgentEmail" type="email" required />
-            <small>Your own agent. They get the request as soon as you send it.</small>
+            <input
+              name="insuranceAgentEmail"
+              placeholder={savedAgentEmail || undefined}
+              required={!savedAgentEmail}
+              type="email"
+            />
+            <small>
+              {savedAgentEmail
+                ? `Leave blank to use your saved agent, ${savedAgentEmail}.`
+                : "Your own agent. Save them in Settings → Insurance and StudioCue asks for you."}
+            </small>
           </label>
           <label>
-            Venue submission email
-            <input name="submissionEmail" type="email" required />
+            Venue submission email <span className="coi-optional">optional for now</span>
+            <input name="submissionEmail" type="email" />
             <small>
               Where the finished certificate goes — only after you have
               reviewed and approved it. Nothing is sent here now.
@@ -536,40 +508,14 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
                     })}
                     {!discrepancies.length ? <li><ShieldCheck size={14} /><span><strong>Nothing flagged</strong><small>Read it yourself before approving — StudioCue never decides whether a certificate is legally sufficient.</small></span></li> : null}
                   </ul>
-                  {request.status === "approved" ? (
-                    <button className="button button-dark" disabled={busy} type="button" onClick={() => void sendToVenue(request)}>
-                      <Send /> Send approved PDF to venue
-                    </button>
-                  ) : ["under_review", "correction_required"].includes(
-                      String(request.status),
-                    ) ? (
-                    <>
-                      <label>
-                        Why you are approving or sending it back
-                        <textarea
-                          placeholder="e.g. Holder name is wrong — ask the agent to reissue naming Oak Hill Barn LLC."
-                          value={reason[request.id] ?? ""}
-                          onChange={(event) => setReason((current) => ({ ...current, [request.id]: event.target.value }))}
-                        />
-                      </label>
-                      <footer>
-                        <button className="button button-dark" disabled={busy} type="button" onClick={() => void decide(request, "approved")}>
-                          <CheckCircle2 /> Approve
-                        </button>
-                        <button className="button button-danger" disabled={busy} type="button" onClick={() => void decide(request, "rejected")}>
-                          <XCircle /> Request correction
-                        </button>
-                      </footer>
-                    </>
-                  ) : (
-                    <p className="coi-status-note">
-                      {request.status === "requested"
-                        ? "Waiting for the insurance agent to reply through the secure project address."
-                        : request.status === "sent_to_venue"
-                          ? "The approved certificate was queued for venue delivery and recorded in this project."
-                          : "StudioCue is waiting for the next provider event."}
-                    </p>
-                  )}
+                  {/* Every status has its one next step (H3): approve the
+                      prepared request, fill in the venue, make it in the
+                      insurer's portal, or approve and send it to the venue. */}
+                  <CoiRequestActions
+                    request={request as Record<string, unknown> & { id: string }}
+                    requirement={(requirements ?? []).find((item) => item.id === request.requirementId)}
+                    settings={coiSettings}
+                  />
                 </article>
               );
             })}

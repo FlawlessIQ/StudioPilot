@@ -136,6 +136,11 @@ export function useTodayInbox(): {
   const crewAssignments = useTenantDocuments("crewAssignments");
   const checkpoints = useTenantDocuments("checkpoints");
   const insuranceRequests = useTenantDocuments("insuranceRequests");
+  // Who sends the studio's certificates (H3). Readable by the studio's
+  // managers only, so nobody else asks.
+  const coiSettings = useTenantDocuments("coiSettings", {
+    enabled: ["studio_owner", "studio_admin", "studio_coordinator"].includes(String(workspace.role ?? "")),
+  });
   const deliveries = useTenantDocuments("deliveryRecords");
   const questionnaireTemplates = useTenantDocuments("questionnaireTemplates");
 
@@ -293,6 +298,8 @@ export function useTodayInbox(): {
     automationApprovals: automationApprovals.records,
     communicationDrafts: communicationDrafts.records,
     deliveryDrafts: deliveryDrafts.records,
+    insuranceRequests: insuranceRequests.records,
+    coiSettings: coiSettings.records,
     proposals: proposals.records,
     automationRuns: automationRuns.records,
     providerJobs: providerJobs.records,

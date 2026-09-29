@@ -249,6 +249,9 @@ export type TodayInput = {
   automationApprovals?: TodayRecord[] | null;
   communicationDrafts?: TodayRecord[] | null;
   deliveryDrafts?: TodayRecord[] | null;
+  /** Certificates of insurance and the studio's COI settings (H3). */
+  insuranceRequests?: TodayRecord[] | null;
+  coiSettings?: TodayRecord[] | null;
   proposals?: TodayRecord[] | null;
   automationRuns?: TodayRecord[] | null;
   providerJobs?: TodayRecord[] | null;
@@ -1036,6 +1039,18 @@ export function todayInbox(input: TodayInput): TodayInbox {
     });
   }
 
+  // Jobs whose certificate has its own card below (H3), so the journey's
+  // "Insurance to venue" step is not repeated.
+  const COI_CARD_STATUSES = ["prepared", "needs_details", "self_serve", "under_review", "approved", "failed"];
+  const coiCards = rows(input.insuranceRequests).filter(
+    (request) =>
+      !request.archivedAt &&
+      jobStillOpen(request.projectId) &&
+      (COI_CARD_STATUSES.includes(text(request.status)) ||
+        (Boolean(request.escalatedAt) && ["requested", "correction_required"].includes(text(request.status)))),
+  );
+  const coiCardProjectIds = new Set(coiCards.map((request) => text(request.projectId)));
+
   // Projects whose overdue balance already has its own card, so the journey's
   // balance step is not repeated below.
   const overdueInvoiceProjectIds = new Set<string>();
@@ -1208,6 +1223,13 @@ export function todayInbox(input: TodayInput): TodayInbox {
       position.stepKey === "final_balance" &&
       position.projectId &&
       overdueInvoiceProjectIds.has(position.projectId)
+    ) {
+      continue;
+    }
+    if (
+      position.stepKey === "coi" &&
+      position.projectId &&
+      coiCardProjectIds.has(position.projectId)
     ) {
       continue;
     }
@@ -1506,6 +1528,101 @@ export function todayInbox(input: TodayInput): TodayInbox {
       updatedAt: changedAt(draft),
     });
   }
+  // ── Certificates of insurance (H3, docs/coi-automation-plan-2026-09-28.md) ─
+  const coiSettings = rows(input.coiSettings)[0];
+  const agentPhone = text(coiSettings?.agentPhone);
+  for (const request of coiCards) {
+    const status = text(request.status);
+    const projectId = text(request.projectId);
+    const href = `/studio/insurance?project=${encodeURIComponent(projectId)}`;
+    const venue = text(request.venueName);
+    const due = text(request.dueDate).slice(0, 10);
+    if (request.escalatedAt && ["requested", "correction_required"].includes(status)) {
+      // Chasing stopped: the studio picks up the phone.
+      exception({
+        id: `coi-escalated-${request.id}`,
+        kind: "insurance",
+        title: "Your agent hasn't sent the COI",
+        detail: nameFor(projectId) ?? "Certificate of insurance",
+        dueDate: due || null,
+        extraFacts: [due ? `due ${formatDueDate(due)}` : null, agentPhone ? `Call ${agentPhone}` : null],
+        href,
+        projectId,
+        projectName: nameFor(projectId),
+        eventDate: eventFor(projectId),
+        updatedAt: changedAt(request),
+        label: "Open",
+      });
+    } else if (status === "needs_details") {
+      exception({
+        id: `coi-details-${request.id}`,
+        kind: "insurance",
+        title: "Confirm the venue's address for the COI",
+        detail: nameFor(projectId) ?? "Certificate of insurance",
+        dueDate: due || null,
+        href,
+        projectId,
+        projectName: nameFor(projectId),
+        eventDate: eventFor(projectId),
+        updatedAt: changedAt(request),
+        label: "Confirm",
+      });
+    } else if (status === "failed") {
+      exception({
+        id: `coi-failed-${request.id}`,
+        kind: "insurance",
+        title: "The COI didn't pass the safety check",
+        detail: nameFor(projectId) ?? "Certificate of insurance",
+        href,
+        projectId,
+        projectName: nameFor(projectId),
+        eventDate: eventFor(projectId),
+        updatedAt: changedAt(request),
+        label: "Open",
+      });
+    } else {
+      prepared({
+        id: `coi-${status}-${request.id}`,
+        kind: "insurance",
+        title:
+          status === "prepared"
+            ? "Send the COI request to your agent"
+            : status === "self_serve"
+              ? "Generate the COI in your insurer's portal"
+              : status === "approved"
+                ? "Send the approved COI to the venue"
+                : `COI ready${venue ? ` for ${venue}` : ""} — check it and send`,
+        detail: nameFor(projectId) ?? "Certificate of insurance",
+        href,
+        label: status === "prepared" ? "Review and send" : status === "self_serve" ? "Open" : "Review",
+        projectId,
+        updatedAt: changedAt(request),
+      });
+    }
+  }
+  // A job that needs a certificate and a studio that hasn't said who sends
+  // them: once, not per job.
+  if (!coiSettings) {
+    const needing = rows(input.projects).find(
+      (project) =>
+        project.insuranceRequired === "required" &&
+        ["BOOKED", "PLANNING", "READY"].includes(text(project.state)) &&
+        jobStillOpen(project.id),
+    );
+    if (needing) {
+      prepared({
+        id: "coi-setup",
+        kind: "insurance",
+        title: "Save who sends your certificates of insurance",
+        detail: `${nameFor(needing.id) ?? "A booked job"} needs one — StudioCue can ask for it and chase it`,
+        href: "/studio/settings/insurance",
+        label: "Set up",
+        projectId: needing.id,
+        updatedAt: changedAt(needing),
+      });
+    }
+  }
+
   for (const proposal of rows(input.proposals)) {
     if (text(proposal.status) !== "internal_review") continue;
     prepared({

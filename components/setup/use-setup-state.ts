@@ -50,6 +50,7 @@ export function useSetupState(): {
     nativeSigning: boolean;
     availability: boolean;
     captured: boolean;
+    coi: boolean;
   } | null>(null);
 
   const [reads, setReads] = useState(0);
@@ -65,7 +66,9 @@ export function useSetupState(): {
       getDoc(doc(firestore, "tenantFeatures", workspace.tenantId)).catch(() => null),
       // Owner/admin-readable; for anyone else the read fails and leads decide.
       getDoc(doc(firestore, "leadCaptureSettings", workspace.tenantId)).catch(() => null),
-    ]).then(([tenant, availability, features, capture]) => {
+      // Managers only; a missing doc reads as "not said yet".
+      getDoc(doc(firestore, "coiSettings", workspace.tenantId)).catch(() => null),
+    ]).then(([tenant, availability, features, capture, coi]) => {
       if (!active) return;
       const contractSettings = tenant?.get("defaultContractSettings") as
         | Record<string, unknown>
@@ -91,6 +94,7 @@ export function useSetupState(): {
         captured:
           Boolean(text(capture?.get("lastCaptureAt"))) ||
           Boolean(text(capture?.get("lastTestCaptureAt"))),
+        coi: Boolean(coi?.exists()),
       });
     });
     return () => {
@@ -126,6 +130,7 @@ export function useSetupState(): {
     hasConsultationAvailability: Boolean(tenantDocs?.availability),
     // Inquiries reach StudioCue: captured (forwarded, or the form emailing
     // StudioCue directly), a passed test, or StudioCue's own inquiry form.
+    hasCoiSettings: tenantDocs ? tenantDocs.coi : undefined,
     hasInquiryCapture:
       Boolean(tenantDocs?.captured) ||
       (leads.records ?? []).some(

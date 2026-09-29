@@ -184,7 +184,6 @@ const KNOWN_GAPS: Record<string, string> = {
   COI_DOCUMENT_MISSING: "planning",
   COI_INBOUND_DOMAIN_NOT_CONFIGURED: "planning",
   COI_NOT_APPROVED: "planning",
-  COI_NOT_REVIEWABLE: "planning",
   COI_REQUIREMENT_NOT_FOUND: "planning",
   COMPLETED_EXPORT_REQUIRED: "saas",
   CONNECTION_NOT_FOUND: "integrations",

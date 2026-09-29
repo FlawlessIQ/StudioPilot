@@ -91,7 +91,12 @@ export type LeadFieldKey =
   | "budget"
   | "services"
   | "referralSource"
-  | "message";
+  | "message"
+  // H3 (docs/coi-automation-plan-2026-09-28.md): does the venue want a
+  // certificate of insurance, and who at the venue to send it to.
+  | "coiRequired"
+  | "venueContactName"
+  | "venueContactEmail";
 
 export const LEAD_FIELD_LABEL: Record<LeadFieldKey, string> = {
   fullName: "Name",
@@ -110,6 +115,9 @@ export const LEAD_FIELD_LABEL: Record<LeadFieldKey, string> = {
   services: "Services",
   referralSource: "How they heard",
   message: "Message",
+  coiRequired: "Venue needs a COI",
+  venueContactName: "Venue coordinator",
+  venueContactEmail: "Venue coordinator's email",
 };
 
 /**
@@ -122,6 +130,12 @@ const LABEL_PATTERNS: Array<[RegExp, LeadFieldKey]> = [
   [/\b(tell us|anything else|additional (info|information|details)|your message|message( body)?|comments?)\b/i, "message"],
   // "Where did you hear about us" is a referral, not a venue.
   [/\b(how did you (hear|find)|where did you (hear|find)|referr|found us|heard about)\b/i, "referralSource"],
+  // Above email, venue and name, or "Venue coordinator email" is read as the
+  // couple's email and "Venue coordinator" as the venue — and the first email
+  // a form lists wins (valuesFromFields).
+  [/\b(certificate of insurance|insurance certificate|proof of insurance|liability insurance|coi)\b/i, "coiRequired"],
+  [/\b(venue|site|event)\s*(coordinator|manager|contact|planner)('?s)?\s*(e-?mail|email address)\b/i, "venueContactEmail"],
+  [/\b(venue|site)\s*(coordinator|manager|contact)('?s)?(\s*name)?\b/i, "venueContactName"],
   // No trailing \b after "fiancé": "é" is not a word character, so the
   // boundary never matches before "'s".
   [/\b(partner|spouse|other half|significant other)\b|\bfianc[eé]|\b(groom|bride)'?s? name\b/i, "partnerName"],
@@ -480,6 +494,16 @@ export function plausiblePersonName(value: string | null | undefined): boolean {
 }
 
 /** Turn labelled fields into lead values, each with its source. */
+/** "Yes", "Not required", "Not sure" — a COI question's answer, in three words. */
+export function coiAnswer(value: string): "yes" | "no" | "not_sure" | null {
+  const clean = value.trim().toLowerCase();
+  if (!clean) return null;
+  if (/not sure|unsure|don'?t know|do not know|maybe|tbd|unknown|\?/.test(clean)) return "not_sure";
+  if (/^(no|n|nope|not required|none|not needed)\b/.test(clean)) return "no";
+  if (/^(yes|y|yep|required|true|they do|it does)\b/.test(clean)) return "yes";
+  return null;
+}
+
 export function valuesFromFields(fields: FormField[], today: string): CapturedValues {
   const values: CapturedValues = {};
   const set = (key: keyof CapturedValues, value: CapturedValue["value"] | null, label: string) => {
@@ -526,6 +550,17 @@ export function valuesFromFields(fields: FormField[], today: string): CapturedVa
         break;
       case "message":
         set("message", value.slice(0, 5000), field.label);
+        break;
+      case "venueContactEmail": {
+        const email = parseAddress(value).email;
+        if (email && !isPlatformAddress(email)) set("venueContactEmail", email, field.label);
+        break;
+      }
+      case "venueContactName":
+        set("venueContactName", plausiblePersonName(value) ? value.slice(0, 120) : null, field.label);
+        break;
+      case "coiRequired":
+        set("coiRequired", coiAnswer(value), field.label);
         break;
       case null:
         break;

@@ -1,0 +1,21 @@
+{
+  "note": "H3: a form that asks for the venue coordinator before the couple, and asks whether the venue needs a certificate of insurance. The coordinator's email must never become the couple's, nor 'Venue Coordinator' the venue. Constructed, not a real captured email.",
+  "from": "form-submission@squarespace.info",
+  "fromName": "Squarespace",
+  "replyTo": null,
+  "subject": "Form Submission - Wedding inquiry - Hello!",
+  "text": "Venue Coordinator Name: Dana Whitfield\nVenue Coordinator Email: events@lakesidelodge.example\nName: Priya Shah\nEmail Address: priya.shah@example.com\nWedding Date: 09/18/2027\nEvent Venue: Lakeside Lodge\nDoes your venue require a certificate of insurance?: Yes\nMessage: We'd love to hear about your packages.\n\n(Sent via Hart Light Photography)",
+  "html": null,
+  "expect": {
+    "builder": "squarespace",
+    "email": "priya.shah@example.com",
+    "firstName": "Priya",
+    "lastName": "Shah",
+    "eventDate": "2027-09-18",
+    "venue": "Lakeside Lodge",
+    "coiRequired": "yes",
+    "venueContactName": "Dana Whitfield",
+    "venueContactEmail": "events@lakesidelodge.example",
+    "verdict": "inquiry"
+  }
+}

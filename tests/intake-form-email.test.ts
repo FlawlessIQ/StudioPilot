@@ -10,6 +10,7 @@ import {
   readInquiryEmail,
   valuesFromFields,
   withoutLinkTargets,
+  coiAnswer,
 } from "../functions/src/intake/form-email";
 
 /**
@@ -55,7 +56,7 @@ for (const [file, fixture] of fixtures) {
     if ("contactSource" in expect) assert.equal(read.contactSource, expect.contactSource, "contactSource");
     if ("forwarded" in expect) assert.equal(read.forwarded, expect.forwarded, "forwarded");
     if ("formName" in expect) assert.equal(read.formName, expect.formName, "formName");
-    for (const key of ["email", "firstName", "lastName", "partnerName", "phone", "eventDate", "venue", "city", "guestCount", "budget", "referralSource"]) {
+    for (const key of ["email", "firstName", "lastName", "partnerName", "phone", "eventDate", "venue", "city", "guestCount", "budget", "referralSource", "coiRequired", "venueContactName", "venueContactEmail"]) {
       if (key in expect) assert.equal(value(key), expect[key], key);
     }
     if ("services" in expect) assert.deepEqual(value("services"), expect.services, "services");
@@ -136,4 +137,24 @@ test("a misread field never becomes the couple's name", () => {
   );
   assert.equal(values.firstName, undefined);
   assert.equal(values.lastName, undefined);
+});
+
+test("a COI question's answer, however the form words it (H3)", () => {
+  assert.equal(coiAnswer("Yes"), "yes");
+  assert.equal(coiAnswer("Required"), "yes");
+  assert.equal(coiAnswer("No"), "no");
+  assert.equal(coiAnswer("Not required"), "no");
+  assert.equal(coiAnswer("Not sure"), "not_sure");
+  assert.equal(coiAnswer("I don't know"), "not_sure");
+  assert.equal(coiAnswer(""), null);
+  assert.equal(coiAnswer("Lakeside Lodge"), null);
+});
+
+test("venue coordinator labels never read as the couple's email or the venue (H3)", () => {
+  assert.equal(labelToField("Venue Coordinator Email"), "venueContactEmail");
+  assert.equal(labelToField("Venue coordinator's email address"), "venueContactEmail");
+  assert.equal(labelToField("Venue Contact"), "venueContactName");
+  assert.equal(labelToField("Does your venue require a COI?"), "coiRequired");
+  assert.equal(labelToField("Email"), "email");
+  assert.equal(labelToField("Event Venue"), "venue");
 });

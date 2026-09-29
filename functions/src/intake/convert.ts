@@ -118,6 +118,12 @@ export async function convertInquiryToJob(
       email ||
       "New inquiry";
     const eventTypeLabel = text(lead.get("eventTypeLabel")) || text(lead.get("eventType")) || "Wedding";
+    const place = lead.get("venuePlace") as Record<string, unknown> | null | undefined;
+    const venuePlace =
+      place && typeof place === "object" && typeof place.formatted === "string" && place.formatted.trim() ? place : null;
+    const coiRequired = text(lead.get("coiRequired"));
+    const venueContactName = text(lead.get("venueContactName"));
+    const venueContactEmail = text(lead.get("venueContactEmail"));
     const projectId = projectIdForLead(input.tenantId, input.leadId);
     const projectReference = db.doc(`projects/${projectId}`);
     const existingProject = await transaction.get(projectReference);
@@ -171,7 +177,16 @@ export async function convertInquiryToJob(
         leadId: input.leadId,
         venueName: text(lead.get("venue")) || null,
         city: text(lead.get("city")) || null,
-        venue: null,
+        // The place the couple's lookup found, address and all: a COI needs a
+        // real postal address (H3). It was discarded here.
+        venue: venuePlace,
+        // "Does your venue require a certificate?" — the couple's answer, as
+        // far as it goes. "Not sure" stays unknown; the studio decides.
+        ...(coiRequired === "yes"
+          ? { insuranceRequired: "required" }
+          : coiRequired === "no"
+            ? { insuranceRequired: "not_required" }
+            : {}),
         // Where this job came from: an inquiry that became one on arrival,
         // not a booking someone entered. Inquiries, not Jobs, until booked.
         origin: "inquiry",
@@ -186,6 +201,29 @@ export async function convertInquiryToJob(
         updatedBy: actor,
         archivedAt: null,
       });
+      // The venue coordinator the couple named becomes the venue's vendor
+      // record on this job — who the certificate goes to, and who to ask.
+      if (venueContactEmail || venueContactName) {
+        const vendorId = `vendor_venue_${projectId}`;
+        transaction.set(db.doc(`vendors/${vendorId}`), {
+          id: vendorId,
+          tenantId: input.tenantId,
+          company: text(lead.get("venue")) || text(venuePlace?.name) || "Venue",
+          contactName: venueContactName,
+          email: venueContactEmail || null,
+          phone: null,
+          type: "venue",
+          website: null,
+          address: text(venuePlace?.formatted) || null,
+          notes: "Named by the couple on their inquiry.",
+          projectIds: [projectId],
+          createdAt: input.now,
+          updatedAt: input.now,
+          createdBy: actor,
+          updatedBy: actor,
+          archivedAt: null,
+        });
+      }
       const auditId = `audit_inquiry_job_${projectId}`;
       transaction.set(db.doc(`auditEvents/${auditId}`), {
         id: auditId,

@@ -26,7 +26,7 @@ import { SETUP_ORDER, type SetupGap, type SetupGapKey } from "@/features/today/s
  * Setup as a conversation.
  *
  * Phase 3 of "Today & Jobs". A new studio's assets already exist somewhere —
- * a price list, a contract, a questionnaire — so setup asks five questions
+ * a price list, a contract, a questionnaire — so setup asks six questions
  * and hands each answer to the import machinery, rather than presenting a
  * library of tools to discover. Most are answered right on this page: the
  * inquiry routes open their sheets here, hours take one tap, the agreement
@@ -95,6 +95,12 @@ const QUESTIONS: Question[] = [
     // usually done before the studio arrives; it says so, and offers theirs.
     doneLabel: "StudioCue's starter forms are ready to send — or use your own.",
   },
+  {
+    key: "insurance",
+    ask: "Who sends your certificates of insurance?",
+    why: "Venues often want one. Save your agent (or your insurer's portal) and StudioCue asks for it once a job is booked, chases it, and brings it back for one approval. Skip it if venues never ask.",
+    doneLabel: "StudioCue knows who sends your certificates.",
+  },
 ];
 
 /**
@@ -158,6 +164,14 @@ export function SetupConversation() {
             </Link>
           </div>
         );
+      case "insurance":
+        return (
+          <div className="setup-answer-row">
+            <Link className="button button-dark" href={fromSetup("/studio/settings/insurance")}>
+              Save who sends them <ArrowRight size={14} />
+            </Link>
+          </div>
+        );
     }
   };
 
@@ -195,7 +209,7 @@ export function SetupConversation() {
           <p className="setup-lede">
             {complete
               ? "Everything StudioCue needs is in place. Change any of it whenever your studio does."
-              : "Five questions, most answered right here. Skip anything; StudioCue will bring it back when a job actually needs it."}
+              : "Six questions, most answered right here. Skip anything; StudioCue will bring it back when a job actually needs it."}
           </p>
           {!loading ? (
             <p className="setup-progress">

@@ -10,6 +10,7 @@ import {
   Inbox,
   Package,
   PenLine,
+  ShieldCheck,
 } from "lucide-react";
 import { useSetupState } from "@/components/setup/use-setup-state";
 import {
@@ -19,7 +20,7 @@ import {
 } from "@/features/today/setup-gaps";
 
 /**
- * Help's "Set up your studio": the same five questions as /studio/setup, in
+ * Help's "Set up your studio": the same six questions as /studio/setup, in
  * the same order, read from the same state.
  *
  * It used to be its own list of five different steps (preview the form,
@@ -34,6 +35,7 @@ const ICONS: Record<SetupGapKey, ComponentType<{ size?: number }>> = {
   packages: Package,
   agreement: PenLine,
   questionnaire: ClipboardList,
+  insurance: ShieldCheck,
 };
 
 const capitalise = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
@@ -50,7 +52,7 @@ export function SetupChecklist() {
         <div>
           <span className="ds-eyebrow">Get started</span>
           <h2>Set up your studio workspace</h2>
-          <p>Five questions, most answered in a tap. Skip anything and come back when you need it.</p>
+          <p>Six questions, most answered in a tap. Skip anything and come back when you need it.</p>
         </div>
         {!loading ? (
           <span className="ds-badge ds-badge-brass">{`${completed} of ${total} complete`}</span>

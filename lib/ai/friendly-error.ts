@@ -291,6 +291,16 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   DELIVERY_ITEMS_REQUIRED: "Add at least one link to release.",
   REVIEW_DESTINATION_REQUIRED:
     "This release completes delivery, and the review asks need somewhere to point. Add your review link under \"Review asks, album and studio defaults\".",
+  // Certificates of insurance (H3).
+  COI_AGENT_EMAIL_REQUIRED: "Add your insurance agent's email — here, or once in Settings → Insurance.",
+  COI_VENUE_EMAIL_REQUIRED: "Add the venue's email so the certificate has somewhere to go.",
+  COI_DIAL_OWNER_ONLY: "Only the studio owner can change how far StudioCue goes on its own with certificates.",
+  COI_UPLOAD_MUST_BE_PDF: "Upload the certificate as a PDF.",
+  COI_UPLOAD_TOO_LARGE: "That PDF is over 12 MB. Export a smaller copy and try again.",
+  COI_REQUEST_NOT_ACCEPTING: "This certificate has already moved on. Refresh to see where it is.",
+  COI_NOT_PREPARED: "This request has already gone to your agent. Refresh to see where it is.",
+  COI_DETAILS_NOT_NEEDED: "This request already has the venue's details. Refresh to see where it is.",
+  COI_NOT_REVIEWABLE: "This certificate has already been decided. Refresh to see where it is.",
   NOTHING_DELIVERED_YET: "Nothing has gone to the couple yet, so there's no delivery to complete. Release something first.",
   PROJECT_NOT_IN_POST_PRODUCTION:
     "This job hasn't started post-production yet. Move it on from the job page, then record the gallery.",

@@ -1,5 +1,6 @@
 "use client";
 
+import { CoiSettings } from "@/components/settings/coi-settings";
 import Link from "next/link";
 import type { ComponentType } from "react";
 import { useEffect, useState } from "react";
@@ -17,6 +18,7 @@ import {
   Plug,
   Sparkles,
   Store,
+  ShieldCheck,
   UserRoundCheck,
   UsersRound,
   Wand2,
@@ -73,6 +75,7 @@ const SECTION_COMPONENT: Record<SectionKey, ComponentType> = {
   drafts: LifecyclePackPanel,
   forwarding: InquiryForwardingSettings,
   crewOffers: CrewOfferSettings,
+  insurance: CoiSettings,
   data: DataControls,
 };
 
@@ -104,8 +107,11 @@ const GROUPS: Array<{ label: string; items: HubItem[] }> = [
     ],
   },
   {
-    label: "Crew",
-    items: [{ kind: "section", key: "crewOffers", icon: UserRoundCheck }],
+    label: "Crew and insurance",
+    items: [
+      { kind: "section", key: "crewOffers", icon: UserRoundCheck },
+      { kind: "section", key: "insurance", icon: ShieldCheck },
+    ],
   },
   {
     label: "Workspace",

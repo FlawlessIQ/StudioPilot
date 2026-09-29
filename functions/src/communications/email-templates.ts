@@ -750,7 +750,25 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           : undefined,
       };
     }
-    case "coi_request":
+    case "coi_request": {
+      // A chase is a follow-up, not the same request again (H3): the agent
+      // should see at once that this is the second or third time of asking.
+      const chaseNumber = Number(values.chaseNumber ?? 0);
+      if (chaseNumber > 0) {
+        const due = requirement.dueDate ? humanDate(String(requirement.dueDate)) : null;
+        return {
+          subject: `Following up: certificate for ${String(requirement.venueLegalName ?? "an upcoming event")}${due ? `, due ${due}` : ""}`,
+          preheader: "Still needed — a certificate of insurance for an upcoming event.",
+          eyebrow: "Insurance document request",
+          heading: "Following up on our certificate request",
+          paragraphs: [
+            "Hello,",
+            `Following up on the certificate of insurance for ${String(requirement.venueLegalName ?? "the venue")} on ${requirement.eventDate ? humanDate(String(requirement.eventDate)) : "the event date"}${due ? ` — we need it by ${due}` : ""}.`,
+            `Certificate holder: ${String(requirement.certificateHolder ?? "See the original request")}.`,
+            "Reply to this email with one PDF attachment and it reaches us directly.",
+          ],
+        };
+      }
       return {
         subject: `Certificate of insurance request from ${brand.studioName}`,
         preheader: "A certificate is needed for an upcoming photography event.",
@@ -765,6 +783,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           "Reply to this email with one PDF attachment. We'll review the certificate before sending it to the venue.",
         ],
       };
+    }
     case "coi_correction":
       return {
         subject: `Certificate correction requested by ${brand.studioName}`,

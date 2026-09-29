@@ -19,7 +19,8 @@ export type SetupGapKey =
   | "packages"
   | "agreement"
   | "questionnaire"
-  | "availability";
+  | "availability"
+  | "insurance";
 
 /**
  * Setup's questions in the order they're asked (components/setup), and what
@@ -32,6 +33,8 @@ export const SETUP_ORDER: ReadonlyArray<SetupGapKey> = [
   "packages",
   "agreement",
   "questionnaire",
+  // Last and skippable (H3): plenty of studios never need a certificate.
+  "insurance",
 ];
 
 export const SETUP_STEP_NAME: Record<SetupGapKey, string> = {
@@ -40,6 +43,7 @@ export const SETUP_STEP_NAME: Record<SetupGapKey, string> = {
   packages: "what you charge",
   agreement: "how clients sign",
   questionnaire: "your details form",
+  insurance: "who sends your insurance certificates",
 };
 
 /** The first unanswered question, in setup's order. */
@@ -80,6 +84,12 @@ export type SetupState = {
    * answer: only an explicit `false` makes it a gap.
    */
   hasInquiryCapture?: boolean;
+  /**
+   * The studio has said who sends its certificates of insurance (H3,
+   * docs/coi-automation-plan-2026-09-28.md). Optional, and never part of
+   * "setup complete": only an explicit `false` asks the question.
+   */
+  hasCoiSettings?: boolean;
 };
 
 export type SetupSignals = {
@@ -199,6 +209,18 @@ export function setupGaps(
       href: "/studio/import",
       blocking: Boolean(blocked),
       blockedProjectName: blocked,
+    });
+  }
+
+  if (state.hasCoiSettings === false) {
+    gaps.push({
+      key: "insurance",
+      title: "Say who sends your insurance certificates",
+      detail: "Venues often want one. StudioCue can ask your agent, chase it and bring it back for one approval.",
+      actionLabel: "Set it up",
+      href: "/studio/settings/insurance",
+      blocking: false,
+      blockedProjectName: null,
     });
   }
 

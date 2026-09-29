@@ -801,15 +801,29 @@ export function projectJourney(input: JourneyInput): {
   // those jobs, with the only escape a checkpoint waiver — which records
   // accepting a risk rather than the fact that nobody asked.
   const coiNotRequired = input.insuranceRequired === "not_required";
+  // Done means the venue has it. "approved" counted too, while readiness
+  // waited for `sent_to_venue` — one wedding, two answers (C3 of
+  // docs/coi-automation-plan-2026-09-28.md). An approved certificate that
+  // never left is the studio's move, not a tick.
   const coiDone =
     coiNotRequired ||
-    ["approved", "sent_to_venue", "venue_acknowledged"].includes(
-      input.coiStatus ?? "",
-    ) ||
+    ["sent_to_venue", "venue_acknowledged"].includes(input.coiStatus ?? "") ||
     settled("coi-approved");
-  const coiWaiting = ["requested", "awaiting_response", "received", "under_review", "correction_required"].includes(
+  // With the agent: asked, being chased, or asked to correct it.
+  const coiWaiting = ["requested", "awaiting_response", "received", "correction_required"].includes(
     input.coiStatus ?? "",
   );
+  // The studio's move (C4): a certificate to check, one approved and not sent,
+  // a prepared request to approve, details to confirm, a portal to visit.
+  const coiStudioMove: Record<string, string> = {
+    under_review: "A certificate arrived — check it and send it to the venue",
+    approved: "Approved — send it to the venue",
+    prepared: "Your request to your agent is ready to approve",
+    needs_details: "Confirm the venue's address so the request can go",
+    self_serve: "Generate the certificate in your insurer's portal",
+    failed: "The certificate didn't pass the safety check — ask for it again",
+  };
+  const coiMove = coiStudioMove[input.coiStatus ?? ""];
   push({
     key: "coi",
     title: "Insurance to venue",
@@ -819,20 +833,32 @@ export function projectJourney(input: JourneyInput): {
     detail: coiDone
       ? coiNotRequired
         ? "This venue does not require one"
-        : input.coiStatus
-          ? "Certificate handled"
-          : "Settled by you"
-      : coiWaiting
-        ? "Requested — chasing automatically"
-        : "Request the certificate for the venue",
+        : input.coiStatus === "venue_acknowledged"
+          ? "The venue confirmed they have it"
+          : input.coiStatus
+            ? "Sent to the venue"
+            : "Settled by you"
+      : coiMove
+        ? coiMove
+        : input.coiStatus === "correction_required"
+          ? "With your agent for a correction — chasing automatically"
+          : coiWaiting
+            ? "Requested — chasing automatically"
+            : "Request the certificate for the venue",
     status: coiDone
       ? "complete"
-      : prepStatus(coiWaiting ? "waiting_other" : "current"),
+      : prepStatus(coiWaiting && !coiMove ? "waiting_other" : "current"),
     action: coiDone
       ? null
       : prepAction({
           kind: "link" as const,
-          label: coiWaiting ? "Check COI status" : "Request COI",
+          label: coiMove
+            ? input.coiStatus === "under_review" || input.coiStatus === "approved"
+              ? "Review and send"
+              : "Open"
+            : coiWaiting
+              ? "Check COI status"
+              : "Request COI",
           href: project("/studio/insurance"),
         }),
   });

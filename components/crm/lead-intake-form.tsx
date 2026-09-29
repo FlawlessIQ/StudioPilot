@@ -90,7 +90,7 @@ const STEPS = [
     eyebrow: "Step 2 of 3",
     title: "Tell us about your day",
     lede: "Dates are checked before availability is confirmed.",
-    fields: ["eventDate", "eventType", "venue", "city", "estimatedGuestCount"],
+    fields: ["eventDate", "eventType", "venue", "city", "estimatedGuestCount", "coiRequired", "venueContactName", "venueContactEmail"],
   },
   {
     eyebrow: "Step 3 of 3",
@@ -110,6 +110,12 @@ const EVENT_TYPES = [
   { value: "corporate", label: "Corporate" },
   { value: "sports", label: "Sports" },
   { value: "other", label: "Other" },
+] as const;
+
+const COI_ANSWERS = [
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
+  { value: "not_sure", label: "Not sure" },
 ] as const;
 
 const BUDGETS = [
@@ -179,6 +185,7 @@ export function LeadIntakeForm({
   // Only the two chip groups follow these; the rest of the form stays put.
   const eventType = useWatch({ control, name: "eventType" }) ?? "wedding";
   const budget = useWatch({ control, name: "budgetRange" });
+  const coiRequired = useWatch({ control, name: "coiRequired" });
 
   const [venue, setVenue] = useState<CapturedPlace | null>(null);
   const [referral, setReferral] = useState<string | null>(null);
@@ -202,6 +209,9 @@ export function LeadIntakeForm({
     setValue("venue", place ? placeLabel(place).slice(0, 160) : null, {
       shouldValidate: Boolean(place?.verified),
     });
+    // The found place itself, so the venue's certificate starts from a real
+    // postal address rather than a label (H3).
+    setValue("venuePlace", place?.verified ? place : null);
     if (!place?.verified || (getValues("city") ?? "").trim()) return;
     const city = placeCity(place);
     if (city) setValue("city", city.slice(0, 120), { shouldValidate: true });
@@ -457,6 +467,42 @@ export function LeadIntakeForm({
                   label={<>City <span className="required-mark">Required</span></>}
                   {...register("city")}
                 />
+                {venue ? (
+                  <>
+                    <input type="hidden" {...register("coiRequired", { setValueAs: (value) => value || null })} />
+                    <Choices
+                      legend="Does your venue ask vendors for a certificate of insurance?"
+                      onChange={(next) => {
+                        setValue("coiRequired", next as "yes" | "no" | "not_sure", { shouldDirty: true });
+                        if (next !== "yes") {
+                          setValue("venueContactName", null);
+                          setValue("venueContactEmail", null, { shouldValidate: true });
+                        }
+                      }}
+                      options={COI_ANSWERS}
+                      value={(coiRequired ?? null) as (typeof COI_ANSWERS)[number]["value"] | null}
+                    />
+                    {coiRequired === "yes" ? (
+                      <>
+                        <Field
+                          autoComplete="off"
+                          hint="Optional — we send it to them so you don’t have to."
+                          label="Venue coordinator’s name"
+                          {...register("venueContactName", { setValueAs: (value) => value || null })}
+                        />
+                        <Field
+                          autoComplete="off"
+                          error={errors.venueContactEmail?.message}
+                          icon={Mail}
+                          inputMode="email"
+                          label="Venue coordinator’s email"
+                          type="email"
+                          {...register("venueContactEmail", { setValueAs: (value) => value || null })}
+                        />
+                      </>
+                    ) : null}
+                  </>
+                ) : null}
                 <Field
                   hint="Optional — a rough number is fine."
                   icon={Users}

@@ -106,6 +106,11 @@ export function leadFieldsFrom(read: InquiryRead) {
     referralSource: stringValue(v, "referralSource"),
     servicesRequested: services,
     message: stringValue(v, "message") ?? read.message,
+    // H3: the venue's COI question and its coordinator. Never the couple's
+    // contact — `email` above stays the couple's, whatever the form lists first.
+    coiRequired: stringValue(v, "coiRequired") ?? null,
+    venueContactName: stringValue(v, "venueContactName") ?? null,
+    venueContactEmail: stringValue(v, "venueContactEmail")?.toLowerCase() ?? null,
     fieldProvenance: provenance,
   };
 }
@@ -454,6 +459,9 @@ async function writeLead(
     eventTypeLabel: fields.eventTypeLabel ?? "Wedding",
     eventDate: fields.eventDate,
     venue: fields.venue,
+    coiRequired: fields.coiRequired ?? null,
+    venueContactName: fields.venueContactName ?? null,
+    venueContactEmail: fields.venueContactEmail ?? null,
     city: fields.city,
     ceremonyTime: fields.ceremonyTime,
     estimatedGuestCount: fields.estimatedGuestCount,

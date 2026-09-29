@@ -13,7 +13,17 @@ const inbound = z.object({
   attachment: z.instanceof(Buffer).refine(value => value.length > 0 && value.length <= 15 * 1024 * 1024),
 });
 
-type ParsedInbound = z.infer<typeof inbound>;
+/**
+ * A reply with no PDF: the venue answering the certificate email (C5 of
+ * docs/coi-automation-plan-2026-09-28.md). Only ever read against a request
+ * already sent to the venue.
+ */
+const plainReply = z.object({
+  messageId: z.string().min(1).max(500),
+  replyToken: z.string().min(20).max(300),
+});
+
+type ParsedInbound = z.infer<typeof inbound> | (z.infer<typeof plainReply> & { attachment: null });
 
 function equal(a: string | undefined, b: string | undefined) {
   if (!a || !b) return false;
@@ -55,6 +65,10 @@ function parseMultipart(request: Request) {
         const messageId = headers.match(/^Message-ID:\s*(.+)$/im)?.[1]?.trim()
           ?? createHash("sha256").update(request.rawBody).digest("hex");
         const recipient = fields.to ?? fields.envelope ?? "";
+        if (!attachment.length) {
+          resolve({ ...plainReply.parse({ messageId, replyToken: replyToken(recipient) }), attachment: null });
+          return;
+        }
         resolve(inbound.parse({
           messageId,
           replyToken: replyToken(recipient),
@@ -95,7 +109,6 @@ export const sendgridInboundCoi = onRequest({
   }
   try {
     const parsed = await parseMultipart(request);
-    if (parsed.attachment.subarray(0, 4).toString() !== "%PDF") throw new Error("INVALID_PDF_SIGNATURE");
     const db = getFirestore();
     const tokenHash = createHash("sha256").update(parsed.replyToken).digest("hex");
     const requests = await db.collection("insuranceRequests").where("replyTokenHash", "==", tokenHash).limit(1).get();
@@ -120,6 +133,39 @@ export const sendgridInboundCoi = onRequest({
      * the refusal is visible, but nothing on the request changes.
      */
     const status = String(coi.get("status") ?? "");
+    // The venue writing back to the certificate we sent them: they have it.
+    // The one state where a reply without a PDF means something.
+    if (status === "sent_to_venue") {
+      const now = new Date().toISOString();
+      const batch = db.batch();
+      batch.create(event, { tenantId, projectId, provider: "sendgrid", providerEventId: parsed.messageId, status: "processed", kind: "venue_reply", createdAt: now });
+      batch.update(coi.ref, {
+        status: "venue_acknowledged",
+        venueAcknowledgedAt: now,
+        venueReplyMessageId: parsed.messageId,
+        updatedAt: now,
+        updatedBy: "sendgrid-inbound",
+      });
+      await batch.commit();
+      response.status(204).send();
+      return;
+    }
+    if (!parsed.attachment) {
+      await event.create({
+        tenantId,
+        projectId,
+        provider: "sendgrid",
+        providerEventId: parsed.messageId,
+        status: "ignored",
+        reason: "COI_REPLY_WITHOUT_PDF",
+        requestStatus: status,
+        coiRequestId: coi.id,
+        createdAt: new Date().toISOString(),
+      });
+      response.status(204).send();
+      return;
+    }
+    if (parsed.attachment.subarray(0, 4).toString() !== "%PDF") throw new Error("INVALID_PDF_SIGNATURE");
     if (!ACCEPTING_STATUSES.has(status)) {
       await event.create({
         tenantId,

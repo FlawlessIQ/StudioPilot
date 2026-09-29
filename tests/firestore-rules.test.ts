@@ -83,6 +83,16 @@ test(
           beforeYouShoot: [],
           onTheDay: [],
         });
+        // Who sends the studio's COIs (H3): the studio's business only.
+        await setDoc(doc(adminDb, "coiSettings/tenant-a"), {
+          tenantId: "tenant-a",
+          agentEmail: "agent@example.com",
+          dial: "prepare",
+        });
+        await setDoc(doc(adminDb, "venueCoiProfiles/tenant-a_name_x"), {
+          tenantId: "tenant-a",
+          certificateHolder: "Lakeside Lodge LLC",
+        });
         await setDoc(doc(adminDb, "projects/project-a"), {
           tenantId: "tenant-a",
           projectId: "project-a",
@@ -273,6 +283,22 @@ test(
       await assertSucceeds(getDoc(doc(userDb, "schedules/schedule-a")));
       await assertSucceeds(getDoc(doc(userDb, "vendors/vendor-a")));
       await assertFails(getDoc(doc(userDb, "insuranceRequests/coi-a")));
+      // COI settings and venue memory: owner and coordinator read, nobody
+      // writes from a browser, and a photographer, couple or crew never reads.
+      await assertFails(getDoc(doc(userDb, "coiSettings/tenant-a")));
+      await assertFails(getDoc(doc(userDb, "venueCoiProfiles/tenant-a_name_x")));
+      {
+        const ownerDb = environment.authenticatedContext("owner-a").firestore();
+        const coordinatorDb = environment.authenticatedContext("coordinator-a").firestore();
+        const clientDb = environment.authenticatedContext("client-a").firestore();
+        const crewDb = environment.authenticatedContext("crew-a").firestore();
+        await assertSucceeds(getDoc(doc(ownerDb, "coiSettings/tenant-a")));
+        await assertSucceeds(getDoc(doc(coordinatorDb, "venueCoiProfiles/tenant-a_name_x")));
+        await assertFails(setDoc(doc(ownerDb, "coiSettings/tenant-a"), { tenantId: "tenant-a", dial: "auto" }));
+        await assertFails(getDoc(doc(clientDb, "coiSettings/tenant-a")));
+        await assertFails(getDoc(doc(crewDb, "coiSettings/tenant-a")));
+        await assertFails(getDoc(doc(crewDb, "venueCoiProfiles/tenant-a_name_x")));
+      }
       await assertSucceeds(getDoc(doc(userDb, "postProductionRecords/post-a")));
       await assertFails(getDoc(doc(userDb, "deliveryRecords/delivery-a")));
 
