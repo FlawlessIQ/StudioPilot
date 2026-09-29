@@ -1,8 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useEffect, useState, type ReactNode } from "react";
 import { Camera, CheckCircle2, LoaderCircle } from "lucide-react";
+import {
+  AppBar,
+  Button,
+  Card,
+  KitRoot,
+  Main,
+  PoweredBy,
+  Screen,
+  StudioMark,
+  type Studio,
+} from "@/components/kit/kit";
 import { InvitationJoin } from "@/features/auth/invitation-join";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
@@ -25,6 +35,9 @@ import { getFirebaseClient } from "@/lib/firebase/client";
 type Preview = {
   kind: "roster" | "assignment";
   studioName: string;
+  /** The studio's colour and logo; absent from an older functions build. */
+  brandAccentColor?: string | null;
+  brandLogoUrl?: string | null;
   email: string;
   name: string;
   hasAccount: boolean;
@@ -57,53 +70,63 @@ export function AcceptCrewInvitation({ token }: { token: string }) {
 
   if (previewError)
     return (
-      <div className="invite-actions">
-        <p className="form-error" role="status">
-          {previewError}
-        </p>
-      </div>
+      <CrewInviteScreen preview={null}>
+        <Card>
+          <p className="kit-body" role="status">{previewError}</p>
+        </Card>
+      </CrewInviteScreen>
     );
 
   if (!preview)
     return (
-      <div className="invite-actions">
-        <LoaderCircle className="spin" />
-        <p>Opening your invitation…</p>
-      </div>
+      <CrewInviteScreen preview={null}>
+        <Card>
+          <p className="kit-body" role="status">
+            <LoaderCircle aria-hidden="true" className="spin" size={18} /> Opening your invitation…
+          </p>
+        </Card>
+      </CrewInviteScreen>
     );
 
   if (preview.expired)
     return (
-      <div className="invite-actions">
-        <p className="form-error">
-          This invitation has expired. Ask {preview.studioName}{" "} to resend it.
-        </p>
-      </div>
+      <CrewInviteScreen preview={preview}>
+        <Card>
+          <p className="kit-body" role="alert">
+            This invitation has expired. Ask {preview.studioName}{" "} to resend it.
+          </p>
+        </Card>
+      </CrewInviteScreen>
     );
 
   if (accepted)
     return (
-      <div className="invite-actions">
-        <CheckCircle2 />
-        <p>
-          {accepted === "roster"
-            ? `You're on ${preview.studioName}'s crew. Add your specialties, the dates you're free, and your documents so you're ready when they offer you a job.`
-            : "The assignment is now available in your crew workspace."}
-        </p>
-        <Link
-          className="button button-dark"
-          href={
-            accepted === "roster"
-              ? "/crew/profile"
-              : `/crew/jobs${assignmentId ? `?assignment=${encodeURIComponent(assignmentId)}` : ""}`
-          }
-        >
-          {accepted === "roster" ? "Set up your profile" : "Review assignment"}
-        </Link>
-      </div>
+      <CrewInviteScreen preview={preview}>
+        <Card tone="accent">
+          <p className="kit-eyebrow" style={{ color: "var(--kit-accent)" }}>
+            <CheckCircle2 aria-hidden="true" size={14} /> You&rsquo;re in
+          </p>
+          <p className="kit-body">
+            {accepted === "roster"
+              ? `You're on ${preview.studioName}'s crew. Add your specialties, the dates you're free, and your documents so you're ready when they offer you a job.`
+              : "The assignment is now available in your crew workspace."}
+          </p>
+          <Button
+            href={
+              accepted === "roster"
+                ? "/crew/profile"
+                : `/crew/jobs${assignmentId ? `?assignment=${encodeURIComponent(assignmentId)}` : ""}`
+            }
+          >
+            {accepted === "roster" ? "Set up your profile" : "Review assignment"}
+          </Button>
+        </Card>
+      </CrewInviteScreen>
     );
 
   return (
+    <CrewInviteScreen preview={preview}>
+    <Card>
     <InvitationJoin
       intro={
         <p>
@@ -128,6 +151,60 @@ export function AcceptCrewInvitation({ token }: { token: string }) {
       // can read the date, the role and the fee before deciding.
       verb={preview.kind === "assignment" ? "see the job" : "accept"}
     />
+    </Card>
+    </CrewInviteScreen>
+  );
+}
+
+/**
+ * The crew invitation as a phone screen in the studio's brand (M2 of
+ * docs/mobile-first-client-crew-plan-2026-09-28.md). It used to sit in the
+ * studio sign-in layout, under StudioCue's logo and a quote.
+ */
+export function CrewInviteScreen({
+  preview,
+  children,
+}: {
+  preview: Pick<Preview, "studioName" | "brandAccentColor" | "brandLogoUrl" | "kind"> | null;
+  children: ReactNode;
+}) {
+  const studio: Studio = {
+    name: preview?.studioName ?? "Your studio",
+    color: preview?.brandAccentColor ?? null,
+    logoUrl: preview?.brandLogoUrl ?? null,
+  };
+  // Until the invitation is read (or when it cannot be), the studio is not
+  // known: say "your invitation", not "Join Your studio's crew".
+  return (
+    <KitRoot studio={studio}>
+      <Screen>
+        {preview ? <AppBar studio={studio} /> : <AppBar title="Crew invitation" />}
+        <Main label="Crew invitation">
+          <div className="kit-stack" style={{ alignItems: "center", textAlign: "center", paddingTop: 12 }}>
+            {preview ? <StudioMark size={64} studio={studio} /> : null}
+            <p className="kit-eyebrow">Crew invitation</p>
+            <h1 className="kit-title">
+              {!preview
+                ? "Your invitation"
+                : preview.kind === "assignment"
+                  ? "A job for you"
+                  : `Join ${studio.name}’s crew`}
+            </h1>
+            <p className="kit-body">
+              Offers, schedules and paperwork, in one place on your phone.
+            </p>
+          </div>
+          {children}
+          <p className="kit-caption" style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+            <Camera aria-hidden="true" size={15} />
+            {preview
+              ? `You only see what ${studio.name} shares with you.`
+              : "You only see what the studio shares with you."}
+          </p>
+          <PoweredBy />
+        </Main>
+      </Screen>
+    </KitRoot>
   );
 }
 

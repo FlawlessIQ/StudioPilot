@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, LoaderCircle, Users } from "lucide-react";
 import { InvitationJoin } from "@/features/auth/invitation-join";
+import { KitRoot } from "@/components/kit/kit";
 import { runMembershipCommand } from "@/lib/memberships/command-client";
 
 /**
@@ -97,6 +98,9 @@ export function AcceptInvitation({ token }: { token: string }) {
     );
 
   return (
+    // The shared form is kit markup now; this page keeps its own look and
+    // StudioCue's default colour.
+    <KitRoot className="kit-embed">
     <InvitationJoin
       intro={
         <p>
@@ -115,6 +119,7 @@ export function AcceptInvitation({ token }: { token: string }) {
       preview={preview}
       translateError={invitationErrorMessage}
     />
+    </KitRoot>
   );
 }
 

@@ -269,6 +269,35 @@ The studio-side (desktop) parts of H1–H4 are unaffected.
     is rebuilt in the kit.
   - **Sign in with Apple** waits for an Apple developer account.
 
+## M2 — done 2026-09-29 (23d9476, 33754d2, and the welcome-screen commit)
+
+- **Inquiry form:** three steps (you, your day, your story), one field per
+  row, and chips instead of selects. Each step is checked before the next
+  opens. A refusal focuses its field, and a final refusal reopens the step
+  that holds it.
+- **Personal inquiry link and consultation invite:** kit screens with a
+  shared day/time picker (`components/kit/slot-picker.tsx`). They no longer
+  scroll inside a box, and cancelling asks in the page.
+  - **Bug fixed:** the consultation invite printed times in the phone's time
+    zone under a line saying they were the studio's.
+- **Welcome screens:** the client and crew invitations are the studio's
+  welcome, with the password field above the fold. `InvitationJoin` (all
+  three invitation types) is kit markup; the staff page embeds it.
+- **Tests:** `e2e/mobile-couple-inquiry-link.spec.ts` walks both booking
+  flows at 390 px in Chrome and WebKit against stubbed scheduling
+  responses. It blocks service workers: in WebKit a request through the
+  app's worker skips `page.route`.
+  - `e2e/client-invitation-flow.spec.ts` was stale. It followed a link
+    removed when invitations took the password inline, and nothing had run
+    it here. It's rewritten.
+- **Waiting on a functions deploy** (`firebase login --reauth`): the
+  studio's colour and logo in the scheduling and crew-invitation previews.
+  Until then those pages use the default colour.
+- **Not in M2:**
+  - **The COI question** joins with H3, when the server can store it.
+  - **The light public shell** is still open. The kit pages still load the
+    app-wide CSS.
+
 ### Open: should the invitation link sign a first-time invitee in?
 
 - **Today:** the invitation arrives by email, and the person then sets a

@@ -5,20 +5,27 @@ import {
   useEffect,
   useRef,
   useState,
-  type CSSProperties,
 } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   CalendarDays,
   CheckCircle2,
   LoaderCircle,
-  LockKeyhole,
   MailCheck,
   ShieldCheck,
 } from "lucide-react";
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
-import { Logo } from "@/components/brand/logo";
+import {
+  AppBar,
+  Button,
+  Card,
+  KitRoot,
+  Main,
+  PoweredBy,
+  Screen,
+  StudioMark,
+  type Studio,
+} from "@/components/kit/kit";
 import { InvitationJoin } from "@/features/auth/invitation-join";
 import { requestBrandedAuthEmail } from "@/lib/auth/email-client";
 import {
@@ -260,144 +267,90 @@ export function AcceptClientInvitation({
     router.replace(loginHref);
   }
 
-  const style = {
-    "--invite-accent": preview?.brandAccentColor ?? "#345c46",
-  } as CSSProperties;
+  const studio: Studio = {
+    name: preview?.studioName ?? "Your photography studio",
+    color: preview?.brandAccentColor ?? null,
+    logoUrl: preview?.brandLogoUrl ?? null,
+  };
 
+  // The studio's welcome leads, in its brand and the mobile kit (M2 of
+  // docs/mobile-first-client-crew-plan-2026-09-28.md). The desktop layout it
+  // replaced stacked a marketing column above the form on a phone, so the
+  // password field sat below the fold.
   return (
-    <main className="client-invite-page" style={style}>
-      <header className="client-invite-header">
-        <Logo />
-        <span>
-          <LockKeyhole aria-hidden="true" size={15} />
-          Secure client access
-        </span>
-      </header>
-
-      <div className="client-invite-layout">
-        <section className="client-invite-context">
-          <span className="client-invite-kicker">A private invitation from</span>
-          <div className="client-invite-studio">
-            {preview?.brandLogoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img alt="" src={preview.brandLogoUrl} />
-            ) : (
-              <span aria-hidden="true">
-                {(preview?.studioName ?? "Studio").slice(0, 1).toUpperCase()}
-              </span>
-            )}
-            <strong>{preview?.studioName ?? "Your photography studio"}</strong>
-          </div>
-          <h1>Everything for your project, in one calm place.</h1>
-          <p className="client-invite-intro">
-            Review details, complete questionnaires, approve schedules, and
-            access delivery links without searching through email threads.
-          </p>
-          <div className="client-invite-project">
-            <span>Project</span>
-            <strong>{preview?.projectName ?? "Loading your project…"}</strong>
+    <KitRoot studio={studio}>
+      <Screen>
+        <AppBar studio={studio} />
+        <Main label="Your invitation">
+          <div className="kit-stack" style={{ alignItems: "center", textAlign: "center", paddingTop: 12 }}>
+            <StudioMark size={64} studio={studio} />
+            <p className="kit-eyebrow">A private invitation from {studio.name}</p>
+            <h1 className="kit-title">
+              {preview?.projectName ? `Welcome to ${preview.projectName}` : "Welcome"}
+            </h1>
             {eventDate ? (
-              <small>
-                <CalendarDays aria-hidden="true" size={15} />
-                {eventDate}
-              </small>
+              <p className="kit-body">
+                <CalendarDays aria-hidden="true" size={15} /> {eventDate}
+              </p>
             ) : null}
+            <p className="kit-body">
+              Your proposal, agreement, plans and photos, in one place.
+            </p>
           </div>
-          <ul className="client-invite-assurances">
-            <li>
-              <ShieldCheck aria-hidden="true" />
-              <span>
-                <strong>Private by default</strong>
-                Only the project named in this invitation is shared.
-              </span>
-            </li>
-            <li>
-              <LockKeyhole aria-hidden="true" />
-              <span>
-                <strong>Verified access</strong>
-                Your invited email is checked before access is granted.
-              </span>
-            </li>
-          </ul>
-        </section>
 
-        <section className="client-invite-card">
           {previewError ? (
-            <div className="client-invite-state" role="alert">
-              <span className="client-invite-state-icon is-warning">
-                <LockKeyhole />
-              </span>
-              <p className="eyebrow">Invitation unavailable</p>
-              <h2>Ask your studio for a new link</h2>
-              <p>{previewError}</p>
-              <Link className="button button-dark" href="/">
-                Visit StudioCue
-              </Link>
-            </div>
+            <Card>
+              <p className="kit-eyebrow">Invitation unavailable</p>
+              <h2 className="kit-section">Ask your studio for a new link</h2>
+              <p className="kit-body" role="alert">{previewError}</p>
+            </Card>
           ) : !preview || !authResolved ? (
-            <div className="client-invite-state" role="status">
-              <LoaderCircle className="spin" />
-              <h2>Opening your invitation</h2>
-              <p>We’re checking the secure link and preparing your project.</p>
-            </div>
+            <Card>
+              <p className="kit-body" role="status">
+                <LoaderCircle aria-hidden="true" className="spin" size={18} /> Opening your invitation…
+              </p>
+            </Card>
           ) : preview.status === "expired" || preview.status === "revoked" ? (
-            <div className="client-invite-state" role="alert">
-              <span className="client-invite-state-icon is-warning">
-                <LockKeyhole />
-              </span>
-              <p className="eyebrow">Link no longer active</p>
-              <h2>Request a fresh invitation</h2>
-              <p>
+            <Card>
+              <p className="kit-eyebrow">Link no longer active</p>
+              <h2 className="kit-section">Request a fresh invitation</h2>
+              <p className="kit-body" role="alert">
                 For your security, invitation links expire and can be revoked.
                 Ask {preview.studioName}{" "} to send a new one.
               </p>
-            </div>
+            </Card>
           ) : activation === "connecting" ? (
-            <div className="client-invite-state" role="status">
-              <LoaderCircle className="spin" />
-              <p className="eyebrow">Verified</p>
-              <h2>Connecting your project</h2>
-              <p>
-                We’re securely linking your account to {preview.studioName}.
+            <Card>
+              <p className="kit-body" role="status">
+                <LoaderCircle aria-hidden="true" className="spin" size={18} /> Linking your account to{" "}
+                {preview.studioName}…
               </p>
-            </div>
+            </Card>
           ) : activation === "accepted" ? (
-            <div className="client-invite-state" role="status">
-              <span className="client-invite-state-icon">
-                <CheckCircle2 />
-              </span>
-              <p className="eyebrow">Access ready</p>
-              <h2>{message}</h2>
-              <p>Taking you to your project now.</p>
-              <Link className="button button-dark" href="/client">
-                Open client portal
-              </Link>
-            </div>
+            <Card tone="accent">
+              <p className="kit-eyebrow" style={{ color: "var(--kit-accent)" }}>
+                <CheckCircle2 aria-hidden="true" size={14} /> Access ready
+              </p>
+              <h2 className="kit-section">{message}</h2>
+              <p className="kit-body" role="status">Taking you to your project now.</p>
+              <Button href="/client">Open your portal</Button>
+            </Card>
           ) : activation === "error" ? (
-            <div className="client-invite-state" role="alert">
-              <span className="client-invite-state-icon is-warning">
-                <LockKeyhole />
-              </span>
-              <p className="eyebrow">Account not connected</p>
-              <h2>Let’s use the invited email</h2>
-              <p>{message}</p>
-              <p className="client-invite-email">
+            <Card>
+              <p className="kit-eyebrow">Account not connected</p>
+              <h2 className="kit-section">Let’s use the invited email</h2>
+              <p className="kit-body" role="alert">{message}</p>
+              <p className="kit-caption">
                 Invitation sent to <strong>{preview.maskedEmail}</strong>
               </p>
-              <button
-                className="button button-dark"
-                onClick={() => void switchAccount()}
-                type="button"
-              >
+              <Button onClick={() => void switchAccount()} variant="dark">
                 {preview.hasAccount === false
                   ? "Continue and set your password"
                   : "Sign in with another account"}
-              </button>
-            </div>
+              </Button>
+            </Card>
           ) : !user ? (
-            <div className="client-invite-state">
-              <p className="eyebrow">Your project portal</p>
-              <h2>Set a password to open your portal</h2>
+            <Card>
               {/*
                 Was two links to the generic auth pages, which do not know
                 which address was invited — so a couple had to retype the one
@@ -420,61 +373,53 @@ export function AcceptClientInvitation({
                 }}
                 translateError={friendlyError}
               />
-              <small className="client-invite-footnote">
-                No subscription or studio setup is required.
-              </small>
-            </div>
+            </Card>
           ) : !user.emailVerified ? (
-            <div className="client-invite-state">
-              <span className="client-invite-state-icon">
-                <MailCheck />
-              </span>
-              <p className="eyebrow">One security step</p>
-              <h2>Verify your email</h2>
-              <p>
+            <Card>
+              <p className="kit-eyebrow">
+                <MailCheck aria-hidden="true" size={14} /> One security step
+              </p>
+              <h2 className="kit-section">Verify your email</h2>
+              <p className="kit-body">
                 Open the verification email sent to <strong>{user.email}</strong>.
                 The link will bring you back to this project.
               </p>
-              <button
-                className="button button-dark"
+              <Button
                 disabled={verificationState === "sending"}
                 onClick={() => void resendVerification()}
-                type="button"
               >
                 {verificationState === "sending" ? (
-                  <LoaderCircle className="spin" />
+                  <LoaderCircle aria-hidden="true" className="spin" size={18} />
                 ) : verificationState === "sent" ? (
                   "Verification email sent"
                 ) : (
                   "Resend verification email"
                 )}
-              </button>
+              </Button>
               {verificationState === "error" ? (
-                <p className="form-error">
+                <p className="kit-error">
                   We couldn’t resend it. Please wait a moment and try again.
                 </p>
               ) : null}
-              <button
-                className="client-invite-text-button"
-                onClick={() => void switchAccount()}
-                type="button"
-              >
+              <Button onClick={() => void switchAccount()} variant="secondary">
                 Use a different email
-              </button>
-            </div>
+              </Button>
+            </Card>
           ) : (
-            <div className="client-invite-state" role="status">
-              <LoaderCircle className="spin" />
-              <h2>Preparing secure access</h2>
-              <p>Your verified account is being connected.</p>
-            </div>
+            <Card>
+              <p className="kit-body" role="status">
+                <LoaderCircle aria-hidden="true" className="spin" size={18} /> Preparing secure access…
+              </p>
+            </Card>
           )}
-        </section>
-      </div>
-      <footer className="client-invite-footer">
-        <ShieldCheck aria-hidden="true" size={15} />
-        Access is encrypted, project-specific, and revocable by the studio.
-      </footer>
-    </main>
+
+          <p className="kit-caption" style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+            <ShieldCheck aria-hidden="true" size={15} />
+            Private to your project, and revocable by the studio.
+          </p>
+          <PoweredBy />
+        </Main>
+      </Screen>
+    </KitRoot>
   );
 }

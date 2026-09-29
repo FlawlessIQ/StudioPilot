@@ -459,6 +459,29 @@ textarea.kit-input {
   overflow: hidden;
 }
 
+/* The shared "Continue with Google" button, inside a kit screen. */
+.kit .sign-in-google {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--kit-space-2);
+  width: 100%;
+  min-height: var(--kit-size-button);
+  border: 1px solid var(--kit-line);
+  border-radius: var(--kit-radius-button);
+  background: var(--kit-paper);
+  color: var(--kit-ink);
+  font-size: 16px;
+  font-weight: 600;
+}
+.kit .sign-in-divider {
+  color: var(--kit-caption);
+  font-size: 13px;
+}
+.kit.kit-embed {
+  background: transparent;
+}
+
 /* ---------- Choices ---------- */
 
 .kit-choices {

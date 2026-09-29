@@ -5,58 +5,43 @@ test.describe.configure({ mode: "serial" });
 const token = "a".repeat(43);
 const invitationPath = `/auth/client-invite?token=${token}`;
 
-test("client invitation is a branded, project-specific entry point", async ({
-  page,
-}) => {
+/**
+ * The invitation a couple opens from their studio's email: the studio's
+ * welcome, then the invited address and a password, on one phone screen
+ * (M2 of docs/mobile-first-client-crew-plan-2026-09-28.md). In mock mode the
+ * preview is the demo studio's.
+ */
+test("a client invitation is the studio's welcome, on one phone screen", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(invitationPath);
 
-  await expect(
-    page.getByRole("heading", {
-      name: "Everything for your project, in one calm place.",
-    }),
-  ).toBeVisible();
-  await expect(page.getByText("Secure client access")).toBeVisible();
-  await expect(page.getByText("No subscription or studio setup is required.")).toBeVisible();
+  await expect(page.getByText("A private invitation from Aperture & Light Studio")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Welcome to Your photography project" })).toBeVisible();
+  // The address comes from the invitation; it is shown, never typed.
+  await expect(page.getByText("Joining as")).toContainText("you@example.com");
+  await expect(page.getByLabel("Choose a password")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Create account and accept" })).toBeVisible();
+  await expect(page.getByText("Powered by StudioCue")).toBeVisible();
+  // StudioCue's own mark no longer heads the page.
+  await expect(page.locator(".client-invite-header")).toHaveCount(0);
 
-  const layout = page.locator(".client-invite-layout");
-  const box = await layout.boundingBox();
-  expect(box).not.toBeNull();
-  expect(box?.x ?? 0).toBeGreaterThanOrEqual(18);
-  expect((box?.width ?? 0) + (box?.x ?? 0)).toBeLessThanOrEqual(
-    await page.evaluate(() => window.innerWidth),
-  );
+  const widths = await page.evaluate(() => ({
+    scroll: document.documentElement.scrollWidth,
+    client: document.documentElement.clientWidth,
+  }));
+  expect(widths.scroll).toBeLessThanOrEqual(widths.client + 1);
 });
 
-test("invitation context survives sign in, registration, and recovery", async ({
-  page,
-}) => {
+/**
+ * Was: "invitation context survives sign in, registration, and recovery",
+ * which followed a "Sign in to continue" link to the generic auth pages. That
+ * link went when invitations took the password inline (invitation-join.tsx),
+ * so the test could no longer pass; e2e had not run on this machine to show it.
+ */
+test("a new client sets a password of at least 12 characters, in place", async ({ page }) => {
   await page.goto(invitationPath);
-  await page.getByRole("link", { name: "Sign in to continue" }).click();
-  await expect(page).toHaveURL(/\/auth\/login\?next=/, { timeout: 15_000 });
-
-  await expect(
-    page.getByRole("heading", { name: "Sign in to open your project" }),
-  ).toBeVisible({ timeout: 15_000 });
-  await expect(
-    page.getByRole("heading", { name: "Sign in to your studio" }),
-  ).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Back to invitation" }).last()).toHaveAttribute(
-    "href",
-    invitationPath,
-  );
-
-  const forgotPassword = page.getByRole("link", { name: "Forgot password?" });
-  await expect(forgotPassword).toHaveAttribute(
-    "href",
-    `/auth/forgot-password?next=${encodeURIComponent(invitationPath)}`,
-  );
-
-  await page.getByRole("link", { name: "Create client access" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Create your client access" }),
-  ).toBeVisible();
-  await expect(page.getByLabel("Invited email")).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Create client access" }),
-  ).toBeVisible();
+  const password = page.getByLabel("Choose a password");
+  await expect(password).toHaveAttribute("minlength", "12");
+  await expect(password).toHaveAttribute("autocomplete", "new-password");
+  await expect(page.getByText("At least 12 characters.")).toBeVisible();
 });

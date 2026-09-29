@@ -15,6 +15,8 @@ const routes = [
   "/kit",
   "/kit?color=%23F2B8C6",
   "/inquiry?studio=demo-studio",
+  "/auth/client-invite?token=demo",
+  "/auth/crew-invite?token=short",
   "/auth/login",
   "/auth/register",
   "/auth/forgot-password",

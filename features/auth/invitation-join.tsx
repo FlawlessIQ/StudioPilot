@@ -102,24 +102,26 @@ export function InvitationJoin({
 
   if (identity === undefined)
     return (
-      <div className="invite-actions">
-        <LoaderCircle className="spin" />
-        <p>Checking your session…</p>
-      </div>
+      <p className="kit-body" role="status">
+        <LoaderCircle aria-hidden="true" className="spin" size={18} /> Checking your session…
+      </p>
     );
 
   // The accept would refuse this. Say so here, with the way out, rather than
   // after they have committed to it.
   if (identity && identity !== invited)
     return (
-      <div className="invite-actions">
-        <ShieldCheck />
-        <p>
-          This invitation is for <strong>{invited}</strong>, but you&rsquo;re
-          signed in as <strong>{identity}</strong>.
+      <div className="kit-stack">
+        <p className="kit-note" data-tone="danger">
+          <ShieldCheck aria-hidden="true" size={18} />
+          <span>
+            This invitation is for <strong>{invited}</strong>, but you&rsquo;re
+            signed in as <strong>{identity}</strong>.
+          </span>
         </p>
         <button
-          className="button button-dark"
+          className="kit-button"
+          data-variant="dark"
           disabled={busy}
           onClick={() => {
             setBusy(true);
@@ -134,16 +136,18 @@ export function InvitationJoin({
       </div>
     );
 
+  // Kit markup (docs/mobile-first-client-crew-plan-2026-09-28.md, M2): the
+  // page around this provides the `.kit` root and the studio's colour.
   return (
     <form
-      className="invite-actions"
+      className="kit-stack"
       onSubmit={(event) => {
         event.preventDefault();
         void join(new FormData(event.currentTarget));
       }}
     >
-      {intro}
-      <p>
+      <div className="kit-body">{intro}</div>
+      <p className="kit-body">
         Joining as <strong>{invited}</strong>.
       </p>
       {/* No password to invent: Google has already verified the address, and
@@ -172,22 +176,25 @@ export function InvitationJoin({
         />
       ) : null}
       {identity ? null : (
-        <label>
-          {preview.hasAccount ? "Your password" : "Choose a password"}
+        <label className="kit-field">
+          <span className="kit-field-label">
+            {preview.hasAccount ? "Your password" : "Choose a password"}
+          </span>
           <input
             autoComplete={
               preview.hasAccount ? "current-password" : "new-password"
             }
+            className="kit-input"
             minLength={preview.hasAccount ? undefined : 12}
             name="password"
             required
             type="password"
           />
-          {preview.hasAccount ? null : <small>At least 12 characters.</small>}
+          {preview.hasAccount ? null : <span className="kit-hint">At least 12 characters.</span>}
         </label>
       )}
-      <button className="button button-dark" disabled={busy} type="submit">
-        {busy ? <LoaderCircle className="spin" /> : <ShieldCheck />}
+      <button className="kit-button" disabled={busy} type="submit">
+        {busy ? <LoaderCircle aria-hidden="true" className="spin" size={18} /> : <ShieldCheck aria-hidden="true" size={18} />}
         {identity
           ? verb === "accept"
             ? "Accept invitation"
@@ -198,6 +205,7 @@ export function InvitationJoin({
       </button>
       {preview.hasAccount && !identity ? (
         <Link
+          className="kit-caption"
           href={`/auth/forgot-password?email=${encodeURIComponent(invited)}${
             // Carry the invitation along, so the reset lands them back on it.
             // Without this the round trip ends on a generic sign-in page and
@@ -206,12 +214,13 @@ export function InvitationJoin({
             // setting a password.
             returnTo ? `&next=${encodeURIComponent(returnTo)}` : ""
           }`}
+          style={{ textAlign: "center" }}
         >
           Forgot your password?
         </Link>
       ) : null}
       {message ? (
-        <p className="form-error" role="status">
+        <p className="kit-error" role="status">
           {message}
         </p>
       ) : null}

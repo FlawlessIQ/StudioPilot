@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowLeft, Camera } from "lucide-react";
-import { Logo } from "@/components/brand/logo";
-import { AcceptCrewInvitation } from "@/features/auth/accept-crew-invitation";
+import {
+  AcceptCrewInvitation,
+  CrewInviteScreen,
+} from "@/features/auth/accept-crew-invitation";
 
 export const metadata: Metadata = {
   title: "Crew invitation",
@@ -15,37 +15,15 @@ export default async function CrewInvitationPage({
   searchParams: Promise<{ token?: string }>;
 }) {
   const { token = "" } = await searchParams;
-  return (
-    <main className="auth-page">
-      <section className="auth-brand-panel">
-        <Link href="/" className="auth-back">
-          <ArrowLeft size={16} /> StudioCue
-        </Link>
-        <div className="auth-quote">
-          <Logo />
-          <blockquote>
-            Join a studio&rsquo;s crew, or review the role, logistics and
-            required documents of a specific assignment.
-          </blockquote>
-        </div>
-      </section>
-      <section className="auth-form-panel">
-        <div className="auth-form-wrap">
-          <span className="eyebrow">Secure crew access</span>
-          <h1>
-            <Camera size={24} /> Open your invitation
-          </h1>
-          <p>
-            Access stays limited to what the studio invites you to, and can be
-            revoked by them at any time.
-          </p>
-          {token.length >= 32 ? (
-            <AcceptCrewInvitation token={token} />
-          ) : (
-            <p className="form-error">This invitation link is incomplete.</p>
-          )}
-        </div>
-      </section>
-    </main>
+  // The whole screen is the invitation, in the studio's brand and the mobile
+  // kit (docs/mobile-first-client-crew-plan-2026-09-28.md, M2).
+  return token.length >= 32 ? (
+    <AcceptCrewInvitation token={token} />
+  ) : (
+    <CrewInviteScreen preview={null}>
+      <p className="kit-note" data-tone="danger" role="alert">
+        This invitation link is incomplete. Open it again from the email, or ask the studio to resend it.
+      </p>
+    </CrewInviteScreen>
   );
 }
