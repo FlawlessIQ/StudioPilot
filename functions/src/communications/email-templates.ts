@@ -324,6 +324,13 @@ function deliveryItems(values: Record<string, unknown>): DeliveryEmailItem[] {
     : [];
 }
 
+/** The line under a release's heading. The studio's preview says the same. */
+export function deliveryLine(count: number): string {
+  return count > 1
+    ? "Everything is below — each one opens in your browser."
+    : "It's ready whenever you are — the button below opens it in your browser.";
+}
+
 function deliveryButton(item: DeliveryEmailItem): string {
   if (item.kind === "sneak_peek") return "See your sneak peek";
   if (item.mediaType === "video") return `Watch your ${item.label.toLowerCase().replace(/^your\s+/, "")}`;
@@ -927,8 +934,12 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         paragraphs: [
           greeting,
           ...(note ? [note] : []),
-          `We've finished ${items.length > 1 ? "these" : "this"}${project}. Keep any ${items.some((item) => item.mediaType === "video") ? "password" : "access code"} private.`,
+          // Walked on prod 2026-09-29: "We've finished this for Delivery Walk
+          // Test. Keep any password private." — the job's internal name, and a
+          // password warning on a film that had none.
+          deliveryLine(items.length),
           ...codes,
+          ...(codes.length ? [`Keep the ${codes.length > 1 ? "codes" : items.some((item) => item.accessCode && item.mediaType === "video") ? "password" : "code"} private.`] : []),
           ...(expiring
             ? [`Please download and back up your ${items.some((item) => item.mediaType === "photo") ? "photographs" : "files"} before ${humanDate(expiring, zone)}.`]
             : []),

@@ -119,6 +119,27 @@ test("a photos-and-film email has a button for each, the code for each, and the 
   assert.doesNotMatch(rendered.subject, /photographs are ready/);
 });
 
+test("a film with no password reads as the couple's, not the job's (walked 2026-09-29)", () => {
+  const rendered = renderEmailTemplate({
+    key: "delivery",
+    brand: { studioName: "FlawlessIQ", productName: "StudioCue", accentColor: "#35664a", logoUrl: null, contactEmail: null },
+    recipientName: "Delivery Walk Test",
+    projectName: "Delivery Walk Test",
+    values: {
+      items: [{ mediaType: "video", kind: "highlight_film", label: "Highlight film", openUrl: "https://studio-cue.com/d/cccccccccccccccccccc", accessCode: null, expirationDate: null }],
+      timezone: "America/New_York",
+    },
+  });
+  // It said "We've finished this for Delivery Walk Test. Keep any password private."
+  assert.doesNotMatch(rendered.text, /finished this for/);
+  assert.doesNotMatch(rendered.text, /password/i);
+  assert.match(rendered.text, /opens it in your browser/);
+  // The studio's preview promises the same line.
+  const preview = readFileSync("components/post-event/delivery-form.tsx", "utf8");
+  assert.ok(preview.includes("It's ready whenever you are — the button below opens it in your browser."));
+  assert.ok(!preview.includes("opens in their browser"));
+});
+
 test("an email queued before items still sends its one gallery", () => {
   const rendered = renderEmailTemplate({
     key: "delivery",

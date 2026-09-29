@@ -1,7 +1,7 @@
 "use client";
 
 import { type FormEvent, useMemo, useState, useSyncExternalStore } from "react";
-import { CheckCircle2, CircleDashed, Film, Images, Plus, ScanText, Send, Sparkles, Trash2 } from "lucide-react";
+import { CheckCircle2, CircleDashed, Film, Images, Plus, ScanText, Send, Trash2 } from "lucide-react";
 import {
   refreshTenantRecords,
   useTenantDocuments,
@@ -89,7 +89,6 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
   }, [projects]);
   const { records: tenants } = useTenantDocuments("tenants");
   const { records: packageSnapshots } = useTenantDocuments("packageSnapshots");
-  const { records: galleryInboxes } = useTenantDocuments("galleryInboxes");
   const { records: deliveryDrafts } = useTenantDocuments("deliveryDrafts");
   const { records: deliveryRecords } = useTenantDocuments("deliveryRecords");
   const { records: productionRecords } = useTenantDocuments("postProductionRecords");
@@ -137,7 +136,6 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
   const tenant = tenants?.find((candidate) => candidate.id === workspace.tenantId) ?? tenants?.[0];
   const reviewLinks = record(tenant?.reviewLinks);
   const deliveryDefaults = record(tenant?.deliveryDefaults);
-  const galleryInbox = galleryInboxes?.find((item) => item.projectId === selectedProjectId);
   const drafts = [...(deliveryDrafts ?? [])]
     .filter((item) => item.projectId === selectedProjectId && item.status === "review_required")
     .sort((left, right) =>
@@ -428,23 +426,9 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
             ) : null}
           </section>
 
-          {/* The inbox address stays until closeout: a film's notice needs
-              somewhere to go after the gallery has gone (D10). */}
-          {galleryInbox?.inboundAddress ? (
-            <section className="delivery-announcement-import form-span">
-              <div>
-                <Sparkles aria-hidden="true" />
-                <span>
-                  <strong>Forward the notice, skip the typing</strong>
-                  <small>
-                    Send your gallery or video host&rsquo;s &ldquo;ready&rdquo; email to this job&rsquo;s address.
-                    StudioCue reads the link and brings it here to release.
-                  </small>
-                </span>
-              </div>
-              <code>{text(galleryInbox.inboundAddress)}</code>
-            </section>
-          ) : null}
+          {/* The job's forwarding address is shown once, with a Copy button,
+              by the post-production checklist above this form — both render
+              together on /studio/delivery and in Cue. It was here too. */}
 
           {drafts.length ? (
             <section className="delivery-drafts form-span" aria-label="Caught by the inbox">
@@ -614,8 +598,13 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
               <small>Subject</small>
               <strong>{headline.subject}</strong>
               <p>
-                {message.trim() || "We've finished these for you."}{" "}
-                {`Each link opens in their browser${items.some((item) => item.accessCode.trim()) ? ", with the code beside it" : ""}.`}
+                {/* What functions/src/communications/email-templates.ts
+                    `deliveryLine` sends; it said "these… in their browser". */}
+                {message.trim() ? `${message.trim()} ` : ""}
+                {items.length > 1
+                  ? "Everything is below — each one opens in your browser."
+                  : "It's ready whenever you are — the button below opens it in your browser."}
+                {items.some((item) => item.accessCode.trim()) ? " The code is beside it." : ""}
               </p>
               <span className="delivery-preview-buttons">
                 {items.map((item) => (
