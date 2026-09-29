@@ -633,7 +633,11 @@ export const bookingRetainerPaid = onDocumentWritten(
       retainerSatisfied: !retainerAttestedManually,
       retainerExceptionApproved: false,
       eventDateAvailable: Boolean(eventDate) && !sameDateProjects.docs.some(
-        (candidate) => candidate.id !== projectId && blockingStates.has(String(candidate.get("state"))),
+        (candidate) =>
+          candidate.id !== projectId &&
+          // An archived job holds no date (see commands.ts, runBookingGate).
+          !candidate.get("archivedAt") &&
+          blockingStates.has(String(candidate.get("state"))),
       ),
       requiredContactsComplete: contactIds.length > 0 && contacts.every(
         (contact) => contact.exists &&

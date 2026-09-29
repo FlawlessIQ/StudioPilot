@@ -100,6 +100,8 @@ export function dateHeldByAnother(
   return projects.some(
     (project) =>
       project.id !== selfId &&
+      // An archived job holds no date.
+      !project.archivedAt &&
       text(project.eventDate).slice(0, 10) === day &&
       DATE_HOLDING_STATES.includes(text(project.state)),
   );
@@ -130,7 +132,8 @@ export function inquiryPipeline(input: {
   const holdersByDate = new Map<string, string[]>();
   for (const project of input.projects) {
     const date = text(project.eventDate).slice(0, 10);
-    if (!date || !DATE_HOLDING_STATES.includes(text(project.state))) continue;
+    // An archived job holds no date.
+    if (!date || project.archivedAt || !DATE_HOLDING_STATES.includes(text(project.state))) continue;
     holdersByDate.set(date, [...(holdersByDate.get(date) ?? []), project.id]);
   }
 

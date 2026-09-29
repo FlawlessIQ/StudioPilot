@@ -2499,9 +2499,12 @@ export const crmCommand = onRequest(
                     "PLANNING",
                     "READY",
                   ])
-                  .limit(1),
+                  .limit(20),
               );
-              changes.availabilityStatus = clash.empty ? "available" : "conflict";
+              // An archived job holds no date.
+              changes.availabilityStatus = clash.docs.some((project) => !project.get("archivedAt"))
+                ? "conflict"
+                : "available";
             } else {
               changes.availabilityStatus = "unknown";
             }

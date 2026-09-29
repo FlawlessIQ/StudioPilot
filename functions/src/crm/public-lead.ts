@@ -192,7 +192,7 @@ export const publicLeadIntake = onRequest(
           "PLANNING",
           "READY",
         ])
-        .limit(1)
+        .limit(20)
         .get(),
     ]);
     const existingContact = contactResult.docs[0];
@@ -234,7 +234,10 @@ export const publicLeadIntake = onRequest(
       defaultEventTypeId?: string;
     };
     const missingInformation = missingFields(input);
-    const availabilityStatus = dateConflicts.empty ? "available" : "conflict";
+    // An archived job holds no date: put away is put away.
+    const availabilityStatus = dateConflicts.docs.some((project) => !project.get("archivedAt"))
+      ? "conflict"
+      : "available";
     const displayName = `${input.firstName} ${input.lastName}`.trim();
     const suggestedConsultationQuestions = [
       ...(missingInformation.includes("venue")

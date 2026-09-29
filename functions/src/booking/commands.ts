@@ -2073,6 +2073,9 @@ export const bookingCommand = onRequest(
         const eventDateAvailable = !sameDateProjects.docs.some(
           (candidate) =>
             candidate.id !== command.input.projectId &&
+            // An archived job holds no date. An archived test booking on the
+            // same day blocked a real one on production, 2026-09-29.
+            !candidate.get("archivedAt") &&
             blockingStates.has(String(candidate.get("state"))),
         );
         const requiredContactsComplete =

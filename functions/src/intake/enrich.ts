@@ -204,9 +204,10 @@ export async function enrichCapturedLead(
       .where("tenantId", "==", data.tenantId)
       .where("eventDate", "==", fills.eventDate)
       .where("state", "in", ACTIVE_STATES)
-      .limit(1)
+      .limit(20)
       .get();
-    fills.availabilityStatus = conflicts.empty ? "available" : "conflict";
+    // An archived job holds no date.
+    fills.availabilityStatus = conflicts.docs.some((project) => !project.get("archivedAt")) ? "conflict" : "available";
   }
   if (fills.firstName || fills.lastName || fills.partnerName) {
     const first = String(fills.firstName ?? data.firstName ?? "");

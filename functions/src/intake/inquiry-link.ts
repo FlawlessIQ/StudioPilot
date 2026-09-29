@@ -186,9 +186,10 @@ export async function saveCoupleDetails(
       .where("tenantId", "==", context.tenantId)
       .where("eventDate", "==", changes.eventDate)
       .where("state", "in", ["CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING", "BOOKED", "PLANNING", "READY"])
-      .limit(1)
+      .limit(20)
       .get();
-    changes.availabilityStatus = clash.empty ? "available" : "conflict";
+    // An archived job holds no date.
+    changes.availabilityStatus = clash.docs.some((project) => !project.get("archivedAt")) ? "conflict" : "available";
   }
   changes.missingInformation = [
     ...(next.email || next.phone ? [] : ["how to reach them"]),

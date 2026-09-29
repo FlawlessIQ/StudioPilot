@@ -58,3 +58,25 @@ test("a message waiting on the owner can be approved or declined, and can be ask
   assert.match(inbox, /<MessageApprovals \/>/);
   assert.match(inbox, /category: draftCategory/, "the composer hardcoded category general, so approval was never asked for");
 });
+
+/**
+ * An archived job holds no date. An archived test booking (Noor & Eli
+ * Haddad) blocked Maya Test Wedding's booking on production — "Still waiting
+ * on the date" — and every inquiry for that day read "date taken".
+ */
+test("an archived job does not hold its date anywhere availability is decided", async () => {
+  const { dateHeldByAnother } = await import("../features/inquiries/pipeline.ts");
+  const day = "2027-06-12";
+  assert.equal(dateHeldByAnother([{ id: "old", eventDate: day, state: "BOOKED", archivedAt: "2026-09-01" }], day, "new"), false);
+  assert.equal(dateHeldByAnother([{ id: "live", eventDate: day, state: "BOOKED", archivedAt: null }], day, "new"), true);
+  const sites: Array<[string, RegExp]> = [
+    ["functions/src/booking/commands.ts", /!candidate\.get\("archivedAt"\) &&\s*blockingStates\.has/],
+    ["functions/src/booking/orchestration.ts", /!candidate\.get\("archivedAt"\) &&\s*blockingStates\.has/],
+    ["functions/src/crm/public-lead.ts", /dateConflicts\.docs\.some\(\(project\) => !project\.get\("archivedAt"\)\)/],
+    ["functions/src/crm/commands.ts", /clash\.docs\.some\(\(project\) => !project\.get\("archivedAt"\)\)/],
+    ["functions/src/intake/inquiry-link.ts", /clash\.docs\.some\(\(project\) => !project\.get\("archivedAt"\)\)/],
+    ["functions/src/intake/capture.ts", /dateConflicts\?\.docs\.some\(\(project\) => !project\.get\("archivedAt"\)\)/],
+    ["functions/src/intake/enrich.ts", /conflicts\.docs\.some\(\(project\) => !project\.get\("archivedAt"\)\)/],
+  ];
+  for (const [path, pattern] of sites) assert.match(readFileSync(path, "utf8"), pattern, path);
+});

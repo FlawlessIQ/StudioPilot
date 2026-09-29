@@ -405,7 +405,7 @@ async function writeLead(
           .where("tenantId", "==", tenantId)
           .where("eventDate", "==", fields.eventDate)
           .where("state", "in", ACTIVE_STATES)
-          .limit(1)
+          .limit(20)
           .get()
       : null,
     db.doc(`tenants/${tenantId}`).get(),
@@ -417,7 +417,12 @@ async function writeLead(
     "New inquiry";
   const existingContact = contactResult?.docs[0];
   const contactId = fields.email ? (existingContact?.id ?? randomUUID()) : null;
-  const availabilityStatus = !fields.eventDate ? "unknown" : dateConflicts?.empty ? "available" : "conflict";
+  // An archived job holds no date.
+  const availabilityStatus = !fields.eventDate
+    ? "unknown"
+    : dateConflicts?.docs.some((project) => !project.get("archivedAt"))
+      ? "conflict"
+      : "available";
   const marketplace = MARKETPLACES.has(read.builder);
   const source = read.builder === "unknown" ? "forwarded_email" : marketplace ? `marketplace_${read.builder}` : "website_form";
   const actor = "inquiry-capture";
