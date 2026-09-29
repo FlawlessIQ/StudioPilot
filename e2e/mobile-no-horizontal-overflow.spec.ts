@@ -21,6 +21,7 @@ const routes = [
   "/auth/register",
   "/auth/forgot-password",
   "/client",
+  "/client/plan",
   "/client/project",
   "/client/proposal",
   "/client/package",

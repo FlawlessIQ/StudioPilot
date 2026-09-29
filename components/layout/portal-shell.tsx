@@ -1,75 +1,62 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { createContext, useContext } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
-  CalendarCheck,
-  CalendarDays,
   CircleAlert,
-  CircleDollarSign,
-  ClipboardList,
-  FileSignature,
   FolderOpen,
   Home,
-  Images,
   ListChecks,
-  LockKeyhole,
-  Menu,
+  LoaderCircle,
   MessageCircle,
-  Package,
-  Star,
   UserRound,
-  X,
 } from "lucide-react";
-import { AuthBoundary, SignOutButton } from "@/features/auth/auth-boundary";
+import { AuthBoundary } from "@/features/auth/auth-boundary";
 import {
   useWorkspace,
   WorkspaceProvider,
 } from "@/features/auth/workspace-context";
-import { clientAreaItems } from "@/features/client/portal-navigation";
-import { PoweredByStudioCue, StudioBrand } from "@/components/layout/studio-brand";
+import { AppBar, KitRoot, TabBar, type Studio, type Tab } from "@/components/kit/kit";
 import { portalAccentStyle } from "@/features/design/studio-theme";
 
 const PortalShellContext = createContext(false);
 
-// The couple's mobile bottom tab bar. Four fixed destinations they reach for
-// most; "More" opens the drawer for the phase-specific areas (proposal,
-// contract, schedule, questionnaire, delivery, reviews) that come and go.
-const clientTabs = [
+/**
+ * The couple's four tabs (decided 2026-09-28,
+ * docs/mobile-first-client-crew-plan-2026-09-28.md). Plan holds everything
+ * that comes and goes by stage — proposal, agreement, payments, planning
+ * form, timeline — where "More" used to open a drawer that hid them.
+ */
+export const clientTabs: readonly Tab[] = [
   { label: "Home", href: "/client", icon: Home },
-  { label: "Files", href: "/client/documents", icon: FolderOpen },
-  { label: "Payments", href: "/client/payments", icon: CircleDollarSign },
+  { label: "Plan", href: "/client/plan", icon: ListChecks },
   { label: "Messages", href: "/client/messages", icon: MessageCircle },
-] as const;
-const clientPrimaryHrefs = new Set<string>(clientTabs.map((tab) => tab.href));
+  { label: "Files", href: "/client/documents", icon: FolderOpen },
+];
 
-const clientRouteLabels: Record<string, string> = {
-  contract: "Contract",
-  delivery: "Delivery",
-  documents: "Files",
-  messages: "Messages",
-  package: "Package",
-  payments: "Payments",
-  project: "Project details",
-  proposal: "Proposal",
-  questionnaire: "Questionnaires",
-  reviews: "Reviews",
-  schedule: "Schedule",
-};
-
-function monogram(value?: string) {
-  const parts = (value ?? "").trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return "··";
-  return (parts[0][0] + (parts[1]?.[0] ?? "")).toUpperCase();
+/** Which tab a route belongs to. */
+export function clientTabFor(pathname: string): string {
+  const segment = pathname.split("/").filter(Boolean)[1] ?? "";
+  if (!segment) return "Home";
+  if (segment === "messages") return "Messages";
+  if (["documents", "delivery", "reviews"].includes(segment)) return "Files";
+  return "Plan";
 }
+
+/**
+ * Screens rebuilt in the mobile kit, which bring their own layout. Every
+ * other client route still renders its design-system page inside a wrapper
+ * that keeps the tokens it needs, until its turn comes.
+ */
+export const KIT_CLIENT_ROUTES = new Set([
+  "/client",
+  "/client/plan",
+  "/client/proposal",
+  "/client/contract",
+  "/client/payments",
+]);
 
 export function PortalShell({
   children,
@@ -103,9 +90,6 @@ export function PortalShell({
 
 function ClientPortalShell({
   children,
-  active,
-  projectName,
-  projectDate,
 }: {
   children: React.ReactNode;
   active?: string;
@@ -113,340 +97,69 @@ function ClientPortalShell({
   projectDate?: string;
 }) {
   const pathname = usePathname();
-  const [navigationOpen, setNavigationOpen] = useState(false);
-  const [mobileNavigation, setMobileNavigation] = useState(false);
-  const menuButton = useRef<HTMLButtonElement>(null);
-  const closeButton = useRef<HTMLButtonElement>(null);
   const workspace = useWorkspace();
-  const router = useRouter();
-  const routeSegment = pathname.split("/").filter(Boolean)[1] ?? "";
-  const resolvedActive = active ?? clientRouteLabels[routeSegment] ?? "Home";
-  const displayedProjectName = projectName ?? workspace.projectName;
-  const displayedProjectDate = projectDate ?? workspace.projectDate;
-  const formattedProjectDate = /^\d{4}-\d{2}-\d{2}$/.test(displayedProjectDate)
-    ? new Date(`${displayedProjectDate}T12:00:00`).toLocaleDateString(undefined, {
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      })
-    : displayedProjectDate;
-
-  useEffect(() => {
-    const media = window.matchMedia("(max-width: 860px)");
-    const update = () => setMobileNavigation(media.matches);
-    update();
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
-
-  useEffect(() => {
-    if (!mobileNavigation) return;
-    document.body.style.overflow = navigationOpen ? "hidden" : "";
-    if (navigationOpen) closeButton.current?.focus();
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [mobileNavigation, navigationOpen]);
-
-  function closeNavigation() {
-    setNavigationOpen(false);
-    if (mobileNavigation) {
-      window.requestAnimationFrame(() => menuButton.current?.focus());
-    }
-  }
-
-  async function switchProject(projectId: string) {
-    await workspace.selectProject(projectId);
-    closeNavigation();
-    router.push("/client");
-  }
-
-  const multipleProjects = workspace.clientProjects.length > 1;
-  const nextAction = workspace.clientProject?.nextClientAction;
-  /**
-   * The areas this couple can actually open, as the server already decided.
-   *
-   * The nav was four hardcoded entries plus one slot derived from the next
-   * action, and nine routes competed for that slot — so a run of show holding
-   * "Approve this version" was reachable only by typing the URL. The server
-   * had been returning a per-area `ClientNavigation` the whole time
-   * (`schedule: true` at that stage) and no component read it. The comment
-   * that used to sit beside "Payments" records the class being hit once
-   * before and fixed by hardcoding one more link.
-   *
-   * Overview, records, payments and messages stay fixed. The rest appear when
-   * the server says the area exists for this project.
-   */
-  const navigation = workspace.clientProject?.navigation;
-  // Which icon each area shows. The list itself is pure and tested — see
-  // features/client/portal-navigation.ts.
-  const AREA_ICONS = {
-    CalendarCheck,
-    Package,
-    ClipboardList,
-    FileSignature,
-    ListChecks,
-    CalendarDays,
-    Images,
-    Star,
-  } as const;
-  const areaItems = clientAreaItems(navigation).map((item) => ({
-    label: item.label,
-    href: item.href,
-    icon: AREA_ICONS[item.icon],
-  }));
-  const navItems = [
-    { label: "Overview", icon: Home, href: "/client" },
-    ...(nextAction && !["/client", "/client/messages"].includes(nextAction.href)
-      ? [
-          {
-            label:
-              nextAction.responsibility === "client"
-                ? "Your next step"
-                : "Project status",
-            icon: ClipboardList,
-            href: nextAction.href,
-          },
-        ]
-      : []),
-    // The next step already links its own page; do not list it twice.
-    ...areaItems.filter((item) => item.href !== nextAction?.href),
-    { label: "Project records", icon: FolderOpen, href: "/client/documents" },
-    { label: "Payments", icon: CircleDollarSign, href: "/client/payments" },
-    { label: "Messages", icon: MessageCircle, href: "/client/messages" },
-  ];
-  const contextualRoutes = new Set([
-    "/client/project",
-    "/client/proposal",
-    "/client/package",
-    "/client/contract",
-    "/client/payments",
-    "/client/questionnaire",
-    "/client/schedule",
-    "/client/delivery",
-    "/client/reviews",
-  ]);
+  const brand = workspace.tenantBrand;
+  const studio: Studio = {
+    name: brand?.brandName ?? workspace.tenantName,
+    color: brand?.primaryColor ?? null,
+    logoUrl: brand?.logoUrl ?? null,
+  };
 
   if (workspace.loading) return <ClientPortalLoadingShell />;
 
+  const kit = KIT_CLIENT_ROUTES.has(pathname);
   return (
-    <div
-      className="ds-root"
-      data-ds-theme="emerald"
-      // The studio's colour, clamped to read, in place of emerald's accent.
-      style={portalAccentStyle(workspace.tenantBrand?.primaryColor) as CSSProperties}
-    >
-      <div className={navigationOpen ? "ds-shell ds-nav-open" : "ds-shell"}>
-        <button
-          aria-label="Close navigation"
-          className="ds-nav-backdrop"
-          onClick={closeNavigation}
-          type="button"
-        />
-        <aside
-          aria-hidden={mobileNavigation && !navigationOpen}
-          className="ds-sidebar"
-          id="portal-navigation"
-          inert={mobileNavigation && !navigationOpen ? true : undefined}
-        >
-          <div className="ds-brand-row">
-            <Link className="ds-brand" href="/client" onClick={closeNavigation}>
-              <StudioBrand brand={workspace.tenantBrand} />
+    <KitRoot studio={studio}>
+      <div className="kit-screen" data-width={kit ? undefined : "wide"}>
+        <AppBar
+          action={
+            <Link aria-label="Your account and projects" className="kit-icon-button" href="/client/plan#account">
+              <UserRound aria-hidden="true" size={22} />
             </Link>
-            <button
-              aria-label="Close navigation"
-              className="ds-sidebar-close"
-              onClick={closeNavigation}
-              ref={closeButton}
-              type="button"
-            >
-              <X size={19} />
+          }
+          studio={studio}
+        />
+        {workspace.error ? (
+          <div className="kit-banner" role="alert">
+            <p className="kit-note" data-tone="danger">
+              <CircleAlert aria-hidden="true" size={18} />
+              <span>
+                <strong>Your project is temporarily unavailable.</strong> {workspace.error}
+              </span>
+            </p>
+            <button className="kit-button" data-size="compact" data-variant="secondary" onClick={workspace.retry} type="button">
+              Retry
             </button>
           </div>
-
-          {multipleProjects ? (
-            <div className="ds-nav-section">
-              <span className="ds-nav-label">Current project</span>
-              <label>
-                <span className="sr-only">Choose a project</span>
-                <select
-                  aria-label="Choose a client project"
-                  onChange={(event) => void switchProject(event.target.value)}
-                  value={workspace.projectId ?? ""}
-                  style={{ width: "100%" }}
-                >
-                  {workspace.clientProjects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          ) : (
-            <div className="ds-switcher" style={{ cursor: "default" }}>
-              <span className="ds-avatar">{monogram(displayedProjectName)}</span>
-              <span className="ds-switcher-copy">
-                <strong>{displayedProjectName || "Your project"}</strong>
-                <small>{formattedProjectDate || "Date pending"}</small>
-              </span>
-            </div>
-          )}
-
-          <nav className="ds-nav" aria-label="Client portal navigation">
-            <div className="ds-nav-section">
-              <span className="ds-nav-label">Your project</span>
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const activeItem =
-                  pathname === item.href ||
-                  (item.label === "Project records" &&
-                    contextualRoutes.has(pathname) &&
-                    nextAction?.href !== pathname);
-                return (
-                  <Link
-                    href={item.href}
-                    className="ds-nav-item"
-                    data-active={activeItem ? "true" : "false"}
-                    key={`${item.label}-${item.href}`}
-                    onClick={closeNavigation}
-                  >
-                    <Icon size={17} strokeWidth={1.8} />
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          </nav>
-
-          <div className="ds-sidebar-foot">
-            <span className="ds-avatar ds-avatar-ink">
-              <UserRound size={16} />
-            </span>
-            <span className="ds-switcher-copy">
-              <strong>{workspace.error ? "Client portal" : workspace.userName}</strong>
-              <small>Client</small>
-            </span>
-            <LockKeyhole aria-label="Secure client access" size={15} />
-          </div>
-          <PoweredByStudioCue />
-        </aside>
-
-        {/* The couple's primary nav, in the thumb zone. "More" opens the drawer
-            for the phase-specific areas. */}
-        <nav aria-label="Primary" className="ds-tabbar">
-          {clientTabs.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link
-                data-active={pathname === item.href ? "true" : "false"}
-                href={item.href}
-                key={item.href}
-                onClick={closeNavigation}
-              >
-                <Icon aria-hidden="true" size={20} />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
-          <button
-            aria-controls="portal-navigation"
-            aria-expanded={navigationOpen}
-            className="ds-tabbar-more"
-            data-active={
-              navigationOpen || !clientPrimaryHrefs.has(pathname)
-                ? "true"
-                : "false"
-            }
-            onClick={() => setNavigationOpen(true)}
-            ref={menuButton}
-            type="button"
+        ) : null}
+        {kit ? (
+          children
+        ) : (
+          <div
+            className="ds-root kit-legacy"
+            data-ds-theme="emerald"
+            style={portalAccentStyle(brand?.primaryColor) as CSSProperties}
           >
-            <Menu aria-hidden="true" size={20} />
-            <span>More</span>
-          </button>
-        </nav>
-
-        <div className="ds-main">
-          <header className="ds-topbar">
-            <button
-              aria-controls="portal-navigation"
-              aria-expanded={navigationOpen}
-              aria-label="Open client navigation"
-              className="ds-mobile-menu"
-              onClick={() => setNavigationOpen(true)}
-              type="button"
-            >
-              <Menu size={20} />
-            </button>
-            <span className="ds-crumb">
-              <b>Portal ·</b> {resolvedActive}
-            </span>
-            <span
-              className="ds-topbar-tenant"
-              style={{ marginLeft: "auto", fontSize: 13, color: "var(--ds-muted)" }}
-            >
-              {workspace.tenantName}
-            </span>
-            <SignOutButton className="ds-btn ds-btn-ghost ds-btn-sm" />
-          </header>
-          {workspace.error ? (
-            <div className="ds-topbar-error" role="alert">
-              <span className="ds-alert-ico">
-                <CircleAlert size={18} />
-              </span>
-              <div className="ds-alert-copy">
-                <strong>Your project workspace is temporarily unavailable</strong>
-                <small>{workspace.error}</small>
-              </div>
-              <button
-                className="ds-btn ds-btn-ghost ds-btn-sm"
-                onClick={workspace.retry}
-                type="button"
-              >
-                Retry
-              </button>
-            </div>
-          ) : null}
-          <main className="ds-content">{children}</main>
-        </div>
+            <main className="ds-content">{children}</main>
+          </div>
+        )}
+        <TabBar active={clientTabFor(pathname)} tabs={clientTabs} />
       </div>
-    </div>
+    </KitRoot>
   );
 }
 
 function ClientPortalLoadingShell() {
   return (
-    <div className="ds-root client-portal-loading" data-ds-theme="emerald" aria-live="polite">
-      <div className="ds-shell">
-        <aside className="ds-sidebar" aria-label="Opening client portal">
-          <div className="ds-brand-row">
-            <span className="ds-brand">
-              {/* No brand yet: it arrives with the workspace. Showing
-                  StudioCue here flashed the wrong brand before the studio's. */}
-              <span className="ds-brand-mark ds-studio-mark" aria-hidden="true" />
-              <span className="ds-brand-word ds-studio-name">Opening…</span>
-            </span>
-          </div>
-          <div className="client-portal-skeleton-project">
-            <span className="client-portal-skeleton-avatar" />
-            <span><i /><i /></span>
-          </div>
-          <div className="client-portal-skeleton-nav">
-            <i /><i /><i />
-          </div>
-        </aside>
-        <div className="ds-main">
-          <header className="ds-topbar">
-            <span className="ds-crumb"><b>Portal</b></span>
-          </header>
-          <main className="ds-content client-portal-skeleton-content">
-            <span className="auth-loading-spinner" aria-hidden="true" />
-            <strong>Opening your secure project</strong>
-            <small>Loading your approved project details…</small>
-          </main>
-        </div>
+    <KitRoot>
+      <div aria-live="polite" className="kit-screen">
+        <AppBar title="Your project" />
+        <main aria-label="Opening your project" className="kit-main">
+          <p className="kit-body" role="status">
+            <LoaderCircle aria-hidden="true" className="spin" size={18} /> Opening your secure project…
+          </p>
+        </main>
       </div>
-    </div>
+    </KitRoot>
   );
 }

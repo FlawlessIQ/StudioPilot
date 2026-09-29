@@ -34,7 +34,9 @@ async function expectInset(
  */
 async function panelInsetOffenders(page: Page, route: string, minimum = 12) {
   await page.goto(route);
-  await expect(page.locator(".ds-content")).toBeVisible();
+  // A design-system page, or a mobile-kit screen (the couple's rebuilt
+  // screens, docs/mobile-first-client-crew-plan-2026-09-28.md).
+  await expect(page.locator(".ds-content, .kit-main").first()).toBeVisible();
   return page.evaluate(
     ({ min, route: currentRoute }) => {
       const visible = (el: Element) => {
@@ -44,7 +46,7 @@ async function panelInsetOffenders(page: Page, route: string, minimum = 12) {
         return r.width > 40 && r.height > 20;
       };
       const offenders: string[] = [];
-      for (const panel of Array.from(document.querySelectorAll(".panel, .ds-card"))) {
+      for (const panel of Array.from(document.querySelectorAll(".panel, .ds-card, .kit-card, .kit-list"))) {
         if (!visible(panel)) continue;
         const box = panel.getBoundingClientRect();
         if ((panel.textContent ?? "").trim().length < 12) continue;

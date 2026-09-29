@@ -1,10 +1,10 @@
-import { LiveClientContract } from "@/components/client/live-client-views";
+import { ClientContract } from "@/components/client/kit/client-contract";
 import { PortalShell } from "@/components/layout/portal-shell";
 
 export default function ClientContractPage() {
   return (
     <PortalShell active="Contract">
-      <LiveClientContract />
+      <ClientContract />
     </PortalShell>
   );
 }

@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Download, LoaderCircle, MessageCircle, PenLine } from "lucide-react";
+import { CheckCircle2, Download, MessageCircle, PenLine } from "lucide-react";
+import { Actions, Button, Card, KitRoot } from "@/components/kit/kit";
+import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { ContractDocumentView } from "@/components/contracts/contract-document-view";
 import { contractDocumentSchema } from "@/features/contracts/document";
 import { currentEsignConsent } from "@/features/contracts/esign-consent";
@@ -52,10 +54,13 @@ export function ClientContractSigning({
   contract,
   onChanged,
   studioName,
+  studioColor = null,
 }: {
   contract: ContractRecord;
   onChanged: () => void;
   studioName: string | null;
+  /** The studio's colour, for the signing sheet (it renders outside the page). */
+  studioColor?: string | null;
 }) {
   const workspace = useWorkspace();
   const parsed = contractDocumentSchema.safeParse(contract.document);
@@ -69,6 +74,7 @@ export function ClientContractSigning({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [signOpen, setSignOpen] = useState(false);
   const idempotencyKey = useRef<string | null>(null);
   const viewedFor = useRef<string | null>(null);
 
@@ -85,9 +91,11 @@ export function ClientContractSigning({
 
   if (!parsed.success) {
     return (
-      <section className="panel">
-        <p>This agreement couldn&rsquo;t be displayed. Message your studio and they&rsquo;ll send it again.</p>
-      </section>
+      <Card>
+        <p className="kit-body" role="alert">
+          This agreement couldn&rsquo;t be displayed. Message your studio and they&rsquo;ll send it again.
+        </p>
+      </Card>
     );
   }
 
@@ -144,128 +152,145 @@ export function ClientContractSigning({
     }
   }
 
+  // Kit markup (M3 of docs/mobile-first-client-crew-plan-2026-09-28.md). The
+  // document keeps its own sheet styles (a design-system scope); signing moves
+  // into a sheet opened from the sticky "Review & sign", where it used to sit
+  // below the whole agreement. Every word of consent is unchanged: it is what
+  // the signature covers.
   return (
-    <div className="client-contract-signing">
+    <>
       {status === "completed" ? (
-        <section className="panel client-contract-done" aria-live="polite">
-          <p className="eyebrow">Signed</p>
-          <h2>
-            <CheckCircle2 aria-hidden /> Your agreement is signed
-          </h2>
-          <p>
+        <Card tone="accent">
+          <p className="kit-eyebrow" style={{ color: "var(--kit-accent)" }}>
+            <CheckCircle2 aria-hidden size={14} /> Signed
+          </p>
+          <h2 className="kit-section">Your agreement is signed</h2>
+          <p className="kit-body" aria-live="polite">
             {clientSignature
               ? `You signed on ${formatDateTime(clientSignature.signedAt)}.`
               : "Every signature is in."}{" "}
             A copy has been emailed to you{typeof contract.signedCopyPath === "string" ? " and is ready to download" : " and will be ready to download here shortly"}.
           </p>
-          <div className="client-contract-actions">
-            {typeof contract.signedCopyPath === "string" ? (
-              <button className="button button-dark" disabled={downloading} onClick={() => void download()} type="button">
-                {downloading ? <LoaderCircle className="spin" aria-hidden /> : <Download aria-hidden />}
-                Download signed copy
-              </button>
-            ) : null}
-            <Link className="button button-light" href="/client/payments">
-              Next: your retainer
-            </Link>
-          </div>
-        </section>
+          {typeof contract.signedCopyPath === "string" ? (
+            <Button disabled={downloading} icon={downloading ? undefined : Download} onClick={() => void download()}>
+              {downloading ? "Opening…" : "Download signed copy"}
+            </Button>
+          ) : null}
+          <Button href="/client/payments" variant="secondary">
+            Next: your retainer
+          </Button>
+        </Card>
       ) : null}
       {status === "voided" ? (
-        <section className="panel">
-          <p className="eyebrow">Withdrawn</p>
-          <h2>This agreement was withdrawn</h2>
-          <p>{studioName ?? "Your studio"} withdrew it, so it can&rsquo;t be signed. They&rsquo;ll send an updated agreement.</p>
-        </section>
+        <Card>
+          <p className="kit-eyebrow">Withdrawn</p>
+          <h2 className="kit-section">This agreement was withdrawn</h2>
+          <p className="kit-body">
+            {`${studioName ?? "Your studio"} withdrew it, so it can’t be signed. They’ll send an updated agreement.`}
+          </p>
+        </Card>
       ) : null}
 
-      <section className="contract-sheet">
-        <ContractDocumentView document={parsed.data} />
-        <div className="contract-signature-line">
-          <div className={`contract-signature-slot ${studioSignature ? "" : "is-pending"}`}>
-            <small>{studioName ?? "Studio"}</small>
-            <div className="contract-signature-name">{studioSignature?.typedName ?? "Not yet signed"}</div>
-            {studioSignature ? (
-              <div className="contract-signature-meta">Signed {formatDateTime(studioSignature.signedAt)}</div>
-            ) : null}
-          </div>
-          <div className={`contract-signature-slot ${clientSignature ? "" : "is-pending"}`}>
-            <small>Client</small>
-            <div className="contract-signature-name">
-              {clientSignature?.typedName ?? (awaiting ? "Your signature goes here" : "Not signed")}
+      <section aria-label="The agreement" className="ds-root kit-doc" data-ds-theme="emerald">
+        <div className="contract-sheet">
+          <ContractDocumentView document={parsed.data} />
+          <div className="contract-signature-line">
+            <div className={`contract-signature-slot ${studioSignature ? "" : "is-pending"}`}>
+              <small>{studioName ?? "Studio"}</small>
+              <div className="contract-signature-name">{studioSignature?.typedName ?? "Not yet signed"}</div>
+              {studioSignature ? (
+                <div className="contract-signature-meta">Signed {formatDateTime(studioSignature.signedAt)}</div>
+              ) : null}
             </div>
-            {clientSignature ? (
-              <div className="contract-signature-meta">Signed {formatDateTime(clientSignature.signedAt)}</div>
-            ) : null}
+            <div className={`contract-signature-slot ${clientSignature ? "" : "is-pending"}`}>
+              <small>Client</small>
+              <div className="contract-signature-name">
+                {clientSignature?.typedName ?? (awaiting ? "Your signature goes here" : "Not signed")}
+              </div>
+              {clientSignature ? (
+                <div className="contract-signature-meta">Signed {formatDateTime(clientSignature.signedAt)}</div>
+              ) : null}
+            </div>
           </div>
         </div>
       </section>
 
       {awaiting ? (
-        <section className="client-contract-sign-panel" aria-label="Sign this agreement">
-          <label className="client-contract-consent">
-            <input
-              checked={consented}
-              onChange={(event) => setConsented(event.target.checked)}
-              type="checkbox"
-            />
-            <span>{currentEsignConsent.label}</span>
-          </label>
-          <details className="client-contract-disclosure">
-            <summary>Read the full terms of signing electronically</summary>
-            {currentEsignConsent.disclosure.map((paragraph) => {
-              // Each paragraph opens with a short lead ("Paper instead.");
-              // bold it so the terms can be scanned on a phone. The words
-              // themselves are unchanged — they are what the signature hashes.
-              const lead = paragraph.match(/^([^.]{3,40}\.)\s/);
-              return lead ? (
-                <p key={paragraph}>
-                  <strong>{lead[1]}</strong> {paragraph.slice(lead[0].length)}
-                </p>
-              ) : (
-                <p key={paragraph}>{paragraph}</p>
-              );
-            })}
-          </details>
-          <label className="client-contract-name">
-            Type your full name to sign
-            <input
-              autoComplete="name"
-              maxLength={160}
-              onChange={(event) => setTypedName(event.target.value)}
-              placeholder="Your full name"
-              type="text"
-              value={typedName}
-            />
-          </label>
-          {typedName.trim() ? (
-            <div className="client-contract-name-preview" aria-hidden>
-              {typedName.trim()}
-            </div>
-          ) : null}
-          {error ? (
-            <p className="client-contract-error" role="alert">
-              {error}
-            </p>
-          ) : null}
-          <button
-            className="button button-dark"
-            disabled={busy}
-            onClick={() => void sign()}
-            type="button"
-          >
-            {busy ? <LoaderCircle className="spin" aria-hidden /> : <PenLine aria-hidden />}
-            {busy ? "Signing…" : "Sign agreement"}
-          </button>
-          <Link className="client-context-message-link" href="/client/messages?context=Agreement">
-            <MessageCircle aria-hidden /> Something to change? Ask before you sign
+        <>
+          <Link className="kit-caption" href="/client/messages?context=Agreement" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+            <MessageCircle aria-hidden size={15} /> Something to change? Ask before you sign
           </Link>
-        </section>
+          <Actions>
+            <Button icon={PenLine} onClick={() => setSignOpen(true)}>
+              Review &amp; sign
+            </Button>
+          </Actions>
+          <SheetDialog label="Sign this agreement" onClose={() => setSignOpen(false)} open={signOpen}>
+            <KitRoot className="kit-embed kit-sheet" studio={{ color: studioColor }}>
+              <div className="kit-stack" aria-label="Sign this agreement">
+                <p className="kit-body">
+                  {`You’re signing the agreement with ${studioName ?? "your studio"} exactly as shown.`}
+                </p>
+                <label className="kit-check">
+                  <input
+                    checked={consented}
+                    onChange={(event) => setConsented(event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span>{currentEsignConsent.label}</span>
+                </label>
+                <details className="kit-disclosure">
+                  <summary>Read the full terms of signing electronically</summary>
+                  {currentEsignConsent.disclosure.map((paragraph) => {
+                    // Each paragraph opens with a short lead ("Paper instead.");
+                    // bold it so the terms can be scanned on a phone. The words
+                    // themselves are unchanged — they are what the signature hashes.
+                    const lead = paragraph.match(/^([^.]{3,40}\.)\s/);
+                    return lead ? (
+                      <p className="kit-caption" key={paragraph}>
+                        <strong>{lead[1]}</strong> {paragraph.slice(lead[0].length)}
+                      </p>
+                    ) : (
+                      <p className="kit-caption" key={paragraph}>
+                        {paragraph}
+                      </p>
+                    );
+                  })}
+                </details>
+                <label className="kit-field">
+                  <span className="kit-field-label">Type your full name to sign</span>
+                  <input
+                    autoComplete="name"
+                    className="kit-input"
+                    maxLength={160}
+                    onChange={(event) => setTypedName(event.target.value)}
+                    placeholder="Your full name"
+                    type="text"
+                    value={typedName}
+                  />
+                </label>
+                {typedName.trim() ? (
+                  <p className="kit-signature-preview" aria-hidden>
+                    {typedName.trim()}
+                  </p>
+                ) : null}
+                {error ? (
+                  <p className="kit-error" role="alert">
+                    {error}
+                  </p>
+                ) : null}
+                <Button disabled={busy} icon={busy ? undefined : PenLine} onClick={() => void sign()}>
+                  {busy ? "Signing…" : "Sign agreement"}
+                </Button>
+              </div>
+            </KitRoot>
+          </SheetDialog>
+        </>
       ) : error ? (
-        <p className="client-contract-error" role="alert">
+        <p className="kit-error" role="alert">
           {error}
         </p>
       ) : null}
-    </div>
+    </>
   );
 }

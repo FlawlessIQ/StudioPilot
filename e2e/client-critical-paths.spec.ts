@@ -12,7 +12,8 @@ test.describe("client portal critical paths", () => {
 
     await page.goto("/client/payments");
     await expect(page.getByText("Secure payment opens in QuickBooks")).toBeVisible();
-    await expect(page.getByRole("link", { name: /Continue to secure payment/i })).toHaveAttribute(
+    // One sticky button, naming what it pays (M3 of the mobile-first plan).
+    await expect(page.getByRole("link", { name: /Pay \$1,826\.50 securely/i })).toHaveAttribute(
       "target",
       "_blank",
     );

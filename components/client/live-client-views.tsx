@@ -14,7 +14,6 @@ import {
   CheckCircle2,
   CircleCheck,
   Clock3,
-  CreditCard,
   ExternalLink,
   FileText,
   FolderOpen,
@@ -29,21 +28,18 @@ import {
   ShieldCheck,
   Star,
   UserRound,
-  XCircle,
 } from "lucide-react";
 import { ClientQuestionnaireForm } from "@/components/planning/client-questionnaire-form";
 import { PostEventAction } from "@/components/post-event/post-event-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { ClientAutopay } from "@/components/client/client-autopay";
-import { ClientContractSigning } from "@/components/client/contract-signing";
 import {
   portalPastNotice,
   portalStageIsBehind,
   type PortalArea,
 } from "@/features/client/portal-stage";
 import type { ClientMilestone } from "@/server/client/portal-experience";
-import { daysUntilEvent, todayLocalIso } from "@/lib/format/event-date";
+import { todayLocalIso } from "@/lib/format/event-date";
 import {
   eventHasPassed,
   portalEmptyNotice,
@@ -54,7 +50,6 @@ import {
   scheduleItemClock,
 } from "@/features/schedules/item-clock";
 import {
-  decideClientProposal,
   getClientAvailablePackages,
   getClientPortalProject,
   getClientPortalRecords,
@@ -74,16 +69,17 @@ import { bookingSteps, type BookingStepsView } from "@/features/client/booking-s
 import { statusLabel } from "@/features/format/status-label";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
+import { MOCK_CLIENT_PROJECT } from "@/features/client/mock-project";
 
 type RecordValue = Record<string, unknown> & { id: string };
-type Loadable<T> = {
+export type Loadable<T> = {
   value: T;
   loading: boolean;
   error: string | null;
   refresh?: () => void;
 };
 
-function mockClientRecords(
+export function mockClientRecords(
   collectionName: ClientPortalCollection,
 ): RecordValue[] {
   const records: Partial<Record<ClientPortalCollection, RecordValue[]>> = {
@@ -230,20 +226,22 @@ function mockClientRecords(
 }
 
 /** Unpaid and past its due date, from the client's point of view. */
-function sentenceCase(value: string): string {
+export function sentenceCase(value: string): string {
   return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
 }
 
-function invoiceOverdue(invoice: Record<string, unknown>): boolean {
+export function invoiceOverdue(invoice: Record<string, unknown>): boolean {
   if (number(invoice.balanceCents) <= 0) return false;
   const due = text(invoice.dueDate).slice(0, 10);
   return Boolean(due) && due < todayLocalIso();
 }
 
-function useProject(): Loadable<ClientPortalProject | null> {
+export function useProject(): Loadable<ClientPortalProject | null> {
   const workspace = useWorkspace();
+  // Mock mode has a project, so the couple's screens can be walked and tested
+  // (Home only ever showed its empty state before).
   const [state, setState] = useState<Loadable<ClientPortalProject | null>>({
-    value: null,
+    value: dataIsLive ? null : MOCK_CLIENT_PROJECT,
     loading: dataIsLive,
     error: null,
   });
@@ -300,7 +298,7 @@ function useProject(): Loadable<ClientPortalProject | null> {
   return state;
 }
 
-function useProjectRecords(
+export function useProjectRecords(
   collectionName: ClientPortalCollection,
 ): Loadable<RecordValue[]> {
   const workspace = useWorkspace();
@@ -365,7 +363,7 @@ function useProjectRecords(
   return { ...state, refresh };
 }
 
-function PortalState({
+export function PortalState({
   loading,
   error,
   empty,
@@ -416,7 +414,7 @@ function PortalState({
   return null;
 }
 
-function PortalPageState({
+export function PortalPageState({
   eyebrow,
   title,
   description,
@@ -480,16 +478,16 @@ function PortalPageState({
   );
 }
 
-const text = (value: unknown, fallback = "Pending") =>
+export const text = (value: unknown, fallback = "Pending") =>
   typeof value === "string" && value ? value : fallback;
-const number = (value: unknown) =>
+export const number = (value: unknown) =>
   typeof value === "number" && Number.isFinite(value) ? value : 0;
-const money = (cents: unknown, currency: unknown = "USD") =>
+export const money = (cents: unknown, currency: unknown = "USD") =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: text(currency, "USD"),
   }).format(number(cents) / 100);
-const date = (value: unknown) => {
+export const date = (value: unknown) => {
   const raw = String(value);
   const parsed = /^\d{4}-\d{2}-\d{2}$/.test(raw)
     ? new Date(`${raw}T12:00:00`)
@@ -502,7 +500,7 @@ const date = (value: unknown) => {
         year: "numeric",
       });
 };
-const statusTone = (status: unknown) =>
+export const statusTone = (status: unknown) =>
   [
     "accepted",
     "completed",
@@ -526,7 +524,7 @@ const statusTone = (status: unknown) =>
  * syncing), it checks again every 20 seconds so the next step appears without
  * the couple reloading.
  */
-function useReserveYourDate(): BookingStepsView | null {
+export function useReserveYourDate(): BookingStepsView | null {
   const proposals = useProjectRecords("proposals");
   const contracts = useProjectRecords("contracts");
   const invoices = useProjectRecords("invoiceReferences");
@@ -569,420 +567,6 @@ function useReserveYourDate(): BookingStepsView | null {
   }, [waiting, refreshContracts, refreshInvoices]);
   if (!view || view.booked) return null;
   return view;
-}
-
-function ReserveYourDate({
-  view,
-  here,
-}: {
-  view: BookingStepsView;
-  /** The page this is shown on, so its own link is not offered back. */
-  here?: string;
-}) {
-  const offerLink = view.next.href && view.next.href !== here;
-  return (
-    <section className="panel reserve-your-date" aria-label="Reserve your date">
-      <p className="eyebrow">Reserve your date</p>
-      <ol>
-        {view.steps.map((step, index) => (
-          <li className={`is-${step.state}`} key={step.key}>
-            <span aria-hidden="true">
-              {step.state === "done" ? <CheckCircle2 size={16} /> : index + 1}
-            </span>
-            <small>{step.label}</small>
-          </li>
-        ))}
-      </ol>
-      <div className="reserve-your-date-next">
-        <span>
-          <strong>{view.next.title}</strong>
-          <small>{view.next.detail}</small>
-        </span>
-        {offerLink && view.next.actionLabel ? (
-          <Link className="button button-dark" href={view.next.href!}>
-            {view.next.actionLabel} <ArrowRight size={15} />
-          </Link>
-        ) : null}
-      </div>
-    </section>
-  );
-}
-
-export function LiveClientHome() {
-  const workspace = useWorkspace();
-  const project = useProject();
-  const contracts = useProjectRecords("contracts");
-  const invoices = useProjectRecords("invoiceReferences");
-  const schedules = useProjectRecords("schedules");
-  const documents = useProjectRecords("documents");
-  const deliveries = useProjectRecords("deliveryRecords");
-  const albums = useProjectRecords("albumWorkflows");
-  // The agreed fee, for money the couple has not been billed for yet.
-  const packageSnapshots = useProjectRecords("packageSnapshots");
-  const reserve = useReserveYourDate();
-  const [renderedAt] = useState(() => Date.now());
-  if (project.loading || project.error || !project.value)
-    return (
-      <PortalPageState
-        eyebrow="Your client portal"
-        title={workspace.error ? "Your project portal" : `Hello, ${workspace.userName.split(" ")[0]}.`}
-        description="Your project plan, next steps, and shared files will live here."
-        loading={project.loading}
-        error={project.error}
-        empty={!project.loading && !project.error ? "Project details will appear after assignment." : undefined}
-      />
-    );
-  const value = project.value;
-  const eventDate = value.eventDate
-    ? new Date(`${value.eventDate}T12:00:00`)
-    : new Date(Number.NaN);
-  const hasEventDate = !Number.isNaN(eventDate.valueOf());
-  // The couple's countdown and the studio's must be the same number. This
-  // anchored the event at midday and ceil'd from the exact render instant,
-  // while the studio rounds from the start of today — so before noon the
-  // portal read one day higher than the studio for the same wedding, every
-  // day. One shared function, no second opinion.
-  const days = hasEventDate
-    ? daysUntilEvent(value.eventDate, new Date(renderedAt))
-    : null;
-  const progress = value.clientProgress;
-  const nextAction = value.nextClientAction;
-  const studioIsWorking = nextAction.responsibility === "studio";
-  const signedContract = contracts.value.find((contract) =>
-    ["completed", "signed"].includes(String(contract.status)),
-  );
-  const paidInvoice = invoices.value.find(
-    (invoice) =>
-      invoice.status === "paid" || Number(invoice.balanceCents ?? 1) === 0,
-  );
-  /**
-   * What is still to be billed, from the agreement they accepted.
-   *
-   * Invoices only tell you about money already asked for. The final balance is
-   * raised near the date, so between the retainer clearing and that moment the
-   * invoices say "nothing outstanding" while the couple still owes most of the
-   * fee.
-   */
-  const agreedTotalCents = Number(
-    [...packageSnapshots.value].sort((left, right) =>
-      String(right.createdAt ?? "").localeCompare(String(left.createdAt ?? "")),
-    )[0]?.totalCents ?? 0,
-  );
-  const settledCents = invoices.value
-    .filter((invoice) => invoice.status === "paid" || Number(invoice.balanceCents ?? 1) === 0)
-    .reduce((sum, invoice) => sum + Number(invoice.amountCents ?? 0), 0);
-  const billedCents = invoices.value.reduce(
-    (sum, invoice) => sum + Number(invoice.amountCents ?? 0),
-    0,
-  );
-  const balanceToCome = Math.max(0, agreedTotalCents - Math.max(settledCents, billedCents));
-  // The largest unsettled invoice, and whether it has gone past its date. A
-  // couple needs one number here, not a status word.
-  const today = todayLocalIso();
-  const outstanding = invoices.value
-    .filter(
-      (invoice) =>
-        isStandingInvoice(invoice.status) &&
-        Number(invoice.balanceCents ?? 0) > 0,
-    )
-    .map((invoice) => ({
-      balanceCents: Number(invoice.balanceCents ?? 0),
-      currency: invoice.currency,
-      overdue: Boolean(invoice.dueDate) && String(invoice.dueDate) < today,
-    }))
-    .sort((left, right) => right.balanceCents - left.balanceCents)[0];
-  const currentSchedule = [...schedules.value].sort(
-    (left, right) => number(right.version) - number(left.version),
-  )[0];
-  const sharedCoi = documents.value.find(
-    (document) => document.category === "coi",
-  );
-  const sharedVideo = documents.value.find((document) =>
-    ["video", "film", "highlight_film"].includes(String(document.category)),
-  );
-  const delivery = deliveries.value[0];
-  const album = albums.value[0];
-  const artifacts = [
-    {
-      label: "Signed contract",
-      // Said "Signed copy available", and the page it links to offers no copy —
-      // only "Ask your studio about this agreement". The contract record holds a
-      // `signedDocumentId`, but serving the document needs a lookup and a signed
-      // URL, so the tile states what is actually true today.
-      detail: signedContract ? "Signature complete" : "Awaiting completion",
-      ready: Boolean(signedContract),
-      href: "/client/contract",
-      icon: FileText,
-    },
-    {
-      label: "Payment",
-      // `paidInvoice` is true when *any* invoice is settled, so a paid retainer
-      // made this read "Payment evidence recorded" while the final balance was
-      // overdue — the couple's reasonable reading was that they had paid. The
-      // tile now reflects what is outstanding, which is the only thing they
-      // need from it.
-      detail: outstanding
-        ? `${money(outstanding.balanceCents, outstanding.currency)} still to pay${
-            outstanding.overdue ? " · overdue" : ""
-          }`
-        : paidInvoice
-          ? // "Paid in full" while a balance is still to come: the final
-            // invoice is raised close to the date, so between the retainer and
-            // that moment there is nothing outstanding to count — and a couple
-            // who owed $3,219.30 was told they had paid in full. What they have
-            // actually paid is the honest answer until the rest is billed.
-            balanceToCome > 0
-            ? `Retainer paid · ${money(balanceToCome, paidInvoice.currency)} due closer to the day`
-            : "Paid in full"
-          : "Check provider status",
-      ready: Boolean(paidInvoice) && !outstanding && balanceToCome <= 0,
-      href: "/client/payments",
-      icon: CreditCard,
-    },
-    {
-      /**
-       * Any schedule at all counted as an approved one.
-       *
-       * A run of show still sitting in `client_review` was listed here as
-       * "Approved schedule · Version 4" under the heading "Your approved
-       * records", while the Records page — which filters on approved or
-       * published, correctly — said no records existed at all. Two pages in one
-       * portal, opposite answers about the same document.
-       */
-      label: "Event schedule",
-      detail: !currentSchedule
-        ? "Not published yet"
-        : ["approved", "published"].includes(text(currentSchedule.status))
-          ? `Version ${number(currentSchedule.version)} · approved`
-          : `Version ${number(currentSchedule.version)} · awaiting your review`,
-      ready:
-        Boolean(currentSchedule) &&
-        ["approved", "published"].includes(text(currentSchedule.status)),
-      href: "/client/schedule",
-      icon: CalendarDays,
-    },
-    {
-      label: "Shared COI",
-      detail: sharedCoi ? "Approved certificate available" : "Not shared",
-      ready: Boolean(sharedCoi),
-      href: "/client/documents",
-      icon: ShieldCheck,
-    },
-    {
-      label: "Gallery",
-      detail: delivery ? "Gallery delivered" : "In production",
-      ready: Boolean(delivery),
-      href: "/client/delivery",
-      icon: Images,
-    },
-    {
-      label: "Video",
-      detail: sharedVideo ? "Film available" : "Not available yet",
-      ready: Boolean(sharedVideo),
-      href: "/client/documents",
-      icon: ExternalLink,
-    },
-    {
-      label: "Album",
-      detail: album
-        ? statusLabel(album.status)
-        : "Not included or not started",
-      ready: Boolean(album),
-      href: "/client/delivery",
-      icon: BookOpenCheck,
-    },
-  ];
-  /**
-   * Ready records, plus anything waiting on the couple.
-   *
-   * This filtered on `ready` alone, so the one artifact that mattered most —
-   * "Event schedule · Version 4 · awaiting your review", with its link — was
-   * computed and then discarded, and the hub read "No approved records yet".
-   * The next-action card now carries that decision too, but the hub is where
-   * a couple looks for "what is mine to do"; it should not answer "nothing".
-   */
-  const availableRecords = artifacts.filter(
-    (artifact) => artifact.ready || /awaiting your review/i.test(artifact.detail),
-  );
-  const upcomingMilestones = value.milestones
-    .filter((milestone) => milestone.status !== "complete")
-    .slice(0, 3);
-  return (
-    <>
-      <div className="portal-hero">
-        <div>
-          <p className="eyebrow">Your {text(value.eventType, "photography")} project</p>
-          <h1>Hello, {workspace.userName.split(" ")[0]}.</h1>
-          <p>Everything approved for your project, in one secure place.</p>
-        </div>
-        <div className="event-countdown">
-          {/* `Math.max(0, days)` printed a large "0" above "event complete" for
-              every couple whose day had passed — a countdown widget pressed
-              into service as a status. Past the day, the number that means
-              something is how long ago it was. */}
-          <strong>
-            {days === null ? "—" : days < 0 ? Math.abs(days) : days}
-          </strong>
-          <span>
-            {days === null
-              ? "date pending"
-              : days < 0
-                ? `${Math.abs(days) === 1 ? "day" : "days"} since your day`
-                : days === 0
-                  ? "today"
-                  : "days to go"}
-          </span>
-        </div>
-      </div>
-      {reserve ? <ReserveYourDate view={reserve} here="/client" /> : null}
-      {reserve ? null : (
-      <section
-        className={
-          studioIsWorking
-            ? "client-next-action client-next-action-studio"
-            : "client-next-action"
-        }
-      >
-        <span className="next-action-art">
-          {studioIsWorking ? <ShieldCheck size={25} /> : <Clock3 size={25} />}
-        </span>
-        <div>
-          <StatusBadge tone={studioIsWorking ? "success" : "warning"}>
-            {studioIsWorking ? "Studio is working" : "Your next action"}
-          </StatusBadge>
-          <h2>{nextAction.name}</h2>
-          <p>{nextAction.description}</p>
-          {nextAction.dueDate ? (
-            <span className="client-action-due">
-              <CalendarDays size={14} />
-              Due {date(nextAction.dueDate)}
-            </span>
-          ) : null}
-        </div>
-        <Link className="button button-dark" href={nextAction.href}>
-          {nextAction.actionLabel}
-        </Link>
-      </section>
-      )}
-      <section className="panel client-artifact-hub">
-        <div className="panel-heading">
-          <div>
-            <p className="eyebrow">Project records</p>
-            <h2>Your approved records</h2>
-            <p>
-              Current signed, paid, approved, or delivered records stay here.
-            </p>
-          </div>
-          <FolderOpen aria-hidden="true" />
-        </div>
-        <div>
-          {availableRecords.map((artifact) => {
-            const Icon = artifact.icon;
-            return (
-              <Link
-                className={artifact.ready ? "is-ready" : ""}
-                href={artifact.href}
-                key={artifact.label}
-              >
-                <Icon />
-                <span>
-                  <strong>{artifact.label}</strong>
-                  <small>{artifact.detail}</small>
-                </span>
-                {artifact.ready ? (
-                  <CheckCircle2 />
-                ) : (
-                  <Clock3 />
-                )}
-              </Link>
-            );
-          })}
-          {!availableRecords.length ? (
-            <div className="client-records-empty">
-              <Clock3 />
-              <span>
-                <strong>No approved records yet</strong>
-                <small>They will appear here as your project progresses.</small>
-              </span>
-            </div>
-          ) : null}
-        </div>
-      </section>
-      <div className="client-grid">
-        <section className="panel client-journey-card">
-          <div className="panel-heading">
-            <div>
-              <h2>What happens next</h2>
-              <p>Your current stage and the next milestones</p>
-            </div>
-            {/* A bare "67%" with nothing saying what it counted. */}
-            <strong title="Project milestones complete">
-              {progress}% <em>done</em>
-            </strong>
-          </div>
-          <div className="progress-track">
-            <i style={{ width: `${progress}%` }} />
-          </div>
-          <div className="client-milestone-list">
-            {upcomingMilestones.map((milestone) => (
-              <div
-                className={`client-milestone client-milestone-${milestone.status}`}
-                key={milestone.id}
-              >
-                <span>
-                  {milestone.status === "complete" ? (
-                    <CircleCheck />
-                  ) : milestone.status === "current" ? (
-                    <Clock3 />
-                  ) : (
-                    <span className="client-milestone-dot" />
-                  )}
-                </span>
-                <span>
-                  <strong>{milestone.label}</strong>
-                  <small>{milestone.description}</small>
-                </span>
-                {milestone.status === "current" ? <em>Now</em> : null}
-              </div>
-            ))}
-            {!upcomingMilestones.length ? (
-              <div className="client-milestone client-milestone-complete">
-                <span><CircleCheck /></span>
-                <span>
-                  <strong>Your project is complete</strong>
-                  <small>Your approved records remain available here.</small>
-                </span>
-              </div>
-            ) : null}
-          </div>
-        </section>
-        <section className="panel event-detail-card">
-          <div className="panel-heading">
-            <div>
-              <h2>Your event</h2>
-              <p>{text(value.name)}</p>
-            </div>
-          </div>
-          <div className="event-detail">
-            <CalendarDays />
-            <span>
-              <small>Date</small>
-              <strong>{date(value.eventDate)}</strong>
-            </span>
-          </div>
-          <div className="event-detail">
-            <MapPin />
-            <span>
-              <small>Location</small>
-              <strong>
-                {text(value.venueName ?? value.city, "Location pending")}
-              </strong>
-            </span>
-          </div>
-        </section>
-      </div>
-    </>
-  );
 }
 
 export function LiveClientProjectDetails() {
@@ -1421,7 +1005,7 @@ export function LiveClientMessages() {
   );
 }
 
-function proposalErrorMessage(error: string) {
+export function proposalErrorMessage(error: string) {
   const messages: Record<string, string> = {
     PROPOSAL_EXPIRED:
       "This proposal has expired. Message your studio for an updated version.",
@@ -1435,367 +1019,6 @@ function proposalErrorMessage(error: string) {
       "The package linked to this proposal no longer matches the project. Your studio has been asked to review it.",
   };
   return messages[error] ?? error;
-}
-
-export function LiveClientProposal() {
-  const portalProject = useProject();
-  const workspace = useWorkspace();
-  const proposals = useProjectRecords("proposals");
-  const reserve = useReserveYourDate();
-  const proposal = useMemo(
-    () =>
-      [...proposals.value].sort(
-        (a, b) => number(b.version) - number(a.version),
-      )[0],
-    [proposals.value],
-  );
-  const [mode, setMode] = useState<"idle" | "accept" | "changes">("idle");
-  const [reason, setReason] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [localStatus, setLocalStatus] = useState<string | null>(null);
-  const [renderedAt] = useState(() => Date.now());
-
-  if (proposals.loading || proposals.error || !proposal) {
-    return (
-      <PortalPageState
-        eyebrow="Your offer"
-        title="Your proposal"
-        description="Review the exact coverage, price, payment schedule, and terms prepared for your project."
-        loading={proposals.loading}
-        error={proposals.error}
-        empty={
-          !proposals.loading && !proposals.error
-            ? "Your studio is still preparing your proposal. You’ll be notified when it is ready."
-            : undefined
-        }
-        area="proposal"
-        milestones={portalProject.value?.milestones ?? null}
-      />
-    );
-  }
-
-  const pricing =
-    proposal.pricingSnapshot &&
-    typeof proposal.pricingSnapshot === "object"
-      ? (proposal.pricingSnapshot as Record<string, unknown>)
-      : {};
-  const event =
-    proposal.eventSnapshot && typeof proposal.eventSnapshot === "object"
-      ? (proposal.eventSnapshot as Record<string, unknown>)
-      : {};
-  const lines = Array.isArray(pricing.lineItems)
-    ? (pricing.lineItems as Array<Record<string, unknown>>)
-    : [];
-  const payments = Array.isArray(proposal.paymentSchedule)
-    ? (proposal.paymentSchedule as Array<Record<string, unknown>>)
-    : [];
-  const storedStatus = text(proposal.status, "sent");
-  const expired =
-    !["accepted", "declined", "superseded"].includes(storedStatus) &&
-    new Date(String(proposal.expiresAt)).valueOf() <= renderedAt;
-  const status = localStatus ?? (expired ? "expired" : storedStatus);
-  const actionable = ["sent", "viewed"].includes(status);
-
-  async function submitDecision(decision: "accepted" | "declined") {
-    if (!workspace.tenantId || !workspace.projectId) return;
-    setSubmitting(true);
-    setNotice(null);
-    try {
-      const result = await decideClientProposal(
-        workspace.tenantId,
-        workspace.projectId,
-        proposal.id,
-        decision,
-        decision === "declined" ? reason.trim() : null,
-      );
-      setLocalStatus(result.status);
-      setMode("idle");
-      setNotice(
-        decision === "accepted"
-          ? "Proposal accepted. Your studio can now prepare the agreement."
-          : "Your change request was sent to your studio.",
-      );
-    } catch (caught: unknown) {
-      setNotice(
-        proposalErrorMessage(
-          friendlyError(caught, "Your decision could not be saved."),
-        ),
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <div className="client-booking-page client-proposal-page">
-      {reserve ? <ReserveYourDate view={reserve} here="/client/proposal" /> : null}
-      <div className="client-proposal-heading">
-        <div>
-          <p className="eyebrow">Proposal · version {number(proposal.version)}</p>
-          <h1>{text(pricing.packageName, "Photography proposal")}</h1>
-          <p>
-            Prepared for {text(event.name, "your photography project")} by{" "}
-            {workspace.tenantName}.
-          </p>
-        </div>
-        <StatusBadge tone={statusTone(status)}>
-          {status.replaceAll("_", " ")}
-        </StatusBadge>
-      </div>
-
-      <section className="client-proposal-summary">
-        <span>
-          <small>Event</small>
-          <strong>{text(event.eventType, "Photography")}</strong>
-        </span>
-        <span>
-          <small>Date</small>
-          <strong>{date(event.eventDate)}</strong>
-        </span>
-        <span>
-          <small>Location</small>
-          <strong>{text(event.venue, "To be confirmed")}</strong>
-        </span>
-        <span>
-          <small>Proposal valid through</small>
-          <strong>{date(proposal.expiresAt)}</strong>
-        </span>
-      </section>
-
-      <div className="client-proposal-grid">
-        <section className="panel client-proposal-pricing">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Investment</p>
-              <h2>Your selected coverage</h2>
-            </div>
-            <strong>{money(pricing.totalCents, pricing.currency)}</strong>
-          </div>
-          <div className="client-proposal-lines">
-            {lines.map((line, index) => (
-              <div key={`${String(line.description)}-${index}`}>
-                <span>
-                  <strong>{text(line.description, "Photography services")}</strong>
-                  <small>
-                    {number(line.quantity)} ×{" "}
-                    {money(line.unitPriceCents, pricing.currency)}
-                  </small>
-                </span>
-                {/*
-                  Two field names reach this component for one number. Package
-                  snapshots store `lineTotalCents` (features/packages/schema.ts),
-                  and the portal route serves those documents unchanged — while
-                  functions/src/booking/proposals.ts and
-                  server/services/proposal-service.ts rename it to `totalCents`
-                  on their way out. Reading only one name renders $0.00 on the
-                  other path, which is what the client portal was doing on a
-                  real $8,950 proposal.
-                */}
-                <strong>
-                  {money(line.lineTotalCents ?? line.totalCents, pricing.currency)}
-                </strong>
-              </div>
-            ))}
-          </div>
-          <dl className="client-proposal-totals">
-            <div>
-              <dt>Subtotal</dt>
-              <dd>{money(pricing.subtotalCents, pricing.currency)}</dd>
-            </div>
-            {number(pricing.discountCents) > 0 ? (
-              <div>
-                <dt>Discount</dt>
-                <dd>−{money(pricing.discountCents, pricing.currency)}</dd>
-              </div>
-            ) : null}
-            <div>
-              <dt>Tax</dt>
-              <dd>{money(pricing.taxCents, pricing.currency)}</dd>
-            </div>
-            <div className="client-proposal-total">
-              <dt>Project total</dt>
-              <dd>{money(pricing.totalCents, pricing.currency)}</dd>
-            </div>
-          </dl>
-        </section>
-
-        <aside className="panel client-proposal-payment-plan">
-          <p className="eyebrow">Payment plan</p>
-          <h2>What comes next</h2>
-          {payments.map((payment, index) => (
-            <div key={`${String(payment.label)}-${index}`}>
-              <span>{index + 1}</span>
-              <span>
-                <strong>{text(payment.label, "Payment")}</strong>
-                <small>
-                  {payment.dueDate
-                    ? `Due ${date(payment.dueDate)}`
-                    : "Due date confirmed on the invoice"}
-                </small>
-              </span>
-              <strong>{money(payment.amountCents, pricing.currency)}</strong>
-            </div>
-          ))}
-          <p>
-            Accepting this proposal does not sign a contract or collect a
-            payment. Those remain separate, secure steps.
-          </p>
-        </aside>
-      </div>
-
-      <section className="panel client-proposal-terms">
-        <div>
-          <ShieldCheck />
-          <span>
-            <p className="eyebrow">Terms summary</p>
-            <h2>Before you decide</h2>
-          </span>
-        </div>
-        <p>{text(proposal.termsSummary, "Your studio will provide the full agreement as the next step.")}</p>
-        <small>
-          The signed agreement—not this summary—governs the photography
-          services.
-        </small>
-      </section>
-
-      {status === "accepted" ? (
-        <section className="client-proposal-result client-proposal-result-success">
-          <BadgeCheck />
-          <div>
-            <p className="eyebrow">Accepted</p>
-            <h2>Next, sign your agreement.</h2>
-            <p>
-              Your agreement arrives by email with a secure signing link. Once
-              it’s signed, your deposit is the last step to reserve your date.
-            </p>
-          </div>
-          <Link className="button button-light" href="/client/contract">
-            Agreement status <ArrowRight />
-          </Link>
-        </section>
-      ) : status === "declined" ? (
-        <section className="client-proposal-result">
-          <MessageCircle />
-          <div>
-            <p className="eyebrow">Changes requested</p>
-            <h2>Your studio is reviewing your note.</h2>
-            <p>This does not cancel your project or reserve a date.</p>
-          </div>
-          <Link className="button button-light" href="/client/messages">
-            Message studio
-          </Link>
-        </section>
-      ) : status === "expired" || status === "superseded" ? (
-        <section className="client-proposal-result client-proposal-result-warning">
-          <XCircle />
-          <div>
-            <p className="eyebrow">Proposal unavailable</p>
-            <h2>
-              {status === "expired"
-                ? "This proposal has expired."
-                : "A newer proposal replaced this version."}
-            </h2>
-            <p>Ask your studio to share the current offer before deciding.</p>
-          </div>
-          <Link className="button button-light" href="/client/messages">
-            Message studio
-          </Link>
-        </section>
-      ) : actionable ? (
-        <section className="client-proposal-decision">
-          <div>
-            <p className="eyebrow">Your decision</p>
-            <h2>Ready to move forward?</h2>
-            <p>
-              Acceptance locks this proposal to the project and asks your
-              studio to prepare the contract. No charge is made now.
-            </p>
-          </div>
-          {mode === "accept" ? (
-            <div className="client-proposal-confirm">
-              <BadgeCheck />
-              <span>
-                <strong>Accept proposal version {number(proposal.version)}?</strong>
-                <small>
-                  You are approving the coverage and {money(pricing.totalCents, pricing.currency)}{" "} project total shown above.
-                </small>
-              </span>
-              <button
-                className="button button-dark"
-                disabled={submitting}
-                onClick={() => void submitDecision("accepted")}
-                type="button"
-              >
-                {submitting ? "Saving…" : "Confirm acceptance"}
-              </button>
-              <button
-                className="button button-light"
-                disabled={submitting}
-                onClick={() => setMode("idle")}
-                type="button"
-              >
-                Go back
-              </button>
-            </div>
-          ) : mode === "changes" ? (
-            <div className="client-proposal-change-request">
-              <label htmlFor="proposal-change-request">
-                What would you like your studio to change?
-              </label>
-              <textarea
-                id="proposal-change-request"
-                maxLength={1000}
-                onChange={(event) => setReason(event.target.value)}
-                placeholder="Describe the coverage, add-on, timing, or pricing question you would like reviewed."
-                rows={4}
-                value={reason}
-              />
-              <div>
-                <button
-                  className="button button-dark"
-                  disabled={submitting || reason.trim().length < 10}
-                  onClick={() => void submitDecision("declined")}
-                  type="button"
-                >
-                  {submitting ? "Sending…" : "Send change request"}
-                </button>
-                <button
-                  className="button button-light"
-                  disabled={submitting}
-                  onClick={() => setMode("idle")}
-                  type="button"
-                >
-                  Go back
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="client-proposal-decision-actions">
-              <button
-                className="button button-dark"
-                onClick={() => setMode("accept")}
-                type="button"
-              >
-                Accept proposal <ArrowRight />
-              </button>
-              <button
-                className="button button-light"
-                onClick={() => setMode("changes")}
-                type="button"
-              >
-                Request changes
-              </button>
-            </div>
-          )}
-          {notice ? <p className="client-proposal-notice" role="status">{notice}</p> : null}
-        </section>
-      ) : null}
-      {notice && !actionable ? (
-        <p className="client-proposal-notice" role="status">{notice}</p>
-      ) : null}
-    </div>
-  );
 }
 
 export function LiveClientPackage() {
@@ -2027,331 +1250,6 @@ export function LiveClientPackage() {
           </span>
         </div>
       </section>
-    </div>
-  );
-}
-
-export function LiveClientContract() {
-  const workspace = useWorkspace();
-  const portalProject = useProject();
-  const contracts = useProjectRecords("contracts");
-  const reserve = useReserveYourDate();
-  const [providerOpened, setProviderOpened] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  const refreshContracts = contracts.refresh;
-  const contract = useMemo(
-    () =>
-      [...contracts.value].sort((a, b) =>
-        String(b.updatedAt).localeCompare(String(a.updatedAt)),
-      )[0],
-    [contracts.value],
-  );
-  const contractStatus = text(contract?.status);
-  useEffect(() => {
-    if (!providerOpened) return;
-    const checkOnReturn = () => {
-      if (document.visibilityState !== "visible") return;
-      setNotice("Checking the signing provider for your latest status…");
-      refreshContracts?.();
-    };
-    window.addEventListener("focus", checkOnReturn);
-    document.addEventListener("visibilitychange", checkOnReturn);
-    return () => {
-      window.removeEventListener("focus", checkOnReturn);
-      document.removeEventListener("visibilitychange", checkOnReturn);
-    };
-  }, [providerOpened, refreshContracts]);
-  if (contracts.error || !contract)
-    return <PortalPageState lead={reserve ? <ReserveYourDate view={reserve} here="/client/contract" /> : null} eyebrow="Agreement" title="Your contract" description="Review signature progress and open your secure signing request." loading={contracts.loading} error={contracts.error} empty={!contracts.loading && !contracts.error ? "Your agreement will appear after the studio sends it for signature." : undefined} area="contract" milestones={portalProject.value?.milestones ?? null} />;
-  /**
-   * An agreement StudioCue wrote: the couple reads and signs it right here.
-   * Everything below this branch is for a signing vendor's contract, or one
-   * the studio recorded.
-   */
-  if (contract.provider === "studiocue") {
-    const studioNameForContract =
-      workspace.tenantName && !workspace.tenantName.startsWith("Loading")
-        ? workspace.tenantName
-        : null;
-    return (
-      <div className="client-booking-page">
-        {reserve ? <ReserveYourDate view={reserve} here="/client/contract" /> : null}
-        <p className="eyebrow">Agreement</p>
-        <h1>Your agreement</h1>
-        <p>
-          {contractStatus === "completed"
-            ? "Signed by you and your studio."
-            : contractStatus === "voided"
-              ? "This version was withdrawn."
-              : "Read it through, then sign at the bottom. It's written from the proposal you accepted."}
-        </p>
-        <ClientContractSigning
-          contract={contract}
-          onChanged={() => refreshContracts?.()}
-          studioName={studioNameForContract}
-        />
-      </div>
-    );
-  }
-  /**
-   * Who actually witnessed this signature.
-   *
-   * This was `provider === "dropbox_sign" ? "Dropbox Sign" : "Docusign"`, so
-   * a contract the studio recorded by hand — provider null — told the couple
-   * their signature status came "from Docusign", a product their studio has
-   * not connected. The whole point of recording an attestation separately is
-   * that it is never presented as a provider's word.
-   */
-  const attested = contract.completionAuthority === "manual_attested";
-  const signingProvider =
-    contract.provider === "dropbox_sign"
-      ? "Dropbox Sign"
-      : contract.provider === "docusign"
-        ? "Docusign"
-        : null;
-  const signers = Array.isArray(contract.signers)
-    ? (contract.signers as Array<Record<string, unknown>>)
-    : [];
-  const signingUrl =
-    typeof contract.signingUrl === "string" ? contract.signingUrl : null;
-  const complete = ["completed", "signed"].includes(contractStatus);
-  return (
-    <div className="client-booking-page">
-      {reserve ? <ReserveYourDate view={reserve} here="/client/contract" /> : null}
-      <p className="eyebrow">Agreement</p>
-      <h1>Photography services agreement</h1>
-      <p>
-        {attested
-          ? "Your studio recorded this signature and holds the signed copy."
-          : signingProvider
-            ? `Your secure signature status from ${signingProvider}.`
-            : "Your signature status for this agreement."}
-      </p>
-      <section className="panel client-contract-card">
-        <ShieldCheck />
-        <div>
-          <StatusBadge tone={statusTone(contract.status)}>
-            {statusLabel(contract.status)}
-          </StatusBadge>
-          <h2>
-            {complete
-              ? "Every required signature is complete."
-              : signingProvider
-                ? `${signingProvider} is collecting required signatures.`
-                : "Signatures are still being collected."}
-          </h2>
-          {signers.map((signer) => (
-            <div
-              className={`client-signer ${signer.status === "completed" ? "" : "pending"}`}
-              key={`${String(signer.email)}-${String(signer.order)}`}
-            >
-              <span>
-                {signer.status === "completed" ? <CheckCircle2 /> : null}
-                {text(signer.name)}
-              </span>
-              <strong>{statusLabel(signer.status)}</strong>
-            </div>
-          ))}
-          {signingUrl && !complete ? (
-            <div className="client-provider-handoff">
-              <div>
-                <LockKeyhole />
-                <span>
-                  <strong>You’re opening {signingProvider ?? "the signing page"}</strong>
-                  <small>Sign there, then return to this page. It updates here once you&rsquo;ve signed.</small>
-                </span>
-              </div>
-              <a
-                className="button button-dark"
-                href={signingUrl}
-                onClick={() => {
-                  setProviderOpened(true);
-                  setNotice(null);
-                }}
-                rel="noreferrer"
-                target="_blank"
-              >
-                Continue to secure signing <ExternalLink />
-              </a>
-            </div>
-          ) : (
-            !complete && signingProvider ? <p>{signingProvider} sends each signer their secure signing link directly.</p> : null
-          )}
-          {providerOpened && !complete ? (
-            <div className="client-provider-return">
-              <span>
-                <strong>Back from {signingProvider ?? "signing"}?</strong>
-                <small>Check whether the completed signature has synchronized.</small>
-              </span>
-              <button
-                className="button button-light"
-                disabled={contracts.loading}
-                onClick={() => {
-                  setNotice("Checking the signing provider for your latest status…");
-                  refreshContracts?.();
-                }}
-                type="button"
-              >
-                <RotateCw className={contracts.loading ? "spin" : ""} />
-                {contracts.loading ? "Checking…" : "Check signature status"}
-              </button>
-            </div>
-          ) : null}
-          {notice ? <p className="client-provider-notice" role="status">{notice}</p> : null}
-        </div>
-      </section>
-      <p className="source-note">
-        {attested
-          ? "Your studio recorded this signature, and the record names who confirmed it."
-          : signingProvider
-            ? `Only ${signingProvider} completion evidence can mark this contract complete.`
-            : "Only verified completion evidence can mark this contract complete."}
-      </p>
-      {complete ? (
-        <p className="source-note">
-          Your studio holds the signed agreement on file. Ask below if you would
-          like a copy sent to you.
-        </p>
-      ) : null}
-      <Link className="client-context-message-link" href="/client/messages?context=Contract%20signing">
-        <MessageCircle /> Ask your studio about this agreement
-      </Link>
-    </div>
-  );
-}
-
-export function LiveClientPayments() {
-  const portalProject = useProject();
-  const invoices = useProjectRecords("invoiceReferences");
-  const reserve = useReserveYourDate();
-  const [openedInvoiceId, setOpenedInvoiceId] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const refreshInvoices = invoices.refresh;
-  useEffect(() => {
-    if (!openedInvoiceId) return;
-    const checkOnReturn = () => {
-      if (document.visibilityState !== "visible") return;
-      setNotice("Checking for your latest payment status…");
-      refreshInvoices?.();
-    };
-    window.addEventListener("focus", checkOnReturn);
-    document.addEventListener("visibilitychange", checkOnReturn);
-    return () => {
-      window.removeEventListener("focus", checkOnReturn);
-      document.removeEventListener("visibilitychange", checkOnReturn);
-    };
-  }, [openedInvoiceId, refreshInvoices]);
-  if (invoices.error || invoices.value.length === 0)
-    return <PortalPageState lead={reserve ? <ReserveYourDate view={reserve} here="/client/payments" /> : null} eyebrow="Payments" title="Your payment schedule" description="Review amounts, due dates, and secure payment links." loading={invoices.loading} error={invoices.error} empty={!invoices.loading && !invoices.error ? "Invoices will appear here when your studio creates them." : undefined} emptyArea="payments" eventDate={portalProject.value?.eventDate ?? null} />;
-  return (
-    <div className="client-booking-page">
-      {reserve ? <ReserveYourDate view={reserve} here="/client/payments" /> : null}
-      <p className="eyebrow">Payments</p>
-      <h1>Your payment schedule</h1>
-      <p>Every payment and its status, kept in one place.</p>
-      <Link className="client-context-message-link" href="/client/messages?context=Payments">
-        <MessageCircle /> Ask your studio a payment question
-      </Link>
-      <ClientAutopay />
-      {invoices.value
-        // A replaced or refused invoice is not the client's to see. One was
-        // being listed above the real one, badged "Replaced", saying $569.70
-        // still to pay on a deposit that had been paid in full.
-        .filter((invoice) => isStandingInvoice(invoice.status))
-        .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)))
-        .map((invoice) => (
-          <section className="panel client-payment-card" key={invoice.id}>
-            <div>
-              {/* "retainer" and "final" are the system's words for these,
-                  not a couple's. And an overdue balance has to say so on the
-                  client's own page — the studio can see it, so hiding it here
-                  only makes the reminder email a surprise. */}
-              <span>
-                <small>
-                  {text(invoice.kind) === "retainer"
-                    ? "Deposit"
-                    : text(invoice.kind) === "final"
-                      ? "Final balance"
-                      : text(invoice.kind).replace(/^\w/, (c) => c.toUpperCase())}
-                </small>
-                <strong>{money(invoice.amountCents, invoice.currency)}</strong>
-              </span>
-              <StatusBadge
-                tone={
-                  invoiceOverdue(invoice)
-                    ? "danger"
-                    : statusTone(invoice.status)
-                }
-              >
-                {invoiceOverdue(invoice)
-                  ? "Overdue"
-                  : statusLabel(invoice.status)}
-              </StatusBadge>
-            </div>
-            <p>
-              {number(invoice.balanceCents) > 0
-                ? `${money(invoice.balanceCents, invoice.currency)} still to pay · due ${date(invoice.dueDate)}`
-                : `Paid in full · ${date(invoice.dueDate)}`}
-            </p>
-            {typeof invoice.hostedUrl === "string" && invoice.hostedUrl ? (
-              <div className="client-provider-handoff">
-                <div>
-                  <LockKeyhole />
-                  <span>
-                    <strong>
-                      Secure payment opens in{" "}
-                      {text(invoice.provider) === "stripe" ? "Stripe" : "QuickBooks"}
-                    </strong>
-                    <small>StudioCue never sees your card or bank details. Return here after paying to confirm the updated status.</small>
-                  </span>
-                </div>
-                <a
-                  className="button button-dark"
-                  href={invoice.hostedUrl}
-                  onClick={() => {
-                    setOpenedInvoiceId(invoice.id);
-                    setNotice(null);
-                  }}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  Continue to secure payment <ExternalLink />
-                </a>
-                {openedInvoiceId === invoice.id ? (
-                  <button
-                    className="button button-light"
-                    disabled={invoices.loading}
-                    onClick={() => {
-                      setNotice("Checking for your latest payment status…");
-                      refreshInvoices?.();
-                    }}
-                    type="button"
-                  >
-                    <RotateCw className={invoices.loading ? "spin" : ""} />
-                    {invoices.loading ? "Checking…" : "Check payment status"}
-                  </button>
-                ) : null}
-              </div>
-            ) : number(invoice.balanceCents) > 0 ? (
-              <div className="client-provider-unavailable">
-                <Clock3 />
-                <span>
-                  <strong>Secure payment link is still syncing</strong>
-                  <small>Refresh the status, or message your studio if you need to pay now.</small>
-                </span>
-                <button className="button button-light" onClick={() => refreshInvoices?.()} type="button">
-                  <RotateCw /> Refresh status
-                </button>
-              </div>
-            ) : null}
-            {openedInvoiceId === invoice.id && notice ? (
-              <p className="client-provider-notice" role="status">{notice}</p>
-            ) : null}
-            <footer>
-              <LockKeyhole /> StudioCue never receives your card or bank details.
-            </footer>
-          </section>
-        ))}
     </div>
   );
 }

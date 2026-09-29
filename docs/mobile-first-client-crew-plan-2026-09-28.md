@@ -298,6 +298,40 @@ The studio-side (desktop) parts of H1–H4 are unaffected.
   - **The light public shell** is still open. The kit pages still load the
     app-wide CSS.
 
+## M3 — done 2026-09-29
+
+- **Portal frame:** the couple's portal is a kit shell with the studio's bar
+  and 4 tabs (Home · Plan · Messages · Files). Rebuilt screens bring their
+  own layout (`KIT_CLIENT_ROUTES` in `components/layout/portal-shell.tsx`).
+  Every other client page renders unchanged inside a design-system wrapper
+  (wider on a desktop) until its phase.
+- **Home:** one next step (or "Reserve your date"), the countdown, and the
+  journey. Records moved to Files.
+- **Plan:** a new hub listing everything by stage (from the server's
+  `navigation`), plus account, project switching and sign-out. It replaces
+  the sidebar and the "More" drawer.
+- **Proposal:** the decision is the sticky bar, with the total beside it:
+  accept → confirm, or request changes (at least 10 characters). Add-ons
+  show as lines after the package.
+- **Agreement:** StudioCue's own signing keeps its logic and every word of
+  consent. The document keeps its own sheet styles, and signing happens in a
+  bottom sheet in the studio's colour. The Dropbox Sign / DocuSign handoff
+  moved to the sticky bar.
+- **Payments:** the amount due next leads, with one sticky "Pay $X
+  securely" to the hosted invoice, then the schedule. Card autopay keeps
+  its form for now.
+- **Mock mode now has a project** (`features/client/mock-project.ts`), so
+  Home and Plan can be walked. Accepting a proposal answers locally in mock
+  mode.
+- **Checked:** walked at 375 px. The native signing sheet was rendered via a
+  temporary fixture (not committed); it had no padding, which is fixed.
+  Phone guard plus M2 flows: 70/70 in Chrome and WebKit.
+- **Suite rot:** a baseline run of the old suites on 1c44056 showed **15
+  failing tests before M3**. These suites had never run here. M3 broke 3
+  (proposal title size, the payments link name, and the inset check needing
+  kit surfaces), and all 3 are updated. The 15 older ones are a separate
+  task.
+
 ### Open: should the invitation link sign a first-time invitee in?
 
 - **Today:** the invitation arrives by email, and the person then sets a

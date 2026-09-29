@@ -165,11 +165,13 @@ test.describe("authenticated visual shell", () => {
     await expect(
       page.getByLabel("What would you like your studio to change?"),
     ).toBeVisible();
+    // The mobile kit's screen title (30 px, design/tokens.json): the page is
+    // built for a phone first, where 40 px wrapped the package name.
     expect(
       await page
         .getByRole("heading", { name: "Signature wedding" })
         .evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize)),
-    ).toBeGreaterThanOrEqual(40);
+    ).toBeGreaterThanOrEqual(30);
   });
 
   test("studio proposal authoring requires approval before delivery", async ({
