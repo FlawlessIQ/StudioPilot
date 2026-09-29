@@ -1,5 +1,5 @@
-import { LiveCrewAccount } from "@/components/crew/live-crew-views";
+import { CrewMe } from "@/components/crew/kit/crew-me";
 
 export default function CrewAccountPage() {
-  return <><LiveCrewAccount /></>;
+  return <CrewMe />;
 }

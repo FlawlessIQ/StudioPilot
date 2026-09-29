@@ -2392,21 +2392,6 @@
 .crew-cascade-form,
 .crew-direct-invite-form,
 .project-plan-empty,
-/* The subcontractor workspace was never swept — the sweep only ever walked
-   /studio — so these sat flush from the day they were written. The job card
-   also clips: it sets `overflow: hidden`, so at a 1px inset the eyebrow's
-   first glyph was cut off and "SECOND PHOTOGRAPHER" read as "ECOND
-   PHOTOGRAPHER" on a crew member's own job list. */
-.crew-brief-panel,
-.crew-closeout-receipt,
-.crew-job-card-premium,
-/* Found on the run after the sweep stopped reporting a page it had never
-   rendered as clean. The crew pass above fixed what its sweep surfaced;
-   /crew/closeout and /crew/availability were among the routes silently
-   passing on a fixed 2.1s wait, so these three stayed flush through it. */
-.crew-availability-form,
-.crew-closeout-form,
-.crew-payment-summary > .panel,
 /* The public inquiry page: the first thing anyone outside the business ever
    sees, and the last surface the sweep did not walk. Only the "form
    unavailable" branch is bare `.panel` — the form itself supplies its own
@@ -2420,57 +2405,10 @@
 @media (max-width: 620px) {
   .crew-cascade-form,
   .crew-direct-invite-form,
-  .project-plan-empty,
-  .crew-availability-form,
-  .crew-closeout-form,
-  .crew-payment-summary > .panel {
+  .project-plan-empty {
     padding: 20px;
   }
 
-}
-
-/* The crew's part of a client's brief (components/crew/client-brief.tsx). */
-.crew-client-brief {
-  display: grid;
-  gap: 18px;
-}
-
-.crew-client-brief .eyebrow {
-  align-items: center;
-  display: flex;
-  gap: 6px;
-  margin: 0 0 8px;
-}
-
-.crew-client-brief dl {
-  display: grid;
-  gap: 10px;
-  margin: 0;
-}
-
-.crew-client-brief dt {
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.crew-client-brief dd {
-  margin: 2px 0 0;
-  white-space: pre-line;
-}
-
-.crew-client-brief-critical {
-  background: var(--amber, #f2e3c5);
-  border-radius: 10px;
-  color: var(--amber-dark, #8b5b17);
-  padding: 14px 16px;
-}
-
-.crew-client-brief-critical dd {
-  color: var(--ink, #1f1d1a);
-}
-
-.crew-client-brief-critical [data-field="no-photo-list"] dd {
-  font-weight: 600;
 }
 
 /* Whose timeline is the real one (components/planning/timeline-authority-panel.tsx). */
@@ -2554,7 +2492,6 @@
 }
 
 /* The planner, not the studio, keeps this wedding's timeline. */
-.crew-planner-led,
 .ros-planner-led {
   align-items: center;
   background: var(--amber, #f2e3c5);

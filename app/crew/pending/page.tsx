@@ -1,5 +1,5 @@
-import { LiveCrewPending } from "@/components/crew/live-crew-views";
+import { CrewOffer } from "@/components/crew/kit/crew-offer";
 
-export default function PendingJobsPage() {
-  return <LiveCrewPending />;
+export default function CrewPendingPage() {
+  return <CrewOffer />;
 }

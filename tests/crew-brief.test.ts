@@ -109,10 +109,12 @@ test("features/ and functions/ build the crew brief identically", () => {
   );
 });
 
-test("the offline event-day brief keeps the before-you-shoot list", () => {
-  const views = readFileSync(`${process.cwd()}/components/crew/live-crew-views.tsx`, "utf8");
-  const offline = views.slice(views.indexOf("function OfflineCrewBrief"), views.indexOf("export function LiveCrewSchedule"));
-  assert.match(offline, /<CrewClientBrief projectId=\{brief\.projectId\} compact offline\/>/);
+test("the offline day sheet keeps the whole client brief", () => {
+  const views = readFileSync(`${process.cwd()}/components/crew/kit/crew-day-sheet.tsx`, "utf8");
+  const offline = views.slice(views.indexOf("function OfflineCrewBrief"));
+  // Not compact: at a venue with no signal, the family formals and must-have
+  // shots matter as much as who not to photograph (M6).
+  assert.match(offline, /<CrewClientBrief projectId=\{brief\.projectId\} offline\/>/);
   // The cached copy carries the project, so the saved brief can find it.
   assert.match(views, /const brief: CachedCrewBrief = \{\n\s+projectId: text\(assignment\.projectId, ""\),/);
   const component = readFileSync(`${process.cwd()}/components/crew/client-brief.tsx`, "utf8");

@@ -101,20 +101,21 @@ export function CrewClientBrief({
     };
   }, [offline, projectId, userId, workspace.tenantId]);
 
-  const beforeYouShoot = briefs.flatMap((brief) => brief.beforeYouShoot);
-  const onTheDay = compact ? [] : briefs.flatMap((brief) => brief.onTheDay);
+  const shown = briefs.length ? briefs : dataIsLive ? [] : MOCK_BRIEF;
+  const beforeYouShoot = shown.flatMap((brief) => brief.beforeYouShoot);
+  const onTheDay = compact ? [] : shown.flatMap((brief) => brief.onTheDay);
   if (!beforeYouShoot.length && !onTheDay.length) return null;
 
   return (
-    <section className="panel crew-client-brief" aria-label="From the client's brief">
+    <section aria-label="From the client's brief" className="kit-stack-tight">
       {beforeYouShoot.length ? (
-        <div className="crew-client-brief-critical">
-          <p className="eyebrow">
-            <AlertTriangle size={14} /> Read before you shoot
+        <div className="kit-card kit-brief" data-tone="critical">
+          <p className="kit-eyebrow">
+            <AlertTriangle aria-hidden size={14} /> Read before you shoot
           </p>
-          <dl>
+          <dl className="kit-brief-list">
             {beforeYouShoot.map((item) => (
-              <div key={`${item.fieldId}-${item.text}`} data-field={item.fieldId}>
+              <div data-field={item.fieldId} key={`${item.fieldId}-${item.text}`}>
                 <dt>{item.label}</dt>
                 <dd>{item.text}</dd>
               </div>
@@ -123,13 +124,13 @@ export function CrewClientBrief({
         </div>
       ) : null}
       {onTheDay.length ? (
-        <div className="crew-client-brief-day">
-          <p className="eyebrow">
-            <ClipboardList size={14} /> From the client&rsquo;s brief
+        <div className="kit-card kit-brief">
+          <p className="kit-eyebrow">
+            <ClipboardList aria-hidden size={14} /> From the couple&rsquo;s brief
           </p>
-          <dl>
+          <dl className="kit-brief-list">
             {onTheDay.map((item) => (
-              <div key={`${item.fieldId}-${item.text}`}>
+              <div data-field={item.fieldId} key={`${item.fieldId}-${item.text}`}>
                 <dt>{item.label}</dt>
                 <dd>{item.text}</dd>
               </div>
@@ -140,3 +141,20 @@ export function CrewClientBrief({
     </section>
   );
 }
+
+/** Mock mode's brief, so the day sheet shows the lists that matter most. */
+const MOCK_BRIEF: Brief[] = [
+  {
+    id: "demo-brief",
+    questionnaireName: "Wedding day planning",
+    beforeYouShoot: [
+      { fieldId: "no-photo-list", label: "Please don't photograph", text: "The bride's uncle Mark (grey suit). Family reasons." },
+      { fieldId: "sensitivities", label: "Handle with care", text: "Groom's grandmother uses a wheelchair; keep her in the front row of formals." },
+    ],
+    onTheDay: [
+      { fieldId: "must-have-groups", label: "Family formals", text: "Couple with both sets of parents\nCouple with grandparents\nBride with her sisters\nGroom with his college friends" },
+      { fieldId: "first-look", label: "First look", text: "Yes, in the rose garden at 3 PM." },
+      { fieldId: "day-of-contact", label: "Day-of contact", text: "Jess (planner) · 617 555 0177" },
+    ],
+  },
+];

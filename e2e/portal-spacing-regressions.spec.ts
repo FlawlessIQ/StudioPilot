@@ -214,17 +214,13 @@ test("customer and crew content cards retain their component insets", async ({
   });
   expect(Math.min(...composerPadding)).toBeGreaterThanOrEqual(16);
 
+  // Crew jobs are compact kit rows (M6); the list keeps its own inset.
   await page.goto("/crew/jobs");
-  const crewState = page.locator(".team-state, .crew-job-brief").first();
-  await expect(crewState).toBeVisible();
-  const crewPadding = await crewState.evaluate((element) => {
+  const crewList = page.locator(".kit-list").first();
+  await expect(crewList).toBeVisible();
+  const crewPadding = await crewList.evaluate((element) => {
     const style = getComputedStyle(element);
-    return [
-      style.paddingTop,
-      style.paddingRight,
-      style.paddingBottom,
-      style.paddingLeft,
-    ].map(Number.parseFloat);
+    return [style.paddingLeft, style.paddingRight].map(Number.parseFloat);
   });
-  expect(Math.min(...crewPadding)).toBeGreaterThanOrEqual(20);
+  expect(Math.min(...crewPadding)).toBeGreaterThanOrEqual(16);
 });

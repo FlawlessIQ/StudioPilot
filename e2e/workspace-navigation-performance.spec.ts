@@ -70,19 +70,19 @@ test("crew navigation preserves the authorized assignment shell", async ({
   await page.goto("/crew");
   await page.evaluate(() => {
     Object.assign(window, {
-      __studioCueCrewShell: document.querySelector(".crew-portal-frame"),
+      __studioCueCrewShell: document.querySelector(".kit-screen"),
     });
   });
 
-  await openMobileNavigation(page, "Open crew navigation");
-  await page.getByRole("link", { name: "Jobs", exact: true }).click();
+  // The kit tab bar (M6): no drawer to open first.
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Jobs", exact: true }).click();
   await expect(page).toHaveURL(/\/crew\/jobs$/);
   await expect(page.getByText("Verifying access…")).toHaveCount(0);
   expect(
     await page.evaluate(
       () =>
         Reflect.get(window, "__studioCueCrewShell") ===
-        document.querySelector(".crew-portal-frame"),
+        document.querySelector(".kit-screen"),
     ),
   ).toBe(true);
 });

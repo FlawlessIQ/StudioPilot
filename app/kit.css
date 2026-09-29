@@ -543,6 +543,9 @@ textarea.kit-input {
   gap: var(--kit-space-2);
 }
 .kit-chip {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
   min-height: var(--kit-size-tap);
   padding: 0 var(--kit-space-4);
   border: 1px solid var(--kit-line);
@@ -1334,4 +1337,245 @@ textarea.kit-input {
   margin: 0;
   padding: 0;
   border: 0;
+}
+
+/* ---------- Crew: the client's brief ---------- */
+
+.kit-brief[data-tone="critical"] {
+  border-color: color-mix(in srgb, var(--kit-danger) 40%, var(--kit-line));
+  background: var(--kit-danger-soft);
+}
+.kit-brief[data-tone="critical"] .kit-eyebrow {
+  color: var(--kit-danger);
+}
+.kit-brief-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+}
+.kit-brief-list dt {
+  color: var(--kit-caption);
+  font-size: 13px;
+  font-weight: 600;
+}
+.kit-brief-list dd {
+  margin: 2px 0 0;
+  font-size: 15px;
+  line-height: 1.45;
+  white-space: pre-line;
+}
+
+/* ---------- Crew forms ---------- */
+
+/* Stacked, never side by side: iOS time and date inputs refuse to shrink. */
+.kit-field-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.kit-repeat {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--kit-line);
+  border-radius: var(--kit-radius-card);
+  background: var(--kit-paper);
+}
+.kit-repeat > .kit-icon-button {
+  align-self: flex-end;
+  margin: -6px -6px -6px 0;
+}
+.kit-stepper {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+.kit-stepper-control {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  border: 1px solid var(--kit-line);
+  border-radius: 999px;
+  background: var(--kit-paper);
+}
+.kit .kit-stepper-control button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--kit-accent);
+  cursor: pointer;
+}
+.kit .kit-stepper-control button:disabled {
+  color: var(--kit-caption);
+  cursor: default;
+}
+.kit-stepper-control output {
+  min-width: 76px;
+  font-weight: 600;
+  text-align: center;
+}
+.kit-send-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.kit-send-row .kit-button {
+  flex: 1 1 140px;
+  width: auto;
+}
+.kit-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kit-checklist li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.kit-checklist-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--kit-caption);
+}
+.kit-checklist li[data-done] .kit-checklist-icon {
+  color: var(--kit-accent);
+}
+.kit-timeline > li[data-next] .kit-timeline-body::before {
+  box-shadow: 0 0 0 3px var(--kit-paper), 0 0 0 6px var(--kit-accent-soft);
+}
+
+/* ---------- Crew calendar ---------- */
+
+.kit-month-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.kit-month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+.kit-month-weekdays span {
+  color: var(--kit-caption);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+.kit .kit-month-day {
+  position: relative;
+  aspect-ratio: 1;
+  min-height: 40px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--kit-ink);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.kit .kit-month-day:disabled {
+  color: var(--kit-caption);
+  opacity: 0.5;
+  cursor: default;
+}
+.kit .kit-month-day[data-today] {
+  box-shadow: inset 0 0 0 2px var(--kit-accent);
+  font-weight: 700;
+}
+.kit .kit-month-day[data-state="available"],
+.kit-month-legend [data-state="available"]::before {
+  background: var(--kit-accent-soft);
+}
+.kit .kit-month-day[data-state="tentative"],
+.kit-month-legend [data-state="tentative"]::before {
+  background: var(--kit-brass-soft);
+}
+.kit .kit-month-day[data-state="unavailable"],
+.kit-month-legend [data-state="unavailable"]::before {
+  background: var(--kit-danger-soft);
+}
+.kit .kit-month-day[data-booked]::after,
+.kit-month-legend [data-booked]::before {
+  content: "";
+  position: absolute;
+  bottom: 5px;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+  border-radius: 999px;
+  background: var(--kit-accent);
+}
+.kit-month-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  color: var(--kit-caption);
+  font-size: 12px;
+}
+.kit-month-legend span {
+  position: relative;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.kit-month-legend [data-state]::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+.kit-month-legend [data-booked]::before {
+  position: static;
+  margin: 0;
+}
+.kit .kit-link-button {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--kit-accent);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.kit-profile-head {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.kit-avatar {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  background: var(--kit-accent-soft);
+  color: var(--kit-accent);
+  font-size: 20px;
+  font-weight: 700;
+}
+.kit-brief-list [data-field="no-photo-list"] dd {
+  font-weight: 600;
+}
+
+.kit-profile-head .kit-pill {
+  align-self: flex-start;
 }

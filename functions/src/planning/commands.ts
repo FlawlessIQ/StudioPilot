@@ -1493,7 +1493,8 @@ export const planningCommand = onRequest(
                 type: "final_schedule_published",
                 scheduleId: id,
                 scheduleVersion: version,
-                scheduleUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app"}/crew/schedule`,
+                // To this job's day sheet, not whichever job the page picks.
+                scheduleUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app"}/crew/schedule?assignment=${encodeURIComponent(assignment.id)}`,
                 status: "queued",
                 attempts: 0,
                 createdAt: now,

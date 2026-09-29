@@ -77,13 +77,13 @@ test("both invitation previews resolve the brand the same way as everything else
 });
 
 test("the couple and crew portals show the studio, credited to StudioCue once", () => {
-  // Crew: the design-system shell, with the studio's mark in the sidebar.
+  // Crew: the mobile kit shell (M6), the same shape as the couple's.
   const crew = source("components/crew/crew-portal-shell.tsx");
   assert.doesNotMatch(crew, /Studio<b>Cue<\/b>/);
   assert.doesNotMatch(crew, /<CueMark/);
-  assert.match(crew, /<StudioBrand brand=\{workspace\.tenantBrand\} \/>/);
-  assert.match(crew, /portalAccentStyle\(workspace\.tenantBrand\?\.primaryColor\)/);
-  assert.match(crew, /<PoweredByStudioCue \/>/);
+  assert.match(crew, /<AppBar studio=\{studio\} \/>/);
+  assert.match(crew, /<KitRoot studio=\{studio\}>/);
+  assert.match(crew, /color: brand\?\.primaryColor \?\? null/);
   // Couples: the mobile kit shell (M3), the studio in the app bar and its
   // colour on the kit root; "Powered by StudioCue" is on each kit screen.
   const client = source("components/layout/portal-shell.tsx");

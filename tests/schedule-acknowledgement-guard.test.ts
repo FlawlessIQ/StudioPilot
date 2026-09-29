@@ -27,7 +27,7 @@ import { SCHEDULE_REQUIREMENT_ID } from "@/features/crew/requirements";
  */
 
 const commands = readFileSync("functions/src/crew/commands.ts", "utf8");
-const view = readFileSync("components/crew/live-crew-views.tsx", "utf8");
+const view = readFileSync("components/crew/kit/crew-job.tsx", "utf8");
 
 test("the schedule requirement has a stable exported id", () => {
   assert.equal(SCHEDULE_REQUIREMENT_ID, "schedule");

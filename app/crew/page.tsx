@@ -1,5 +1,5 @@
-import { LiveCrewHome } from "@/components/crew/live-crew-views";
+import { CrewToday } from "@/components/crew/kit/crew-today";
 
-export default function CrewPortalPage() {
-  return <LiveCrewHome />;
+export default function CrewTodayPage() {
+  return <CrewToday />;
 }

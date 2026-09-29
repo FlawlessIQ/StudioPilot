@@ -386,6 +386,63 @@ The studio-side (desktop) parts of H1–H4 are unaffected.
   (Reports/Leads panel insets on mobile) still fails; M4 doesn't touch those
   pages. The delivery critical path waits for M5.
 
+## M6 — done 2026-09-29
+
+- **Every crew screen is in the kit.** The shell has the studio's bar and 4
+  tabs (Today · Jobs · Calendar · Me). The sidebar, the drawer and
+  "Schedule & prep" are gone.
+- **Today:** a "Next up" card (date, call time in the event's zone, venue,
+  and a way in), then only what needs you: offers, a changed run of show,
+  and hours owed.
+- **Jobs:** compact rows in three groups (Offers, Coming up, Finished). An
+  offer opens its own screen; any other job opens the job.
+- **Offer:** when, where, the fee, a respond-by countdown, and what the job
+  involves.
+  - Accept and Decline sit in a sticky bar. Decline asks why in a sheet.
+  - **Server:** `respondAssignment` takes an optional `reason`, stored as
+    `declineReason`.
+- **Job** (`/crew/prep`): prep, requirements and documents on one screen.
+  `/crew/requirements` and `/crew/documents` redirect to its checklist.
+  - Each checklist row has one action. Documents can go in with the camera
+    ("Take a photo") or as a file.
+  - The run of show can only be confirmed on the day sheet, against its
+    version, as before.
+- **Day sheet** (`/crew/schedule`):
+  - Now/Next.
+  - Where, with Go (directions).
+  - Who to call, with Call (the studio's number when no contact is set).
+  - The couple's brief: who not to photograph, the family formals and the
+    must-haves.
+  - Your role, and the running order in the event's zone.
+  - A sticky "I've read version N".
+  - The offline copy now keeps the whole brief, formals included.
+- **Hours and expenses:**
+  - Start and finish are clock times prefilled from the job, and a finish
+    after midnight is handled (`features/crew/work-window.ts`).
+  - Extra time is a stepper.
+  - Expenses and links are lists you add to.
+- **Calendar:** a month you tap. Mark a day (or a run of days) as free,
+  maybe or away; booked jobs show as dots. Removing dates has an undo.
+- **Me:** profile and account together. What you shoot and your
+  specialties, areas and gear are chips. W-9 and insurance can go in with
+  the camera. Sign out is here.
+- **Emails and links:**
+  - The "run of show published" email opens that job's day sheet.
+  - An accepted invitation lands on the offer itself.
+  - A studio reply opens the job.
+- **Mock mode has a crew member** (`features/crew/mock-crew.ts`), with
+  season-correct New York times.
+- **Checked:** walked at 375 px. 132/132 phone flows (crew and couple) pass
+  in Chrome, Android Chrome and iPhone WebKit, with the no-overflow guard on
+  every route.
+- **Not in M6:**
+  - A notifications bell and push. Push waits for native.
+  - Receipt photos on expenses. The closeout command has no attachment
+    field yet.
+  - Wiring up `crew_reminder`.
+  - Showing the decline reason on the studio's side. It's recorded, not yet
+    displayed.
+
 ## M5 — done 2026-09-29
 
 - **Every couple page is now in the kit.** M5 also brought over the two

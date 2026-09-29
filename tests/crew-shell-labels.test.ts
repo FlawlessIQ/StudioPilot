@@ -61,9 +61,9 @@ test("every crew route has a page title of its own", () => {
   }
 });
 
-test("the header shows the page, not the nav section", () => {
-  // Two lookups, deliberately: several routes share a nav item and must, while
-  // no two should share a name in the header.
-  assert.match(shell, /<b>Crew ·<\/b> \{pageTitle\}/);
-  assert.match(shell, /data-active=\{item\.label === resolvedActive/);
+test("the page names itself, and the tab bar lights the section", () => {
+  // Two lookups, deliberately: several routes share a tab and must, while no
+  // two should share a name.
+  assert.match(shell, /document\.title = `\$\{pageTitle\} · Your assignments`/);
+  assert.match(shell, /<TabBar active=\{crewRouteLabels\[segment\] \?\? "Today"\} tabs=\{crewTabs\} \/>/);
 });

@@ -1,5 +1,5 @@
-import { LiveCrewCloseout } from "@/components/crew/live-crew-views";
+import { CrewCloseout } from "@/components/crew/kit/crew-closeout";
 
 export default function CrewCloseoutPage() {
-  return <LiveCrewCloseout />;
+  return <CrewCloseout />;
 }

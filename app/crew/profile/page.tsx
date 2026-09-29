@@ -1,5 +1,6 @@
-import { LiveCrewProfile } from "@/components/crew/live-crew-views";
+import { redirect } from "next/navigation";
 
-export default function CrewProfilePage() {
-  return <LiveCrewProfile />;
+/** Profile and account are one screen, Me (M6). Alias for old links. */
+export default function CrewProfileAlias() {
+  redirect("/crew/account");
 }

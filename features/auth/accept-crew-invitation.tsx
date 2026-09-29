@@ -114,8 +114,9 @@ export function AcceptCrewInvitation({ token }: { token: string }) {
           <Button
             href={
               accepted === "roster"
-                ? "/crew/profile"
-                : `/crew/jobs${assignmentId ? `?assignment=${encodeURIComponent(assignmentId)}` : ""}`
+                ? "/crew/account"
+                : // The offer itself, with Accept and Decline (M6).
+                  `/crew/pending${assignmentId ? `?assignment=${encodeURIComponent(assignmentId)}` : ""}`
             }
           >
             {accepted === "roster" ? "Set up your profile" : "Review assignment"}

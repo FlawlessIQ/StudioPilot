@@ -152,6 +152,9 @@ const command = z.discriminatedUnion("type", [
       projectId: z.string(),
       assignmentId: z.string(),
       decision: z.enum(["accepted", "declined"]),
+      // Why, when declining: the studio re-staffs faster knowing whether it
+      // was the date, the fee or the role. Optional, so older clients work.
+      reason: z.string().trim().max(500).nullable().default(null),
     }),
   }),
   z.object({
@@ -1646,6 +1649,10 @@ export const crewCommand = onRequest(
               transaction.update(reference, {
                 status: parsed.input.decision,
                 respondedAt: now,
+                declineReason:
+                  parsed.input.decision === "declined"
+                    ? parsed.input.reason || null
+                    : null,
                 calendarStatus:
                   parsed.input.decision === "declined"
                     ? "declined"
@@ -1757,6 +1764,7 @@ export const crewCommand = onRequest(
                 transaction.update(reference, {
                   status: "declined",
                   respondedAt: now,
+                  declineReason: parsed.input.reason || null,
                   calendarStatus: "declined",
                   updatedAt: now,
                   updatedBy: identity.uid,
@@ -2021,7 +2029,7 @@ export const crewCommand = onRequest(
                 severity: parsed.input.urgency === "event_day" ? "warning" : "info",
                 href: crewToStudio
                   ? `/studio/crew/${reference.id}`
-                  : `/crew/jobs?assignment=${encodeURIComponent(reference.id)}`,
+                  : `/crew/prep?assignment=${encodeURIComponent(reference.id)}`,
                 readBy: [],
                 createdAt: now,
                 updatedAt: now,

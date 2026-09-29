@@ -1,5 +1,5 @@
-import { LiveCrewPrep } from "@/components/crew/live-crew-views";
+import { CrewJob } from "@/components/crew/kit/crew-job";
 
 export default function CrewPrepPage() {
-  return <><LiveCrewPrep /></>;
+  return <CrewJob />;
 }

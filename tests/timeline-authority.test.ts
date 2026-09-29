@@ -119,7 +119,7 @@ test("vendors and crew are told when the planner keeps the timeline", () => {
     readFileSync("app/share/[token]/page.tsx", "utf8"),
     /project\.timelineAuthority === "planner"/,
   );
-  const crew = readFileSync("components/crew/live-crew-views.tsx", "utf8");
+  const crew = readFileSync("components/crew/kit/crew-day-sheet.tsx", "utf8");
   assert.match(crew, /project\?\.timelineAuthority === "planner" \? <PlannerLedNote\/> : null/);
   // And on the copy saved for a venue with no signal.
   assert.match(crew, /\{brief\.plannerLed \? <PlannerLedNote\/> : null\}/);

@@ -155,12 +155,18 @@ test("every crew profile form offers the trade", () => {
   for (const path of [
     "components/crew/create-crew-profile-form.tsx",
     "components/crew/crew-record-actions.tsx",
-    "components/crew/live-crew-views.tsx",
   ]) {
     const source = readFileSync(`${process.cwd()}/${path}`, "utf8");
     assert.match(source, /<TradeField/, `${path} has no trade input`);
     assert.match(source, /tradesFromForm\(/, `${path} never reads it back`);
   }
+});
+
+/** The crew member's own screen (M6) offers it as chips and sends it back. */
+test("the crew member's own profile offers the trade", () => {
+  const source = readFileSync(`${process.cwd()}/components/crew/kit/crew-me.tsx`, "utf8");
+  assert.match(source, /options=\{COVERAGE_ROLES\.map/);
+  assert.match(source, /updateCrewProfile[\s\S]*trades,/);
 });
 
 /** And the readers must pass it on, or it is stored and ignored. */

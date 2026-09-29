@@ -178,8 +178,8 @@ test("Specialties says what it is, next to Shoots", () => {
   ])
     assert.match(read(path), /field-hint/, path);
   assert.match(
-    read("components/crew/live-crew-views.tsx"),
-    /Specialties — the kind of event you shoot/,
+    read("components/crew/kit/crew-me.tsx"),
+    /The kind of event you shoot/,
   );
 });
 

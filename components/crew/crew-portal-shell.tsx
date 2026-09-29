@@ -1,248 +1,131 @@
 "use client";
 
-import type { CSSProperties } from "react";
-import { createContext, useContext, useState } from "react";
-import Link from "next/link";
+import { createContext, useContext, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import {
-  CalendarDays,
-  BriefcaseBusiness,
-  Home,
-  Menu,
-  ShieldCheck,
-  UserRound,
-  X,
-} from "lucide-react";
-import { AuthBoundary, SignOutButton } from "@/features/auth/auth-boundary";
-import {
-  initials,
-  useWorkspace,
-  WorkspaceProvider,
-} from "@/features/auth/workspace-context";
-import { PoweredByStudioCue, StudioBrand } from "@/components/layout/studio-brand";
-import { portalAccentStyle } from "@/features/design/studio-theme";
+import { BriefcaseBusiness, CalendarDays, CircleAlert, Home, LoaderCircle, UserRound } from "lucide-react";
+import { AuthBoundary } from "@/features/auth/auth-boundary";
+import { useWorkspace, WorkspaceProvider } from "@/features/auth/workspace-context";
+import { AppBar, KitRoot, TabBar, type Studio, type Tab } from "@/components/kit/kit";
 
-const navSections = [
-  {
-    label: "Workspace",
-    items: [
-      { label: "Today", href: "/crew", icon: Home },
-      { label: "Jobs", href: "/crew/jobs", icon: BriefcaseBusiness },
-      { label: "Schedule & prep", href: "/crew/prep", icon: CalendarDays },
-      { label: "Account", href: "/crew/account", icon: UserRound },
-    ],
-  },
-] as const;
+/**
+ * The crew's four tabs (decided 2026-09-28; M6 of
+ * docs/mobile-first-client-crew-plan-2026-09-28.md). Crew live on their
+ * phones at venues. The sidebar, the drawer and "Schedule & prep" are gone:
+ * a job's prep, day sheet and closeout all open from the job itself.
+ */
+export const crewTabs: readonly Tab[] = [
+  { label: "Today", href: "/crew", icon: Home },
+  { label: "Jobs", href: "/crew/jobs", icon: BriefcaseBusiness },
+  { label: "Calendar", href: "/crew/availability", icon: CalendarDays },
+  { label: "Me", href: "/crew/account", icon: UserRound },
+];
 
-// The crew portal's mobile bottom tab bar — the four sections, with short
-// labels that fit a thumb tab. Crew live on their phones at venues, so this is
-// their primary nav (the studio's hamburger is hidden on mobile app-wide).
-const crewTabs = [
-  { label: "Today", short: "Today", href: "/crew", icon: Home },
-  { label: "Jobs", short: "Jobs", href: "/crew/jobs", icon: BriefcaseBusiness },
-  { label: "Schedule & prep", short: "Prep", href: "/crew/prep", icon: CalendarDays },
-  { label: "Account", short: "Account", href: "/crew/account", icon: UserRound },
-] as const;
+/**
+ * What each page is called, and which tab it lives under. Two questions, two
+ * answers: several routes share a tab, and no two should share a name. The
+ * name titles the browser tab; each screen carries its own heading.
+ */
+export const crewPageTitles: Record<string, string> = {
+  "": "Today",
+  accepted: "Jobs",
+  account: "Me",
+  availability: "Calendar",
+  closeout: "Hours and expenses",
+  documents: "Documents",
+  "event-day": "Day sheet",
+  jobs: "Jobs",
+  pending: "Offer",
+  prep: "Job",
+  profile: "Me",
+  requirements: "Checklist",
+  schedule: "Day sheet",
+};
+
+export const crewRouteLabels: Record<string, string> = {
+  "": "Today",
+  accepted: "Jobs",
+  account: "Me",
+  availability: "Calendar",
+  closeout: "Jobs",
+  documents: "Jobs",
+  "event-day": "Jobs",
+  jobs: "Jobs",
+  pending: "Jobs",
+  prep: "Jobs",
+  profile: "Me",
+  requirements: "Jobs",
+  schedule: "Jobs",
+};
 
 const CrewShellContext = createContext(false);
 
-/**
- * Which nav item lights up, and what the page is called. Two questions, two
- * answers — they were one, and the page lost.
- *
- * Availability and Profile both sit under Account in the nav, so highlighting
- * Account on those routes is right. The header read from the same table, so it
- * announced "Crew · Account" while the page underneath was titled Availability
- * — and Documents highlighted Schedule & prep, a section the reader was not in.
- *
- * Every page also passed its own `active`, which looked like the fix and was
- * not: app/crew/layout.tsx already mounts the shell, the nested one each page
- * mounted returned its children untouched, and thirteen labels went nowhere.
- * Those wrappers are gone; the route is the single source for both answers.
- */
-const crewPageTitles: Record<string, string> = {
-  accepted: "Accepted jobs",
-  account: "Account",
-  availability: "Availability",
-  closeout: "Closeout",
-  documents: "Documents",
-  "event-day": "Event day",
-  jobs: "Jobs",
-  pending: "Pending jobs",
-  prep: "Prep",
-  profile: "Profile",
-  requirements: "Requirements",
-  schedule: "Schedule",
-};
-
-const crewRouteLabels: Record<string, string> = {
-  accepted: "Jobs",
-  account: "Account",
-  availability: "Account",
-  closeout: "Schedule & prep",
-  documents: "Schedule & prep",
-  "event-day": "Schedule & prep",
-  jobs: "Jobs",
-  pending: "Jobs",
-  prep: "Schedule & prep",
-  profile: "Account",
-  requirements: "Schedule & prep",
-  schedule: "Schedule & prep",
-};
-
-export function CrewPortalShell({
-  children,
-  active,
-}: {
-  children: React.ReactNode;
-  active?: string;
-}) {
+export function CrewPortalShell({ children }: { children: React.ReactNode }) {
+  // The layout mounts this once; a nested mount returns its children.
   const shellMounted = useContext(CrewShellContext);
   if (shellMounted) return <>{children}</>;
   return (
     <CrewShellContext.Provider value>
       <WorkspaceProvider area="crew">
         <AuthBoundary area="crew">
-          <CrewShell active={active}>{children}</CrewShell>
+          <CrewShell>{children}</CrewShell>
         </AuthBoundary>
       </WorkspaceProvider>
     </CrewShellContext.Provider>
   );
 }
 
-function CrewShell({
-  children,
-  active,
-}: {
-  children: React.ReactNode;
-  active?: string;
-}) {
+function CrewShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [navigationOpen, setNavigationOpen] = useState(false);
   const workspace = useWorkspace();
-  const routeSegment = pathname.split("/").filter(Boolean)[1] ?? "";
-  // The nav section, which several routes share.
-  const resolvedActive = active ?? crewRouteLabels[routeSegment] ?? "Today";
-  // The page itself, which is what the header is asking.
-  const pageTitle = crewPageTitles[routeSegment] ?? resolvedActive;
-  return (
-    <div
-      className="ds-root"
-      data-ds-theme="emerald"
-      // The studio's colour, clamped to read, in place of emerald's accent.
-      style={portalAccentStyle(workspace.tenantBrand?.primaryColor) as CSSProperties}
-    >
-      <div className={navigationOpen ? "ds-shell ds-nav-open" : "ds-shell"}>
-        <button
-          aria-label="Close navigation"
-          className="ds-nav-backdrop"
-          onClick={() => setNavigationOpen(false)}
-          type="button"
-        />
-        <aside className="ds-sidebar" id="crew-navigation">
-          <div className="ds-brand-row">
-            <Link className="ds-brand" href="/crew" onClick={() => setNavigationOpen(false)}>
-              <StudioBrand brand={workspace.tenantBrand} />
-            </Link>
-            <button
-              aria-label="Close navigation"
-              className="ds-sidebar-close"
-              onClick={() => setNavigationOpen(false)}
-              type="button"
-            >
-              <X size={19} />
-            </button>
-          </div>
+  const segment = pathname.split("/").filter(Boolean)[1] ?? "";
+  const brand = workspace.tenantBrand;
+  // The studio's brand leads, credited to StudioCue once at the foot of each
+  // screen (M1).
+  const studio: Studio = {
+    name: brand?.brandName ?? workspace.tenantName,
+    color: brand?.primaryColor ?? null,
+    logoUrl: brand?.logoUrl ?? null,
+  };
+  const pageTitle = crewPageTitles[segment] ?? "Your work";
 
-          <div className="ds-switcher" style={{ cursor: "default" }}>
-            <span className="ds-avatar">{initials(workspace.userName)}</span>
-            <span className="ds-switcher-copy">
-              <strong>{workspace.userName}</strong>
-              <small>Subcontractor</small>
-            </span>
-          </div>
+  useEffect(() => {
+    document.title = `${pageTitle} · Your assignments`;
+  }, [pageTitle]);
 
-          <nav className="ds-nav" aria-label="Crew portal navigation">
-            {navSections.map((section) => (
-              <div className="ds-nav-section" key={section.label}>
-                <span className="ds-nav-label">{section.label}</span>
-                {section.items.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      href={item.href}
-                      className="ds-nav-item"
-                      data-active={item.label === resolvedActive ? "true" : "false"}
-                      key={item.label}
-                      onClick={() => setNavigationOpen(false)}
-                    >
-                      <Icon size={17} strokeWidth={1.8} />
-                      <span>{item.label}</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            ))}
-          </nav>
-
-          <div className="ds-crew-privacy">
-            <ShieldCheck size={16} />
-            <div>
-              <strong>Your assignments stay private</strong>
-              <small>
-                You only see the jobs, contacts, files, and schedule details shared
-                with you.
-              </small>
-            </div>
-          </div>
-          <PoweredByStudioCue />
-        </aside>
-
-        {/* Crew live on their phones at venues; the bottom tab bar is their
-            primary navigation (the drawer is the fallback). */}
-        <nav aria-label="Primary" className="ds-tabbar">
-          {crewTabs.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link
-                data-active={item.label === resolvedActive ? "true" : "false"}
-                href={item.href}
-                key={item.href}
-                onClick={() => setNavigationOpen(false)}
-              >
-                <Icon aria-hidden="true" size={20} />
-                <span>{item.short}</span>
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="ds-main">
-          <header className="ds-topbar">
-            <button
-              aria-controls="crew-navigation"
-              aria-expanded={navigationOpen}
-              className="ds-mobile-menu"
-              onClick={() => setNavigationOpen(true)}
-              type="button"
-              aria-label="Open crew navigation"
-            >
-              <Menu size={20} />
-            </button>
-            <span className="ds-crumb">
-              <b>Crew ·</b> {pageTitle}
-            </span>
-            <span
-              className="ds-topbar-tenant"
-              style={{ marginLeft: "auto", fontSize: 13, color: "var(--ds-muted)" }}
-            >
-              {workspace.tenantName}
-            </span>
-            <SignOutButton className="ds-btn ds-btn-ghost ds-btn-sm" />
-          </header>
-          <main className="ds-content">{children}</main>
+  if (workspace.loading)
+    return (
+      <KitRoot>
+        <div aria-live="polite" className="kit-screen">
+          <AppBar title="Your work" />
+          <main aria-label="Opening your work" className="kit-main">
+            <p className="kit-body" role="status">
+              <LoaderCircle aria-hidden="true" className="spin" size={18} /> Opening your work…
+            </p>
+          </main>
         </div>
+      </KitRoot>
+    );
+
+  return (
+    <KitRoot studio={studio}>
+      <div className="kit-screen">
+        <AppBar studio={studio} />
+        {workspace.error ? (
+          <div className="kit-banner" role="alert">
+            <p className="kit-note" data-tone="danger">
+              <CircleAlert aria-hidden="true" size={18} />
+              <span>
+                <strong>Your work is temporarily unavailable.</strong> {workspace.error}
+              </span>
+            </p>
+            <button className="kit-button" data-size="compact" data-variant="secondary" onClick={workspace.retry} type="button">
+              Retry
+            </button>
+          </div>
+        ) : null}
+        {children}
+        <TabBar active={crewRouteLabels[segment] ?? "Today"} tabs={crewTabs} />
       </div>
-    </div>
+    </KitRoot>
   );
 }
