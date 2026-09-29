@@ -47,6 +47,8 @@ type Preview = {
   inPersonLocation: string | null;
   durationMinutes: number;
   takesBookings: boolean;
+  /** A proposal is out: the call has happened. Absent from an older build. */
+  pastConsultation?: boolean;
   timezone: string;
   booked: { startsAt: string; endsAt: string; format: Format; joinUrl: string | null; location: string | null } | null;
 };
@@ -71,6 +73,7 @@ const formatCopy: Record<Format, string> = {
 const friendly: Record<string, string> = {
   INQUIRY_LINK_NOT_FOUND: "This link isn’t working. Reply to the studio’s email and they’ll send a new one.",
   INQUIRY_LINK_CLOSED: "This inquiry is closed. Reply to the studio’s email if you’d like to pick it back up.",
+  INQUIRY_PAST_CONSULTATION: "You’ve already spoken with the studio, and your proposal is on its way. Reply to their email to talk again.",
   TIME_NO_LONGER_AVAILABLE: "That time was just taken. Please choose another.",
   EVENT_DATE_REQUIRED: "Add your wedding date first, so the studio can check it’s free.",
   FORMAT_NOT_OFFERED: "Please choose one of the ways the studio meets.",
@@ -97,7 +100,7 @@ const call = (type: string, input: Record<string, unknown>) =>
 
 export function CoupleInquiryPage({ token }: { token: string }) {
   const [preview, setPreview] = useState<Preview | null>(null);
-  const [step, setStep] = useState<"loading" | "details" | "time" | "booked" | "error">("loading");
+  const [step, setStep] = useState<"loading" | "details" | "time" | "booked" | "moved_on" | "error">("loading");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [values, setValues] = useState<Partial<Record<Field | "notes", string>>>({});
@@ -122,7 +125,9 @@ export function CoupleInquiryPage({ token }: { token: string }) {
         setStep(
           result.booked
             ? "booked"
-            : result.missing.length && !result.detailsSubmitted
+            : result.pastConsultation
+              ? "moved_on"
+              : result.missing.length && !result.detailsSubmitted
               ? "details"
               : "time",
         );
@@ -218,7 +223,9 @@ export function CoupleInquiryPage({ token }: { token: string }) {
       ? "tell us about your day"
       : step === "booked"
         ? "you’re booked in"
-        : `pick a time to talk with ${studio}`;
+        : step === "moved_on"
+          ? "your proposal is ready"
+          : `pick a time to talk with ${studio}`;
   // "Hi Sarah — tell us…" once we know them; otherwise the phrase stands alone
   // and starts with a capital.
   const heading = preview?.firstName
@@ -232,18 +239,22 @@ export function CoupleInquiryPage({ token }: { token: string }) {
     logoUrl: preview?.brandLogoUrl ?? null,
   };
   const eyebrow =
-    step === "details" ? "Step 1 of 2" : step === "time" ? "Step 2 of 2" : "Your consultation";
+    step === "details" ? "Step 1 of 2" : step === "time" ? "Step 2 of 2" : step === "moved_on" ? "Your inquiry" : "Your consultation";
   const lede =
     step === "details"
       ? "Just what the studio doesn’t know yet. Skip anything you haven’t decided."
       : step === "booked"
         ? "Need a different time? You can move it or cancel it here."
+        : step === "moved_on"
+          ? `You’ve spoken with ${studio}, and they’ve sent your proposal. It’s in your email — open it there to look it over.`
         : `A ${preview?.durationMinutes ?? 30}-minute conversation about your plans. Nothing is booked until you confirm.`;
 
   return (
     <KitRoot studio={brand}>
       <Screen>
-        <AppBar studio={brand} />
+        {/* Nothing until the studio is known: a generic "Your photographer"
+            and its "Y" flashed before every couple's page. */}
+        <AppBar studio={preview ? brand : undefined} />
         <Main label="Your inquiry">
           {step === "details" || step === "time" ? (
             <Steps step={step === "details" ? 1 : 2} total={2} />

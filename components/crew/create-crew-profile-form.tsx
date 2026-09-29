@@ -174,6 +174,9 @@ export function CreateCrewProfileForm() {
           <UserPlus size={16} />
           {busy ? "Creating…" : "Create crew profile"}
         </button>
+        {/* Saving emails them; the form said nothing of it until the
+            confirmation (production walk, 2026-09-29). */}
+        <p className="field-hint">Saving emails them an invitation to set up their profile.</p>
         {notice ? (
           <p className="form-notice" role="status">
             {notice}

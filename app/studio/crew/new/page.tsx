@@ -17,8 +17,9 @@ export default function NewCrewProfilePage() {
             <p className="eyebrow">Crew directory</p>
             <h1>Add crew member</h1>
             <p>
-              Save their working details, then offer them a specific job from
-              that job&rsquo;s crew plan.
+              Save their working details and we&rsquo;ll email them an invitation
+              to set up their profile. Then offer them a specific job from that
+              job&rsquo;s crew plan.
             </p>
           </div>
         </header>

@@ -27,6 +27,7 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   FORMAT_NOT_OFFERED: "Please choose one of the ways the studio meets.",
   INQUIRY_LINK_NOT_FOUND: "This link isn't working. Reply to the studio's email and they'll send a new one.",
   INQUIRY_LINK_CLOSED: "This inquiry is closed. Reply to the studio's email if you'd like to pick it back up.",
+  INQUIRY_PAST_CONSULTATION: "You've already spoken with the studio, and your proposal is on its way. Reply to their email to talk again.",
   QUICKBOOKS_PAYMENTS_NOT_GRANTED:
     "QuickBooks hasn't given StudioCue permission to take payments yet. Reconnect QuickBooks for payments first. Your QuickBooks Payments application needs to be approved before that works.",
   AUTOPAY_UNAVAILABLE:

@@ -66,6 +66,56 @@ function nameOf(record: Row | undefined): string {
   );
 }
 
+/**
+ * The states in which a job holds its date — the same list intake checks
+ * (functions/src/crm/public-lead.ts) when it first says "free" or "booked".
+ */
+export const DATE_HOLDING_STATES: readonly string[] = [
+  "CONSULTATION",
+  "PROPOSAL",
+  "CONTRACT_PENDING",
+  "RETAINER_PENDING",
+  "BOOKED",
+  "PLANNING",
+  "READY",
+];
+
+/**
+ * Whether the date is free, as of now rather than as of arrival.
+ *
+ * Intake stamps availability once. An inquiry that arrived while the date was
+ * free kept saying "Date free" after another couple took it — production,
+ * 2026-09-29: two inquiries for 12 Jun 2027, one "free" and one "booked",
+ * with a job awaiting signature on that day. A job holding the date now wins
+ * over the stamp; without one, the stamp stands (the list may not hold every
+ * job, so absence is not proof).
+ */
+export function dateHeldByAnother(
+  projects: readonly { id: string; [key: string]: unknown }[],
+  eventDate: string | null | undefined,
+  selfId: string | null,
+): boolean {
+  const day = (eventDate ?? "").slice(0, 10);
+  if (!day) return false;
+  return projects.some(
+    (project) =>
+      project.id !== selfId &&
+      text(project.eventDate).slice(0, 10) === day &&
+      DATE_HOLDING_STATES.includes(text(project.state)),
+  );
+}
+
+function availabilityNow(
+  stamped: unknown,
+  eventDate: string | null,
+  selfId: string | null,
+  holdersByDate: Map<string, string[]>,
+): InquiryRow["availability"] {
+  const holders = eventDate ? (holdersByDate.get(eventDate.slice(0, 10)) ?? []) : [];
+  if (holders.some((id) => id !== selfId)) return "conflict";
+  return (text(stamped) as InquiryRow["availability"]) || "unknown";
+}
+
 export function inquiryPipeline(input: {
   projects: readonly Row[];
   leads: readonly Row[];
@@ -77,6 +127,12 @@ export function inquiryPipeline(input: {
     if (text(lead.projectId)) leadForProject.set(text(lead.projectId), lead);
   }
   const rows: InquiryRow[] = [];
+  const holdersByDate = new Map<string, string[]>();
+  for (const project of input.projects) {
+    const date = text(project.eventDate).slice(0, 10);
+    if (!date || !DATE_HOLDING_STATES.includes(text(project.state))) continue;
+    holdersByDate.set(date, [...(holdersByDate.get(date) ?? []), project.id]);
+  }
 
   for (const project of input.projects) {
     const state = text(project.state);
@@ -105,7 +161,7 @@ export function inquiryPipeline(input: {
       owner: lost || silent ? null : move.owner,
       waitingSince: lost || silent ? null : move.waitingSince,
       source: sourceOf(lead),
-      availability: (text(lead?.availabilityStatus) as InquiryRow["availability"]) || "unknown",
+      availability: availabilityNow(lead?.availabilityStatus, text(project.eventDate) || null, project.id, holdersByDate),
       closedReason: lost ? (lostReasonLabel[reason] ?? "Closed") : null,
       closedAt: lost ? text(project.lostAt) || text(project.updatedAt) || null : null,
     });
@@ -136,7 +192,7 @@ export function inquiryPipeline(input: {
       owner: closed ? null : move.owner,
       waitingSince: closed ? null : move.waitingSince,
       source: sourceOf(lead),
-      availability: (text(lead.availabilityStatus) as InquiryRow["availability"]) || "unknown",
+      availability: availabilityNow(lead.availabilityStatus, text(lead.eventDate) || null, null, holdersByDate),
       closedReason: closed ? (lostReasonLabel[text(lead.lostReason)] ?? "Closed") : null,
       closedAt: closed ? text(lead.archivedAt) || text(lead.updatedAt) || null : null,
     });

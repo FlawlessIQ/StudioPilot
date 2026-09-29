@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, CheckCircle2, LoaderCircle, Mail, Phone, Send, Users } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
@@ -149,6 +149,18 @@ export function LeadIntakeForm({
   const [step, setStep] = useState(0);
   const [result, setResult] = useState<SubmissionResult | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
+  /**
+   * Whether a refused send is being explained. The count is read live from
+   * `errors`, not stored with the message: a stored "2 things are missing"
+   * stayed on screen after the couple had fixed both (production, 2026-09-29).
+   */
+  const [missingShown, setMissingShown] = useState(false);
+  /**
+   * When the current step appeared. "Continue" on step 2 and "Send inquiry" on
+   * step 3 sit in the same place, so a double tap on Continue sent step 3
+   * before anyone saw it, and it opened with every field already in red.
+   */
+  const stepShownAt = useRef(0);
   const {
     register,
     handleSubmit,
@@ -197,6 +209,8 @@ export function LeadIntakeForm({
 
   function goTo(next: number) {
     setServerError(null);
+    setMissingShown(false);
+    stepShownAt.current = Date.now();
     setStep(next);
     // The window, not the heading: scrolling the heading to the top put it
     // under the sticky studio bar.
@@ -223,11 +237,8 @@ export function LeadIntakeForm({
    */
   const onInvalid = (fieldErrors: Record<string, unknown>) => {
     const names = Object.keys(fieldErrors);
-    setServerError(
-      names.length === 1
-        ? "One thing is missing — it is highlighted below."
-        : `${names.length} things are missing — they are highlighted below.`,
-    );
+    setServerError(null);
+    setMissingShown(true);
     const first = names[0];
     if (!first) return;
     const owner = STEPS.findIndex((candidate) =>
@@ -245,6 +256,7 @@ export function LeadIntakeForm({
 
   const submit = handleSubmit(async (values) => {
     setServerError(null);
+    setMissingShown(false);
     const endpoint = process.env.NEXT_PUBLIC_CRM_FUNCTIONS_URL;
 
     if (!endpoint || preview) {
@@ -330,6 +342,7 @@ export function LeadIntakeForm({
   }
 
   const current = STEPS[step]!;
+  const missingCount = Object.keys(errors).length;
 
   return (
     <KitRoot studio={brand}>
@@ -340,7 +353,16 @@ export function LeadIntakeForm({
           }
           studio={brand}
         />
-        <form noValidate onFocusCapture={prewarmAppCheck} onSubmit={submit} style={{ display: "contents" }}>
+        <form
+          noValidate
+          onFocusCapture={prewarmAppCheck}
+          onSubmit={(event) => {
+            // The second tap of a double tap on Continue, not a send.
+            if (Date.now() - stepShownAt.current < 600) return event.preventDefault();
+            void submit(event);
+          }}
+          style={{ display: "contents" }}
+        >
           <Main label="Inquiry">
             <div className="kit-stack">
               {preview ? (
@@ -508,6 +530,12 @@ export function LeadIntakeForm({
             {serverError ? (
               <p className="kit-note" data-tone="danger" role="alert">
                 {serverError}
+              </p>
+            ) : missingShown && missingCount ? (
+              <p className="kit-note" data-tone="danger" role="alert">
+                {missingCount === 1
+                  ? "One thing is missing — it is highlighted below."
+                  : `${missingCount} things are missing — they are highlighted below.`}
               </p>
             ) : null}
             <PoweredBy />

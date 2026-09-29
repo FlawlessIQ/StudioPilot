@@ -39,6 +39,7 @@ import { providerName as readable } from "@/lib/format/provider-name";
 import { taskIsSettled } from "@/features/tasks/schema";
 import type { OutsideStepReminder } from "@/features/outside-steps/registry";
 import { inquiryNextMove } from "@/features/inquiries/next-move";
+import { dateHeldByAnother } from "@/features/inquiries/pipeline";
 import { preBookingStates } from "@/features/inquiries/stages";
 
 export type TodayLane = "act" | "approve" | "fyi";
@@ -633,6 +634,15 @@ export function todayInbox(input: TodayInput): TodayInbox {
     // at the inquiry stage the couple is still an inquiry, answered here;
     // once it moves on (a consultation booked), the journey takes over.
     const job = text(lead.projectId) ? inquiryJobById.get(text(lead.projectId)) : undefined;
+    // As of now, not as of arrival: another couple may have taken the date
+    // since (features/inquiries/pipeline.ts).
+    const dateTaken =
+      lead.availabilityStatus === "conflict" ||
+      dateHeldByAnother(
+        rows(input.projects),
+        typeof lead.eventDate === "string" ? lead.eventDate : null,
+        text(lead.projectId) || null,
+      );
     if (status === "converted" || job) {
       if (!job || text(job.state) !== "LEAD" || job.archivedAt) {
         const stale = replyForLead.get(lead.id);
@@ -752,7 +762,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
         leadId: lead.id,
         projectId: job?.id ?? null,
         followUp: Boolean(followUp),
-        dateTaken: Boolean(text(lead.eventDate)) && lead.availabilityStatus === "conflict",
+        dateTaken: Boolean(text(lead.eventDate)) && dateTaken,
         reply: reply
           ? {
               actionId: reply.id,
@@ -772,7 +782,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
         eventFact(leadEvent, now),
         // Whether the date is free is the first thing a studio asks of an
         // inquiry; it's already known, so say it.
-        leadEvent && lead.availabilityStatus === "conflict"
+        leadEvent && dateTaken
           ? "Date already booked"
           : leadEvent && lead.availabilityStatus === "available"
             ? "Date free"

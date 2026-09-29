@@ -446,6 +446,16 @@ type ProjectNeedingPackage = {
  * `?record=acceptance` off the query string — see app/studio/proposals/page.tsx
  * for why it is not read here.
  */
+
+/** "Harper Lane" → "HL"; "Harper & Rowan" → "HR". */
+function initialsOf(name: string): string {
+  const letters = name
+    .split(/[\s&+,]+/)
+    .map((part) => part.match(/\p{L}/u)?.[0] ?? "")
+    .filter(Boolean);
+  return (letters.length > 1 ? letters[0]! + letters[letters.length - 1]! : letters[0] ?? "?").toUpperCase();
+}
+
 export function StudioProposalCenter({
   recordingAcceptance = false,
 }: {
@@ -1907,7 +1917,9 @@ export function StudioProposalWorkspace({
       <div className="proposal-workspace-grid">
         <div className="proposal-workspace-document">
           <section className="proposal-workspace-client">
-            <span>SC</span>
+            {/* Theirs, beside their name: it was a hardcoded "SC" on every
+                proposal (production walk, 2026-09-29). */}
+            <span aria-hidden="true">{initialsOf(text(client.displayName, "Client"))}</span>
             <div>
               <small>Prepared for</small>
               <h2>{text(client.displayName, "Client")}</h2>

@@ -487,6 +487,19 @@ function whenLabel(startsAt: string, timezone: string): string {
   }).format(new Date(startsAt));
 }
 
+/**
+ * Whether the job has moved past the first call: a proposal is out, or later.
+ *
+ * The couple's link kept offering "pick a time to talk" to a couple whose
+ * studio had marked the call done and sent the proposal (production walk,
+ * 2026-09-29). Before a job exists, or while it is still a lead or at the
+ * consultation, the call is still ahead.
+ */
+function pastTheCall(context: InquiryLinkContext): boolean {
+  const state = text(context.project?.get("state"));
+  return Boolean(state) && !["LEAD", "CONSULTATION"].includes(state);
+}
+
 async function handleInquiryCommand(
   db: FirebaseFirestore.Firestore,
   context: InquiryLinkContext,
@@ -504,6 +517,7 @@ async function handleInquiryCommand(
     ]);
     const { known, missing } = detailsOf(context.lead);
     const inquiryBrand = resolveTenantBrand(tenant.data(), "Your photography studio");
+    const pastConsultation = pastTheCall(context);
     return {
       studioName: inquiryBrand.brandName,
       brandAccentColor: inquiryBrand.primaryColor,
@@ -517,6 +531,8 @@ async function handleInquiryCommand(
       durationMinutes: options.durationMinutes,
       // Without hours set there is nothing to book; the page says so.
       takesBookings: settings.exists,
+      // A proposal is out: the call happened, so the link stops offering one.
+      pastConsultation,
       timezone,
       booked: upcoming
         ? {
@@ -585,6 +601,11 @@ async function handleInquiryCommand(
   // inquiry_book — a new consultation, or a move of the one they have.
   if (!context.project) throw new Error("EVENT_DATE_REQUIRED");
   const project = context.project;
+  // A call they already have can still move; a new one once a proposal is out
+  // is a couple re-entering the start of a job that has moved on.
+  if (pastTheCall(context) && !(await upcomingConsultation(db, context))) {
+    throw new Error("INQUIRY_PAST_CONSULTATION");
+  }
   const options = await meetingOptions(db, context.tenantId);
   if (!options.formats.includes(command.input.format)) throw new Error("FORMAT_NOT_OFFERED");
   const availability = await slotsForTenant(context.tenantId);
