@@ -12,6 +12,7 @@ import {
   type CoverageItem,
   type CoverageRole,
 } from "./coverage";
+import { pricePackage } from "@/features/pricing/package-price";
 
 /**
  * How many people a per-crew-member retainer bills for.
@@ -33,10 +34,6 @@ export function billedCrewCount(
     0,
   );
   return Math.max(1, counted);
-}
-
-function percentageOf(amountCents: number, basisPoints: number): number {
-  return Math.round((amountCents * basisPoints) / 10000);
 }
 
 export function createPackageSnapshot(input: {
@@ -72,29 +69,24 @@ export function createPackageSnapshot(input: {
     };
   });
 
-  const addOnTotalCents = addOns.reduce((sum, addOn) => sum + addOn.lineTotalCents, 0);
-  const preDiscountCents = input.package.basePriceCents + addOnTotalCents;
-  const requestedDiscountCents =
-    input.selection.discount.type === "none"
-      ? 0
-      : input.selection.discount.type === "fixed"
-        ? input.selection.discount.amountCents
-        : percentageOf(preDiscountCents, input.selection.discount.basisPoints);
-  const discountCents = Math.min(requestedDiscountCents, preDiscountCents);
-  const subtotalCents = preDiscountCents - discountCents;
-  const taxCents = percentageOf(subtotalCents, input.package.taxRateBasisPoints);
-  const totalCents = subtotalCents + taxCents;
   const coverage = resolveCoverage(input.package);
-  const retainerCents =
-    input.package.retainerRule.type === "fixed"
-      ? Math.min(input.package.retainerRule.amountCents, totalCents)
-      : input.package.retainerRule.type === "per_crew_member"
-        ? Math.min(
-            input.package.retainerRule.amountPerCrewCents *
-              billedCrewCount(coverage, input.package.retainerRule.billedRoles),
-            totalCents,
-          )
-        : percentageOf(totalCents, input.package.retainerRule.basisPoints);
+  const {
+    discountCents,
+    subtotalCents,
+    taxCents,
+    totalCents,
+    retainerCents,
+  } = pricePackage({
+    basePriceCents: input.package.basePriceCents,
+    addOns,
+    discount: input.selection.discount,
+    taxRateBasisPoints: input.package.taxRateBasisPoints,
+    retainerRule: input.package.retainerRule,
+    billedCrew:
+      input.package.retainerRule.type === "per_crew_member"
+        ? billedCrewCount(coverage, input.package.retainerRule.billedRoles)
+        : 1,
+  });
 
   const snapshot = packageSnapshotSchema.parse({
     id: input.id,

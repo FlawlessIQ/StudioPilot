@@ -8,6 +8,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { formatDueDate } from "@/lib/format/event-date";
+import { retainerFromSchedule } from "@/features/booking/agreed-retainer";
 
 type Proposal = Record<string, unknown> & { id: string };
 function nested(value: Proposal, path: string) {
@@ -77,7 +78,17 @@ export function LiveProposalPreview({ id }: { id: string }) {
     nested(proposal, "pricingSnapshot") as Record<string, unknown> | null;
   const packageName = String(snapshot?.packageName ?? "Photography package");
   const total = Number(snapshot?.totalCents ?? proposal.totalCents ?? 0);
-  const retainer = Number(snapshot?.retainerCents ?? proposal.retainerCents ?? 0);
+  // The retainer the payment schedule asks for, which is the one the couple
+  // is billed — a studio's override is not in the pricing (H2, M7).
+  const retainer = retainerFromSchedule(
+    proposal.paymentSchedule,
+    Number(snapshot?.retainerCents ?? proposal.retainerCents ?? 0),
+  );
+  const lines = Array.isArray(snapshot?.lineItems)
+    ? (snapshot.lineItems as Array<Record<string, unknown>>)
+    : [];
+  const discountCents = Number(snapshot?.discountCents ?? 0);
+  const taxCents = Number(snapshot?.taxCents ?? 0);
   const currency = snapshot?.currency ?? proposal.currency;
   const clientName =
     nested(proposal, "clientSnapshot.displayName") ??
@@ -99,7 +110,23 @@ export function LiveProposalPreview({ id }: { id: string }) {
       <header><span>SC</span><div><small>{workspace.tenantName.toUpperCase()}</small><strong>Photography Proposal</strong></div><p>VERSION {String(proposal.version ?? 1)}</p></header>
       <section><p className="eyebrow">Prepared for</p><h1>{String(clientName)}</h1><p>{String(eventType)} · {String(eventDate)}</p></section>
       <section><h2>{packageName}</h2><p>{String(proposal.notes ?? snapshot?.description ?? "Scope and deliverables are preserved in this proposal version.")}</p>
-        <table><tbody><tr><td>{packageName}</td><td>{money(snapshot?.subtotalCents ?? total, currency)}</td></tr><tr><td>Discounts and tax</td><td>{money(Number(snapshot?.taxCents ?? 0) - Number(snapshot?.discountCents ?? 0), currency)}</td></tr><tr className="total"><td>Total</td><td>{money(total, currency)}</td></tr></tbody></table>
+        {/* Each line, then the discount and the tax on their own: one
+            "Discounts and tax" figure netted the two together. */}
+        <table><tbody>
+          {lines.length ? (
+            lines.map((line, index) => (
+              <tr key={index}>
+                <td>{String(line.description ?? packageName)}{Number(line.quantity ?? 1) > 1 ? ` × ${Number(line.quantity)}` : ""}</td>
+                <td>{money(Number(line.totalCents ?? 0), currency)}</td>
+              </tr>
+            ))
+          ) : (
+            <tr><td>{packageName}</td><td>{money(snapshot?.subtotalCents ?? total, currency)}</td></tr>
+          )}
+          {discountCents > 0 ? <tr><td>Discount</td><td>{money(-discountCents, currency)}</td></tr> : null}
+          {taxCents > 0 ? <tr><td>Tax</td><td>{money(taxCents, currency)}</td></tr> : null}
+          <tr className="total"><td>Total</td><td>{money(total, currency)}</td></tr>
+        </tbody></table>
       </section>
       <section className="pdf-terms"><h2>Payment schedule</h2><div><span><small>Retainer</small><strong>{money(retainer, currency)}</strong></span><span><small>Remaining balance</small><strong>{money(Math.max(0, total - retainer), currency)}</strong></span></div><p>{String(proposal.termsSummary ?? "Final terms are the ones in the signed agreement.")}</p></section>
       <footer><span>Generated {formatDueDate(new Date().toISOString())}</span><span>{workspace.tenantName}</span><span>Preview</span></footer>

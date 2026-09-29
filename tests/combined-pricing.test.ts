@@ -196,7 +196,8 @@ test("adding a package never moves the primary", () => {
 
 test("a proposal prices every package on the job", () => {
   const proposals = source("functions/src/booking/proposals.ts");
-  assert.match(proposals, /pricingSnapshot: combineSnapshotPricing\(/);
+  assert.match(proposals, /const combinedPricing = combineSnapshotPricing\(/);
+  assert.match(proposals, /pricingSnapshot: combinedPricing,/);
   assert.match(proposals, /discountCents: numberValue\(data\.discountCents\)/);
   assert.match(proposals, /additionalPackageSnapshotIds: additionalSnapshotIds/);
   // A snapshot id is not a capability.

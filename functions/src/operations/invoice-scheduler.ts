@@ -1,6 +1,7 @@
 import { getFirestore } from "firebase-admin/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { clientAutomationsPaused } from "../imports/existing-booking.js";
+import { retainerFromSchedule } from "../booking/agreed-retainer.js";
 
 const date = (value: Date) => value.toISOString().slice(0, 10);
 
@@ -50,10 +51,31 @@ export const finalInvoiceScheduler = onSchedule(
         const customerId = retainer.get("providerCustomerId");
         if (typeof customerId !== "string") return;
 
-        const totalCents = Number(packageSnapshot.get("totalCents") ?? 0);
-        const taxCents = Number(packageSnapshot.get("taxCents") ?? 0);
-        const retainerExpectedCents = Number(
-          packageSnapshot.get("retainerCents") ?? 0,
+        // What the couple agreed to is the accepted proposal: every package
+        // on the job, and the retainer as scheduled. The primary package's
+        // snapshot left out a second package, and flagged every retainer the
+        // studio had set by hand as a mismatch (H2, M2/M3).
+        const accepted = (
+          await transaction.get(
+            db
+              .collection("proposals")
+              .where("tenantId", "==", project.get("tenantId"))
+              .where("projectId", "==", project.id)
+              .where("status", "==", "accepted")
+              .limit(1),
+          )
+        ).docs[0];
+        const agreedPricing = (accepted?.get("pricingSnapshot") ?? null) as Record<string, unknown> | null;
+        const agreedTotal = Number(agreedPricing?.totalCents);
+        const fromProposal = Boolean(accepted && Number.isSafeInteger(agreedTotal) && agreedTotal > 0);
+        const source = fromProposal ? `proposals/${accepted!.id}` : `packageSnapshots/${snapshotId}`;
+        const totalCents = fromProposal ? agreedTotal : Number(packageSnapshot.get("totalCents") ?? 0);
+        const taxCents = fromProposal
+          ? Number(agreedPricing?.taxCents ?? 0)
+          : Number(packageSnapshot.get("taxCents") ?? 0);
+        const retainerExpectedCents = retainerFromSchedule(
+          accepted?.get("paymentSchedule"),
+          Number(packageSnapshot.get("retainerCents") ?? 0),
         );
         const retainerAmountCents = Number(
           retainer.get("amountCents") ?? retainerExpectedCents,
@@ -85,12 +107,12 @@ export const finalInvoiceScheduler = onSchedule(
             {
               label: "Approved package and add-ons",
               amountCents: totalCents - taxCents,
-              source: `packageSnapshots/${snapshotId}`,
+              source,
             },
             {
               label: "Approved tax",
               amountCents: taxCents,
-              source: `packageSnapshots/${snapshotId}`,
+              source,
             },
             {
               label: "Retainer payment received",

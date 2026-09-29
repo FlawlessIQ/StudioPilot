@@ -54,8 +54,14 @@ export const proposalSchema = auditFieldsSchema.extend({
       quantity: z.number().int().positive(),
       unitPriceCents: cents,
       totalCents: cents,
+      /** What the line is (H2). A line written before this is a package line. */
+      kind: z.enum(["package", "add_on"]).optional(),
+      /** The package or add-on it came from, when there is one. */
+      sourceId: z.string().nullable().optional(),
     })).min(1),
   }),
+  /** A retainer the studio set by hand; kept when the packages change (H2). */
+  retainerOverrideCents: cents.nullable().optional(),
   paymentSchedule: z.array(z.object({
     label: z.string().min(1),
     amountCents: cents,

@@ -17,6 +17,16 @@ import {
 import { vertexEndpoint } from "../ai/vertex-endpoint.js";
 import { resolveTenantBrand } from "../branding/tenant-brand.js";
 import { separateGreeting, signWithStudio } from "../ai/reply-format.js";
+import { retainerFromSchedule } from "../booking/agreed-retainer.js";
+
+/**
+ * Fit a field to the PDF service's limit (cloud-run/pdf/main.py). The service
+ * refuses an over-long field outright, so one long package description or
+ * terms summary failed the whole proposal PDF (H2, M7).
+ */
+export function clipForPdf(value: string, max: number): string {
+  return value.length <= max ? value : `${value.slice(0, max - 1).trimEnd()}…`;
+}
 
 type Json=Record<string,unknown>;
 const record=(value:unknown):Json=>typeof value==="object"&&value!==null&&!Array.isArray(value)?value as Json:{};
@@ -789,19 +799,21 @@ async function pdfInput(job:DocumentSnapshot){const db=getFirestore();const tena
         version:Number(proposal.get("version")),
         client_name:string(record(proposal.get("clientSnapshot")).displayName),
         event_summary:Object.values(record(proposal.get("eventSnapshot"))).filter(value=>typeof value==="string"&&value).join(" · "),
-        package_name:packageName,
+        package_name:clipForPdf(packageName,160),
         document_kind:documentKind,
         // The studio's own mark, from the same place every branded email
         // takes it. Empty is fine: the renderer falls back to the wordmark.
         logo_url:string(record(tenant.get("emailBranding")).logoUrl)||string(tenant.get("logoUrl"))||"",
         package_description:`${coverageWord} coverage and deliverables as selected.`,
-        introduction:string(proposal.get("notes")),
-        terms_summary:string(proposal.get("termsSummary")),
-        line_items:normalizedLines.map(value=>{const line=record(value);return{description:string(line.description)||packageName,amount:money(line.totalCents,currency)}}),
-        payment_schedule:paymentSchedule.map(value=>{const item=record(value);return{label:string(item.label)||"Payment",amount:money(item.amountCents,currency),due_date:item.dueDate?String(item.dueDate).slice(0,10):null}}),
+        introduction:clipForPdf(string(proposal.get("notes")),3000),
+        terms_summary:clipForPdf(string(proposal.get("termsSummary")),3000),
+        line_items:normalizedLines.slice(0,50).map(value=>{const line=record(value);return{description:clipForPdf(string(line.description)||packageName,240),amount:money(line.totalCents,currency)}}),
+        payment_schedule:paymentSchedule.slice(0,20).map(value=>{const item=record(value);return{label:clipForPdf(string(item.label)||"Payment",120),amount:money(item.amountCents,currency),due_date:item.dueDate?String(item.dueDate).slice(0,10):null}}),
         total:money(pricing.totalCents,currency),
-        retainer:money(pricing.retainerCents,currency),
-        balance:money(Number(pricing.totalCents)-Number(pricing.retainerCents),currency),
+        // The retainer the schedule on the same page asks for: an override
+        // showed two different retainers in one PDF (H2, M7).
+        retainer:money(retainerFromSchedule(paymentSchedule,Number(pricing.retainerCents)),currency),
+        balance:money(Math.max(0,Number(pricing.totalCents)-retainerFromSchedule(paymentSchedule,Number(pricing.retainerCents))),currency),
         expires_on:String(proposal.get("expiresAt")).slice(0,10),
         generated_at:generatedAt,
       },

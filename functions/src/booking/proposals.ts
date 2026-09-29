@@ -274,18 +274,24 @@ function lineItems(packageData: Record<string, unknown>) {
   const addOns = Array.isArray(packageData.addOns)
     ? packageData.addOns.map(objectValue)
     : [];
+  // Typed, so a document can tell the package from its add-ons (H2). A
+  // line written before this reads as a package line.
   return [
     {
       description: stringValue(packageData.packageName, "Photography package"),
       quantity: 1,
       unitPriceCents: basePriceCents,
       totalCents: basePriceCents,
+      kind: "package" as const,
+      sourceId: stringValue(packageData.packageId) || null,
     },
     ...addOns.map((item) => ({
       description: stringValue(item.name, "Add-on"),
       quantity: Math.max(1, numberValue(item.quantity)),
       unitPriceCents: numberValue(item.unitPriceCents),
       totalCents: numberValue(item.lineTotalCents),
+      kind: "add_on" as const,
+      sourceId: stringValue(item.addOnId) || null,
     })),
   ];
 }
@@ -437,6 +443,21 @@ export const proposalCommand = onRequest(
                   snapshot.get("tenantId") === command.tenantId,
               )
               .map((snapshot) => objectValue(snapshot.data()));
+            // Each snapshot carries the discount the studio applied when
+            // locking it. Not recomputed here, and never invented: there is
+            // no automatic bundle discount.
+            const combinedPricing = combineSnapshotPricing(
+              [packageData, ...additionalPackageData].map((data) => ({
+                packageName: stringValue(data.packageName, "Coverage package"),
+                currency: stringValue(data.currency, "USD"),
+                subtotalCents: numberValue(data.subtotalCents),
+                discountCents: numberValue(data.discountCents),
+                taxCents: numberValue(data.taxCents),
+                retainerCents: numberValue(data.retainerCents),
+                totalCents: numberValue(data.totalCents),
+                lineItems: lineItems(data),
+              })),
+            );
             const proposalId = stableId(
               "proposal",
               command.tenantId,
@@ -470,27 +491,20 @@ export const proposalCommand = onRequest(
                 venue: project.get("venueName") ?? null,
               },
               additionalPackageSnapshotIds: additionalSnapshotIds,
-              // Each snapshot carries the discount the studio applied when
-              // locking it. Not recomputed here, and never invented: there is
-              // no automatic bundle discount.
-              pricingSnapshot: combineSnapshotPricing(
-                [packageData, ...additionalPackageData].map((data) => ({
-                  packageName: stringValue(data.packageName, "Coverage package"),
-                  currency: stringValue(data.currency, "USD"),
-                  subtotalCents: numberValue(data.subtotalCents),
-                  discountCents: numberValue(data.discountCents),
-                  taxCents: numberValue(data.taxCents),
-                  retainerCents: numberValue(data.retainerCents),
-                  totalCents: numberValue(data.totalCents),
-                  lineItems: lineItems(data),
-                })),
-              ),
+              pricingSnapshot: combinedPricing,
+              // From the combined pricing the proposal carries, not the
+              // primary package: a second package's price was missing from
+              // the schedule until the draft was next saved (H2, M4).
               paymentSchedule: paymentSchedule(
-                packageData,
+                combinedPricing,
                 command.input.retainerDueDate,
                 command.input.balanceDueDate,
                 command.input.retainerOverrideCents,
               ),
+              retainerOverrideCents:
+                typeof command.input.retainerOverrideCents === "number"
+                  ? command.input.retainerOverrideCents
+                  : null,
               expiresAt: command.input.expiresAt,
               notes: command.input.notes,
               termsSummary: command.input.termsSummary,
@@ -731,6 +745,10 @@ export const proposalCommand = onRequest(
                 command.input.balanceDueDate,
                 command.input.retainerOverrideCents,
               ),
+              retainerOverrideCents:
+                typeof command.input.retainerOverrideCents === "number"
+                  ? command.input.retainerOverrideCents
+                  : null,
               draftRevision: nextRevision,
               updatedAt: timestamp,
               updatedBy: identity.uid,
@@ -831,10 +849,24 @@ export const proposalCommand = onRequest(
             const priorSchedule = Array.isArray(proposal.get("paymentSchedule"))
               ? (proposal.get("paymentSchedule") as Array<Record<string, unknown>>)
               : [];
+            // A retainer the studio set by hand stays set: revising the
+            // packages used to drop it back to the package's (H2, M4). A
+            // proposal from before the override was stored shows it as a
+            // scheduled retainer that differs from its pricing's.
+            const storedOverride = proposal.get("retainerOverrideCents");
+            const priorPricingRetainer = numberValue(objectValue(proposal.get("pricingSnapshot")).retainerCents);
+            const priorScheduledRetainer = Number(priorSchedule[0]?.amountCents);
+            const retainerOverrideCents =
+              typeof storedOverride === "number"
+                ? storedOverride
+                : Number.isFinite(priorScheduledRetainer) && priorScheduledRetainer !== priorPricingRetainer
+                  ? priorScheduledRetainer
+                  : null;
             const schedule = paymentSchedule(
               pricing,
               typeof priorSchedule[0]?.dueDate === "string" ? String(priorSchedule[0].dueDate) : null,
               typeof priorSchedule[1]?.dueDate === "string" ? String(priorSchedule[1].dueDate) : null,
+              retainerOverrideCents,
             );
             const priced = {
               packageSnapshotId: primaryId,

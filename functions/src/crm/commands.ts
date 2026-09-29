@@ -9,6 +9,7 @@ import { reconcileProjectReadiness } from "../workflow/readiness-triggers.js";
 import { teamRoleForEmail } from "./team-email.js";
 import { afterConversion, convertInquiryToJob } from "../intake/convert.js";
 import { forwarderKey } from "../intake/short-address.js";
+import { pricePackage } from "../pricing/package-price.js";
 
 /** An inquiry's states before booking — the ones it can be closed from. */
 /** One structured deliverable on a package (H4); mirrors features/packages/schema.ts. */
@@ -1681,42 +1682,19 @@ export const crmCommand = onRequest(
               };
             },
           );
-          const addOnTotal = selectedLines.reduce(
-            (sum, line) => sum + line.lineTotalCents,
-            0,
-          );
-          const preDiscount = studioPackage.basePriceCents + addOnTotal;
-          const requestedDiscount =
-            command.input.discount.type === "none"
-              ? 0
-              : command.input.discount.type === "fixed"
-                ? command.input.discount.amountCents
-                : Math.round(
-                    (preDiscount * command.input.discount.basisPoints) / 10000,
-                  );
-          const discountCents = Math.min(preDiscount, requestedDiscount);
-          const subtotalCents = preDiscount - discountCents;
-          const taxCents = Math.round(
-            (subtotalCents * studioPackage.taxRateBasisPoints) / 10000,
-          );
-          const totalCents = subtotalCents + taxCents;
           const coverage = resolveCoverage(studioPackage);
-          const retainerCents =
-            studioPackage.retainerRule.type === "fixed"
-              ? Math.min(totalCents, studioPackage.retainerRule.amountCents)
-              : studioPackage.retainerRule.type === "per_crew_member"
-                ? Math.min(
-                    totalCents,
-                    studioPackage.retainerRule.amountPerCrewCents *
-                      billedCrewCount(
-                        coverage,
-                        studioPackage.retainerRule.billedRoles,
-                      ),
-                  )
-                : Math.round(
-                    (totalCents * studioPackage.retainerRule.basisPoints) /
-                      10000,
-                  );
+          // One price, the same as the portal and the snapshot factory (H2).
+          const { discountCents, subtotalCents, taxCents, totalCents, retainerCents } = pricePackage({
+            basePriceCents: studioPackage.basePriceCents,
+            addOns: selectedLines,
+            discount: command.input.discount,
+            taxRateBasisPoints: studioPackage.taxRateBasisPoints,
+            retainerRule: studioPackage.retainerRule,
+            billedCrew:
+              studioPackage.retainerRule.type === "per_crew_member"
+                ? billedCrewCount(coverage, studioPackage.retainerRule.billedRoles)
+                : 1,
+          });
           const packageSnapshotId = randomUUID();
           transaction.create(db.doc(`packageSnapshots/${packageSnapshotId}`), {
             id: packageSnapshotId,

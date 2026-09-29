@@ -4,6 +4,7 @@ import {
   type CoverageRole,
 } from "@/features/packages/coverage";
 import { billedCrewCount } from "@/features/packages/create-snapshot";
+import { pricePackage } from "@/features/pricing/package-price";
 import { z } from "zod";
 import { todayInZone } from "@/lib/format/event-date";
 import {
@@ -1093,16 +1094,6 @@ async function selectPackageForClient(input: {
       };
     });
     const basePriceCents = Number(studioPackage.get("basePriceCents") ?? 0);
-    const addOnTotal = selectedLines.reduce(
-      (total, line) => total + line.lineTotalCents,
-      0,
-    );
-    const subtotalCents = basePriceCents + addOnTotal;
-    const taxCents = Math.round(
-      (subtotalCents * Number(studioPackage.get("taxRateBasisPoints") ?? 0)) /
-        10000,
-    );
-    const totalCents = subtotalCents + taxCents;
     const retainerRule =
       (studioPackage.get("retainerRule") as
         | { type: "fixed"; amountCents: number }
@@ -1117,16 +1108,19 @@ async function selectPackageForClient(input: {
       includedCoverage: studioPackage.get("includedCoverage"),
       includedPhotographers: studioPackage.get("includedPhotographers"),
     });
-    const retainerCents =
-      retainerRule.type === "fixed"
-        ? Math.min(totalCents, Number(retainerRule.amountCents))
-        : retainerRule.type === "per_crew_member"
-          ? Math.min(
-              totalCents,
-              Number(retainerRule.amountPerCrewCents) *
-                billedCrewCount(selectedCoverage, retainerRule.billedRoles),
-            )
-          : Math.round((totalCents * Number(retainerRule.basisPoints)) / 10000);
+    // The same price the studio's selection computes (H2). A couple can't
+    // give themselves a discount, so there is none here.
+    const { subtotalCents, taxCents, totalCents, retainerCents } = pricePackage({
+      basePriceCents,
+      addOns: selectedLines,
+      discount: { type: "none" },
+      taxRateBasisPoints: Number(studioPackage.get("taxRateBasisPoints") ?? 0),
+      retainerRule,
+      billedCrew:
+        retainerRule.type === "per_crew_member"
+          ? billedCrewCount(selectedCoverage, retainerRule.billedRoles)
+          : 1,
+    });
     const snapshotId = `package_snapshot_${executionId}`;
     const now = new Date().toISOString();
     transaction.create(adminFirestore.doc(`packageSnapshots/${snapshotId}`), {
@@ -1471,9 +1465,29 @@ async function autopayStatus(tenantId: string, projectId: string) {
   const snapshotId = safeString(project.get("packageSnapshotId"));
   const snapshot = snapshotId ? await adminFirestore.doc(`packageSnapshots/${snapshotId}`).get() : null;
   const currency = String(final?.currency ?? retainer?.currency ?? snapshot?.get("currency") ?? "USD");
+  // Before the final invoice exists, the balance is the agreed total — every
+  // package on the job, from the accepted proposal — less the retainer. The
+  // primary package alone left a second package off the couple's balance
+  // (H2, M2).
+  const acceptedProposal = final
+    ? null
+    : (
+        await adminFirestore
+          .collection("proposals")
+          .where("tenantId", "==", tenantId)
+          .where("projectId", "==", projectId)
+          .where("status", "==", "accepted")
+          .limit(1)
+          .get()
+      ).docs[0];
+  const agreedTotal = Number(
+    (acceptedProposal?.get("pricingSnapshot") as { totalCents?: unknown } | undefined)?.totalCents,
+  );
+  const totalCents =
+    Number.isSafeInteger(agreedTotal) && agreedTotal > 0 ? agreedTotal : Number(snapshot?.get("totalCents") ?? 0);
   const amountCents = final
     ? Number(final.balanceCents ?? 0)
-    : Math.max(0, Number(snapshot?.get("totalCents") ?? 0) - Number(retainer?.amountCents ?? 0));
+    : Math.max(0, totalCents - Number(retainer?.amountCents ?? 0));
   const eventDate = safeString(project.get("eventDate"));
   let dueDate = safeString(final?.dueDate);
   if (!dueDate && eventDate) {
