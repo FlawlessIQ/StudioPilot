@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import { cache } from "react";
 import Link from "next/link";
-import { ArrowLeft, LockKeyhole, ShieldCheck } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { LeadIntakeForm } from "@/components/crm/lead-intake-form";
-import { KitRoot, StudioMark } from "@/components/kit/kit";
 import { resolveTenantBrand, type TenantBrand } from "@/features/branding/tenant-brand";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { adminFirestore } from "@/server/firebase/admin";
@@ -114,39 +113,18 @@ export default async function InquiryPage({
     );
   }
   return (
-    <main className="inquiry-page">
-      {/* The studio's own mark: a couple is writing to the studio, not to
-          StudioCue, whose logo and "Back to StudioCue" link used to head the
-          page. The back link now shows only to the studio previewing it. */}
-      <header>
-        <KitRoot className="kit-inline" studio={{ color: tenant.brand.primaryColor }}>
-          <span className="kit-brand">
-            <StudioMark
-              size={34}
-              studio={{ name: tenant.name, logoUrl: tenant.brand.logoUrl }}
-            />
-            <span className="kit-brand-name">{tenant.name}</span>
-          </span>
-        </KitRoot>
-        {preview === "studio" ? (
-          <Link href={backLink.href}><ArrowLeft size={15} /> {backLink.label}</Link>
-        ) : null}
-      </header>
-      <div className="inquiry-layout">
-        <aside className="inquiry-intro">
-          <p className="eyebrow">{tenant.name}</p>
-          <h1>Let’s make something worth remembering.</h1>
-          <p>
-            Share the essentials and our studio will confirm availability, then send a
-            thoughtful next step—never an automated price guess.
-          </p>
-          <div className="inquiry-assurance">
-            <span><ShieldCheck size={18} /><strong>Human reviewed</strong><small>Every inquiry is reviewed by our studio team.</small></span>
-            <span><LockKeyhole size={18} /><strong>Private by default</strong><small>Your details stay within this studio workspace.</small></span>
-          </div>
-        </aside>
-        <LeadIntakeForm brandName={tenant.name} preview={preview === "studio"} tenantSlug={tenant.slug} />
-      </div>
-    </main>
+    // The whole screen is the form now, in the studio's brand and the mobile
+    // kit (M2 of docs/mobile-first-client-crew-plan-2026-09-28.md). The desktop
+    // intro column it replaced pushed the form below the fold on a phone.
+    <LeadIntakeForm
+      brandName={tenant.name}
+      preview={preview === "studio"}
+      studio={{
+        name: tenant.name,
+        color: tenant.brand.primaryColor,
+        logoUrl: tenant.brand.logoUrl,
+      }}
+      tenantSlug={tenant.slug}
+    />
   );
 }

@@ -2,11 +2,28 @@
 
 import { useState, useSyncExternalStore } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowRight, CheckCircle2, LoaderCircle } from "lucide-react";
-import { useForm } from "react-hook-form";
+import { ArrowLeft, CheckCircle2, LoaderCircle, Mail, Phone, Send, Users } from "lucide-react";
+import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { publicLeadIntakeSchema, type PublicLeadIntake } from "@/features/leads/schema";
 import { AddressField } from "@/components/forms/address-field";
+import {
+  Actions,
+  AppBar,
+  Button,
+  ButtonRow,
+  Card,
+  Choices,
+  Field,
+  KitRoot,
+  Main,
+  Note,
+  PoweredBy,
+  Screen,
+  Steps,
+  TextArea,
+  type Studio,
+} from "@/components/kit/kit";
 import {
   placeCity,
   placeLabel,
@@ -31,9 +48,8 @@ type SubmissionResult = {
  * writes each registered field's default into the input, and every default
  * here was "". A field with no default is read from the input instead, so
  * what was typed is kept (walked 2026-09-28; the form is 1.5 MB of script on
- * a phone). The empty values still come from the inputs themselves, and the
- * select's first option is its default. Consent stays opt-in because the box
- * renders unticked.
+ * a phone). The empty values still come from the inputs themselves. Consent
+ * stays opt-in because the box renders unticked.
  */
 export const inquiryFormDefaults: Partial<PublicLeadIntakeInput> = {
   venue: null,
@@ -57,13 +73,65 @@ function prewarmAppCheck() {
     .catch(() => undefined);
 }
 
+/**
+ * Three short steps, one field per row, the next step in the thumb zone
+ * (M2 of docs/mobile-first-client-crew-plan-2026-09-28.md). It was one long
+ * fourteen-field page that ran off an iPhone. Each step is checked before the
+ * next opens, so a refusal is always on the screen being looked at.
+ */
+const STEPS = [
+  {
+    eyebrow: "Step 1 of 3",
+    title: "Let’s start with you",
+    lede: "A few details so we can reply to you personally.",
+    fields: ["firstName", "lastName", "partnerName", "email", "phone"],
+  },
+  {
+    eyebrow: "Step 2 of 3",
+    title: "Tell us about your day",
+    lede: "Dates are checked before availability is confirmed.",
+    fields: ["eventDate", "eventType", "venue", "city", "estimatedGuestCount"],
+  },
+  {
+    eyebrow: "Step 3 of 3",
+    title: "What matters most?",
+    lede: "Anything you’d like us to know. A few lines is plenty.",
+    fields: ["message", "budgetRange", "referralSource", "consent", "honeypot"],
+  },
+] as const satisfies ReadonlyArray<{
+  eyebrow: string;
+  title: string;
+  lede: string;
+  fields: ReadonlyArray<keyof PublicLeadIntakeInput>;
+}>;
+
+const EVENT_TYPES = [
+  { value: "wedding", label: "Wedding" },
+  { value: "corporate", label: "Corporate" },
+  { value: "sports", label: "Sports" },
+  { value: "other", label: "Other" },
+] as const;
+
+const BUDGETS = [
+  { value: "$3,000–$5,000", label: "$3–5k" },
+  { value: "$5,000–$8,000", label: "$5–8k" },
+  { value: "$8,000–$12,000", label: "$8–12k" },
+  { value: "$12,000+", label: "$12k+" },
+  { value: "none", label: "Rather not say" },
+] as const;
+
+const REFERRALS = ["Instagram", "Google", "A friend", "Our planner", "Other"] as const;
+
 export function LeadIntakeForm({
   tenantSlug,
   brandName,
+  studio,
   preview = false,
 }: {
   tenantSlug: string;
   brandName: string;
+  /** The studio's brand: couples are writing to the studio, not StudioCue. */
+  studio?: Studio;
   /**
    * The studio looking at its own form (`?preview=studio`). A submit shows
    * what a couple sees and saves nothing. It used to create a real lead, and
@@ -78,6 +146,7 @@ export function LeadIntakeForm({
     () => true,
     () => false,
   );
+  const [step, setStep] = useState(0);
   const [result, setResult] = useState<SubmissionResult | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const {
@@ -85,13 +154,22 @@ export function LeadIntakeForm({
     handleSubmit,
     getValues,
     setValue,
+    trigger,
+    control,
+    getFieldState,
+    setFocus,
     formState: { errors, isSubmitting },
   } = useForm<PublicLeadIntakeInput, unknown, PublicLeadIntake>({
     defaultValues: { ...inquiryFormDefaults, tenantSlug },
     resolver: zodResolver(publicLeadIntakeSchema),
   });
+  const brand: Studio = studio ?? { name: brandName };
+  // Only the two chip groups follow these; the rest of the form stays put.
+  const eventType = useWatch({ control, name: "eventType" }) ?? "wedding";
+  const budget = useWatch({ control, name: "budgetRange" });
 
   const [venue, setVenue] = useState<CapturedPlace | null>(null);
+  const [referral, setReferral] = useState<string | null>(null);
 
   /**
    * The captured venue fills the two fields the inquiry actually submits.
@@ -117,14 +195,31 @@ export function LeadIntakeForm({
     if (city) setValue("city", city.slice(0, 120), { shouldValidate: true });
   }
 
+  function goTo(next: number) {
+    setServerError(null);
+    setStep(next);
+    // The window, not the heading: scrolling the heading to the top put it
+    // under the sticky studio bar.
+    window.scrollTo({ top: 0 });
+  }
+
+  async function continueFrom(current: number) {
+    const fields = STEPS[current]!.fields;
+    if (await trigger([...fields])) return goTo(current + 1);
+    // Read the result now: `errors` here is from the render before trigger.
+    const first = fields.find((name) => getFieldState(name).invalid) ?? fields[0];
+    setFocus(first);
+  }
+
   /**
    * A refused submit has to say so.
    *
    * `handleSubmit` runs validation first and does nothing at all when it
    * fails — no request, no message, no movement. With the failing field off
-   * screen (City sits below the fold on a laptop) pressing "Send inquiry"
-   * looked like a dead button. Walked on 2026-09-22: four presses, no
-   * feedback, and the studio never heard from that inquiry.
+   * screen pressing "Send inquiry" looked like a dead button. Walked on
+   * 2026-09-22: four presses, no feedback, and the studio never heard from
+   * that inquiry. With steps, the refusal also has to reopen the step that
+   * holds the field.
    */
   const onInvalid = (fieldErrors: Record<string, unknown>) => {
     const names = Object.keys(fieldErrors);
@@ -135,9 +230,17 @@ export function LeadIntakeForm({
     );
     const first = names[0];
     if (!first) return;
-    const field = document.querySelector<HTMLElement>(`[name="${first}"]`);
-    field?.scrollIntoView({ behavior: "smooth", block: "center" });
-    field?.focus({ preventScroll: true });
+    const owner = STEPS.findIndex((candidate) =>
+      (candidate.fields as readonly string[]).includes(first),
+    );
+    if (owner >= 0 && owner !== step) setStep(owner);
+    // A timer, not requestAnimationFrame: rAF does not run in a hidden tab,
+    // and the step may need to render before the field exists.
+    window.setTimeout(() => {
+      const field = document.querySelector<HTMLElement>(`[name="${first}"]`);
+      field?.scrollIntoView({ behavior: "smooth", block: "center" });
+      field?.focus({ preventScroll: true });
+    }, 60);
   };
 
   const submit = handleSubmit(async (values) => {
@@ -189,101 +292,240 @@ export function LeadIntakeForm({
 
   if (result) {
     return (
-      <section className="inquiry-success" aria-live="polite">
-        <span><CheckCircle2 size={24} /></span>
-        <p className="eyebrow">Inquiry received</p>
-        <h2>Thank you. We’ll be in touch shortly.</h2>
-        <p>
-          {/* Couples don't need a raw UUID; a short suffix is enough to quote
-              in a follow-up and looks like a confirmation, not a database id. */}
-          Your confirmation code is{" "}
-          <strong>{result.leadId.slice(-6).toUpperCase()}</strong>. Our team
-          will review the event details and confirm availability before
-          discussing packages.
-        </p>
-        {result.missingInformation.length > 0 ? (
-          <small>
-            We may follow up about: {result.missingInformation.join(", ")}.
-          </small>
-        ) : null}
-        {preview ? (
-          <small className="demo-disclosure">
-            Preview: this is what a couple sees. Nothing was saved, and no inquiry
-            was created.
-          </small>
-        ) : !process.env.NEXT_PUBLIC_CRM_FUNCTIONS_URL ? (
-          <small className="demo-disclosure">
-            Development preview: no record was persisted because the CRM Functions URL
-            is not configured.
-          </small>
-        ) : null}
-      </section>
+      <KitRoot studio={brand}>
+        <Screen>
+          <AppBar studio={brand} />
+          <Main label="Inquiry sent">
+            <section className="kit-stack" aria-live="polite">
+              <Note icon={CheckCircle2} tone="accent">
+                Inquiry received · confirmation{" "}
+                <strong>{result.leadId.slice(-6).toUpperCase()}</strong>
+              </Note>
+              <h1 className="kit-title">Thank you. We’ll be in touch shortly.</h1>
+              <p className="kit-body">
+                {`${brand.name} will look at your date and details and reply personally, before any talk of packages.`}
+              </p>
+              {result.missingInformation.length > 0 ? (
+                <p className="kit-caption">
+                  We may follow up about: {result.missingInformation.join(", ")}.
+                </p>
+              ) : null}
+              {preview ? (
+                <Note>
+                  Preview: this is what a couple sees. Nothing was saved, and no inquiry
+                  was created.
+                </Note>
+              ) : !process.env.NEXT_PUBLIC_CRM_FUNCTIONS_URL ? (
+                <Note>
+                  Development preview: no record was persisted because the CRM Functions
+                  URL is not configured.
+                </Note>
+              ) : null}
+            </section>
+            <PoweredBy />
+          </Main>
+        </Screen>
+      </KitRoot>
     );
   }
 
-  return (
-    <form
-      className="inquiry-form"
-      noValidate
-      onFocusCapture={prewarmAppCheck}
-      onSubmit={submit}
-    >
-      {preview ? (
-        <p className="demo-disclosure" role="note">
-          You&apos;re previewing your form. Try it — submitting won&apos;t create an inquiry.
-        </p>
-      ) : null}
-      <div className="form-section-heading">
-        <span>01</span>
-        <div><h2>Tell us about you</h2><p>We’ll use these details only to respond to your inquiry.</p></div>
-      </div>
-      <div className="form-grid">
-        <label>First name <span className="required-mark">Required</span><input {...register("firstName")} autoComplete="given-name" /><small>{errors.firstName?.message}</small></label>
-        <label>Last name <span className="required-mark">Required</span><input {...register("lastName")} autoComplete="family-name" /><small>{errors.lastName?.message}</small></label>
-        <label>Partner or contact name<input {...register("partnerName", { setValueAs: (value) => value || null })} /></label>
-        <label>Email <span className="required-mark">Required</span><input {...register("email")} type="email" autoComplete="email" /><small>{errors.email?.message}</small></label>
-        <label>Phone <span className="required-mark">Required</span><input {...register("phone")} type="tel" autoComplete="tel" /><small>{errors.phone?.message}</small></label>
-      </div>
+  const current = STEPS[step]!;
 
-      <div className="form-section-heading">
-        <span>02</span>
-        <div><h2>Event details</h2><p>Dates are checked before availability is confirmed.</p></div>
-      </div>
-      <div className="form-grid">
-        <label>Event date <span className="required-mark">Required</span><input {...register("eventDate")} type="date" /><small>{errors.eventDate?.message}</small></label>
-        <label>Event type<select {...register("eventType")}><option value="wedding">Wedding</option><option value="corporate">Corporate</option><option value="sports">Sports</option><option value="other">Other</option></select></label>
-        {/* The venue a couple types here is the first thing the studio
-            ever learns about the job, and it fed straight through to the
-            project. Looking it up means the studio gets the real place
-            rather than whatever fitted in the box — and it fills the city
-            below, which is required. */}
-        <div className="form-span">
-          <AddressField
-            hint="If you have chosen one. Start typing and pick from the list."
-            label="Venue"
-            onChange={applyVenue}
-            placeholder="Venue name or address"
-            source={{ kind: "public", tenantSlug }}
-            value={venue}
-          />
-        </div>
-        <label>City <span className="required-mark">Required</span><input {...register("city")} /><small>{errors.city?.message}</small></label>
-        <label>Estimated guests<input {...register("estimatedGuestCount", { setValueAs: (value) => value ? Number(value) : null })} type="number" min="1" /></label>
-        <label>Budget range<select {...register("budgetRange", { setValueAs: (value) => value || null })}><option value="">Prefer not to say</option><option>$3,000–$5,000</option><option>$5,000–$8,000</option><option>$8,000–$12,000</option><option>$12,000+</option></select></label>
-        <label className="form-span">How did you hear about us?<input {...register("referralSource", { setValueAs: (value) => value || null })} /></label>
-        <label className="form-span">What are you planning? <span className="required-mark">Required</span><textarea {...register("message")} rows={5} placeholder="Tell us what matters most, the atmosphere, and anything we should know." /><small>{errors.message?.message}</small></label>
-        <label className="honeypot" aria-hidden="true">Website<input {...register("honeypot")} tabIndex={-1} autoComplete="off" /></label>
-      </div>
-      <label className="consent-row">
-        <input {...register("consent")} type="checkbox" />
-        <span>I agree that {brandName} may contact me about this inquiry.</span>
-      </label>
-      {errors.consent ? <p className="form-error">{errors.consent.message}</p> : null}
-      {serverError ? <p className="form-error" role="alert">{serverError}</p> : null}
-      <button className="button button-dark inquiry-submit" disabled={!hydrated || isSubmitting} type="submit">
-        {isSubmitting ? <LoaderCircle className="spin" size={17} /> : null}
-        Send inquiry <ArrowRight size={16} />
-      </button>
-    </form>
+  return (
+    <KitRoot studio={brand}>
+      <Screen>
+        <AppBar
+          back={
+            preview ? { href: "/studio/setup", label: "Back to Studio setup" } : undefined
+          }
+          studio={brand}
+        />
+        <form noValidate onFocusCapture={prewarmAppCheck} onSubmit={submit} style={{ display: "contents" }}>
+          <Main label="Inquiry">
+            <div className="kit-stack">
+              {preview ? (
+                <Note>You’re previewing your form. Try it — submitting won’t create an inquiry.</Note>
+              ) : null}
+              <Steps step={step + 1} total={STEPS.length} />
+              <div className="kit-stack-tight">
+                <p className="kit-eyebrow">{current.eyebrow}</p>
+                <h1 className="kit-title">{current.title}</h1>
+                <p className="kit-body">{current.lede}</p>
+              </div>
+            </div>
+
+            {step === 0 ? (
+              <div className="kit-stack">
+                <Field
+                  autoComplete="given-name"
+                  error={errors.firstName?.message}
+                  label={<>First name <span className="required-mark">Required</span></>}
+                  {...register("firstName")}
+                />
+                <Field
+                  autoComplete="family-name"
+                  error={errors.lastName?.message}
+                  label={<>Last name <span className="required-mark">Required</span></>}
+                  {...register("lastName")}
+                />
+                <Field
+                  hint="Optional"
+                  label="Partner’s name"
+                  {...register("partnerName", { setValueAs: (value) => value || null })}
+                />
+                <Field
+                  autoComplete="email"
+                  error={errors.email?.message}
+                  icon={Mail}
+                  inputMode="email"
+                  label={<>Email <span className="required-mark">Required</span></>}
+                  type="email"
+                  {...register("email")}
+                />
+                <Field
+                  autoComplete="tel"
+                  error={errors.phone?.message}
+                  icon={Phone}
+                  inputMode="tel"
+                  label={<>Phone <span className="required-mark">Required</span></>}
+                  type="tel"
+                  {...register("phone")}
+                />
+              </div>
+            ) : null}
+
+            {step === 1 ? (
+              <div className="kit-stack">
+                <Field
+                  error={errors.eventDate?.message}
+                  hint="Tap to pick the date."
+                  label={<>Event date <span className="required-mark">Required</span></>}
+                  type="date"
+                  {...register("eventDate")}
+                />
+                <input type="hidden" {...register("eventType")} />
+                <Choices
+                  legend="Type of event"
+                  onChange={(next) => setValue("eventType", next as string, { shouldDirty: true })}
+                  options={EVENT_TYPES}
+                  value={eventType as (typeof EVENT_TYPES)[number]["value"]}
+                />
+                <AddressField
+                  hint="If you have chosen one. Start typing and pick from the list."
+                  label="Venue"
+                  onChange={applyVenue}
+                  placeholder="Venue name or address"
+                  source={{ kind: "public", tenantSlug }}
+                  value={venue}
+                />
+                <Field
+                  autoComplete="address-level2"
+                  error={errors.city?.message}
+                  label={<>City <span className="required-mark">Required</span></>}
+                  {...register("city")}
+                />
+                <Field
+                  hint="Optional — a rough number is fine."
+                  icon={Users}
+                  inputMode="numeric"
+                  label="Estimated guests"
+                  min="1"
+                  type="number"
+                  {...register("estimatedGuestCount", {
+                    setValueAs: (value) => (value ? Number(value) : null),
+                  })}
+                />
+              </div>
+            ) : null}
+
+            {step === 2 ? (
+              <div className="kit-stack">
+                <TextArea
+                  error={errors.message?.message}
+                  label={<>What are you planning? <span className="required-mark">Required</span></>}
+                  placeholder="Tell us what matters most, the atmosphere, and anything we should know."
+                  rows={5}
+                  {...register("message")}
+                />
+                <input type="hidden" {...register("budgetRange", { setValueAs: (value) => value || null })} />
+                <Choices
+                  legend="Photography budget"
+                  onChange={(next) =>
+                    setValue("budgetRange", next === "none" ? null : (next as string), { shouldDirty: true })
+                  }
+                  options={BUDGETS}
+                  value={(budget ?? "none") as (typeof BUDGETS)[number]["value"]}
+                />
+                <input type="hidden" {...register("referralSource", { setValueAs: (value) => value || null })} />
+                <Choices
+                  legend="How did you hear about us?"
+                  onChange={(next) => {
+                    setReferral(next as string);
+                    setValue("referralSource", next === "Other" ? null : (next as string), {
+                      shouldDirty: true,
+                    });
+                  }}
+                  options={REFERRALS.map((label) => ({ value: label, label }))}
+                  value={referral}
+                />
+                {referral === "Other" ? (
+                  <Field
+                    label="Where did you find us?"
+                    onChange={(event) =>
+                      setValue("referralSource", event.target.value.trim() || null, { shouldDirty: true })
+                    }
+                  />
+                ) : null}
+                <label className="honeypot" aria-hidden="true">
+                  Website
+                  <input {...register("honeypot")} tabIndex={-1} autoComplete="off" />
+                </label>
+                <Card>
+                  <label className="kit-check">
+                    <input {...register("consent")} type="checkbox" />
+                    <span>I agree that {brand.name} may contact me about this inquiry.</span>
+                  </label>
+                  {errors.consent ? (
+                    <p className="kit-error" role="alert">
+                      {errors.consent.message}
+                    </p>
+                  ) : null}
+                </Card>
+              </div>
+            ) : null}
+
+            {serverError ? (
+              <p className="kit-note" data-tone="danger" role="alert">
+                {serverError}
+              </p>
+            ) : null}
+            <PoweredBy />
+          </Main>
+
+          <Actions note={step === 0 ? `Your details stay with ${brand.name}.` : undefined}>
+            {step === STEPS.length - 1 ? (
+              <ButtonRow>
+                <Button icon={ArrowLeft} onClick={() => goTo(step - 1)} size="compact" variant="secondary">
+                  Back
+                </Button>
+                <Button disabled={!hydrated || isSubmitting} type="submit">
+                  {isSubmitting ? <LoaderCircle aria-hidden="true" className="spin" size={18} /> : <Send aria-hidden="true" size={18} />}
+                  Send inquiry
+                </Button>
+              </ButtonRow>
+            ) : step > 0 ? (
+              <ButtonRow>
+                <Button icon={ArrowLeft} onClick={() => goTo(step - 1)} size="compact" variant="secondary">
+                  Back
+                </Button>
+                <Button onClick={() => void continueFrom(step)}>Continue</Button>
+              </ButtonRow>
+            ) : (
+              <Button onClick={() => void continueFrom(step)}>Continue</Button>
+            )}
+          </Actions>
+        </form>
+      </Screen>
+    </KitRoot>
   );
 }

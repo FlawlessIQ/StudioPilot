@@ -99,8 +99,10 @@ test("the portal accent reads under white text", () => {
 
 test("the inquiry page is headed by the studio, not StudioCue", () => {
   const page = source("app/inquiry/page.tsx");
-  const form = page.slice(page.indexOf('<main className="inquiry-page">'));
-  assert.doesNotMatch(form, /<Logo \/>/);
-  assert.match(form, /<StudioMark/);
-  assert.match(form, /preview === "studio" \? \(\s*<Link href=\{backLink\.href\}>/);
+  const found = page.slice(page.indexOf("<LeadIntakeForm"));
+  assert.doesNotMatch(found, /<Logo \/>/);
+  assert.match(found, /studio=\{\{\s*name: tenant\.name,\s*color: tenant\.brand\.primaryColor,\s*logoUrl: tenant\.brand\.logoUrl,/);
+  const form = source("components/crm/lead-intake-form.tsx");
+  assert.match(form, /<AppBar\s+back=\{\s*preview \? \{ href: "\/studio\/setup"/);
+  assert.match(form, /<KitRoot studio=\{brand\}>/);
 });

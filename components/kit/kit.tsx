@@ -6,6 +6,7 @@ import {
   type CSSProperties,
   type InputHTMLAttributes,
   type ReactNode,
+  type Ref,
   type TextareaHTMLAttributes,
   useId,
 } from "react";
@@ -169,6 +170,8 @@ export function Field({
   hint?: ReactNode;
   error?: ReactNode;
   icon?: LucideIcon;
+  /** React 19 passes a ref as a prop; react-hook-form's `register` needs it. */
+  ref?: Ref<HTMLInputElement>;
 } & InputHTMLAttributes<HTMLInputElement>) {
   const id = useId();
   const described = [hint ? `${id}-hint` : null, error ? `${id}-error` : null]
@@ -176,7 +179,9 @@ export function Field({
     .join(" ");
   return (
     <label className="kit-field">
-      {label}
+      {/* One element, so a label and its "Required" tag share a line in
+          the column. */}
+      <span className="kit-field-label">{label}</span>
       <span className="kit-input-wrap" data-icon={Icon ? "" : undefined}>
         {Icon ? (
           <span className="kit-input-icon">
@@ -207,16 +212,37 @@ export function Field({
 export function TextArea({
   label,
   hint,
+  error,
   ...textarea
-}: { label: ReactNode; hint?: ReactNode } & TextareaHTMLAttributes<HTMLTextAreaElement>) {
+}: {
+  label: ReactNode;
+  hint?: ReactNode;
+  error?: ReactNode;
+  ref?: Ref<HTMLTextAreaElement>;
+} & TextareaHTMLAttributes<HTMLTextAreaElement>) {
   const id = useId();
+  const described = [hint ? `${id}-hint` : null, error ? `${id}-error` : null]
+    .filter(Boolean)
+    .join(" ");
   return (
     <label className="kit-field">
-      {label}
-      <textarea aria-describedby={hint ? `${id}-hint` : undefined} className="kit-input" {...textarea} />
+      {/* One element, so a label and its "Required" tag share a line in
+          the column. */}
+      <span className="kit-field-label">{label}</span>
+      <textarea
+        aria-describedby={described || undefined}
+        aria-invalid={error ? true : undefined}
+        className="kit-input"
+        {...textarea}
+      />
       {hint ? (
         <span className="kit-hint" id={`${id}-hint`}>
           {hint}
+        </span>
+      ) : null}
+      {error ? (
+        <span className="kit-error" id={`${id}-error`} role="alert">
+          {error}
         </span>
       ) : null}
     </label>
