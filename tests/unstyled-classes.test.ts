@@ -36,7 +36,6 @@ const KNOWN_UNSTYLED = new Set([
   "client-milestone-",
   "client-portal-loading",
   "client-proposal-result-success",
-  "client-schedule-empty",
   "completed",
   "converted",
   "create",

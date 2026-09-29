@@ -205,8 +205,14 @@ test("studio, customer, and crew flows retain consistent page gutters", async ({
 test("customer and crew content cards retain their component insets", async ({
   page,
 }) => {
+  // Messages is a chat now (M4): the composer is the sticky bar, which keeps
+  // the shell gutter either side of its field.
   await page.goto("/client/messages");
-  await expectInset(page, ".client-message-composer", 20);
+  const composerPadding = await page.locator(".kit-composer").evaluate((element) => {
+    const style = getComputedStyle(element);
+    return [style.paddingLeft, style.paddingRight].map(Number.parseFloat);
+  });
+  expect(Math.min(...composerPadding)).toBeGreaterThanOrEqual(16);
 
   await page.goto("/crew/jobs");
   const crewState = page.locator(".team-state, .crew-job-brief").first();

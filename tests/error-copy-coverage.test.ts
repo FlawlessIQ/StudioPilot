@@ -290,7 +290,6 @@ const KNOWN_GAPS: Record<string, string> = {
   RECIPIENT_UNKNOWN: "communications",
   RETAINER_AMOUNT_NOT_FOUND: "booking",
   REVIEW_REQUEST_NOT_FOUND: "post-event",
-  SCHEDULE_NOT_FOUND: "planning",
   SCHEDULING_LINK_EXPIRED: "booking",
   SECRET_MANAGER_CREATE_FAILED: "integrations",
   SECRET_MANAGER_DESTROY_FAILED: "integrations",

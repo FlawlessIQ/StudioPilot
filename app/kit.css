@@ -1011,3 +1011,235 @@ textarea.kit-input {
     transition: none !important;
   }
 }
+
+/* ---------- Day timeline (the couple's run of show) ---------- */
+
+.kit-timeline {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kit-timeline > li {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 14px;
+}
+.kit-timeline-time {
+  padding-top: 1px;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.kit-timeline-time small {
+  display: block;
+  color: var(--kit-caption);
+  font-size: 12px;
+  font-weight: 400;
+}
+.kit-timeline-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 0 0 20px 18px;
+  border-left: 2px solid var(--kit-line);
+}
+.kit-timeline > li:last-child .kit-timeline-body {
+  border-left-color: transparent;
+}
+.kit-timeline-body::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: -7px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--kit-accent);
+  box-shadow: 0 0 0 3px var(--kit-paper);
+}
+.kit-timeline-title {
+  font-size: 16px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.kit-timeline-place {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  color: var(--kit-caption);
+  font-size: 13px;
+}
+.kit .kit-timeline-ask {
+  align-self: flex-start;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--kit-accent);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ---------- Chat (the couple's messages) ---------- */
+
+.kit-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kit-chat-day {
+  align-self: center;
+  margin: 8px 0 2px;
+  color: var(--kit-caption);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.kit-chat-message {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+.kit-chat-message[data-from="you"] {
+  align-items: flex-end;
+}
+.kit-bubble {
+  max-width: 84%;
+  padding: 10px 14px;
+  border: 1px solid var(--kit-line);
+  border-radius: 18px 18px 18px 6px;
+  background: var(--kit-raised);
+  color: var(--kit-ink);
+  font-size: 15px;
+  line-height: 1.45;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.kit-chat-message[data-from="you"] .kit-bubble {
+  border-color: transparent;
+  border-radius: 18px 18px 6px 18px;
+  background: var(--kit-accent);
+  color: var(--kit-on-accent);
+}
+.kit-bubble-context {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  opacity: 0.8;
+  text-transform: uppercase;
+}
+.kit-bubble-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  white-space: normal;
+}
+.kit-composer > .kit-bubble-files {
+  margin-top: 0;
+}
+.kit-bubble-file {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  max-width: 100%;
+  padding: 4px 8px;
+  border-radius: var(--kit-radius-sm);
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.kit .kit-bubble-file button {
+  display: inline-flex;
+  padding: 2px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.kit-bubble-meta {
+  padding: 0 6px;
+  color: var(--kit-caption);
+  font-size: 12px;
+}
+
+.kit-composer {
+  gap: 8px;
+}
+.kit-composer-context {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 6px 6px 12px;
+  border-radius: var(--kit-radius-sm);
+  background: var(--kit-accent-soft);
+  font-size: 13px;
+}
+.kit .kit-composer-context button {
+  display: inline-flex;
+  padding: 6px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.kit-composer-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.kit-composer-row .kit-icon-button {
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.kit-composer-row .kit-icon-button[data-busy] {
+  opacity: 0.5;
+}
+.kit .kit-composer-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  max-height: 140px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  border-radius: 22px;
+  resize: none;
+}
+.kit .kit-send {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--kit-accent);
+  color: var(--kit-on-accent);
+  cursor: pointer;
+}
+.kit .kit-send:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.kit-preview-image {
+  display: block;
+  width: 100%;
+  max-height: 70vh;
+  border-radius: var(--kit-radius-card);
+  background: var(--kit-sunken);
+  object-fit: contain;
+}

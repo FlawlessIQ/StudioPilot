@@ -21,29 +21,19 @@ const withoutComments = (source: string) =>
   source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 
 const view = withoutComments(
-  readFileSync("components/client/live-client-views.tsx", "utf8"),
+  readFileSync("components/client/kit/client-messages.tsx", "utf8"),
 );
 
-test("the thread line branches its status on who wrote the message", () => {
-  const line = view
-    .split("\n")
-    .find((l) => l.includes('"You"') && l.includes("statusLabel(message.status)"));
-  assert.ok(line, "could not find the client message thread line");
-  assert.match(
-    line,
-    /fromStudio \? statusLabel\(message\.status\)[^:]*:\s*"Sent"/,
-    'The couple\'s own message must read "Sent". The stored status describes ' +
-      "the studio's receipt, so rendering it unconditionally tells the client " +
-      'their own message was "Received".',
-  );
+// The chat (M4) no longer renders a stored status for either side: the
+// studio's messages show who and when, and the couple's own say "Sent".
+test("the couple's own message says Sent", () => {
+  assert.match(view, /`You · \$\{time\(at\)\} · Sent`/);
 });
 
 test("the client's own message never renders the raw stored status", () => {
-  // Guards the shape rather than the exact copy: whatever the label becomes,
-  // it must not be the studio-side value for a message the client wrote.
   assert.doesNotMatch(
     view,
-    /\{fromStudio \? workspace\.tenantName : "You"\}[^\n]*·\s*\{statusLabel\(message\.status\) \|\| "sent"\}/,
-    "the status is being rendered the same way for both sides again",
+    /statusLabel\(message\.status\)|message\.status/,
+    "the stored status is the studio's receipt, not the couple's",
   );
 });

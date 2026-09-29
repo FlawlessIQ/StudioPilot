@@ -1591,7 +1591,13 @@ export const planningCommand = onRequest(
           current.get("projectId") !== parsed.input.projectId
         )
           throw new Error("SCHEDULE_NOT_FOUND");
+        // A couple answers the version they were asked about. Approving a
+        // draft, a superseded version or one already answered is refused
+        // rather than recorded against whatever state it happens to be in.
+        if (role === "client" && current.get("status") !== "client_review")
+          throw new Error("SCHEDULE_NOT_IN_REVIEW");
         await reference.update({
+          approvedAt: parsed.input.decision === "approved" ? now : null,
           approvalState:
             parsed.input.decision === "approved"
               ? "client_approved"

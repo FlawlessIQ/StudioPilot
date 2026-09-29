@@ -4,7 +4,7 @@ import {
   coverageRoleLabel,
   resolveCoverage,
 } from "@/features/packages/coverage";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -15,15 +15,12 @@ import {
   CircleCheck,
   Clock3,
   ExternalLink,
-  FileText,
-  FolderOpen,
   Heart,
   Images,
   LoaderCircle,
   LockKeyhole,
   MapPin,
   MessageCircle,
-  Paperclip,
   RotateCw,
   ShieldCheck,
   Star,
@@ -45,24 +42,14 @@ import {
   type PortalEmptyArea,
 } from "@/features/client/portal-day";
 import {
-  displayableScheduleItems,
-  scheduleItemClock,
-} from "@/features/schedules/item-clock";
-import {
   getClientAvailablePackages,
   getClientPortalProject,
   getClientPortalRecords,
-  sendClientPortalMessage,
   selectClientPackage,
   type ClientPortalCollection,
   type ClientPortalProject,
 } from "@/lib/client/portal-client";
-import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { sendPostEventCommand } from "@/lib/post-event/command-client";
-import {
-  uploadClientMessageAttachment,
-  type ClientMessageAttachment,
-} from "@/lib/client/message-upload";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { bookingSteps, type BookingStepsView } from "@/features/client/booking-steps";
 import { statusLabel } from "@/features/format/status-label";
@@ -220,24 +207,61 @@ export function mockClientRecords(
       status: "client_review",
       timezone: "America/New_York",
       updatedAt: "2026-08-15T12:00:00.000Z",
+      // One crew-only item and one with no start: neither is the couple's to see.
       items: [
-        { id: "arrival", startAt: "2027-06-12T14:00:00-04:00", endAt: "2027-06-12T14:30:00-04:00", title: "Photographer arrival", location: "The Garden Conservatory", visibility: "shared" },
+        { id: "arrival", startAt: "2027-06-12T13:00:00-04:00", endAt: "2027-06-12T13:30:00-04:00", title: "Photographer arrives", location: "Bridal suite, The Garden Conservatory", visibility: "shared" },
+        { id: "details", startAt: "2027-06-12T13:30:00-04:00", endAt: "2027-06-12T14:30:00-04:00", title: "Getting ready and details", location: "Bridal suite", visibility: "client" },
+        { id: "first-look", startAt: "2027-06-12T15:00:00-04:00", endAt: "2027-06-12T15:30:00-04:00", title: "First look", location: "Rose garden", visibility: "client" },
+        { id: "crew-meal", startAt: "2027-06-12T16:00:00-04:00", endAt: "2027-06-12T16:20:00-04:00", title: "Crew meal break", location: "Staff room", visibility: "crew" },
         { id: "ceremony", startAt: "2027-06-12T17:00:00-04:00", endAt: "2027-06-12T17:30:00-04:00", title: "Ceremony", location: "Garden ceremony space", visibility: "client" },
+        { id: "family", startAt: "2027-06-12T17:35:00-04:00", endAt: "2027-06-12T18:05:00-04:00", title: "Family formals", location: "Conservatory steps", visibility: "client" },
+        { id: "entrance", startAt: "2027-06-12T19:00:00-04:00", title: "Grand entrance", location: "Glass hall", visibility: "shared" },
+        { id: "tbc", title: "Sparkler exit", visibility: "client" },
       ],
     }],
-    messages: [{
-      id: "demo-studio-message",
-      subject: "Your planning timeline",
-      body: "We prepared the first schedule for your review.",
-      bodyPreview: "We prepared the first schedule for your review.",
-      context: "Event schedule",
-      direction: "outbound",
-      visibility: "shared",
-      status: "delivered",
-      createdAt: "2026-08-14T15:00:00.000Z",
-      clientReadAt: null,
-    }],
+    messages: [
+      {
+        id: "demo-studio-welcome",
+        subject: "Welcome aboard",
+        body: "So happy to be photographing your day! Your planning questionnaire is ready whenever you are.",
+        direction: "outbound",
+        visibility: "shared",
+        status: "delivered",
+        createdAt: "2026-08-12T14:00:00.000Z",
+        clientReadAt: "2026-08-12T15:00:00.000Z",
+      },
+      {
+        id: "demo-client-question",
+        subject: "Re: Welcome aboard",
+        body: "Thank you! Quick one: can my sister come to the engagement shoot?",
+        direction: "inbound",
+        visibility: "shared",
+        status: "received",
+        createdAt: "2026-08-12T16:20:00.000Z",
+      },
+      {
+        id: "demo-studio-message",
+        subject: "Your planning timeline",
+        body: "Of course she can. We also prepared the first timeline for your review. Tap Plan, then Timeline.",
+        bodyPreview: "We prepared the first schedule for your review.",
+        context: "Event schedule",
+        direction: "outbound",
+        visibility: "shared",
+        status: "delivered",
+        createdAt: "2026-08-14T15:00:00.000Z",
+        clientReadAt: null,
+        attachmentReferences: [{ name: "Timeline notes.pdf" }],
+      },
+    ],
     documents: [{
+      id: "demo-shared-photo",
+      name: "Venue walkthrough.jpg",
+      category: "reference",
+      contentType: "image/jpeg",
+      status: "available",
+      downloadUrl: "/og.png",
+      updatedAt: "2027-05-20T12:00:00.000Z",
+    }, {
       id: "demo-shared-file",
       name: "Venue certificate of insurance",
       category: "coi",
@@ -691,370 +715,6 @@ export function LiveClientProjectDetails() {
   );
 }
 
-export function LiveClientDocuments() {
-  const portalProject = useProject();
-  const documents = useProjectRecords("documents");
-  const contracts = useProjectRecords("contracts");
-  const invoices = useProjectRecords("invoiceReferences");
-  const schedules = useProjectRecords("schedules");
-  const deliveries = useProjectRecords("deliveryRecords");
-  const albums = useProjectRecords("albumWorkflows");
-  const loading = [documents, contracts, invoices, schedules, deliveries, albums].some(
-    (collection) => collection.loading,
-  );
-  const error = [documents, contracts, invoices, schedules, deliveries, albums]
-    .map((collection) => collection.error)
-    .find(Boolean) ?? null;
-  const visibleDocuments = documents.value.filter(
-    (item) => item.clientVisible !== false,
-  );
-  type ClientRecordRow = {
-    id: string;
-    label: string;
-    detail: string;
-    status: string;
-    href: string | null;
-    external: boolean;
-    /** Overrides the default "Review" verb — money you owe wants "Pay". */
-    actionLabel?: string;
-  };
-  const projectRecords: ClientRecordRow[] = [
-    ...contracts.value
-      .filter((record) => ["completed", "signed"].includes(text(record.status)))
-      .map((record) => ({
-        id: `contract-${record.id}`,
-        label: "Signed photography agreement",
-        detail: `Contract · ${date(record.completedAt ?? record.updatedAt)}`,
-        status: text(record.status),
-        href: "/client/contract",
-        external: false,
-      })),
-    ...invoices.value
-      .filter((record) => isStandingInvoice(record.status))
-      .map((record) => ({
-      id: `invoice-${record.id}`,
-      // Was `${record.kind} invoice`, rendering "final invoice" and "retainer
-      // invoice" in lowercase beside "Signed photography agreement". And it
-      // stated the amount and date with no sign the balance was 27 days past
-      // due, while /client/payments correctly said "Overdue".
-      label: `${sentenceCase(text(record.kind, "Project"))} invoice`,
-      detail: invoiceOverdue(record)
-        ? `${money(record.balanceCents, record.currency)} still to pay · overdue since ${date(record.dueDate)}`
-        : number(record.balanceCents) > 0
-          ? `${money(record.balanceCents, record.currency)} due ${date(record.dueDate)}`
-          : `${money(record.amountCents, record.currency)} · paid`,
-      status: text(record.status),
-      href: "/client/payments",
-      external: false,
-      // "Review" is the wrong verb for money you owe.
-      actionLabel: number(record.balanceCents) > 0 ? "Pay" : "Review",
-    })),
-    ...schedules.value
-      .filter((record) => ["approved", "published"].includes(text(record.status)))
-      .map((record) => ({
-        id: `schedule-${record.id}`,
-        label: `Event schedule · version ${number(record.version)}`,
-        detail: `Schedule · ${date(record.publishedAt ?? record.approvedAt ?? record.updatedAt)}`,
-        status: text(record.status),
-        href: "/client/schedule",
-        external: false,
-      })),
-    ...deliveries.value.map((record) => ({
-      id: `delivery-${record.id}`,
-      label: "Photography gallery",
-      detail: `Delivery · ${date(record.deliveryDate ?? record.updatedAt)}`,
-      status: text(record.status),
-      href: "/client/delivery",
-      external: false,
-    })),
-    ...albums.value.map((record) => ({
-      id: `album-${record.id}`,
-      label: "Album record",
-      detail: `Album · ${statusLabel(record.status)}`,
-      status: text(record.status),
-      href: "/client/delivery",
-      external: false,
-    })),
-    ...visibleDocuments.map((record) => ({
-      id: `document-${record.id}`,
-      label: text(record.name ?? record.fileName, "Project document"),
-      detail: text(record.category, "Shared file").replaceAll("_", " "),
-      status: text(record.status, "available"),
-      href:
-        typeof record.temporaryUrl === "string"
-          ? record.temporaryUrl
-          : typeof record.downloadUrl === "string"
-            ? record.downloadUrl
-            : null,
-      external: true,
-    })),
-  ];
-  if (loading || error || projectRecords.length === 0)
-    return (
-      <PortalPageState
-        eyebrow="Project records"
-        title="Your records"
-        description="Signed agreements, payments, schedules, deliveries, and files in one place."
-        loading={loading}
-        error={error}
-        empty={!loading && !error ? "Approved project records will appear here as your project progresses." : undefined}
-        emptyArea="documents"
-        eventDate={portalProject.value?.eventDate ?? null}
-      />
-    );
-  return (
-    <div className="client-booking-page">
-      <p className="eyebrow">Project records</p>
-      <h1>Your records</h1>
-      <p>One permanent home for every approved record your studio has shared.</p>
-      <section className="panel client-document-list">
-        {projectRecords.map((record) => (
-            <article key={record.id}>
-              <span className="client-document-icon"><FileText /></span>
-              <span>
-                <strong>{record.label}</strong>
-                <small>{record.detail}</small>
-              </span>
-              {record.href ? (
-                record.external ? (
-                  <a href={record.href} rel="noreferrer" target="_blank">Open <ExternalLink /></a>
-                ) : (
-                  <Link href={record.href}>
-                    {record.actionLabel ?? "Review"} <ArrowRight />
-                  </Link>
-                )
-              ) : (
-                <StatusBadge tone={statusTone(record.status)}>{statusLabel(record.status)}</StatusBadge>
-              )}
-            </article>
-          ))}
-      </section>
-    </div>
-  );
-}
-
-export function LiveClientMessages() {
-  const workspace = useWorkspace();
-  const messages = useProjectRecords("messages");
-  const draftId = useRef<string | null>(null);
-  const [subject, setSubject] = useState("Project question");
-  const [context, setContext] = useState<string | null>(null);
-  const [replyToMessageId, setReplyToMessageId] = useState<string | null>(null);
-  const [body, setBody] = useState("");
-  const [attachments, setAttachments] = useState<ClientMessageAttachment[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  useEffect(() => {
-    const requestedContext = new URLSearchParams(window.location.search).get("context");
-    if (!requestedContext) return;
-    queueMicrotask(() => {
-      setContext(requestedContext.slice(0, 120));
-      setSubject(`${requestedContext} question`.slice(0, 120));
-    });
-  }, []);
-  async function addAttachments(files: FileList | null) {
-    if (!files || !workspace.tenantId || !workspace.projectId) return;
-    const selected = Array.from(files).slice(0, 5 - attachments.length);
-    if (!selected.length) return;
-    draftId.current ??= crypto.randomUUID();
-    setUploading(true);
-    setNotice(null);
-    try {
-      const uploaded: ClientMessageAttachment[] = [];
-      for (const file of selected) {
-        uploaded.push(
-          await uploadClientMessageAttachment({
-            tenantId: workspace.tenantId,
-            projectId: workspace.projectId,
-            draftId: draftId.current,
-            file,
-          }),
-        );
-      }
-      setAttachments((current) => [...current, ...uploaded]);
-    } catch (caught: unknown) {
-      setNotice(friendlyError(caught, "The attachment could not be uploaded."));
-    } finally {
-      setUploading(false);
-    }
-  }
-  async function sendMessage() {
-    if (!workspace.tenantId || !workspace.projectId || !body.trim() || !subject.trim()) return;
-    draftId.current ??= crypto.randomUUID();
-    setSending(true);
-    setNotice(null);
-    try {
-      await sendClientPortalMessage(
-        workspace.tenantId,
-        workspace.projectId,
-        {
-          subject: subject.trim(),
-          body: body.trim(),
-          context,
-          replyToMessageId,
-          attachments,
-          idempotencyKey: draftId.current,
-        },
-      );
-      setBody("");
-      setSubject("Project question");
-      setContext(null);
-      setReplyToMessageId(null);
-      setAttachments([]);
-      draftId.current = null;
-      setNotice("Message sent securely to your studio.");
-      messages.refresh?.();
-    } catch (caught: unknown) {
-      setNotice(
-        friendlyError(caught, "Your message could not be sent."),
-      );
-    } finally {
-      setSending(false);
-    }
-  }
-  return (
-    <div className="client-booking-page">
-      <p className="eyebrow">Conversation</p>
-      <h1>Messages</h1>
-      <p>Project updates and requests shared between you and {workspace.tenantName}.</p>
-      {messages.loading || messages.error ? (
-        <PortalState loading={messages.loading} error={messages.error} />
-      ) : messages.value.length ? (
-        <section className="panel client-message-list">
-          {[...messages.value]
-            .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
-            .map((message) => {
-              const fromStudio = message.direction === "outbound";
-              const messageAttachments = Array.isArray(message.attachmentReferences)
-                ? (message.attachmentReferences as Array<Record<string, unknown>>)
-                : [];
-              return (
-              <article className={fromStudio ? "is-studio" : "is-client"} key={message.id}>
-                <span className="client-message-icon"><MessageCircle /></span>
-                <span>
-                  <span className="client-message-title">
-                    <strong>{text(message.subject, "Project update")}</strong>
-                    {fromStudio && !message.clientReadAt ? <em>New</em> : null}
-                  </span>
-                  <p>{text(message.bodyPreview ?? message.body, "Open the email from your studio for full details.")}</p>
-                  {messageAttachments.length ? (
-                    <small><Paperclip /> {messageAttachments.map((attachment) => text(attachment.name, "Attachment")).join(", ")}</small>
-                  ) : null}
-                  {/* The stored status is written from the studio's side — a
-                      client's message lands as `received`, meaning the studio
-                      has it. Rendered verbatim that read "You · … · Received"
-                      on the couple's own message, which is backwards from
-                      where they are sitting. Their own message says what the
-                      confirmation said: sent. */}
-                  <small>{fromStudio ? workspace.tenantName : "You"} · {date(message.sentAt ?? message.createdAt)} · {fromStudio ? statusLabel(message.status) || "sent" : "Sent"}</small>
-                </span>
-                {fromStudio ? (
-                  <button
-                    className="client-message-reply"
-                    onClick={() => {
-                      setReplyToMessageId(message.id);
-                      setContext(text(message.context, "Project message"));
-                      setSubject(`Re: ${text(message.subject, "Project update")}`.slice(0, 120));
-                      document.getElementById("client-message-body")?.focus();
-                    }}
-                    type="button"
-                  >
-                    Reply
-                  </button>
-                ) : null}
-              </article>
-            );})}
-        </section>
-      ) : (
-        <section className="panel client-empty-moment">
-          <FolderOpen />
-          <div>
-            <h2>No messages yet</h2>
-            <p>When your studio sends a project update, it will appear here.</p>
-          </div>
-        </section>
-      )}
-      <section className="panel client-message-composer">
-        <div>
-          <p className="eyebrow">New message</p>
-          <h2>Message {workspace.tenantName}</h2>
-          <p>
-            Use this for project questions or changes. Your message is saved in
-            this secure project workspace.
-          </p>
-        </div>
-        {context ? (
-          <div className="client-message-context">
-            <span>About: <strong>{context}</strong></span>
-            <button onClick={() => setContext(null)} type="button">Clear</button>
-          </div>
-        ) : null}
-        <label htmlFor="client-message-subject">Subject</label>
-        <input
-          id="client-message-subject"
-          maxLength={120}
-          onChange={(event) => setSubject(event.target.value)}
-          value={subject}
-        />
-        <label htmlFor="client-message-body">Message</label>
-        <textarea
-          id="client-message-body"
-          maxLength={5000}
-          onChange={(event) => setBody(event.target.value)}
-          placeholder="What would you like your studio to know?"
-          rows={5}
-          value={body}
-        />
-        <div className="client-message-attachments">
-          {attachments.map((attachment) => (
-            <span key={attachment.storagePath}>
-              <Paperclip /> {attachment.name}
-              <button
-                aria-label={`Remove ${attachment.name}`}
-                onClick={() => setAttachments((current) => current.filter((item) => item.storagePath !== attachment.storagePath))}
-                type="button"
-              >
-                ×
-              </button>
-            </span>
-          ))}
-          {attachments.length < 5 ? (
-            <label className="button button-light" htmlFor="client-message-files">
-              <Paperclip /> {uploading ? "Uploading…" : "Attach files"}
-            </label>
-          ) : null}
-          <input
-            accept=".pdf,.docx,.jpg,.jpeg,.png"
-            disabled={uploading}
-            hidden
-            id="client-message-files"
-            multiple
-            onChange={(event) => {
-              void addAttachments(event.target.files);
-              event.target.value = "";
-            }}
-            type="file"
-          />
-          <small>PDF, Word, JPG, or PNG · 12 MB each · securely scanned before studio access</small>
-        </div>
-        <div className="client-message-composer-actions">
-          <button
-            className="button button-dark"
-            disabled={sending || uploading || !body.trim() || !subject.trim()}
-            onClick={() => void sendMessage()}
-            type="button"
-          >
-            <MessageCircle />
-            {sending ? "Sending…" : "Send secure message"}
-          </button>
-          {notice ? <p role="status">{notice}</p> : null}
-        </div>
-      </section>
-    </div>
-  );
-}
-
 export function proposalErrorMessage(error: string) {
   const messages: Record<string, string> = {
     PROPOSAL_EXPIRED:
@@ -1300,216 +960,6 @@ export function LiveClientPackage() {
           </span>
         </div>
       </section>
-    </div>
-  );
-}
-
-export function LiveClientSchedule() {
-  const portalProject = useProject();
-  const schedules = useProjectRecords("schedules");
-  const [notice, setNotice] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [mode, setMode] = useState<"idle" | "changes">("idle");
-  const [changeNote, setChangeNote] = useState("");
-  const [selectedItemId, setSelectedItemId] = useState("");
-  const [localStatus, setLocalStatus] = useState<string | null>(null);
-  const orderedSchedules = useMemo(
-    () => [...schedules.value].sort((a, b) => number(b.version) - number(a.version)),
-    [schedules.value],
-  );
-  const schedule = orderedSchedules[0];
-  if (schedules.loading || schedules.error || !schedule)
-    return <PortalPageState eyebrow="Event day" title="Your schedule" description="Review the current run of show and respond when your studio requests approval." loading={schedules.loading} error={schedules.error} empty={!schedules.loading && !schedules.error ? "The published run of show will appear here when it is ready for you." : undefined} area="schedule" milestones={portalProject.value?.milestones ?? null} />;
-  const items = Array.isArray(schedule.items)
-    ? (schedule.items as Array<Record<string, unknown>>)
-    : [];
-  const status = localStatus ?? text(schedule.status);
-  /**
-   * Whether the couple can still decide anything about this run of show.
-   *
-   * A schedule left in `client_review` keeps asking "Is this schedule ready?
-   * Approve this exact version or explain what your studio should revise" — and
-   * that question was still being put to a couple thirteen days after their
-   * wedding. There is nothing to revise about a day that has happened.
-   */
-  const eventBehindThem = portalStageIsBehind(
-    portalProject.value?.milestones ?? null,
-    "schedule",
-  );
-  const actionable = status === "client_review" && !eventBehindThem;
-  async function decide(decision: "approved" | "changes_requested") {
-    if (busy || (decision === "changes_requested" && changeNote.trim().length < 10)) return;
-    setBusy(true);
-    setNotice(null);
-    try {
-      const selectedItem = items.find((item) => text(item.id) === selectedItemId);
-      const itemContext = selectedItem
-        ? `Schedule item: ${text(selectedItem.title)} (${new Date(String(selectedItem.startAt)).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}). `
-        : "";
-      await sendPlanningCommand("approveSchedule", {
-        projectId: schedule.projectId,
-        scheduleId: schedule.id,
-        decision,
-        notes:
-          decision === "approved"
-            ? "Approved by client in the StudioCue portal."
-            : `${itemContext}${changeNote.trim()}`,
-      });
-      setLocalStatus(decision);
-      setMode("idle");
-      setNotice(
-        decision === "approved"
-          ? "Schedule approved."
-          : "Change request sent to the studio.",
-      );
-    } catch (caught: unknown) {
-      setNotice(
-        friendlyError(caught, "Schedule response failed."),
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-  const clientVisibleItems = displayableScheduleItems(
-    items.filter((item) =>
-      ["client", "shared"].includes(text(item.visibility, "shared")),
-    ),
-  );
-  return (
-    <div className="client-booking-page">
-      <p className="eyebrow">
-        Version {number(schedule.version)} · {status.replaceAll("_", " ")}
-      </p>
-      <h1>Your event-day schedule</h1>
-      <p>
-        {eventBehindThem
-          ? `Times are shown in ${text(schedule.timezone)}. This is the running order your day was built on, kept for your records.`
-          : `Times are shown in ${text(schedule.timezone)}. Keep this page available on your phone for the current event brief.`}
-      </p>
-      {orderedSchedules.length > 1 ? (
-        <p className="client-schedule-history">
-          <Clock3 /> Version {number(schedule.version)} is current · {orderedSchedules.length - 1} earlier {orderedSchedules.length === 2 ? "version" : "versions"}{" "} preserved
-        </p>
-      ) : null}
-      {/* Items with no usable start time are left out rather than rendered as
-          "Invalid Date". A schedule can be marked approved and still hold items
-          the reader cannot understand, and a couple should be told that plainly
-          instead of being handed six broken clocks the night before. */}
-      {clientVisibleItems.length ? (
-        <section className="mobile-schedule">
-          {clientVisibleItems.map((item) => {
-            const clock = scheduleItemClock(item, text(schedule.timezone, "") || undefined);
-            return (
-              <article key={text(item.id)}>
-                <span>
-                  <strong>{clock?.start}</strong>
-                  {clock?.end ? <small>{clock.end}</small> : null}
-                </span>
-                <div>
-                  <h2>{text(item.title, "Detail to be confirmed")}</h2>
-                  <p>
-                    <MapPin /> {text(item.location, "Location pending")}
-                  </p>
-                </div>
-              </article>
-            );
-          })}
-        </section>
-      ) : (
-        <section className="panel client-schedule-empty">
-          <h2>No times are set on this schedule yet</h2>
-          <p>
-            Your studio is still putting the running order together. It will
-            appear here as soon as the times are set.
-          </p>
-        </section>
-      )}
-      {actionable ? (
-        <section className="panel client-schedule-decision">
-          <div>
-            <p className="eyebrow">Your decision</p>
-            <h2>Is this schedule ready?</h2>
-            <p>Approve this exact version or explain what your studio should revise.</p>
-          </div>
-          {mode === "changes" ? (
-            <div className="client-schedule-change">
-              <label htmlFor="schedule-item-reference">Schedule item (optional)</label>
-              <select
-                id="schedule-item-reference"
-                onChange={(event) => setSelectedItemId(event.target.value)}
-                value={selectedItemId}
-              >
-                <option value="">The schedule overall</option>
-                {items.map((item) => (
-                  <option key={text(item.id)} value={text(item.id)}>
-                    {new Date(String(item.startAt)).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} — {text(item.title)}
-                  </option>
-                ))}
-              </select>
-              <label htmlFor="schedule-change-note">What should change?</label>
-              <textarea
-                id="schedule-change-note"
-                maxLength={2000}
-                onChange={(event) => setChangeNote(event.target.value)}
-                placeholder="Describe the correct time, location, order, or detail."
-                rows={4}
-                value={changeNote}
-              />
-              <div className="schedule-client-actions">
-                <button
-                  className="button button-dark"
-                  disabled={busy || changeNote.trim().length < 10}
-                  onClick={() => void decide("changes_requested")}
-                  type="button"
-                >
-                  {busy ? "Sending…" : "Send change request"}
-                </button>
-                <button
-                  className="button button-light"
-                  disabled={busy}
-                  onClick={() => setMode("idle")}
-                  type="button"
-                >
-                  Go back
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="schedule-client-actions">
-              <button
-                className="button button-dark"
-                disabled={busy}
-                onClick={() => void decide("approved")}
-                type="button"
-              >
-                {busy ? "Saving…" : "Approve this version"}
-              </button>
-              <button
-                className="button button-light"
-                disabled={busy}
-                onClick={() => setMode("changes")}
-                type="button"
-              >
-                Request changes
-              </button>
-            </div>
-          )}
-        </section>
-      ) : (
-        <section className="client-schedule-result">
-          <CheckCircle2 />
-          <span>
-            <strong>
-              {status === "approved" ? "You approved this schedule." : "This is the current shared schedule."}
-            </strong>
-            <small>Your studio will notify you if a newer version needs review.</small>
-          </span>
-        </section>
-      )}
-      {notice ? <p className="form-notice" role="status">{notice}</p> : null}
-      <Link className="client-context-message-link" href="/client/messages?context=Event%20schedule">
-        <MessageCircle /> Ask your studio about the schedule
-      </Link>
     </div>
   );
 }

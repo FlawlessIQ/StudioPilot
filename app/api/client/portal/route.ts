@@ -455,7 +455,9 @@ async function clientRecords(
     }
     if (
       collectionName === "schedules" &&
-      !["client_review", "approved", "published"].includes(
+      // changes_requested stays: a couple who asked for changes used to see
+      // their timeline vanish until the studio published the next version.
+      !["client_review", "approved", "published", "changes_requested"].includes(
         String(value.status),
       )
     ) {
@@ -585,7 +587,7 @@ async function clientProject(tenantId: string, projectId: string) {
           );
         }
         if (collectionName === "schedules") {
-          return ["client_review", "approved", "published"].includes(
+          return ["client_review", "approved", "published", "changes_requested"].includes(
             String(value.status),
           );
         }

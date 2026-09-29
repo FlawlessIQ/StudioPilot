@@ -71,3 +71,21 @@ export function displayableScheduleItems<T extends Record<string, unknown>>(
       String(left.startAt).localeCompare(String(right.startAt)),
     );
 }
+
+/**
+ * The event's zone in words ("Eastern Time"), or null for an unknown zone.
+ *
+ * A couple planning from another city read every time in their own phone's
+ * zone, including the item they named in a change request.
+ */
+export function scheduleZoneLabel(timeZone: string | null | undefined): string | null {
+  if (!timeZone) return null;
+  try {
+    const part = new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "longGeneric" })
+      .formatToParts(new Date())
+      .find((candidate) => candidate.type === "timeZoneName");
+    return part?.value ?? null;
+  } catch {
+    return null;
+  }
+}

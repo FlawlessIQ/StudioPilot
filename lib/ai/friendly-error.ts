@@ -11,6 +11,10 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   QUESTIONNAIRE_ALREADY_SUBMITTED:
     "You've already sent this to your studio. Message them if you'd like to change an answer.",
   RESPONSE_NOT_FOUND: "This questionnaire couldn't be found. Refresh and try again.",
+  // The couple's timeline (planningCommand approveSchedule).
+  SCHEDULE_NOT_FOUND: "This timeline couldn't be found. Refresh to see the latest from your studio.",
+  SCHEDULE_NOT_IN_REVIEW:
+    "This version isn't waiting for your answer any more. Refresh to see the latest from your studio.",
   // Closing and reopening an inquiry (crmCommand closeInquiry / reopenInquiry).
   INQUIRY_NOT_FOUND: "That inquiry couldn't be found. Refresh and try again.",
   INQUIRY_NOT_CLOSABLE: "This couple has booked, so it's a job now rather than an inquiry to close.",
