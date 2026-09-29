@@ -119,6 +119,15 @@ export function missingInformationFor(fields: ReturnType<typeof leadFieldsFrom>)
   ];
 }
 
+export type CaptureAuthentication = {
+  spf: string | null;
+  dkim: string | null;
+  from: string | null;
+  envelopeFrom: string | null;
+  trust: string;
+  forwarder: { mailbox: string | null; ownMailbox: boolean; signers: string[] };
+};
+
 export async function captureInquiry(input: {
   db: Firestore;
   tenantId: string;
@@ -133,6 +142,12 @@ export async function captureInquiry(input: {
    * and never attached to an existing couple's thread.
    */
   reviewReason?: string | null;
+  /**
+   * What the inbound message proved about its sender (SPF/DKIM results, the
+   * forwarding mailbox and its signers). Recorded on the capture; the
+   * studio's "Yes" learns the forwarder from it (crm updateLead).
+   */
+  authentication?: CaptureAuthentication | null;
   now: string;
 }): Promise<{ outcome: CaptureOutcome; leadId: string | null; projectId: string | null; captureId: string }> {
   const { db, tenantId, now } = input;
@@ -194,6 +209,7 @@ export async function captureInquiry(input: {
       formName: read.formName,
       formKey,
       forwarded: read.forwarded,
+      authentication: input.authentication ?? null,
       verdict: read.verdict,
       verdictReason: read.verdictReason,
       contactSource: read.contactSource,

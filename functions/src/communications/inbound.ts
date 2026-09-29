@@ -24,6 +24,7 @@ import { captureInquiry } from "../intake/capture.js";
 import { reopenOnReply } from "../intake/follow-ups.js";
 import {
   dkimPassesFor,
+  forwarderEvidence,
   shortAddressTrust,
   staffMailboxes,
   staffUserIds,
@@ -319,28 +320,49 @@ export const sendgridInboundMessage = onRequest(
         return;
       }
       let reviewReason: string | null = null;
+      const settings = await db.doc(`leadCaptureSettings/${tenantDocument.id}`).get();
+      const own = await studioMailboxes(db, tenantDocument.id, settings);
+      let trustReason: string = parsed.inquiry ? "signed_address" : "unverified";
       if (!parsed.inquiry) {
-        const settings = await db.doc(`leadCaptureSettings/${tenantDocument.id}`).get();
         const forms = (settings.get("forms") as Record<string, { sender?: unknown }> | undefined) ?? {};
         const trust = shortAddressTrust({
           from: parsed.from,
           envelopeFrom: parsed.envelopeFrom,
           auth: parsed.auth,
-          own: await studioMailboxes(db, tenantDocument.id, settings),
+          own,
           confirmed: [
             ...((settings.get("inquirySenders") as string[] | undefined) ?? []),
             ...Object.values(forms)
               .map((form) => form.sender)
               .filter((sender): sender is string => typeof sender === "string"),
           ],
+          learned: (settings.get("trustedForwarders") as string[] | undefined) ?? [],
         });
         reviewReason = trust.trusted ? null : trust.reason;
+        trustReason = trust.trusted ? trust.reason : "unverified";
       }
+      // What the message proved, kept on the capture: so a held forward can be
+      // explained from what arrived rather than guessed at from DNS, and so the
+      // studio's "Yes" can teach StudioCue this mailbox and its signer.
+      const authentication = {
+        spf: parsed.auth.spf?.slice(0, 200) ?? null,
+        dkim: parsed.auth.dkim?.slice(0, 500) ?? null,
+        from: parsed.from?.slice(0, 200) ?? null,
+        envelopeFrom: parsed.envelopeFrom?.slice(0, 200) ?? null,
+        trust: trustReason,
+        forwarder: forwarderEvidence({
+          from: parsed.from,
+          envelopeFrom: parsed.envelopeFrom,
+          auth: parsed.auth,
+          own,
+        }),
+      };
       const captured = await captureInquiry({
         db,
         tenantId: tenantDocument.id,
         address: parsed.inquiry ? "signed" : "short",
         reviewReason,
+        authentication,
         email: {
           from: parsed.from,
           fromName: parsed.fromName,

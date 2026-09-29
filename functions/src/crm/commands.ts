@@ -8,6 +8,7 @@ import { studioHubCors } from "../security/cors.js";
 import { reconcileProjectReadiness } from "../workflow/readiness-triggers.js";
 import { teamRoleForEmail } from "./team-email.js";
 import { afterConversion, convertInquiryToJob } from "../intake/convert.js";
+import { forwarderKey } from "../intake/short-address.js";
 
 /** An inquiry's states before booking — the ones it can be closed from. */
 const PRE_BOOKING = ["LEAD", "CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING"];
@@ -2217,6 +2218,7 @@ export const crmCommand = onRequest(
             ...(next.estimatedGuestCount ? [] : ["guest count"]),
           ];
           let learnedSender: string | null = null;
+          let learnedForwarders: string[] = [];
           if (confirmInquiry && lead.get("needsConfirmation") === true) {
             changes.needsConfirmation = false;
             const captureId = lead.get("captureId");
@@ -2227,22 +2229,45 @@ export const crmCommand = onRequest(
               // address (a manual forward) is not a form and is not.
               const personal = String(next.email ?? "").toLowerCase();
               if (typeof sender === "string" && sender && sender !== personal) learnedSender = sender;
+              // The studio's own mailbox that forwarded it, with the service
+              // that signed it, is learned too: from now on its forwards are
+              // trusted without the studio ever touching DNS. Only a mailbox
+              // that is the studio's — a stranger's "Yes" teaches nothing.
+              const forwarder = capture.get("authentication.forwarder") as
+                | { mailbox?: unknown; ownMailbox?: unknown; signers?: unknown }
+                | undefined;
+              if (
+                forwarder?.ownMailbox === true &&
+                typeof forwarder.mailbox === "string" &&
+                Array.isArray(forwarder.signers)
+              ) {
+                learnedForwarders = forwarder.signers
+                  .filter((signer): signer is string => typeof signer === "string" && signer.length > 0)
+                  .map((signer) => forwarderKey(forwarder.mailbox as string, signer));
+              }
             }
           }
           const settingsReference = db.doc(`leadCaptureSettings/${command.tenantId}`);
-          const settings = learnedSender ? await transaction.get(settingsReference) : null;
+          const settings =
+            learnedSender || learnedForwarders.length ? await transaction.get(settingsReference) : null;
           transaction.update(leadReference, {
             ...changes,
             updatedAt: timestamp,
             updatedBy: identity.uid,
           });
-          if (learnedSender) {
+          if (learnedSender || learnedForwarders.length) {
             const known = (settings?.get("inquirySenders") as string[] | undefined) ?? [];
+            const forwarders = (settings?.get("trustedForwarders") as string[] | undefined) ?? [];
             transaction.set(
               settingsReference,
               {
                 tenantId: command.tenantId,
-                inquirySenders: Array.from(new Set([...known, learnedSender])).slice(-200),
+                ...(learnedSender
+                  ? { inquirySenders: Array.from(new Set([...known, learnedSender])).slice(-200) }
+                  : {}),
+                ...(learnedForwarders.length
+                  ? { trustedForwarders: Array.from(new Set([...forwarders, ...learnedForwarders])).slice(-200) }
+                  : {}),
                 updatedAt: timestamp,
               },
               { merge: true },
