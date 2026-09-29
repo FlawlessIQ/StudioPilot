@@ -40,3 +40,17 @@ test("a contract imported the first time becomes an agreement the editor offers"
   const firstActivation = review.slice(review.indexOf('if (assetType === "package") {\n        const packageId'));
   assert.match(firstActivation, /if \(assetType === "contract"\) \{\s*const templateId = `imported_agreement_\$\{assetId\}`;\s*transaction\.set\(/);
 });
+
+test("a flattened upload gets its numbered clauses and title back, and the flag quotes the priced sentence", async () => {
+  const { convertImportedAgreement } = await import("@/features/contracts/document");
+  // Walked on prod 2026-09-29: an uploaded contract came back as one line.
+  const flat =
+    'PHOTOGRAPHY SERVICES AGREEMENT This agreement is between [Studio Name] and [Client Names] for coverage on [Event Date]. 1. Services. Up to eight hours of coverage. 2. Fees. The total fee for the Services is $4,500.00. The balance is due fourteen days before the event. 3. Cancellation. The retainer is kept. 4. Image rights. Photographer keeps copyright.';
+  const converted = convertImportedAgreement(flat);
+  assert.equal(converted.title, "Photography Services Agreement");
+  assert.equal(converted.clausesRestored, 4);
+  assert.match(converted.body, /\n\n\*\*4\. Image rights\.\*\* Photographer/);
+  const flags = pricingClauses(converted.body);
+  assert.equal(flags.length, 1);
+  assert.match(flags[0]!.text, /^\*\*2\. Fees\.\*\* The total fee for the Services is \$4,500\.00\./);
+});

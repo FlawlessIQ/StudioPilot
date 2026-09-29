@@ -16,13 +16,26 @@ export type PricingClause = {
   text: string;
 };
 
-const AMOUNT = /(?:[$£€]\s?\d[\d,]*(?:\.\d{2})?|\b\d[\d,]*(?:\.\d{2})?\s?(?:usd|dollars|gbp|eur)\b)/i;
-const PERCENT_OF_PRICE = /\b\d{1,3}\s?%\s+(?:of|retainer|deposit|non-?refundable)/i;
+const AMOUNT =
+  /(?:[$£€]\s?\d[\d,]*(?:\.\d{2})?|\b\d[\d,]*(?:\.\d{2})?\s?(?:usd|dollars|gbp|eur)\b)/i;
+const PERCENT_OF_PRICE =
+  /\b\d{1,3}\s?%\s+(?:of|retainer|deposit|non-?refundable)/i;
+
+const statesPrice = (text: string) =>
+  AMOUNT.test(text) || PERCENT_OF_PRICE.test(text);
 
 export function pricingClauses(body: string): PricingClause[] {
-  return body
-    .split("\n")
-    .map((text, index) => ({ line: index + 1, text: text.trim() }))
-    .filter(({ text }) => text && (AMOUNT.test(text) || PERCENT_OF_PRICE.test(text)))
-    .map(({ line, text }) => ({ line, text: text.length > 180 ? `${text.slice(0, 179)}…` : text }));
+  return body.split("\n").flatMap((raw, index) => {
+    const text = raw.trim();
+    if (!text || !statesPrice(text)) return [];
+    // A long clause is quoted by the sentence that prices, not the whole of it.
+    const sentences =
+      text.length > 180
+        ? text.split(/(?<=[.!?])\s+(?=[A-Z*])/).filter(statesPrice)
+        : [text];
+    return sentences.map((sentence) => ({
+      line: index + 1,
+      text: sentence.length > 180 ? `${sentence.slice(0, 179)}…` : sentence,
+    }));
+  });
 }

@@ -175,7 +175,11 @@ export function AgreementEditor() {
   }
 
   /** Put a converted agreement in the editor, and say what was done to it. */
-  function applyDraft(draft: ImportedAgreementConversion & { templateId: string | null; name: string }) {
+  function applyDraft(
+    draft: ImportedAgreementConversion & { templateId: string | null; name: string },
+    /** What was brought in, when it isn't the agreement's name (an uploaded file). */
+    source?: string,
+  ) {
     setName(draft.name);
     // The agreement's own title, or its name — never the starter's.
     setTitle(draft.title ?? draft.name);
@@ -185,7 +189,7 @@ export function AgreementEditor() {
     const mapped = draft.mapped.filter((entry) => !entry.key.startsWith("custom.")).length;
     setNotice(
       [
-        `Brought in "${draft.name}".`,
+        `Brought in "${source ?? draft.name}".`,
         mapped ? `${mapped} placeholder${mapped === 1 ? "" : "s"} now fill themselves from the job.` : null,
         draft.customFields.length
           ? `${draft.customFields.length} you'll fill per contract.`
@@ -253,7 +257,7 @@ export function AgreementEditor() {
         // A saved agreement gets a new version; otherwise a new one is made.
         templateId: loaded?.templateId ?? null,
         name: name.trim() || file.name.replace(/\.[a-z0-9]+$/i, "").slice(0, 120) || "My agreement",
-      });
+      }, file.name);
       void cancelStudioImport(sessionId).catch(() => undefined);
     } catch (caught: unknown) {
       setNotice(null);

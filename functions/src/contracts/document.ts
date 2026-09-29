@@ -759,6 +759,10 @@ export type ImportedAgreementConversion = {
 const CLAUSE_LABEL =
   /(^|[.!?]["”’)]?\s+)([A-Z][A-Za-z’']*(?:\s+(?:&|and|of|the|or|[A-Z][A-Za-z’']*)){0,4}):\s+/g;
 
+/** A numbered clause heading: "2. Fees." or "3) Cancellation:". */
+const NUMBERED_CLAUSE =
+  /(^|[.!?]["”’)]?\s+)(\d{1,2}[.)]\s+[A-Z][A-Za-z’'-]*(?:\s+(?:&|[A-Za-z][A-Za-z’'-]*)){0,3})[.:]\s+(?=[A-Z])/g;
+
 /**
  * Put back the paragraph breaks an extractor flattened.
  *
@@ -773,11 +777,20 @@ export function restoreClauseBreaks(text: string): { text: string; restored: num
   const longest = Math.max(0, ...lines.map((line) => line.length));
   if (lines.length > 3 && longest < 800) return { text, restored: 0 };
   let restored = 0;
-  const rebuilt = text.replace(CLAUSE_LABEL, (_, before: string, label: string) => {
+  const labelled = text.replace(CLAUSE_LABEL, (_, before: string, label: string) => {
     restored += 1;
     return `${before.trimEnd()}${before ? "\n\n" : ""}**${label}:** `;
   });
-  return restored >= 2 ? { text: rebuilt, restored } : { text, restored: 0 };
+  // "2. Fees. The total…" — numbered clauses, the other way agreements mark
+  // them (walked on prod 2026-09-29: an uploaded contract arrived as one line).
+  const numbered = labelled.replace(NUMBERED_CLAUSE, (_, before: string, label: string) => {
+    restored += 1;
+    return `${before.trimEnd()}${before ? "\n\n" : ""}**${label}.** `;
+  });
+  if (restored < 2) return { text, restored: 0 };
+  // An all-capitals title run into the first clause becomes its own line.
+  const titled = numbered.replace(/^([A-Z][A-Z&’' -]{8,80}[A-Z])\s+(?=[A-Z][a-z])/, "$1\n\n");
+  return { text: titled, restored };
 }
 
 /**
