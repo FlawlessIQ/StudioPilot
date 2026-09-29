@@ -76,6 +76,11 @@ test("the couple's link stops offering a call once the proposal is out", () => {
   assert.match(server, /if \(pastTheCall\(context\) && !\(await upcomingConsultation\(db, context\)\)\) \{/);
   const page = read("components/inquiries/couple-inquiry-page.tsx");
   assert.match(page, /: result\.pastConsultation\s*\? "moved_on"/);
+  // And names what is actually waiting: an agreement out is not "your proposal".
+  assert.match(server, /if \(state === "CONTRACT_PENDING"\) return "agreement";/);
+  assert.match(page, /heading: "your agreement is ready to sign"/);
+  // Cancelling no longer promises a new booking the link won't take.
+  assert.match(page, /preview\.pastConsultation\s*\? "Cancel your consultation\?"/);
 });
 
 test("the couple's link shows no stand-in studio while it loads", () => {

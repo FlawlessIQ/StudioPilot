@@ -495,6 +495,13 @@ function whenLabel(startsAt: string, timezone: string): string {
  * 2026-09-29). Before a job exists, or while it is still a lead or at the
  * consultation, the call is still ahead.
  */
+function jobStageOf(state: string): "proposal" | "agreement" | "retainer" | "booked" {
+  if (state === "PROPOSAL") return "proposal";
+  if (state === "CONTRACT_PENDING") return "agreement";
+  if (state === "RETAINER_PENDING") return "retainer";
+  return "booked";
+}
+
 function pastTheCall(context: InquiryLinkContext): boolean {
   const state = text(context.project?.get("state"));
   return Boolean(state) && !["LEAD", "CONSULTATION"].includes(state);
@@ -533,6 +540,8 @@ async function handleInquiryCommand(
       takesBookings: settings.exists,
       // A proposal is out: the call happened, so the link stops offering one.
       pastConsultation,
+      // Where the job is, so the page names the next thing in their email.
+      jobStage: pastConsultation ? jobStageOf(text(context.project?.get("state"))) : null,
       timezone,
       booked: upcoming
         ? {

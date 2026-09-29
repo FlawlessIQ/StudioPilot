@@ -49,6 +49,8 @@ type Preview = {
   takesBookings: boolean;
   /** A proposal is out: the call has happened. Absent from an older build. */
   pastConsultation?: boolean;
+  /** Where the job is once past the call; names what is in their email. */
+  jobStage?: "proposal" | "agreement" | "retainer" | "booked" | null;
   timezone: string;
   booked: { startsAt: string; endsAt: string; format: Format; joinUrl: string | null; location: string | null } | null;
 };
@@ -218,13 +220,33 @@ export function CoupleInquiryPage({ token }: { token: string }) {
   }
 
   const studio = preview?.studioName ?? "your photographer";
+  // Past the call, the page points at whatever is waiting in their email:
+  // "your proposal is ready" read wrong to a couple whose agreement was out.
+  const movedOn = {
+    proposal: {
+      heading: "your proposal is ready",
+      lede: `You’ve spoken with ${studio}, and they’ve sent your proposal. It’s in your email — open it there to look it over.`,
+    },
+    agreement: {
+      heading: "your agreement is ready to sign",
+      lede: `${studio} has sent your agreement. It’s in your email — sign it from there.`,
+    },
+    retainer: {
+      heading: "one last step: your retainer",
+      lede: `Your agreement is signed. ${studio} has emailed the retainer invoice; paying it holds your date.`,
+    },
+    booked: {
+      heading: "you’re booked",
+      lede: `${studio} has your date. Everything from here is in your client portal — the link is in your email.`,
+    },
+  }[preview?.jobStage ?? "proposal"];
   const phrase =
     step === "details"
       ? "tell us about your day"
       : step === "booked"
         ? "you’re booked in"
         : step === "moved_on"
-          ? "your proposal is ready"
+          ? movedOn.heading
           : `pick a time to talk with ${studio}`;
   // "Hi Sarah — tell us…" once we know them; otherwise the phrase stands alone
   // and starts with a capital.
@@ -246,7 +268,7 @@ export function CoupleInquiryPage({ token }: { token: string }) {
       : step === "booked"
         ? "Need a different time? You can move it or cancel it here."
         : step === "moved_on"
-          ? `You’ve spoken with ${studio}, and they’ve sent your proposal. It’s in your email — open it there to look it over.`
+          ? movedOn.lede
         : `A ${preview?.durationMinutes ?? 30}-minute conversation about your plans. Nothing is booked until you confirm.`;
 
   return (
@@ -401,7 +423,9 @@ export function CoupleInquiryPage({ token }: { token: string }) {
             {confirmingCancel ? (
               <>
                 <p className="kit-body" style={{ textAlign: "center" }}>
-                  Cancel your consultation? You can book another time here afterwards.
+                  {preview.pastConsultation
+                    ? "Cancel your consultation?"
+                    : "Cancel your consultation? You can book another time here afterwards."}
                 </p>
                 <ButtonRow>
                   <Button disabled={busy} onClick={() => setConfirmingCancel(false)} size="compact" variant="secondary">
