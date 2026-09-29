@@ -138,6 +138,16 @@ Detailed provider-console and business-owner steps are maintained in
      - Next: profile on a phone-class CPU, then build a light public shell,
        keep pre-hydration input, and add a bundle budget guard.
      - Investigation: [`inquiry-form-performance-investigation-2026-09-28.md`](./inquiry-form-performance-investigation-2026-09-28.md).
+  6. **Mobile-first couple and crew experience (H6).**
+     - Every screen a couple or crew member can see is redesigned from
+       scratch for phones: 28 couple screens, 16 crew screens and 34
+       emails.
+     - One kit and one set of tokens for web and native. The studio's brand
+       leads. Sign-in is passwordless.
+     - Ships to the stores via Capacitor.
+     - Sequenced before the client and crew surfaces of H1–H4.
+     - Plan: [`mobile-first-client-crew-plan-2026-09-28.md`](./mobile-first-client-crew-plan-2026-09-28.md).
+       Mockups: https://claude.ai/artifact/93XEH3xzW2xbgskX8zyEqK
 
 ## Phase 1 — Credential and environment safety
 
