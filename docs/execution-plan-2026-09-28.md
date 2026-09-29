@@ -115,6 +115,22 @@ These are independent of each other and of every later phase.
 
 ---
 
+## Order change, 2026-09-28: mobile foundation first (H6)
+
+Conor decided the couple and crew experience is redesigned mobile-first,
+from scratch (`mobile-first-client-crew-plan-2026-09-28.md`), and that its
+foundation comes **before** the couple and crew surfaces of H1–H4. So:
+
+- **Next is H6's M0**: fix the inquiry overflow, add a no-horizontal-overflow
+  guard on every couple and crew route at 360/390/430 px, and fix the
+  mock-mode build that blocks e2e.
+- **Then M1**: tokens.json, the mobile kit, studio white-label theming, a
+  light public shell, and passwordless sign-in.
+- **Phases 2–6 below** keep their order. Every **couple- or crew-facing**
+  screen in them is built in the M1 kit: H1's couple file preview, H2's
+  proposal/sign/pay, H3's inquiry COI question, and H4's "Your photos /
+  Your film". Their studio-side parts can proceed as planned.
+
 ## Phase 2 — Documents open in one click (H1, first half)
 
 | # | Step |

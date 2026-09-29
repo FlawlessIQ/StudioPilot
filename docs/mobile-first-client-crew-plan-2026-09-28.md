@@ -217,7 +217,7 @@ The studio-side (desktop) parts of H1–H4 are unaffected.
 | M4 | **Planning** | Questionnaire stepper, timeline + approve sheet, chat, files + preview (H1) | |
 | M5 | **After the wedding** | Your photos / Your film (H4), album, review | |
 | M6 | **Crew** | Offer, Today, Jobs, **offline day sheet with shot list**, documents with camera, closeout, availability calendar, profile | Day sheet data: family formals and must-haves from the questionnaire |
-| M7 | **Native** | Capacitor app: push, deep links, Sign in with Apple, account deletion, camera, haptics, store listings | Needs Apple and Google developer accounts |
+| M7 | **Native — parked (web only for now)** | Capacitor app: push, deep links, Sign in with Apple, account deletion, camera, haptics, store listings | Needs Apple and Google developer accounts |
 
 **Every phase ends with a walk on a real phone**: iPhone Safari and Android
 Chrome, at 360/390/430 px, with the Dynamic Type size increased. Also check
@@ -225,7 +225,30 @@ screenshots at those widths in a guard test.
 
 ---
 
-## Open decisions (recommendation first)
+## Decisions — answered by Conor, 2026-09-28
+
+1. **Brand:** couples see **the studio's** brand. "Powered by StudioCue"
+   appears in the footer only.
+2. **Stores:** **web app only for now.**
+   - No Capacitor or Expo work yet, so M7 is parked.
+   - The kit stays platform-neutral (tokens.json, component contracts),
+     so a store app later isn't blocked.
+   - Deep links and account deletion are still designed in.
+3. **When there is a store app:** **one StudioCue app** with couple and crew
+   modes, branded as the studio inside.
+4. **Sign-in:** **passwordless** for couples and crew.
+   - On the web now: Google and an emailed sign-in link.
+   - Sign in with Apple is added when an Apple developer account exists. It
+     becomes mandatory the day there is an iOS app.
+5. **Order:** **foundation first.** M0 (the overflow fix + a guard) now, then
+   M1, then the couple and crew parts of H1–H4 are built directly in the
+   new kit. The studio-side work on H1–H4 is unaffected.
+6. **Tabs:** 4 each.
+   - Couple: Home · Plan · Messages · Files. Payments lives in Home's next
+     step and in Plan.
+   - Crew: Today · Jobs · Calendar · Me.
+
+## The questions as they were asked (recommendation first)
 
 1. **Whose brand does a couple see?** *Recommended:* the studio's, with
    "Powered by StudioCue" in the footer only.
