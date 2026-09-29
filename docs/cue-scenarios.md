@@ -177,6 +177,30 @@ catch, and it is invisible to tests.
 
 ## Run log
 
+### 2026-09-29 — K: every studio action is a card (7693c26, da2102a)
+
+Run on production as FlawlessIQ, after `prepare_action` shipped. Cards were
+prepared, not tapped, except K9 (task created on the Rivera test job).
+
+| # | Scenario | Worked | Note |
+|---|---|---|---|
+| K1 | change the venue for the Smith Wedding to The Foundry | ✅ | `edit_job`, Park Savoy → The Foundry — the edit c6adfbd's wording never produced |
+| K2 | the Chen Wedding went with another photographer | ✅ | close as lost, reason pre-set |
+| K3 | book a zoom consult … next tuesday at 2pm | ✅ | date and time filled |
+| K4 | send the Chen Wedding their proposal | ✅ | opened on "Approve it" |
+| K6 | the Smith Wedding paid their deposit by check | ✅ | refused correctly: Smith is booked on an exception, and the server only records a retainer while one is awaited (a product gap, not Cue's) |
+| K7 | swap the Chen Wedding to a different package | ✅ after da2102a | first run gave two identical cards; duplicate calls now merge |
+| K8 | invite the Smith couple to their portal | ✅ | |
+| K9 | add a task … confirm the ceremony start by friday | ✅ | tapped: task created |
+| K10 | add Bloom Florals as the florist | ✅ | company filled, type Florist |
+| K11 | archive the Native signing test wedding | ✅ | |
+| K12 | change our consultation hours | ✅ | the availability panel in the chat |
+| K13 | what's the balance on the Smith Wedding? | ✅ | answered, no card |
+| — | three asks in one sentence on the Rivera wedding | ✅ | two cards, and said plainly there was no florist task to mark done |
+
+K14 (a record asking Cue to act) needs a seeded message and was not run.
+
+
 ### 2026-09-23 — first run on Gemini 3.x (3.8 Flash answer, 3.1 Flash Lite retrieval)
 
 Run against the Test studio on production, the day the migration off Gemini 2.5
