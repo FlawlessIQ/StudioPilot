@@ -14,6 +14,9 @@ import { startProviderConnect } from "@/lib/integrations/command-client";
 import { CreateCrewProfileForm } from "@/components/crew/create-crew-profile-form";
 import { CrewRecordActions, crewActionsProps } from "@/components/crew/crew-record-actions";
 import { CrewOfferSettings } from "@/components/crew/crew-offer-settings";
+import { CrewCascadeWorkspace } from "@/components/crew/crew-cascade-workspace";
+import { CreateWorkflowForm } from "@/components/workflows/create-workflow-form";
+import { CoiSettings } from "@/components/settings/coi-settings";
 import { ReadinessCheckpoints } from "@/components/projects/readiness-checkpoints";
 import { DeliveryForm } from "@/components/post-event/delivery-form";
 import { PostProductionChecklist } from "@/components/post-event/post-production-checklist";
@@ -705,6 +708,25 @@ export function SettingsCard({ action }: ActionCardProps) {
       body: <CrewOfferSettings />,
       href: "/studio/settings/crew-offers",
     },
+    edit_workflow_template: {
+      title: "Custom workflows",
+      detail: "The checklist and automations a kind of job follows. A change makes a new version; jobs already running keep theirs.",
+      body: <CreateWorkflowForm />,
+      href: "/studio/workflows",
+    },
+    set_insurance_settings: {
+      title: "Certificates of insurance",
+      detail: "Your agent's details and how StudioCue asks for, chases and sends certificates.",
+      body: <CoiSettings />,
+      href: "/studio/settings/insurance",
+    },
+    import_studio_materials: {
+      title: "Import your studio materials",
+      detail: "Bring in templates, price lists, contracts and questionnaires from files or your website. You review every draft before anything goes live.",
+      body: null,
+      href: "/studio/import",
+      open: "Open the importer",
+    },
     set_up_inquiry_capture: {
       title: "Inquiry capture",
       detail: "Forward inquiries to StudioCue and teach it your contact form.",
@@ -813,3 +835,25 @@ export function SubscriptionCard() {
   );
 }
 
+
+/**
+ * The crew for several roles at once, including the plan StudioCue prepared
+ * at booking: the crew page's own planner, for this job.
+ */
+export function CrewPlanCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const title = `Plan the crew · ${jobName(job)}`;
+  if (loading) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return notFound(title);
+  return (
+    <ActionShell
+      detail="Approve the plan prepared at booking, or choose people for each role. Offers go out when you send them; each person is asked in turn if the first says no."
+      icon={<Users size={15} />}
+      title={title}
+    >
+      <Embedded>
+        <CrewCascadeWorkspace projectId={job.id} />
+      </Embedded>
+    </ActionShell>
+  );
+}

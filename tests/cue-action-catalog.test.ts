@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
 import {
   MAX_PREPARED_ACTIONS,
@@ -46,127 +47,158 @@ test("ids are unique and every one is described to the model", () => {
 });
 
 /**
- * The parity this exists for. Each studio command endpoint's user-facing ops,
- * mapped to the card that reaches it — so a new op without a card is a
- * decision someone made, not one nobody noticed.
+ * The parity this exists for, kept by discovery rather than by memory.
+ *
+ * The first version listed the commands a card reached by hand, and within
+ * hours two features added seven studio commands it had never heard of
+ * (insurance and delivery, 2026-09-29) — the list passed and Cue fell behind.
+ * Now every command op in functions/src is found by reading the schemas, and
+ * each one must be either reached by a card (the string named here appears
+ * in a card's source or the panel it mounts) or listed as not a studio
+ * action, with the reason. A new command fails here until someone decides.
  */
-test("the studio's commands are all reachable from a card", () => {
+function discoverCommandOps(): Map<string, string> {
+  const walk = (dir: string): string[] =>
+    readdirSync(dir).flatMap((name) => {
+      const path = join(dir, name);
+      return statSync(path).isDirectory() ? walk(path) : path.endsWith(".ts") ? [path] : [];
+    });
+  const found = new Map<string, string>();
+  const pattern =
+    /(?:type|action):\s*z\.(?:literal\("(\w+)"\)|enum\(\[([^\]]+)\]\))\s*,\s*(?:\/\/[^\n]*\n\s*)*(?:tenantId|idempotencyKey|input|proposalId|projectId)\b/g;
+  for (const file of walk("functions/src")) {
+    const source = readFileSync(file, "utf8");
+    for (const match of source.matchAll(pattern)) {
+      const names = match[1] ? [match[1]] : [...match[2]!.matchAll(/"(\w+)"/g)].map((name) => name[1]!);
+      for (const name of names) if (!found.has(name)) found.set(name, file);
+    }
+  }
+  return found;
+}
+
+/** Reached from Cue: a string that must appear in the cards or the panels they mount or open. */
+const REACHED: Record<string, string> = {
+  // Jobs, inquiries, clients
+  createProject: "CreateProjectForm", createContact: "CreateContactForm", updateContact: "updateContact",
+  archiveContact: "ClientRecordActions", addProjectClient: "ProjectAddClient", associateClientProject: "ProjectAddClient",
+  updateProject: "\"updateProject\"", transitionProject: "\"transitionProject\"", archiveProject: "\"archiveProject\"",
+  updateLead: "\"updateLead\"", markLeadNotInquiry: "\"markLeadNotInquiry\"", closeInquiry: "\"closeInquiry\"",
+  reopenInquiry: "reopenInquiry", inquiryHeardElsewhere: "inquiryHeardElsewhere", keepInquiryOpen: "keepInquiryOpen",
+  invite: "type: \"invite\"", revoke: "type: \"revoke\"", status: "type: \"status\"",
+  previewProjectPurge: "DeleteJobPermanently", purgeProject: "DeleteJobPermanently",
+  // Packages and proposals
+  createPackage: "CreatePackageForm", updatePackage: "\"updatePackage\"", selectPackage: "\"selectPackage\"",
+  removePackage: "\"removePackage\"", decidePackageRequest: "\"decidePackageRequest\"",
+  create_draft: "\"create_draft\"", update_draft: "\"update_draft\"", submit_for_approval: "\"submit_for_approval\"",
+  approve: "\"approve\"", send: "\"send\"", resend: "\"resend\"", reissue: "\"reissue\"",
+  return_to_draft: "\"return_to_draft\"", regenerate_pdf: "\"regenerate_pdf\"", revise_packages: "\"revise_packages\"",
+  record_acceptance: "RecordProposalAcceptance",
+  // Consultations, contract, money, booking
+  scheduleConsultation: "\"scheduleConsultation\"", rescheduleConsultation: "\"rescheduleConsultation\"",
+  cancelConsultation: "\"cancelConsultation\"", completeConsultation: "\"completeConsultation\"",
+  setConsultationSettings: "ConsultationAvailability",
+  prepareContract: "NativeContractStep", sendContract: "NativeContractStep", voidContract: "NativeContractStep",
+  saveAgreementTemplate: "AgreementEditor", agreementDraftFromImport: "AgreementEditor", setContractAutoSend: "AgreementEditor",
+  setSignedCopyShared: "SignedCopySharing", recordSignedAgreement: "RecordSignedAgreement",
+  createRetainerInvoice: "\"createRetainerInvoice\"", recordRetainerPayment: "RecordRetainerPayment",
+  recordFinalPayment: "RecordFinalPayment", approveRetainerException: "BookWithoutRetainer",
+  lookupQuickBooksPayments: "lookupQuickBooksPayments", runBookingGate: "\"runBookingGate\"",
+  previewExistingBookings: "ExistingBookingForm", importExistingBooking: "ExistingBookingForm",
+  attachImportedSignedCopy: "ExistingBookingForm", bringImportedBookingLive: "ImportedBookingBanner",
+  // Planning
+  assignQuestionnaire: "\"assignQuestionnaire\"",
+  createQuestionnaireTemplate: "/studio/questionnaires", updateQuestionnaireTemplate: "/studio/questionnaires",
+  saveTimingRule: "TimingRuleEditor", createVendor: "\"createVendor\"", updateVendor: "VendorRecordActions",
+  archiveVendor: "\"archiveVendor\"", publishSchedule: "AiScheduleGenerator", setTimelineAuthority: "TimelineAuthorityPanel",
+  setInsuranceRequirement: "\"setInsuranceRequirement\"", shareRunOfShow: "\"shareRunOfShow\"",
+  revokeRunOfShowShare: "\"revokeRunOfShowShare\"",
+  createCoiRequest: "CoiWorkflowPanel", decideCoi: "CoiWorkflowPanel", sendCoiToVenue: "CoiWorkflowPanel",
+  approvePreparedCoi: "CoiWorkflowPanel", completeCoiDetails: "CoiWorkflowPanel", attachCoiUpload: "CoiWorkflowPanel",
+  approveAndSendCoi: "CoiWorkflowPanel", saveCoiSettings: "CoiSettings",
+  // Messages
+  sendMessage: "\"sendMessage\"", replyToConversation: "\"replyToConversation\"",
+  markConversationRead: "\"markConversationRead\"", approveMessage: "MessageApprovals", declineMessage: "MessageApprovals",
+  saveTemplateVersion: "/studio/settings/email-templates", activateTemplateVersion: "/studio/settings/email-templates",
+  sendTemplateTest: "/studio/settings/email-templates",
+  getInquiryForwardingAddress: "InquiryForwardingAddress", getLeadCaptureSetup: "InquiryForwardingSettings",
+  startCaptureTest: "InquiryForwardingSettings", saveFormMapping: "InquiryForwardingSettings",
+  // Crew
+  createCrewProfile: "CreateCrewProfileForm", updateCrewDirectoryEntry: "CrewRecordActions",
+  inviteCrewProfile: "\"inviteCrewProfile\"", archiveCrewProfile: "\"archiveCrewProfile\"",
+  setCrewCompliance: "CrewRecordActions", submitCrewProfileDocument: "CrewRecordActions",
+  inviteAssignment: "\"inviteAssignment\"", createCrewCascade: "\"createCrewCascade\"", createCrewPlan: "CrewCascadeWorkspace",
+  setCrewOfferSettings: "CrewOfferSettings", waiveRequirement: "\"waiveRequirement\"",
+  completeRequirement: "CrewCascadeWorkspace", completeAssignment: "CrewCascadeWorkspace",
+  reviewAssignmentCloseout: "\"reviewAssignmentCloseout\"", updateAssignmentPayment: "\"updateAssignmentPayment\"",
+  // Tasks and workflows
+  createTask: "\"createTask\"", completeTask: "\"completeTask\"", resolveCheckpoint: "ReadinessCheckpoints",
+  createWorkflowTemplate: "CreateWorkflowForm",
+  // After the event
+  completePostProductionStep: "PostProductionChecklist", recordDelivery: "DeliveryForm",
+  markDeliveryComplete: "DeliveryForm", discardDeliveryDraft: "DeliveryForm", markDeliveryDownloaded: "DeliveryForm",
+  updateAlbumStatus: "DeliveryCloseoutWorkspace", prepareCloseout: "DeliveryCloseoutWorkspace",
+  attestCloseoutRequirement: "DeliveryCloseoutWorkspace", closeProject: "DeliveryCloseoutWorkspace",
+  confirmReview: "\"confirmReview\"",
+  // Team and studio
+  inviteMember: "TeamManagement", revokeInvitation: "TeamManagement", updateMember: "TeamManagement",
+  setAutopay: "AutopaySettings", setOutsideStep: "OutsideStepCard",
+  setCapabilityProvider: "/studio/integrations", setContractTemplate: "/studio/integrations",
+  setProviderTestMode: "/studio/integrations", setSignatureMode: "/studio/integrations",
+  requestExport: "DataControls", requestDeletion: "DataControls", cancelDeletion: "DataControls",
+  createCheckout: "/studio/subscription", createPortal: "/studio/subscription", confirmCheckout: "/studio/subscription",
+  createSession: "/studio/import", createSourceSession: "/studio/import", getSession: "/studio/import",
+  getReview: "/studio/import", simulateSession: "/studio/import", reviewDraft: "/studio/import",
+  splitDraft: "/studio/import", mergeDrafts: "/studio/import", activateSession: "/studio/import",
+  rollbackAsset: "/studio/import", cancelSession: "/studio/import", retryItem: "/studio/import",
+  // Cue's own approval cards (components/ai/ai-approval-queue.tsx, in every Cue answer)
+  decideAiAction: "PreparedActions", snoozeAiAction: "PreparedActions", recordAiExecution: "PreparedActions",
+  sendApprovedDraft: "PreparedActions", crew_offer: "FlowRunner", select_package: "FlowRunner", select_questionnaire: "FlowRunner",
+};
+
+/** Commands that are not a studio user's to take, and why. */
+const NOT_A_STUDIO_ACTION: Record<string, string> = {
+  // The couple's own acts, in their portal.
+  approveSchedule: "couple", saveQuestionnaire: "couple", markReviewOpened: "couple", accept: "couple or invitee", preview: "invitee",
+  status_batch: "read by the clients list, not an act",
+  // A crew member's own acts, in the crew app.
+  respondAssignment: "crew", setAvailability: "crew", updateAvailability: "crew", deleteAvailability: "crew",
+  updateCrewProfile: "crew", acknowledgeCalendar: "crew", acknowledgeSchedule: "crew", submitAssignmentCloseout: "crew",
+  submitRequirement: "crew", contactStudio: "crew",
+  // Public pages, with no signed-in studio user.
+  create_link: "public scheduling", availability: "public scheduling", book: "public scheduling",
+  inquiry_preview: "public inquiry", inquiry_details: "public inquiry", inquiry_availability: "public inquiry",
+  inquiry_book: "public inquiry", inquiry_cancel: "public inquiry",
+  passwordReset: "sign-in", emailVerification: "sign-in", signInLink: "sign-in", previewInvitation: "invitee", acceptInvitation: "invitee",
+  // StudioCue's own staff (platform admin), not a studio.
+  setFeatureFlag: "platform", suspendTenant: "platform", repairOwnerMembership: "platform", grantSupportAccess: "platform",
+  rerunJob: "platform", revokeSupportAccess: "platform", approveDeletion: "platform",
+  // The system does these; no person asks for them.
+  instantiateWorkflow: "runs at booking", recalculateReadiness: "readiness triggers",
+  decideAutomationApproval: "automation approvals on Today", cancelReceipt: "action receipts on Today", retryReceipt: "action receipts on Today",
+  // Not offered: StudioCue has no signing provider (features/integrations/schema.ts offeredProviders).
+  createEnvelope: "no signing provider is offered",
+};
+
+test("every studio command is reachable from Cue, or is said not to be a studio's", () => {
+  const ops = discoverCommandOps();
+  assert.ok(ops.size > 150, `found only ${ops.size} command ops — the discovery pattern has broken`);
   const sources = [
-    "components/ai/actions/job-actions.tsx",
-    "components/ai/actions/booking-actions.tsx",
-    "components/ai/actions/planning-actions.tsx",
-    "components/ai/actions/studio-actions.tsx",
+    ...readdirSync("components/ai/actions").map((name) => `components/ai/actions/${name}`),
     "components/ai/flow-runner.tsx",
+    "components/ai/copilot-workspace.tsx",
   ]
     .map((path) => readFileSync(path, "utf8"))
     .join("\n");
-  // Called directly by a card, or by the app panel a card embeds.
-  const embedded: Record<string, string> = {
-    createProject: "CreateProjectForm",
-    createContact: "CreateContactForm",
-    addProjectClient: "ProjectAddClient",
-    updateContact: "ClientRecordActions|updateContact",
-    record_acceptance: "RecordProposalAcceptance",
-    recordSignedAgreement: "RecordSignedAgreement",
-    recordRetainerPayment: "RecordRetainerPayment",
-    recordFinalPayment: "RecordFinalPayment",
-    approveRetainerException: "BookWithoutRetainer",
-    importExistingBooking: "ExistingBookingForm",
-    bringImportedBookingLive: "ImportedBookingBanner",
-    prepareContract: "NativeContractStep",
-    sendContract: "NativeContractStep",
-    voidContract: "NativeContractStep",
-    publishSchedule: "AiScheduleGenerator",
-    setTimelineAuthority: "TimelineAuthorityPanel",
-    createCoiRequest: "CoiWorkflowPanel",
-    decideCoi: "CoiWorkflowPanel",
-    sendCoiToVenue: "CoiWorkflowPanel",
-    updateVendor: "VendorRecordActions",
-    createCrewProfile: "CreateCrewProfileForm",
-    updateCrewDirectoryEntry: "CrewRecordActions",
-    setCrewCompliance: "CrewRecordActions",
-    setCrewOfferSettings: "CrewOfferSettings",
-    resolveCheckpoint: "ReadinessCheckpoints",
-    recordDelivery: "DeliveryForm",
-    completePostProductionStep: "PostProductionChecklist",
-    updateAlbumStatus: "DeliveryCloseoutWorkspace",
-    attestCloseoutRequirement: "DeliveryCloseoutWorkspace",
-    closeProject: "DeliveryCloseoutWorkspace",
-    inviteMember: "TeamManagement",
-    updateMember: "TeamManagement",
-    revokeInvitation: "TeamManagement",
-    purgeProject: "DeleteJobPermanently",
-    createPackage: "CreatePackageForm",
-    updatePackage: "EditPackageForm|updatePackage",
-    saveAgreementTemplate: "AgreementEditor",
-    setContractAutoSend: "AgreementEditor",
-    // Full-page editors: the card opens them (they overflow a chat column).
-    createQuestionnaireTemplate: "/studio/questionnaires",
-    updateQuestionnaireTemplate: "/studio/questionnaires",
-    saveTemplateVersion: "/studio/settings/email-templates",
-    activateTemplateVersion: "/studio/settings/email-templates",
-    setConsultationSettings: "ConsultationAvailability",
-    saveLifecycleSettings: "LifecyclePackPanel",
-    setAutopay: "AutopaySettings",
-    tenantBrandingCommand: "EmailBranding",
-    tenantIdentityCommand: "StudioIdentitySettings",
-    saveTimingRule: "TimingRuleEditor",
-    requestExport: "DataControls",
-    saveFormMapping: "InquiryForwardingSettings",
-    inviteAssignment: "inviteAssignment",
-    createCrewCascade: "createCrewCascade",
-    selectPackage: "selectPackage",
-    assignQuestionnaire: "assignQuestionnaire",
-  };
-  const direct = [
-    "updateProject",
-    "closeInquiry",
-    "reopenInquiry",
-    "keepInquiryOpen",
-    "inquiryHeardElsewhere",
-    "markLeadNotInquiry",
-    "updateLead",
-    "transitionProject",
-    "archiveProject",
-    "removePackage",
-    "decidePackageRequest",
-    "scheduleConsultation",
-    "rescheduleConsultation",
-    "cancelConsultation",
-    "completeConsultation",
-    "create_draft",
-    "update_draft",
-    "submit_for_approval",
-    "approve",
-    "send",
-    "resend",
-    "reissue",
-    "return_to_draft",
-    "revise_packages",
-    "createRetainerInvoice",
-    "runBookingGate",
-    "lookupQuickBooksPayments",
-    "shareRunOfShow",
-    "revokeRunOfShowShare",
-    "setInsuranceRequirement",
-    "createVendor",
-    "archiveVendor",
-    "replyToConversation",
-    "sendMessage",
-    "markConversationRead",
-    "inviteCrewProfile",
-    "archiveCrewProfile",
-    "waiveRequirement",
-    "reviewAssignmentCloseout",
-    "updateAssignmentPayment",
-    "createTask",
-    "completeTask",
-    "confirmReview",
-    "startProviderConnect",
-  ];
-  for (const op of direct) assert.ok(sources.includes(`"${op}"`) || sources.includes(`${op}(`), `no card runs ${op}`);
-  for (const [op, reach] of Object.entries(embedded))
-    assert.ok(reach.split("|").some((name) => sources.includes(name)), `no card reaches ${op} (via ${reach})`);
+  const undecided = [...ops.keys()].filter((op) => !(op in REACHED) && !(op in NOT_A_STUDIO_ACTION));
+  assert.deepEqual(
+    undecided.map((op) => `${op} (${ops.get(op)})`),
+    [],
+    "new commands: give each a Cue card (and a REACHED entry), or say in NOT_A_STUDIO_ACTION why a studio never takes it",
+  );
+  const unreached = Object.entries(REACHED).filter(([, reach]) => !sources.includes(reach));
+  assert.deepEqual(unreached.map(([op, reach]) => `${op} → ${reach}`), [], "a REACHED entry no card actually reaches");
+  const stale = [...Object.keys(REACHED), ...Object.keys(NOT_A_STUDIO_ACTION)].filter((op) => !ops.has(op));
+  assert.deepEqual(stale, [], "entries for commands that no longer exist");
 });
 
 const context = {

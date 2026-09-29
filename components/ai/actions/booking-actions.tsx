@@ -21,6 +21,8 @@ import { BookWithoutRetainer } from "@/components/booking/book-without-retainer"
 import { ImportedBookingBanner } from "@/components/imports/imported-booking-banner";
 import { ExistingBookingForm } from "@/components/imports/existing-booking-form";
 import { NativeContractStep } from "@/components/contracts/native-contract-step";
+import { SignedCopySharing } from "@/components/contracts/signed-copy-sharing";
+import { FILE_BEARING } from "@/features/documents/file-ref";
 import { useNativeSigning } from "@/components/contracts/use-native-signing";
 import {
   ActionShell,
@@ -615,6 +617,7 @@ export function ProposalStepCard({ action }: ActionCardProps) {
     resend_proposal: "Send the proposal again",
     correct_proposal: "Correct the proposal they were sent",
     return_proposal_to_draft: "Take the proposal back to draft",
+    remake_proposal_pdf: "Make the proposal's PDF again",
   };
   const title = `${titles[action.action]} · ${jobName(job)}`;
   if (loading || !proposals || !contacts) return <ActionShell title={title}><Loading /></ActionShell>;
@@ -659,14 +662,42 @@ export function ProposalStepCard({ action }: ActionCardProps) {
               { refresh: ["proposals", "projects"] },
             )
           }
-          secondary={open}
+          secondary={
+            str(proposal.pdfState) === "failed" ? (
+              <>
+                <button
+                  className="button button-light"
+                  disabled={runner.busy}
+                  onClick={() =>
+                    void runner.run(
+                      async () => {
+                        await runProposalCommand("regenerate_pdf", { proposalId: proposal.id });
+                        return null;
+                      },
+                      { refresh: ["proposals"] },
+                    )
+                  }
+                  type="button"
+                >
+                  Make the PDF again
+                </button>
+                {open}
+              </>
+            ) : (
+              open
+            )
+          }
         />
+        {str(proposal.pdfState) === "failed" && status === "approved" ? (
+          <p className="cue-action-note">The PDF didn&apos;t come out. You can send without it, or make it again first.</p>
+        ) : null}
         <Notice text={runner.notice} />
       </ActionShell>
     );
   }
 
   const allowed: Record<string, string[]> = {
+    remake_proposal_pdf: ["approved"],
     resend_proposal: ["sent", "viewed"],
     correct_proposal: ["sent", "viewed"],
     return_proposal_to_draft: ["internal_review", "approved"],
@@ -675,7 +706,9 @@ export function ProposalStepCard({ action }: ActionCardProps) {
     return (
       <ActionShell title={title}>
         <Blocked>
-          {action.action === "return_proposal_to_draft"
+          {action.action === "remake_proposal_pdf"
+            ? "Only an approved proposal that hasn't been sent has a PDF to make again."
+            : action.action === "return_proposal_to_draft"
             ? status === "draft"
               ? "It is already a draft."
               : "Once it has been sent it can't go back to draft. Ask me to correct it instead."
@@ -686,7 +719,13 @@ export function ProposalStepCard({ action }: ActionCardProps) {
         {open}
       </ActionShell>
     );
-  const kinds: Record<string, { op: "resend" | "reissue" | "return_to_draft"; label: string; detail: string; done: string }> = {
+  const kinds: Record<string, { op: "resend" | "reissue" | "return_to_draft" | "regenerate_pdf"; label: string; detail: string; done: string }> = {
+    remake_proposal_pdf: {
+      op: "regenerate_pdf",
+      label: "Make it again",
+      detail: "A fresh PDF is made from the approved proposal. Nothing is sent.",
+      done: "The PDF is being made again. It takes a few seconds.",
+    },
     resend_proposal: { op: "resend", label: `Send again to ${to}`, detail: "The same proposal, emailed again.", done: `Sent again to ${to}.` },
     correct_proposal: {
       op: "reissue",
@@ -1123,6 +1162,32 @@ export function ImportBookingCard() {
         <ExistingBookingForm compact source="cue" />
       </Embedded>
       <Link className="button button-light" href="/studio/projects/import">Import a spreadsheet instead</Link>
+    </ActionShell>
+  );
+}
+
+/** Show the couple their signed contract in the portal, or stop. */
+export function SignedCopyCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const contracts = useRecords("contracts");
+  const title = `Share the signed contract · ${jobName(job)}`;
+  if (loading || !contracts) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return notFound(title);
+  const signed = onJob(contracts, job.id).find((item) => str(item.status) === "completed") ?? null;
+  if (!signed)
+    return <ActionShell title={title}><Blocked>{`${jobName(job)} has no signed contract yet.`}</Blocked></ActionShell>;
+  // The panel shows nothing without a file, which read as a blank card.
+  if (!FILE_BEARING.contracts(signed).length)
+    return (
+      <ActionShell title={title}>
+        <Blocked>No signed copy is attached to this contract yet. Attach it from the job&apos;s booking page, then share it.</Blocked>
+      </ActionShell>
+    );
+  return (
+    <ActionShell detail="Whether the couple can open the signed copy in their portal." icon={<FileSignature size={15} />} title={title}>
+      <Embedded>
+        <SignedCopySharing contract={signed} showFiles />
+      </Embedded>
     </ActionShell>
   );
 }

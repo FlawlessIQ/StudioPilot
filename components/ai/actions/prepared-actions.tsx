@@ -35,6 +35,7 @@ import {
   RetainerExceptionCard,
   RetainerInvoiceCard,
   ScheduleConsultationCard,
+  SignedCopyCard,
 } from "./booking-actions";
 import {
   AddVendorCard,
@@ -56,6 +57,7 @@ import {
   CreateTaskCard,
   CrewCloseoutCard,
   CrewMemberCard,
+  CrewPlanCard,
   DeliveryCard,
   ForwardingAddressCard,
   PackageCatalogueCard,
@@ -110,12 +112,14 @@ export const ACTION_CARDS: Record<string, ComponentType<ActionCardProps>> = {
   resend_proposal: ProposalStepCard,
   correct_proposal: ProposalStepCard,
   return_proposal_to_draft: ProposalStepCard,
+  remake_proposal_pdf: ProposalStepCard,
   record_proposal_acceptance: RecordAcceptanceCard,
   // Contract
   prepare_contract: ContractCard,
   sign_and_send_contract: ContractCard,
   send_contract: ContractCard,
   void_contract: ContractCard,
+  share_signed_copy: SignedCopyCard,
   record_signed_contract: RecordSignedContractCard,
   // Money
   create_retainer_invoice: RetainerInvoiceCard,
@@ -150,6 +154,7 @@ export const ACTION_CARDS: Record<string, ComponentType<ActionCardProps>> = {
   edit_crew_member: CrewMemberCard,
   invite_crew_member: CrewMemberCard,
   archive_crew_member: CrewMemberCard,
+  approve_crew_plan: CrewPlanCard,
   waive_crew_requirement: WaiveRequirementCard,
   record_crew_payment: CrewCloseoutCard,
   review_crew_closeout: CrewCloseoutCard,
@@ -179,6 +184,9 @@ export const ACTION_CARDS: Record<string, ComponentType<ActionCardProps>> = {
   set_automatic_emails: SettingsCard,
   set_autopay: SettingsCard,
   edit_branding: SettingsCard,
+  edit_workflow_template: SettingsCard,
+  set_insurance_settings: SettingsCard,
+  import_studio_materials: SettingsCard,
   edit_timing_rules: SettingsCard,
   export_studio_data: SettingsCard,
   set_crew_offer_settings: SettingsCard,
