@@ -8,6 +8,9 @@ import "./globals.css";
 import "./design-system.css";
 import "./legacy-bridge.css";
 import "./contracts.css";
+// The mobile kit (couple and crew). Scoped to `.kit`; see app/kit.css.
+import "./kit-tokens.css";
+import "./kit.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

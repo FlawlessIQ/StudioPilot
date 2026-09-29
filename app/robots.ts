@@ -13,6 +13,7 @@ export default function robots(): MetadataRoute.Robots {
         "/crew",
         "/i/",
         "/inquiry",
+        "/kit",
         "/offline",
         "/platform-admin",
         "/schedule",

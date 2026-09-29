@@ -12,6 +12,8 @@ import { expect, test } from "@playwright/test";
  * elements that stick out. docs/mobile-first-client-crew-plan-2026-09-28.md
  */
 const routes = [
+  "/kit",
+  "/kit?color=%23F2B8C6",
   "/inquiry?studio=demo-studio",
   "/auth/login",
   "/auth/register",
