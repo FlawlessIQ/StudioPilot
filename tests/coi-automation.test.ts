@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { projectJourney, type JourneyInput } from "@/features/journey/steps";
 import { todayInbox } from "@/features/today/inbox";
@@ -169,8 +170,7 @@ test("a message saying the venue needs a COI fills the answer, and never a no", 
   );
 });
 
-test("a corrected or re-sent certificate is reviewed, not stuck at received", async () => {
-  const { readFileSync } = await import("node:fs");
+test("a corrected or re-sent certificate is reviewed, not stuck at received", () => {
   const scan = readFileSync("functions/src/operations/file-safety.ts", "utf8");
   // The review job is per PDF: a finished one for another file is re-queued.
   assert.match(scan, /existing\.get\("object"\) === input\.object/);
@@ -178,4 +178,38 @@ test("a corrected or re-sent certificate is reviewed, not stuck at received", as
   const attach = readFileSync("functions/src/coi/actions.ts", "utf8");
   // A scan that beat the attach call is never rolled back to "received".
   assert.match(attach, /const waiting = \["self_serve", "requested", "correction_required"\]/);
+});
+
+test("a certificate with the agent reads as the agent's, not the crew's", () => {
+  const plan = readFileSync("components/projects/project-job-plan.tsx", "utf8");
+  assert.match(plan, /if \(step\.key === "coi"\) return "Agent";/);
+});
+
+test("the agent gets everything the certificate needs, not just the holder's name", async () => {
+  const { renderEmailTemplate } = await import("../functions/src/communications/email-templates");
+  const rendered = renderEmailTemplate({
+    key: "coi_request",
+    brand: { studioName: "FlawlessIQ", productName: "StudioCue", accentColor: "#35664a", logoUrl: null, contactEmail: null },
+    values: {
+      requirement: {
+        certificateHolder: "President and Fellows of Harvard College",
+        venueLegalName: "Arnold Arboretum",
+        venueAddress: "125 Arborway, Boston, MA 02130",
+        eventDate: "2027-06-12",
+        dueDate: "2027-05-29",
+        coverageTypes: ["General liability"],
+        requiredLimits: { generalLiability: 100_000_000 },
+        additionalInsuredWording: "Arnold Arboretum and its officers",
+        waiverOfSubrogation: true,
+        primaryNoncontributory: false,
+        specialInstructions: "Policy HX-12345.",
+      },
+    },
+  });
+  assert.match(rendered.text, /Holder address: 125 Arborway, Boston, MA 02130\./);
+  assert.match(rendered.text, /Coverage: General liability — general liability \$1,000,000\./);
+  assert.match(rendered.text, /Additional insured, worded exactly: "Arnold Arboretum and its officers"/);
+  assert.match(rendered.text, /waiver of subrogation/);
+  assert.doesNotMatch(rendered.text, /noncontributory/);
+  assert.match(rendered.text, /Policy HX-12345\./);
 });

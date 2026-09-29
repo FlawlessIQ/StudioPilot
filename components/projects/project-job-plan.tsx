@@ -30,16 +30,25 @@ function stepHref(step: JourneyStep): string | null {
 
 // Who the row is waiting on — the "by who owes it" dimension the outstanding
 // lanes used to carry, now inline on each open step.
+// "provider" is whoever outside the studio holds the step: crew for the crew
+// step, the insurance agent for the certificate (walked on prod 2026-09-29, a
+// COI with the agent read "Crew").
+function thirdParty(step: JourneyStep): string {
+  if (step.key === "crew") return "Crew";
+  if (step.key === "coi") return "Agent";
+  return "Waiting";
+}
+
 function ownerChip(step: JourneyStep): string | null {
   if (!OPEN.includes(step.status)) return null;
   if (step.status === "waiting_client") return "Client";
   if (step.status === "waiting_other")
-    return step.owner === "provider" ? "Crew" : "Waiting";
+    return step.owner === "provider" ? thirdParty(step) : "Waiting";
   switch (step.owner) {
     case "client":
       return "Client";
     case "provider":
-      return "Crew";
+      return thirdParty(step);
     case "studio":
       return "You";
     default:

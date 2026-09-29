@@ -1049,10 +1049,8 @@ export const planningCommand = onRequest(
         result = { shareId, status: "revoked" };
       } else if (parsed.type === "createCoiRequest") {
         if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
-        const agentEmail =
-          parsed.input.insuranceAgentEmail ??
-          readCoiSettings(await db.doc(`coiSettings/${parsed.tenantId}`).get())?.agentEmail ??
-          null;
+        const savedCoiSettings = readCoiSettings(await db.doc(`coiSettings/${parsed.tenantId}`).get());
+        const agentEmail = parsed.input.insuranceAgentEmail ?? savedCoiSettings?.agentEmail ?? null;
         if (!agentEmail) throw new Error("COI_AGENT_EMAIL_REQUIRED");
         const requirementId = stable(
           "coi_requirement",
@@ -1135,6 +1133,13 @@ export const planningCommand = onRequest(
             coverageTypes: parsed.input.coverageTypes,
             requiredLimits: parsed.input.requiredLimits,
             dueDate: parsed.input.dueDate,
+            // Everything the agent needs to issue it without writing back
+            // (walked on prod: the request gave the holder but no address).
+            additionalInsuredWording: parsed.input.additionalInsuredWording,
+            waiverOfSubrogation: parsed.input.waiverOfSubrogation,
+            primaryNoncontributory: parsed.input.primaryNoncontributory,
+            specialInstructions:
+              [parsed.input.specialInstructions, savedCoiSettings?.agentNotes].filter(Boolean).join("\n") || null,
           },
           status: "queued",
           attempts: 0,

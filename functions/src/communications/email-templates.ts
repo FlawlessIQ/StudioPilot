@@ -324,6 +324,34 @@ function deliveryItems(values: Record<string, unknown>): DeliveryEmailItem[] {
     : [];
 }
 
+/**
+ * What an agent needs on the certificate beyond the holder: where the holder
+ * is, the cover and limits, and the venue's wording. Walked on prod
+ * 2026-09-29: the request named the holder and nothing else, so the agent
+ * would have had to write back for the address.
+ */
+export function coiRequirementLines(requirement: Record<string, unknown>): string[] {
+  const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+  const lines: string[] = [];
+  if (text(requirement.venueAddress)) lines.push(`Holder address: ${text(requirement.venueAddress)}.`);
+  const coverage = Array.isArray(requirement.coverageTypes)
+    ? (requirement.coverageTypes as unknown[]).map(String).filter(Boolean)
+    : [];
+  const limits = Object.entries((requirement.requiredLimits ?? {}) as Record<string, unknown>)
+    .filter(([, value]) => typeof value === "number" && value > 0)
+    .map(([key, value]) => `${key.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/_/g, " ").toLowerCase()} $${(Number(value) / 100).toLocaleString("en-US")}`);
+  if (coverage.length || limits.length) {
+    lines.push(`Coverage: ${[coverage.join(", "), limits.join(", ")].filter(Boolean).join(" — ")}.`);
+  }
+  if (text(requirement.additionalInsuredWording)) {
+    lines.push(`Additional insured, worded exactly: "${text(requirement.additionalInsuredWording)}"`);
+  }
+  if (requirement.waiverOfSubrogation === true) lines.push("Include a waiver of subrogation.");
+  if (requirement.primaryNoncontributory === true) lines.push("Include primary and noncontributory wording.");
+  if (text(requirement.specialInstructions)) lines.push(text(requirement.specialInstructions));
+  return lines;
+}
+
 /** The line under a release's heading. The studio's preview says the same. */
 export function deliveryLine(count: number): string {
   return count > 1
@@ -787,6 +815,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           "Hello,",
           `We need a certificate for ${String(requirement.venueLegalName ?? "the venue")} on ${requirement.eventDate ? humanDate(String(requirement.eventDate)) : "the event date"}.`,
           `Certificate holder: ${String(requirement.certificateHolder ?? "See the attached requirements")}. Due: ${requirement.dueDate ? humanDate(String(requirement.dueDate)) : "as soon as possible"}.`,
+          ...coiRequirementLines(requirement),
           "Reply to this email with one PDF attachment. We'll review the certificate before sending it to the venue.",
         ],
       };
