@@ -34,7 +34,16 @@ export type ProposalAction =
    * Allowed from the states where the client has actually been given something
    * wrong, which is the only situation this exists for.
    */
-  | "reissue";
+  | "reissue"
+  /**
+   * The job's packages changed — the couple wants video as well, or a
+   * different package — so the proposal is priced again from them. A draft is
+   * re-priced in place; anything the couple has already been given, including
+   * an accepted proposal whose agreement hasn't gone out, is superseded by a
+   * new version they accept again. The accepted one stays as the record of
+   * what they first agreed to.
+   */
+  | "revise_packages";
 
 const actionStatuses: Readonly<Record<ProposalAction, readonly ProposalStatus[]>> = {
   update_draft: ["draft"],
@@ -58,6 +67,7 @@ const actionStatuses: Readonly<Record<ProposalAction, readonly ProposalStatus[]>
   // Not from "accepted": that is the record of a deal, and correcting it would
   // rewrite what the client agreed to.
   reissue: ["sent", "viewed"],
+  revise_packages: ["draft", "internal_review", "approved", "sent", "viewed", "accepted"],
 };
 
 export function assertProposalAction(

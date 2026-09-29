@@ -137,7 +137,10 @@ const transitions: Readonly<
   LEAD: ["CONSULTATION", "CANCELLED", "ARCHIVED", "LOST"],
   CONSULTATION: ["PROPOSAL", "CANCELLED", "POSTPONED", "LOST"],
   PROPOSAL: ["CONTRACT_PENDING", "CANCELLED", "POSTPONED", "LOST"],
-  CONTRACT_PENDING: ["RETAINER_PENDING", "CANCELLED", "POSTPONED", "LOST"],
+  // Back to PROPOSAL when the couple changes what they're booking before the
+  // agreement goes out: they accept a revised proposal (proposals.ts
+  // "revise_packages").
+  CONTRACT_PENDING: ["RETAINER_PENDING", "PROPOSAL", "CANCELLED", "POSTPONED", "LOST"],
   RETAINER_PENDING: ["BOOKED", "CANCELLED", "POSTPONED", "LOST"],
   /**
    * `EVENT_COMPLETE` from BOOKED and PLANNING, not only from READY.
@@ -619,6 +622,14 @@ const commandSchema = z.discriminatedUnion("type", [
        * the booking gate, readiness and the invoice scheduler already read.
        */
       mode: z.enum(["replace", "add"]).optional().default("replace"),
+      /**
+       * Replacing a package the job already has must be asked for by name.
+       * Every older caller (Cue's package flow, the booking autopilot) sends
+       * "replace" meaning "choose the first one", and relied on the server
+       * refusing when a package was already there — so without this, relaxing
+       * that refusal would have let them swap a couple's package silently.
+       */
+      confirmReplace: z.boolean().optional().default(false),
       discount: z.discriminatedUnion("type", [
         z.object({ type: z.literal("none") }),
         z.object({
@@ -632,7 +643,62 @@ const commandSchema = z.discriminatedUnion("type", [
       ]),
     }),
   }),
+  z.object({
+    /**
+     * Take a package off a job that has more than one: the couple dropped the
+     * video, or the wrong package was added. The job always keeps at least
+     * one — swapping the only package is `selectPackage` with "replace".
+     */
+    type: z.literal("removePackage"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      packageSnapshotId: z.string().min(1),
+    }),
+  }),
 ]);
+
+/**
+ * Stages at which a job's packages can still change: anything before the
+ * agreement is signed. A change after acceptance goes back to the couple as a
+ * revised proposal (booking/proposals.ts "revise_packages").
+ */
+const PACKAGE_EDITABLE_STATES = ["LEAD", "CONSULTATION", "PROPOSAL", "CONTRACT_PENDING"];
+/** An agreement in any of these has left the studio: its packages are what was sent. */
+const AGREEMENT_OUT_STATUSES = ["queued", "sent", "delivered", "viewed", "partially_signed", "completed"];
+
+/**
+ * Whether a job's packages may change right now, read inside the caller's
+ * transaction (before any write). Throws the reason when they may not.
+ */
+async function assertPackagesEditable(
+  transaction: FirebaseFirestore.Transaction,
+  input: { tenantId: string; projectId: string; state: string },
+): Promise<void> {
+  if (!PACKAGE_EDITABLE_STATES.includes(input.state)) {
+    throw new Error("PACKAGES_LOCKED_AFTER_SIGNING");
+  }
+  const contracts = await transaction.get(
+    getFirestore()
+      .collection("contracts")
+      .where("tenantId", "==", input.tenantId)
+      .where("projectId", "==", input.projectId),
+  );
+  if (contracts.docs.some((contract) => AGREEMENT_OUT_STATUSES.includes(String(contract.get("status"))))) {
+    throw new Error("AGREEMENT_ALREADY_SENT");
+  }
+  // A bill raised against the old total would contradict the new one.
+  const invoices = await transaction.get(
+    getFirestore()
+      .collection("invoiceReferences")
+      .where("tenantId", "==", input.tenantId)
+      .where("projectId", "==", input.projectId),
+  );
+  if (invoices.docs.some((invoice) => !["voided", "void", "cancelled"].includes(String(invoice.get("status"))))) {
+    throw new Error("INVOICE_ALREADY_RAISED");
+  }
+}
 
 const managerRoles = ["studio_owner", "studio_admin"];
 const allowedRoles = [...managerRoles, "studio_coordinator"];
@@ -1357,6 +1423,63 @@ export const crmCommand = onRequest(
           return output;
         }
 
+        if (command.type === "removePackage") {
+          const projectReference = db.doc(`projects/${command.input.projectId}`);
+          const projectDocument = await transaction.get(projectReference);
+          if (!projectDocument.exists || projectDocument.get("tenantId") !== command.tenantId) {
+            throw new Error("PROJECT_NOT_FOUND");
+          }
+          if (!hasProjectAccess(membershipData, command.input.projectId)) {
+            throw new Error("PROJECT_NOT_PERMITTED");
+          }
+          await assertPackagesEditable(transaction, {
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            state: String(projectDocument.get("state")),
+          });
+          const primary = String(projectDocument.get("packageSnapshotId") ?? "");
+          const additional = Array.isArray(projectDocument.get("additionalPackageSnapshotIds"))
+            ? (projectDocument.get("additionalPackageSnapshotIds") as unknown[]).map(String)
+            : [];
+          const target = command.input.packageSnapshotId;
+          if (target !== primary && !additional.includes(target)) throw new Error("PACKAGE_NOT_ON_JOB");
+          if (target === primary && additional.length === 0) throw new Error("LAST_PACKAGE_ON_JOB");
+          // Removing the main package promotes the next one: `packageSnapshotId`
+          // is what readiness, crew staffing and the booking gate read.
+          const next =
+            target === primary
+              ? { packageSnapshotId: additional[0]!, additionalPackageSnapshotIds: additional.slice(1) }
+              : { packageSnapshotId: primary, additionalPackageSnapshotIds: additional.filter((id) => id !== target) };
+          transaction.update(projectReference, { ...next, updatedAt: timestamp, updatedBy: identity.uid });
+          const removeAuditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${removeAuditId}`), {
+            id: removeAuditId,
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "package.removed",
+            entityType: "packageSnapshot",
+            entityId: target,
+            timestamp,
+            before: { packageSnapshotId: primary, additionalPackageSnapshotIds: additional },
+            after: next,
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          const output = { ...next, removed: target };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
         if (command.type === "selectPackage") {
           const projectReference = db.doc(
             `projects/${command.input.projectId}`,
@@ -1410,8 +1533,28 @@ export const crmCommand = onRequest(
           if (!hasProjectAccess(membershipData, command.input.projectId)) {
             throw new Error("PROJECT_NOT_PERMITTED");
           }
+          /**
+           * A job that already has a package can still take another, or swap
+           * it, until the agreement goes out. This used to refuse outright
+           * ("PACKAGE_ALREADY_SELECTED"), so the "add alongside" path below
+           * could never run and a couple who asked for video on top of their
+           * photography had no way to get it onto the job.
+           */
           if (project.packageSnapshotId) {
-            throw new Error("PACKAGE_ALREADY_SELECTED");
+            if (command.input.mode === "replace" && !command.input.confirmReplace) {
+              throw new Error("PACKAGE_ALREADY_SELECTED");
+            }
+            await assertPackagesEditable(transaction, {
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              state: String(projectDocument.get("state")),
+            });
+            const alreadyAdditional = Array.isArray(projectDocument.get("additionalPackageSnapshotIds"))
+              ? (projectDocument.get("additionalPackageSnapshotIds") as unknown[]).length
+              : 0;
+            if (command.input.mode === "add" && alreadyAdditional >= 3) {
+              throw new Error("PACKAGE_LIMIT_REACHED");
+            }
           }
           if (
             !studioPackage ||

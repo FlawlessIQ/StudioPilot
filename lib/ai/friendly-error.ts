@@ -18,6 +18,18 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   SCHEDULE_NOT_FOUND: "This timeline couldn't be found. Refresh to see the latest from your studio.",
   SCHEDULE_NOT_IN_REVIEW:
     "This version isn't waiting for your answer any more. Refresh to see the latest from your studio.",
+  // Changing a job's packages (selectPackage / removePackage / revise_packages).
+  PACKAGES_LOCKED_AFTER_SIGNING:
+    "The agreement is signed, so the packages are fixed. Changing them now needs a new agreement — talk to the couple first.",
+  AGREEMENT_ALREADY_SENT:
+    "The agreement has already gone to the couple for these packages. Void it on the Booking tab first, then change the packages.",
+  INVOICE_ALREADY_RAISED:
+    "An invoice has already been raised for the current total. Void it first, then change the packages.",
+  PACKAGE_ALREADY_SELECTED:
+    "This job already has a package. Open its proposal and use Packages to add another or swap it.",
+  PACKAGE_LIMIT_REACHED: "A job can hold four packages at most. Remove one before adding another.",
+  PACKAGE_NOT_ON_JOB: "That package isn't on this job any more. Refresh and try again.",
+  LAST_PACKAGE_ON_JOB: "A job needs at least one package. Use Swap to change it instead.",
   // Closing and reopening an inquiry (crmCommand closeInquiry / reopenInquiry).
   INQUIRY_NOT_FOUND: "That inquiry couldn't be found. Refresh and try again.",
   INQUIRY_NOT_CLOSABLE: "This couple has booked, so it's a job now rather than an inquiry to close.",

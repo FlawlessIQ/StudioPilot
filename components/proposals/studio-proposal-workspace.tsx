@@ -60,6 +60,7 @@ import {
 import { dataIsLive } from "@/lib/runtime-mode";
 import { formatEventDate } from "@/lib/format/event-date";
 import { CapabilityNote } from "@/components/integrations/capability-note";
+import { ProposalPackagesPanel } from "@/components/proposals/proposal-packages-panel";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import {
   proposalNoticeStillHolds,
@@ -2013,6 +2014,14 @@ export function StudioProposalWorkspace({
               </dl>
             </div>
           </section>
+
+          <ProposalPackagesPanel
+            coupleName={text(client.displayName, "The couple")}
+            onRevisedInPlace={() => void load().catch(() => {})}
+            projectId={projectId}
+            proposalId={text(proposal.id, "")}
+            status={status}
+          />
 
           <section className="proposal-workspace-payments">
             <div>

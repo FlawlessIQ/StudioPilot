@@ -6,7 +6,10 @@ export const allowedProjectTransitions: Readonly<
   LEAD: ["CONSULTATION", "CANCELLED", "ARCHIVED", "LOST"],
   CONSULTATION: ["PROPOSAL", "CANCELLED", "POSTPONED", "LOST"],
   PROPOSAL: ["CONTRACT_PENDING", "CANCELLED", "POSTPONED", "LOST"],
-  CONTRACT_PENDING: ["RETAINER_PENDING", "CANCELLED", "POSTPONED", "LOST"],
+  // Back to PROPOSAL when the couple changes what they're booking before the
+  // agreement goes out: they accept a revised proposal (proposals.ts
+  // "revise_packages").
+  CONTRACT_PENDING: ["RETAINER_PENDING", "PROPOSAL", "CANCELLED", "POSTPONED", "LOST"],
   RETAINER_PENDING: ["BOOKED", "CANCELLED", "POSTPONED", "LOST"],
   /**
    * `EVENT_COMPLETE` from BOOKED and PLANNING, not only from READY.

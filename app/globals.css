@@ -16774,6 +16774,56 @@ label {
   margin: 4px 0 0;
 }
 
+/* The packages on a proposal, and changing them. */
+.proposal-packages-panel {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+}
+.proposal-packages-heading {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+}
+.proposal-packages-heading h2 {
+  margin: 0;
+}
+.proposal-packages-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.proposal-packages-list li,
+.proposal-packages-picker article {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+.proposal-packages-list li span,
+.proposal-packages-picker article span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.proposal-packages-list small,
+.proposal-packages-picker small,
+.proposal-packages-note {
+  color: var(--muted);
+}
+.proposal-packages-picker {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+}
+
 /* Closing an inquiry: one reason, from a short list. */
 .inquiry-close-reasons {
   border: 0;

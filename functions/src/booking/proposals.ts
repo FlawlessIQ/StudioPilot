@@ -105,6 +105,9 @@ const commandSchema = z.discriminatedUnion("type", [
        * uses them.
        */
       "reissue",
+      // Price the proposal again from the job's current packages — see
+      // proposal-domain.ts.
+      "revise_packages",
     ]),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
@@ -766,6 +769,181 @@ export const proposalCommand = onRequest(
               status: "draft",
               draftRevision: nextRevision,
             };
+          } else if (command.type === "revise_packages") {
+            if (!canApproveProposal(membership.role)) {
+              throw new Error("APPROVAL_PERMISSION_REQUIRED");
+            }
+            const projectReference = db.doc(`projects/${projectId}`);
+            const project = await transaction.get(projectReference);
+            if (!project.exists || project.get("tenantId") !== command.tenantId) {
+              throw new Error("PROJECT_NOT_FOUND");
+            }
+            const projectState = stringValue(project.get("state"));
+            if (!["LEAD", "CONSULTATION", "PROPOSAL", "CONTRACT_PENDING"].includes(projectState)) {
+              throw new Error("PACKAGES_LOCKED_AFTER_SIGNING");
+            }
+            const primaryId = stringValue(project.get("packageSnapshotId"));
+            if (!primaryId) throw new Error("PACKAGE_SNAPSHOT_REQUIRED");
+            const extraIds = stringList(project.get("additionalPackageSnapshotIds")).slice(0, 3);
+            const [snapshots, contracts, invoices, decisionTask] = await Promise.all([
+              Promise.all([primaryId, ...extraIds].map((id) => transaction.get(db.doc(`packageSnapshots/${id}`)))),
+              transaction.get(
+                db.collection("contracts").where("tenantId", "==", command.tenantId).where("projectId", "==", projectId),
+              ),
+              transaction.get(
+                db.collection("invoiceReferences").where("tenantId", "==", command.tenantId).where("projectId", "==", projectId),
+              ),
+              transaction.get(db.doc(`tasks/proposal_decision_${proposal.id}`)),
+            ]);
+            const owned = snapshots.filter(
+              (snapshot) => snapshot.exists && snapshot.get("tenantId") === command.tenantId,
+            );
+            if (!owned.length || owned[0]!.id !== primaryId) throw new Error("PACKAGE_SNAPSHOT_INVALID");
+            // What has already left the studio is what the couple is holding:
+            // an agreement out for signature, or a bill. Those have to be dealt
+            // with first, not silently contradicted by a new price.
+            const agreementOut = contracts.docs.some((contract) =>
+              ["queued", "sent", "delivered", "viewed", "partially_signed", "completed"].includes(
+                String(contract.get("status")),
+              ),
+            );
+            if (agreementOut) throw new Error("AGREEMENT_ALREADY_SENT");
+            if (invoices.docs.some((invoice) => !["voided", "void", "cancelled"].includes(String(invoice.get("status"))))) {
+              throw new Error("INVOICE_ALREADY_RAISED");
+            }
+            const pricing = combineSnapshotPricing(
+              owned.map((snapshot) => {
+                const data = objectValue(snapshot.data());
+                return {
+                  packageName: stringValue(data.packageName, "Coverage package"),
+                  currency: stringValue(data.currency, "USD"),
+                  subtotalCents: numberValue(data.subtotalCents),
+                  discountCents: numberValue(data.discountCents),
+                  taxCents: numberValue(data.taxCents),
+                  retainerCents: numberValue(data.retainerCents),
+                  totalCents: numberValue(data.totalCents),
+                  lineItems: lineItems(data),
+                };
+              }),
+            );
+            // The dates the studio already chose carry over; the amounts follow
+            // the new total.
+            const priorSchedule = Array.isArray(proposal.get("paymentSchedule"))
+              ? (proposal.get("paymentSchedule") as Array<Record<string, unknown>>)
+              : [];
+            const schedule = paymentSchedule(
+              pricing,
+              typeof priorSchedule[0]?.dueDate === "string" ? String(priorSchedule[0].dueDate) : null,
+              typeof priorSchedule[1]?.dueDate === "string" ? String(priorSchedule[1].dueDate) : null,
+            );
+            const priced = {
+              packageSnapshotId: primaryId,
+              additionalPackageSnapshotIds: owned.slice(1).map((snapshot) => snapshot.id),
+              pricingSnapshot: pricing,
+              paymentSchedule: schedule,
+            };
+            if (["draft", "internal_review", "approved"].includes(currentStatus)) {
+              // Nobody outside the studio has seen it: price it again in place,
+              // back to draft so it is read and approved at the new total.
+              const nextRevision = (numberValue(proposal.get("draftRevision")) || 1) + 1;
+              transaction.update(proposalReference, {
+                ...priced,
+                status: "draft",
+                draftRevision: nextRevision,
+                approvedAt: null,
+                approvedBy: null,
+                pdfDocumentId: null,
+                pdfState: "not_requested",
+                updatedAt: timestamp,
+                updatedBy: identity.uid,
+              });
+              output = {
+                proposalId: proposal.id,
+                status: "draft",
+                draftRevision: nextRevision,
+                totalCents: pricing.totalCents,
+                superseded: false,
+              };
+            } else {
+              const revisedId = stableId("proposal_revision", command.tenantId, command.idempotencyKey);
+              const nextVersion = numberValue(proposal.get("version")) + 1;
+              transaction.create(db.doc(`proposals/${revisedId}`), {
+                ...objectValue(proposal.data()),
+                ...priced,
+                id: revisedId,
+                version: nextVersion,
+                status: "draft",
+                draftRevision: 1,
+                supersedesProposalId: proposal.id,
+                submittedAt: null,
+                approvedAt: null,
+                approvedBy: null,
+                sentAt: null,
+                viewedAt: null,
+                acceptedAt: null,
+                acceptedBy: null,
+                acceptanceAuthority: null,
+                declinedAt: null,
+                declineReason: null,
+                emailDeliveryStatus: "not_sent",
+                emailMessageId: null,
+                pdfDocumentId: null,
+                pdfState: "not_requested",
+                createdAt: timestamp,
+                createdBy: identity.uid,
+                updatedAt: timestamp,
+                updatedBy: identity.uid,
+              });
+              transaction.update(proposalReference, {
+                status: "superseded",
+                supersededByProposalId: revisedId,
+                updatedAt: timestamp,
+                updatedBy: identity.uid,
+              });
+              let reopened = false;
+              if (currentStatus === "accepted" && projectState === "CONTRACT_PENDING") {
+                // Back to the proposal stage: the couple accepts the revised
+                // version, and the agreement follows from that one.
+                transaction.update(projectReference, {
+                  state: "PROPOSAL",
+                  stateVersion: numberValue(project.get("stateVersion")) + 1,
+                  nextAction: "Send the revised proposal",
+                  updatedAt: timestamp,
+                  updatedBy: identity.uid,
+                });
+                reopened = true;
+                // An agreement written from the old version but never sent is
+                // now for the wrong packages.
+                for (const contract of contracts.docs) {
+                  if (String(contract.get("status")) === "draft") {
+                    transaction.update(contract.ref, {
+                      status: "superseded",
+                      supersededReason: "The proposal was revised.",
+                      updatedAt: timestamp,
+                      updatedBy: identity.uid,
+                    });
+                  }
+                }
+                // "Prepare client agreement" was for the old version; the
+                // revised one makes its own when it is accepted.
+                if (decisionTask.exists && decisionTask.get("status") !== "complete") {
+                  transaction.update(decisionTask.ref, {
+                    status: "cancelled",
+                    updatedAt: timestamp,
+                    updatedBy: identity.uid,
+                  });
+                }
+              }
+              output = {
+                proposalId: revisedId,
+                supersededProposalId: proposal.id,
+                status: "draft",
+                version: nextVersion,
+                totalCents: pricing.totalCents,
+                superseded: true,
+                reopened,
+              };
+            }
           } else if (command.type === "reissue") {
             if (!canApproveProposal(membership.role)) {
               throw new Error("APPROVAL_PERMISSION_REQUIRED");

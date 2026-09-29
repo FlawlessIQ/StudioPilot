@@ -182,7 +182,10 @@ test("a change to Cue's prompt is deliberate and re-evaluated", () => {
   // is signed — StudioCue's own agreement and signing where it is switched
   // on, the recorded signature otherwise. F3 ("mark the contract as signed")
   // and a how-to on signing re-run on production before shipping.
-  const EXPECTED = 18362;
+  // Bumped 2026-09-29: a job's packages can change until the agreement goes
+  // out (the proposal's Packages panel); the old line told Cue a selected
+  // package "cannot be edited". F7 re-run on production before shipping.
+  const EXPECTED = 19082;
   const drift = Math.abs(size - EXPECTED);
   assert.ok(
     drift < 40,
