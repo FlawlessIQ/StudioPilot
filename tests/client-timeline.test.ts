@@ -22,10 +22,11 @@ test("an item's clock is read in the event's zone, not the phone's", () => {
 
 test("a couple can only answer the version that is waiting for them", () => {
   const source = readFileSync("functions/src/planning/commands.ts", "utf8");
-  assert.match(
-    source,
-    /role === "client" && current\.get\("status"\) !== "client_review"\)\s*throw new Error\("SCHEDULE_NOT_IN_REVIEW"\)/,
-  );
+  // "Waiting for them" is a published version with approvalState
+  // client_pending (or the legacy client_review status) — status alone, as
+  // this once asserted, meant no couple could ever answer (2026-09-29).
+  assert.match(source, /status === "published" && current\.get\("approvalState"\) === "client_pending"/);
+  assert.match(source, /if \(role === "client" && !awaitingCouple\)\s*throw new Error\("SCHEDULE_NOT_IN_REVIEW"\)/);
 });
 
 test("a timeline the couple asked to change stays visible to them", () => {
