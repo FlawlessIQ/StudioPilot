@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { assertProposalAction } from "../functions/src/booking/proposal-domain.ts";
 import { allowedProjectTransitions } from "../features/projects/state-machine.ts";
+import { todayInbox } from "../features/today/inbox.ts";
 
 /**
  * A couple who wants video on top of their photography — or a different
@@ -75,4 +76,52 @@ test("Cue's package flow adds to a job that already has one, and revises its pro
   assert.doesNotMatch(packageFlow, /already has a package selected/);
   const copilot = source("functions/src/ai/copilot.ts");
   assert.match(copilot, /Launch the same flow when the operator asks to ADD a package to a job that already has one/);
+});
+
+
+test("a couple's request to add a package is a Today card that revises their newest proposal", () => {
+  const inbox = todayInbox({
+    now: "2026-09-29T15:00:00Z",
+    projects: [{ id: "p1", name: "Gabe and Dionne", state: "CONTRACT_PENDING", archivedAt: null, eventDate: "2027-08-17" }],
+    proposals: [
+      { id: "old", projectId: "p1", status: "superseded", version: 1 },
+      { id: "current", projectId: "p1", status: "accepted", version: 2 },
+    ],
+    packageRequests: [
+      {
+        id: "req1",
+        projectId: "p1",
+        packageId: "pkg-photo",
+        packageName: "Gold Photo Package",
+        basePriceCents: 349900,
+        currency: "USD",
+        note: "We'd love photos too",
+        status: "pending",
+        createdAt: "2026-09-29T14:00:00Z",
+      },
+      { id: "req2", projectId: "p1", packageId: "x", packageName: "Done", status: "approved" },
+    ],
+  });
+  const cards = inbox.act.filter((item) => item.id.startsWith("package-request-"));
+  assert.equal(cards.length, 1, "only the pending request");
+  assert.equal(cards[0]!.title, "Gabe and Dionne want to add Gold Photo Package");
+  assert.match(cards[0]!.detail, /\$3,499 · “We'd love photos too” · Adding it makes a revised proposal for them to accept\./);
+  assert.ok(cards[0]!.action.kind === "package_request" && cards[0]!.action.proposalId === "current");
+});
+
+test("the portal asks, never changes: a request is written for the studio to decide", () => {
+  const portal = source("app/api/client/portal/route.ts");
+  const request = portal.slice(portal.indexOf("async function requestPackageForClient"), portal.indexOf("async function selectPackageForClient"));
+  assert.match(request, /status: "pending"/);
+  // It never touches the job's packages or the proposal itself.
+  assert.doesNotMatch(request, /packageSnapshotId|additionalPackageSnapshotIds|pricingSnapshot/);
+  // Only packages the studio shows couples, and only before the agreement is out.
+  assert.match(portal, /where\("publicVisible", "==", true\)/);
+  assert.match(portal, /!agreementOut &&\s*!invoiceRaised/);
+  const rules = source("firestore.rules");
+  assert.match(rules, /match \/packageRequests\/\{requestId\} \{\s*allow read: if canManageProjects\(resource\.data\.tenantId\);\s*allow write: if false;/);
+});
+
+test("the same package can't be added to a job twice", () => {
+  assert.match(crm, /throw new Error\("PACKAGE_ALREADY_ON_JOB"\)/);
 });

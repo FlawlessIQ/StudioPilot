@@ -29,6 +29,7 @@ import {
   useReserveYourDate,
 } from "@/components/client/live-client-views";
 import { EmptyMoment } from "@/components/client/kit/empty-moment";
+import { ClientAddPackage } from "@/components/client/kit/client-add-package";
 
 /**
  * The proposal, on a phone (M3 of docs/mobile-first-client-crew-plan-2026-09-28.md).
@@ -260,6 +261,13 @@ export function ClientProposal() {
               Accepting doesn’t sign an agreement or take a payment. Those are separate, secure steps.
             </p>
           </section>
+        ) : null}
+
+        {["sent", "viewed", "accepted"].includes(status) ? (
+          <ClientAddPackage />
+        ) : status === "superseded" ? (
+          // Replaced while the studio updates it: say what's coming, offer nothing new.
+          <ClientAddPackage allowNew={false} />
         ) : null}
 
         <Note icon={ShieldCheck}>

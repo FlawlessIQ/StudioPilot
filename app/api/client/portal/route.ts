@@ -135,6 +135,26 @@ const requestSchema = z.discriminatedUnion("type", [
     paymentMethodId: z.string().min(1).max(160),
   }),
   z.object({
+    /** What the couple could ask to add to their booking, and what they've asked. */
+    type: z.literal("package_additions"),
+    tenantId: z.string().min(1).max(160),
+    projectId: z.string().min(1).max(160),
+  }),
+  z.object({
+    /**
+     * The couple asks to add a package — video on top of their photography.
+     * A request, not a change: the studio approves it on Today and the couple
+     * gets a revised proposal to accept. Nothing about the deal moves until
+     * the studio says so (docs decision Q8: the studio picks packages).
+     */
+    type: z.literal("request_package"),
+    tenantId: z.string().min(1).max(160),
+    projectId: z.string().min(1).max(160),
+    packageId: z.string().min(1).max(160),
+    note: z.string().trim().max(500).nullable().default(null),
+    idempotencyKey: z.string().min(8).max(160),
+  }),
+  z.object({
     type: z.literal("select_package"),
     tenantId: z.string().min(1).max(160),
     projectId: z.string().min(1).max(160),
@@ -790,6 +810,162 @@ async function availablePackages(tenantId: string, projectId: string) {
             )
         : [],
     }));
+}
+
+/** Stages at which a couple can still ask for another package. */
+const PACKAGE_REQUEST_STATES = ["LEAD", "CONSULTATION", "PROPOSAL", "CONTRACT_PENDING"];
+const AGREEMENT_OUT = ["queued", "sent", "delivered", "viewed", "partially_signed", "completed"];
+
+function packageRequestId(tenantId: string, projectId: string, packageId: string) {
+  return `pkgreq_${createHash("sha256").update(`${tenantId}:${projectId}:${packageId}`).digest("hex").slice(0, 32)}`;
+}
+
+/**
+ * Whether this couple can ask for another package right now, what they could
+ * add, and what they've already asked. Only packages the studio shows couples
+ * (`publicVisible`), for this kind of event, and not already on the booking.
+ */
+async function packageAdditions(tenantId: string, projectId: string) {
+  const project = await adminFirestore.doc(`projects/${projectId}`).get();
+  if (!project.exists || project.get("tenantId") !== tenantId) throw new Error("PROJECT_NOT_FOUND");
+  const onJobSnapshotIds = [
+    safeString(project.get("packageSnapshotId")),
+    ...(Array.isArray(project.get("additionalPackageSnapshotIds"))
+      ? (project.get("additionalPackageSnapshotIds") as unknown[]).map((value) => String(value))
+      : []),
+  ].filter((value): value is string => Boolean(value));
+  const [snapshots, contracts, invoices, requests, packages] = await Promise.all([
+    Promise.all(onJobSnapshotIds.map((id) => adminFirestore.doc(`packageSnapshots/${id}`).get())),
+    adminFirestore.collection("contracts").where("tenantId", "==", tenantId).where("projectId", "==", projectId).get(),
+    adminFirestore.collection("invoiceReferences").where("tenantId", "==", tenantId).where("projectId", "==", projectId).get(),
+    adminFirestore.collection("packageRequests").where("tenantId", "==", tenantId).where("projectId", "==", projectId).get(),
+    availablePackages(tenantId, projectId),
+  ]);
+  const onJobPackageIds = new Set(
+    snapshots.filter((snapshot) => snapshot.exists).map((snapshot) => String(snapshot.get("packageId") ?? "")),
+  );
+  const agreementOut = contracts.docs.some((contract) => AGREEMENT_OUT.includes(String(contract.get("status"))));
+  const invoiceRaised = invoices.docs.some(
+    (invoice) => !["voided", "void", "cancelled"].includes(String(invoice.get("status"))),
+  );
+  const canRequest =
+    onJobSnapshotIds.length > 0 &&
+    onJobSnapshotIds.length < 4 &&
+    PACKAGE_REQUEST_STATES.includes(String(project.get("state"))) &&
+    !agreementOut &&
+    !invoiceRaised;
+  return {
+    canRequest,
+    options: canRequest ? packages.filter((option) => !onJobPackageIds.has(option.id)) : [],
+    requests: requests.docs
+      .map((request) => ({
+        id: request.id,
+        packageId: String(request.get("packageId") ?? ""),
+        packageName: String(request.get("packageName") ?? "Package"),
+        // Met another way — the studio added it from the proposal or Cue —
+        // reads as done, not "still reviewing".
+        status:
+          String(request.get("status") ?? "pending") === "pending" &&
+          onJobPackageIds.has(String(request.get("packageId") ?? ""))
+            ? "approved"
+            : String(request.get("status") ?? "pending"),
+        createdAt: String(request.get("createdAt") ?? ""),
+      }))
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
+  };
+}
+
+async function requestPackageForClient(input: {
+  tenantId: string;
+  projectId: string;
+  packageId: string;
+  note: string | null;
+  actorId: string;
+  actorName: string | null;
+}) {
+  const additions = await packageAdditions(input.tenantId, input.projectId);
+  if (!additions.canRequest) throw new Error("PACKAGE_REQUEST_NOT_AVAILABLE");
+  const option = additions.options.find((candidate) => candidate.id === input.packageId);
+  if (!option) throw new Error("PACKAGE_NOT_FOUND");
+  const requestId = packageRequestId(input.tenantId, input.projectId, input.packageId);
+  const reference = adminFirestore.doc(`packageRequests/${requestId}`);
+  const now = new Date().toISOString();
+  const project = await adminFirestore.doc(`projects/${input.projectId}`).get();
+  const projectName = safeString(project.get("name")) ?? "Your booking";
+  const created = await adminFirestore.runTransaction(async (transaction) => {
+    const existing = await transaction.get(reference);
+    // Asked again while the first is still open: the same request, not a second.
+    if (existing.exists && existing.get("status") === "pending") return false;
+    transaction.set(reference, {
+      id: requestId,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      projectName,
+      packageId: option.id,
+      packageName: option.name,
+      basePriceCents: option.basePriceCents,
+      currency: option.currency,
+      note: input.note,
+      status: "pending",
+      requestedBy: input.actorId,
+      requestedByName: input.actorName,
+      decidedAt: null,
+      decidedBy: null,
+      resultProposalId: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+    transaction.set(adminFirestore.doc(`auditEvents/${requestId}_${Date.parse(now)}`), {
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      actorId: input.actorId,
+      actorType: "client",
+      action: "package.requested_by_client",
+      entityType: "packageRequest",
+      entityId: requestId,
+      timestamp: now,
+      before: null,
+      after: { packageId: option.id, packageName: option.name, note: input.note },
+      ipAddress: null,
+      userAgent: null,
+      correlationId: requestId,
+      automationRunId: null,
+      providerEventId: null,
+    });
+    return true;
+  });
+  if (created) {
+    // Tell the studio, in the email it already gets when a couple writes.
+    const recipient = await studioNotificationAddress(adminFirestore, adminAuth, input.tenantId).catch(() => null);
+    if (recipient) {
+      const price = new Intl.NumberFormat("en-US", { style: "currency", currency: option.currency || "USD" }).format(
+        option.basePriceCents / 100,
+      );
+      await adminFirestore.doc(`emailJobs/notify_${requestId}_${Date.parse(now)}`).set({
+        id: `notify_${requestId}_${Date.parse(now)}`,
+        tenantId: input.tenantId,
+        projectId: input.projectId,
+        type: "client_message_received",
+        recipient,
+        senderName: input.actorName ?? "Your couple",
+        messageSubject: `They'd like to add ${option.name}`,
+        messagePreview: [
+          `${option.name} (${price}).`,
+          input.note ? `“${input.note.replace(/[.!?]*$/, "")}.”` : null,
+          "Approve it on Today and they get a revised proposal to accept.",
+        ]
+          .filter(Boolean)
+          .join(" "),
+        projectName,
+        actionUrl: `${(process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com").replace(/\/$/, "")}/studio`,
+        status: "queued",
+        attempts: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  }
+  return { requestId, status: "pending" };
 }
 
 async function selectPackageForClient(input: {
@@ -1566,6 +1742,24 @@ export async function POST(request: Request) {
       return Response.json({
         packages: await availablePackages(parsed.tenantId, parsed.projectId),
       });
+    }
+
+    if (parsed.type === "package_additions") {
+      return Response.json(await packageAdditions(parsed.tenantId, parsed.projectId));
+    }
+
+    if (parsed.type === "request_package") {
+      return Response.json(
+        await requestPackageForClient({
+          tenantId: parsed.tenantId,
+          projectId: parsed.projectId,
+          packageId: parsed.packageId,
+          note: parsed.note,
+          actorId: identity.uid,
+          actorName: safeString(identity.name) ?? safeString(identity.email),
+        }),
+        { status: 201 },
+      );
     }
 
     if (parsed.type === "select_package") {

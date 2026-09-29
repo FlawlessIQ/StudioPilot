@@ -27,6 +27,10 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "An invoice has already been raised for the current total. Void it first, then change the packages.",
   PACKAGE_ALREADY_SELECTED:
     "This job already has a package. Open its proposal and use Packages to add another or swap it.",
+  PACKAGE_ALREADY_ON_JOB: "That package is already on this job.",
+  PACKAGE_REQUEST_NOT_AVAILABLE:
+    "Your booking can't take another package right now — your agreement may already be on its way. Please message your studio.",
+  PACKAGE_REQUEST_NOT_FOUND: "That request isn't there any more. Refresh and try again.",
   PACKAGE_LIMIT_REACHED: "A job can hold four packages at most. Remove one before adding another.",
   PACKAGE_NOT_ON_JOB: "That package isn't on this job any more. Refresh and try again.",
   LAST_PACKAGE_ON_JOB: "A job needs at least one package. Use Swap to change it instead.",

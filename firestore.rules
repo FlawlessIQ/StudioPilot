@@ -174,7 +174,13 @@ service cloud.firestore {
     // Leads change only through crmCommand (updateLead, closeInquiry, …),
     // which audits each edit and keeps the job in step. A direct browser write
     // could set status, needsConfirmation or fieldProvenance behind both.
-    match /leads/{leadId} {
+    // A couple asking, in their portal, to add a package. Written by the
+    // portal API (Admin SDK); decided through crmCommand decidePackageRequest.
+    match /packageRequests/{requestId} {
+      allow read: if canManageProjects(resource.data.tenantId);
+      allow write: if false;
+    }
+        match /leads/{leadId} {
       allow read: if canManageProjects(resource.data.tenantId);
       allow create: if false;
       allow update: if false;

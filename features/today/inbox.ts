@@ -54,6 +54,20 @@ export type TodayAction =
    */
   | { kind: "automation"; label: string; approvalId: string }
   /**
+   * A couple asked, in their portal, to add a package. Approving adds it and
+   * revises their proposal; "Not now" tells them the studio will be in touch.
+   */
+  | {
+      kind: "package_request";
+      label: string;
+      requestId: string;
+      projectId: string;
+      packageId: string;
+      packageName: string;
+      /** The proposal the addition revises — the newest still in play. */
+      proposalId: string | null;
+    }
+  /**
    * Approve AI-prepared work in place. `preview` is the drafted content
    * itself, so the card can show the work before it is released.
    */
@@ -213,6 +227,8 @@ export type TodayInput = {
    * (features/inquiries/next-move.ts) instead of assuming nobody replied.
    */
   conversations?: TodayRecord[] | null;
+  /** Couples asking to add a package (portal "Add to your booking"). */
+  packageRequests?: TodayRecord[] | null;
   tasks?: TodayRecord[] | null;
   aiActions?: TodayRecord[] | null;
   automationApprovals?: TodayRecord[] | null;
@@ -802,6 +818,64 @@ export function todayInbox(input: TodayInput): TodayInbox {
         updatedAt: nextMove.waitingSince ?? arrivedAt(lead) ?? changedAt(lead),
         now,
       }),
+    });
+  }
+
+  // ── Act · a couple asked to add a package ──────────────────────────
+  for (const request of rows(input.packageRequests)) {
+    if (text(request.status) !== "pending") continue;
+    const projectId = text(request.projectId);
+    const job = inquiryJobById.get(projectId);
+    if (!job || job.archivedAt) continue;
+    const proposal = rows(input.proposals)
+      .filter(
+        (candidate) =>
+          text(candidate.projectId) === projectId &&
+          ["draft", "internal_review", "approved", "sent", "viewed", "accepted"].includes(text(candidate.status)),
+      )
+      .sort((left, right) => Number(right.version ?? 0) - Number(left.version ?? 0))[0];
+    const price =
+      typeof request.basePriceCents === "number"
+        ? new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: text(request.currency) || "USD",
+            maximumFractionDigits: 0,
+          }).format(request.basePriceCents / 100)
+        : null;
+    const note = text(request.note).trim();
+    act.push({
+      id: `package-request-${request.id}`,
+      lane: "act",
+      kind: "package",
+      title: `${text(job.name) || "A couple"} want to add ${text(request.packageName) || "a package"}`,
+      detail: [
+        price,
+        note ? `“${note.length > 120 ? `${note.slice(0, 119)}…` : note}”` : null,
+        text(proposal?.status) === "accepted"
+          ? "Adding it makes a revised proposal for them to accept."
+          : proposal
+            ? "Adding it prices their proposal again."
+            : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      evidence: "Asked in their portal",
+      projectId,
+      projectName: text(job.name) || null,
+      action: {
+        kind: "package_request",
+        label: "Add and revise",
+        requestId: request.id,
+        projectId,
+        packageId: text(request.packageId),
+        packageName: text(request.packageName) || "the package",
+        proposalId: proposal?.id ?? null,
+      },
+      jobHref: `/studio/projects/${projectId}`,
+      facts: [waitingFact(changedAt(request), now)].filter((fact): fact is string => Boolean(fact)),
+      band: "soon",
+      eventDate: text(job.eventDate) || null,
+      score: score({ lane: "act", severity: "inquiry", updatedAt: changedAt(request), now }),
     });
   }
 

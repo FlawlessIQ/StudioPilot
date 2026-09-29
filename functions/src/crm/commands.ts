@@ -657,6 +657,23 @@ const commandSchema = z.discriminatedUnion("type", [
       packageSnapshotId: z.string().min(1),
     }),
   }),
+  z.object({
+    /**
+     * The studio's answer to a couple asking, in their portal, to add a
+     * package. Approving records the revised proposal it produced — the
+     * package itself is added through selectPackage and the proposal revised
+     * through revise_packages, the same two steps the Packages panel and Cue
+     * take — so this only closes the request and says how.
+     */
+    type: z.literal("decidePackageRequest"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      requestId: z.string().min(1),
+      decision: z.enum(["approved", "declined"]),
+      resultProposalId: z.string().min(1).nullable().default(null),
+    }),
+  }),
 ]);
 
 /**
@@ -1423,6 +1440,62 @@ export const crmCommand = onRequest(
           return output;
         }
 
+        if (command.type === "decidePackageRequest") {
+          const requestReference = db.doc(`packageRequests/${command.input.requestId}`);
+          const packageRequest = await transaction.get(requestReference);
+          if (!packageRequest.exists || packageRequest.get("tenantId") !== command.tenantId) {
+            throw new Error("PACKAGE_REQUEST_NOT_FOUND");
+          }
+          if (!hasProjectAccess(membershipData, String(packageRequest.get("projectId")))) {
+            throw new Error("PROJECT_NOT_PERMITTED");
+          }
+          const previous = String(packageRequest.get("status"));
+          if (previous !== "pending") {
+            const settled = { requestId: packageRequest.id, status: previous, alreadyDecided: true };
+            transaction.create(commandReference, {
+              tenantId: command.tenantId,
+              idempotencyKey: command.idempotencyKey,
+              result: settled,
+              createdAt: timestamp,
+            });
+            return settled;
+          }
+          transaction.update(requestReference, {
+            status: command.input.decision,
+            decidedAt: timestamp,
+            decidedBy: identity.uid,
+            resultProposalId: command.input.resultProposalId,
+            updatedAt: timestamp,
+          });
+          const requestAuditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${requestAuditId}`), {
+            id: requestAuditId,
+            tenantId: command.tenantId,
+            projectId: packageRequest.get("projectId"),
+            actorId: identity.uid,
+            actorType: "user",
+            action: `package_request.${command.input.decision}`,
+            entityType: "packageRequest",
+            entityId: packageRequest.id,
+            timestamp,
+            before: { status: previous },
+            after: { status: command.input.decision, resultProposalId: command.input.resultProposalId },
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          const decided = { requestId: packageRequest.id, status: command.input.decision };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: decided,
+            createdAt: timestamp,
+          });
+          return decided;
+        }
+
         if (command.type === "removePackage") {
           const projectReference = db.doc(`projects/${command.input.projectId}`);
           const projectDocument = await transaction.get(projectReference);
@@ -1554,6 +1627,21 @@ export const crmCommand = onRequest(
               : 0;
             if (command.input.mode === "add" && alreadyAdditional >= 3) {
               throw new Error("PACKAGE_LIMIT_REACHED");
+            }
+            // The same package twice is a double tap or a request already met
+            // (a couple asked, and the studio added it from the proposal).
+            if (command.input.mode === "add") {
+              const onJob = await Promise.all(
+                [
+                  String(projectDocument.get("packageSnapshotId")),
+                  ...(Array.isArray(projectDocument.get("additionalPackageSnapshotIds"))
+                    ? (projectDocument.get("additionalPackageSnapshotIds") as unknown[]).map(String)
+                    : []),
+                ].map((id) => transaction.get(db.doc(`packageSnapshots/${id}`))),
+              );
+              if (onJob.some((snapshot) => snapshot.get("packageId") === command.input.packageId)) {
+                throw new Error("PACKAGE_ALREADY_ON_JOB");
+              }
             }
           }
           if (

@@ -186,6 +186,29 @@ export function getClientAvailablePackages(
   });
 }
 
+export type ClientPackageAdditions = {
+  canRequest: boolean;
+  options: Array<Record<string, unknown> & { id: string }>;
+  requests: Array<{ id: string; packageId: string; packageName: string; status: string; createdAt: string }>;
+};
+
+/** What the couple could ask to add to their booking, and what they've asked. */
+export function getClientPackageAdditions(tenantId: string, projectId: string) {
+  return portalRequest<ClientPackageAdditions>({ type: "package_additions", tenantId, projectId });
+}
+
+/** Ask the studio to add a package; the studio approves, then a revised proposal follows. */
+export function requestClientPackage(tenantId: string, projectId: string, packageId: string, note: string | null) {
+  return portalRequest<{ requestId: string; status: string }>({
+    type: "request_package",
+    tenantId,
+    projectId,
+    packageId,
+    note,
+    idempotencyKey: crypto.randomUUID(),
+  });
+}
+
 export function selectClientPackage(
   tenantId: string,
   projectId: string,

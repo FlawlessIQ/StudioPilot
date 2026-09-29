@@ -37,6 +37,8 @@ import {
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { runAiQueueCommand } from "@/lib/ai-actions/command-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
+import { runProposalCommand } from "@/lib/proposals/command-client";
+import { useRouter } from "next/navigation";
 import { TodayMaybeInquiries } from "@/components/today/today-maybe-inquiries";
 
 const DATE_LABEL = new Intl.DateTimeFormat("en-US", {
@@ -936,6 +938,8 @@ function TodayCard({
               Review
             </button>
           </>
+        ) : item.action.kind === "package_request" ? (
+          <PackageRequestActions action={item.action} onCleared={onCleared} />
         ) : item.action.kind === "close_inquiry" ? (
           <CloseInquiryActions action={item.action} onCleared={onCleared} />
         ) : item.action.kind === "automation" ? (
@@ -1205,6 +1209,92 @@ function CloseInquiryActions({ action, onCleared }: { action: CloseInquiryAction
       </button>
       <Link className="today-card-secondary" href={action.href}>
         Open
+      </Link>
+      {notice ? (
+        <span className="today-card-notice" role="status">
+          {notice}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
+type PackageRequestAction = Extract<TodayItem["action"], { kind: "package_request" }>;
+
+/**
+ * A couple asked, in their portal, to add a package. "Add and revise" does
+ * what the Packages panel does — adds it alongside and prices their proposal
+ * again — then opens the revised proposal to check and send. "Not now" closes
+ * the request; the couple's portal says the studio will be in touch.
+ */
+function PackageRequestActions({ action, onCleared }: { action: PackageRequestAction; onCleared?: () => void }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState<"add" | "decline" | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  async function add() {
+    setBusy("add");
+    setNotice(null);
+    try {
+      let alreadyAdded = false;
+      try {
+        await runCrmCommand("selectPackage", {
+          projectId: action.projectId,
+          packageId: action.packageId,
+          selectedAddOns: [],
+          mode: "add",
+          discount: { type: "none" },
+        });
+      } catch (caught: unknown) {
+        // Added already, from the proposal or Cue: the request is met.
+        if (!(caught instanceof Error && caught.message.includes("PACKAGE_ALREADY_ON_JOB"))) throw caught;
+        alreadyAdded = true;
+      }
+      let resultProposalId: string | null = null;
+      if (action.proposalId && !alreadyAdded) {
+        const revised = await runProposalCommand("revise_packages", { proposalId: action.proposalId });
+        resultProposalId = typeof revised.result.proposalId === "string" ? revised.result.proposalId : action.proposalId;
+      }
+      await runCrmCommand("decidePackageRequest", {
+        requestId: action.requestId,
+        decision: "approved",
+        resultProposalId,
+      });
+      onCleared?.();
+      router.push(resultProposalId ? `/studio/proposals/${resultProposalId}` : `/studio/projects/${action.projectId}`);
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, `${action.packageName} couldn't be added. Open the job to check.`));
+      setBusy(null);
+    }
+  }
+
+  async function decline() {
+    setBusy("decline");
+    setNotice(null);
+    try {
+      await runCrmCommand("decidePackageRequest", {
+        requestId: action.requestId,
+        decision: "declined",
+        resultProposalId: null,
+      });
+      onCleared?.();
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "That didn't go through. Try again."));
+      setBusy(null);
+    }
+  }
+
+  return (
+    <>
+      <button className="today-card-primary" disabled={busy !== null} onClick={() => void add()} type="button">
+        {busy === "add" ? <LoaderCircle className="spin" size={14} /> : <Check size={14} />}
+        {busy === "add" ? "Adding…" : action.label}
+      </button>
+      <button className="today-card-secondary" disabled={busy !== null} onClick={() => void decline()} type="button">
+        Not now
+      </button>
+      <Link className="today-card-secondary" href={`/studio/projects/${action.projectId}`}>
+        Open the job
       </Link>
       {notice ? (
         <span className="today-card-notice" role="status">

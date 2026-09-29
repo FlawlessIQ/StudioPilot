@@ -104,6 +104,7 @@ export function useTodayInbox(): {
   };
   const tasks = useTenantDocuments("tasks");
   const conversations = useTenantDocuments("conversations");
+  const packageRequests = useTenantDocuments("packageRequests");
   const aiActions = useTenantDocuments("aiActions");
   const actionReceipts = useTenantDocuments("actionReceipts");
   const automationApprovals = useTenantDocuments("automationApprovals", {
@@ -276,6 +277,7 @@ export function useTodayInbox(): {
     projects: projects.records,
     leads: leads.records,
     conversations: conversations.records,
+    packageRequests: packageRequests.records,
     tasks: tasks.records,
     aiActions: aiActions.records,
     actionReceipts: actionReceipts.records,
