@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { separateGreeting } from "../functions/src/ai/reply-format";
+import { separateGreeting, signWithStudio } from "../functions/src/ai/reply-format";
 
 /**
  * A drafted reply's greeting on its own line. A production draft began
@@ -35,4 +35,25 @@ test("bodies with no greeting are untouched", () => {
   for (const body of ["Thank you, Dana. We'd love to.", "", "Dearest friends,"]) {
     assert.equal(separateGreeting(body), body);
   }
+});
+
+test("a reply that ends on a bare 'Warmly,' is signed with the studio's name", () => {
+  // Production, 2026-09-29: the couple's first reply ended "Warmly," and then
+  // the footer, because the prompt leaves the name to StudioCue.
+  assert.equal(signWithStudio("Hi Harper,\n\nThank you.\n\nWarmly,", "FlawlessIQ"), "Hi Harper,\n\nThank you.\n\nWarmly,\nFlawlessIQ");
+  assert.equal(signWithStudio("Thanks again.\n\nBest\n", "GR Productions"), "Thanks again.\n\nBest\nGR Productions");
+});
+
+test("a signed reply, or one with no sign-off, is left alone", () => {
+  const signed = "Thank you.\n\nWarmly,\nGabe";
+  assert.equal(signWithStudio(signed, "FlawlessIQ"), signed);
+  assert.equal(signWithStudio("We'd love to talk.", "FlawlessIQ"), "We'd love to talk.");
+  assert.equal(signWithStudio("Thank you.\n\nWarmly,", ""), "Thank you.\n\nWarmly,");
+});
+
+test("the couple's link still goes above the completed sign-off", () => {
+  const signed = signWithStudio("Thank you.\n\nWarmly,", "FlawlessIQ");
+  assert.match(signed, /\n\nWarmly,\nFlawlessIQ$/);
+  // inquiry-link.ts's sign-off pattern takes the sign-off plus one line.
+  assert.match(signed.trimEnd(), /\n\n((?:warmly)[^\n]*,?\s*(?:\n[^\n]*)?)$/i);
 });

@@ -15,7 +15,8 @@ import {
   resolveCoverage,
 } from "../packages/coverage.js";
 import { vertexEndpoint } from "../ai/vertex-endpoint.js";
-import { separateGreeting } from "../ai/reply-format.js";
+import { resolveTenantBrand } from "../branding/tenant-brand.js";
+import { separateGreeting, signWithStudio } from "../ai/reply-format.js";
 
 type Json=Record<string,unknown>;
 const record=(value:unknown):Json=>typeof value==="object"&&value!==null&&!Array.isArray(value)?value as Json:{};
@@ -114,7 +115,10 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
   // reply, added here rather than asked of the model, which must never
   // invent a link (intake/inquiry-link.ts). No hours set: no link, and the
   // draft says why so Today can.
-  const linked=await withInquiryLink(db,{tenantId:string(lead.get("tenantId")),leadId,body:separateGreeting(string(analysis.replyBody)),now:new Date().toISOString()});
+  // "Warmly," then nothing: the prompt leaves the name to us (reply-format.ts).
+  const tenant=await db.doc(`tenants/${string(lead.get("tenantId"))}`).get();
+  const signed=signWithStudio(separateGreeting(string(analysis.replyBody)),resolveTenantBrand(tenant.data(),"").brandName);
+  const linked=await withInquiryLink(db,{tenantId:string(lead.get("tenantId")),leadId,body:signed,now:new Date().toISOString()});
   const replyBody=linked.body;
   const confidence=missingInformation.length===0?0.93:0.82;
   const actionId=`ai_reply_${leadId}`;

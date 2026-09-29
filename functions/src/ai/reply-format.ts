@@ -22,3 +22,24 @@ export function separateGreeting(body: string): string {
   if (!match) return body;
   return `${match[1]!.trimStart()}\n\n${body.slice(match[0].length)}`;
 }
+
+/**
+ * A drafted reply that ends on a bare "Warmly," gets the studio's name under it.
+ *
+ * The inquiry reply prompt tells the model to end warmly but leave the name
+ * off, because "the studio's name is added automatically" — and nothing added
+ * it. A couple's first reply from the studio (production, 2026-09-29) ended on
+ * "Warmly," and then the footer. Added here, at draft time, so the studio
+ * approves the name that goes out and can change it.
+ *
+ * A sign-off that already carries a name is left alone.
+ */
+const BARE_SIGN_OFF =
+  /\n[ \t]*((?:warmly|best|best wishes|thanks|thank you|kind regards|warm regards|regards|cheers|all the best|with love)[ \t]*,?)[ \t]*$/i;
+
+export function signWithStudio(body: string, studioName: string): string {
+  const name = studioName.trim();
+  const trimmed = body.trimEnd();
+  if (!name || !BARE_SIGN_OFF.test(trimmed)) return body;
+  return `${trimmed}\n${name}`;
+}
