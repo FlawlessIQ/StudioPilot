@@ -21,6 +21,29 @@ Held per studio until counsel has reviewed the consent and certificate wording.
 - A studio with it on but no saved agreement sees "Set up your agreement" on
   Today; the booking step keeps the old paths until an agreement exists.
 
+## One send, two signatures (booking agreement)
+
+Also held per studio, and **only on top of native signing**, until counsel has
+seen the two-signature ceremony (plan: `docs/proposal-agreement-and-addons-plan-2026-09-28.md`
+Part B). A platform admin adds `combinedAgreement: true` to the studio's
+`tenantFeatures/{tenantId}` document.
+
+With it on, the proposal page offers **Send as one booking agreement**:
+
+| Step | Who | Where |
+|---|---|---|
+| Read both parts — Part 1 the studio's agreement, Part 2 the proposal's packages, extras, total and schedule | Owner / admin | `previewCombinedAgreement` (writes nothing) |
+| Sign both parts for the studio and send; the proposal goes out inside it | Owner / admin | `sendCombinedAgreement` → `contracts/{id}` with `mode: "combined"`, `sections[]`, studio signatures `{id}_studio_terms` / `_coverage` |
+| Sign each part, which accepts the proposal and signs the contract in one transaction (PROPOSAL → CONTRACT_PENDING → RETAINER_PENDING) | The couple | portal `sign_combined_agreement` → `server/contracts/combined-signing.ts` |
+
+Every signature records its part's hash (`sectionHash`) and the hash of the
+whole (`documentHash`). Accepting a combined proposal on its own is refused
+(`PROPOSAL_ACCEPTED_BY_SIGNING`). The sealed PDF groups signatures by part;
+the PDF service (`cloud-run/pdf`, deployed with
+`gcloud run deploy studiohub-pdf --source cloud-run/pdf --region us-east4 --project studiohub-prod`)
+must be at or after 429d5db to print the part headings — an older one still
+renders, without them.
+
 ## The flow
 
 | Step | Who | Where |
