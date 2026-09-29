@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { ClipboardList, LoaderCircle, PackageOpen, Send, Users } from "lucide-react";
-import { useTenantDocuments } from "@/components/live/tenant-records";
+import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
+import { runProposalCommand } from "@/lib/proposals/command-client";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendCrewCommand } from "@/lib/crew/command-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
@@ -63,13 +64,61 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
   const projectId = flow.projectId;
   const { records: projects } = useTenantDocuments("projects");
   const { records: packages } = useTenantDocuments("packages");
+  const { records: snapshots } = useTenantDocuments("packageSnapshots");
+  const { records: proposals } = useTenantDocuments("proposals");
+  const { records: contracts } = useTenantDocuments("contracts");
+  const { records: invoices } = useTenantDocuments("invoiceReferences");
   const project = (projects ?? []).find((item) => item.id === projectId);
-  const alreadySelected = Boolean(str(project?.packageSnapshotId));
+  /**
+   * A job that already has a package takes another alongside it — the couple
+   * wants video too — rather than being told it "already has a package". The
+   * proposal is then priced again, exactly as the proposal page's Packages
+   * panel does (components/proposals/proposal-packages-panel.tsx).
+   */
+  const adding = Boolean(str(project?.packageSnapshotId));
   const eventTypeId = str(project?.eventTypeId);
+  const onJobIds = [
+    str(project?.packageSnapshotId),
+    ...(Array.isArray(project?.additionalPackageSnapshotIds)
+      ? (project.additionalPackageSnapshotIds as unknown[]).map(String)
+      : []),
+  ].filter(Boolean);
+  const onJobPackageIds = new Set(
+    (snapshots ?? [])
+      .filter((snapshot) => onJobIds.includes(snapshot.id))
+      .map((snapshot) => str(snapshot.packageId)),
+  );
+  // What has left the studio fixes the packages: an agreement out for
+  // signature, or a bill raised against the current total.
+  const agreementOut = (contracts ?? []).some(
+    (contract) =>
+      contract.projectId === projectId &&
+      ["queued", "sent", "delivered", "viewed", "partially_signed", "completed"].includes(str(contract.status)),
+  );
+  const invoiceRaised = (invoices ?? []).some(
+    (invoice) =>
+      invoice.projectId === projectId && !["voided", "void", "cancelled"].includes(str(invoice.status)),
+  );
+  const locked =
+    adding &&
+    (agreementOut ||
+      invoiceRaised ||
+      !["LEAD", "CONSULTATION", "PROPOSAL", "CONTRACT_PENDING"].includes(str(project?.state)));
+  // The proposal the change lands on: the newest one still in play.
+  const proposal = (proposals ?? [])
+    .filter(
+      (item) =>
+        item.projectId === projectId &&
+        ["draft", "internal_review", "approved", "sent", "viewed", "accepted"].includes(str(item.status)),
+    )
+    .sort((a, b) => num(b.version) - num(a.version))[0];
+  const proposalStatus = str(proposal?.status);
 
-  // Active packages, preferring ones matching the project's event type.
+  // Active packages, preferring ones matching the project's event type, and
+  // never one the job already has.
   const options = (packages ?? [])
     .filter((p) => p.active === true)
+    .filter((p) => !onJobPackageIds.has(str(p.id)))
     .filter((p) => !eventTypeId || str(p.eventTypeId) === eventTypeId || !str(p.eventTypeId))
     .sort((a, b) => num(a.displayOrder) - num(b.displayOrder));
 
@@ -91,7 +140,7 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
 
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [done, setDone] = useState<string | null>(null);
+  const [done, setDone] = useState<{ name: string; proposalId: string | null; revised: boolean } | null>(null);
 
   async function apply(packageId: string, name: string) {
     setBusy(true);
@@ -101,6 +150,7 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
         projectId,
         packageId,
         selectedAddOns: [],
+        mode: adding ? "add" : "replace",
         // `discount` is required by the command schema — there is no default.
         // Cue's picker omitted it, so every package selection from the chat
         // came back 400 INVALID_COMMAND:discount and no package was ever
@@ -108,8 +158,21 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
         // callers that work, both send exactly this.
         discount: { type: "none" as const },
       });
-      if (response.persisted) setDone(name);
-      else setNotice("Preview: the package would be selected from here.");
+      if (!response.persisted) {
+        setNotice("Preview: the package would be selected from here.");
+        return;
+      }
+      if (adding && proposal) {
+        const revised = await runProposalCommand("revise_packages", { proposalId: proposal.id });
+        setDone({
+          name,
+          proposalId: str(revised.result.proposalId) || proposal.id,
+          revised: revised.result.superseded === true,
+        });
+      } else {
+        setDone({ name, proposalId: null, revised: false });
+      }
+      refreshTenantRecords("projects", "packageSnapshots", "proposals", "tasks");
     } catch (caught: unknown) {
       setNotice(
         caught instanceof Error
@@ -121,13 +184,25 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
     }
   }
 
+  const jobName = str(project?.name) || "the project";
+
   if (done) {
     return (
       <div className="panel copilot-flow">
         <p role="status">
-          Selected {done} for {str(project?.name) || "the project"}. You can now
-          prepare a proposal from it.
+          {!adding
+            ? `Selected ${done.name} for ${jobName}. You can now prepare a proposal from it.`
+            : done.proposalId
+              ? done.revised
+                ? `Added ${done.name} to ${jobName}. A revised proposal with both is ready as a draft — check it, approve it and send it to them.`
+                : `Added ${done.name} to ${jobName}, and the draft proposal is priced again with both.`
+              : `Added ${done.name} to ${jobName}. The proposal you prepare next will include both.`}
         </p>
+        {done.proposalId ? (
+          <a className="button button-dark" href={`/studio/proposals/${done.proposalId}`}>
+            Open the proposal
+          </a>
+        ) : null}
       </div>
     );
   }
@@ -137,8 +212,8 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
       <header className="copilot-flow-head">
         <PackageOpen size={15} />
         <span>
-          <strong>{flow.title}</strong>
-          <small>{flow.reason}</small>
+          <strong>{adding ? `Add a package to ${jobName}` : flow.title}</strong>
+          <small>{adding ? "It joins the package they already have, on one proposal with one total." : flow.reason}</small>
         </span>
       </header>
       {flow.subject && subjectMatch.kind === "unmatched" ? (
@@ -152,31 +227,47 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
           one you meant.
         </p>
       ) : null}
-      {alreadySelected ? (
+      {locked ? (
         <p role="status">
-          {str(project?.name) || "This project"}{" "} already has a package selected.
+          {agreementOut
+            ? `The agreement has gone out for ${jobName}'s current packages. Void it on the job's Booking tab first, then add the package.`
+            : invoiceRaised
+              ? `An invoice has been raised for ${jobName}'s current total. Void it first, then add the package.`
+              : `${jobName} is booked, so its packages are fixed.`}
         </p>
       ) : options.length === 0 ? (
-        <p role="status">No active packages to choose from yet.</p>
+        <p role="status">{adding ? "No other active packages to add." : "No active packages to choose from yet."}</p>
       ) : (
-        <div className="copilot-flow-options">
-          {ordered.map((option) => (
-            <button
-              key={str(option.id)}
-              className="copilot-flow-option"
-              disabled={busy}
-              onClick={() => void apply(str(option.id), str(option.name))}
-              type="button"
-            >
-              <strong>
-                {str(option.name)} · {dollars(option.basePriceCents)}
-              </strong>
-              {str(option.eventTypeLabel) ? (
-                <small>{str(option.eventTypeLabel)}</small>
-              ) : null}
-            </button>
-          ))}
-        </div>
+        <>
+          {adding && proposalStatus ? (
+            // Said before the tap, because the tap is the approval.
+            <p className="copilot-flow-subject" role="status">
+              {proposalStatus === "accepted"
+                ? "They've accepted their proposal. Adding a package makes a revised proposal for them to accept — the accepted one stays in the history, and the agreement waits for the new one."
+                : ["sent", "viewed"].includes(proposalStatus)
+                  ? "They've been sent a proposal. Adding a package makes a new version for you to send them."
+                  : "The draft proposal is priced again with both packages."}
+            </p>
+          ) : null}
+          <div className="copilot-flow-options">
+            {ordered.map((option) => (
+              <button
+                key={str(option.id)}
+                className="copilot-flow-option"
+                disabled={busy}
+                onClick={() => void apply(str(option.id), str(option.name))}
+                type="button"
+              >
+                <strong>
+                  {str(option.name)} · {dollars(option.basePriceCents)}
+                </strong>
+                {str(option.eventTypeLabel) ? (
+                  <small>{str(option.eventTypeLabel)}</small>
+                ) : null}
+              </button>
+            ))}
+          </div>
+        </>
       )}
       {notice ? <p role="status">{notice}</p> : null}
     </div>

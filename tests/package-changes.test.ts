@@ -62,3 +62,17 @@ test("the proposal page offers the change, through the packages panel", () => {
   assert.match(panel, /"revise_packages"/);
   assert.match(panel, /confirmReplace: mode === "replace"/);
 });
+
+test("Cue's package flow adds to a job that already has one, and revises its proposal", () => {
+  const flow = source("components/ai/flow-runner.tsx");
+  const packageFlow = flow.slice(flow.indexOf("function PackageSelectFlow"), flow.indexOf("function QuestionnaireSelectFlow"));
+  assert.match(packageFlow, /mode: adding \? "add" : "replace"/);
+  assert.match(packageFlow, /runProposalCommand\("revise_packages"/);
+  // It says what the tap will do to an accepted proposal before the tap.
+  assert.match(packageFlow, /They've accepted their proposal\. Adding a package makes a revised proposal/);
+  // And refuses, in words, once the agreement is out.
+  assert.match(packageFlow, /The agreement has gone out/);
+  assert.doesNotMatch(packageFlow, /already has a package selected/);
+  const copilot = source("functions/src/ai/copilot.ts");
+  assert.match(copilot, /Launch the same flow when the operator asks to ADD a package to a job that already has one/);
+});

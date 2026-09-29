@@ -185,7 +185,9 @@ test("a change to Cue's prompt is deliberate and re-evaluated", () => {
   // Bumped 2026-09-29: a job's packages can change until the agreement goes
   // out (the proposal's Packages panel); the old line told Cue a selected
   // package "cannot be edited". F7 re-run on production before shipping.
-  const EXPECTED = 19082;
+  // Bumped again the same day: asking to add a package now launches the
+  // select_package flow, which adds it and revises the proposal (F7).
+  const EXPECTED = 19491;
   const drift = Math.abs(size - EXPECTED);
   assert.ok(
     drift < 40,
