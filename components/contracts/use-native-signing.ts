@@ -5,12 +5,14 @@ import { doc, getDoc } from "firebase/firestore";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
-import { nativeSigningOn } from "@/features/contracts/rollout";
+import { combinedAgreementOn, nativeSigningOn } from "@/features/contracts/rollout";
 
 export type NativeSigningState = {
   loading: boolean;
   /** StudioCue may write and sign contracts for this studio. */
   enabled: boolean;
+  /** Terms and coverage sent together, two signatures (H2). */
+  combined: boolean;
   /** The studio's saved agreement, when there is one. */
   agreementTemplateId: string | null;
   autoSend: { enabled: boolean; signerName: string | null };
@@ -26,6 +28,7 @@ export function useNativeSigning(generation = 0): NativeSigningState {
     loading: dataIsLive,
     enabled: !dataIsLive,
     agreementTemplateId: null,
+    combined: false,
     autoSend: { enabled: false, signerName: null },
   });
   useEffect(() => {
@@ -43,6 +46,7 @@ export function useNativeSigning(generation = 0): NativeSigningState {
       setState({
         loading: false,
         enabled: nativeSigningOn(features?.exists() ? features.data() : null),
+        combined: combinedAgreementOn(features?.exists() ? features.data() : null),
         agreementTemplateId:
           typeof settings.agreementTemplateId === "string" ? settings.agreementTemplateId : null,
         autoSend: {

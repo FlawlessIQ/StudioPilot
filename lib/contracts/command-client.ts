@@ -3,7 +3,8 @@
 import { getDownloadURL, ref } from "firebase/storage";
 import { studioStorage } from "@/lib/documents/resolve-file";
 import { sendBookingCommand } from "@/lib/booking/command-client";
-import type { ContractCustomField } from "@/features/contracts/document";
+import type { ContractCustomField, ContractDocument } from "@/features/contracts/document";
+import type { CombinedSection } from "@/features/contracts/combined";
 import { markTenantRecordsWritten } from "@/lib/live/record-writes";
 
 /**
@@ -77,6 +78,47 @@ export async function sendContract(input: {
       type: "sendContract",
       idempotencyKey: key(),
       input: { ...input, consent: true },
+    }),
+  );
+}
+
+/** The booking agreement — terms and coverage — as it would go today (H2). */
+export type CombinedAgreementPreview = {
+  document: ContractDocument;
+  documentHash: string;
+  sections: Array<CombinedSection & { hash: string }>;
+  unresolved: string[];
+  clientEmail: string | null;
+  clientName: string | null;
+  templateVersion: number;
+};
+
+export async function previewCombinedAgreement(input: {
+  projectId: string;
+  proposalId: string;
+  overrides?: Record<string, string>;
+}) {
+  const result = await sendBookingCommand({
+    type: "previewCombinedAgreement",
+    idempotencyKey: key(),
+    input: { overrides: {}, ...input },
+  });
+  return result.mode === "live" ? (result.payload as unknown as CombinedAgreementPreview) : null;
+}
+
+/** The owner signs both parts for the studio and sends the agreement. */
+export async function sendCombinedAgreement(input: {
+  projectId: string;
+  proposalId: string;
+  documentHash: string;
+  studioSignerName: string;
+  overrides?: Record<string, string>;
+}) {
+  return persisted(
+    sendBookingCommand({
+      type: "sendCombinedAgreement",
+      idempotencyKey: key(),
+      input: { overrides: {}, ...input, consent: true },
     }),
   );
 }

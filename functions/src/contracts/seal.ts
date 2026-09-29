@@ -105,13 +105,16 @@ export async function contractPdfInput(
   const events = [
     {
       at: when(contract.get("createdAt")),
-      description: `Prepared from ${templateName} and the accepted proposal`,
+      description:
+        contract.get("mode") === "combined"
+          ? `Prepared from ${templateName} (Part 1) and the proposal's coverage and price (Part 2)`
+          : `Prepared from ${templateName} and the accepted proposal`,
     },
     ...(studio
       ? [
           {
             at: when(studio.get("signedAt")),
-            description: `Signed by ${text(studio.get("typedName"))} for ${tenantName} and sent to ${text(clientSigner?.email) || "the client"}`,
+            description: `Signed by ${text(studio.get("typedName"))} for ${tenantName}${contract.get("mode") === "combined" ? ", both parts," : ""} and sent to ${text(clientSigner?.email) || "the client"}`,
           },
         ]
       : []),
@@ -122,7 +125,10 @@ export async function contractPdfInput(
       ? [
           {
             at: when(client.get("signedAt")),
-            description: `Signed by ${text(client.get("typedName"))} — agreement complete`,
+            description:
+              contract.get("mode") === "combined"
+                ? `Both parts signed by ${text(client.get("typedName"))}, which accepted the proposal — agreement complete`
+                : `Signed by ${text(client.get("typedName"))} — agreement complete`,
           },
         ]
       : []),
@@ -158,6 +164,15 @@ export async function contractPdfInput(
           ? authMethodLabel(text(signature.get("authMethod")))
           : null,
         consent_version: text(signature.get("consentVersion")) || "unknown",
+        // A booking agreement's signatures each cover one part (H2); the
+        // renderer groups them under it and prints the part's own hash.
+        ...(signature.get("section")
+          ? {
+              section: text(signature.get("section")),
+              section_title: text(signature.get("sectionTitle")) || null,
+              section_hash: text(signature.get("sectionHash")) || null,
+            }
+          : {}),
       })),
       events,
       generated_at: when(new Date().toISOString()),

@@ -106,6 +106,9 @@ export const bookingProposalAccepted = onDocumentWritten(
     if (!proposal?.exists) return;
     if (proposal.get("status") !== "accepted" || before?.get("status") === "accepted")
       return;
+    // Accepted by signing the booking agreement (H2): the contract is signed
+    // already, in the same act. There is nothing to prepare.
+    if (proposal.get("acceptedWithContractId")) return;
 
     const db = getFirestore();
     const tenantId = String(proposal.get("tenantId") ?? "");

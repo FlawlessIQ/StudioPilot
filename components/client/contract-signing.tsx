@@ -7,6 +7,7 @@ import { Actions, Button, Card, KitRoot } from "@/components/kit/kit";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { ContractDocumentView } from "@/components/contracts/contract-document-view";
 import { contractDocumentSchema } from "@/features/contracts/document";
+import { sectionDocument, type CombinedSection } from "@/features/contracts/combined";
 import { currentEsignConsent } from "@/features/contracts/esign-consent";
 import {
   normaliseTypedName,
@@ -14,13 +15,24 @@ import {
   type SigningRefusal,
 } from "@/features/contracts/signing-policy";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { signClientContract, viewClientContract } from "@/lib/client/portal-client";
+import {
+  signClientCombinedAgreement,
+  signClientContract,
+  viewClientContract,
+} from "@/lib/client/portal-client";
 import { signedCopyUrl } from "@/lib/contracts/command-client";
 import { formatSignedAt as formatDateTime } from "@/features/contracts/format";
 
 type ContractRecord = Record<string, unknown> & { id: string };
 
-type SignatureSummary = { id: string; role: "studio" | "client"; typedName: string; signedAt: string };
+type SignatureSummary = {
+  id: string;
+  role: "studio" | "client";
+  typedName: string;
+  signedAt: string;
+  /** Which part of a booking agreement it signs (H2). */
+  section?: string;
+};
 
 function signaturesOf(contract: ContractRecord): SignatureSummary[] {
   return Array.isArray(contract.signatures)
@@ -71,6 +83,8 @@ export function ClientContractSigning({
   const awaiting = status === "sent" || status === "viewed";
   const [consented, setConsented] = useState(false);
   const [typedName, setTypedName] = useState("");
+  // A booking agreement is signed twice: the terms, then the coverage (H2).
+  const [typedNameCoverage, setTypedNameCoverage] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -99,7 +113,13 @@ export function ClientContractSigning({
     );
   }
 
-  const nameValid = normaliseTypedName(typedName) !== null;
+  const sections =
+    contract.mode === "combined" && Array.isArray(contract.sections)
+      ? (contract.sections as CombinedSection[])
+      : null;
+  const nameValid =
+    normaliseTypedName(typedName) !== null &&
+    (!sections || normaliseTypedName(typedNameCoverage) !== null);
 
   async function sign() {
     if (!workspace.tenantId || !workspace.projectId) return;
@@ -115,15 +135,28 @@ export function ClientContractSigning({
     setError(null);
     idempotencyKey.current ??= crypto.randomUUID();
     try {
-      await signClientContract({
-        tenantId: workspace.tenantId,
-        projectId: workspace.projectId,
-        contractId: contract.id,
-        documentHash: String(contract.documentHash ?? ""),
-        typedName,
-        consentVersion: currentEsignConsent.id,
-        idempotencyKey: idempotencyKey.current,
-      });
+      if (sections) {
+        await signClientCombinedAgreement({
+          tenantId: workspace.tenantId,
+          projectId: workspace.projectId,
+          contractId: contract.id,
+          documentHash: String(contract.documentHash ?? ""),
+          typedNameTerms: typedName,
+          typedNameCoverage,
+          consentVersion: currentEsignConsent.id,
+          idempotencyKey: idempotencyKey.current,
+        });
+      } else {
+        await signClientContract({
+          tenantId: workspace.tenantId,
+          projectId: workspace.projectId,
+          contractId: contract.id,
+          documentHash: String(contract.documentHash ?? ""),
+          typedName,
+          consentVersion: currentEsignConsent.id,
+          idempotencyKey: idempotencyKey.current,
+        });
+      }
       onChanged();
     } catch (caught: unknown) {
       const refusal = refusalMessage(caught);
@@ -192,6 +225,46 @@ export function ClientContractSigning({
       ) : null}
 
       <section aria-label="The agreement" className="ds-root kit-doc" data-ds-theme="emerald">
+        {sections ? (
+          <div className="contract-sheet">
+            {/* Each part, then its own signatures: the terms are signed before
+                the coverage, and each signature is over its own part. */}
+            {sections.map((section, index) => {
+              const studioSig = signatures.find(
+                (signature) => signature.role === "studio" && signature.section === section.key,
+              );
+              const clientSig = signatures.find(
+                (signature) => signature.role === "client" && signature.section === section.key,
+              );
+              return (
+                <div key={section.key}>
+                  <ContractDocumentView
+                    document={index === 0 ? { ...sectionDocument(parsed.data, section), title: parsed.data.title } : sectionDocument(parsed.data, section)}
+                    showTitle={index === 0}
+                  />
+                  <div className="contract-signature-line">
+                    <div className={`contract-signature-slot ${studioSig ? "" : "is-pending"}`}>
+                      <small>{`${studioName ?? "Studio"} · ${section.key === "terms" ? "Part 1" : "Part 2"}`}</small>
+                      <div className="contract-signature-name">{studioSig?.typedName ?? "Not yet signed"}</div>
+                      {studioSig ? (
+                        <div className="contract-signature-meta">Signed {formatDateTime(studioSig.signedAt)}</div>
+                      ) : null}
+                    </div>
+                    <div className={`contract-signature-slot ${clientSig ? "" : "is-pending"}`}>
+                      <small>{`Client · ${section.key === "terms" ? "Part 1" : "Part 2"}`}</small>
+                      <div className="contract-signature-name">
+                        {clientSig?.typedName ?? (awaiting ? "Your signature goes here" : "Not signed")}
+                      </div>
+                      {clientSig ? (
+                        <div className="contract-signature-meta">Signed {formatDateTime(clientSig.signedAt)}</div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
         <div className="contract-sheet">
           <ContractDocumentView document={parsed.data} />
           <div className="contract-signature-line">
@@ -213,6 +286,7 @@ export function ClientContractSigning({
             </div>
           </div>
         </div>
+        )}
       </section>
 
       {awaiting ? (
@@ -229,7 +303,9 @@ export function ClientContractSigning({
             <KitRoot className="kit-embed kit-sheet" studio={{ color: studioColor }}>
               <div className="kit-stack" aria-label="Sign this agreement">
                 <p className="kit-body">
-                  {`You’re signing the agreement with ${studioName ?? "your studio"} exactly as shown.`}
+                  {sections
+                    ? `You’re signing both parts of the booking agreement with ${studioName ?? "your studio"} exactly as shown — the terms, then your coverage and price. This also accepts the proposal.`
+                    : `You’re signing the agreement with ${studioName ?? "your studio"} exactly as shown.`}
                 </p>
                 <label className="kit-check">
                   <input
@@ -258,7 +334,9 @@ export function ClientContractSigning({
                   })}
                 </details>
                 <label className="kit-field">
-                  <span className="kit-field-label">Type your full name to sign</span>
+                  <span className="kit-field-label">
+                    {sections ? "Part 1 — the terms. Type your full name to sign" : "Type your full name to sign"}
+                  </span>
                   <input
                     autoComplete="name"
                     className="kit-input"
@@ -269,6 +347,22 @@ export function ClientContractSigning({
                     value={typedName}
                   />
                 </label>
+                {sections ? (
+                  <label className="kit-field">
+                    <span className="kit-field-label">
+                      Part 2 — your coverage and price. Type your full name to sign
+                    </span>
+                    <input
+                      autoComplete="name"
+                      className="kit-input"
+                      maxLength={160}
+                      onChange={(event) => setTypedNameCoverage(event.target.value)}
+                      placeholder="Your full name"
+                      type="text"
+                      value={typedNameCoverage}
+                    />
+                  </label>
+                ) : null}
                 {typedName.trim() ? (
                   <p className="kit-signature-preview" aria-hidden>
                     {typedName.trim()}
@@ -280,7 +374,7 @@ export function ClientContractSigning({
                   </p>
                 ) : null}
                 <Button disabled={busy} icon={busy ? undefined : PenLine} onClick={() => void sign()}>
-                  {busy ? "Signing…" : "Sign agreement"}
+                  {busy ? "Signing…" : sections ? "Sign both parts" : "Sign agreement"}
                 </Button>
               </div>
             </KitRoot>

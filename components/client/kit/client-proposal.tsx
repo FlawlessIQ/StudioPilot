@@ -258,7 +258,9 @@ export function ClientProposal() {
               ))}
             </List>
             <p className="kit-caption">
-              Accepting doesn’t sign an agreement or take a payment. Those are separate, secure steps.
+              {proposal.combinedContractId
+                ? "These prices are Part 2 of your booking agreement. Signing it accepts them — no payment is taken until the retainer."
+                : "Accepting doesn’t sign an agreement or take a payment. Those are separate, secure steps."}
             </p>
           </section>
         ) : null}
@@ -304,7 +306,13 @@ export function ClientProposal() {
                   <span className="kit-caption">Total</span>
                   <strong>{money(pricing.totalCents, currency)}</strong>
                 </span>
-                <Button onClick={() => setMode("accept")}>Accept proposal</Button>
+                {proposal.combinedContractId ? (
+                  // Sent inside the booking agreement (H2): accepting is
+                  // signing, on the agreement, never a separate step here.
+                  <Button href="/client/contract">Review &amp; sign the agreement</Button>
+                ) : (
+                  <Button onClick={() => setMode("accept")}>Accept proposal</Button>
+                )}
               </div>
               <Button onClick={() => setMode("changes")} variant="secondary">
                 Request changes

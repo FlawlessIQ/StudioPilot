@@ -14,10 +14,13 @@ export function ContractDocumentView({
   document,
   showFields = false,
   missing = [],
+  showTitle = true,
 }: {
   document: ContractDocument;
   showFields?: boolean;
   missing?: readonly string[];
+  /** Off for the second part of a booking agreement, which continues the first. */
+  showTitle?: boolean;
 }) {
   const inline = (content: ContractInline[], keyPrefix: string) =>
     content.map((piece, index) => {
@@ -42,7 +45,7 @@ export function ContractDocumentView({
     });
   return (
     <article className="contract-document" aria-label={document.title}>
-      <h2 className="contract-document-title">{document.title}</h2>
+      {showTitle ? <h2 className="contract-document-title">{document.title}</h2> : null}
       {document.blocks.map((block, index) => {
         const key = `block-${index}`;
         if (block.type === "heading") {

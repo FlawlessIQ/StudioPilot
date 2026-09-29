@@ -21207,3 +21207,14 @@ label {
 .proposal-packages-list > li > span:first-child {
   flex: 1 1 12rem;
 }
+/* "Send as one booking agreement" on the proposal (H2). */
+.combined-agreement-send {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+  padding-top: 12px;
+}
+.combined-agreement-send > .button {
+  justify-self: start;
+}

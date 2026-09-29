@@ -37,6 +37,12 @@ import {
 } from "../imports/commands.js";
 import { studioVouchedAuthorities } from "../imports/existing-booking.js";
 import {
+  combinedAgreementInput,
+  previewCombinedAgreement,
+  sendCombinedAgreement,
+  sendCombinedAgreementInput,
+} from "../contracts/combined-commands.js";
+import {
   agreementDraftFromImport,
   agreementDraftFromImportInput,
   prepareContract,
@@ -78,6 +84,19 @@ const commandSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: sendContractInput,
+  }),
+  // One send, two signatures — see ../contracts/combined-commands.ts.
+  z.object({
+    type: z.literal("previewCombinedAgreement"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: combinedAgreementInput,
+  }),
+  z.object({
+    type: z.literal("sendCombinedAgreement"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: sendCombinedAgreementInput,
   }),
   z.object({
     type: z.literal("setContractAutoSend"),
@@ -2385,6 +2404,8 @@ export const bookingCommand = onRequest(
         command.type === "saveAgreementTemplate" ||
         command.type === "prepareContract" ||
         command.type === "sendContract" ||
+        command.type === "previewCombinedAgreement" ||
+        command.type === "sendCombinedAgreement" ||
         command.type === "setContractAutoSend" ||
         command.type === "setSignedCopyShared" ||
         command.type === "voidContract"
@@ -2421,6 +2442,10 @@ export const bookingCommand = onRequest(
           result = await prepareContract(contractContext, command.input);
         else if (command.type === "sendContract")
           result = await sendContract(contractContext, command.input);
+        else if (command.type === "previewCombinedAgreement")
+          result = await previewCombinedAgreement(contractContext, command.input);
+        else if (command.type === "sendCombinedAgreement")
+          result = await sendCombinedAgreement(contractContext, command.input);
         else if (command.type === "setContractAutoSend")
           result = await setContractAutoSend(contractContext, command.input);
         else if (command.type === "setSignedCopyShared")

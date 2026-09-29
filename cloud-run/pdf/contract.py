@@ -69,6 +69,12 @@ class Signature(BaseModel):
     user_agent: str | None = Field(default=None, max_length=500)
     auth_method: str | None = Field(default=None, max_length=80)
     consent_version: str = Field(min_length=1, max_length=80)
+    # A booking agreement is signed part by part (H2): each signature names
+    # its part and carries that part's own fingerprint. Absent on a contract
+    # signed as one document, which renders exactly as before.
+    section: str | None = Field(default=None, max_length=40)
+    section_title: str | None = Field(default=None, max_length=120)
+    section_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
 
 
 class Event(BaseModel):
@@ -234,23 +240,34 @@ def build_contract_pdf(data: ContractRequest) -> bytes:
             ]))
             story.extend([Spacer(1, 0.06 * inch), table, Spacer(1, 0.12 * inch)])
 
-    # Signatures, in signing order: the studio signs first, at send.
+    # Signatures, in signing order: the studio signs first, at send. A booking
+    # agreement's are grouped by the part they sign, in the parts' order.
     ordered = sorted(data.signatures, key=lambda signature: 0 if signature.role == "studio" else 1)
-    signature_cells = []
+    parts: list[str] = []
     for signature in ordered:
-        who = data.tenant_name if signature.role == "studio" else "Client"
-        signature_cells.append([
-            Paragraph(escape(who.upper()), eyebrow),
-            Paragraph(escape(signature.typed_name), signature_style),
-            Paragraph(f"{escape(signature.typed_name)}<br/>Signed electronically {escape(signature.signed_at)}", small),
-        ])
-    signature_table = Table([signature_cells], colWidths=[(LETTER[0] - 1.6 * inch) / max(1, len(signature_cells))] * len(signature_cells))
-    signature_table.setStyle(TableStyle([
-        ("LINEABOVE", (0, 0), (-1, 0), 0.7, line),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("TOPPADDING", (0, 0), (-1, -1), 10),
-    ]))
-    story.extend([Spacer(1, 0.3 * inch), KeepTogether([Paragraph("Signatures", h1), signature_table])])
+        if (signature.section or "") not in parts:
+            parts.append(signature.section or "")
+    ordered = sorted(ordered, key=lambda signature: parts.index(signature.section or ""))
+    signature_blocks = []
+    for part in parts:
+        group = [signature for signature in ordered if (signature.section or "") == part]
+        signature_cells = []
+        for signature in group:
+            who = data.tenant_name if signature.role == "studio" else "Client"
+            signature_cells.append([
+                Paragraph(escape(who.upper()), eyebrow),
+                Paragraph(escape(signature.typed_name), signature_style),
+                Paragraph(f"{escape(signature.typed_name)}<br/>Signed electronically {escape(signature.signed_at)}", small),
+            ])
+        signature_table = Table([signature_cells], colWidths=[(LETTER[0] - 1.6 * inch) / max(1, len(signature_cells))] * len(signature_cells))
+        signature_table.setStyle(TableStyle([
+            ("LINEABOVE", (0, 0), (-1, 0), 0.7, line),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("TOPPADDING", (0, 0), (-1, -1), 10),
+        ]))
+        heading = "Signatures" if not part else f"Signatures · {group[0].section_title or part}"
+        signature_blocks.extend([Spacer(1, 0.3 * inch), KeepTogether([Paragraph(escape(heading), h1), signature_table])])
+    story.extend(signature_blocks)
 
     # The certificate: what an evidence request would ask for.
     story.append(PageBreak())
@@ -286,6 +303,11 @@ def build_contract_pdf(data: ContractRequest) -> bytes:
             ["Device", signature.user_agent or "—"],
             ["Electronic signature consent", signature.consent_version],
         ]
+        if signature.section:
+            rows[1:1] = [
+                ["Signs", signature.section_title or signature.section],
+                ["Part fingerprint (SHA-256)", signature.section_hash or "—"],
+            ]
         table = Table([[Paragraph(escape(k), small), Paragraph(escape(v), small)] for k, v in rows], colWidths=[2.0 * inch, 4.9 * inch])
         table.setStyle(TableStyle([("LINEBELOW", (0, 0), (-1, -1), 0.3, line), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
         story.extend([KeepTogether([table]), Spacer(1, 0.16 * inch)])

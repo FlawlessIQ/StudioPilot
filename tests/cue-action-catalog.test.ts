@@ -161,6 +161,9 @@ const NOT_A_STUDIO_ACTION: Record<string, string> = {
   // The couple's own acts, in their portal.
   approveSchedule: "couple", saveQuestionnaire: "couple", markReviewOpened: "couple", accept: "couple or invitee", preview: "invitee",
   status_batch: "read by the clients list, not an act",
+  // H2 one-send agreement: behind a per-studio platform flag until counsel has
+  // seen the two-signature ceremony, so not offered through Cue yet.
+  previewCombinedAgreement: "flagged: counsel review pending", sendCombinedAgreement: "flagged: counsel review pending",
   // A crew member's own acts, in the crew app.
   respondAssignment: "crew", setAvailability: "crew", updateAvailability: "crew", deleteAvailability: "crew",
   updateCrewProfile: "crew", acknowledgeCalendar: "crew", acknowledgeSchedule: "crew", submitAssignmentCloseout: "crew",

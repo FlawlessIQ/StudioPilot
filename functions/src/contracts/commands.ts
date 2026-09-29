@@ -58,7 +58,7 @@ export const STUDIO_SIGNING_STATEMENT =
   "I'm signing this agreement for the studio, electronically, and my typed name is my signature.";
 export const STUDIO_SIGNING_CONSENT_VERSION = "studio-signing-v1";
 
-const DEAD_CONTRACT_STATUSES = new Set(["failed", "superseded", "voided"]);
+export const DEAD_CONTRACT_STATUSES = new Set(["failed", "superseded", "voided"]);
 
 export async function nativeSigningEnabled(
   db: Firestore,
@@ -69,17 +69,17 @@ export async function nativeSigningEnabled(
   return features.exists && features.get("nativeContractSigning") === true;
 }
 
-async function requireNativeSigning(db: Firestore, tenantId: string) {
+export async function requireNativeSigning(db: Firestore, tenantId: string) {
   if (!(await nativeSigningEnabled(db, tenantId)))
     throw new Error("NATIVE_SIGNING_NOT_ENABLED");
 }
 
-function requireOwnerOrAdmin(membership: Record<string, unknown>, error: string) {
+export function requireOwnerOrAdmin(membership: Record<string, unknown>, error: string) {
   if (!["studio_owner", "studio_admin"].includes(String(membership.role)))
     throw new Error(error);
 }
 
-function stableId(scope: string, ...parts: string[]): string {
+export function stableId(scope: string, ...parts: string[]): string {
   return `${scope}_${createHash("sha256").update(parts.join(":")).digest("hex").slice(0, 32)}`;
 }
 
@@ -123,7 +123,7 @@ export const voidContractInput = z.object({
   reason: z.string().trim().min(5).max(500),
 });
 
-type CommandContext = {
+export type CommandContext = {
   tenantId: string;
   membership: Record<string, unknown>;
   actorId: string;

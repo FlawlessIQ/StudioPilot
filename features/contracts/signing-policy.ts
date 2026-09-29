@@ -22,7 +22,9 @@ export type SigningRefusal =
   | "DOCUMENT_CHANGED"
   | "CONSENT_REQUIRED"
   | "CONSENT_OUTDATED"
-  | "NAME_REQUIRED";
+  | "NAME_REQUIRED"
+  /** A booking agreement whose proposal has passed its validity date (H2). */
+  | "PROPOSAL_EXPIRED";
 
 export type SigningDecision =
   | { allowed: true; alreadySigned: false }
@@ -101,4 +103,5 @@ export const signingRefusalCopy: Record<SigningRefusal, string> = {
   CONSENT_REQUIRED: "Tick the box to agree to sign electronically.",
   CONSENT_OUTDATED: "The terms for signing electronically were updated while this page was open. Reload the page, read them, and sign again.",
   NAME_REQUIRED: "Type your full name as your signature.",
+  PROPOSAL_EXPIRED: "The prices in this agreement were valid until a date that has now passed. Message your studio and they'll send it again.",
 };

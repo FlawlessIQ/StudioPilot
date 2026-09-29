@@ -1,5 +1,6 @@
 "use client";
 
+import { CombinedAgreementSend } from "@/components/contracts/combined-agreement-send";
 import { undatedPaymentDue } from "@/features/contracts/document";
 import {
   describeCoverage,
@@ -2329,6 +2330,11 @@ export function StudioProposalWorkspace({
                       )}
                       Send proposal
                     </button>
+                    <CombinedAgreementSend
+                      onSent={() => window.location.reload()}
+                      projectId={String(proposal.projectId ?? "")}
+                      proposalId={String(proposal.id)}
+                    />
                   </>
                 ) : null}
                 <button

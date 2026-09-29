@@ -28,6 +28,7 @@ import {
   studioNotificationAddress,
   viewContract,
 } from "@/server/contracts/client-signing";
+import { signCombinedAgreement } from "@/server/contracts/combined-signing";
 import { signingRefusalCopy } from "@/features/contracts/signing-policy";
 
 export const runtime = "nodejs";
@@ -105,6 +106,23 @@ const requestSchema = z.discriminatedUnion("type", [
     documentHash: z.string().regex(/^[a-f0-9]{64}$/),
     typedName: z.string().max(200),
     // Not defaulted: agreeing to sign electronically has to be an explicit act.
+    consent: z.literal(true),
+    consentVersion: z.string().min(1).max(80),
+    idempotencyKey: z.string().min(8).max(160),
+  }),
+  z.object({
+    /**
+     * The couple signs the booking agreement — terms, then coverage — which
+     * accepts the proposal and signs the contract in one act (H2). See
+     * server/contracts/combined-signing.ts.
+     */
+    type: z.literal("sign_combined_agreement"),
+    tenantId: z.string().min(1).max(160),
+    projectId: z.string().min(1).max(160),
+    contractId: z.string().min(1).max(160),
+    documentHash: z.string().regex(/^[a-f0-9]{64}$/),
+    typedNameTerms: z.string().max(200),
+    typedNameCoverage: z.string().max(200),
     consent: z.literal(true),
     consentVersion: z.string().min(1).max(80),
     idempotencyKey: z.string().min(8).max(160),
@@ -1273,6 +1291,12 @@ async function decideProposal({
     if (latestProposals.docs[0]?.id !== proposalId) {
       throw new Error("PROPOSAL_SUPERSEDED");
     }
+    // A proposal sent inside a booking agreement is accepted by signing the
+    // agreement (H2); accepting it on its own would move the job past the
+    // point where the agreement can be signed.
+    if (decision === "accepted" && proposal.get("combinedContractId")) {
+      throw new Error("PROPOSAL_ACCEPTED_BY_SIGNING");
+    }
 
     const packageSnapshotId = String(
       proposal.get("packageSnapshotId") ?? "",
@@ -1744,7 +1768,11 @@ export async function POST(request: Request) {
       );
     }
 
-    if (parsed.type === "view_contract" || parsed.type === "sign_contract") {
+    if (
+      parsed.type === "view_contract" ||
+      parsed.type === "sign_contract" ||
+      parsed.type === "sign_combined_agreement"
+    ) {
       const signer = {
         uid: identity.uid,
         email: typeof identity.email === "string" ? identity.email : null,
@@ -1778,6 +1806,26 @@ export async function POST(request: Request) {
         parsed.tenantId,
       ).catch(() => null);
       try {
+        if (parsed.type === "sign_combined_agreement") {
+          return Response.json(
+            await signCombinedAgreement(adminFirestore, {
+              tenantId: parsed.tenantId,
+              projectId: parsed.projectId,
+              contractId: parsed.contractId,
+              documentHash: parsed.documentHash,
+              typedNameTerms: parsed.typedNameTerms,
+              typedNameCoverage: parsed.typedNameCoverage,
+              consent: parsed.consent,
+              consentVersion: parsed.consentVersion,
+              idempotencyKey: parsed.idempotencyKey,
+              signer,
+              evidence,
+              studioAddress,
+              appUrl: process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin,
+            }),
+            { status: 201 },
+          );
+        }
         return Response.json(
           await signContract(adminFirestore, {
             tenantId: parsed.tenantId,
@@ -2099,6 +2147,7 @@ export async function POST(request: Request) {
       error === "PROPOSAL_NOT_ACTIONABLE" ||
       error === "PROPOSAL_EXPIRED" ||
       error === "PROPOSAL_SUPERSEDED" ||
+      error === "PROPOSAL_ACCEPTED_BY_SIGNING" ||
       error === "PACKAGE_SNAPSHOT_CONFLICT" ||
       error === "PROJECT_STATE_CONFLICT" ||
       error === "PACKAGE_SELECTION_NOT_AVAILABLE" ||

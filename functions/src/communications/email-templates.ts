@@ -649,6 +649,29 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       };
     case "contract_ready": {
       const signerName = stringValue(values, "signerName");
+      // One send, two signatures (H2): the terms and the price together,
+      // before anything was accepted — not "the proposal you accepted".
+      if (values.combined === true) {
+        return {
+          subject: `Your booking agreement from ${brand.studioName} is ready to sign`,
+          preheader: "Your coverage, your price and the terms — read them and sign in one go.",
+          eyebrow: "Booking agreement",
+          heading: "Your booking agreement is ready",
+          paragraphs: [
+            greeting,
+            `Everything for your booking${project} is in one agreement: Part 1 is ${brand.studioName}'s terms, Part 2 is your coverage, extras, total and payment schedule. You sign each part, and signing books it — there's no separate step to accept the proposal.`,
+            signerName
+              ? `${signerName} has already signed both parts for ${brand.studioName}. Once you sign, you'll get a copy by email and the next step is your retainer.`
+              : "Once you sign, you'll get a copy by email and the next step is your retainer.",
+          ],
+          action: actionUrl
+            ? { label: "Read and sign", url: actionUrl }
+            : portalUrl
+              ? { label: "Read and sign", url: `${portalUrl.replace(/\/$/, "")}/contract` }
+              : undefined,
+          note: "Something to change? Reply to this email before you sign.",
+        };
+      }
       return {
         subject: `Your agreement from ${brand.studioName} is ready to sign`,
         preheader: "Read it and sign in your client portal — it takes a couple of minutes.",

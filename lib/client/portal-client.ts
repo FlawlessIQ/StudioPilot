@@ -340,3 +340,26 @@ export function signClientContract(input: {
     consent: true,
   });
 }
+
+/** The couple signs the booking agreement — both parts, one act (H2). */
+export function signClientCombinedAgreement(input: {
+  tenantId: string;
+  projectId: string;
+  contractId: string;
+  documentHash: string;
+  typedNameTerms: string;
+  typedNameCoverage: string;
+  consentVersion: string;
+  idempotencyKey: string;
+}) {
+  return portalRequest<{
+    contractId: string;
+    status: string;
+    projectState: string;
+    alreadySigned: boolean;
+  }>({
+    type: "sign_combined_agreement",
+    ...input,
+    consent: true,
+  });
+}
