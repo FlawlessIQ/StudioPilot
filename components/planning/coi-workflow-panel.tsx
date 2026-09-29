@@ -59,6 +59,9 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
   const [dueDateOverride, setDueDateOverride] = useState<string | null>(null);
   const [limitDollars, setLimitDollars] = useState("1000000");
   const [settingRequirement, setSettingRequirement] = useState(false);
+  // A request already open for this job: the form waits behind a button
+  // rather than inviting a second request for the same venue (walked 2026-09-29).
+  const [requestAnother, setRequestAnother] = useState(false);
 
   /**
    * Whether this venue asks for a certificate at all.
@@ -199,8 +202,28 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
     }
   }
 
+  const openForThisJob = Boolean(
+    projectId &&
+      requests.some(
+        (request) =>
+          request.projectId === projectId &&
+          !["venue_acknowledged", "not_required", "cancelled", "superseded"].includes(String(request.status)),
+      ),
+  );
+
   return (
     <div className="coi-workflow-panel">
+      {openForThisJob && !requestAnother ? (
+        <section className="panel coi-request-collapsed">
+          <p>
+            <strong>A certificate is already on its way for this job.</strong>
+            <small>Its progress is below. A second venue, or a new certificate after a change? Request another.</small>
+          </p>
+          <button className="button button-light" onClick={() => setRequestAnother(true)} type="button">
+            <Send aria-hidden="true" size={15} /> Request another certificate
+          </button>
+        </section>
+      ) : (
       <section className="panel">
         <div className="panel-heading">
           <div>
@@ -402,6 +425,7 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
           </button>
         </form>
       </section>
+      )}
       <section>
         <div className="section-heading-row">
           <div>

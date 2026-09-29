@@ -248,11 +248,9 @@ const configurations: Record<Domain, DomainConfig> = {
     primary: ["projectName"],
     secondary: ["venueName", "requestEmail", "id"],
     status: ["status"],
-    facts: [
-      { label: "Due", fields: ["dueDate"], kind: "date" },
-      { label: "Scan", fields: ["scanStatus"] },
-      { label: "Decision", fields: ["humanDecision"] },
-    ],
+    // The certificate's card below the list carries its progress and next
+    // step; "Scan —" and "Decision pending" repeated it in raw words.
+    facts: [{ label: "Due", fields: ["dueDate"], kind: "date" }],
     files: (record) => FILE_BEARING.insuranceRequests(record),
   },
   schedules: {
@@ -597,6 +595,13 @@ function tone(value: unknown) {
   if (status === "true") return "brand" as const;
   if (status === "false" || status === "revoked") return "danger" as const;
   return stateTone(status);
+}
+
+/** A raw status code as words: "sent_to_venue" → "Sent to venue". Anything else as it is. */
+function badgeWords(value: string | number): string | number {
+  return typeof value === "string" && /^[a-z]+(?:_[a-z]+)*$/.test(value)
+    ? `${value[0]!.toUpperCase()}${value.slice(1).replace(/_/g, " ")}`
+    : value;
 }
 
 export function LiveDomainView({
@@ -1003,7 +1008,7 @@ export function LiveDomainView({
                 desktop grid, so it is not a stray grid cell there. */}
             <span className="live-domain-break" aria-hidden="true" />
             <StatusBadge tone={tone(status)}>
-              {display(status, undefined, record.currency)}
+              {badgeWords(display(status, undefined, record.currency))}
             </StatusBadge>
             {/* The bare arrow means "this whole row is a link". When the row
                 has its own actions it is not one any more, so the explicit

@@ -21381,3 +21381,18 @@ label {
 .crm-form-grid > .form-span {
   grid-column: 1 / -1;
 }
+.coi-request-collapsed {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  justify-content: space-between;
+}
+.coi-request-collapsed p {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+.coi-request-collapsed small {
+  color: var(--muted);
+}
