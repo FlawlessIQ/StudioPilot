@@ -218,6 +218,12 @@ export type TodayJourneyPosition = {
   actionHref: string | null;
   /** ISO timestamp of the project's last change, for staleness ranking. */
   updatedAt: string | null;
+  /**
+   * After the event: the next final deliverable still to go out, and when it
+   * is due by the package's turnaround (H4). Replaces a fixed 42 days for
+   * everything — a highlight film promised in 60 was "late" at 43.
+   */
+  deliveryDue?: { label: string; date: string } | null;
 };
 
 export type TodayInput = {
@@ -1235,13 +1241,17 @@ export function todayInbox(input: TodayInput): TodayInbox {
       jobHref: `/studio/projects/${position.projectId}`,
       facts: [
         eventFact(position.eventDate, now),
+        position.deliveryDue ? `${position.deliveryDue.label} due ${formatDueDate(position.deliveryDue.date)}` : null,
         waitingFact(position.updatedAt, now),
       ].filter((fact): fact is string => Boolean(fact)),
-      band: bandFor({
-        eventDate: position.eventDate,
-        graceDays: graceAfterEvent(position.state),
-        now,
-      }),
+      // By its own due date: late once it passes, "soon" in its last fortnight.
+      band: position.deliveryDue
+        ? bandFor({ eventDate: position.deliveryDue.date, dueDate: position.deliveryDue.date, now })
+        : bandFor({
+            eventDate: position.eventDate,
+            graceDays: graceAfterEvent(position.state),
+            now,
+          }),
       eventDate: position.eventDate,
       score: score({
         lane: "act",
@@ -1486,7 +1496,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
     prepared({
       id: `delivery-${draft.id}`,
       kind: "delivery",
-      title: "Approve the gallery delivery",
+      // What arrived, by name: a film's notice read "Approve the gallery
+      // delivery" (H4).
+      title: `Release the ${(text(draft.label) || "gallery").toLowerCase()}`,
       detail: nameFor(draft.projectId) ?? "Delivery",
       href: `/studio/delivery?project=${text(draft.projectId)}`,
       label: "Review",

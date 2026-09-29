@@ -20912,3 +20912,39 @@ label {
 .signed-copy-sharing-notice {
   color: var(--muted);
 }
+
+/* What a package delivers and its turnaround (H4). */
+.package-deliverables {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 14px 14px;
+}
+.package-deliverables legend {
+  font-weight: 650;
+  padding: 0 4px;
+}
+.package-deliverables > .button {
+  justify-self: start;
+}
+.package-deliverable-row {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr) auto auto;
+}
+.package-deliverable-row > label:not(.form-checkbox) {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+}
+.package-deliverable-row > label:not(.form-checkbox) input {
+  width: 5.5em;
+}
+@media (max-width: 640px) {
+  .package-deliverable-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}

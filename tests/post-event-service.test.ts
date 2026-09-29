@@ -14,6 +14,9 @@ test("gallery provider email becomes a reviewable delivery draft", () => {
       galleryUrl: "https://flawlessiq.pixieset.com/smith-wedding",
       accessCode: "LOVE26",
       expirationDate: "2027-10-14",
+      // H4: what arrived, from the host and the words (a Pixieset gallery).
+      mediaType: "photo",
+      kind: "gallery",
     },
   );
 });
@@ -33,6 +36,8 @@ test("a gallery notice forwarded from Gmail yields the real link and password", 
     galleryUrl: "https://flawlessiq.pixieset.com/questionnaireflowtest/",
     accessCode: "TEST2027",
     expirationDate: "2027-12-31",
+    mediaType: "photo",
+    kind: "gallery",
   });
   const outlook = "Gallery: https://nam02.safelinks.protection.outlook.com/?url=https%3A%2F%2Fstudio.pic-time.com%2F-smith%2Fgallery&data=x PIN 4411";
   const parsed = parseInboundGalleryAnnouncement(outlook);

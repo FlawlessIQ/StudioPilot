@@ -106,15 +106,16 @@ export const POST_PRODUCTION_META: Record<PostProductionStepKey, Meta> = {
   },
 };
 
-/** The dependency the command requires for a step, or null for the first. */
+/**
+ * The dependency the command requires for a step, or null for the first.
+ *
+ * Only the backup (decided 2026-09-28, Q23): it is the step that protects the
+ * files. Cull, edit and "ready" are progress, not gates, and go in any order.
+ */
 export function dependencyOf(
   step: PostProductionStepKey,
 ): PostProductionStepKey | null {
-  // An album proof follows the edit, not the gallery — a studio may prepare it
-  // before or after uploading.
-  if (step === "album_proof_ready") return "editing_complete";
-  const index = POST_PRODUCTION_ORDER.indexOf(step);
-  return index > 0 ? (POST_PRODUCTION_ORDER[index - 1] ?? null) : null;
+  return step === "backup_complete" ? null : "backup_complete";
 }
 
 export type PostProductionRow = {
@@ -160,12 +161,8 @@ export function postProductionRows(
   });
 }
 
-/** The three the delivery gate insists on, for a plain-English summary. */
-export const DELIVERY_GATE_STEPS: readonly PostProductionStepKey[] = [
-  "backup_complete",
-  "editing_complete",
-  "gallery_ready",
-];
+/** What the delivery gate insists on: the backup, and only that (Q23). */
+export const DELIVERY_GATE_STEPS: readonly PostProductionStepKey[] = ["backup_complete"];
 
 export function deliveryGateCleared(
   steps: Record<string, { complete?: boolean } | undefined>,

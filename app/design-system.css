@@ -4039,3 +4039,159 @@
 .ds-root .job-plan-step.is-link > .job-plan-files {
   padding: 0 4px 8px 30px;
 }
+
+/* ============================================================================
+   Delivery, H4 (docs/delivery-plan-2026-09-28.md): what the job delivers, the
+   inbox's catches, the items in this release, and the couple's email.
+   ========================================================================== */
+.delivery-progress,
+.delivery-drafts,
+.delivery-items,
+.delivery-preview {
+  background: var(--ds-paper, #fff);
+  border: 1px solid var(--ds-line);
+  border-radius: 14px;
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+}
+.delivery-progress ul {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.delivery-progress li {
+  align-items: start;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 16px minmax(0, 1fr);
+}
+.delivery-progress li > svg {
+  color: var(--ds-muted, #8a938d);
+  margin-top: 2px;
+}
+.delivery-progress li.is-sent > svg {
+  color: var(--ds-forest, #2e573c);
+}
+.delivery-progress li span,
+.delivery-drafts article > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.delivery-progress li small,
+.delivery-drafts article small {
+  color: var(--ds-muted, #6f7872);
+  overflow-wrap: anywhere;
+}
+.delivery-progress-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.delivery-progress-actions small {
+  color: var(--ds-muted, #6f7872);
+}
+.delivery-drafts article {
+  align-items: center;
+  border-top: 1px solid var(--ds-line);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  padding-top: 10px;
+}
+.delivery-drafts article:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+.delivery-drafts article em {
+  color: var(--ds-forest, #2e573c);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 650;
+}
+.delivery-item {
+  border: 1px solid var(--ds-line);
+  border-radius: 12px;
+  display: grid;
+  gap: 10px 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  padding: 12px 14px 14px;
+}
+.delivery-item legend {
+  align-items: center;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 650;
+  gap: 6px;
+  padding: 0 4px;
+}
+.delivery-item label {
+  display: grid;
+  gap: 4px;
+}
+.delivery-item small {
+  color: var(--ds-muted, #6f7872);
+}
+.delivery-item > button {
+  justify-self: start;
+}
+.delivery-items > .button,
+.delivery-items > button {
+  justify-self: start;
+}
+.delivery-announcement-paste summary {
+  align-items: center;
+  color: var(--ds-muted, #6f7872);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 13px;
+  gap: 6px;
+}
+.delivery-announcement-paste[open] {
+  display: grid;
+  gap: 8px;
+}
+.delivery-announcement-paste textarea {
+  min-height: 90px;
+}
+.delivery-preview label {
+  display: grid;
+  gap: 4px;
+}
+.delivery-preview-card {
+  background: var(--ds-surface-soft, #f5f7f5);
+  border-radius: 12px;
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+}
+.delivery-preview-card small {
+  color: var(--ds-muted, #6f7872);
+}
+.delivery-preview-card p {
+  margin: 0;
+}
+.delivery-preview-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.delivery-preview-buttons em {
+  background: var(--ds-forest, #2e573c);
+  border-radius: 9px;
+  color: #fff;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 650;
+  padding: 8px 12px;
+}
+@media (max-width: 640px) {
+  .delivery-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

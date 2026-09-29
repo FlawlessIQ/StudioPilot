@@ -116,6 +116,9 @@ export function createPackageSnapshot(input: {
     includedCoverage: coverage,
     includedPhotographers: legacyPhotographerCount(coverage),
     includedDeliverables: [...input.package.includedDeliverables],
+    ...(input.package.deliverables?.length
+      ? { deliverables: input.package.deliverables.map((item) => ({ ...item })) }
+      : {}),
     includedTravelArea: input.package.includedTravelArea,
     terms: input.package.terms,
     selectionDate: input.selectedAt,

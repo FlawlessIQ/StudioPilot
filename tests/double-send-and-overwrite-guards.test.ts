@@ -24,10 +24,12 @@ test("a delivery is released once per press", () => {
 });
 
 test("a second concurrent release fails whole on the server", () => {
-  const commands = source("functions/src/post-event/commands.ts");
-  const block = commands.slice(commands.indexOf('parsed.type === "recordDelivery"'));
-  assert.match(block, /\{ lastUpdateTime: project\.updateTime! \}/);
-  assert.match(block, /code === 9\)\s*throw new Error\("DELIVERY_ALREADY_RECORDED"\)/);
+  // Release is repeatable now (H4), so the project's state no longer stops a
+  // second one. The same link twice does: the transaction reads the job's
+  // deliveries, so a racing release retries against the first and is refused.
+  const release = source("functions/src/post-event/release.ts");
+  assert.match(release, /if \(items\.some\(\(item\) => alreadySent\.has\(item\.galleryUrl\)\)\) throw new Error\("DELIVERY_ALREADY_RECORDED"\)/);
+  assert.match(release, /return db\.runTransaction\(async \(transaction\) => \{/);
   assert.match(
     source("lib/ai/friendly-error.ts"),
     /DELIVERY_ALREADY_RECORDED:/,
@@ -43,8 +45,8 @@ test("recording a delivery does not also draft a second delivery email", () => {
   const form = source("components/post-event/delivery-form.tsx");
   assert.doesNotMatch(form, /requestMessageDraft/);
   assert.match(
-    source("functions/src/post-event/commands.ts"),
-    /emailJobs\/delivery_\$\{deliveryId\}/,
+    source("functions/src/post-event/release.ts"),
+    /emailJobs\/delivery_\$\{records\[0\]!\.id\}/,
   );
 });
 

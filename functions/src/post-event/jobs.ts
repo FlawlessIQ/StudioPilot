@@ -73,6 +73,17 @@ export const reviewRequestScheduler = onSchedule(
           },
         });
         transaction.create(db.doc(`productEvents/${event.id}`), event);
+        // The first review ask moves the job on: nothing did, so a delivered
+        // wedding sat at DELIVERED however many asks went out (D11).
+        if (project.exists && project.get("state") === "DELIVERED") {
+          transaction.update(projectReference, {
+            state: "REVIEW_REQUESTED",
+            stateVersion: Number(project.get("stateVersion") ?? 0) + 1,
+            nextAction: "Confirm the couple's review",
+            updatedAt: now,
+            updatedBy: "review-request-scheduler",
+          });
+        }
         if (current.get("channel") === "portal") {
           if (!prior.exists) {
             transaction.create(notificationReference, {
@@ -80,7 +91,9 @@ export const reviewRequestScheduler = onSchedule(
               tenantId: current.get("tenantId"),
               projectId: current.get("projectId"),
               audience: ["client"],
-              title: "How was your photography experience?",
+              // Not "photography": a video-led studio's couple asked about
+              // their photography under a film (V4).
+              title: "How was your experience with us?",
               body: "Your studio has shared a review destination in your project portal.",
               severity: "info",
               href: "/client/reviews",
@@ -205,6 +218,67 @@ export const albumReminderScheduler = onSchedule(
           sentAt: now,
           updatedAt: now,
         });
+      });
+    }
+
+    /**
+     * Gallery-expiry reminders, on the same hourly run (H4, Q25). Written two
+     * weeks ahead of the date, so the job and the delivery are read again
+     * here: a couple who downloaded, a gallery the studio extended, or a job
+     * filed away since, gets nothing.
+     */
+    const expiring = await db
+      .collection("deliveryReminders")
+      .where("status", "==", "scheduled")
+      .where("scheduledAt", "<=", now)
+      .orderBy("scheduledAt", "asc")
+      .limit(100)
+      .get();
+    for (const reminder of expiring.docs) {
+      const projectReference = db.doc(`projects/${String(reminder.get("projectId"))}`);
+      const deliveryReference = db.doc(`deliveryRecords/${String(reminder.get("deliveryRecordId"))}`);
+      const jobReference = db.doc(`emailJobs/${reminder.id}`);
+      await db.runTransaction(async (transaction) => {
+        const [current, project, delivery, prior] = await Promise.all([
+          transaction.get(reminder.ref),
+          transaction.get(projectReference),
+          transaction.get(deliveryReference),
+          transaction.get(jobReference),
+        ]);
+        if (!current.exists || current.get("status") !== "scheduled") return;
+        const stop = project.exists ? clientOutreachStop(project.data()) : "put_away";
+        const skip =
+          stop ??
+          (!delivery.exists
+            ? "delivery_missing"
+            : ["downloaded", "revoked", "expired"].includes(String(delivery.get("status"))) || delivery.get("downloadedAt")
+              ? "already_downloaded"
+              : delivery.get("expirationDate") !== current.get("expirationDate")
+                ? "expiry_changed"
+                : null);
+        if (skip) {
+          transaction.update(current.ref, { status: "skipped", skippedBecause: skip, updatedAt: now });
+          return;
+        }
+        if (!prior.exists) {
+          transaction.create(jobReference, {
+            id: jobReference.id,
+            tenantId: current.get("tenantId"),
+            projectId: current.get("projectId"),
+            type: "delivery_expiry_reminder",
+            deliveryRecordId: delivery.id,
+            label: delivery.get("label") ?? "Photo gallery",
+            expirationDate: delivery.get("expirationDate"),
+            galleryUrl: delivery.get("viewToken")
+              ? `${(process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com").replace(/\/$/, "")}/d/${String(delivery.get("viewToken"))}`
+              : delivery.get("galleryUrl"),
+            status: "queued",
+            attempts: 0,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+        transaction.update(current.ref, { status: "sent", sentAt: now, updatedAt: now });
       });
     }
   },

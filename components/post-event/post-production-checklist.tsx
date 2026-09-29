@@ -90,8 +90,8 @@ export function PostProductionChecklist({
         </div>
         <p>
           {shot
-            ? "The backup, editing and gallery-ready checks appear here as soon as you confirm editing has started on this job. The gallery can be released after all three are ticked."
-            : "The backup, editing and gallery-ready checks appear here once the event has been covered. The gallery can be released after all three are ticked."}
+            ? "The post-production checks appear here as soon as you confirm editing has started on this job. Anything can be released once the cards are backed up."
+            : "The post-production checks appear here once the event has been covered. Anything can be released once the cards are backed up."}
         </p>
       </section>
     );
@@ -142,8 +142,8 @@ export function PostProductionChecklist({
           <h2>Post-production</h2>
           <p>
             {cleared
-              ? "Backup, editing and the gallery are done — the delivery below can go out."
-              : "The gallery cannot be released until the cards are backed up, the editing is finished and the gallery is ready."}
+              ? "The cards are backed up, so anything below can go out when it's ready. The rest here is progress, in any order."
+              : "Back up the cards first — it's the one step that protects the files, and nothing is released before it."}
           </p>
         </div>
         <span className="post-production-count">
@@ -154,12 +154,15 @@ export function PostProductionChecklist({
           email, and it cannot always deliver one: without an inbound domain
           configured the inbox is created in `configuration_required` with no
           address. Saying so beats a promise the studio will wait on. */}
-      {inboxAddress && steps.gallery_ready?.complete !== true ? (
+      {/* Until the job is filed away, not until the gallery: a film's notice
+          still needs somewhere to go after the photos have gone (D10). */}
+      {inboxAddress && steps.project_archived?.complete !== true ? (
         <div className="post-production-inbox">
           <p>
-            <strong>Skip the ticking.</strong>{" "}Add this address when your gallery
-            provider emails the couple (or forward that email here). Editing and
-            gallery-ready mark themselves, and the release is prepared for you.
+            <strong>Skip the typing.</strong>{" "}Forward your gallery or video
+            host&rsquo;s &ldquo;ready&rdquo; email here, or copy this address in when they email
+            the couple. StudioCue reads the link and prepares the release; a photo
+            gallery marks editing and gallery-ready for you.
           </p>
           <span>
             <code>{inboxAddress}</code>
@@ -205,10 +208,8 @@ export function PostProductionChecklist({
             </span>
             <span className="post-production-copy">
               <strong>{row.label}</strong>
-              {/* Which of the nine actually stop a release. Three do, and the
-                  header said so in prose while the rows themselves gave no
-                  clue — so ticking "Cull finished" or "Editing started" felt
-                  like progress towards a gate it has no bearing on. */}
+              {/* Which of the nine actually stop a release: the backup, and
+                  only that (Q23). The rest is progress. */}
               {DELIVERY_GATE_STEPS.includes(row.key) ? (
                 <span className="post-production-gates">
                   Required for release

@@ -20,6 +20,8 @@ export type ClientDeliverable = {
   title: string;
   hostName: string;
   url: string | null;
+  /** Where the button goes: the view-recording redirect when there is one, else `url`. */
+  href: string | null;
   code: string | null;
   codeLabel: "Access code" | "Password";
   deliveredAt: string | null;
@@ -68,6 +70,7 @@ export function clientDeliverable(record: Record<string, unknown> & { id: string
     title: str(record.label) ?? KIND_TITLE[kind] ?? "Your delivery",
     hostName: host.name || fromProvider.name,
     url,
+    href: str(record.openUrl) ?? url,
     code: str(record.accessCode),
     codeLabel: mediaType === "video" ? "Password" : "Access code",
     deliveredAt: str(record.deliveryDate),

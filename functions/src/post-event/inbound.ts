@@ -5,6 +5,8 @@ import { onRequest, type Request } from "firebase-functions/v2/https";
 import { productEvent } from "../operations/product-events.js";
 import { calendarDate } from "../operations/calendar-date.js";
 import { galleryEvidenceUpdates } from "./gallery-evidence.js";
+import { kindDefaults, defaultKindFor, type DeliverableKind } from "./deliverables.js";
+import { linkHost } from "./link-host.js";
 
 type InboundFields = Record<string, string>;
 
@@ -71,7 +73,73 @@ function unwrapLink(value: string): string {
   }
 }
 
-const GALLERY_HOSTS = /pixieset|pic-?time|shootproof/i;
+/** A link at a host we know delivers work: a gallery, a film, a file transfer. */
+function isDeliveryHost(value: string): boolean {
+  return linkHost(value).host !== "other";
+}
+
+/**
+ * Tracking redirects that say nothing about where they go: SendGrid, Mailchimp,
+ * Mandrill, Mailgun, HubSpot. Providers send notices through these, and the
+ * parser used to take the redirect — or a logo — as "the gallery" (V3).
+ */
+const OPAQUE_TRACKERS =
+  /(^|\.)(list-manage\.com|mandrillapp\.com|mailgun\.org|hubspotlinks\.com|sendgrid\.net|ct\.sendgrid\.net|mailchi\.mp)$|^(url\d+|click|links?|email|e|track|trk)\./i;
+
+export function isOpaqueTracker(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return OPAQUE_TRACKERS.test(url.hostname) || /\/ls\/click|\/track\/click|\/wf\/click/i.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Where a tracking link lands, by following its redirects — a few hops, a few
+ * seconds, and never the body. Stops at the first host that delivers work.
+ */
+export async function followTrackedLink(value: string, fetcher: typeof fetch = fetch): Promise<string> {
+  let current = value;
+  for (let hop = 0; hop < 4; hop += 1) {
+    if (isDeliveryHost(current) || !isOpaqueTracker(current)) return current;
+    let response: Response;
+    try {
+      response = await fetcher(current, {
+        method: "GET",
+        redirect: "manual",
+        signal: AbortSignal.timeout(3000),
+      });
+    } catch {
+      return current;
+    }
+    const next = response.headers.get("location");
+    if (!next) return current;
+    try {
+      current = unwrapLink(new URL(next, current).toString());
+    } catch {
+      return current;
+    }
+  }
+  return current;
+}
+
+/**
+ * What arrived: a sneak peek, a teaser, a highlight film, a full film, the
+ * gallery. The words in the notice decide first, then what the link points at.
+ * Only a photo gallery counts as evidence the photos were culled and edited —
+ * a sneak peek or a film teaser used to open the delivery gate early (V6).
+ */
+export function classifyAnnouncement(source: string, mediaType: string): DeliverableKind {
+  const words = source.toLowerCase();
+  if (/sneak\s*peek/.test(words)) return "sneak_peek";
+  if (/\bteaser\b|\btrailer\b/.test(words)) return "teaser";
+  if (mediaType === "video" || /\bfilm\b|\bvideo\b/.test(words)) {
+    if (/full[\s-]*(length\s*)?film|feature\s*film|documentary/.test(words)) return "full_film";
+    if (/highlight/.test(words) || mediaType === "video") return "highlight_film";
+  }
+  return defaultKindFor(mediaType);
+}
 
 function galleryLinkFrom(source: string): string {
   const candidates = [...source.matchAll(/(https:\/\/[^\s<>"']+|www\.[^\s<>"']+)/gi)]
@@ -86,8 +154,11 @@ function galleryLinkFrom(source: string): string {
     }
   };
   return (
-    candidates.find((value) => GALLERY_HOSTS.test(hostOf(value))) ??
-    candidates.find((value) => !/unsubscribe|\.(png|jpe?g|gif)(\?|$)/i.test(value)) ??
+    candidates.find((value) => isDeliveryHost(value)) ??
+    // A tracked link is still a better guess than a logo, and it is followed
+    // before the draft is written.
+    candidates.find((value) => isOpaqueTracker(value) && !/unsubscribe|preferences|optout/i.test(value)) ??
+    candidates.find((value) => hostOf(value) && !/unsubscribe|\.(png|jpe?g|gif|svg)(\?|$)/i.test(value)) ??
     ""
   );
 }
@@ -106,11 +177,8 @@ export function parseInboundGalleryAnnouncement(source: string) {
   const normalizedUrl = galleryLinkFrom(source);
   let hostname = "";
   try { hostname = new URL(normalizedUrl).hostname.toLowerCase(); } catch { /* invalid */ }
-  const provider = hostname.includes("pixieset")
-    ? "pixieset"
-    : hostname.includes("pic-time") || hostname.includes("pictime")
-      ? "pic_time"
-      : hostname.includes("shootproof") ? "shootproof" : "manual";
+  const host = linkHost(normalizedUrl);
+  const provider = host.host === "other" ? (hostname ? "manual" : "manual") : host.host;
   const accessCode = first(source, ACCESS_CODE_PATTERNS);
   /**
    * How long they have to download, however the provider said it. Digits-only
@@ -122,7 +190,9 @@ export function parseInboundGalleryAnnouncement(source: string) {
     /(?:expires?|expiration(?: date)?|available until|download(?:s|ing)? (?:until|through|by))\s*(?::|on)?\s*([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4}|[0-9]{1,2}\s+[A-Za-z]+,?\s+[0-9]{4}|[A-Za-z]+\s+[0-9]{1,2},?\s+[0-9]{4})/i,
   ]);
   const expirationDate = calendarDate(expiration) ?? "";
-  return { provider, galleryUrl: normalizedUrl, accessCode, expirationDate };
+  const mediaType = host.mediaType === "other" ? "photo" : host.mediaType;
+  const kind = classifyAnnouncement(source, mediaType);
+  return { provider, galleryUrl: normalizedUrl, accessCode, expirationDate, mediaType, kind };
 }
 
 export const sendgridInboundGallery = onRequest(
@@ -160,8 +230,21 @@ export const sendgridInboundGallery = onRequest(
         return;
       }
       const source = [fields.subject, fields.text, fields.html].filter(Boolean).join("\n");
-      const parsed = parseInboundGalleryAnnouncement(source);
-      if (!parsed.galleryUrl) throw new Error("GALLERY_URL_NOT_FOUND");
+      const first = parseInboundGalleryAnnouncement(source);
+      if (!first.galleryUrl) throw new Error("GALLERY_URL_NOT_FOUND");
+      // A tracking redirect is followed to where it lands, then read again.
+      const landed = isOpaqueTracker(first.galleryUrl) ? await followTrackedLink(first.galleryUrl) : first.galleryUrl;
+      const landedHost = linkHost(landed);
+      const parsed =
+        landed === first.galleryUrl
+          ? first
+          : {
+              ...first,
+              galleryUrl: landed,
+              provider: landedHost.host === "other" ? "manual" : landedHost.host,
+              mediaType: landedHost.mediaType === "other" ? first.mediaType : landedHost.mediaType,
+              kind: classifyAnnouncement(source, landedHost.mediaType === "other" ? first.mediaType : landedHost.mediaType),
+            };
       const messageId = fields.headers?.match(/^Message-ID:\s*(.+)$/im)?.[1]?.trim()
         ?? createHash("sha256").update(request.rawBody).digest("hex");
       const eventId = `gallery_${createHash("sha256").update(messageId).digest("hex")}`;
@@ -179,7 +262,7 @@ export const sendgridInboundGallery = onRequest(
       const batch = db.batch();
       // The email is proof the gallery was culled, edited and published; record
       // that against the job rather than asking the studio to tick it.
-      if (production.exists && production.get("tenantId") === tenantId) {
+      if (production.exists && production.get("tenantId") === tenantId && parsed.kind === "gallery") {
         const evidence = galleryEvidenceUpdates({
           steps: production.get("steps") as Record<string, { complete?: boolean }> | undefined,
           evidenceId: draftId,
@@ -208,6 +291,9 @@ export const sendgridInboundGallery = onRequest(
         projectId,
         provider: parsed.provider,
         galleryUrl: parsed.galleryUrl,
+        mediaType: parsed.mediaType,
+        kind: parsed.kind,
+        label: kindDefaults(parsed.kind).label,
         accessCode: parsed.accessCode || null,
         expirationDate: parsed.expirationDate || null,
         status: "review_required",
@@ -248,8 +334,8 @@ export const sendgridInboundGallery = onRequest(
         userId: null,
         audience: "studio",
         type: "gallery_ready_for_approval",
-        title: "Gallery delivery is ready for approval",
-        body: "StudioCue extracted the gallery link and access details from the provider notice.",
+        title: `${kindDefaults(parsed.kind).label} is ready for approval`,
+        body: "StudioCue read the link and access details from the provider's notice.",
         href: `/studio/delivery?project=${encodeURIComponent(projectId)}`,
         readAt: null,
         createdAt: now,

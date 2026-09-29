@@ -11,6 +11,14 @@ import { afterConversion, convertInquiryToJob } from "../intake/convert.js";
 import { forwarderKey } from "../intake/short-address.js";
 
 /** An inquiry's states before booking — the ones it can be closed from. */
+/** One structured deliverable on a package (H4); mirrors features/packages/schema.ts. */
+const packageDeliverableSchema = z.object({
+  kind: z.enum(["sneak_peek", "gallery", "highlight_film", "full_film", "teaser", "raw_files", "album", "other"]),
+  label: z.string().trim().min(1).max(80),
+  turnaroundDays: z.number().int().min(0).max(730),
+  final: z.boolean(),
+});
+
 const PRE_BOOKING = ["LEAD", "CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING"];
 
 /**
@@ -547,6 +555,7 @@ const commandSchema = z.discriminatedUnion("type", [
       includedCoverageMinutes: z.number().int().positive().optional(),
       includedCoverage: includedCoverageSchema.optional(),
       includedPhotographers: z.number().int().positive().optional(),
+      deliverables: z.array(packageDeliverableSchema).max(8).optional(),
       active: z.boolean().optional(),
       publicVisible: z.boolean().optional(),
     }),
@@ -581,6 +590,7 @@ const commandSchema = z.discriminatedUnion("type", [
       includedCoverage: includedCoverageSchema.optional(),
       includedPhotographers: z.number().int().positive().optional(),
       includedDeliverables: z.array(z.string().min(1)).min(1),
+      deliverables: z.array(packageDeliverableSchema).max(8).optional(),
       includedTravelArea: z.string().max(500),
       addOns: z.array(
         z.object({
@@ -1588,6 +1598,7 @@ export const crmCommand = onRequest(
                 includedCoverage?: CoverageItem[];
                 includedPhotographers: number;
                 includedDeliverables: string[];
+                deliverables?: unknown[];
                 includedTravelArea: string;
                 addOns: Array<{
                   id: string;
@@ -1726,6 +1737,11 @@ export const crmCommand = onRequest(
             includedCoverageMinutes: studioPackage.includedCoverageMinutes,
             ...coverageFields(coverage),
             includedDeliverables: studioPackage.includedDeliverables,
+            // What the job will deliver and by when (H4); absent on packages
+            // saved before it existed.
+            ...(Array.isArray(studioPackage.deliverables) && studioPackage.deliverables.length
+              ? { deliverables: studioPackage.deliverables }
+              : {}),
             includedTravelArea: studioPackage.includedTravelArea,
             terms: studioPackage.terms,
             selectionDate: timestamp,

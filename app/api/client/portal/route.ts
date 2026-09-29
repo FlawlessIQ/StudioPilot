@@ -531,6 +531,12 @@ async function clientRecords(
         pick(signer, ["name", "role", "order", "status", "completedAt", "signedAt"]),
       );
     }
+    if (collectionName === "deliveryRecords" && typeof value.viewToken === "string" && value.viewToken) {
+      // The couple opens their delivery through StudioCue's redirect, which
+      // records that they did (app/d/[token]/route.ts). The stored link stays
+      // too: it says what kind of thing this is (a Vimeo link is a film).
+      sanitized.openUrl = `/d/${value.viewToken}`;
+    }
     if (collectionName === "documents") {
       // A file StudioCue stores has a path, not a URL, and the Files page
       // listed it as "Being checked" forever

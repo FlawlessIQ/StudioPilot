@@ -190,8 +190,8 @@ function DeliverableCard({ deliverable, now }: { deliverable: ClientDeliverable;
         <p className="kit-caption">Available until {date(deliverable.expiresAt)}.</p>
       ) : null}
 
-      {deliverable.url && !expired ? (
-        <a className="kit-button" href={deliverable.url} rel="noreferrer" target="_blank">
+      {deliverable.href && !expired ? (
+        <a className="kit-button" href={deliverable.href} rel="noreferrer" target="_blank">
           {open} <ExternalLink aria-hidden size={18} />
         </a>
       ) : (

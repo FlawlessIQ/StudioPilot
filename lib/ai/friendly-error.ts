@@ -288,6 +288,10 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "Post-production hasn't opened for this job yet. It starts when the job moves to editing.",
   POST_PRODUCTION_DEPENDENCY_INCOMPLETE:
     "An earlier step has to be done first. The checklist shows which one.",
+  DELIVERY_ITEMS_REQUIRED: "Add at least one link to release.",
+  REVIEW_DESTINATION_REQUIRED:
+    "This release completes delivery, and the review asks need somewhere to point. Add your review link under \"Review asks, album and studio defaults\".",
+  NOTHING_DELIVERED_YET: "Nothing has gone to the couple yet, so there's no delivery to complete. Release something first.",
   PROJECT_NOT_IN_POST_PRODUCTION:
     "This job hasn't started post-production yet. Move it on from the job page, then record the gallery.",
   DELIVERY_ALREADY_RECORDED:
@@ -300,7 +304,7 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
    * describes the wrong check is worse than no copy.
    */
   DELIVERY_GATE_BLOCKED:
-    "The gallery isn't cleared for release yet. Backup, editing and gallery-ready all have to be ticked on this job's post-production checklist first.",
+    "Nothing can be released until the cards are backed up. Tick \"Cards backed up\" on this job's post-production checklist first.",
   DELIVERY_URL_MUST_USE_HTTPS:
     "The gallery link has to start with https:// so the couple's photographs are not sent over an open connection.",
   DELIVERY_DRAFT_INVALID:

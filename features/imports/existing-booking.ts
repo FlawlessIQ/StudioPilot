@@ -266,6 +266,8 @@ export const clientAutomationEmailTypes: readonly string[] = [
   // A reminder to sign a StudioCue contract. Never due on an imported booking
   // (it is already signed), but held here like every other automated nudge.
   "contract_reminder",
+  // Two weeks before a gallery closes; nothing for a quiet couple.
+  "delivery_expiry_reminder",
 ];
 
 /** Whether automations that reach this couple are being held back. */

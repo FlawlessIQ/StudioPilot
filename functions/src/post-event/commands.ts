@@ -7,6 +7,12 @@ import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { productEvent } from "../operations/product-events.js";
 import { studioHubCors } from "../security/cors.js";
 import {
+  discardDeliveryDraft,
+  markDeliveryComplete,
+  recordDeliveryInputSchema,
+  releaseDeliverables,
+} from "./release.js";
+import {
   closeoutStatusFrom,
   requirementIsAttestable,
   requirementIsSatisfied,
@@ -40,23 +46,25 @@ const command = z.discriminatedUnion("type", [
     type: z.literal("recordDelivery"),
     tenantId: z.string(),
     idempotencyKey: z.string().min(8),
+    input: recordDeliveryInputSchema,
+  }),
+  z.object({
+    type: z.literal("markDeliveryComplete"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
     input: z.object({
       projectId: z.string(),
-      provider: z.enum(["manual", "pixieset", "pic_time", "shootproof"]),
-      galleryUrl: z.string().url(),
-      accessCode: z.string().max(120).nullable(),
-      expirationDate: z.string().date().nullable(),
-      deliveryDate: z.string().date(),
-      notes: z.string().max(3000).nullable(),
-      reviewDestinationUrl: z.string().url(),
+      reviewDestinationUrl: z.string().url().nullable().default(null),
       reviewDestinationLabel: z
         .enum(["google", "weddingwire", "the_knot", "facebook", "custom"])
         .default("google"),
-      albumIncluded: z.boolean().default(false),
-      albumInstructionsUrl: z.string().url().nullable().default(null),
-      saveStudioDefaults: z.boolean().default(false),
-      deliveryDraftId: z.string().min(1).nullable().default(null),
     }),
+  }),
+  z.object({
+    type: z.literal("discardDeliveryDraft"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({ projectId: z.string(), deliveryDraftId: z.string().min(1) }),
   }),
   z.object({
     type: z.literal("updateAlbumStatus"),
@@ -222,12 +230,11 @@ export const postEventCommand = onRequest(
             "project_archived",
           ];
           const index = order.indexOf(parsed.input.step);
-          const dependency =
-            parsed.input.step === "album_proof_ready"
-              ? "editing_complete"
-              : index > 0
-                ? order[index - 1]
-                : null;
+          // Only the backup is a gate (decided 2026-09-28, Q23). Cull, edit
+          // and ready are progress, ticked in whatever order the work goes —
+          // a film's edit and a gallery's are separate tracks, and one ladder
+          // held both back.
+          const dependency = index > 0 ? "backup_complete" : null;
           if (dependency && steps[dependency]?.complete !== true)
             throw new Error(
               `POST_PRODUCTION_DEPENDENCY_INCOMPLETE:${dependency}`,
@@ -276,277 +283,42 @@ export const postEventCommand = onRequest(
           !["studio_owner", "studio_admin", "studio_coordinator"].includes(role)
         )
           throw new Error("FORBIDDEN");
-        if (!parsed.input.galleryUrl.startsWith("https://"))
-          throw new Error("DELIVERY_URL_MUST_USE_HTTPS");
-        const production = await db
-          .doc(`postProductionRecords/${parsed.input.projectId}`)
-          .get();
-        const steps = production.get("steps") as
-          | Record<string, Record<string, unknown>>
-          | undefined;
-        if (
-          !production.exists ||
-          production.get("tenantId") !== parsed.tenantId ||
-          steps?.backup_complete?.complete !== true ||
-          steps?.editing_complete?.complete !== true ||
-          steps?.gallery_ready?.complete !== true
-        )
-          throw new Error("DELIVERY_GATE_BLOCKED");
-        const deliveryId = stable(
-          "delivery",
-          parsed.tenantId,
-          parsed.idempotencyKey,
-        );
-        const deliveredAt = `${parsed.input.deliveryDate}T12:00:00.000Z`;
-        const firstAt = new Date(
-          new Date(deliveredAt).getTime() + 3 * 86400000,
-        ).toISOString();
-        const reminderAt = new Date(
-          new Date(deliveredAt).getTime() + 10 * 86400000,
-        ).toISOString();
-        const projectReference = db.doc(`projects/${parsed.input.projectId}`);
-        const [project, deliveryDraft] = await Promise.all([
-          projectReference.get(),
-          parsed.input.deliveryDraftId
-            ? db.doc(`deliveryDrafts/${parsed.input.deliveryDraftId}`).get()
-            : Promise.resolve(null),
-        ]);
-        if (
-          !project.exists ||
-          project.get("tenantId") !== parsed.tenantId ||
-          project.get("state") !== "POST_PRODUCTION"
-        )
-          throw new Error("PROJECT_NOT_IN_POST_PRODUCTION");
-        if (
-          deliveryDraft &&
-          (!deliveryDraft.exists ||
-            deliveryDraft.get("tenantId") !== parsed.tenantId ||
-            deliveryDraft.get("projectId") !== parsed.input.projectId ||
-            deliveryDraft.get("status") !== "review_required")
-        ) throw new Error("DELIVERY_DRAFT_INVALID");
-        const batch = db.batch();
-        batch.create(db.doc(`deliveryRecords/${deliveryId}`), {
-          id: deliveryId,
-          tenantId: parsed.tenantId,
-          projectId: parsed.input.projectId,
-          provider: parsed.input.provider,
-          galleryUrl: parsed.input.galleryUrl,
-          accessCode: parsed.input.accessCode,
-          expirationDate: parsed.input.expirationDate,
-          deliveryDate: parsed.input.deliveryDate,
-          notes: parsed.input.notes,
-          status: "sent",
-          sentAt: now,
-          viewedAt: null,
-          downloadedAt: null,
-          providerDeliveryId: null,
-          createdAt: now,
-          updatedAt: now,
-          createdBy: identity.uid,
-          updatedBy: identity.uid,
-          archivedAt: null,
-        });
-        batch.create(db.doc(`emailJobs/delivery_${deliveryId}`), {
-          id: `delivery_${deliveryId}`,
-          tenantId: parsed.tenantId,
-          projectId: parsed.input.projectId,
-          type: "delivery",
-          deliveryRecordId: deliveryId,
-          galleryUrl: parsed.input.galleryUrl,
-          accessCode: parsed.input.accessCode,
-          expirationDate: parsed.input.expirationDate,
-          status: "queued",
-          attempts: 0,
-          createdAt: now,
-          updatedAt: now,
-        });
-        for (const [sequence, scheduledAt, channel] of [
-          [1, firstAt, "portal"],
-          [2, reminderAt, "email"],
-        ] as const) {
-          const reviewId = `review_${deliveryId}_${sequence}`;
-          batch.create(db.doc(`reviewRequests/${reviewId}`), {
-            id: reviewId,
-            tenantId: parsed.tenantId,
-            projectId: parsed.input.projectId,
-            deliveryRecordId: deliveryId,
-            channel,
-            destinationLabel: parsed.input.reviewDestinationLabel,
-            destinationUrl: parsed.input.reviewDestinationUrl,
-            status: "scheduled",
-            sequence,
-            scheduledAt,
-            sentAt: null,
-            deliveredAt: null,
-            openedAt: null,
-            clickedAt: null,
-            confirmedAt: null,
-            confirmedBy: null,
-            messageId: null,
-            createdAt: now,
-            updatedAt: now,
-            createdBy: identity.uid,
-            updatedBy: identity.uid,
-            archivedAt: null,
-          });
-        }
-        if (parsed.input.albumIncluded) {
-          const albumId = `album_${deliveryId}`;
-          batch.create(db.doc(`albumWorkflows/${albumId}`), {
-            id: albumId,
-            tenantId: parsed.tenantId,
-            projectId: parsed.input.projectId,
-            deliveryRecordId: deliveryId,
-            status: "instructions_available",
-            instructionsUrl: parsed.input.albumInstructionsUrl,
-            selectionUrl: null,
-            designProofUrl: null,
-            fulfillmentEvidenceId: null,
-            creativeAuthority: "studio_human",
-            statusHistory: [
-              {
-                status: "instructions_available",
-                occurredAt: now,
-                actorId: identity.uid,
-                notes: "Album workflow created with gallery delivery.",
-              },
-            ],
-            createdAt: now,
-            updatedAt: now,
-            createdBy: identity.uid,
-            updatedBy: identity.uid,
-            archivedAt: null,
-          });
-          for (const [sequence, daysAfter] of [
-            [1, 7],
-            [2, 14],
-          ] as const) {
-            const scheduledAt = new Date(
-              new Date(deliveredAt).getTime() + daysAfter * 86400000,
-            ).toISOString();
-            const reminderId = `album_reminder_${deliveryId}_${sequence}`;
-            batch.create(db.doc(`albumReminders/${reminderId}`), {
-              id: reminderId,
-              tenantId: parsed.tenantId,
-              projectId: parsed.input.projectId,
-              albumWorkflowId: albumId,
-              deliveryRecordId: deliveryId,
-              sequence,
-              scheduledAt,
-              status: "scheduled",
-              stopOnStatuses: [
-                "selections_received",
-                "design_sent",
-                "revision_requested",
-                "approved",
-                "fulfilled",
-              ],
-              createdAt: now,
-              updatedAt: now,
-            });
-          }
-        }
-        // The state was read above, outside this batch. Two Release clicks
-        // both read POST_PRODUCTION and each wrote a delivery, an email and
-        // two review requests. The precondition makes the second batch fail
-        // whole: the project has changed since it was read.
-        batch.update(
-          projectReference,
-          {
-            state: "DELIVERED",
-            stateVersion: Number(project.get("stateVersion") ?? 0) + 1,
-            nextAction: "Monitor delivery and review request",
-            updatedAt: now,
-            updatedBy: identity.uid,
-          },
-          { lastUpdateTime: project.updateTime! },
-        );
-        batch.update(production.ref, {
-          "steps.delivery_sent": {
-            complete: true,
-            completedAt: now,
-            completedBy: identity.uid,
-            evidenceId: deliveryId,
-            notes: null,
-          },
-          currentStep: "client_downloaded",
-          updatedAt: now,
-          updatedBy: identity.uid,
-        });
-        if (parsed.input.deliveryDraftId) {
-          batch.update(db.doc(`deliveryDrafts/${parsed.input.deliveryDraftId}`), {
-            status: "released",
-            deliveryRecordId: deliveryId,
-            releasedAt: now,
-            updatedAt: now,
-            updatedBy: identity.uid,
-          });
-        }
-        if (
-          parsed.input.saveStudioDefaults &&
-          ["studio_owner", "studio_admin"].includes(role)
-        ) {
-          const reviewKey =
-            parsed.input.reviewDestinationLabel === "the_knot"
-              ? "theKnot"
-              : parsed.input.reviewDestinationLabel;
-          const expirationDays = parsed.input.expirationDate
-            ? Math.max(
-                0,
-                Math.round(
-                  (Date.parse(`${parsed.input.expirationDate}T12:00:00.000Z`) -
-                    Date.parse(deliveredAt)) /
-                    86400000,
-                ),
-              )
-            : 90;
-          batch.update(db.doc(`tenants/${parsed.tenantId}`), {
-            [`reviewLinks.${reviewKey}`]:
-              parsed.input.reviewDestinationUrl,
-            "deliveryDefaults.galleryProvider": parsed.input.provider,
-            "deliveryDefaults.galleryExpirationDays": expirationDays,
-            ...(parsed.input.albumInstructionsUrl
-              ? {
-                  "deliveryDefaults.albumInstructionsUrl":
-                    parsed.input.albumInstructionsUrl,
-                }
-              : {}),
-            updatedAt: now,
-            updatedBy: identity.uid,
-          });
-        }
-        const deliveryEvent = productEvent({
-          tenantId: parsed.tenantId,
-          projectId: parsed.input.projectId,
-          actorId: identity.uid,
-          name: "lifecycle.gallery_delivered",
-          occurredAt: now,
-          correlationId: parsed.idempotencyKey,
-          sourceEntityType: "deliveryRecord",
-          sourceEntityId: deliveryId,
-          properties: {
-            provider: parsed.input.provider,
-            albumIncluded: parsed.input.albumIncluded,
-          },
-        });
-        batch.create(
-          db.doc(`productEvents/${deliveryEvent.id}`),
-          deliveryEvent,
-        );
+        // See post-event/release.ts: repeatable, one or more deliverables per
+        // release, follow-ups once per job.
         try {
-          await batch.commit();
+          result = await releaseDeliverables(
+            db,
+            {
+              tenantId: parsed.tenantId,
+              actorId: identity.uid,
+              role,
+              idempotencyKey: parsed.idempotencyKey,
+              now,
+            },
+            parsed.input,
+          );
         } catch (caught: unknown) {
-          // FAILED_PRECONDITION (9): another release moved the project first.
-          if ((caught as { code?: unknown }).code === 9)
+          // A second release racing the first: the delivery ids are derived
+          // from the idempotency key, so the loser's creates collide.
+          if ((caught as { code?: unknown }).code === 6)
             throw new Error("DELIVERY_ALREADY_RECORDED");
           throw caught;
         }
-        result = {
-          deliveryRecordId: deliveryId,
-          projectState: "DELIVERED",
-          reviewRequestsScheduled: 2,
-          albumWorkflowCreated: parsed.input.albumIncluded,
-        };
+      } else if (parsed.type === "markDeliveryComplete") {
+        if (!["studio_owner", "studio_admin", "studio_coordinator"].includes(role))
+          throw new Error("FORBIDDEN");
+        result = await markDeliveryComplete(
+          db,
+          { tenantId: parsed.tenantId, actorId: identity.uid, now },
+          parsed.input,
+        );
+      } else if (parsed.type === "discardDeliveryDraft") {
+        if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
+        result = await discardDeliveryDraft(
+          db,
+          { tenantId: parsed.tenantId, actorId: identity.uid, now },
+          parsed.input,
+        );
       } else if (parsed.type === "updateAlbumStatus") {
         const reference = db.doc(
           `albumWorkflows/${parsed.input.albumWorkflowId}`,

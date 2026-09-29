@@ -481,7 +481,7 @@ export function DeliveryCard({ action }: ActionCardProps) {
   if (!job) return notFound(title);
   const details: Record<string, string> = {
     record_delivery: "They're emailed the gallery link now; the review request and album reminders follow on their own.",
-    complete_editing_step: "Tick off each step as it's done. Delivery unlocks when backup, editing and the gallery are complete.",
+    complete_editing_step: "Tick off each step as it's done. Only the backup has to be done before anything is released.",
     update_album: "Track the album from selections to fulfilment.",
     close_job: "Everything owed is checked; anything settled outside StudioCue can be confirmed here before it closes.",
   };

@@ -24,22 +24,15 @@ test("only the first rung is actionable on an empty record", () => {
   assert.deepEqual(actionable, ["backup_complete"]);
 });
 
-test("finishing a rung opens the next one, and only that one", () => {
+test("once the cards are backed up, the rest is progress in any order (Q23)", () => {
+  // One ladder held a film's edit behind a gallery's; only the backup gates.
   const rows = postProductionRows(steps("backup_complete"));
   assert.deepEqual(
-    rows.filter((row) => row.actionable).map((row) => row.key),
-    ["cull_complete"],
+    rows.filter((row) => row.actionable).map((row) => row.key).sort(),
+    ["album_proof_ready", "cull_complete", "editing_complete", "editing_started", "gallery_ready"],
   );
-});
-
-test("an album proof follows the edit, not the gallery", () => {
-  assert.equal(dependencyOf("album_proof_ready"), "editing_complete");
-  const rows = postProductionRows(
-    steps("backup_complete", "cull_complete", "editing_started", "editing_complete"),
-  );
-  const open = rows.filter((row) => row.actionable).map((row) => row.key);
-  // A studio may upload the gallery or prepare the album proof in either order.
-  assert.deepEqual(open.sort(), ["album_proof_ready", "gallery_ready"]);
+  assert.equal(dependencyOf("album_proof_ready"), "backup_complete");
+  assert.equal(dependencyOf("backup_complete"), null);
 });
 
 test("what is not the studio's to declare is never actionable", () => {
@@ -56,31 +49,12 @@ test("what is not the studio's to declare is never actionable", () => {
 
 test("a blocked rung says what it is waiting on, by name", () => {
   const row = postProductionRows({}).find((item) => item.key === "editing_complete");
-  assert.equal(row?.waitingOn, "Editing started");
+  assert.equal(row?.waitingOn, "Cards backed up");
 });
 
-test("the delivery gate needs backup, editing and the gallery — and says so", () => {
-  assert.deepEqual([...DELIVERY_GATE_STEPS], [
-    "backup_complete",
-    "editing_complete",
-    "gallery_ready",
-  ]);
+test("the delivery gate is the backup, and only that", () => {
+  assert.deepEqual([...DELIVERY_GATE_STEPS], ["backup_complete"]);
   assert.equal(deliveryGateCleared({}), false);
-  assert.equal(
-    deliveryGateCleared(steps("backup_complete", "editing_complete")),
-    false,
-  );
-  assert.equal(
-    deliveryGateCleared(
-      steps("backup_complete", "editing_complete", "gallery_ready"),
-    ),
-    true,
-  );
-  // The cull is not one of the three, however sensible it is to do.
-  assert.equal(
-    deliveryGateCleared(
-      steps("backup_complete", "editing_complete", "gallery_ready", "cull_complete"),
-    ),
-    true,
-  );
+  assert.equal(deliveryGateCleared(steps("editing_complete", "gallery_ready")), false);
+  assert.equal(deliveryGateCleared(steps("backup_complete")), true);
 });

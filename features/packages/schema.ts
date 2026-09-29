@@ -8,6 +8,15 @@ import {
 const centsSchema = z.number().int().nonnegative().safe();
 const basisPointsSchema = z.number().int().min(0).max(10000);
 
+/** One structured deliverable a package promises (H4). */
+export const packageDeliverableSchema = z.object({
+  kind: z.enum(["sneak_peek", "gallery", "highlight_film", "full_film", "teaser", "raw_files", "album", "other"]),
+  label: z.string().trim().min(1).max(80),
+  turnaroundDays: z.number().int().min(0).max(730),
+  final: z.boolean(),
+});
+export type PackageDeliverable = z.infer<typeof packageDeliverableSchema>;
+
 export const packageAddOnSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1).max(120),
@@ -62,6 +71,13 @@ export const packageSchema = auditFieldsSchema.extend({
    */
   includedPhotographers: z.number().int().nonnegative(),
   includedDeliverables: z.array(z.string().min(1)).min(1),
+  /**
+   * What the package delivers, each with its turnaround (H4,
+   * docs/delivery-plan-2026-09-28.md). Optional: without it the job's list
+   * comes from coverage and the free text (features/post-event/deliverables.ts),
+   * and due dates were a hard-coded 42 days for everything.
+   */
+  deliverables: z.array(packageDeliverableSchema).max(8).optional(),
   includedTravelArea: z.string().max(500),
   addOns: z.array(packageAddOnSchema),
   taxRateBasisPoints: basisPointsSchema,
@@ -147,6 +163,8 @@ export const packageSnapshotSchema = z.object({
   /** Legacy, written beside `includedCoverage`. See the package schema. */
   includedPhotographers: z.number().int().nonnegative(),
   includedDeliverables: z.array(z.string()),
+  /** Copied from the package when it had one; see the package schema. */
+  deliverables: z.array(packageDeliverableSchema).optional(),
   includedTravelArea: z.string(),
   terms: z.string(),
   selectionDate: z.string().datetime(),

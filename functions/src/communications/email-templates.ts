@@ -1,3 +1,4 @@
+import { releaseHeadline } from "../post-event/deliverables.js";
 import { bulletLinePattern, clientEmailParagraphs } from "./email-content.js";
 
 /**
@@ -60,6 +61,8 @@ export const emailTemplateKeys = [
   "thank_you",
   "delivery",
   "album_selection_reminder",
+  // Two weeks before a gallery's downloads end (H4, Q25).
+  "delivery_expiry_reminder",
   "review_request",
   "manual_message",
   // Studio-facing: a client wrote in and someone needs to know.
@@ -124,6 +127,11 @@ type EmailCopy = {
    * equal buttons would have made neither the obvious one.
    */
   secondaryAction?: { label: string; url: string };
+  /**
+   * More equal buttons, after the first. A release can carry photos and a
+   * film, and each is its own thing to open (H4, docs/delivery-plan-2026-09-28.md).
+   */
+  moreActions?: Array<{ label: string; url: string }>;
   note?: string;
 };
 
@@ -265,8 +273,62 @@ function customizedCopy(
             url: base.action.url,
           }
         : base.action,
+    // A studio's own wording for the email never removes a link it carries.
+    moreActions: base.moreActions,
+    secondaryAction: base.secondaryAction,
     note: template.note ? templateValue(template.note, input) : undefined,
   };
+}
+
+type DeliveryEmailItem = {
+  mediaType: string;
+  kind: string;
+  label: string;
+  url: string;
+  accessCode: string;
+  expirationDate: string;
+};
+
+/** A delivery job's links, each through its view-tracking redirect when it has one. */
+function deliveryItems(values: Record<string, unknown>): DeliveryEmailItem[] {
+  const raw = Array.isArray(values.items) ? values.items : null;
+  if (raw) {
+    return raw.flatMap((entry) => {
+      const item = recordValue({ item: entry }, "item");
+      const url = safeUrl(stringValue(item, "openUrl")) || safeUrl(stringValue(item, "galleryUrl"));
+      if (!url) return [];
+      return [
+        {
+          mediaType: stringValue(item, "mediaType") || "photo",
+          kind: stringValue(item, "kind") || "gallery",
+          label: stringValue(item, "label") || "Your delivery",
+          url,
+          accessCode: stringValue(item, "accessCode"),
+          expirationDate: stringValue(item, "expirationDate"),
+        },
+      ];
+    });
+  }
+  const url = safeUrl(stringValue(values, "openUrl")) || safeUrl(stringValue(values, "galleryUrl"));
+  return url
+    ? [
+        {
+          mediaType: "photo",
+          kind: "gallery",
+          label: "Photo gallery",
+          url,
+          accessCode: stringValue(values, "accessCode"),
+          expirationDate: stringValue(values, "expirationDate"),
+        },
+      ]
+    : [];
+}
+
+function deliveryButton(item: DeliveryEmailItem): string {
+  if (item.kind === "sneak_peek") return "See your sneak peek";
+  if (item.mediaType === "video") return `Watch your ${item.label.toLowerCase().replace(/^your\s+/, "")}`;
+  if (item.mediaType === "files") return "Download your files";
+  return "Open your photographs";
 }
 
 function copyFor(input: RenderEmailInput): EmailCopy {
@@ -816,24 +878,44 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         ],
       };
     case "delivery": {
-      const accessCode = stringValue(values, "accessCode");
-      const expirationDate = stringValue(values, "expirationDate");
+      /**
+       * What went out, in its own words: "Your film is ready", "Your photos
+       * and film are ready", a button for each. Every delivery email said
+       * "photographs", and a video-led studio's highlight film arrived as
+       * "Your photographs are ready" (H4, docs/delivery-plan-2026-09-28.md).
+       * A job queued before items existed carries one gallery link, as before.
+       */
+      const items = deliveryItems(values);
+      const headline = releaseHeadline(items);
+      const note = stringValue(values, "note");
+      const expiring = items
+        .filter((item) => item.expirationDate && item.mediaType !== "video")
+        .map((item) => item.expirationDate)
+        .sort()[0];
+      const codes = items
+        .filter((item) => item.accessCode)
+        .map((item) =>
+          items.length > 1
+            ? `${item.label} ${item.mediaType === "video" ? "password" : "access code"}: ${item.accessCode}`
+            : `${item.mediaType === "video" ? "Password" : "Gallery access code"}: ${item.accessCode}`,
+        );
+      const [firstItem, ...otherItems] = items.filter((item) => item.url);
       return {
-        subject: `Your photographs are ready from ${brand.studioName}`,
-        preheader: "Open your secure delivery.",
+        subject: `${headline.subject} — ${brand.studioName}`,
+        preheader: items.length > 1 ? "Everything below is yours to keep." : "Open your secure delivery.",
         eyebrow: "Delivery ready",
-        heading: "Your photographs are ready",
+        heading: headline.heading,
         paragraphs: [
           greeting,
-          `We've finished your delivery${project}. Use the secure link below and keep any access code private.`,
-          ...(accessCode ? [`Gallery access code: ${accessCode}`] : []),
-          ...(expirationDate
-            ? [`Please download and back up your photographs before ${humanDate(expirationDate, zone)}.`]
+          ...(note ? [note] : []),
+          `We've finished ${items.length > 1 ? "these" : "this"}${project}. Keep any ${items.some((item) => item.mediaType === "video") ? "password" : "access code"} private.`,
+          ...codes,
+          ...(expiring
+            ? [`Please download and back up your ${items.some((item) => item.mediaType === "photo") ? "photographs" : "files"} before ${humanDate(expiring, zone)}.`]
             : []),
         ],
-        action: galleryUrl
-          ? { label: "Open delivery", url: galleryUrl }
-          : undefined,
+        action: firstItem ? { label: deliveryButton(firstItem), url: firstItem.url } : undefined,
+        moreActions: otherItems.map((item) => ({ label: deliveryButton(item), url: item.url })),
         // The gallery is what they want; the portal is where the rest of this
         // wedding lives — the album selections, the download confirmation that
         // closes the job, how long they have left. An email with only the
@@ -841,6 +923,22 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         secondaryAction: portalUrl
           ? { label: "Your project portal", url: portalUrl }
           : undefined,
+      };
+    }
+    case "delivery_expiry_reminder": {
+      const expirationDate = stringValue(values, "expirationDate");
+      const label = stringValue(values, "label") || "Photo gallery";
+      return {
+        subject: `Download your photographs before ${expirationDate ? humanDate(expirationDate, zone) : "they expire"}`,
+        preheader: "Your gallery closes soon. Save your favourites now.",
+        eyebrow: "Gallery reminder",
+        heading: "Your gallery closes soon",
+        paragraphs: [
+          greeting,
+          `Your ${label.toLowerCase()}${project} is open until ${expirationDate ? humanDate(expirationDate, zone) : "soon"}. Download everything you want to keep — and back it up somewhere safe.`,
+        ],
+        action: galleryUrl ? { label: "Open your gallery", url: galleryUrl } : undefined,
+        secondaryAction: portalUrl ? { label: "Your project portal", url: portalUrl } : undefined,
       };
     }
     case "album_selection_reminder": {
@@ -1166,6 +1264,13 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
   const action = copy.action?.url
     ? `<table role="presentation" cellspacing="0" cellpadding="0" style="margin:28px 0 26px;"><tr><td style="border-radius:10px;background:${accent};"><a href="${escapeHtml(copy.action.url)}" style="display:inline-block;padding:14px 22px;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;line-height:1.2;">${escapeHtml(copy.action.label)}</a></td></tr></table>`
     : "";
+  const moreActions = (copy.moreActions ?? [])
+    .filter((extra) => extra.url)
+    .map(
+      (extra) =>
+        `<table role="presentation" cellspacing="0" cellpadding="0" style="margin:-12px 0 26px;"><tr><td style="border-radius:10px;background:${accent};"><a href="${escapeHtml(extra.url)}" style="display:inline-block;padding:14px 22px;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;line-height:1.2;">${escapeHtml(extra.label)}</a></td></tr></table>`,
+    )
+    .join("");
   const secondaryAction = copy.secondaryAction?.url
     ? `<p style="margin:-14px 0 26px;font-size:14px;line-height:1.6;color:#626a65;"><a href="${escapeHtml(copy.secondaryAction.url)}" style="color:#4f5752;">${escapeHtml(copy.secondaryAction.label)}</a></p>`
     : "";
@@ -1217,6 +1322,7 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
             <h1 class="email-heading" style="margin:0 0 24px;color:#171a18;font-size:31px;line-height:1.18;letter-spacing:-0.025em;">${escapeHtml(copy.heading)}</h1>
             ${copy.paragraphs.map(paragraphHtml).join("")}
             ${action}
+            ${moreActions}
             ${secondaryAction}
             ${note}
           </div>
@@ -1240,6 +1346,7 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
     "",
     ...copy.paragraphs,
     ...(copy.action ? ["", `${copy.action.label}: ${copy.action.url}`] : []),
+    ...(copy.moreActions ?? []).flatMap((extra) => ["", `${extra.label}: ${extra.url}`]),
     ...(copy.secondaryAction
       ? ["", `${copy.secondaryAction.label}: ${copy.secondaryAction.url}`]
       : []),
@@ -1260,6 +1367,7 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
     "",
     ...copy.paragraphs,
     ...(copy.action ? ["", `${copy.action.label}: ${copy.action.url}`] : []),
+    ...(copy.moreActions ?? []).flatMap((extra) => ["", `${extra.label}: ${extra.url}`]),
     ...(copy.secondaryAction
       ? ["", `${copy.secondaryAction.label}: ${copy.secondaryAction.url}`]
       : []),

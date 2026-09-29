@@ -14,6 +14,11 @@ import { useTenantDocuments, refreshTenantRecords } from "@/components/live/tena
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { formatCents } from "@/lib/format/money";
+import {
+  PackageDeliverablesEditor,
+  type EditableDeliverable,
+} from "@/components/crm/package-deliverables-editor";
+import { expectedDeliverables } from "@/features/post-event/deliverables";
 
 type RetainerMode = "percentage" | "fixed" | "per_crew_member";
 
@@ -44,6 +49,7 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
     videographers?: string;
     billPhotographers?: boolean;
     billVideographers?: boolean;
+    deliverables?: EditableDeliverable[];
   }>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +93,18 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
   const billVideographers =
     edits.billVideographers ??
     (storedBilledRoles ? storedBilledRoles.includes("videographer") : false);
+  // Stored when the studio has set them; until then, what the package's
+  // coverage and wording imply — the same list a job would get.
+  const deliverables: EditableDeliverable[] =
+    edits.deliverables ??
+    expectedDeliverables({
+      deliverables: record?.deliverables,
+      includedDeliverables: record?.includedDeliverables,
+      coverage: {
+        photographers: Math.max(0, Math.round(Number(photographers || 0))),
+        videographers: Math.max(0, Math.round(Number(videographers || 0))),
+      },
+    }).map(({ kind, label, turnaroundDays, final }) => ({ kind, label, turnaroundDays, final }));
   const publicVisible = edits.publicVisible ?? record?.publicVisible !== false;
   const active = edits.active ?? record?.active !== false;
   const set = <K extends keyof typeof edits>(
@@ -159,6 +177,12 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
           photographers: Math.max(0, Math.round(Number(photographers || 0))),
           videographers: Math.max(0, Math.round(Number(videographers || 0))),
         }),
+        deliverables: deliverables.map((item) => ({
+          kind: item.kind,
+          label: item.label,
+          turnaroundDays: item.turnaroundDays ?? 0,
+          final: item.final,
+        })),
         active,
         publicVisible,
       });
@@ -266,6 +290,7 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
         <p className="field-hint form-span">
           Who your studio sends. At least one, in either row.
         </p>
+        <PackageDeliverablesEditor onChange={(next) => set("deliverables", next)} value={deliverables} />
         <label className="form-checkbox">
           <input
             checked={publicVisible}

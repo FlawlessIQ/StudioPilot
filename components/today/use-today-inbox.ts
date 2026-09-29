@@ -1,5 +1,7 @@
 "use client";
 
+import { deliverableDueDate, deliveryProgress, expectedDeliverables } from "@/features/post-event/deliverables";
+import { coverageCount, resolveCoverage } from "@/features/packages/coverage";
 import { useState } from "react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { inquiryNextMove } from "@/features/inquiries/next-move";
@@ -268,6 +270,13 @@ export function useTodayInbox(): {
         actionHref:
           current?.action?.kind === "link" ? current.action.href : null,
         updatedAt: text(project.updatedAt) || null,
+        deliveryDue: ["EVENT_COMPLETE", "POST_PRODUCTION"].includes(text(project.state))
+          ? nextDeliveryDue(
+              project,
+              (packageSnapshots.records ?? []).find((snapshot) => snapshot.id === text(project.packageSnapshotId)),
+              forProject(deliveries.records, projectId),
+            )
+          : null,
       } satisfies TodayJourneyPosition;
     });
 
@@ -361,4 +370,32 @@ export function useTodayInbox(): {
     ),
     loading: projects.records === null || leads.records === null,
   };
+}
+
+/**
+ * The next final deliverable this job still owes, and its due date from the
+ * package's turnaround (H4). Null when nothing final is outstanding.
+ */
+function nextDeliveryDue(
+  project: Record<string, unknown>,
+  snapshot: Record<string, unknown> | undefined,
+  released: ReadonlyArray<Record<string, unknown>>,
+): { label: string; date: string } | null {
+  const coverage = snapshot ? resolveCoverage(snapshot) : null;
+  const expected = expectedDeliverables({
+    deliverables: snapshot?.deliverables,
+    includedDeliverables: snapshot?.includedDeliverables,
+    coverage: coverage
+      ? {
+          photographers: coverageCount(coverage, "photographer"),
+          videographers: coverageCount(coverage, "videographer"),
+        }
+      : null,
+  });
+  const next = deliveryProgress(expected, released)
+    .outstanding.filter((entry) => entry.final)
+    .map((entry) => ({ entry, date: deliverableDueDate(typeof project.eventDate === "string" ? project.eventDate : null, entry) }))
+    .filter((item): item is { entry: (typeof expected)[number]; date: string } => Boolean(item.date))
+    .sort((left, right) => left.date.localeCompare(right.date))[0];
+  return next ? { label: next.entry.label, date: next.date } : null;
 }
