@@ -2,17 +2,26 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
-import { FileInput, LoaderCircle, Save } from "lucide-react";
+import { AlertTriangle, FileInput, LoaderCircle, Save, Upload } from "lucide-react";
 import { ContractDocumentView } from "@/components/contracts/contract-document-view";
 import { useNativeSigning } from "@/components/contracts/use-native-signing";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import {
   contractMergeFields,
+  convertImportedAgreement,
   customFieldKey,
+  importedAgreementText,
   resolveContractDocument,
   templateFieldKeys,
   type ContractCustomField,
+  type ImportedAgreementConversion,
 } from "@/features/contracts/document";
+import { pricingClauses } from "@/features/contracts/pricing-clauses";
+import {
+  cancelStudioImport,
+  uploadStudioImportFiles,
+  waitForStudioImportReview,
+} from "@/lib/studio-import/command-client";
 import { STUDIO_SIGNING_STATEMENT } from "@/features/contracts/esign-consent";
 import { sampleContractSources, STARTER_AGREEMENT } from "@/features/contracts/sample";
 import { normaliseTypedName } from "@/features/contracts/signing-policy";
@@ -165,6 +174,38 @@ export function AgreementEditor() {
     insert(key);
   }
 
+  /** Put a converted agreement in the editor, and say what was done to it. */
+  function applyDraft(draft: ImportedAgreementConversion & { templateId: string | null; name: string }) {
+    setName(draft.name);
+    // The agreement's own title, or its name — never the starter's.
+    setTitle(draft.title ?? draft.name);
+    setBody(draft.body);
+    setLabels(Object.fromEntries(draft.customFields.map((field) => [field.key, field.label])));
+    setLoaded((current) => (current ? { ...current, templateId: draft.templateId } : current));
+    const mapped = draft.mapped.filter((entry) => !entry.key.startsWith("custom.")).length;
+    setNotice(
+      [
+        `Brought in "${draft.name}".`,
+        mapped ? `${mapped} placeholder${mapped === 1 ? "" : "s"} now fill themselves from the job.` : null,
+        draft.customFields.length
+          ? `${draft.customFields.length} you'll fill per contract.`
+          : null,
+        draft.signatureLinesRemoved
+          ? `${draft.signatureLinesRemoved} paper signature line${draft.signatureLinesRemoved === 1 ? "" : "s"} removed — StudioCue adds the signatures.`
+          : null,
+        draft.clausesRestored
+          ? `It arrived as one block of text, so it was split back into its ${draft.clausesRestored} clauses.`
+          : null,
+        draft.detailsAdded
+          ? "It had no place for the couple's names, the date or the price, so a details section was added at the top — filled from each job."
+          : null,
+        "Read it through, then save.",
+      ]
+        .filter(Boolean)
+        .join(" "),
+    );
+  }
+
   async function importAgreement(templateId: string) {
     setBusy("import");
     setError(null);
@@ -174,36 +215,49 @@ export function AgreementEditor() {
         setError("Development preview: the import could not be read.");
         return;
       }
-      setName(draft.name);
-      // The agreement's own title, or its name — never the starter's.
-      setTitle(draft.title ?? draft.name);
-      setBody(draft.body);
-      setLabels(Object.fromEntries(draft.customFields.map((field) => [field.key, field.label])));
-      setLoaded((current) => (current ? { ...current, templateId: draft.templateId } : current));
-      const mapped = draft.mapped.filter((entry) => !entry.key.startsWith("custom.")).length;
-      setNotice(
-        [
-          `Brought in "${draft.name}".`,
-          mapped ? `${mapped} placeholder${mapped === 1 ? "" : "s"} now fill themselves from the job.` : null,
-          draft.customFields.length
-            ? `${draft.customFields.length} you'll fill per contract.`
-            : null,
-          draft.signatureLinesRemoved
-            ? `${draft.signatureLinesRemoved} paper signature line${draft.signatureLinesRemoved === 1 ? "" : "s"} removed — StudioCue adds the signatures.`
-            : null,
-          draft.clausesRestored
-            ? `It arrived as one block of text, so it was split back into its ${draft.clausesRestored} clauses.`
-            : null,
-          draft.detailsAdded
-            ? "It had no place for the couple's names, the date or the price, so a details section was added at the top — filled from each job."
-            : null,
-          "Read it through, then save.",
-        ]
-          .filter(Boolean)
-          .join(" "),
-      );
+      applyDraft(draft);
     } catch (caught: unknown) {
       setError(friendlyError(caught, "The imported agreement couldn't be read."));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /**
+   * "Upload your contract", on the editor itself (H2 slice 4). The only way in
+   * used to be the Studio Import tour. The file goes through the same upload,
+   * safety scan and reading as any import; the text it yields is converted
+   * here and opened for review. Nothing is saved until the studio saves, and
+   * the import session is closed so it doesn't wait in the import queue.
+   */
+  async function uploadContract(file: File) {
+    setBusy("upload");
+    setError(null);
+    setNotice("Reading your contract… this takes up to a minute.");
+    try {
+      const uploaded = await uploadStudioImportFiles({ files: [file] });
+      if (!uploaded.persisted) {
+        setNotice(null);
+        setError("Development preview: uploads aren't read here.");
+        return;
+      }
+      const sessionId = uploaded.result.session.id;
+      const review = await waitForStudioImportReview({ sessionId });
+      const draft =
+        review.drafts.find((candidate) => candidate.assetType === "contract") ??
+        (review.drafts.length === 1 ? review.drafts[0] : undefined);
+      const text = draft ? importedAgreementText(draft.structuredContent) : "";
+      if (!text.trim()) throw new Error("StudioCue couldn't find the contract's wording in that file. Try a DOCX or a text PDF.");
+      applyDraft({
+        ...convertImportedAgreement(text),
+        // A saved agreement gets a new version; otherwise a new one is made.
+        templateId: loaded?.templateId ?? null,
+        name: name.trim() || file.name.replace(/\.[a-z0-9]+$/i, "").slice(0, 120) || "My agreement",
+      });
+      void cancelStudioImport(sessionId).catch(() => undefined);
+    } catch (caught: unknown) {
+      setNotice(null);
+      setError(friendlyError(caught, "That file couldn't be read. Try a DOCX or a text PDF."));
     } finally {
       setBusy(null);
     }
@@ -291,6 +345,7 @@ export function AgreementEditor() {
 
   const autoSendEnabled = autoSendOn ?? native.autoSend.enabled;
   const tokensUsed = new Set(templateFieldKeys(body));
+  const priceLines = pricingClauses(body);
 
   return (
     <div className="agreement-editor">
@@ -319,7 +374,53 @@ export function AgreementEditor() {
         </section>
       ) : null}
 
+      <section className="panel agreement-upload">
+        <div>
+          <p className="eyebrow">Your own wording</p>
+          <h2>Upload your contract</h2>
+          <p>
+            A DOCX or PDF of the agreement you already send. StudioCue maps its blanks to each job&rsquo;s
+            details and removes the paper signature lines; you read it through before anything is saved.
+          </p>
+        </div>
+        <label className="button button-light agreement-upload-button">
+          {busy === "upload" ? <LoaderCircle className="spin" size={15} /> : <Upload aria-hidden="true" size={15} />}
+          {busy === "upload" ? "Reading…" : "Choose a file"}
+          <input
+            accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+            className="sr-only"
+            disabled={busy !== null}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) void uploadContract(file);
+            }}
+            type="file"
+          />
+        </label>
+      </section>
+
       {notice ? <p className="agreement-editor-notice" role="status">{notice}</p> : null}
+      {priceLines.length ? (
+        <section className="agreement-price-clauses" role="note">
+          <AlertTriangle aria-hidden="true" size={16} />
+          <div>
+            <strong>
+              {priceLines.length === 1 ? "One line states a price of its own" : `${priceLines.length} lines state a price of their own`}
+            </strong>
+            <p>
+              {"Your proposal sets the price now, and {{price.total}} and {{price.retainer}} carry it in. Replace these amounts with those fields, or remove them, so the contract and the proposal can never disagree."}
+            </p>
+            <ul>
+              {priceLines.slice(0, 8).map((clause) => (
+                <li key={clause.line}>
+                  <small>Line {clause.line}</small> {clause.text}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      ) : null}
       {error ? <p className="client-contract-error" role="alert">{error}</p> : null}
 
       <div className="agreement-editor-grid">

@@ -943,6 +943,32 @@ export async function activateStudioImport(input: {
           { merge: true },
         );
       }
+      // A contract becomes an agreement the studio can open in the editor.
+      // This branch existed only in the "sync to library" repair path above,
+      // so a contract imported for the first time was never offered there
+      // until the import was activated a second time (found building H2).
+      if (assetType === "contract") {
+        const templateId = `imported_agreement_${assetId}`;
+        transaction.set(
+          db.doc(`agreementTemplates/${templateId}`),
+          {
+            id: templateId,
+            tenantId: input.tenantId,
+            name: string(version.get("name")) || "Imported agreement",
+            status: "active",
+            body: version.get("structuredContent") ?? null,
+            version: nextVersion,
+            sourceStudioAssetId: assetId,
+            sourceStudioAssetVersionId: version.id,
+            createdAt: asset.exists ? asset.get("createdAt") : now,
+            updatedAt: now,
+            createdBy: asset.exists ? asset.get("createdBy") : input.actorId,
+            updatedBy: input.actorId,
+            archivedAt: null,
+          },
+          { merge: true },
+        );
+      }
       if (assetType === "questionnaire") {
         const templateId = `imported_questionnaire_${assetId}`;
         transaction.set(

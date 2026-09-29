@@ -21111,3 +21111,38 @@ label {
   flex-wrap: wrap;
   gap: 8px;
 }
+/* Agreement editor: upload your own contract, and lines that state a price (H2). */
+.agreement-upload {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: space-between;
+}
+.agreement-upload > div {
+  flex: 1 1 320px;
+}
+.agreement-upload-button {
+  cursor: pointer;
+}
+.agreement-price-clauses {
+  background: #fbf5e9;
+  border: 1px solid #ecdcb8;
+  border-radius: 12px;
+  color: #6b4d12;
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+}
+.agreement-price-clauses p {
+  margin: 4px 0 8px;
+}
+.agreement-price-clauses ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+}
+.agreement-price-clauses small {
+  color: #8a6a2c;
+}
