@@ -11,6 +11,7 @@ import Link from "next/link";
 import { LoaderCircle, ShieldCheck } from "lucide-react";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { authIsLive } from "@/lib/runtime-mode";
+import { GoogleSignIn } from "@/features/auth/google-sign-in";
 
 /**
  * Joining from an invitation, for all three kinds.
@@ -145,6 +146,31 @@ export function InvitationJoin({
       <p>
         Joining as <strong>{invited}</strong>.
       </p>
+      {/* No password to invent: Google has already verified the address, and
+          the accept demands the invited one, so a different Google account
+          is turned back here, before anything is committed. */}
+      {!identity && authIsLive ? (
+        <GoogleSignIn
+          next={null}
+          onSignedIn={async (email) => {
+            if (email.trim().toLowerCase() !== invited) {
+              await signOut(getFirebaseClient().auth);
+              setMessage(
+                `That Google account is ${email || "a different address"}. This invitation is for ${invited}: choose that account, or use a password below.`,
+              );
+              return;
+            }
+            setBusy(true);
+            try {
+              await onAccept();
+            } catch (caught: unknown) {
+              setMessage(authMessage(caught, translateError));
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+      ) : null}
       {identity ? null : (
         <label>
           {preview.hasAccount ? "Your password" : "Choose a password"}

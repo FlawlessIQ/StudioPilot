@@ -76,10 +76,13 @@ export function SignInForm({
 
   return (
     <form className="sign-in-form" onSubmit={handleSubmit}>
-      {/* Studio sign-in only: an invited client signs in as the exact address
-          the invitation went to, which the email field (and the magic link
-          below it) keeps in front of them. */}
-      {intent === "studio" && !mockMode ? <GoogleSignIn next={safeNext} /> : null}
+      {/* Everyone, since 2026-09-29: couples and crew sign in without a
+          password (Google, or the emailed link below). It used to be studio
+          only, so an invited client kept the exact address in front of them;
+          the invitation page now checks that for Google itself, and a
+          returning client who picks another Google account simply has no
+          portal on it and is told so. */}
+      {!mockMode ? <GoogleSignIn next={safeNext} /> : null}
       <label>
         Email address
         <input

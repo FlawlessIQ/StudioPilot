@@ -14,11 +14,26 @@ test("a blocked popup and an existing password account each say what to do", () 
   assert.match(googleSignInMessage("auth/internal-error"), /try again/i);
 });
 
-test("Google is offered to studios, never on an invited client's sign-in", () => {
+/**
+ * Passwordless for couples and crew (decided 2026-09-28,
+ * docs/mobile-first-client-crew-plan-2026-09-28.md). It was studio-only so an
+ * invited client kept the exact invited address in front of them; the
+ * invitation page now checks the Google account against it instead.
+ */
+test("Google is offered to everyone who signs in", () => {
   const signIn = readFileSync("features/auth/sign-in-form.tsx", "utf8");
   const register = readFileSync("features/auth/register-form.tsx", "utf8");
-  assert.match(signIn, /intent === "studio" && !mockMode \? <GoogleSignIn/);
+  assert.match(signIn, /\{!mockMode \? <GoogleSignIn next=\{safeNext\} \/> : null\}/);
+  // Registering is still a studio's path; couples and crew arrive by invitation.
   assert.match(register, /intent === "studio" && authIsLive \? <GoogleSignIn/);
+});
+
+test("an invitation accepts Google only as the invited address", () => {
+  const join = readFileSync("features/auth/invitation-join.tsx", "utf8");
+  assert.match(join, /<GoogleSignIn\s+next=\{null\}\s+onSignedIn=/);
+  assert.match(join, /if \(email\.trim\(\)\.toLowerCase\(\) !== invited\) \{\s*await signOut/);
+  const google = readFileSync("features/auth/google-sign-in.tsx", "utf8");
+  assert.match(google, /if \(onSignedIn\) \{\s*await onSignedIn\(result\.user\.email \?\? ""\);/);
 });
 
 test("password and Google sign-in route through the same destination", () => {
@@ -38,12 +53,13 @@ test("the Google window opens straight from the click: auth and App Check are wa
   assert.match(google, /useEffect\(\(\) => \{[\s\S]*getFirebaseClient\(\)[\s\S]*getToken\(appCheck\)/);
 });
 
-test("crew signing in get a crew page: no trial link, no Google", () => {
+test("crew signing in get a crew page: no trial link, and no password needed", () => {
   const page = readFileSync("app/auth/login/page.tsx", "utf8");
   assert.match(page, /next\?\.startsWith\("\/crew"\)/);
   assert.match(page, /Sign in to your crew workspace/);
   const form = readFileSync("features/auth/sign-in-form.tsx", "utf8");
   assert.match(form, /intent === "crew" \? \(\s*<p className="sign-up-copy">First time here\? Open the link in your invitation email\./);
-  // Google stays studio-only.
-  assert.match(form, /intent === "studio" && !mockMode \? <GoogleSignIn/);
+  // Google and the emailed link, like couples.
+  assert.match(form, /\{!mockMode \? <GoogleSignIn/);
+  assert.match(page, /isClientArrival \|\| isCrewArrival \? \(\s*<MagicLinkRequest next=\{next \?\? \(isCrewArrival \? "\/crew" : null\)\} \/>/);
 });

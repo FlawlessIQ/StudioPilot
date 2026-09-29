@@ -10,7 +10,11 @@ import { destinationForSignedInUser } from "@/lib/auth/after-sign-in";
 import { googleSignInMessage } from "@/features/auth/google-sign-in-errors";
 
 /**
- * "Continue with Google", for studio sign-in and signup.
+ * "Continue with Google", for sign-in, signup and invitations.
+ *
+ * Couples and crew too since 2026-09-29: sign-in is passwordless for them
+ * (docs/mobile-first-client-crew-plan-2026-09-28.md). An invitation still has
+ * to be accepted as the invited address; `onSignedIn` lets it check.
  *
  * Google has already verified the address, so a new owner skips the
  * verification email, the wait and the password: one click, then the studio
@@ -29,10 +33,16 @@ import { googleSignInMessage } from "@/features/auth/google-sign-in-errors";
 export function GoogleSignIn({
   next,
   onBusy,
+  onSignedIn,
 }: {
   /** A safe, same-site path to return to — already checked by the form. */
   next: string | null;
   onBusy?: (busy: boolean) => void;
+  /**
+   * Take over after the popup instead of navigating. An invitation uses this
+   * to check the Google account is the invited address before accepting.
+   */
+  onSignedIn?: (email: string) => Promise<void>;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -58,7 +68,13 @@ export function GoogleSignIn({
       const { auth, firestore } = getFirebaseClient();
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      if (onSignedIn) {
+        await onSignedIn(result.user.email ?? "");
+        setBusy(false);
+        onBusy?.(false);
+        return;
+      }
       router.push(next ?? (await destinationForSignedInUser(auth, firestore)));
     } catch (caught: unknown) {
       const code =

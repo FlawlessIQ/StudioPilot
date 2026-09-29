@@ -102,7 +102,11 @@ export default async function LoginPage({
             intent={isClientArrival ? "client" : isCrewArrival ? "crew" : "studio"}
             next={next}
           />
-          {isClientArrival ? <MagicLinkRequest next={next ?? null} /> : null}
+          {/* The emailed sign-in link, for couples and (since 2026-09-29)
+              crew: nobody working a wedding should need a password. */}
+          {isClientArrival || isCrewArrival ? (
+            <MagicLinkRequest next={next ?? (isCrewArrival ? "/crew" : null)} />
+          ) : null}
         </div>
         <p className="auth-legal">
           By continuing, you agree to our <Link href="/terms">Terms</Link> and{" "}
