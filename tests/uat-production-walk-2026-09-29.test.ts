@@ -86,3 +86,13 @@ test("the couple's link stops offering a call once the proposal is out", () => {
 test("the couple's link shows no stand-in studio while it loads", () => {
   assert.match(read("components/inquiries/couple-inquiry-page.tsx"), /<AppBar studio=\{preview \? brand : undefined\} \/>/);
 });
+
+test("the studio's input styles leave the mobile kit's fields alone", () => {
+  // At 0,4,1 the .ds-root input rule out-ranked the kit: 12px padding under
+  // the icon, and `font: inherit` below iOS's 16px no-zoom floor.
+  const bridge = read("app/legacy-bridge.css");
+  const rule = bridge.slice(bridge.indexOf("/* ---- Form controls"), bridge.indexOf("font: inherit;"));
+  assert.match(rule, /\.ds-root input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\):not\(\[type="range"\]\):not\(\.kit-input\),/);
+  assert.match(rule, /\.ds-root select:not\(\.kit-input\),/);
+  assert.match(rule, /\.ds-root textarea:not\(\.kit-input\) \{/);
+});

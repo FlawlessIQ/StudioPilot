@@ -110,10 +110,14 @@
   color: #fff;
 }
 
-/* ---- Form controls (kills the unstyled-native look app-wide) ---- */
-.ds-root input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
-.ds-root select,
-.ds-root textarea {
+/* ---- Form controls (kills the unstyled-native look app-wide) ----
+   Not the mobile kit's own fields (.kit-input): at 0,4,1 this out-ranked the
+   kit, so a couple's email field lost its icon room and the address ran under
+   the envelope (production walk, 2026-09-29) — and `font: inherit` could take
+   a kit field below the 16px that stops iOS zooming. */
+.ds-root input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.kit-input),
+.ds-root select:not(.kit-input),
+.ds-root textarea:not(.kit-input) {
   border: 1px solid var(--ds-line);
   border-radius: 10px;
   background: var(--ds-paper);
@@ -122,10 +126,10 @@
   min-height: 42px;
   font: inherit;
 }
-.ds-root textarea {
+.ds-root textarea:not(.kit-input) {
   min-height: 84px;
 }
-.ds-root select {
+.ds-root select:not(.kit-input) {
   appearance: none;
   -webkit-appearance: none;
   padding-right: 36px;
@@ -134,9 +138,9 @@
   background-position: right 12px center;
   background-size: 15px;
 }
-.ds-root input:focus-visible,
-.ds-root select:focus-visible,
-.ds-root textarea:focus-visible {
+.ds-root input:not(.kit-input):focus-visible,
+.ds-root select:not(.kit-input):focus-visible,
+.ds-root textarea:not(.kit-input):focus-visible {
   outline: none;
   border-color: var(--ds-claret);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--ds-claret) 20%, transparent);
