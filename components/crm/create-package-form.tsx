@@ -12,6 +12,7 @@ import { ArrowRight, CheckCircle2, LoaderCircle } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { PackageAddOnPicker } from "@/components/crm/package-add-on-picker";
 import { runCrmCommand } from "@/lib/crm/command-client";
 
 const schema = z
@@ -123,6 +124,7 @@ export function CreatePackageForm({
     name: string;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [addOnIds, setAddOnIds] = useState<string[]>([]);
   const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { name: "", description: "", eventType: "Wedding", basePrice: 0, retainerMode: "percentage", retainerAmount: 30, coverageHours: 8, photographers: 2, videographers: 0, billPhotographers: true, billVideographers: true, deliverables: "Online gallery, High-resolution downloads", travelArea: "Within 50 miles", terms: "Subject to the completed studio agreement." },
@@ -153,6 +155,8 @@ export function CreatePackageForm({
         includedDeliverables: values.deliverables.split(",").map((item) => item.trim()).filter(Boolean),
         includedTravelArea: values.travelArea,
         addOns: [],
+        // The chosen library add-ons; the server copies them onto the package.
+        addOnIds,
         taxRateBasisPoints: 0,
         terms: values.terms,
         active: true,
@@ -300,6 +304,7 @@ export function CreatePackageForm({
           <textarea {...register("terms")} rows={3} />
           <small>{errors.terms?.message}</small>
         </label>
+        <PackageAddOnPicker currency="USD" onChange={setAddOnIds} value={addOnIds} />
       </div>
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       <button className="button button-dark" disabled={isSubmitting} type="submit">{isSubmitting ? <LoaderCircle className="spin" size={16} /> : null}Create package</button>

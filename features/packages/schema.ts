@@ -23,6 +23,8 @@ export const packageAddOnSchema = z.object({
   description: z.string().max(1000),
   unitPriceCents: centsSchema,
   taxable: z.boolean(),
+  /** The couple may choose how many (hours, prints). From the library (H2). */
+  allowQuantity: z.boolean().optional(),
   active: z.boolean(),
 });
 

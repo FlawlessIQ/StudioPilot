@@ -7,6 +7,7 @@ import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tena
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { runProposalCommand } from "@/lib/proposals/command-client";
+import { JobAddOnsEditor, type JobAddOnLine } from "@/components/proposals/job-add-ons-editor";
 
 /**
  * The packages on this proposal, and the way to change them.
@@ -53,6 +54,7 @@ export function ProposalPackagesPanel({
   const packages = useTenantDocuments("packages");
   const contracts = useTenantDocuments("contracts");
   const [picking, setPicking] = useState<"add" | "replace" | null>(null);
+  const [extrasFor, setExtrasFor] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -117,6 +119,27 @@ export function ProposalPackagesPanel({
         discount: { type: "none" },
       });
     });
+  const setExtras = (packageSnapshotId: string, lines: JobAddOnLine[]) =>
+    change(`extras-${packageSnapshotId}`, async () => {
+      await runCrmCommand("setJobAddOns", {
+        projectId,
+        packageSnapshotId,
+        addOns: lines.map((line) =>
+          line.addOnId
+            ? { addOnId: line.addOnId, quantity: line.quantity }
+            : {
+                addOnId: null,
+                name: line.name,
+                unitPriceCents: line.unitPriceCents,
+                taxable: line.taxable,
+                quantity: line.quantity,
+                saveToLibrary: line.saveToLibrary === true,
+              },
+        ),
+      });
+      setExtrasFor(null);
+      refreshTenantRecords("addOns");
+    });
   const remove = (packageSnapshotId: string) =>
     change(`remove-${packageSnapshotId}`, () => runCrmCommand("removePackage", { projectId, packageSnapshotId }));
 
@@ -148,6 +171,16 @@ export function ProposalPackagesPanel({
                 {index === 0 && onJob.length > 1 ? " · main package" : ""}
               </small>
             </span>
+            {agreementOut ? null : (
+              <button
+                className="button button-light"
+                disabled={busy !== null}
+                onClick={() => setExtrasFor(extrasFor === id ? null : id)}
+                type="button"
+              >
+                Extras{Array.isArray(snapshot?.addOns) && snapshot.addOns.length ? ` (${snapshot.addOns.length})` : ""}
+              </button>
+            )}
             {agreementOut ? null : onJob.length > 1 ? (
               <button
                 aria-label={`Remove ${text(snapshot?.packageName, "this package")}`}
@@ -169,6 +202,23 @@ export function ProposalPackagesPanel({
                 Swap
               </button>
             )}
+            {extrasFor === id ? (
+              <JobAddOnsEditor
+                busy={busy === `extras-${id}`}
+                currency={text(snapshot?.currency, "USD")}
+                onCancel={() => setExtrasFor(null)}
+                onSave={(lines) => void setExtras(id, lines)}
+                snapshot={snapshot}
+                suggested={
+                  (Array.isArray(
+                    (packages.records ?? []).find((record) => record.id === text(snapshot?.packageId))?.addOns,
+                  )
+                    ? ((packages.records ?? []).find((record) => record.id === text(snapshot?.packageId))!.addOns as Row[])
+                    : []
+                  ).filter((row) => row.active !== false)
+                }
+              />
+            ) : null}
           </li>
         ))}
       </ul>

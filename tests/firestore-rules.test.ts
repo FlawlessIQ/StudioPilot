@@ -83,6 +83,13 @@ test(
           beforeYouShoot: [],
           onTheDay: [],
         });
+        // The add-on library (H2).
+        await setDoc(doc(adminDb, "addOns/addon-a"), {
+          tenantId: "tenant-a",
+          name: "Engagement session",
+          unitPriceCents: 45000,
+          taxable: true,
+        });
         // Who sends the studio's COIs (H3): the studio's business only.
         await setDoc(doc(adminDb, "coiSettings/tenant-a"), {
           tenantId: "tenant-a",
@@ -283,6 +290,14 @@ test(
       await assertSucceeds(getDoc(doc(userDb, "schedules/schedule-a")));
       await assertSucceeds(getDoc(doc(userDb, "vendors/vendor-a")));
       await assertFails(getDoc(doc(userDb, "insuranceRequests/coi-a")));
+      // Add-ons: the studio reads its library; only crmCommand writes it.
+      {
+        const ownerDb = environment.authenticatedContext("owner-a").firestore();
+        const clientDb = environment.authenticatedContext("client-a").firestore();
+        await assertSucceeds(getDoc(doc(ownerDb, "addOns/addon-a")));
+        await assertFails(setDoc(doc(ownerDb, "addOns/addon-a"), { tenantId: "tenant-a", unitPriceCents: 1 }));
+        await assertFails(getDoc(doc(clientDb, "addOns/addon-a")));
+      }
       // COI settings and venue memory: owner and coordinator read, nobody
       // writes from a browser, and a photographer, couple or crew never reads.
       await assertFails(getDoc(doc(userDb, "coiSettings/tenant-a")));

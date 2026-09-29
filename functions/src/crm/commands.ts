@@ -557,8 +557,31 @@ const commandSchema = z.discriminatedUnion("type", [
       includedCoverage: includedCoverageSchema.optional(),
       includedPhotographers: z.number().int().positive().optional(),
       deliverables: z.array(packageDeliverableSchema).max(8).optional(),
+      /** The library add-ons this package suggests (H2). Replaces the list. */
+      addOnIds: z.array(z.string().min(1)).max(20).optional(),
       active: z.boolean().optional(),
       publicVisible: z.boolean().optional(),
+    }),
+  }),
+  /**
+   * An add-on in the studio's library (H2, docs/proposal-agreement-and-addons-plan-2026-09-28.md):
+   * "Second shooter hour", "Engagement session", "Travel beyond 50 miles".
+   * Written once, suggested by any package, priced on any proposal. No
+   * `addOnId` creates one; with one, it is updated. Archiving keeps it on
+   * every proposal it is already part of.
+   */
+  z.object({
+    type: z.literal("saveAddOn"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      addOnId: z.string().min(1).nullable().default(null),
+      name: z.string().trim().min(2).max(120),
+      description: z.string().trim().max(1000).default(""),
+      unitPriceCents: z.number().int().nonnegative().safe(),
+      taxable: z.boolean().default(true),
+      allowQuantity: z.boolean().default(false),
+      archived: z.boolean().default(false),
     }),
   }),
   z.object({
@@ -603,6 +626,8 @@ const commandSchema = z.discriminatedUnion("type", [
           active: z.boolean(),
         }),
       ),
+      /** Library add-ons to suggest; resolved on the server (H2). */
+      addOnIds: z.array(z.string().min(1)).max(20).optional(),
       taxRateBasisPoints: z.number().int().min(0).max(10000),
       terms: z.string().min(10).max(5000),
       active: z.boolean(),
@@ -667,6 +692,37 @@ const commandSchema = z.discriminatedUnion("type", [
     input: z.object({
       projectId: z.string().min(1),
       packageSnapshotId: z.string().min(1),
+    }),
+  }),
+  z.object({
+    /**
+     * The extras on one package on a job (H2 slice 3): from the package's
+     * suggestions, the studio's library, or written for this couple only
+     * ("special family shots"). The snapshot is immutable, so the package is
+     * priced again into a new one and the job points at it; the proposal is
+     * then revised from the job's packages, as for any package change.
+     */
+    type: z.literal("setJobAddOns"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      packageSnapshotId: z.string().min(1),
+      addOns: z
+        .array(
+          z.object({
+            /** A library or package add-on; null for a one-off. */
+            addOnId: z.string().min(1).nullable().default(null),
+            name: z.string().trim().min(2).max(120).optional(),
+            description: z.string().trim().max(1000).optional(),
+            unitPriceCents: z.number().int().nonnegative().safe().optional(),
+            taxable: z.boolean().optional(),
+            quantity: z.number().int().positive().max(100).default(1),
+            /** A one-off the studio will sell again goes into the library. */
+            saveToLibrary: z.boolean().default(false),
+          }),
+        )
+        .max(20),
     }),
   }),
   z.object({
@@ -747,6 +803,40 @@ const allowedRoles = [...managerRoles, "studio_coordinator"];
  * (`hasProjectAccess` in workflow, the equivalent in booking, planning,
  * post-event and communications). This one was the omission.
  */
+/**
+ * The package's copy of its suggested add-ons, from the library.
+ *
+ * A package keeps the definitions themselves, not just the ids: selection,
+ * the couple's portal and every existing snapshot already read
+ * `package.addOns`, and a price the couple saw must not move because the
+ * library entry was edited later. An archived or foreign add-on is refused.
+ */
+async function libraryAddOns(
+  transaction: FirebaseFirestore.Transaction,
+  db: FirebaseFirestore.Firestore,
+  tenantId: string,
+  addOnIds: readonly string[],
+): Promise<Array<Record<string, unknown>>> {
+  const unique = [...new Set(addOnIds)];
+  const documents = await Promise.all(
+    unique.map((id) => transaction.get(db.doc(`addOns/${id}`))),
+  );
+  return documents.map((document) => {
+    if (!document.exists || document.get("tenantId") !== tenantId || document.get("archivedAt")) {
+      throw new Error("ADD_ON_NOT_FOUND");
+    }
+    return {
+      id: document.id,
+      name: String(document.get("name")),
+      description: String(document.get("description") ?? ""),
+      unitPriceCents: Number(document.get("unitPriceCents") ?? 0),
+      taxable: document.get("taxable") !== false,
+      allowQuantity: document.get("allowQuantity") === true,
+      active: true,
+    };
+  });
+}
+
 function hasProjectAccess(
   membership: { role: string; projectIds?: string[] },
   projectId: string,
@@ -1328,16 +1418,76 @@ export const crmCommand = onRequest(
           return output;
         }
 
+        if (command.type === "saveAddOn") {
+          const addOnId = command.input.addOnId ?? randomUUID();
+          const reference = db.doc(`addOns/${addOnId}`);
+          const existing = await transaction.get(reference);
+          if (command.input.addOnId && (!existing.exists || existing.get("tenantId") !== command.tenantId)) {
+            throw new Error("ADD_ON_NOT_FOUND");
+          }
+          const fields = {
+            name: command.input.name,
+            description: command.input.description,
+            unitPriceCents: command.input.unitPriceCents,
+            taxable: command.input.taxable,
+            allowQuantity: command.input.allowQuantity,
+            archivedAt: command.input.archived ? (existing.get("archivedAt") ?? timestamp) : null,
+          };
+          transaction.set(
+            reference,
+            existing.exists
+              ? { ...fields, updatedAt: timestamp, updatedBy: identity.uid }
+              : {
+                  id: addOnId,
+                  tenantId: command.tenantId,
+                  ...fields,
+                  createdAt: timestamp,
+                  createdBy: identity.uid,
+                  updatedAt: timestamp,
+                  updatedBy: identity.uid,
+                },
+            { merge: true },
+          );
+          const auditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${auditId}`), {
+            id: auditId,
+            tenantId: command.tenantId,
+            projectId: null,
+            actorId: identity.uid,
+            actorType: "user",
+            action: existing.exists ? "add_on.updated" : "add_on.created",
+            entityType: "addOn",
+            entityId: addOnId,
+            timestamp,
+            before: existing.exists
+              ? Object.fromEntries(Object.keys(fields).map((key) => [key, existing.get(key) ?? null]))
+              : null,
+            after: fields,
+            providerEventId: null,
+          });
+          const output = { addOnId };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
         if (command.type === "updatePackage") {
           const reference = db.doc(`packages/${command.input.packageId}`);
           const existing = await transaction.get(reference);
           if (!existing.exists || existing.get("tenantId") !== command.tenantId)
             throw new Error("PACKAGE_NOT_FOUND");
-          const { packageId, ...changes } = command.input;
+          const { packageId, addOnIds, ...changes } = command.input;
           // Only what was actually sent; an omitted field is untouched.
           const patch: Record<string, unknown> = Object.fromEntries(
             Object.entries(changes).filter(([, value]) => value !== undefined),
           );
+          if (addOnIds !== undefined) {
+            patch.addOns = await libraryAddOns(transaction, db, command.tenantId, addOnIds);
+          }
           if (!Object.keys(patch).length) throw new Error("NO_PACKAGE_CHANGES");
           /**
            * Coverage is two fields describing one fact, so an edit that moves
@@ -1405,10 +1555,15 @@ export const crmCommand = onRequest(
             String(tenantForCurrency.get("currency")).length === 3
               ? String(tenantForCurrency.get("currency"))
               : command.input.currency;
+          const { addOnIds: suggestedAddOnIds, ...packageInput } = command.input;
+          const suggestedAddOns = suggestedAddOnIds?.length
+            ? await libraryAddOns(transaction, db, command.tenantId, suggestedAddOnIds)
+            : null;
           transaction.create(db.doc(`packages/${packageId}`), {
             id: packageId,
             tenantId: command.tenantId,
-            ...command.input,
+            ...packageInput,
+            ...(suggestedAddOns ? { addOns: suggestedAddOns } : {}),
             // After the spread: the pair is derived, never taken as sent.
             ...coverageFields(coverageFromInput(command.input)),
             currency,
@@ -1506,6 +1661,169 @@ export const crmCommand = onRequest(
             createdAt: timestamp,
           });
           return decided;
+        }
+
+        if (command.type === "setJobAddOns") {
+          const projectReference = db.doc(`projects/${command.input.projectId}`);
+          const projectDocument = await transaction.get(projectReference);
+          if (!projectDocument.exists || projectDocument.get("tenantId") !== command.tenantId) {
+            throw new Error("PROJECT_NOT_FOUND");
+          }
+          if (!hasProjectAccess(membershipData, command.input.projectId)) {
+            throw new Error("PROJECT_NOT_PERMITTED");
+          }
+          await assertPackagesEditable(transaction, {
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            state: String(projectDocument.get("state")),
+          });
+          const primary = String(projectDocument.get("packageSnapshotId") ?? "");
+          const additional = Array.isArray(projectDocument.get("additionalPackageSnapshotIds"))
+            ? (projectDocument.get("additionalPackageSnapshotIds") as unknown[]).map(String)
+            : [];
+          const target = command.input.packageSnapshotId;
+          if (target !== primary && !additional.includes(target)) throw new Error("PACKAGE_NOT_ON_JOB");
+          const previous = await transaction.get(db.doc(`packageSnapshots/${target}`));
+          if (!previous.exists || previous.get("tenantId") !== command.tenantId) {
+            throw new Error("PACKAGE_SNAPSHOT_INVALID");
+          }
+          const packageDocument = await transaction.get(db.doc(`packages/${String(previous.get("packageId"))}`));
+          const suggested = (
+            packageDocument.exists && Array.isArray(packageDocument.get("addOns"))
+              ? (packageDocument.get("addOns") as Array<Record<string, unknown>>)
+              : []
+          ).filter((item) => item.active !== false);
+          const fromLibrary = new Map<string, Record<string, unknown>>();
+          const libraryIds = command.input.addOns
+            .map((item) => item.addOnId)
+            .filter((id): id is string => Boolean(id) && !suggested.some((item) => item.id === id));
+          for (const document of await Promise.all(
+            [...new Set(libraryIds)].map((id) => transaction.get(db.doc(`addOns/${id}`))),
+          )) {
+            if (!document.exists || document.get("tenantId") !== command.tenantId || document.get("archivedAt")) {
+              throw new Error("ADD_ON_NOT_FOUND");
+            }
+            fromLibrary.set(document.id, document.data() ?? {});
+          }
+          const newLibraryEntries: Array<{ id: string; fields: Record<string, unknown> }> = [];
+          const lines = command.input.addOns.map((item) => {
+            if (item.addOnId) {
+              const definition =
+                suggested.find((candidate) => candidate.id === item.addOnId) ?? fromLibrary.get(item.addOnId)!;
+              return {
+                addOnId: item.addOnId,
+                name: String(definition.name),
+                quantity: item.quantity,
+                unitPriceCents: Number(definition.unitPriceCents ?? 0),
+                lineTotalCents: Number(definition.unitPriceCents ?? 0) * item.quantity,
+                taxable: definition.taxable !== false,
+              };
+            }
+            if (!item.name || item.unitPriceCents === undefined) throw new Error("CUSTOM_ADD_ON_INCOMPLETE");
+            const id = item.saveToLibrary ? randomUUID() : `custom_${randomUUID()}`;
+            if (item.saveToLibrary) {
+              newLibraryEntries.push({
+                id,
+                fields: {
+                  name: item.name,
+                  description: item.description ?? "",
+                  unitPriceCents: item.unitPriceCents,
+                  taxable: item.taxable ?? true,
+                  allowQuantity: item.quantity > 1,
+                },
+              });
+            }
+            return {
+              addOnId: id,
+              name: item.name,
+              quantity: item.quantity,
+              unitPriceCents: item.unitPriceCents,
+              lineTotalCents: item.unitPriceCents * item.quantity,
+              taxable: item.taxable ?? true,
+            };
+          });
+          /**
+           * Priced from what the couple was already quoted: the snapshot's own
+           * base price and discount. A percentage retainer follows the new
+           * total; a fixed or per-crew one stays the amount it was — an
+           * existing retainer is never re-derived from today's package.
+           */
+          const rule = packageDocument.get("retainerRule") as { type?: string; basisPoints?: number } | undefined;
+          const priced = pricePackage({
+            basePriceCents: Number(previous.get("basePriceCents") ?? 0),
+            addOns: lines,
+            discount:
+              Number(previous.get("discountCents") ?? 0) > 0
+                ? { type: "fixed", amountCents: Number(previous.get("discountCents")) }
+                : { type: "none" },
+            taxRateBasisPoints:
+              Number(previous.get("taxCents") ?? 0) === 0 ? 0 : Number(packageDocument.get("taxRateBasisPoints") ?? 0),
+            retainerRule:
+              rule?.type === "percentage"
+                ? { type: "percentage", basisPoints: Number(rule.basisPoints ?? 0) }
+                : { type: "fixed", amountCents: Number(previous.get("retainerCents") ?? 0) },
+            billedCrew: 1,
+          });
+          const snapshotId = randomUUID();
+          transaction.create(db.doc(`packageSnapshots/${snapshotId}`), {
+            ...previous.data(),
+            id: snapshotId,
+            addOns: lines,
+            discountCents: priced.discountCents,
+            subtotalCents: priced.subtotalCents,
+            taxCents: priced.taxCents,
+            retainerCents: priced.retainerCents,
+            totalCents: priced.totalCents,
+            supersedesSnapshotId: target,
+            selectionDate: timestamp,
+            selectedBy: identity.uid,
+            createdAt: timestamp,
+            createdBy: identity.uid,
+          });
+          for (const entry of newLibraryEntries) {
+            transaction.create(db.doc(`addOns/${entry.id}`), {
+              id: entry.id,
+              tenantId: command.tenantId,
+              ...entry.fields,
+              archivedAt: null,
+              createdAt: timestamp,
+              createdBy: identity.uid,
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            });
+          }
+          const next =
+            target === primary
+              ? { packageSnapshotId: snapshotId }
+              : { additionalPackageSnapshotIds: additional.map((id) => (id === target ? snapshotId : id)) };
+          transaction.update(projectReference, { ...next, updatedAt: timestamp, updatedBy: identity.uid });
+          const addOnsAuditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${addOnsAuditId}`), {
+            id: addOnsAuditId,
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "package.add_ons_set",
+            entityType: "packageSnapshot",
+            entityId: snapshotId,
+            timestamp,
+            before: { packageSnapshotId: target, addOns: previous.get("addOns") ?? [], totalCents: previous.get("totalCents") ?? null },
+            after: { packageSnapshotId: snapshotId, addOns: lines, totalCents: priced.totalCents },
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          const output = { packageSnapshotId: snapshotId, replaced: target, totalCents: priced.totalCents };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
         }
 
         if (command.type === "removePackage") {

@@ -21007,3 +21007,107 @@ label {
   cursor: pointer;
   justify-self: start;
 }
+
+/* Library → Add-ons (H2). */
+.add-on-library {
+  display: grid;
+  gap: 14px;
+}
+.add-on-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.add-on-list > li {
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 12px 14px;
+}
+.add-on-list > li > span:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.add-on-list small,
+.add-on-empty {
+  color: var(--muted);
+}
+.add-on-row-actions,
+.add-on-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.add-on-editor {
+  width: 100%;
+}
+.package-add-on-picker {
+  border: 0;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+.package-add-on-picker legend {
+  font-weight: 650;
+  margin-bottom: 4px;
+}
+/* A package's extras on a job (H2). */
+.job-add-ons {
+  border-top: 1px solid var(--border);
+  display: grid;
+  flex-basis: 100%;
+  gap: 10px;
+  padding-top: 10px;
+}
+.job-add-ons ul {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.job-add-ons li {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+.job-add-ons li > span {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.job-add-ons small {
+  color: var(--muted);
+}
+.job-add-ons-quantity {
+  width: 64px;
+}
+.job-add-ons-custom {
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 10px;
+}
+.job-add-ons-custom > input:first-of-type {
+  flex: 1 1 180px;
+}
+.job-add-ons-custom > input[type="number"] {
+  width: 96px;
+}
+.job-add-ons footer {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

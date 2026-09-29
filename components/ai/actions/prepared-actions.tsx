@@ -186,6 +186,7 @@ export const ACTION_CARDS: Record<string, ComponentType<ActionCardProps>> = {
   edit_branding: SettingsCard,
   edit_workflow_template: SettingsCard,
   set_insurance_settings: SettingsCard,
+  edit_add_on_library: SettingsCard,
   import_studio_materials: SettingsCard,
   edit_timing_rules: SettingsCard,
   export_studio_data: SettingsCard,

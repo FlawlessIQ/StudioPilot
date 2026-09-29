@@ -18,6 +18,7 @@ import {
   PackageDeliverablesEditor,
   type EditableDeliverable,
 } from "@/components/crm/package-deliverables-editor";
+import { PackageAddOnPicker } from "@/components/crm/package-add-on-picker";
 import { expectedDeliverables } from "@/features/post-event/deliverables";
 
 type RetainerMode = "percentage" | "fixed" | "per_crew_member";
@@ -50,6 +51,7 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
     billPhotographers?: boolean;
     billVideographers?: boolean;
     deliverables?: EditableDeliverable[];
+    addOnIds?: string[];
   }>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,6 +107,9 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
         videographers: Math.max(0, Math.round(Number(videographers || 0))),
       },
     }).map(({ kind, label, turnaroundDays, final }) => ({ kind, label, turnaroundDays, final }));
+  const addOnIds =
+    edits.addOnIds ??
+    (Array.isArray(record?.addOns) ? (record.addOns as Array<{ id?: unknown }>).map((item) => String(item.id ?? "")) : []);
   const publicVisible = edits.publicVisible ?? record?.publicVisible !== false;
   const active = edits.active ?? record?.active !== false;
   const set = <K extends keyof typeof edits>(
@@ -183,6 +188,8 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
           turnaroundDays: item.turnaroundDays ?? 0,
           final: item.final,
         })),
+        // Only when changed: an untouched list is left exactly as stored.
+        ...(edits.addOnIds ? { addOnIds: edits.addOnIds } : {}),
         active,
         publicVisible,
       });
@@ -291,6 +298,11 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
           Who your studio sends. At least one, in either row.
         </p>
         <PackageDeliverablesEditor onChange={(next) => set("deliverables", next)} value={deliverables} />
+        <PackageAddOnPicker
+          currency={String(record?.currency ?? "USD")}
+          onChange={(next) => set("addOnIds", next)}
+          value={addOnIds}
+        />
         <label className="form-checkbox">
           <input
             checked={publicVisible}

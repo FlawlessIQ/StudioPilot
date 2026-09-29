@@ -47,6 +47,15 @@ const SETUP: Shelf[] = [
     noun: ["package", "packages"],
   },
   {
+    title: "Add-ons",
+    description: "Extras sold on top of a package — an engagement session, an extra hour.",
+    href: "/studio/library/add-ons",
+    kind: "package",
+    collection: "addOns",
+    emptyLabel: "No extras to offer yet",
+    noun: ["add-on", "add-ons"],
+  },
+  {
     title: "Questionnaire templates",
     description: "Collect the client details each project type needs.",
     href: "/studio/questionnaires",

@@ -150,6 +150,7 @@ export const STUDIO_ACTIONS: readonly ServerActionSpec[] = [
   { id: "edit_branding", scope: "studio", ownerAdminOnly: true, when: "change the studio's name, logo, colours or email sender name" },
   { id: "edit_workflow_template", scope: "studio", ownerAdminOnly: true, when: "create or change a custom workflow (the checklist and automations a job follows)" },
   { id: "set_insurance_settings", scope: "studio", ownerAdminOnly: true, when: "change the insurer/agent details and how certificates of insurance are requested and chased" },
+  { id: "edit_add_on_library", scope: "studio", when: "add, change or archive an add-on in the studio's library (an extra sold on top of a package, like an engagement session or an extra hour)" },
   { id: "import_studio_materials", scope: "studio", ownerAdminOnly: true, when: "bring in the studio's existing templates, price lists, contracts or questionnaires from files or a website" },
   { id: "edit_timing_rules", scope: "studio", ownerAdminOnly: true, when: "change how long parts of the day take when timelines are drafted" },
   { id: "export_studio_data", scope: "studio", ownerAdminOnly: true, when: "export / download all of the studio's data" },

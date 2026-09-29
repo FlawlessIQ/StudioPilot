@@ -115,6 +115,7 @@ const REACHED: Record<string, string> = {
   createCoiRequest: "CoiWorkflowPanel", decideCoi: "CoiWorkflowPanel", sendCoiToVenue: "CoiWorkflowPanel",
   approvePreparedCoi: "CoiWorkflowPanel", completeCoiDetails: "CoiWorkflowPanel", attachCoiUpload: "CoiWorkflowPanel",
   approveAndSendCoi: "CoiWorkflowPanel", saveCoiSettings: "CoiSettings",
+  saveAddOn: "AddOnLibrary", setJobAddOns: "ProposalPackagesPanel",
   // Messages
   sendMessage: "\"sendMessage\"", replyToConversation: "\"replyToConversation\"",
   markConversationRead: "\"markConversationRead\"", approveMessage: "MessageApprovals", declineMessage: "MessageApprovals",

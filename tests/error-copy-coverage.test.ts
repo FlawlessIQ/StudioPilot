@@ -168,7 +168,6 @@ const KNOWN_GAPS: Record<string, string> = {
   ACTION_RECEIPT_NOT_FOUND: "ai",
   ACTION_RECEIPT_NOT_RETRYABLE: "ai",
   ACTIVATED_IMPORT_CANNOT_BE_CANCELLED: "studio-import",
-  ADD_ON_NOT_FOUND: "crm",
   ALBUM_WORKFLOW_NOT_FOUND: "post-event",
   APP_CHECK_REQUIRED: "crm",
   ARCHIVE_HANDOFF_BLOCKED: "post-event",

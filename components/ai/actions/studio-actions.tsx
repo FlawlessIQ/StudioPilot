@@ -17,6 +17,7 @@ import { CrewOfferSettings } from "@/components/crew/crew-offer-settings";
 import { CrewCascadeWorkspace } from "@/components/crew/crew-cascade-workspace";
 import { CreateWorkflowForm } from "@/components/workflows/create-workflow-form";
 import { CoiSettings } from "@/components/settings/coi-settings";
+import { AddOnLibrary } from "@/components/library/add-on-library";
 import { ReadinessCheckpoints } from "@/components/projects/readiness-checkpoints";
 import { DeliveryForm } from "@/components/post-event/delivery-form";
 import { PostProductionChecklist } from "@/components/post-event/post-production-checklist";
@@ -719,6 +720,12 @@ export function SettingsCard({ action }: ActionCardProps) {
       detail: "Your agent's details and how StudioCue asks for, chases and sends certificates.",
       body: <CoiSettings />,
       href: "/studio/settings/insurance",
+    },
+    edit_add_on_library: {
+      title: "Add-ons",
+      detail: "The extras you sell on top of a package. Packages suggest them; you choose them per job.",
+      body: <AddOnLibrary />,
+      href: "/studio/library/add-ons",
     },
     import_studio_materials: {
       title: "Import your studio materials",

@@ -202,6 +202,13 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // The studio's add-on library (H2). Read like packages; written only by
+    // crmCommand "saveAddOn", so a price is always audited.
+    match /addOns/{addOnId} {
+      allow read: if canManageProjects(resource.data.tenantId);
+      allow write: if false;
+    }
+
     match /packageSnapshots/{snapshotId} {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
         || (

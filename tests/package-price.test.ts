@@ -166,3 +166,34 @@ test("the proposal PDF fits the renderer and shows one retainer (M7)", () => {
   assert.match(pdf, /retainer:money\(retainerFromSchedule\(paymentSchedule/);
   assert.doesNotMatch(pdf, /retainer:money\(pricing\.retainerCents/);
 });
+
+test("a package suggests add-ons from the library, copied so a later edit moves no price (H2 slice 2)", () => {
+  const commands = readFileSync("functions/src/crm/commands.ts", "utf8");
+  assert.match(commands, /type: z\.literal\("saveAddOn"\)/);
+  // Resolved on the server from the tenant's own, unarchived library.
+  assert.match(commands, /document\.get\("tenantId"\) !== tenantId \|\| document\.get\("archivedAt"\)/);
+  assert.match(commands, /patch\.addOns = await libraryAddOns\(/);
+  // Both package forms send the studio's choice; neither can only say "none".
+  for (const form of ["components/crm/create-package-form.tsx", "components/crm/edit-package-form.tsx"]) {
+    assert.match(readFileSync(form, "utf8"), /<PackageAddOnPicker/, form);
+  }
+  assert.match(readFileSync("components/library/library-shelves.tsx", "utf8"), /href: "\/studio\/library\/add-ons"/);
+});
+
+test("a job's extras re-price its package into a new snapshot, and never re-derive a retainer (H2 slice 3)", () => {
+  const commands = readFileSync("functions/src/crm/commands.ts", "utf8");
+  assert.match(commands, /type: z\.literal\("setJobAddOns"\)/);
+  const handler = commands.slice(commands.indexOf('if (command.type === "setJobAddOns")'));
+  // Guarded like every package change.
+  assert.match(handler, /await assertPackagesEditable\(transaction/);
+  // A new, immutable snapshot that says which one it replaced.
+  assert.match(handler, /supersedesSnapshotId: target/);
+  // Priced from what the couple was quoted, through the one function.
+  assert.match(handler, /basePriceCents: Number\(previous\.get\("basePriceCents"\)/);
+  assert.match(handler, /: \{ type: "fixed", amountCents: Number\(previous\.get\("retainerCents"\) \?\? 0\) \}/);
+  assert.match(handler, /const priced = pricePackage\(\{/);
+  // The panel revises the proposal after, like any package change.
+  const panel = readFileSync("components/proposals/proposal-packages-panel.tsx", "utf8");
+  assert.match(panel, /runCrmCommand\("setJobAddOns"/);
+  assert.match(panel, /change\(`extras-\$\{packageSnapshotId\}`/);
+});
