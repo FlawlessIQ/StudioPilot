@@ -1,18 +1,37 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { CalendarDays, CheckCircle2, LoaderCircle } from "lucide-react";
 import {
-  CalendarDays,
-  CheckCircle2,
-  Clock3,
-  LoaderCircle,
-  ShieldCheck,
-} from "lucide-react";
-import { Logo } from "@/components/brand/logo";
+  Actions,
+  AppBar,
+  Button,
+  Card,
+  KitRoot,
+  Main,
+  Note,
+  PoweredBy,
+  Screen,
+  type Studio,
+} from "@/components/kit/kit";
+import { SlotPicker, slotLabel } from "@/components/kit/slot-picker";
 import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
+
+/** What went wrong, in words a couple can act on, not the server's code. */
+const friendly: Record<string, string> = {
+  SCHEDULING_LINK_EXPIRED: "This scheduling link has expired. Reply to the studio’s email and they’ll send a new one.",
+  SCHEDULING_LINK_NOT_FOUND: "This scheduling link isn’t working. Reply to the studio’s email and they’ll send a new one.",
+  TIME_NO_LONGER_AVAILABLE: "That time was just taken. Please choose another.",
+};
+const words = (caught: unknown, fallback: string) => {
+  const code = caught instanceof Error ? caught.message : "";
+  return friendly[code] ?? fallback;
+};
 
 type Preview = {
   studioName: string;
+  brandAccentColor?: string | null;
+  brandLogoUrl?: string | null;
   projectName: string;
   eventDate: string | null;
   expiresAt: string;
@@ -62,6 +81,9 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
               : null,
           expiresAt: String(previewResult.expiresAt),
           mode: String(previewResult.mode),
+          brandAccentColor:
+            typeof previewResult.brandAccentColor === "string" ? previewResult.brandAccentColor : null,
+          brandLogoUrl: typeof previewResult.brandLogoUrl === "string" ? previewResult.brandLogoUrl : null,
         });
         setSlots(
           Array.isArray(availability.slots)
@@ -82,30 +104,12 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
       .catch((caught: unknown) => {
         if (!active) return;
         setStatus("error");
-        setMessage(
-          caught instanceof Error
-            ? caught.message.replaceAll("_", " ")
-            : "This scheduling link is unavailable.",
-        );
+        setMessage(words(caught, "This scheduling link is unavailable. Reply to the studio’s email for a new one."));
       });
     return () => {
       active = false;
     };
   }, [token]);
-
-  const groups = useMemo(
-    () =>
-      slots.reduce<Record<string, Slot[]>>((result, slot) => {
-        const key = new Date(slot.startsAt).toLocaleDateString("en-US", {
-          weekday: "long",
-          month: "short",
-          day: "numeric",
-        });
-        result[key] = [...(result[key] ?? []), slot];
-        return result;
-      }, {}),
-    [slots],
-  );
 
   async function book() {
     if (!selected) return;
@@ -133,120 +137,87 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
       );
     } catch (caught: unknown) {
       setStatus("ready");
-      setMessage(
-        caught instanceof Error
-          ? caught.message.replaceAll("_", " ")
-          : "That time could not be booked.",
-      );
+      setMessage(words(caught, "That time could not be booked. Please choose another."));
     }
   }
 
+  const brand: Studio = {
+    name: preview?.studioName ?? "Your photographer",
+    color: preview?.brandAccentColor ?? null,
+    logoUrl: preview?.brandLogoUrl ?? null,
+  };
+  const zone = timezone || "the studio’s time zone";
+
   return (
-    <main className="public-scheduler-page">
-      <header>
-        <Logo />
-        <span>
-          <ShieldCheck size={16} /> Secure scheduling
-        </span>
-      </header>
-      <section className="public-scheduler-layout">
-        <aside>
-          <p className="eyebrow">Photography consultation</p>
-          <h1>
-            {preview
-              ? `Choose a time with ${preview.studioName}`
-              : "Choose a consultation time"}
-          </h1>
-          <p>
-            Select one of the studio’s current openings. Your time is confirmed
-            only after you finish this step.
-          </p>
-          {preview ? (
-            <dl>
-              <div>
-                <dt>Project</dt>
-                <dd>{preview.projectName}</dd>
-              </div>
-              <div>
-                <dt>Meeting</dt>
-                <dd>{preview.mode.replaceAll("_", " ")}</dd>
-              </div>
-              <div>
-                <dt>Timezone</dt>
-                <dd>{timezone}</dd>
-              </div>
-            </dl>
-          ) : null}
-        </aside>
-        <div className="panel public-scheduler-card">
+    <KitRoot studio={brand}>
+      <Screen>
+        <AppBar studio={brand} />
+        <Main label="Choose a consultation time">
+          <div className="kit-stack-tight">
+            <p className="kit-eyebrow">Photography consultation</p>
+            <h1 className="kit-title">
+              {status === "complete"
+                ? "You’re booked in"
+                : preview
+                  ? `Choose a time with ${preview.studioName}`
+                  : "Choose a consultation time"}
+            </h1>
+            {status === "complete" ? null : (
+              <p className="kit-body">
+                Pick one of the studio’s openings. Nothing is booked until you confirm.
+              </p>
+            )}
+          </div>
+
           {status === "loading" ? (
-            <div className="public-scheduler-state">
-              <LoaderCircle className="spin" />
-              <strong>Loading available times…</strong>
-            </div>
+            <Card>
+              <p className="kit-body" role="status">
+                <LoaderCircle aria-hidden="true" className="spin" size={18} /> Loading available times…
+              </p>
+            </Card>
           ) : status === "error" ? (
-            <div className="public-scheduler-state">
-              <CalendarDays />
-              <strong>Scheduling link unavailable</strong>
-              <p>{message}</p>
-            </div>
+            <Note icon={CalendarDays}>{message}</Note>
           ) : status === "complete" ? (
-            <div className="public-scheduler-state is-complete">
-              <CheckCircle2 />
-              <strong>Consultation confirmed</strong>
-              <p>{message}</p>
-              <small>We&rsquo;ve emailed you the details.</small>
-            </div>
+            <Card tone="accent">
+              <p className="kit-eyebrow" style={{ color: "var(--kit-accent)" }}>
+                <CheckCircle2 aria-hidden="true" size={14} /> Confirmed
+              </p>
+              <p className="kit-body">{message} We’ve emailed you the details.</p>
+            </Card>
           ) : (
-            <>
-              <div className="panel-heading">
-                <div>
-                  <h2>Available times</h2>
-                  <p>Times shown in {timezone || "the studio timezone"}.</p>
-                </div>
-                <Clock3 />
-              </div>
-              <div className="public-slot-groups">
-                {Object.entries(groups).slice(0, 7).map(([date, values]) => (
-                  <fieldset key={date}>
-                    <legend>{date}</legend>
-                    <div>
-                      {values.map((slot) => (
-                        <label key={slot.startsAt}>
-                          <input
-                            checked={selected === slot.startsAt}
-                            name="consultation-time"
-                            onChange={() => setSelected(slot.startsAt)}
-                            type="radio"
-                          />
-                          <span>
-                            {new Date(slot.startsAt).toLocaleTimeString(
-                              "en-US",
-                              { hour: "numeric", minute: "2-digit" },
-                            )}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
-                ))}
-                {!slots.length ? (
-                  <p>No times are currently available. Contact the studio for help.</p>
-                ) : null}
-              </div>
-              <button
-                className="button button-dark"
-                disabled={!selected || status === "booking"}
-                onClick={() => void book()}
-                type="button"
-              >
-                {status === "booking" ? "Confirming…" : "Confirm consultation"}
-              </button>
-              {message ? <p className="form-notice">{message}</p> : null}
-            </>
+            <div className="kit-stack">
+              {preview ? (
+                <p className="kit-caption">
+                  {preview.projectName} · {preview.mode.replaceAll("_", " ")}
+                </p>
+              ) : null}
+              <SlotPicker onSelect={setSelected} selected={selected} slots={slots} timezone={timezone} />
+              {slots.length ? (
+                <p className="kit-caption">Times shown in {zone}.</p>
+              ) : (
+                <Note>No times are open right now. Reply to the studio’s email and they’ll find one.</Note>
+              )}
+              {message ? (
+                <p className="kit-note" data-tone="danger" role="alert">
+                  {message}
+                </p>
+              ) : null}
+            </div>
           )}
-        </div>
-      </section>
-    </main>
+          <PoweredBy />
+        </Main>
+        {status === "ready" || status === "booking" ? (
+          <Actions>
+            <Button disabled={!selected || status === "booking"} onClick={() => void book()}>
+              {status === "booking"
+                ? "Confirming…"
+                : selected
+                  ? `Book ${slotLabel(selected, timezone)}`
+                  : "Choose a time"}
+            </Button>
+          </Actions>
+        ) : null}
+      </Screen>
+    </KitRoot>
   );
 }

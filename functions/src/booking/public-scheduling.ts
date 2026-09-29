@@ -13,6 +13,7 @@ import {
   saveCoupleDetails,
   type InquiryLinkContext,
 } from "../intake/inquiry-link.js";
+import { resolveTenantBrand } from "../branding/tenant-brand.js";
 
 const inquiryToken = z.string().min(32).max(200);
 
@@ -299,12 +300,12 @@ export const publicConsultationScheduling = onRequest(
       ]);
       if (!tenant.exists || !project.exists) throw new Error("SCHEDULING_LINK_EXPIRED");
       if (command.type === "preview") {
+        const brand = resolveTenantBrand(tenant.data(), "Your photography studio");
         response.status(200).json({
-          studioName: String(
-            tenant.get("brandName") ??
-              tenant.get("businessName") ??
-              "Your photography studio",
-          ),
+          studioName: brand.brandName,
+          // The couple sees the studio's brand (mobile-first plan, M2).
+          brandAccentColor: brand.primaryColor,
+          brandLogoUrl: brand.logoUrl,
           projectName: String(project.get("name") ?? "Your project"),
           eventDate: project.get("eventDate") ?? null,
           expiresAt: link.get("expiresAt"),
@@ -502,8 +503,11 @@ async function handleInquiryCommand(
       db.doc(`consultationSettings/${context.tenantId}`).get(),
     ]);
     const { known, missing } = detailsOf(context.lead);
+    const inquiryBrand = resolveTenantBrand(tenant.data(), "Your photography studio");
     return {
-      studioName: text(tenant.get("brandName")) || text(tenant.get("businessName")) || "Your photography studio",
+      studioName: inquiryBrand.brandName,
+      brandAccentColor: inquiryBrand.primaryColor,
+      brandLogoUrl: inquiryBrand.logoUrl,
       firstName: text(context.lead.get("firstName")) || null,
       known,
       missing,

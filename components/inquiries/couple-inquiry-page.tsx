@@ -1,8 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { CalendarDays, CheckCircle2, Clock3, LoaderCircle, ShieldCheck } from "lucide-react";
-import { Logo } from "@/components/brand/logo";
+import { useEffect, useState, type FormEvent } from "react";
+import { CalendarDays, CheckCircle2, LoaderCircle, Video } from "lucide-react";
+import {
+  Actions,
+  AppBar,
+  Button,
+  ButtonRow,
+  Card,
+  Choices,
+  Field,
+  KitRoot,
+  Main,
+  Note,
+  PoweredBy,
+  Screen,
+  Steps,
+  TextArea,
+  type Studio,
+} from "@/components/kit/kit";
+import { SlotPicker, slotLabel } from "@/components/kit/slot-picker";
 import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
 
 /**
@@ -19,6 +36,9 @@ type Format = "zoom" | "in_person" | "phone";
 
 type Preview = {
   studioName: string;
+  /** The studio's colour and logo; absent from an older functions build. */
+  brandAccentColor?: string | null;
+  brandLogoUrl?: string | null;
   firstName: string | null;
   known: Partial<Record<Field, string | number>>;
   missing: Field[];
@@ -140,21 +160,6 @@ export function CoupleInquiryPage({ token }: { token: string }) {
     };
   }, [step, preview?.takesBookings, token]);
 
-  const groups = useMemo(
-    () =>
-      slots.reduce<Record<string, Slot[]>>((result, slot) => {
-        const key = new Intl.DateTimeFormat("en-US", {
-          weekday: "long",
-          month: "short",
-          day: "numeric",
-          timeZone: preview?.timezone || undefined,
-        }).format(new Date(slot.startsAt));
-        result[key] = [...(result[key] ?? []), slot];
-        return result;
-      }, {}),
-    [slots, preview?.timezone],
-  );
-
   async function saveDetails(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -189,8 +194,12 @@ export function CoupleInquiryPage({ token }: { token: string }) {
     }
   }
 
+  // Confirmed in the page, not window.confirm: a browser dialog on a phone
+  // reads as an error, and nothing about it looks like the studio.
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+
   async function cancel() {
-    if (!window.confirm("Cancel your consultation? You can book another time here afterwards.")) return;
+    setConfirmingCancel(false);
     setBusy(true);
     setNotice("");
     try {
@@ -217,172 +226,194 @@ export function CoupleInquiryPage({ token }: { token: string }) {
     : `${phrase.charAt(0).toUpperCase()}${phrase.slice(1)}`;
   const missingDate = preview?.missing.includes("eventDate") ?? false;
 
+  const brand: Studio = {
+    name: preview?.studioName ?? "Your photographer",
+    color: preview?.brandAccentColor ?? null,
+    logoUrl: preview?.brandLogoUrl ?? null,
+  };
+  const eyebrow =
+    step === "details" ? "Step 1 of 2" : step === "time" ? "Step 2 of 2" : "Your consultation";
+  const lede =
+    step === "details"
+      ? "Just what the studio doesn’t know yet. Skip anything you haven’t decided."
+      : step === "booked"
+        ? "Need a different time? You can move it or cancel it here."
+        : `A ${preview?.durationMinutes ?? 30}-minute conversation about your plans. Nothing is booked until you confirm.`;
+
   return (
-    <main className="public-scheduler-page">
-      <header>
-        <Logo />
-        <span>
-          <ShieldCheck size={16} /> Private to you
-        </span>
-      </header>
-      <section className="public-scheduler-layout">
-        <aside>
-          <p className="eyebrow">{step === "details" ? "Step 1 of 2" : step === "time" ? "Step 2 of 2" : "Your consultation"}</p>
-          <h1>{heading}</h1>
-          <p>
-            {step === "details"
-              ? "Just what the studio doesn’t know yet. Skip anything you haven’t decided."
-              : step === "booked"
-                ? "Need a different time? You can move it or cancel it here."
-                : `A ${preview?.durationMinutes ?? 30}-minute conversation about your plans. Nothing is booked until you confirm.`}
-          </p>
-        </aside>
-        <div className="panel public-scheduler-card">
+    <KitRoot studio={brand}>
+      <Screen>
+        <AppBar studio={brand} />
+        <Main label="Your inquiry">
+          {step === "details" || step === "time" ? (
+            <Steps step={step === "details" ? 1 : 2} total={2} />
+          ) : null}
+          {step !== "loading" && step !== "error" ? (
+            <div className="kit-stack-tight">
+              <p className="kit-eyebrow">{eyebrow}</p>
+              <h1 className="kit-title">{heading}</h1>
+              <p className="kit-body">{lede}</p>
+            </div>
+          ) : null}
+
           {step === "loading" ? (
-            <div className="public-scheduler-state">
-              <LoaderCircle className="spin" />
-              <strong>One moment…</strong>
+            <Card>
+              <p className="kit-body" role="status">
+                <LoaderCircle aria-hidden="true" className="spin" size={18} /> One moment…
+              </p>
+            </Card>
+          ) : null}
+
+          {step === "error" ? (
+            <div className="kit-stack">
+              <h1 className="kit-title">This link isn’t available</h1>
+              <Note icon={CalendarDays}>{notice}</Note>
             </div>
-          ) : step === "error" ? (
-            <div className="public-scheduler-state">
-              <CalendarDays />
-              <strong>This link isn’t available</strong>
-              <p>{notice}</p>
-            </div>
-          ) : step === "details" && preview ? (
-            <form className="couple-details-form" onSubmit={(event) => void saveDetails(event)}>
+          ) : null}
+
+          {step === "details" && preview ? (
+            <form className="kit-stack" id="couple-details" onSubmit={(event) => void saveDetails(event)}>
               {preview.missing.map((field) => (
-                <label key={field}>
-                  {fieldCopy[field].label}
-                  <input
-                    inputMode={field === "estimatedGuestCount" ? "numeric" : undefined}
-                    min={field === "estimatedGuestCount" ? 1 : undefined}
-                    onChange={(event) => setValues((current) => ({ ...current, [field]: event.target.value }))}
-                    placeholder={fieldCopy[field].placeholder}
-                    required={field === "eventDate"}
-                    type={fieldCopy[field].type}
-                    value={values[field] ?? ""}
-                  />
-                </label>
-              ))}
-              <label>
-                {`Anything else you’d like ${studio} to know?`}
-                <textarea
-                  onChange={(event) => setValues((current) => ({ ...current, notes: event.target.value }))}
-                  rows={3}
-                  value={values.notes ?? ""}
+                <Field
+                  inputMode={field === "estimatedGuestCount" ? "numeric" : field === "phone" ? "tel" : undefined}
+                  key={field}
+                  label={fieldCopy[field].label}
+                  min={field === "estimatedGuestCount" ? 1 : undefined}
+                  name={field}
+                  onChange={(event) => setValues((current) => ({ ...current, [field]: event.target.value }))}
+                  placeholder={fieldCopy[field].placeholder}
+                  required={field === "eventDate"}
+                  type={fieldCopy[field].type}
+                  value={values[field] ?? ""}
                 />
-              </label>
-              <div className="couple-details-actions">
-                <button className="button button-dark" disabled={busy} type="submit">
-                  {busy ? "Saving…" : "Continue"}
-                </button>
-                {!missingDate ? (
-                  <button className="button button-light" disabled={busy} onClick={() => setStep("time")} type="button">
-                    Skip for now
-                  </button>
-                ) : null}
-              </div>
-              {notice ? <p className="form-notice">{notice}</p> : null}
+              ))}
+              <TextArea
+                label={`Anything else you’d like ${studio} to know?`}
+                onChange={(event) => setValues((current) => ({ ...current, notes: event.target.value }))}
+                rows={3}
+                value={values.notes ?? ""}
+              />
             </form>
-          ) : step === "booked" && preview?.booked ? (
-            <div className="public-scheduler-state is-complete">
-              <CheckCircle2 />
-              <strong>{when(preview.booked.startsAt, preview.timezone)}</strong>
-              <p>
+          ) : null}
+
+          {step === "booked" && preview?.booked ? (
+            <Card tone="accent">
+              <p className="kit-eyebrow" style={{ color: "var(--kit-accent)" }}>
+                <CheckCircle2 aria-hidden="true" size={14} /> Your consultation
+              </p>
+              <h2 className="kit-section">{when(preview.booked.startsAt, preview.timezone)}</h2>
+              <p className="kit-body">
                 {formatCopy[preview.booked.format] ?? "Consultation"}
-                {preview.booked.format === "in_person" && preview.booked.location ? ` at ${preview.booked.location}` : ""}
+                {preview.booked.format === "in_person" && preview.booked.location
+                  ? ` at ${preview.booked.location}`
+                  : ""}
+                . We’ve emailed you the details.
               </p>
               {preview.booked.format === "zoom" && preview.booked.joinUrl ? (
-                <a className="button button-light" href={preview.booked.joinUrl} rel="noreferrer" target="_blank">
-                  Open the video call link
+                <a className="kit-button" data-variant="secondary" href={preview.booked.joinUrl} rel="noreferrer" target="_blank">
+                  <Video aria-hidden="true" size={20} /> Open the video call link
                 </a>
               ) : null}
-              <small>We’ve emailed you the details.</small>
-              <div className="couple-details-actions">
-                <button className="button button-light" disabled={busy} onClick={() => setStep("time")} type="button">
-                  Choose a different time
-                </button>
-                <button className="button button-light" disabled={busy} onClick={() => void cancel()} type="button">
-                  Cancel it
-                </button>
-              </div>
-              {notice ? <p className="form-notice">{notice}</p> : null}
-            </div>
-          ) : preview && !preview.takesBookings ? (
-            <div className="public-scheduler-state is-complete">
-              <CheckCircle2 />
-              <strong>Thank you — that’s everything</strong>
-              <p>{studio} will be in touch to find a time to talk.</p>
-            </div>
-          ) : preview ? (
-            <>
-              {preview.formats.length > 1 ? (
-                <fieldset className="couple-format-choice">
-                  <legend>How would you like to meet?</legend>
-                  {preview.formats.map((option) => (
-                    <label key={option}>
-                      <input
-                        checked={format === option}
-                        name="meeting-format"
-                        onChange={() => setFormat(option)}
-                        type="radio"
-                      />
-                      <span>
-                        {formatCopy[option]}
-                        {option === "in_person" && preview.inPersonLocation ? <small>{preview.inPersonLocation}</small> : null}
-                      </span>
-                    </label>
-                  ))}
-                </fieldset>
-              ) : null}
-              <div className="panel-heading">
-                <div>
-                  <h2>Available times</h2>
-                  <p>Times shown in {preview.timezone}.</p>
-                </div>
-                <Clock3 />
-              </div>
-              <div className="public-slot-groups">
-                {Object.entries(groups).slice(0, 7).map(([date, dayslots]) => (
-                  <fieldset key={date}>
-                    <legend>{date}</legend>
-                    <div>
-                      {dayslots.map((slot) => (
-                        <label key={slot.startsAt}>
-                          <input
-                            checked={selected === slot.startsAt}
-                            name="consultation-time"
-                            onChange={() => setSelected(slot.startsAt)}
-                            type="radio"
-                          />
-                          <span>
-                            {new Intl.DateTimeFormat("en-US", {
-                              hour: "numeric",
-                              minute: "2-digit",
-                              timeZone: preview.timezone || undefined,
-                            }).format(new Date(slot.startsAt))}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
-                ))}
-                {!slots.length ? <p>No times are open right now. Reply to the studio’s email and they’ll find one.</p> : null}
-              </div>
-              <button
-                className="button button-dark"
-                disabled={!selected || !format || busy}
-                onClick={() => void book()}
-                type="button"
-              >
-                {busy ? "Confirming…" : preview.booked ? "Move my consultation" : "Confirm consultation"}
-              </button>
-              {notice ? <p className="form-notice">{notice}</p> : null}
-            </>
+            </Card>
           ) : null}
-        </div>
-      </section>
-    </main>
+
+          {step === "time" && preview && !preview.takesBookings ? (
+            <Card tone="accent">
+              <h2 className="kit-section">Thank you — that’s everything</h2>
+              <p className="kit-body">{studio} will be in touch to find a time to talk.</p>
+            </Card>
+          ) : null}
+
+          {step === "time" && preview && preview.takesBookings ? (
+            <div className="kit-stack">
+              {preview.formats.length > 1 ? (
+                <Choices
+                  legend="How would you like to meet?"
+                  onChange={(next) => setFormat(next as Format)}
+                  options={preview.formats.map((option) => ({ value: option, label: formatCopy[option] }))}
+                  value={format || null}
+                />
+              ) : null}
+              {preview.formats.includes("in_person") && format === "in_person" && preview.inPersonLocation ? (
+                <p className="kit-caption">In person at {preview.inPersonLocation}</p>
+              ) : null}
+              <SlotPicker onSelect={setSelected} selected={selected} slots={slots} timezone={preview.timezone} />
+              {slots.length ? (
+                <p className="kit-caption">Times shown in {preview.timezone}.</p>
+              ) : (
+                <Note>No times are open right now. Reply to the studio’s email and they’ll find one.</Note>
+              )}
+            </div>
+          ) : null}
+
+          {notice && step !== "error" ? (
+            <p className="kit-note" data-tone="danger" role="alert">
+              {notice}
+            </p>
+          ) : null}
+          <PoweredBy />
+        </Main>
+
+        {step === "details" && preview ? (
+          <Actions>
+            {!missingDate ? (
+              <ButtonRow>
+                <Button disabled={busy} onClick={() => setStep("time")} size="compact" variant="secondary">
+                  Skip for now
+                </Button>
+                <Button disabled={busy} form="couple-details" type="submit">
+                  {busy ? "Saving…" : "Continue"}
+                </Button>
+              </ButtonRow>
+            ) : (
+              <Button disabled={busy} form="couple-details" type="submit">
+                {busy ? "Saving…" : "Continue"}
+              </Button>
+            )}
+          </Actions>
+        ) : null}
+
+        {step === "time" && preview?.takesBookings ? (
+          <Actions note={preview.booked ? "Your current time stays booked until you confirm a new one." : undefined}>
+            <Button disabled={!selected || !format || busy} onClick={() => void book()}>
+              {busy
+                ? "Confirming…"
+                : selected
+                  ? `${preview.booked ? "Move to" : "Book"} ${slotLabel(selected, preview.timezone)}`
+                  : "Choose a time"}
+            </Button>
+          </Actions>
+        ) : null}
+
+        {step === "booked" && preview?.booked ? (
+          <Actions>
+            {confirmingCancel ? (
+              <>
+                <p className="kit-body" style={{ textAlign: "center" }}>
+                  Cancel your consultation? You can book another time here afterwards.
+                </p>
+                <ButtonRow>
+                  <Button disabled={busy} onClick={() => setConfirmingCancel(false)} size="compact" variant="secondary">
+                    Keep it
+                  </Button>
+                  <Button disabled={busy} onClick={() => void cancel()} variant="danger">
+                    Yes, cancel it
+                  </Button>
+                </ButtonRow>
+              </>
+            ) : (
+              <ButtonRow>
+                <Button disabled={busy} onClick={() => setConfirmingCancel(true)} size="compact" variant="danger">
+                  Cancel
+                </Button>
+                <Button disabled={busy} onClick={() => setStep("time")} variant="secondary">
+                  Choose a different time
+                </Button>
+              </ButtonRow>
+            )}
+          </Actions>
+        ) : null}
+      </Screen>
+    </KitRoot>
   );
 }
