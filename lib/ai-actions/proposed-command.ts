@@ -26,6 +26,13 @@ export const PROPOSED_COMMAND_ALLOWLIST = new Set([
   "planning:setInsuranceRequirement",
   "planning:assignQuestionnaire",
   "proposal:create_draft",
+  /**
+   * The "change the venue / date / name" card. The server has built it since
+   * c6adfbd and the runner has a crm branch for it, but it was never listed
+   * here, so an approved card failed with "This action can't be run
+   * automatically." Found 2026-09-29.
+   */
+  "crm:updateProject",
 ]);
 
 /** The runnable command on a studio-command action, or null if not allowed. */

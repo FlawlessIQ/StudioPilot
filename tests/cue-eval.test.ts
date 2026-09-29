@@ -187,7 +187,12 @@ test("a change to Cue's prompt is deliberate and re-evaluated", () => {
   // package "cannot be edited". F7 re-run on production before shipping.
   // Bumped again the same day: asking to add a package now launches the
   // select_package flow, which adds it and revises the proposal (F7).
-  const EXPECTED = 19491;
+  // Bumped 2026-09-29 (smaller): acting moved to the prepare_action tool in
+  // the retrieval loop (functions/src/ai/action-catalog.ts), so the answer
+  // prompt no longer carries the update_project rule, and swapping or
+  // removing a package is a card rather than directions. Scenarios K1–K14
+  // in docs/cue-scenarios.md re-run on production before shipping.
+  const EXPECTED = 19012;
   const drift = Math.abs(size - EXPECTED);
   assert.ok(
     drift < 40,

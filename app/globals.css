@@ -11312,6 +11312,19 @@ textarea:focus-visible {
 .copilot-flow-form input{border:1px solid var(--border,#dfe3de);border-radius:9px;padding:9px 11px;font:inherit;font-size:14px}
 .copilot-flow-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:2px}
 .copilot-flow-actions button:not(.button-dark){border:1px solid var(--border,#dfe3de);border-radius:99px;background:var(--surface,#fff);padding:8px 14px;font:inherit;font-size:12px;font-weight:650;cursor:pointer}
+/* Cue's prepared-action cards (components/ai/actions). They share the flow
+   card's frame; an embedded panel from elsewhere in the app sits flush inside. */
+.cue-actions{display:grid;gap:12px;margin-top:14px}
+.cue-actions>.copilot-flow{margin-top:0}
+.cue-action{gap:10px}
+.cue-action-note{margin:0;font-size:12.5px;line-height:1.5;color:var(--muted,#6b7570)}
+.cue-action-done{margin:0;font-size:13px;line-height:1.5}
+.cue-action-embed{display:grid;gap:10px;min-width:0;overflow-x:auto}
+.cue-action-embed>.panel{margin:0;box-shadow:none}
+.cue-action-check{display:flex!important;gap:8px;align-items:center;font-weight:600}
+.cue-action-check input{width:auto}
+.copilot-flow-form select,.copilot-flow-form textarea{border:1px solid var(--border,#dfe3de);border-radius:9px;padding:9px 11px;font:inherit;font-size:14px;background:var(--surface,#fff)}
+.copilot-flow-form textarea{resize:vertical;min-height:72px}
 
 /* "Teach StudioCue your voice" — owner preference for email drafting tone. */
 .copilot-voice{margin-top:8px;border:1px solid var(--border,#e7eae6);border-radius:12px;padding:10px 14px;background:var(--surface,#fff)}

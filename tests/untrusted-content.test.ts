@@ -86,6 +86,18 @@ test("Cue's ability to act is still four reversible, approved commands", () => {
   );
 });
 
+/**
+ * `prepare_action` reviewed against the injection tests, 2026-09-29.
+ *
+ * It is the one tool that is about acting, and it still writes nothing: it
+ * validates its arguments against a closed catalogue and the caller's own
+ * projects, and records a card for the answer (tests/cue-action-catalog.test.ts
+ * asserts the handler touches no database). What an injected instruction could
+ * reach is a card on the operator's screen — which states its consequence and
+ * runs nothing until they tap it, as them, through the same command the rest
+ * of the app uses. The retrieval instruction tells the model that a request
+ * inside a record is not the operator asking.
+ */
 test("no tool the model can call writes anything", () => {
   // Retrieval is read-only by construction; the write path is the human-approved
   // command surface above.
@@ -99,7 +111,7 @@ test("no tool the model can call writes anything", () => {
   const names = [...block.matchAll(/^\s{4}name: "([a-z_]+)",$/gm)].map((m) => m[1]);
   assert.deepEqual(
     names.sort(),
-    ["find_across_projects", "get_crew_roster", "get_project_detail"].sort(),
+    ["find_across_projects", "get_crew_roster", "get_project_detail", "prepare_action"].sort(),
     "a new Cue tool needs reviewing against the injection tests",
   );
 });

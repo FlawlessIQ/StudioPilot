@@ -1,0 +1,680 @@
+"use client";
+
+import { useState } from "react";
+import { Archive, Briefcase, CircleSlash, Inbox, MailPlus, PencilLine, RotateCcw, Route, Trash2, UserPlus } from "lucide-react";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { allowedProjectTransitions, transitionAuthority } from "@/features/projects/state-machine";
+import type { ProjectState } from "@/features/projects/schema";
+import { projectStateLabel } from "@/features/projects/state-label";
+import { runCrmCommand } from "@/lib/crm/command-client";
+import { runClientInvitation } from "@/lib/client/invitation-client";
+import { CreateProjectForm } from "@/components/crm/create-project-form";
+import { CreateContactForm } from "@/components/crm/create-contact-form";
+import { ProjectEdit } from "@/components/projects/project-edit";
+import { ProjectAddClient } from "@/components/projects/project-add-client";
+import { ClientRecordActions } from "@/components/clients/client-record-actions";
+import { DeleteJobPermanently } from "@/components/projects/delete-job-permanently";
+import {
+  ActionShell,
+  Actions,
+  Blocked,
+  Done,
+  Embedded,
+  Form,
+  Loading,
+  Notice,
+  SelectField,
+  SubjectPicker,
+  TextAreaField,
+  TextField,
+  arr,
+  contactName,
+  freshStateVersion,
+  jobName,
+  primaryContact,
+  str,
+  useIsOwnerOrAdmin,
+  useJob,
+  useRecords,
+  useRunner,
+  useSubjectChoice,
+  type ActionCardProps,
+  type Rec,
+} from "./action-kit";
+
+const PRE_BOOKING = new Set(["LEAD", "CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING"]);
+
+function OwnerOnly({ title }: { title: string }) {
+  return (
+    <ActionShell title={title}>
+      <Blocked>Only the studio&apos;s owners and admins can do this.</Blocked>
+    </ActionShell>
+  );
+}
+
+export function CreateJobCard({ action }: ActionCardProps) {
+  return (
+    <ActionShell detail="Enter the client and the event. Nothing is sent to them." icon={<Briefcase size={15} />} title="Start a new job">
+      <Embedded>
+        <CreateProjectForm sharedMessage={action.text} />
+      </Embedded>
+    </ActionShell>
+  );
+}
+
+const JOB_FIELDS: Record<string, string> = {
+  name: "name",
+  eventDate: "date",
+  eventType: "event type",
+  venueName: "venue",
+  city: "city",
+  timezone: "time zone",
+};
+
+/** Accepts the model's field names and the words an operator might use. */
+function jobField(field: string | null): string | null {
+  const value = (field ?? "").toLowerCase().replace(/[\s_-]/g, "");
+  const aliases: Record<string, string> = {
+    name: "name",
+    title: "name",
+    eventdate: "eventDate",
+    date: "eventDate",
+    weddingdate: "eventDate",
+    eventtype: "eventType",
+    type: "eventType",
+    venuename: "venueName",
+    venue: "venueName",
+    location: "venueName",
+    city: "city",
+    timezone: "timezone",
+    tz: "timezone",
+  };
+  return aliases[value] ?? null;
+}
+
+export function EditJobCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const runner = useRunner();
+  const field = jobField(action.field);
+  const [value, setValue] = useState(action.text ?? (field === "eventDate" ? action.date ?? "" : ""));
+  if (loading) return <ActionShell title="Edit the job"><Loading /></ActionShell>;
+  if (!job) return <ActionShell title="Edit the job"><Blocked>I couldn&apos;t find that job.</Blocked></ActionShell>;
+  const current = {
+    name: str(job.name),
+    eventDate: str(job.eventDate),
+    eventType: str(job.eventType),
+    venueName: str(job.venueName) || null,
+    city: str(job.city) || null,
+    timezone: str(job.timezone) || "America/New_York",
+  };
+  // No single field named: the job page's own editor, every field at once.
+  if (!field) {
+    return (
+      <ActionShell detail="Change the name, date, type, venue, city or time zone." icon={<PencilLine size={15} />} title={`Edit ${jobName(job)}`}>
+        <Embedded>
+          <ProjectEdit project={{ ...current, id: job.id, archived: Boolean(job.archivedAt) }} />
+        </Embedded>
+      </ActionShell>
+    );
+  }
+  const was = (current as Record<string, string | null>)[field] ?? "";
+  const label = JOB_FIELDS[field]!;
+  const valid = field === "eventDate" ? /^\d{4}-\d{2}-\d{2}$/.test(value) : value.trim().length > 0;
+  if (runner.done) return <ActionShell title={`Change the ${label}`}><Done>{runner.done}</Done></ActionShell>;
+  return (
+    <ActionShell
+      detail={`${was || "Not set"} → ${value || "…"}`}
+      icon={<PencilLine size={15} />}
+      title={`Change the ${label} on ${jobName(job)}`}
+    >
+      {job.archivedAt ? <Blocked>This job is archived. Restore it first.</Blocked> : null}
+      <Form>
+        <TextField
+          label={`New ${label}`}
+          onChange={setValue}
+          type={field === "eventDate" ? "date" : "text"}
+          value={value}
+        />
+      </Form>
+      {field === "eventDate" ? (
+        <p className="cue-action-note">Moving the date re-checks readiness and crew availability for the new day.</p>
+      ) : null}
+      <Actions
+        busy={runner.busy}
+        disabled={!valid || value.trim() === was || Boolean(job.archivedAt)}
+        label="Save the change"
+        onClick={() =>
+          void runner.run(
+            async () => {
+              // updateProject writes every descriptive field at once: the
+              // current values, with exactly this one replaced.
+              await runCrmCommand("updateProject", { ...current, [field]: value.trim(), projectId: job.id });
+              return `Changed the ${label} on ${jobName(job)} to ${value.trim()}.`;
+            },
+            { refresh: ["projects", "readinessAssessments"] },
+          )
+        }
+      />
+      <Notice text={runner.notice} />
+    </ActionShell>
+  );
+}
+
+const CLOSE_REASONS = [
+  { value: "went_quiet", label: "They went quiet" },
+  { value: "booked_elsewhere", label: "They booked someone else" },
+  { value: "budget", label: "Budget" },
+  { value: "date_taken", label: "The date is taken" },
+  { value: "not_a_fit", label: "Not a fit" },
+  { value: "other", label: "Something else" },
+];
+
+function reasonFromWords(words: string | null, fallback: string): string {
+  const text = (words ?? "").toLowerCase();
+  if (/elsewhere|another|someone else|other photographer|booked with/.test(text)) return "booked_elsewhere";
+  if (/budget|price|expensive|afford|cost/.test(text)) return "budget";
+  if (/date|taken|booked that day|unavailable/.test(text)) return "date_taken";
+  if (/fit|style/.test(text)) return "not_a_fit";
+  if (/quiet|ghost|no reply|never replied|cold/.test(text)) return "went_quiet";
+  return fallback;
+}
+
+export function CloseInquiryCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const runner = useRunner();
+  const [reason, setReason] = useState(
+    reasonFromWords(action.text, action.action === "inquiry_booked_elsewhere" ? "booked_elsewhere" : "went_quiet"),
+  );
+  const title = `Mark ${jobName(job)} as lost`;
+  if (loading) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return <ActionShell title={title}><Blocked>I couldn&apos;t find that job.</Blocked></ActionShell>;
+  if (runner.done) return <ActionShell title={title}><Done>{runner.done}</Done></ActionShell>;
+  const state = str(job.state);
+  if (state === "LOST") return <ActionShell title={title}><Done>{`${jobName(job)} is already marked lost.`}</Done></ActionShell>;
+  if (!PRE_BOOKING.has(state))
+    return <ActionShell title={title}><Blocked>{`${jobName(job)} is ${projectStateLabel(state).toLowerCase()}, so it isn't an open inquiry. To stop a booked job, move it to Cancelled.`}</Blocked></ActionShell>;
+  return (
+    <ActionShell
+      detail="It moves to Lost, and its follow-ups and unsent reply drafts stop. You can reopen it any time."
+      icon={<CircleSlash size={15} />}
+      title={title}
+    >
+      <Form>
+        <SelectField label="Why" onChange={setReason} options={CLOSE_REASONS} value={reason} />
+      </Form>
+      <Actions
+        busy={runner.busy}
+        label="Mark as lost"
+        onClick={() =>
+          void runner.run(
+            async () => {
+              await runCrmCommand("closeInquiry", { projectId: job.id, leadId: null, reason });
+              return `${jobName(job)} is marked lost. Its follow-ups have stopped.`;
+            },
+            { refresh: ["projects", "leads", "aiActions"] },
+          )
+        }
+      />
+      <Notice text={runner.notice} />
+    </ActionShell>
+  );
+}
+
+/** Reopen, keep open, heard from them: one command each, no fields. */
+export function InquiryOneTapCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const runner = useRunner();
+  const kinds: Record<string, { title: string; detail: string; op: string; done: string; states: string[]; wrong: string }> = {
+    reopen_inquiry: {
+      title: "Reopen the inquiry",
+      detail: "It goes back to the stage it closed from.",
+      op: "reopenInquiry",
+      done: "is open again.",
+      states: ["LOST"],
+      wrong: "isn't marked lost, so there is nothing to reopen.",
+    },
+    keep_inquiry_open: {
+      title: "Keep the inquiry open",
+      detail: "StudioCue stops asking whether to close it for another week.",
+      op: "keepInquiryOpen",
+      done: "stays open. You won't be asked to close it for a week.",
+      states: [...PRE_BOOKING],
+      wrong: "isn't an open inquiry.",
+    },
+    heard_from_couple: {
+      title: "They got back to you another way",
+      detail: "Follow-ups restart from today and the unsent follow-up drafts are dismissed.",
+      op: "inquiryHeardElsewhere",
+      done: "is marked as heard from. Follow-ups restart from today.",
+      states: [...PRE_BOOKING],
+      wrong: "isn't an open inquiry.",
+    },
+  };
+  const kind = kinds[action.action]!;
+  const title = `${kind.title}: ${jobName(job)}`;
+  if (loading) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return <ActionShell title={title}><Blocked>I couldn&apos;t find that job.</Blocked></ActionShell>;
+  if (runner.done) return <ActionShell title={title}><Done>{runner.done}</Done></ActionShell>;
+  if (!kind.states.includes(str(job.state)))
+    return <ActionShell title={title}><Blocked>{`${jobName(job)} ${kind.wrong}`}</Blocked></ActionShell>;
+  return (
+    <ActionShell detail={kind.detail} icon={<Inbox size={15} />} title={title}>
+      <Actions
+        busy={runner.busy}
+        label={kind.title}
+        onClick={() =>
+          void runner.run(
+            async () => {
+              await runCrmCommand(kind.op, { projectId: job.id, leadId: null });
+              return `${jobName(job)} ${kind.done}`;
+            },
+            { refresh: ["projects", "leads", "aiActions"] },
+          )
+        }
+      />
+      <Notice text={runner.notice} />
+    </ActionShell>
+  );
+}
+
+function leadName(lead: Rec): string {
+  return (
+    str(lead.displayName) ||
+    [str(lead.firstName), str(lead.lastName)].filter(Boolean).join(" ") ||
+    str(lead.email) ||
+    str(lead.subject) ||
+    "Unnamed inquiry"
+  );
+}
+
+/** Answering a "Maybe an inquiry": yes it is, or no it isn't. */
+export function MaybeInquiryCard({ action }: ActionCardProps) {
+  const leads = useRecords("leads");
+  const runner = useRunner();
+  const confirming = action.action === "confirm_inquiry";
+  const held = (leads ?? []).filter((lead) => lead.needsConfirmation === true && !lead.archivedAt);
+  const options = held.map((lead) => ({
+    id: lead.id,
+    name: leadName(lead),
+    detail: [str(lead.eventDate), str(lead.email)].filter(Boolean).join(" · ") || undefined,
+  }));
+  const choice = useSubjectChoice(action.subject, options);
+  const title = confirming ? "Confirm it's an inquiry" : "Mark it as not an inquiry";
+  if (!leads) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (runner.done) return <ActionShell title={title}><Done href="/studio/leads" label="Open Inquiries">{runner.done}</Done></ActionShell>;
+  if (!held.length) return <ActionShell title={title}><Done>Nothing is waiting in “Maybe an inquiry”.</Done></ActionShell>;
+  const lead = held.find((item) => item.id === choice.chosen) ?? null;
+  return (
+    <ActionShell
+      detail={
+        confirming
+          ? "It becomes a real inquiry: a job is made for it and a reply is drafted."
+          : "It is dropped, and mail from that sender is ignored from now on."
+      }
+      icon={<Inbox size={15} />}
+      title={title}
+    >
+      <SubjectPicker {...choice} noun="held message" options={options} subject={action.subject} />
+      <Actions
+        busy={runner.busy}
+        danger={!confirming}
+        disabled={!lead}
+        label={confirming ? "It's an inquiry" : "Not an inquiry"}
+        onClick={() =>
+          void runner.run(
+            async () => {
+              if (!lead) return null;
+              if (confirming) {
+                await runCrmCommand("updateLead", { leadId: lead.id, confirmInquiry: true });
+                return `${leadName(lead)} is now an inquiry.`;
+              }
+              await runCrmCommand("markLeadNotInquiry", { leadId: lead.id });
+              return `${leadName(lead)} is dropped. Mail from that sender will be ignored.`;
+            },
+            { refresh: ["leads", "projects"] },
+          )
+        }
+      />
+      <Notice text={runner.notice} />
+    </ActionShell>
+  );
+}
+
+export function AddContactCard() {
+  return (
+    <ActionShell detail="Add them to the studio's contacts. Nothing is sent to them." icon={<UserPlus size={15} />} title="Add a contact">
+      <Embedded>
+        <CreateContactForm />
+      </Embedded>
+    </ActionShell>
+  );
+}
+
+const CONTACT_FIELDS: Record<string, string> = {
+  firstname: "firstName",
+  first: "firstName",
+  lastname: "lastName",
+  last: "lastName",
+  surname: "lastName",
+  email: "email",
+  emailaddress: "email",
+  phone: "phone",
+  phonenumber: "phone",
+  mobile: "phone",
+};
+
+export function EditContactCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const contacts = useRecords("contacts");
+  const ownerOrAdmin = useIsOwnerOrAdmin();
+  const runner = useRunner();
+  const onTheJob = (contacts ?? []).filter((contact) => arr(job?.clientContactIds).includes(contact.id));
+  const options = onTheJob.map((contact) => ({ id: contact.id, name: contactName(contact), detail: str(contact.email) || undefined }));
+  const choice = useSubjectChoice(action.subject, options);
+  const field = CONTACT_FIELDS[(action.field ?? "").toLowerCase().replace(/[\s_-]/g, "")] ?? null;
+  const [value, setValue] = useState(action.text ?? "");
+  const title = "Correct the couple's details";
+  if (!ownerOrAdmin) return <OwnerOnly title={title} />;
+  if (loading || !contacts) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return <ActionShell title={title}><Blocked>I couldn&apos;t find that job.</Blocked></ActionShell>;
+  const contact = onTheJob.find((item) => item.id === choice.chosen) ?? null;
+  if (runner.done) return <ActionShell title={title}><Done>{runner.done}</Done></ActionShell>;
+  const client = contact
+    ? {
+        id: contact.id,
+        firstName: str(contact.firstName),
+        lastName: str(contact.lastName),
+        displayName: contactName(contact),
+        email: str(contact.email) || null,
+        phone: str(contact.phone) || null,
+        company: str(contact.company) || null,
+        notes: str(contact.notes) || null,
+      }
+    : null;
+  return (
+    <ActionShell
+      detail={field && client ? `${String((client as Record<string, unknown>)[field] ?? "") || "Not set"} → ${value || "…"}` : "Their name, email or phone."}
+      icon={<PencilLine size={15} />}
+      title={title}
+    >
+      {options.length > 1 ? <SubjectPicker {...choice} noun="client" options={options} subject={action.subject} /> : null}
+      {client && field ? (
+        <>
+          <Form>
+            <TextField label="New value" onChange={setValue} type={field === "email" ? "email" : "text"} value={value} />
+          </Form>
+          {field === "email" ? (
+            <p className="cue-action-note">A proposal already sent keeps the address it went to. Correct it from the proposal to send a new version.</p>
+          ) : null}
+          <Actions
+            busy={runner.busy}
+            disabled={!value.trim()}
+            label="Save the change"
+            onClick={() =>
+              void runner.run(
+                async () => {
+                  await runCrmCommand("updateContact", {
+                    contactId: client.id,
+                    firstName: client.firstName,
+                    lastName: client.lastName,
+                    // The stored value, not the name this card shows.
+                    displayName: str(contact?.displayName) || null,
+                    email: client.email,
+                    phone: client.phone,
+                    company: client.company,
+                    notes: client.notes,
+                    [field]: value.trim(),
+                  });
+                  return `Updated ${contactName(contact)}.`;
+                },
+                { refresh: ["contacts"] },
+              )
+            }
+          />
+        </>
+      ) : client ? (
+        <Embedded>
+          <ClientRecordActions archived={Boolean(contact?.archivedAt)} client={client} />
+        </Embedded>
+      ) : null}
+      <Notice text={runner.notice} />
+    </ActionShell>
+  );
+}
+
+export function AddClientToJobCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const title = `Add a client to ${jobName(job)}`;
+  if (loading) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return <ActionShell title={title}><Blocked>I couldn&apos;t find that job.</Blocked></ActionShell>;
+  return (
+    <ActionShell detail="A partner, parent or planner who should be on the job." icon={<UserPlus size={15} />} title={title}>
+      <Embedded>
+        <ProjectAddClient archived={Boolean(job.archivedAt)} projectId={job.id} />
+      </Embedded>
+    </ActionShell>
+  );
+}
+
+export function PortalInviteCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const contacts = useRecords("contacts");
+  const workspace = useWorkspace();
+  const runner = useRunner();
+  const revoking = action.action === "revoke_portal_invite";
+  const onTheJob = (contacts ?? []).filter((contact) => arr(job?.clientContactIds).includes(contact.id));
+  const options = onTheJob.map((contact) => ({
+    id: contact.id,
+    name: contactName(contact),
+    detail: str(contact.email) || "No email on file",
+  }));
+  const choice = useSubjectChoice(action.subject, options);
+  const title = revoking ? "Withdraw the portal invitation" : "Invite the couple to their portal";
+  if (loading || !contacts) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return <ActionShell title={title}><Blocked>I couldn&apos;t find that job.</Blocked></ActionShell>;
+  if (runner.done) return <ActionShell title={title}><Done>{runner.done}</Done></ActionShell>;
+  const contact = onTheJob.find((item) => item.id === choice.chosen) ?? null;
+  const email = str(contact?.email);
+  return (
+    <ActionShell
+      detail={
+        revoking
+          ? "Their invitation link stops working. Anything they already opened stays as it is."
+          : "They get an email with a link to their portal. Sending again replaces the earlier link."
+      }
+      icon={<MailPlus size={15} />}
+      title={`${title}${job ? ` · ${jobName(job)}` : ""}`}
+    >
+      {options.length > 1 ? <SubjectPicker {...choice} noun="client" options={options} subject={action.subject} /> : null}
+      {!options.length ? <Blocked>This job has no client on it yet.</Blocked> : null}
+      {contact && !email && !revoking ? <Blocked>{`${contactName(contact)} has no email on file. Add one first.`}</Blocked> : null}
+      <Actions
+        busy={runner.busy}
+        danger={revoking}
+        disabled={!contact || (!revoking && !email) || !workspace.tenantId}
+        label={revoking ? "Withdraw it" : `Send to ${email || "them"}`}
+        onClick={() =>
+          void runner.run(async () => {
+            if (!contact || !workspace.tenantId) return null;
+            const tenantId = workspace.tenantId;
+            if (!revoking) {
+              await runClientInvitation({
+                type: "invite",
+                tenantId,
+                idempotencyKey: crypto.randomUUID(),
+                input: { contactId: contact.id, projectId: job.id },
+              });
+              return `Sent ${contactName(contact)} their portal invitation at ${email}.`;
+            }
+            const status = (await runClientInvitation({
+              type: "status",
+              tenantId,
+              idempotencyKey: crypto.randomUUID(),
+              input: { contactId: contact.id },
+            })) as Record<string, unknown>;
+            const pending = arr(status.invitations)
+              .map((item) => item as Record<string, unknown>)
+              .filter((item) => item.status === "pending" && (!item.projectId || item.projectId === job.id));
+            if (!pending.length) return `${contactName(contact)} has no pending invitation.`;
+            for (const invitation of pending)
+              await runClientInvitation({
+                type: "revoke",
+                tenantId,
+                idempotencyKey: crypto.randomUUID(),
+                input: { invitationId: str(invitation.invitationId) },
+              });
+            return `Withdrew ${contactName(contact)}'s portal invitation.`;
+          })
+        }
+      />
+      <Notice text={runner.notice} />
+    </ActionShell>
+  );
+}
+
+/** Stages a job can be moved to by hand from where it is. */
+export function manualTargets(state: string): ProjectState[] {
+  const from = state as ProjectState;
+  return (allowedProjectTransitions[from] ?? []).filter((to) => !transitionAuthority(from, to) && to !== "ARCHIVED");
+}
+
+function stageFromWords(words: string | null, targets: ProjectState[]): ProjectState | null {
+  const text = (words ?? "").toLowerCase().replace(/[\s_-]+/g, " ").trim();
+  if (!text) return null;
+  return (
+    targets.find((target) => projectStateLabel(target).toLowerCase() === text) ??
+    targets.find((target) => target.toLowerCase().replace(/_/g, " ") === text) ??
+    targets.find((target) => text.includes(projectStateLabel(target).toLowerCase())) ??
+    null
+  );
+}
+
+export function MoveStageCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const runner = useRunner();
+  const targets = job ? manualTargets(str(job.state)) : [];
+  const [target, setTarget] = useState<string>("");
+  const [reason, setReason] = useState("");
+  const title = `Move ${jobName(job)} to another stage`;
+  if (loading) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return <ActionShell title={title}><Blocked>I couldn&apos;t find that job.</Blocked></ActionShell>;
+  if (runner.done) return <ActionShell title={title}><Done>{runner.done}</Done></ActionShell>;
+  const chosen = (target || stageFromWords(action.text, targets) || targets[0] || "") as string;
+  const needsReason = chosen === "CANCELLED" || chosen === "POSTPONED";
+  return (
+    <ActionShell
+      detail={`It is ${projectStateLabel(str(job.state))} now. Steps that need proof — an accepted proposal, a signature, a paid retainer, a delivery — move on their own when that happens and can't be set here.`}
+      icon={<Route size={15} />}
+      title={title}
+    >
+      {!targets.length ? (
+        <Blocked>{`From ${projectStateLabel(str(job.state))}, the next step happens on its own when its evidence arrives.`}</Blocked>
+      ) : (
+        <Form>
+          <SelectField
+            label="Move it to"
+            onChange={setTarget}
+            options={targets.map((value) => ({ value, label: projectStateLabel(value) }))}
+            value={chosen}
+          />
+          {needsReason ? (
+            <TextAreaField
+              hint="Crew offers are withdrawn and accepted crew are told."
+              label="Why (at least a sentence)"
+              onChange={setReason}
+              rows={2}
+              value={reason}
+            />
+          ) : null}
+        </Form>
+      )}
+      {targets.length ? (
+        <Actions
+          busy={runner.busy}
+          danger={needsReason}
+          disabled={!chosen || (needsReason && reason.trim().length < 10)}
+          label={`Move to ${projectStateLabel(chosen)}`}
+          onClick={() =>
+            void runner.run(
+              async () => {
+                const expectedVersion = await freshStateVersion(job.id, job.stateVersion);
+                await runCrmCommand("transitionProject", {
+                  projectId: job.id,
+                  expectedVersion,
+                  targetState: chosen,
+                  reason: reason.trim() || null,
+                });
+                return `${jobName(job)} is now ${projectStateLabel(chosen)}.`;
+              },
+              { refresh: ["projects", "readinessAssessments", "crewAssignments"] },
+            )
+          }
+        />
+      ) : null}
+      <Notice text={runner.notice} />
+    </ActionShell>
+  );
+}
+
+export function ArchiveJobCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const ownerOrAdmin = useIsOwnerOrAdmin();
+  const runner = useRunner();
+  const restore = action.action === "restore_job";
+  const title = restore ? `Restore ${jobName(job)}` : `Archive ${jobName(job)}`;
+  if (!ownerOrAdmin) return <OwnerOnly title={title} />;
+  if (loading) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return <ActionShell title={title}><Blocked>I couldn&apos;t find that job.</Blocked></ActionShell>;
+  if (runner.done) return <ActionShell title={title}><Done>{runner.done}</Done></ActionShell>;
+  const archived = Boolean(job.archivedAt);
+  if (restore && !archived) return <ActionShell title={title}><Done>{`${jobName(job)} isn't archived.`}</Done></ActionShell>;
+  if (!restore && archived) return <ActionShell title={title}><Done>{`${jobName(job)} is already archived.`}</Done></ActionShell>;
+  return (
+    <ActionShell
+      detail={restore ? "It comes back to your jobs as it was." : "It leaves your jobs and nothing more is sent for it. You can restore it."}
+      icon={restore ? <RotateCcw size={15} /> : <Archive size={15} />}
+      title={title}
+    >
+      <Actions
+        busy={runner.busy}
+        label={restore ? "Restore it" : "Archive it"}
+        onClick={() =>
+          void runner.run(
+            async () => {
+              await runCrmCommand("archiveProject", { projectId: job.id, restore });
+              return restore ? `${jobName(job)} is restored.` : `${jobName(job)} is archived.`;
+            },
+            { refresh: ["projects"] },
+          )
+        }
+      />
+      <Notice text={runner.notice} />
+    </ActionShell>
+  );
+}
+
+export function DeleteJobCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const workspace = useWorkspace();
+  const title = `Delete ${jobName(job)} permanently`;
+  if (workspace.role !== "studio_owner") return (
+    <ActionShell title={title}>
+      <Blocked>Only the studio owner can delete a job permanently. Archiving keeps it out of the way.</Blocked>
+    </ActionShell>
+  );
+  if (loading) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return <ActionShell title={title}><Blocked>I couldn&apos;t find that job.</Blocked></ActionShell>;
+  return (
+    <ActionShell
+      detail="Everything on it is erased and can't be recovered. You type the job's name to confirm."
+      icon={<Trash2 size={15} />}
+      title={title}
+    >
+      <Embedded>
+        <DeleteJobPermanently projectId={job.id} projectName={jobName(job)} />
+      </Embedded>
+    </ActionShell>
+  );
+}
+
+export { OwnerOnly, primaryContact };

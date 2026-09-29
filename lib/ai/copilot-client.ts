@@ -58,6 +58,29 @@ export type CopilotResult = {
    * input before anything runs.
    */
   flow?: CopilotFlow | null;
+  /**
+   * Cards for things the operator asked to have done, prepared by Cue's
+   * `prepare_action` tool (functions/src/ai/action-catalog.ts). Each carries
+   * only the operator's words; the card loads the records, asks for anything
+   * that is theirs to decide, and runs the real command on their tap.
+   */
+  actions?: PreparedAction[];
+};
+
+export type PreparedAction = {
+  key: string;
+  /** An id from the action catalogue. */
+  action: string;
+  projectId: string | null;
+  /** Who or what the operator named, verbatim. Never an id. */
+  subject: string | null;
+  /** A value, note or message in the operator's words. */
+  text: string | null;
+  field: string | null;
+  /** YYYY-MM-DD */
+  date: string | null;
+  /** HH:MM, 24-hour */
+  time: string | null;
 };
 
 export type CopilotFlow = {

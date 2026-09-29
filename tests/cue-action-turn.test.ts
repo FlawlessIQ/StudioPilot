@@ -60,8 +60,9 @@ test("the flow renders only once", () => {
 test("a turn that carries a flow gets the compact job card", () => {
   assert.match(
     turn(),
-    /<JobObject[\s\S]{0,120}compact=\{Boolean\(result\.flow\)\}/,
-    "JobObject must be told when a flow owns the turn",
+    // A prepared-action card owns the turn the same way a flow does.
+    /<JobObject[\s\S]{0,120}compact=\{Boolean\(result\.flow\) \|\| Boolean\(result\.actions\?\.length\)\}/,
+    "JobObject must be told when a flow or an action card owns the turn",
   );
   const card = workspace.slice(workspace.indexOf("function JobObject("));
   assert.match(

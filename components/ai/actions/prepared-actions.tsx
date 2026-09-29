@@ -1,0 +1,200 @@
+"use client";
+
+import type { ComponentType } from "react";
+import type { PreparedAction } from "@/lib/ai/copilot-client";
+import type { ActionCardProps } from "./action-kit";
+import {
+  AddClientToJobCard,
+  AddContactCard,
+  ArchiveJobCard,
+  CloseInquiryCard,
+  CreateJobCard,
+  DeleteJobCard,
+  EditContactCard,
+  EditJobCard,
+  InquiryOneTapCard,
+  MaybeInquiryCard,
+  MoveStageCard,
+  PortalInviteCard,
+} from "./job-actions";
+import {
+  BringBookingLiveCard,
+  ChangePackagesCard,
+  ConfirmBookingCard,
+  ContractCard,
+  DraftProposalCard,
+  EditProposalCard,
+  ExistingConsultationCard,
+  ImportBookingCard,
+  PackageRequestCard,
+  ProposalStepCard,
+  QuickBooksLookupCard,
+  RecordAcceptanceCard,
+  RecordPaymentCard,
+  RecordSignedContractCard,
+  RetainerExceptionCard,
+  RetainerInvoiceCard,
+  ScheduleConsultationCard,
+} from "./booking-actions";
+import {
+  AddVendorCard,
+  CoiCard,
+  InsuranceRequirementCard,
+  MarkReadCard,
+  ReplyCard,
+  ShareRunOfShowCard,
+  TimelineCard,
+  TimelineOwnerCard,
+  VendorChangeCard,
+} from "./planning-actions";
+import {
+  AddCrewMemberCard,
+  CompleteTaskCard,
+  ConfirmReviewCard,
+  ConnectIntegrationCard,
+  CreateTaskCard,
+  CrewCloseoutCard,
+  CrewMemberCard,
+  DeliveryCard,
+  ForwardingAddressCard,
+  PackageCatalogueCard,
+  ReadinessCard,
+  SettingsCard,
+  SubscriptionCard,
+  TeamCard,
+  WaiveRequirementCard,
+} from "./studio-actions";
+
+/**
+ * Every action Cue can prepare, and the card that does it.
+ *
+ * The ids are the server's catalogue (functions/src/ai/action-catalog.ts);
+ * tests/cue-action-catalog.test.ts fails if the two lists part. The three
+ * conversational flows (staff_crew, add_package, send_questionnaire) are
+ * opened by the server as flows and never reach this table.
+ */
+export const ACTION_CARDS: Record<string, ComponentType<ActionCardProps>> = {
+  // Inquiries and clients
+  create_job: CreateJobCard,
+  edit_job: EditJobCard,
+  mark_inquiry_lost: CloseInquiryCard,
+  inquiry_booked_elsewhere: CloseInquiryCard,
+  reopen_inquiry: InquiryOneTapCard,
+  keep_inquiry_open: InquiryOneTapCard,
+  heard_from_couple: InquiryOneTapCard,
+  not_an_inquiry: MaybeInquiryCard,
+  confirm_inquiry: MaybeInquiryCard,
+  add_contact: AddContactCard,
+  edit_contact: EditContactCard,
+  add_client_to_job: AddClientToJobCard,
+  invite_couple_to_portal: PortalInviteCard,
+  revoke_portal_invite: PortalInviteCard,
+  move_job_stage: MoveStageCard,
+  archive_job: ArchiveJobCard,
+  restore_job: ArchiveJobCard,
+  delete_job: DeleteJobCard,
+  // Consultations
+  schedule_consultation: ScheduleConsultationCard,
+  reschedule_consultation: ExistingConsultationCard,
+  cancel_consultation: ExistingConsultationCard,
+  complete_consultation: ExistingConsultationCard,
+  // Packages and proposals
+  swap_package: ChangePackagesCard,
+  remove_package: ChangePackagesCard,
+  approve_package_request: PackageRequestCard,
+  decline_package_request: PackageRequestCard,
+  draft_proposal: DraftProposalCard,
+  edit_proposal: EditProposalCard,
+  send_proposal: ProposalStepCard,
+  resend_proposal: ProposalStepCard,
+  correct_proposal: ProposalStepCard,
+  return_proposal_to_draft: ProposalStepCard,
+  record_proposal_acceptance: RecordAcceptanceCard,
+  // Contract
+  prepare_contract: ContractCard,
+  sign_and_send_contract: ContractCard,
+  send_contract: ContractCard,
+  void_contract: ContractCard,
+  record_signed_contract: RecordSignedContractCard,
+  // Money
+  create_retainer_invoice: RetainerInvoiceCard,
+  record_retainer_payment: RecordPaymentCard,
+  record_final_payment: RecordPaymentCard,
+  approve_retainer_exception: RetainerExceptionCard,
+  find_quickbooks_payments: QuickBooksLookupCard,
+  // Booking
+  confirm_booking: ConfirmBookingCard,
+  bring_booking_live: BringBookingLiveCard,
+  import_booking: ImportBookingCard,
+  // Planning
+  draft_timeline: TimelineCard,
+  approve_timeline: TimelineCard,
+  publish_timeline: TimelineCard,
+  set_timeline_owner: TimelineOwnerCard,
+  share_run_of_show: ShareRunOfShowCard,
+  stop_run_of_show_share: ShareRunOfShowCard,
+  set_insurance_required: InsuranceRequirementCard,
+  request_coi: CoiCard,
+  decide_coi: CoiCard,
+  send_coi_to_venue: CoiCard,
+  add_vendor: AddVendorCard,
+  edit_vendor: VendorChangeCard,
+  remove_vendor: VendorChangeCard,
+  // Messages
+  reply_to_couple: ReplyCard,
+  mark_thread_read: MarkReadCard,
+  // Crew
+  add_crew_member: AddCrewMemberCard,
+  edit_crew_member: CrewMemberCard,
+  invite_crew_member: CrewMemberCard,
+  archive_crew_member: CrewMemberCard,
+  waive_crew_requirement: WaiveRequirementCard,
+  record_crew_payment: CrewCloseoutCard,
+  review_crew_closeout: CrewCloseoutCard,
+  // Tasks
+  create_task: CreateTaskCard,
+  complete_task: CompleteTaskCard,
+  resolve_checkpoint: ReadinessCard,
+  // After the event
+  record_delivery: DeliveryCard,
+  complete_editing_step: DeliveryCard,
+  update_album: DeliveryCard,
+  confirm_review: ConfirmReviewCard,
+  close_job: DeliveryCard,
+  // Team
+  invite_team_member: TeamCard,
+  change_team_member: TeamCard,
+  revoke_team_invite: TeamCard,
+  // Studio settings
+  create_package: PackageCatalogueCard,
+  edit_package: PackageCatalogueCard,
+  retire_package: PackageCatalogueCard,
+  edit_agreement: SettingsCard,
+  set_contract_auto_send: SettingsCard,
+  edit_questionnaire_template: SettingsCard,
+  edit_email_template: SettingsCard,
+  set_consultation_availability: SettingsCard,
+  set_automatic_emails: SettingsCard,
+  set_autopay: SettingsCard,
+  edit_branding: SettingsCard,
+  edit_timing_rules: SettingsCard,
+  export_studio_data: SettingsCard,
+  set_crew_offer_settings: SettingsCard,
+  set_up_inquiry_capture: SettingsCard,
+  connect_integration: ConnectIntegrationCard,
+  show_forwarding_address: ForwardingAddressCard,
+  manage_subscription: SubscriptionCard,
+};
+
+/** The cards one Cue answer prepared, in the order it prepared them. */
+export function PreparedActionCards({ actions }: { actions?: PreparedAction[] | null }) {
+  if (!actions?.length) return null;
+  return (
+    <div className="cue-actions" aria-label="Ready for you to approve">
+      {actions.map((action) => {
+        const Card = ACTION_CARDS[action.action];
+        return Card ? <Card action={action} key={action.key} /> : null;
+      })}
+    </div>
+  );
+}

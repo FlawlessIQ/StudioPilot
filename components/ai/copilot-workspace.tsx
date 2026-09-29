@@ -22,6 +22,7 @@ import { CueMark } from "@/components/brand/logo";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { AiQueueCard } from "@/components/ai/ai-approval-queue";
 import { FlowRunner } from "@/components/ai/flow-runner";
+import { PreparedActionCards } from "@/components/ai/actions/prepared-actions";
 import { OutsideStepCard } from "@/components/outside-steps/outside-step-card";
 import { useOutsideSteps } from "@/components/outside-steps/use-outside-steps";
 import { outsideStepForQuestion } from "@/features/outside-steps/share";
@@ -662,9 +663,13 @@ function AssistantTurn({
           blocked checkpoints and had to scroll past all of it to reach the one
           control they wanted. Reported from live use. */}
       {result.jobObject ? (
-        <JobObject job={result.jobObject} compact={Boolean(result.flow)} />
+        <JobObject job={result.jobObject} compact={Boolean(result.flow) || Boolean(result.actions?.length)} />
       ) : null}
       {result.flow ? <FlowRunner flow={result.flow} /> : <CueOutsideStep question={question} />}
+      {/* What the operator asked to have done, each a card they check and
+          tap (components/ai/actions). Beside the flow, not instead of it: one
+          answer can open a flow and prepare a card or two. */}
+      <PreparedActionCards actions={result.actions} />
       {result.facts.length ? (
         <div>
           <h3>Verified facts</h3>
@@ -674,7 +679,7 @@ function AssistantTurn({
       {/* Quick-reply chips: grounded follow-up QUESTIONS to save the operator
           typing. They only ever ask or prepare (never send/change status). When
           a flow owns the turn, it carries the next step — no competing chips. */}
-      {result.suggestions.length && !result.flow ? (
+      {result.suggestions.length && !result.flow && !result.actions?.length ? (
         <div className="cp-quickreplies" aria-label="Suggested follow-ups">
           {result.suggestions.map((suggestion) =>
             onFollowUp ? (

@@ -140,7 +140,12 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
 
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [done, setDone] = useState<{ name: string; proposalId: string | null; revised: boolean } | null>(null);
+  /**
+   * `added` is fixed at the tap. Reading `adding` again after the write saw
+   * the package just selected and told a job that had none that its proposal
+   * would "include both".
+   */
+  const [done, setDone] = useState<{ name: string; proposalId: string | null; revised: boolean; added: boolean } | null>(null);
 
   async function apply(packageId: string, name: string) {
     setBusy(true);
@@ -168,9 +173,10 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
           name,
           proposalId: str(revised.result.proposalId) || proposal.id,
           revised: revised.result.superseded === true,
+          added: true,
         });
       } else {
-        setDone({ name, proposalId: null, revised: false });
+        setDone({ name, proposalId: null, revised: false, added: adding });
       }
       refreshTenantRecords("projects", "packageSnapshots", "proposals", "tasks");
     } catch (caught: unknown) {
@@ -190,7 +196,7 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
     return (
       <div className="panel copilot-flow">
         <p role="status">
-          {!adding
+          {!done.added
             ? `Selected ${done.name} for ${jobName}. You can now prepare a proposal from it.`
             : done.proposalId
               ? done.revised
