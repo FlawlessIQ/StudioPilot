@@ -345,6 +345,47 @@ The studio-side (desktop) parts of H1–H4 are unaffected.
 - **Recommended:** yes, single-use and expiring with the invitation, with a
   "not you?" line.
 
+## M4 — done 2026-09-29
+
+- **Questionnaire:** one section per screen, with progress, choice chips
+  instead of `<select>`, and a review that lists what's still needed (tap
+  one to jump to it). After sending, it becomes a read-only copy of what the
+  studio has.
+- **Three data-loss bugs fixed along the way:**
+  - A save sent only the visible fields, and the server replaced the whole
+    map. That wiped the studio's internal-only answers, and any answer
+    hidden behind a condition, on every autosave. Now the client sends every
+    answer, and the command merges them. The command also ignores a client's
+    write to internal-only or locked fields.
+  - The autosave after Submit set the status back to in progress. The form
+    now locks after sending, and the command refuses a client save once it's
+    submitted.
+  - A fresh `{}` default re-ran the load effect, which put stored answers
+    back over typing. Fields are no longer disabled during autosave, which
+    was dropping the phone keyboard.
+- **Timeline:** a vertical day in the wedding's own time zone, named on the
+  page.
+  - Approving happens in a sheet that names the version.
+  - "Ask about this" on each moment starts a change request about that
+    moment.
+  - The portal now returns `changes_requested` versions. Before, the
+    timeline vanished after a couple asked for changes.
+  - The command only lets a couple answer a version that's in
+    `client_review`.
+- **Messages:** a chat with bubbles, day separators, and a composer pinned
+  above the tabs.
+  - No Subject field. The subject the studio's inbox needs is derived from
+    the page the question came from, the studio message being answered, or
+    the first line.
+- **Files:** two lists: what the studio shared, then the booking's records.
+  - Photos preview in a sheet.
+  - PDFs open in the phone's own viewer, per the H1 mobile rule.
+- **Checked:** walked at 375 px. 26/26 of the new and updated flows pass in
+  Chrome desktop, Android Chrome and iPhone WebKit, and the phone guard
+  passes on every route. Of the old spacing suite, one studio-only check
+  (Reports/Leads panel insets on mobile) still fails; M4 doesn't touch those
+  pages. The delivery critical path waits for M5.
+
 ## Phases
 
 | # | Phase | What | Notes |
