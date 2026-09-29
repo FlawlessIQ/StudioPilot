@@ -48,7 +48,9 @@ export function CrewClientBrief({
 }) {
   const workspace = useWorkspace();
   const [briefs, setBriefs] = useState<Brief[]>([]);
-  const userId = workspace.userId;
+  // Offline the workspace can't load, so it has no user; the phone's signed-in
+  // user still names the saved copy (found by the local UAT run, 2026-09-29).
+  const userId = workspace.userId ?? (dataIsLive ? getFirebaseClient().auth.currentUser?.uid ?? null : null);
   useEffect(() => {
     if (!userId || !projectId) return;
     // The saved copy first: offline, the query below can hang rather than fail.

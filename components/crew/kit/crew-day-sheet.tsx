@@ -111,6 +111,26 @@ export function CrewDaySheet() {
     return () => window.clearTimeout(timer);
   }, [cacheKey]);
 
+  // Offline, the job list is empty, so the copy can't be found through it.
+  // Find it by the job in the link, else the most recently saved one.
+  useEffect(() => {
+    if (!data.error || cachedBrief) return;
+    try {
+      const uid = workspace.userId ?? (dataIsLive ? getFirebaseClient().auth.currentUser?.uid : null);
+      if (!uid) return;
+      const prefix = `studiocue:crew-event-brief:${uid}:`;
+      const wanted = new URLSearchParams(window.location.search).get("assignment");
+      const copies = Object.keys(window.localStorage)
+        .filter((key) => key.startsWith(prefix) && (!wanted || key.startsWith(`${prefix}${wanted}:`)))
+        .map((key) => JSON.parse(window.localStorage.getItem(key) ?? "null") as CachedCrewBrief | null)
+        .filter((copy): copy is CachedCrewBrief => Boolean(copy))
+        .sort((a, b) => b.cachedAt.localeCompare(a.cachedAt));
+      if (copies[0]) queueMicrotask(() => setCachedBrief(copies[0]!));
+    } catch {
+      // A blocked or malformed copy: the error card stays.
+    }
+  }, [cachedBrief, data.error, workspace.userId]);
+
   useEffect(() => {
     if (!scheduleViewKey || !assignment) {
       queueMicrotask(() => setScheduleState({ key: null, value: null, error: null }));

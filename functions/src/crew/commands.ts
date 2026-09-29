@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { getFirestore } from "firebase-admin/firestore";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
@@ -1502,7 +1502,16 @@ export const crewCommand = onRequest(
         });
         result = { crewProfileId: reference.id, status: "updated" };
       } else {
-        if (!hasProject(parsed.input.projectId)) throw new Error("FORBIDDEN");
+        // An offer is answered before its project is theirs: membership only
+        // gains the project on acceptance. Refusing here meant a crew member
+        // who tapped Accept in the app (not the email's invitation link) was
+        // told the offer wasn't available. The transaction below still
+        // requires the assignment to be addressed to them.
+        if (
+          !hasProject(parsed.input.projectId) &&
+          parsed.type !== "respondAssignment"
+        )
+          throw new Error("FORBIDDEN");
         const reference = db.doc(
           `crewAssignments/${parsed.input.assignmentId}`,
         );
@@ -1577,6 +1586,12 @@ export const crewCommand = onRequest(
              * want" got neither.
              */
             const completeAcceptance = () => {
+              // The job opens to them now: the day sheet, the brief and the
+              // checklist are read through the project on their membership.
+              transaction.update(
+                db.doc(`memberships/${parsed.tenantId}_${identity.uid}`),
+                { projectIds: FieldValue.arrayUnion(parsed.input.projectId), updatedAt: now },
+              );
               transaction.set(
                 db.doc(`providerJobs/crew_calendar_${reference.id}`),
                 {

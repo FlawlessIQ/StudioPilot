@@ -1422,14 +1422,12 @@ textarea.kit-input {
   font-weight: 600;
   text-align: center;
 }
+/* Stacked: side by side in a checklist column, both labels wrapped
+   ("Take a / photo"), found by the local UAT run on a Pixel 7. */
 .kit-send-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 8px;
-}
-.kit-send-row .kit-button {
-  flex: 1 1 140px;
-  width: auto;
 }
 .kit-checklist {
   display: flex;

@@ -1,11 +1,18 @@
 import type { Metadata } from "next";
-import { Logo } from "@/components/brand/logo";
+import { KitRoot, Main, PoweredBy } from "@/components/kit/kit";
 import { EmailLinkAction } from "@/features/auth/email-link-action";
 
 export const metadata: Metadata = {
   title: "Sign in",
 };
 
+/**
+ * Where an emailed sign-in link lands. In the mobile kit (it was the old
+ * StudioCue auth page, with the logo and eyebrow overlapping and the form
+ * halfway down an iPhone screen; seen in Safari on the iOS Simulator during
+ * the local UAT run, 2026-09-29). The studio isn't known until sign-in, so
+ * it stays neutral rather than StudioCue-branded.
+ */
 export default async function EmailLinkPage({
   searchParams,
 }: {
@@ -13,15 +20,17 @@ export default async function EmailLinkPage({
 }) {
   const { next = null } = await searchParams;
   return (
-    <main className="auth-page auth-action-page auth-centered-action">
-      <section className="auth-form-panel">
-        <div className="auth-form-wrap">
-          <Logo />
-          <span className="eyebrow">Account security</span>
-          <h1>Sign in to your portal</h1>
+    <KitRoot>
+      <div className="kit-screen">
+        <Main label="Sign in">
+          <div className="kit-stack-tight">
+            <p className="kit-eyebrow">Signing you in</p>
+            <h1 className="kit-title">{next?.startsWith("/crew") ? "Open your work" : "Open your wedding"}</h1>
+          </div>
           <EmailLinkAction next={next} />
-        </div>
-      </section>
-    </main>
+          <PoweredBy />
+        </Main>
+      </div>
+    </KitRoot>
   );
 }

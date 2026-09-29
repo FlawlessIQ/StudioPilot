@@ -119,8 +119,16 @@ export function useCrewData(): CrewData {
       return;
     }
     let active = true;
-    // A retry that fails must still look like a retry.
-    queueMicrotask(() => setState((current) => (current.loading ? current : { ...current, loading: true })));
+    // A retry that fails must still look like a retry, but a refresh after a
+    // save keeps the screen: flipping to "Opening your work…" unmounted it and
+    // lost its "Saved." (found by the local UAT run, 2026-09-29).
+    queueMicrotask(() =>
+      setState((current) =>
+        current.loading || (!current.error && (current.profile || current.assignments.length))
+          ? current
+          : { ...current, loading: true },
+      ),
+    );
     const { firestore } = getFirebaseClient();
     void withTimeout(
       Promise.all([
@@ -159,6 +167,10 @@ export function useCrewData(): CrewData {
       "Crew workspace data took too long to load. Try again.",
     )
       .then(async ([assignmentSnapshot, profileSnapshot, availabilitySnapshot]) => {
+        // With no connection Firestore answers from its cache, often empty,
+        // instead of failing. Say so, so screens fall back to what is saved
+        // on the phone (the day sheet) rather than showing "no jobs".
+        if (assignmentSnapshot.metadata.fromCache) throw new Error("No connection right now. Showing what's saved on this phone.");
         const assignments = assignmentSnapshot.docs.map(
           (document) => ({ id: document.id, ...document.data() }) as Value,
         );

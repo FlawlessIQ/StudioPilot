@@ -386,6 +386,60 @@ The studio-side (desktop) parts of H1–H4 are unaffected.
   (Reports/Leads panel insets on mobile) still fails; M4 doesn't touch those
   pages. The delivery critical path waits for M5.
 
+## Claude's local UAT run — 2026-09-29
+
+The UAT plan (https://claude.ai/artifact/6YceAoMyXeJ1heiCuqXgKh) was played
+against the real app and the real Cloud Functions in the Firebase emulator.
+Couples used iPhone WebKit and crew used Android Chrome, with the phone in
+Los Angeles and the weddings in New York. Every outcome was checked in
+Firestore too. Real iPhone Safari (iOS Simulator) was used for a visual check.
+
+- **Result:** 45 of 45 runnable tests pass. 5 couldn't run here: the studio's
+  inquiry-link and invitation flows (M2-2/3/4), iOS Text Size (X-2), and a
+  couple choosing a package (M5-6, covered by the mock e2e).
+- **The run found 13 real bugs.** All are fixed, and each has a guard in
+  `tests/uat-local-run-2026-09-29.test.ts`:
+  1. **Inquiry step 2 silently refused Continue** unless the couple tapped an
+     event type. The Wedding chip looked selected, but the value was empty.
+     Phase 1's no-defaults change caused it, and it was live on production.
+  2. **A real couple saw demo data flash** ("Highlight film · RIVERA27")
+     while their records loaded. Live mode started from the mock records.
+  3. **Crew couldn't answer an offer in the app.** `respondAssignment`
+     needed the project on their membership, which is only granted on
+     acceptance. Now an offer addressed to them is enough, and acceptance adds
+     the project.
+  4. **With no signal, crew were sent to "Create your workspace · Start
+     14-day trial".** Firestore answered "no memberships" from its cache. Now
+     the server is asked before anyone goes to onboarding.
+  5. **The day sheet didn't open with no signal**, despite saying it would.
+     The sign-in check needed a network, and the saved copy was found only
+     through the job list. There is now an offline pass for someone this
+     phone already verified, the saved copy is found from the link, and the
+     couple's brief (formals, do-not-photograph) is in it.
+  6. **Multi-select questions rendered as a text box** in the kit
+     questionnaire.
+  7. **Proposal refusals read "could not be saved"**, because the generic
+     error text ran before the proposal's own messages.
+  8. **Signing out sent couples and crew to "Sign in to your studio"**, with
+     "Start a free trial".
+  9. **The loading screen told couples it was checking their "studio
+     access".**
+  10. **A crew save blanked the screen** ("Opening your work…") and lost
+      "Saved.", because refresh flipped back to loading.
+  11. **The camera and file buttons wrapped** ("Take a / photo") on a Pixel
+      7.
+  12. **The emailed-link confirm page was the old StudioCue page.** The logo
+      and eyebrow overlapped, and the form sat halfway down the iPhone screen.
+      It is now in the kit (seen in real Safari).
+  13. **A new studio would have got an error, not onboarding,** after the fix
+      for bug 4, because the server's "none here" answer was treated as a
+      failure. Caught before shipping.
+- **How to rerun it:** the scenario and runner live outside the repo (Claude's
+  scratchpad). The recipe: fresh emulators, seed, add Jobs A/B/C with three
+  couples and the seed's crew member, a production build with
+  `NEXT_PUBLIC_CLIENT_MAGIC_LINK=1`, then a Playwright runner that verifies
+  in Firestore.
+
 ## M6 — done 2026-09-29
 
 - **Every crew screen is in the kit.** The shell has the studio's bar and 4

@@ -596,6 +596,20 @@ function Question({
       />
     );
 
+  // Several answers: chips again, any number on. It fell through to a text
+  // box, which showed the stored list as "Sage, Gold" and saved it back as
+  // one string (found by the local UAT run, 2026-09-29).
+  if (field.type === "multi_select" && field.options.length)
+    return (
+      <Choices
+        legend={label}
+        multiple
+        onChange={(next) => onChange(next)}
+        options={field.options.map((option) => ({ value: option, label: option }))}
+        value={Array.isArray(answer) ? answer.map(String) : []}
+      />
+    );
+
   if (["dropdown", "radio"].includes(field.type) && field.options.length)
     return (
       <Choices

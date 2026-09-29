@@ -403,13 +403,24 @@ export function LeadIntakeForm({
                   type="date"
                   {...register("eventDate")}
                 />
-                <input type="hidden" {...register("eventType")} />
+                {/* The chips show Wedding chosen, so the value has to be
+                    Wedding too. With no form default (see
+                    inquiryFormDefaults) the value is read from this input, and
+                    an empty one left the chip lit and Continue silently
+                    refused: a couple who kept Wedding could not get past
+                    step 2 (found by the local UAT run, 2026-09-29). */}
+                <input defaultValue="wedding" type="hidden" {...register("eventType")} />
                 <Choices
                   legend="Type of event"
-                  onChange={(next) => setValue("eventType", next as string, { shouldDirty: true })}
+                  onChange={(next) => setValue("eventType", next as string, { shouldDirty: true, shouldValidate: true })}
                   options={EVENT_TYPES}
                   value={eventType as (typeof EVENT_TYPES)[number]["value"]}
                 />
+                {errors.eventType ? (
+                  <p className="kit-error" role="alert">
+                    Choose what you&rsquo;re planning.
+                  </p>
+                ) : null}
                 <AddressField
                   hint="If you have chosen one. Start typing and pick from the list."
                   label="Venue"

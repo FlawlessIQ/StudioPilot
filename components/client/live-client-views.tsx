@@ -357,7 +357,11 @@ export function useProjectRecords(
   const workspace = useWorkspace();
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<Loadable<RecordValue[]>>({
-    value: mockClientRecords(collectionName),
+    // Never the demo records in live mode: they were the starting value while
+    // loading, and the kit screens show what they hold, so a real couple saw
+    // "Highlight film · RIVERA27" flash before their own delivery (found by
+    // the local UAT run, 2026-09-29).
+    value: dataIsLive ? [] : mockClientRecords(collectionName),
     loading: dataIsLive,
     error: null,
   });

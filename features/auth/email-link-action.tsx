@@ -5,6 +5,7 @@ import { LoaderCircle, ShieldCheck } from "lucide-react";
 import { isSignInWithEmailLink, signInWithEmailLink } from "firebase/auth";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { authIsLive } from "@/lib/runtime-mode";
+import { Button, Field } from "@/components/kit/kit";
 
 /**
  * Complete a passwordless sign-in link (P19).
@@ -87,46 +88,42 @@ export function EmailLinkAction({ next }: { next: string | null }) {
 
   if (phase === "checking" || phase === "signing_in" || phase === "done")
     return (
-      <div className="invite-actions">
-        <LoaderCircle className="spin" />
-        <p>{phase === "done" ? "Opening your portal…" : "Signing you in…"}</p>
-      </div>
+      <p className="kit-body" role="status" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <LoaderCircle aria-hidden className="spin" size={18} />
+        {phase === "done" ? "Opening…" : "Signing you in…"}
+      </p>
     );
 
   if (phase === "invalid")
     return (
-      <div className="invite-actions">
-        <p>
-          This sign-in link is invalid or has expired. Request a new one from
-          your portal sign-in.
-        </p>
-      </div>
+      <p className="kit-note" data-tone="danger" role="alert">
+        This sign-in link has expired or was already used. Ask for a new one from the sign-in page.
+      </p>
     );
 
   return (
     <form
-      className="invite-actions"
+      className="kit-stack"
       onSubmit={(event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         void complete(email.trim().toLowerCase());
       }}
     >
-      <p>Confirm the email address this link was sent to.</p>
-      <label>
-        Email
-        <input
-          autoComplete="email"
-          onChange={(event) => setEmail(event.target.value)}
-          required
-          type="email"
-          value={email}
-        />
-      </label>
-      <button className="button button-dark" type="submit">
-        <ShieldCheck /> Sign in
-      </button>
+      <Field
+        autoComplete="email"
+        hint="The address this link was sent to, so a forwarded link can't sign in someone else."
+        inputMode="email"
+        label="Your email"
+        onChange={(event) => setEmail(event.target.value)}
+        required
+        type="email"
+        value={email}
+      />
+      <Button icon={ShieldCheck} type="submit">
+        Sign in
+      </Button>
       {message ? (
-        <p className="form-error" role="status">
+        <p className="kit-error" role="alert">
           {message}
         </p>
       ) : null}

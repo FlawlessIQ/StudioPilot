@@ -121,7 +121,13 @@ export function ClientProposal() {
       );
       window.scrollTo({ top: 0 });
     } catch (caught: unknown) {
-      setNotice(proposalErrorMessage(friendlyError(caught, "Your decision could not be saved.")));
+      // The proposal's own words first: through friendlyError alone, codes it
+      // doesn't know (PROJECT_STATE_CONFLICT, PROPOSAL_EXPIRED…) became "could
+      // not be saved" before these could name them (found by the local UAT
+      // run, 2026-09-29).
+      const code = caught instanceof Error ? caught.message : "";
+      const specific = proposalErrorMessage(code);
+      setNotice(specific !== code ? specific : friendlyError(caught, "Your decision could not be saved."));
     } finally {
       setSubmitting(false);
     }

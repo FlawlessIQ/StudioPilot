@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import { signOut } from "firebase/auth";
 import { getFirebaseClient } from "@/lib/firebase/client";
@@ -79,15 +79,28 @@ export function AuthBoundary({
             roles = memberships.map((document) =>
               String(document.data().role),
             );
+            // Offline, Firestore answers from its cache, and an empty cache
+            // reads as "no memberships": a crew member with no signal was
+            // sent to "Create your workspace". Ask the server before
+            // concluding anyone has none (found by the local UAT run,
+            // 2026-09-29).
+            if (!roles.length) throw new Error("MEMBERSHIPS_UNCONFIRMED");
           } catch {
             const preferredTenantId = window.localStorage.getItem(
               "studiohub.activeTenantId",
             );
-            const bootstrap = await getWorkspaceBootstrap(
-              area,
-              preferredTenantId,
-            );
-            roles = bootstrap.memberships.map((membership) => membership.role);
+            try {
+              const bootstrap = await getWorkspaceBootstrap(
+                area,
+                preferredTenantId,
+              );
+              roles = bootstrap.memberships.map((membership) => membership.role);
+            } catch (confirmation: unknown) {
+              // The server's own "none here" is an answer, not a failure: a
+              // new studio still goes on to onboarding.
+              if (confirmation instanceof Error && confirmation.message === "NO_ACTIVE_WORKSPACE") roles = [];
+              else throw confirmation;
+            }
           }
           const permitted = roles.some((role) => allowed[area].includes(role));
           if (!permitted) {
@@ -101,9 +114,19 @@ export function AuthBoundary({
             router.replace(destination);
             return;
           }
+          rememberAccess(area, user.uid);
           if (active) setStatus("authorized");
         } catch (caught: unknown) {
           if (!active) return;
+          // No signal at the venue: the membership can't be read, but this
+          // phone already verified this person for this area, and the pages
+          // behind it only show what is saved on the phone (the day sheet's
+          // saved copy). Without this, "opens with no signal" was an error
+          // screen (found by the local UAT run, 2026-09-29).
+          if (area !== "studio" && area !== "platform" && user && rememberedAccess(area, user.uid)) {
+            setStatus("authorized");
+            return;
+          }
           setMessage(
             caught instanceof Error
               ? caught.message
@@ -139,8 +162,9 @@ export function AuthBoundary({
   ) : (
     <main className="ds-root auth-loading" data-ds-theme="emerald" aria-live="polite">
       <span className="auth-loading-spinner" aria-hidden="true" />
-      <strong>Opening your workspace</strong>
-      <span>Checking your secure studio access…</span>
+      {/* A couple or crew member is not opening a studio. */}
+      <strong>{area === "client" ? "Opening your wedding" : area === "crew" ? "Opening your work" : "Opening your workspace"}</strong>
+      <span>{area === "studio" ? "Checking your secure studio access…" : "Checking your secure access…"}</span>
     </main>
   );
 }
@@ -159,6 +183,26 @@ export function AuthBoundary({
  */
 const REMEMBERED_PREFIXES = ["studiohub.", "studiocue:"];
 
+/**
+ * That this phone verified this person for a couple or crew area. Under the
+ * `studiocue:` prefix, so signing out forgets it with everything else.
+ */
+function rememberAccess(area: Area, uid: string): void {
+  if (area !== "client" && area !== "crew") return;
+  try {
+    window.localStorage.setItem(`studiocue:access:${area}:${uid}`, "1");
+  } catch {
+    // Storage blocked: offline opening simply isn't available.
+  }
+}
+function rememberedAccess(area: Area, uid: string): boolean {
+  try {
+    return window.localStorage.getItem(`studiocue:access:${area}:${uid}`) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export function forgetLocalWorkspaceState(): void {
   if (typeof window === "undefined") return;
   for (const store of [window.localStorage, window.sessionStorage]) {
@@ -172,6 +216,11 @@ export function forgetLocalWorkspaceState(): void {
 
 export function SignOutButton({ className }: { className?: string }) {
   const router = useRouter();
+  const pathname = usePathname() ?? "";
+  // Back to the sign-in page meant for them: a couple or crew member signing
+  // out landed on "Sign in to your studio" and "Start a free trial". The
+  // login page already reads `next` to say who it is for.
+  const area = pathname.startsWith("/client") ? "/client" : pathname.startsWith("/crew") ? "/crew" : null;
   async function leave() {
     if (authIsLive) {
       const { auth } = getFirebaseClient();
@@ -179,7 +228,7 @@ export function SignOutButton({ className }: { className?: string }) {
       await signOut(auth);
     }
     forgetLocalWorkspaceState();
-    router.push("/auth/login");
+    router.push(area ? `/auth/login?next=${encodeURIComponent(area)}` : "/auth/login");
   }
   return (
     <button className={className} type="button" onClick={() => void leave()}>
