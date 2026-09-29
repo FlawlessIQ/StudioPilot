@@ -1,5 +1,6 @@
 "use client";
 
+import { bookingBlockerLabel } from "@/features/booking/blocker-label";
 import { SignedCopySharing } from "@/components/contracts/signed-copy-sharing";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { offeredSigningProvider } from "@/features/integrations/schema";
@@ -1605,7 +1606,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 {gateBlockers.map((blocker) => (
                   <li key={blocker}>
                     <CircleAlert size={14} />
-                    {blocker.replaceAll("_", " ")}
+                    {bookingBlockerLabel(blocker)}
                   </li>
                 ))}
               </ul>

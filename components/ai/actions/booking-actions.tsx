@@ -23,6 +23,7 @@ import { ExistingBookingForm } from "@/components/imports/existing-booking-form"
 import { NativeContractStep } from "@/components/contracts/native-contract-step";
 import { SignedCopySharing } from "@/components/contracts/signed-copy-sharing";
 import { FILE_BEARING } from "@/features/documents/file-ref";
+import { bookingBlockerLabel } from "@/features/booking/blocker-label";
 import { useNativeSigning } from "@/components/contracts/use-native-signing";
 import {
   ActionShell,
@@ -1080,9 +1081,19 @@ export function QuickBooksLookupCard({ action }: ActionCardProps) {
 
 export function ConfirmBookingCard({ action }: ActionCardProps) {
   const { job, loading } = useJob(action.projectId);
+  const projects = useRecords("projects");
   const runner = useRunner();
   const [blockers, setBlockers] = useState<string[] | null>(null);
   const title = `Confirm the booking · ${jobName(job)}`;
+  // Which booked job holds the date, when that is what blocks it.
+  const sameDay = (projects ?? []).filter(
+    (other) =>
+      job &&
+      other.id !== job.id &&
+      !other.archivedAt &&
+      str(other.eventDate) === str(job.eventDate) &&
+      ["BOOKED", "PLANNING", "READY", "EVENT_COMPLETE"].includes(str(other.state)),
+  );
   if (loading) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
   if (runner.done) return <ActionShell title={title}><Done>{runner.done}</Done></ActionShell>;
@@ -1104,7 +1115,12 @@ export function ConfirmBookingCard({ action }: ActionCardProps) {
       title={title}
     >
       {blockers?.length ? (
-        <Blocked>{`Still waiting on: ${blockers.join("; ")}.`}</Blocked>
+        <Blocked>
+          {`Still waiting on ${blockers.map(bookingBlockerLabel).join("; ")}.`}
+          {blockers.includes("eventDateAvailable") && sameDay.length
+            ? ` ${sameDay.map((other) => str(other.name)).join(", ")} is booked on ${str(job.eventDate)}.`
+            : ""}
+        </Blocked>
       ) : null}
       <Actions
         busy={runner.busy}
