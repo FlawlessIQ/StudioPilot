@@ -8,6 +8,9 @@
 
 const FRIENDLY_BY_CODE: Record<string, string> = {
   // Reachable from Cue's prepared-action cards (components/ai/actions).
+  APPROVAL_PERMISSION_REQUIRED: "Only the studio's owners and admins can approve this.",
+  DRAFT_NOT_APPROVABLE: "That message has already been approved, declined or sent.",
+  DRAFT_NOT_FOUND: "That message isn't there any more. Refresh and try again.",
   CONSULTATION_NOT_CANCELLABLE: "That consultation can't be cancelled — it has already happened or been cancelled.",
   CONSULTATION_NOT_COMPLETABLE: "That consultation can't be written up — it was cancelled.",
   CONSULTATION_NOT_FOUND: "That consultation isn't there any more. Refresh and try again.",

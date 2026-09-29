@@ -323,6 +323,9 @@ const clientRecordFields = {
     "items",
     "publishedAt",
     "approvedAt",
+    // Whether the couple has answered: a published version keeps its status
+    // and carries their answer here (planning/commands.ts, approveSchedule).
+    "approvalState",
     "updatedAt",
   ],
   documents: [

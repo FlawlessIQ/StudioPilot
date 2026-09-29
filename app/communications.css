@@ -666,3 +666,12 @@
     padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
   }
 }
+
+/* Messages waiting on an owner's approval (components/communications/message-approvals.tsx). */
+.msg-approvals{display:grid;gap:8px;padding:12px;border-bottom:1px solid var(--border,#dfe3de);background:var(--ds-amber-soft,#f6ecd5)}
+.msg-approvals-head{display:flex;gap:6px;align-items:center;margin:0;font-size:12px;font-weight:700;letter-spacing:.02em;color:var(--ds-amber,#8a6420)}
+.msg-approval{display:grid;gap:4px;padding:10px 12px;border:1px solid var(--border,#dfe3de);border-radius:10px;background:var(--surface,#fff)}
+.msg-approval strong{font-size:13px}
+.msg-approval-meta{margin:0;font-size:11.5px;color:var(--muted,#6b7570)}
+.msg-approval-body{margin:0;font-size:12.5px;line-height:1.45;white-space:pre-wrap;max-height:9em;overflow:auto}
+.msg-approval-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}

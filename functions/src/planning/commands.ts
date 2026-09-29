@@ -1685,24 +1685,68 @@ export const planningCommand = onRequest(
           current.get("projectId") !== parsed.input.projectId
         )
           throw new Error("SCHEDULE_NOT_FOUND");
-        // A couple answers the version they were asked about. Approving a
-        // draft, a superseded version or one already answered is refused
-        // rather than recorded against whatever state it happens to be in.
-        if (role === "client" && current.get("status") !== "client_review")
+        /**
+         * A couple answers the version they were asked about.
+         *
+         * Publishing writes `status: "published"` with `approvalState:
+         * "client_pending"`, and this used to accept a couple's answer only
+         * at `status: "client_review"` — a status nothing sets. So no couple
+         * could ever approve a timeline (found 2026-09-29). A published
+         * version awaiting them is answerable now, and its status stays
+         * "published": the run of show, crew views and vendor shares all read
+         * the current version by that status, and the answer belongs in
+         * `approvalState`. A draft, a superseded version or one already
+         * answered is still refused.
+         */
+        const status = String(current.get("status"));
+        const awaitingCouple =
+          status === "client_review" ||
+          (status === "published" && current.get("approvalState") === "client_pending");
+        if (role === "client" && !awaitingCouple)
           throw new Error("SCHEDULE_NOT_IN_REVIEW");
-        await reference.update({
+        const approvalBatch = db.batch();
+        approvalBatch.update(reference, {
           approvedAt: parsed.input.decision === "approved" ? now : null,
           approvalState:
             parsed.input.decision === "approved"
               ? "client_approved"
               : "changes_requested",
-          status: parsed.input.decision,
+          ...(status === "published" ? {} : { status: parsed.input.decision }),
           approvedBy:
             parsed.input.decision === "approved" ? identity.uid : null,
           approvalNotes: parsed.input.notes,
           updatedAt: now,
           updatedBy: identity.uid,
         });
+        // The studio hears about a request for changes where it works: a
+        // task on the job, with the couple's words.
+        if (role === "client" && parsed.input.decision === "changes_requested") {
+          const taskId = `schedule_changes_${parsed.input.scheduleId}`;
+          approvalBatch.set(db.doc(`tasks/${taskId}`), {
+            id: taskId,
+            tenantId: parsed.tenantId,
+            projectId: parsed.input.projectId,
+            workflowRunId: null,
+            checkpointId: null,
+            title: `The couple asked for changes to timeline version ${Number(current.get("version") ?? 1)}`,
+            description: parsed.input.notes.slice(0, 3000),
+            status: "not_started",
+            priority: "high",
+            assignedUserId: null,
+            assignedRole: "studio_owner",
+            dueDate: now.slice(0, 10),
+            blocking: false,
+            completedAt: null,
+            completedBy: null,
+            source: "client_schedule_review",
+            createdAt: now,
+            updatedAt: now,
+            createdBy: identity.uid,
+            updatedBy: identity.uid,
+            archivedAt: null,
+          });
+        }
+        await approvalBatch.commit();
         result = {
           scheduleId: parsed.input.scheduleId,
           decision: parsed.input.decision,

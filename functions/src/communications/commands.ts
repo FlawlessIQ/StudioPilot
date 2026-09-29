@@ -68,6 +68,20 @@ const commandSchema = z.discriminatedUnion("type", [
     input: z.object({ draftId: z.string().min(1) }),
   }),
   z.object({
+    /**
+     * The owner's "not this one" for a message waiting on approval. Without
+     * it a draft a coordinator wrote about money or the contract could only
+     * be approved or left waiting forever.
+     */
+    type: z.literal("declineMessage"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      draftId: z.string().min(1),
+      reason: z.string().trim().max(500).nullable().default(null),
+    }),
+  }),
+  z.object({
     type: z.literal("sendApprovedDraft"),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
@@ -683,6 +697,58 @@ export const communicationsCommand = onRequest(
             approvalEvent,
           );
           return { draftId: draft.id, approved: true };
+        });
+      } else if (command.type === "declineMessage") {
+        if (!canApprove(role)) throw new Error("APPROVAL_PERMISSION_REQUIRED");
+        const draftReference = db.doc(
+          `communicationDrafts/${command.input.draftId}`,
+        );
+        result = await db.runTransaction(async (transaction) => {
+          const draft = await transaction.get(draftReference);
+          if (!draft.exists || draft.get("tenantId") !== command.tenantId) {
+            throw new Error("DRAFT_NOT_FOUND");
+          }
+          if (draft.get("status") === "declined") {
+            return { draftId: draft.id, declined: true };
+          }
+          if (draft.get("status") !== "needs_approval") {
+            throw new Error("DRAFT_NOT_APPROVABLE");
+          }
+          transaction.update(draftReference, {
+            status: "declined",
+            declinedBy: identity.uid,
+            declinedAt: now,
+            declineReason: command.input.reason,
+            updatedAt: now,
+            updatedBy: identity.uid,
+          });
+          transaction.create(db.doc(`auditEvents/message_declined_${draft.id}`), {
+            id: `message_declined_${draft.id}`,
+            tenantId: command.tenantId,
+            projectId: draft.get("projectId") ?? null,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "message.approval_declined",
+            entityType: "communicationDraft",
+            entityId: draft.id,
+            timestamp: now,
+            before: { status: "needs_approval" },
+            after: { status: "declined", reason: command.input.reason },
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId: command.idempotencyKey,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          transaction.create(executionReference, {
+            tenantId: command.tenantId,
+            userId: identity.uid,
+            commandType: command.type,
+            idempotencyKey: command.idempotencyKey,
+            result: { draftId: draft.id, declined: true },
+            createdAt: now,
+          });
+          return { draftId: draft.id, declined: true };
         });
       } else if (command.type === "sendApprovedDraft") {
         const draftReference = db.doc(

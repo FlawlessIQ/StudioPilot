@@ -107,6 +107,7 @@ export const STUDIO_ACTIONS: readonly ServerActionSpec[] = [
   { id: "remove_vendor", scope: "project", when: "remove a vendor from a job — name in `subject`" },
   // Messages
   { id: "reply_to_couple", scope: "project", when: "reply in the job's email thread with the couple — what to say in `text`" },
+  { id: "approve_message", scope: "studio", ownerAdminOnly: true, when: "approve or decline a message a team member wrote that is waiting for the owner's approval" },
   { id: "mark_thread_read", scope: "project", when: "mark the couple's messages as read" },
   // Crew
   { id: "staff_crew", scope: "project", flow: "crew_offer", when: "staff a role, offer a job to crew, add a second shooter/videographer — person in `subject`" },

@@ -35,6 +35,7 @@ import type {
   MessageChannel,
 } from "@/features/messaging/conversation";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { MessageApprovals } from "@/components/communications/message-approvals";
 
 /**
  * The mailbox. Replaces a screen that put a compose form, an automation
@@ -195,6 +196,13 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
   const [draftContactId, setDraftContactId] = useState("");
   const [draftSubject, setDraftSubject] = useState("");
   const [draftBody, setDraftBody] = useState("");
+  /**
+   * What the message is about. Money, the contract and insurance from a
+   * coordinator go to an owner or admin to approve first; this was hardcoded
+   * "general", so that approval could never be asked for.
+   */
+  const [draftCategory, setDraftCategory] = useState<"general" | "financial" | "contract" | "insurance">("general");
+  const approvesOwnMessages = ["studio_owner", "studio_admin"].includes(String(workspace.role ?? ""));
 
   // Switching conversations must NOT carry the previous client's messages or
   // half-written draft across — showing one client's private draft under
@@ -611,7 +619,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
             // Every field the command requires. These were missing, so the first
             // new message a studio tried to send would have failed the same way
             // a reply did — on a schema it has no way of knowing about.
-            category: "general",
+            category: draftCategory,
             actionLabel: null,
             actionUrl: null,
             scheduledFor: null,
@@ -619,13 +627,19 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
         });
         setDraftSubject("");
         setDraftBody("");
+        setDraftCategory("general");
         setComposing(false);
         // The thread appears on its own — the conversations subscription picks
         // it up as soon as the send is recorded.
+        const held =
+          "payload" in result &&
+          (result.payload as Record<string, unknown>).requiresApproval === true;
         setNotice(
           "mode" in result && result.mode === "preview"
             ? "Preview mode — nothing was sent."
-            : "Message queued for delivery.",
+            : held
+              ? "Sent to the studio owner to approve. It goes out once they do."
+              : "Message queued for delivery.",
         );
       } catch (caught: unknown) {
         setNotice(readableFailure(caught));
@@ -633,7 +647,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
         setSending(false);
       }
     },
-    [draftProjectId, draftContactId, draftSubject, draftBody, sending],
+    [draftProjectId, draftContactId, draftSubject, draftBody, draftCategory, sending],
   );
 
   const totalUnread = threads.reduce(
@@ -726,6 +740,23 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
               />
             </label>
             <label>
+              What it&apos;s about
+              <select
+                onChange={(event) => setDraftCategory(event.target.value as typeof draftCategory)}
+                value={draftCategory}
+              >
+                <option value="general">Anything else</option>
+                <option value="financial">Money — invoices or payments</option>
+                <option value="contract">The contract</option>
+                <option value="insurance">Insurance</option>
+              </select>
+            </label>
+            {draftCategory !== "general" && !approvesOwnMessages ? (
+              <p className="msg-approval-meta">
+                The studio owner approves messages about money, the contract or insurance before they go out.
+              </p>
+            ) : null}
+            <label>
               Message
               <textarea
                 value={draftBody}
@@ -750,6 +781,8 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
             </button>
           </form>
         ) : null}
+
+        <MessageApprovals />
 
         {threadsLoading ? (
           <p className="msg-empty">

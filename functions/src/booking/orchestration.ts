@@ -549,6 +549,18 @@ export const bookingRetainerPaid = onDocumentWritten(
      * invoices with no plan at all. What was wrong was doing it silently
      * while a plan was open and waiting on precisely this event.
      */
+    /**
+     * Already booked: a retainer paid after booking on an approved exception
+     * (commands.ts, recordRetainerPayment). There is nothing to book, and
+     * running on would throw INVALID_BOOKING_STATE on every retry.
+     */
+    if (
+      project.exists &&
+      ["BOOKED", "PLANNING", "READY", "EVENT_COMPLETE", "POST_PRODUCTION", "DELIVERED", "REVIEW_REQUESTED", "CLOSED"].includes(
+        String(project.get("state")),
+      )
+    )
+      return;
     const declineReason = !plan.exists
       ? "no_plan"
       : plan.get("status") !== "active"

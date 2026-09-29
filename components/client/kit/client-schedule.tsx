@@ -73,10 +73,23 @@ export function ClientSchedule() {
       ["client", "shared"].includes(text(item.visibility, "shared")),
     ),
   );
-  const status = localStatus ?? text(schedule.status);
+  /**
+   * A published version keeps `status: "published"`; whether they have
+   * answered it is `approvalState`. This read `status` alone and waited for
+   * "client_review", which nothing sets — so no couple was ever asked.
+   */
+  const approval = text(schedule.approvalState);
+  const status =
+    localStatus ??
+    (approval === "client_approved"
+      ? "approved"
+      : approval === "changes_requested"
+        ? "changes_requested"
+        : text(schedule.status));
   // Nothing is left to decide about a day that has happened.
   const behind = portalStageIsBehind(project.value?.milestones ?? null, "schedule");
-  const actionable = status === "client_review" && !behind;
+  const awaiting = status === "client_review" || (status === "published" && approval === "client_pending");
+  const actionable = awaiting && items.length > 0 && !behind;
   const version = number(schedule.version);
 
   function open(next: Sheet) {

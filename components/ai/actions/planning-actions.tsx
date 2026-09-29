@@ -8,6 +8,7 @@ import { AiScheduleGenerator } from "@/components/planning/ai-schedule-generator
 import { CoiWorkflowPanel } from "@/components/planning/coi-workflow-panel";
 import { TimelineAuthorityPanel } from "@/components/planning/timeline-authority-panel";
 import { VendorRecordActions } from "@/components/planning/vendor-record-actions";
+import { MessageApprovals } from "@/components/communications/message-approvals";
 import {
   ActionShell,
   Actions,
@@ -473,3 +474,28 @@ export function MarkReadCard({ action }: ActionCardProps) {
   );
 }
 
+
+/** Messages a team member wrote that wait on the owner: the Messages page's own list. */
+export function MessageApprovalCard() {
+  const ownerOrAdmin = useIsOwnerOrAdmin();
+  const drafts = useRecords("communicationDrafts", ownerOrAdmin);
+  const title = "Messages waiting for your approval";
+  if (!ownerOrAdmin) return <OwnerOnly title={title} />;
+  if (!drafts) return <ActionShell title={title}><Loading /></ActionShell>;
+  const waiting = drafts.filter((draft) => draft.status === "needs_approval");
+  return (
+    <ActionShell
+      detail="A team member's message about money, the contract or insurance goes out only once you approve it."
+      icon={<Mail size={15} />}
+      title={title}
+    >
+      {waiting.length ? (
+        <Embedded>
+          <MessageApprovals />
+        </Embedded>
+      ) : (
+        <Done>Nothing is waiting for your approval.</Done>
+      )}
+    </ActionShell>
+  );
+}

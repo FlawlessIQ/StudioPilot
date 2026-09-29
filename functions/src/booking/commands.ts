@@ -1233,7 +1233,7 @@ export const bookingCommand = onRequest(
         ) {
           throw new Error("RETAINER_ATTESTATION_PERMISSION_REQUIRED");
         }
-        const [project, packageSnapshot, contracts, existingInvoices] =
+        const [project, packageSnapshot, contracts, existingInvoices, retainerExceptions] =
           await Promise.all([
             firestore.doc(`projects/${command.input.projectId}`).get(),
             firestore
@@ -1256,11 +1256,56 @@ export const bookingCommand = onRequest(
               // a payment against a retainer already out with the client.
               .limit(10)
               .get(),
+            firestore
+              .collection("bookingExceptions")
+              .where("tenantId", "==", command.tenantId)
+              .where("projectId", "==", command.input.projectId)
+              .where("type", "==", "retainer")
+              .limit(5)
+              .get(),
           ]);
+        /**
+         * A retainer still owed on a job that already booked.
+         *
+         * Booking on an approved exception ("book without the retainer") moves
+         * the job past RETAINER_PENDING with the retainer still owed — and
+         * this used to accept a payment only in RETAINER_PENDING, so when the
+         * couple then paid, nothing could record it. Smith Wedding sat booked
+         * with an overdue retainer the booking page offered to record and the
+         * server refused (found 2026-09-29). A booked job may record it when
+         * the retainer is actually owed: an approved exception, or a retainer
+         * invoice still unpaid.
+         */
+        const bookedStates = [
+          "BOOKED",
+          "PLANNING",
+          "READY",
+          "EVENT_COMPLETE",
+          "POST_PRODUCTION",
+          "DELIVERED",
+          "REVIEW_REQUESTED",
+        ];
+        const approvedException = retainerExceptions.docs.find(
+          (document) => document.get("status") === "approved",
+        );
+        const unpaidRetainer = existingInvoices.docs.some(
+          (document) =>
+            !["paid", "voided", "void", "cancelled", "superseded"].includes(
+              String(document.get("status")),
+            ) && Number(document.get("balanceCents") ?? 0) > 0,
+        );
+        const paidRetainer = existingInvoices.docs.some(
+          (document) =>
+            document.get("status") === "paid" &&
+            Number(document.get("balanceCents") ?? 0) === 0,
+        );
+        const owedAfterBooking =
+          bookedStates.includes(String(project.get("state"))) &&
+          (Boolean(approvedException) || unpaidRetainer || paidRetainer);
         if (
           !project.exists ||
           project.get("tenantId") !== command.tenantId ||
-          project.get("state") !== "RETAINER_PENDING" ||
+          !(project.get("state") === "RETAINER_PENDING" || owedAfterBooking) ||
           project.get("packageSnapshotId") !== command.input.packageSnapshotId
         ) {
           throw new Error("RETAINER_NOT_READY");
@@ -1379,6 +1424,14 @@ export const bookingCommand = onRequest(
             automationRunId: null,
             providerEventId: null,
           });
+          if (approvedException && owedAfterBooking) {
+            // The exception said "book now, retainer later". Later is now.
+            settleBatch.update(approvedException.ref, {
+              retainerSettledAt: timestamp,
+              retainerInvoiceId: plan.invoiceId,
+              updatedAt: timestamp,
+            });
+          }
           await settleBatch.commit();
           result = {
             invoiceId: plan.invoiceId,
@@ -1449,9 +1502,20 @@ export const bookingCommand = onRequest(
         // pointing at nothing it would sit on `create_retainer` while the
         // booking was ready to confirm — the same stranding the contract
         // path had.
-        if (orchestration.exists && orchestration.get("status") === "active") {
+        if (
+          !owedAfterBooking &&
+          orchestration.exists &&
+          orchestration.get("status") === "active"
+        ) {
           batch.update(orchestrationReference, {
             invoiceId,
+            updatedAt: timestamp,
+          });
+        }
+        if (approvedException && owedAfterBooking) {
+          batch.update(approvedException.ref, {
+            retainerSettledAt: timestamp,
+            retainerInvoiceId: invoiceId,
             updatedAt: timestamp,
           });
         }

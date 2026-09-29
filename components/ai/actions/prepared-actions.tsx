@@ -41,6 +41,7 @@ import {
   CoiCard,
   InsuranceRequirementCard,
   MarkReadCard,
+  MessageApprovalCard,
   ReplyCard,
   ShareRunOfShowCard,
   TimelineCard,
@@ -142,6 +143,7 @@ export const ACTION_CARDS: Record<string, ComponentType<ActionCardProps>> = {
   remove_vendor: VendorChangeCard,
   // Messages
   reply_to_couple: ReplyCard,
+  approve_message: MessageApprovalCard,
   mark_thread_read: MarkReadCard,
   // Crew
   add_crew_member: AddCrewMemberCard,

@@ -924,7 +924,14 @@ export function RecordPaymentCard({ action }: ActionCardProps) {
     setMessage(text);
     refreshTenantRecords("projects", "invoiceReferences", "checkpoints", "readinessAssessments");
   };
-  if (!final && state !== "RETAINER_PENDING")
+  const booked = ["BOOKED", "PLANNING", "READY", "EVENT_COMPLETE", "POST_PRODUCTION", "DELIVERED", "REVIEW_REQUESTED"].includes(state);
+  const retainers = onJob(invoices, job.id).filter((item) => str(item.kind) === "retainer");
+  const retainerPaid = retainers.some((item) => str(item.status) === "paid" && num(item.balanceCents) === 0);
+  // A job booked on an approved exception still owes its retainer, and the
+  // couple paying it later is recorded here like any other retainer.
+  if (!final && retainerPaid)
+    return <ActionShell title={title}><Done>{`${jobName(job)}'s retainer is already paid.`}</Done></ActionShell>;
+  if (!final && state !== "RETAINER_PENDING" && !booked)
     return <ActionShell title={title}><Blocked>{`${jobName(job)} isn't waiting on its retainer.`}</Blocked></ActionShell>;
   if (final && !["BOOKED", "PLANNING", "READY", "EVENT_COMPLETE", "POST_PRODUCTION", "DELIVERED", "REVIEW_REQUESTED"].includes(state))
     return <ActionShell title={title}><Blocked>{`${jobName(job)} isn't booked yet, so there is no balance to record.`}</Blocked></ActionShell>;
