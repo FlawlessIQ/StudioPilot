@@ -6,6 +6,7 @@ import { BriefcaseBusiness, CalendarDays, CircleAlert, Home, LoaderCircle, UserR
 import { AuthBoundary } from "@/features/auth/auth-boundary";
 import { useWorkspace, WorkspaceProvider } from "@/features/auth/workspace-context";
 import { AppBar, KitRoot, TabBar, type Studio, type Tab } from "@/components/kit/kit";
+import { HowToButton } from "@/components/help/how-to";
 
 /**
  * The crew's four tabs (decided 2026-09-28; M6 of
@@ -109,7 +110,7 @@ function CrewShell({ children }: { children: React.ReactNode }) {
   return (
     <KitRoot studio={studio}>
       <div className="kit-screen">
-        <AppBar studio={studio} />
+        <AppBar lead={<HowToButton variant="kit" />} studio={studio} />
         {workspace.error ? (
           <div className="kit-banner" role="alert">
             <p className="kit-note" data-tone="danger">

@@ -81,7 +81,8 @@ test("the couple and crew portals show the studio, credited to StudioCue once", 
   const crew = source("components/crew/crew-portal-shell.tsx");
   assert.doesNotMatch(crew, /Studio<b>Cue<\/b>/);
   assert.doesNotMatch(crew, /<CueMark/);
-  assert.match(crew, /<AppBar studio=\{studio\} \/>/);
+  // The studio names the app bar; the How-to button may sit beside it.
+  assert.match(crew, /<AppBar\b.*\bstudio=\{studio\} \/>/);
   assert.match(crew, /<KitRoot studio=\{studio\}>/);
   assert.match(crew, /color: brand\?\.primaryColor \?\? null/);
   // Couples: the mobile kit shell (M3), the studio in the app bar and its

@@ -25,6 +25,7 @@ import {
 import { subscriptionGrantsAccess } from "@/features/subscriptions/entitlements";
 import { CueMark } from "@/components/brand/logo";
 import { GlobalSearch } from "@/components/layout/global-search";
+import { HowToButton } from "@/components/help/how-to";
 import { PlatformReturnLink } from "@/components/layout/platform-return-link";
 import { cn } from "@/lib/utils";
 import { AuthBoundary } from "@/features/auth/auth-boundary";
@@ -450,6 +451,7 @@ function StudioShell({
               <b>Workspace ·</b> {resolvedActive === "Dashboard" ? "Today" : resolvedActive}
             </span>
             <GlobalSearch />
+            <HowToButton variant="topbar" />
             <Link href="/studio/projects/new" className="ds-action">
               <Plus size={15} /> New project
             </Link>

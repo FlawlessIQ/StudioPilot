@@ -19,6 +19,7 @@ import {
   WorkspaceProvider,
 } from "@/features/auth/workspace-context";
 import { AppBar, KitRoot, TabBar, type Studio, type Tab } from "@/components/kit/kit";
+import { HowToButton } from "@/components/help/how-to";
 import { portalAccentStyle } from "@/features/design/studio-theme";
 
 const PortalShellContext = createContext(false);
@@ -120,6 +121,7 @@ function ClientPortalShell({
     <KitRoot studio={studio}>
       <div className="kit-screen" data-width={kit ? undefined : "wide"}>
         <AppBar
+          lead={<HowToButton variant="kit" />}
           action={
             <Link aria-label="Your account and projects" className="kit-icon-button" href="/client/plan#account">
               <UserRound aria-hidden="true" size={22} />

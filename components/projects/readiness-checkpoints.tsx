@@ -163,11 +163,7 @@ export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
           <p className="eyebrow">Before the day</p>
           <h2>
             Readiness checkpoints
-            <InfoHint term="Readiness">
-              Readiness is the checklist a booked job must clear before the
-              event — contract signed, deposit paid, crew accepted,
-              questionnaire complete, and so on.
-            </InfoHint>
+            <InfoHint term="readiness" />
           </h2>
           <p>
             What has to be true before this wedding is ready. Most complete

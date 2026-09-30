@@ -71,6 +71,7 @@ export default function MarketingHome() {
           <Link href="/wedding-photographers">For weddings</Link>
           <Link href="/integrations">Integrations</Link>
           <Link href="/pricing">Pricing</Link>
+          <Link href="/how-to">How to</Link>
         </nav>
         <div className="marketing-actions">
           <Link className="text-link" href="/auth/login">
@@ -431,6 +432,7 @@ export default function MarketingHome() {
           <Link href="/wedding-photographers">Weddings</Link>
           <Link href="/corporate-photographers">Corporate</Link>
           <Link href="/sports-photographers">Sports</Link>
+          <Link href="/how-to">How to use StudioCue</Link>
           <Link href="/support">Support</Link>
           <Link href="/privacy">Privacy</Link>
           <Link href="/terms">Terms</Link>

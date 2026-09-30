@@ -83,12 +83,15 @@ export function AppBar({
   studio,
   title,
   back,
+  lead,
   action,
 }: {
   studio?: Studio;
   /** A screen title instead of the studio's name. */
   title?: string;
   back?: { href: string; label?: string };
+  /** The left-hand control when there is no back link (the How-to button). */
+  lead?: ReactNode;
   action?: ReactNode;
 }) {
   return (
@@ -98,7 +101,7 @@ export function AppBar({
           <ChevronLeft aria-hidden="true" size={24} />
         </Link>
       ) : (
-        <span />
+        (lead ?? <span />)
       )}
       <span className="kit-appbar-centre">
         {title ? (

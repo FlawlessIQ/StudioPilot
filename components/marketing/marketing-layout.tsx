@@ -7,11 +7,14 @@ export function MarketingLayout({
   title,
   description,
   children,
+  hero = "trial",
 }: {
   eyebrow: string;
   title: string;
   description: string;
   children: React.ReactNode;
+  /** "plain" drops the trial and pricing buttons, for reading pages like a guide. */
+  hero?: "trial" | "plain";
 }) {
   return (
     <div className="ds-root marketing-page marketing-subpage" data-ds-theme="emerald">
@@ -24,6 +27,7 @@ export function MarketingLayout({
           <Link href="/wedding-photographers">For weddings</Link>
           <Link href="/integrations">Integrations</Link>
           <Link href="/pricing">Pricing</Link>
+          <Link href="/how-to">How to</Link>
         </nav>
         <div className="marketing-actions">
           <Link className="text-link" href="/auth/login">Sign in</Link>
@@ -35,12 +39,14 @@ export function MarketingLayout({
           <p className="section-kicker">{eyebrow}</p>
           <h1>{title}</h1>
           <p>{description}</p>
-          <div>
-            <Link className="button button-dark" href="/auth/register">
-              Start a 14-day trial <ArrowRight />
-            </Link>
-            <Link className="button button-light" href="/pricing">View pricing</Link>
-          </div>
+          {hero === "trial" ? (
+            <div>
+              <Link className="button button-dark" href="/auth/register">
+                Start a 14-day trial <ArrowRight />
+              </Link>
+              <Link className="button button-light" href="/pricing">View pricing</Link>
+            </div>
+          ) : null}
         </section>
         {children}
       </main>
@@ -54,6 +60,7 @@ export function MarketingLayout({
           <Link href="/wedding-photographers">Weddings</Link>
           <Link href="/corporate-photographers">Corporate</Link>
           <Link href="/sports-photographers">Sports</Link>
+          <Link href="/how-to">How to use StudioCue</Link>
           <Link href="/support">Support</Link>
           <Link href="/privacy">Privacy</Link>
           <Link href="/terms">Terms</Link>

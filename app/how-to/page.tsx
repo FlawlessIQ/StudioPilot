@@ -1,0 +1,50 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+import { MarketingLayout } from "@/components/marketing/marketing-layout";
+import { GuideLibrary } from "@/components/help/guide-library";
+import { EXPLAINERS } from "@/features/help/explainers";
+import { HELP_AUDIENCE_LABELS, type HelpAudience } from "@/features/help/types";
+
+export const metadata: Metadata = {
+  title: "How to use StudioCue",
+  description:
+    "Short guides to every step in StudioCue — for studios running their weddings, for couples in their portal, and for crew on the day.",
+  alternates: { canonical: "/how-to" },
+};
+
+const AUDIENCES: Array<{ audience: HelpAudience; intro: string }> = [
+  { audience: "studio", intro: "Running your studio, from the first inquiry to the final gallery." },
+  { audience: "couple", intro: "For couples: your portal, from booking to your photos." },
+  { audience: "crew", intro: "For photographers and assistants working for a studio." },
+];
+
+export default function HowToPage() {
+  return (
+    <MarketingLayout
+      description="Short, step-by-step guides to everything StudioCue does. The same guides are one tap away on every screen inside the product."
+      eyebrow="Guides"
+      hero="plain"
+      title="How to use StudioCue"
+    >
+      <div className="how-to-public">
+        {AUDIENCES.filter(({ audience }) => EXPLAINERS.some((guide) => guide.audience === audience)).map(
+          ({ audience, intro }) => (
+            <section className="how-to-public-section" id={audience} key={audience}>
+              <h2>{HELP_AUDIENCE_LABELS[audience]}</h2>
+              <p>{intro}</p>
+              <GuideLibrary audience={audience} />
+            </section>
+          ),
+        )}
+        <Link className="how-to-public-glossary" href="/how-to/glossary">
+          <span>
+            <strong>Words to know</strong>
+            <small>Readiness, the booking gate, retainers and the rest — each in a sentence.</small>
+          </span>
+          <ArrowRight aria-hidden="true" />
+        </Link>
+      </div>
+    </MarketingLayout>
+  );
+}

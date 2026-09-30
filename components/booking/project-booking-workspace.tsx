@@ -1555,12 +1555,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 <small>The final check</small>
                 <h2>
                   Confirm booking
-                  <InfoHint term="Booking gate">
-                    The booking gate is the final check that turns a job Booked.
-                    It only flips on real evidence — a signed contract and a paid
-                    retainer, or a signature you record yourself — never on AI or
-                    a guess.
-                  </InfoHint>
+                  <InfoHint term="booking-gate" />
                 </h2>
               </span>
               <StatusBadge tone={bookingComplete ? "success" : "neutral"}>

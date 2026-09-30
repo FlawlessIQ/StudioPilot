@@ -10,6 +10,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
+  scroll-margin-top: 90px;
 }
 
 .help-concepts {
@@ -480,15 +481,18 @@
   }
 }
 
-/* InfoHint — a definition popover beside a term of art. Pure CSS reveal on
-   hover/focus so it needs no client state and works anywhere. */
+/* InfoHint — an ⓘ that explains a word or a field, on hover or tap
+   (components/ui/info-hint.tsx). The bubble is a manual popover in the top
+   layer, so no card or sheet can clip it; the component places it beside its
+   trigger. Tokens are :root ones (--ink, --line…) because a hint can sit in a
+   sheet, which renders outside .ds-root. */
 .info-hint {
-  position: relative;
   display: inline-flex;
   vertical-align: middle;
   margin-left: 0.3rem;
 }
 .info-hint-trigger {
+  position: relative;
   display: inline-grid;
   place-items: center;
   width: 1.05rem;
@@ -497,16 +501,25 @@
   border: 0;
   border-radius: 999px;
   background: none;
-  color: var(--ds-muted);
+  color: var(--muted);
   cursor: help;
   line-height: 0;
+}
+/* A 32px target on touch screens, with the icon staying small. */
+@media (pointer: coarse) {
+  .info-hint-trigger::after {
+    content: "";
+    position: absolute;
+    inset: -0.5rem;
+  }
 }
 .info-hint-trigger svg {
   width: 0.95rem;
   height: 0.95rem;
 }
 .info-hint-trigger:hover,
-.info-hint-trigger:focus-visible {
+.info-hint-trigger:focus-visible,
+.info-hint-trigger[aria-expanded="true"] {
   color: var(--success);
 }
 .info-hint-trigger:focus-visible {
@@ -514,38 +527,52 @@
   outline-offset: 2px;
 }
 .info-hint-pop {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 40;
+  position: fixed;
+  inset: auto;
+  margin: 0;
   width: max-content;
-  max-width: 17rem;
+  max-width: min(17rem, calc(100vw - 24px));
   padding: 0.6rem 0.75rem;
   border-radius: 10px;
-  border: 1px solid var(--ds-line);
-  background: var(--ds-surface, #fff);
-  color: var(--ds-ink);
-  box-shadow: var(--ds-shadow-md, 0 8px 28px rgba(33, 30, 24, 0.14));
+  border: 1px solid var(--line);
+  background: var(--surface, #fff);
+  color: var(--ink);
+  box-shadow: 0 8px 28px rgb(23 26 24 / 16%);
+  font-family: inherit;
   font-size: 0.8rem;
   font-weight: 400;
   line-height: 1.5;
   letter-spacing: normal;
+  text-align: left;
   text-transform: none;
   white-space: normal;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.12s ease;
-  pointer-events: none;
+  overflow: visible;
 }
-.info-hint:hover .info-hint-pop,
-.info-hint:focus-within .info-hint-pop {
-  opacity: 1;
-  visibility: visible;
+.info-hint-pop:popover-open {
+  animation: info-hint-in 0.12s ease;
+}
+@keyframes info-hint-in {
+  from { opacity: 0; }
+}
+.info-hint-more {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--success);
+  font-weight: 600;
+  text-decoration: none;
+}
+.info-hint-more:hover {
+  text-decoration: underline;
+}
+.action-hint {
+  display: inline-flex;
+}
+.info-hint-pop.is-action {
+  max-width: min(15rem, calc(100vw - 24px));
 }
 @media (prefers-reduced-motion: reduce) {
-  .info-hint-pop {
-    transition: none;
+  .info-hint-pop:popover-open {
+    animation: none;
   }
 }
 
@@ -584,5 +611,447 @@
   .example-check-note {
     grid-column: 2;
     text-align: left;
+  }
+}
+
+/* ── How to (components/help/how-to.tsx) ─────────────────────────────────
+   The button in the studio's top bar and the portals' app bar, and the popup
+   it opens. The popup renders in a sheet outside .ds-root, so it styles its
+   own type and uses :root tokens. */
+.how-to-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.how-to-trigger:hover {
+  border-color: var(--success);
+  color: var(--success);
+}
+.how-to-trigger:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--success) 55%, transparent);
+  outline-offset: 2px;
+}
+/* On a phone the studio's top bar keeps the icon and drops the word. */
+@media (max-width: 560px) {
+  .ds-topbar .how-to-trigger {
+    padding: 7px;
+  }
+  .ds-topbar .how-to-trigger span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+.kit .how-to-trigger {
+  border: 0;
+  padding: 0;
+  color: inherit;
+}
+
+.how-to-panel {
+  display: grid;
+  gap: 18px;
+  padding: 26px 26px 22px;
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.55;
+}
+.how-to-head {
+  display: grid;
+  gap: 4px;
+  padding-right: 36px;
+}
+.how-to-eyebrow {
+  margin: 0;
+  color: var(--success);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.how-to-head h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.25;
+}
+.how-to-related {
+  display: grid;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.how-to-related h3 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+.how-to-related ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.how-to-related button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.how-to-related button:hover {
+  border-color: var(--success);
+}
+.how-to-guide-label {
+  display: grid;
+  gap: 2px;
+}
+.how-to-guide-label strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+.how-to-guide-label small {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.how-to-foot {
+  display: flex;
+  justify-content: flex-end;
+}
+.how-to-foot a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--success);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.how-to-foot a:hover {
+  text-decoration: underline;
+}
+/* In the couple and crew portals the popup takes the kit's type. */
+.kit .how-to-panel {
+  padding: 22px 18px 18px;
+  color: var(--kit-ink, var(--ink));
+}
+@media (max-width: 560px) {
+  .how-to-panel {
+    padding: 22px 18px 18px;
+  }
+}
+
+/* One written guide (components/help/explainer-view.tsx). */
+.help-explainer {
+  display: grid;
+  gap: 10px;
+}
+.help-explainer h2,
+.help-explainer h3 {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+.help-explainer p {
+  margin: 0;
+}
+.help-explainer-purpose {
+  font-size: 15.5px;
+}
+.help-explainer-steps {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: help-step;
+}
+.help-explainer-steps li {
+  position: relative;
+  padding-left: 34px;
+  counter-increment: help-step;
+}
+.help-explainer-steps li::before {
+  content: counter(help-step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  color: var(--success);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.help-explainer-notes {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 1.1rem;
+  list-style: disc;
+}
+.help-explainer-notes li::marker {
+  color: var(--success);
+}
+.help-explainer-terms {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.help-explainer-terms > div {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--success) 6%, transparent);
+}
+.help-explainer-terms dt {
+  font-weight: 650;
+}
+.help-explainer-terms dd {
+  margin: 2px 0 0;
+  color: var(--ink-soft, var(--ink));
+  font-size: 14px;
+}
+
+/* A how-to video (components/help/video-player.tsx). */
+.help-video {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+.help-video video {
+  width: 100%;
+  border-radius: 12px;
+  background: #0f1411;
+  aspect-ratio: 16 / 9;
+}
+.help-video[data-orientation="portrait"] video {
+  aspect-ratio: 9 / 16;
+  max-height: 70vh;
+  width: auto;
+  justify-self: center;
+}
+.help-video-chapters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.help-video-chapters button {
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.help-video-chapters button span {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The guides library and glossary (/studio/help, /how-to). */
+.help-guides {
+  display: grid;
+  gap: 18px;
+}
+.help-guide-stage {
+  display: grid;
+  gap: 8px;
+}
+.help-guide-stage h3 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 650;
+}
+.help-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.help-guide-card {
+  display: grid;
+  gap: 4px;
+  height: 100%;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.help-guide-card:hover {
+  border-color: var(--success);
+}
+.help-guide-card > small {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.help-glossary {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+  gap: 10px;
+  margin: 0;
+}
+.help-glossary > div {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  scroll-margin-top: 90px;
+}
+.help-glossary dt {
+  font-weight: 650;
+}
+.help-glossary dd {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.help-glossary dd a {
+  color: var(--success);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* Public guides (/how-to). Sits under the marketing sub-hero. */
+.how-to-public,
+.how-to-article {
+  display: grid;
+  gap: 40px;
+  max-width: 1000px;
+  margin: 0 auto 100px;
+  padding: 0 32px;
+}
+.how-to-article {
+  max-width: 760px;
+  gap: 28px;
+  font-size: 16px;
+  line-height: 1.6;
+}
+.how-to-public-section {
+  display: grid;
+  gap: 12px;
+  scroll-margin-top: 90px;
+}
+.how-to-public-section > h2 {
+  margin: 0;
+  font: 500 30px var(--font-display);
+}
+.how-to-public-section > p {
+  margin: 0;
+  color: var(--muted);
+}
+.how-to-public-glossary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+}
+.how-to-public-glossary:hover {
+  border-color: var(--success);
+}
+.how-to-public-glossary span {
+  display: grid;
+  gap: 3px;
+}
+.how-to-public-glossary small {
+  color: var(--muted);
+  font-size: 14px;
+}
+.how-to-public-glossary svg {
+  width: 18px;
+  flex: none;
+  color: var(--success);
+}
+.how-to-article .help-explainer h2 {
+  font-size: 13.5px;
+}
+.how-to-article-more {
+  display: grid;
+  gap: 10px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.how-to-article-more h2 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13.5px;
+  font-weight: 650;
+}
+.how-to-article-more ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.how-to-article-more a,
+.how-to-article-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--success);
+  font-weight: 600;
+  text-decoration: none;
+}
+.how-to-article-more a:hover,
+.how-to-article-back:hover {
+  text-decoration: underline;
+}
+@media (max-width: 760px) {
+  .how-to-public,
+  .how-to-article {
+    padding-inline: 16px;
+    gap: 28px;
   }
 }

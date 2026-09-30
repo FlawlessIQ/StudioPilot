@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/lib/site";
+import { EXPLAINERS } from "@/features/help/explainers";
 
 const publicRoutes: Array<{
   path: string;
@@ -13,6 +14,13 @@ const publicRoutes: Array<{
   { path: "/wedding-photographers", changeFrequency: "monthly", priority: 0.8 },
   { path: "/corporate-photographers", changeFrequency: "monthly", priority: 0.8 },
   { path: "/sports-photographers", changeFrequency: "monthly", priority: 0.8 },
+  { path: "/how-to", changeFrequency: "weekly", priority: 0.7 },
+  { path: "/how-to/glossary", changeFrequency: "monthly", priority: 0.5 },
+  ...EXPLAINERS.map((guide) => ({
+    path: `/how-to/${guide.id}`,
+    changeFrequency: "monthly" as const,
+    priority: 0.6,
+  })),
   { path: "/privacy", changeFrequency: "yearly", priority: 0.3 },
   { path: "/terms", changeFrequency: "yearly", priority: 0.3 },
 ];

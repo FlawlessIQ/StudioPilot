@@ -12,6 +12,7 @@ import {
   Wand2,
 } from "lucide-react";
 import { SetupChecklist } from "@/components/dashboard/setup-checklist";
+import { GlossaryList, GuideLibrary } from "@/components/help/guide-library";
 
 /**
  * The workspace had no Help, Docs, or Support entry, and nothing in-app mapped
@@ -57,9 +58,10 @@ export function HelpCenter() {
           <p className="eyebrow">Help &amp; guides</p>
           <h1>Getting started with StudioCue</h1>
           <p>
-            New here? Finish the essentials below, learn the four ideas the whole
-            product rests on, and ask Cue anything else — it can walk you through
-            how to do things, not just answer questions about your data.
+            New here? Finish the essentials below, then pick a guide. Every
+            screen also has a How to button at the top that opens the guide for
+            what you&rsquo;re looking at — and Cue can walk you through anything
+            else.
           </p>
         </div>
       </header>
@@ -67,6 +69,11 @@ export function HelpCenter() {
       <section className="help-section">
         <p className="eyebrow">Set up your studio</p>
         <SetupChecklist />
+      </section>
+
+      <section className="help-section" id="guides">
+        <p className="eyebrow">Guides</p>
+        <GuideLibrary audience="studio" />
       </section>
 
       <section className="help-section">
@@ -98,6 +105,11 @@ export function HelpCenter() {
           </span>
           <ArrowRight className="help-link-arrow" aria-hidden="true" />
         </Link>
+      </section>
+
+      <section className="help-section" id="glossary">
+        <p className="eyebrow">Words to know</p>
+        <GlossaryList audience="studio" />
       </section>
 
       <section className="help-section">

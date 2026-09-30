@@ -17,6 +17,9 @@ export default function SupportPage() {
         <h1>How can we help?</h1>
         <p className="legal-lead">Get help with your workspace, client workflows, billing, or connected providers.</p>
 
+        <h2>Guides</h2>
+        <p>Step-by-step guides to every part of StudioCue are at <Link href="/how-to">How to use StudioCue</Link>. Inside the product, the How to button at the top of each screen opens the guide for that screen.</p>
+
         <h2>Contact support</h2>
         <p>Email <a href="mailto:support@studio-cue.com">support@studio-cue.com</a>. Include your studio name, the affected project or integration, what you expected to happen, and any non-sensitive error message you saw.</p>
 
