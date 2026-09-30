@@ -4,6 +4,10 @@ import {
   clientAutomationsPaused,
 } from "../imports/existing-booking.js";
 import {
+  clientOutreachStop,
+  mayContactClient,
+} from "../post-event/client-outreach.js";
+import {
   getFirestore,
   type DocumentSnapshot,
 } from "firebase-admin/firestore";
@@ -625,6 +629,26 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
     const project = await getFirestore().doc(`projects/${projectId}`).get();
     if (clientAutomationsPaused(project.data()))
       return { held: "client_automations_paused", type };
+  }
+  // A message a person approved or retried is checked against the job as it
+  // goes, not as it was when they pressed the button. An AI-drafted email
+  // approved on Today, or a failed email retried, used to go to a couple whose
+  // job had been archived, paused or cancelled in between — the guard above
+  // only covers the automated types. Set by decideAiAction, the lifecycle
+  // auto-send, retryEmailJob and the admin rerun; a message the studio writes
+  // and sends itself is its own deliberate act and is not held.
+  if (projectId && document.get("clientOutreachGuard") === true) {
+    const project = await getFirestore().doc(`projects/${projectId}`).get();
+    const data =
+      project.exists && project.get("tenantId") === document.get("tenantId")
+        ? project.data()
+        : null;
+    if (!mayContactClient(data))
+      return {
+        held: "client_outreach_stopped",
+        reason: clientOutreachStop(data) ?? "job_missing",
+        type,
+      };
   }
   // A contract email is about one contract. Asking a couple to sign an
   // agreement they signed an hour ago, or one the studio withdrew, is worse

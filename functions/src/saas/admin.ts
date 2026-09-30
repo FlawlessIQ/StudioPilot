@@ -221,6 +221,17 @@ export const saasAdminCommand = onRequest(
             status: "queued",
             nextAttemptAt: now,
             error: null,
+            // A rerun is a fresh run. Left at the old count, the worker saw a
+            // job already at maxAttempts, so one more transient failure sent
+            // it straight back to dead_letter with no retry at all.
+            attempts: 0,
+            completedAt: null,
+            // A rerun email is re-checked against the job's contact rules as
+            // it sends (operations/jobs.ts): the job may have been archived or
+            // paused since it first failed.
+            ...(parsed.input.collectionName === "emailJobs"
+              ? { clientOutreachGuard: true }
+              : {}),
             manualReplayId: replayId,
             manualRerunBy: identity.uid,
             updatedAt: now,

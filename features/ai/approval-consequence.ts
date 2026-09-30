@@ -19,7 +19,32 @@
 const validEmail = (value: string | null | undefined) =>
   Boolean(value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value));
 
+/**
+ * The capabilities whose approval sends the email. A copy of
+ * SEND_ON_APPROVAL_CAPABILITIES in functions/src/ai/approved-communication.ts
+ * (functions/ is a separate package); tests/wave0-email.test.ts keeps them
+ * identical. A message draft outside this list — a proposal cover — is only
+ * saved by approving, and the card must say so rather than "emails this".
+ */
+export const SEND_ON_APPROVAL_CAPABILITIES = [
+  "inquiry_reply_draft",
+  "planning_followup_draft",
+  "inquiry_follow_up",
+  "delivery_message_draft",
+  "review_request_draft",
+] as const;
+
+export function sendsOnApproval(capability: string): boolean {
+  return (SEND_ON_APPROVAL_CAPABILITIES as readonly string[]).includes(capability);
+}
+
 export type ApprovalConsequenceInput = {
+  /**
+   * What kind of draft this is. When given, only a capability the server
+   * sends on approval is promised as a send. Omitted by older callers, which
+   * keeps the recipient/subject/body rule alone.
+   */
+  capability?: string | null;
   /** A downstream command, when approving runs one. */
   downstreamCommandType: string | null;
   recipient: string | null;
@@ -51,6 +76,7 @@ function commandOf(input: ApprovalConsequenceInput): string | null {
  */
 export function dispatchesOnApproval(input: ApprovalConsequenceInput): boolean {
   if (commandOf(input)) return false;
+  if (input.capability && !sendsOnApproval(input.capability)) return false;
   return (
     validEmail(input.recipient) &&
     (input.subject ?? "").trim().length > 0 &&
@@ -92,6 +118,9 @@ export function approvalConsequenceSentence(
   }
   if (dispatchesOnApproval(input)) {
     return `Approving emails this to ${input.recipient} straight away.`;
+  }
+  if (input.capability && !sendsOnApproval(input.capability) && input.body) {
+    return "Approving saves the draft. It isn't emailed from here.";
   }
   return "Approving saves the draft. Nothing goes to the client until you send it.";
 }

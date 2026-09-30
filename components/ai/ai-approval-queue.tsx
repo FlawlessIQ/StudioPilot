@@ -33,7 +33,9 @@ import {
 import {
   approvalConsequenceSentence,
   dispatchesOnApproval,
+  sendsOnApproval,
 } from "@/features/ai/approval-consequence";
+import { friendlyError } from "@/lib/ai/friendly-error";
 import {
   StructuredContentFields,
   StructuredContentPreview,
@@ -134,6 +136,7 @@ export function AiQueueCard({
   // What approving will actually do. The edited subject and body are what
   // would be sent when the editor is open, so the sentence follows the edit.
   const consequenceInput = {
+    capability: text(action.capability) || null,
     downstreamCommandType: text(downstream.commandType) || null,
     recipient: text(output.recipientEmail) || null,
     subject: (editing && isMessageDraft ? subjectDraft : text(output.subject)) || null,
@@ -167,7 +170,8 @@ export function AiQueueCard({
       if (decision === "rejected") setRejectedActionId(action.id);
       if (
         decision === "approved" &&
-        text(action.capability) === "inquiry_reply_draft" &&
+        sendsOnApproval(text(action.capability)) &&
+        result.alreadyDecided !== true &&
         typeof output.recipientEmail === "string" &&
         output.recipientEmail
       ) {
@@ -176,7 +180,9 @@ export function AiQueueCard({
         // of the approval, so the button must not still offer to send it —
         // that is what made the card contradict itself.
         setApprovedReplyDraftId(`ai_reply_${action.id}`);
-        if (approvingSends) setDispatched(true);
+        // The server says whether it queued the email; the card's own guess
+        // (approvingSends) is only a forecast.
+        if (result.emailQueued === true) setDispatched(true);
       } else if (decision === "approved" && isProposedStudioCommand(output)) {
         // A non-email studio command: run it through the normal command endpoint
         // now that the owner has approved, then record the execution on the
@@ -203,11 +209,10 @@ export function AiQueueCard({
         onDecision(action.id, decision);
       }
     } catch (caught: unknown) {
-      setNotice(
-        caught instanceof Error
-          ? caught.message.replaceAll("_", " ")
-          : "The decision could not be saved.",
-      );
+      // Readable copy for the refusals that matter here — "Already done" on a
+      // second approval, and why a paused or put-away job's couple was not
+      // written to — instead of the raw code with its underscores removed.
+      setNotice(friendlyError(caught, "The decision could not be saved."));
     } finally {
       setBusy(null);
     }
@@ -479,7 +484,8 @@ export function AiQueueCard({
             type="button"
           >
             {busy === "dispatch" ? <LoaderCircle className="spin" /> : <Send />}
-            {dispatched ? "Reply sent" : "Send reply now"}
+            {/* Queued, not yet delivered: the worker sends it a moment later. */}
+            {dispatched ? "Queued to send" : "Send reply now"}
           </button>
           <button
             disabled={Boolean(busy)}

@@ -26,8 +26,32 @@ const eventSchema = z.array(
     projectId: z.string().optional(),
     reason: z.string().optional(),
     url: z.string().optional(),
+    /** On a bounce: "bounce" (the address is bad) or "blocked" (the receiving server refused). */
+    type: z.string().optional(),
   }),
 );
+
+/**
+ * The delivery status recorded on the job and message.
+ *
+ * SendGrid reports a refusal by the receiving server as a `bounce` event with
+ * `type: "blocked"`; the Activity API reconciler (delivery-reconciler.ts) calls
+ * the same thing `blocked`. Recorded the same way from both routes, so Today
+ * and the thread read one vocabulary.
+ */
+export function deliveryStatusFor(event: { event: string; type?: string }): string {
+  return event.event === "bounce" && event.type === "blocked"
+    ? "blocked"
+    : event.event;
+}
+
+/** Statuses that mean the email did not reach the person. */
+export const undeliveredStatuses: readonly string[] = [
+  "bounce",
+  "blocked",
+  "dropped",
+  "spamreport",
+];
 function validSignature(
   timestamp: string,
   rawBody: Buffer,
@@ -95,6 +119,8 @@ export const sendgridEventWebhook = onRequest(
       const tenantId = job.get("tenantId");
       if (typeof tenantId !== "string") continue;
       const occurredAt = new Date(event.timestamp * 1000).toISOString();
+      const deliveryStatus = deliveryStatusFor(event);
+      const undelivered = undeliveredStatuses.includes(deliveryStatus);
       const batch = db.batch();
       batch.create(eventReference, {
         tenantId,
@@ -111,26 +137,26 @@ export const sendgridEventWebhook = onRequest(
         createdAt: new Date().toISOString(),
       });
       batch.update(job.ref, {
-        deliveryStatus: event.event,
+        deliveryStatus,
         lastDeliveryEventAt: occurredAt,
         ...(event.event === "delivered" ? { deliveredAt: occurredAt } : {}),
         ...(event.event === "open" ? { openedAt: occurredAt } : {}),
         ...(event.event === "click" ? { clickedAt: occurredAt } : {}),
-        ...(["bounce", "dropped", "spamreport"].includes(event.event)
-          ? { deliveryError: event.reason ?? event.event }
+        ...(undelivered
+          ? { deliveryError: event.reason ?? deliveryStatus }
           : {}),
         updatedAt: new Date().toISOString(),
       });
       batch.set(
         db.doc(`messages/${job.id}`),
         {
-          deliveryStatus: event.event,
+          deliveryStatus,
           lastDeliveryEventAt: occurredAt,
           ...(event.event === "delivered" ? { deliveredAt: occurredAt } : {}),
           ...(event.event === "open" ? { openedAt: occurredAt } : {}),
           ...(event.event === "click" ? { clickedAt: occurredAt } : {}),
-          ...(["bounce", "dropped", "spamreport"].includes(event.event)
-            ? { deliveryError: event.reason ?? event.event }
+          ...(undelivered
+            ? { deliveryError: event.reason ?? deliveryStatus }
             : {}),
           updatedAt: new Date().toISOString(),
           updatedBy: "sendgrid-event-webhook",
@@ -139,7 +165,7 @@ export const sendgridEventWebhook = onRequest(
       );
       if (
         event.event === "delivered" ||
-        ["bounce", "dropped", "spamreport"].includes(event.event)
+        undelivered
       ) {
         const outcomeEvent = productEvent({
           tenantId,
@@ -160,7 +186,7 @@ export const sendgridEventWebhook = onRequest(
             humanRole:
               event.event === "delivered" ? "none" : "exception",
             provider: "sendgrid",
-            providerEvent: event.event,
+            providerEvent: deliveryStatus,
             reason: event.reason ?? null,
           },
         });

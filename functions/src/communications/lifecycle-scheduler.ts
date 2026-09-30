@@ -19,6 +19,8 @@ const text = (value: unknown): string =>
  * T-1 checklist) created as review_required aiActions. Drafts are rendered
  * deterministically from verified facts — no model call, no AI quota — and a
  * human approves each one in the AI review queue before anything is sent.
+ * Approving is the send: `delivery_message_draft` is one of the capabilities
+ * decideAiAction queues an email for (ai/approved-communication.ts).
  * Draft IDs are stable per (project, trigger): reruns never duplicate work.
  */
 export const lifecycleMessageScheduler = onSchedule(
@@ -248,6 +250,8 @@ export const lifecycleMessageScheduler = onSchedule(
             actionUrl: null,
             category: "general",
             aiActionId: actionId,
+            // Re-read the job's contact rules as it sends (operations/jobs.ts).
+            clientOutreachGuard: true,
             status: "queued",
             scheduledFor: null,
             attempts: 0,

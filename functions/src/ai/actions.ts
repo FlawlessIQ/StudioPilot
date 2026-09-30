@@ -5,7 +5,16 @@ import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { productEvent } from "../operations/product-events.js";
-import { approvedCommunicationDispatch } from "./approved-communication.js";
+import {
+  approvedCommunicationDispatch,
+  communicationCategoryFor,
+  sendsOnApproval,
+} from "./approved-communication.js";
+import { decisionGate } from "./decision-guard.js";
+import {
+  clientOutreachStop,
+  mayContactClient,
+} from "../post-event/client-outreach.js";
 import { studioHubCors } from "../security/cors.js";
 
 const commandSchema = z.object({
@@ -174,6 +183,35 @@ export const aiActionCommand = onRequest(
         const decision = z
           .enum(["approved", "rejected", "dismissed"])
           .parse(parsed.input.decision);
+        const note = text(parsed.input.note) || null;
+        const gate = decisionGate(text(action.get("status")), decision);
+        if (gate === "refuse") throw new Error("AI_ACTION_ALREADY_DECIDED");
+        if (gate === "repeat") {
+          // The same decision again runs nothing: no second receipt, and above
+          // all no second email. The rejection form arrives this way to add
+          // its reason, so that is the one thing a repeat may still record.
+          if (decision === "rejected" && note && !text(action.get("decision.note")))
+            await actionReference.update({
+              "decision.note": note,
+              updatedAt: now,
+              updatedBy: identity.uid,
+            });
+          const prior = record(action.get("decisionResult"));
+          response.status(200).json({
+            actionId,
+            status: decision,
+            receiptId: text(prior.receiptId) || null,
+            downstreamConsequence:
+              decision === "approved"
+                ? "Already approved. Nothing was sent again."
+                : decision === "rejected"
+                  ? "Already rejected."
+                  : "Already dismissed.",
+            emailQueued: false,
+            alreadyDecided: true,
+          });
+          return;
+        }
         const editDelta = record(parsed.input.editDelta);
         const validationIssues = Array.isArray(
           action.get("validation.issues"),
@@ -195,18 +233,28 @@ export const aiActionCommand = onRequest(
           ...editDelta,
         };
         const downstream = record(action.get("downstreamCommand"));
+        const capability = text(action.get("capability"));
         const communicationApproval =
-          decision === "approved" &&
-          ["inquiry_reply_draft", "planning_followup_draft", "inquiry_follow_up"].includes(
-            text(action.get("capability")),
-          );
+          decision === "approved" && sendsOnApproval(capability);
+        // The job's contact rules, read as the approval is given. An archived,
+        // paused or cancelled job's couple is not written to — and the studio
+        // is told so here, rather than the draft being "approved" into a send
+        // that the worker then quietly holds.
+        if (communicationApproval && projectId) {
+          const project = await db.doc(`projects/${projectId}`).get();
+          const data =
+            project.exists && project.get("tenantId") === parsed.tenantId
+              ? project.data()
+              : null;
+          if (!mayContactClient(data))
+            throw new Error(
+              `CLIENT_OUTREACH_STOPPED:${clientOutreachStop(data) ?? "job_missing"}`,
+            );
+        }
         const communicationDraftId = communicationApproval
           ? `ai_reply_${actionId}`
           : null;
-        const communicationCategory =
-          action.get("capability") === "planning_followup_draft"
-            ? "planning"
-            : "general";
+        const communicationCategory = communicationCategoryFor(capability);
         const communicationDispatch = communicationApproval
           ? approvedCommunicationDispatch({
               actionId,
@@ -223,6 +271,7 @@ export const aiActionCommand = onRequest(
               now,
             })
           : null;
+        const emailJobId = communicationDispatch?.emailJob?.id ?? null;
         const consequence = text(parsed.input.consequence) ||
           (communicationDispatch
             ? communicationDispatch.consequence
@@ -239,97 +288,13 @@ export const aiActionCommand = onRequest(
           status: decision,
           receiptId,
           downstreamConsequence: consequence,
+          emailQueued: Boolean(emailJobId),
         };
-        const batch = db.batch();
-        batch.update(actionReference, {
-          status: decision,
-          structuredOutput,
-          decision: {
-            actorId: identity.uid,
-            action: decision,
-            decidedAt: now,
-            note: text(parsed.input.note) || null,
-            editDelta:
-              Object.keys(editDelta).length > 0 ? editDelta : null,
-          },
-          validation:
-            decision === "approved"
-              ? {
-                  status: "passed",
-                  issues: validationIssues.map((issue) =>
-                    issue.code === "LOW_CONFIDENCE"
-                      ? {
-                          ...issue,
-                          severity: "info",
-                          message:
-                            "Low-confidence fields were confirmed by the reviewer.",
-                        }
-                      : issue,
-                  ),
-                }
-              : action.get("validation"),
-          snoozedUntil: null,
-          updatedAt: now,
-          updatedBy: identity.uid,
-        });
-        if (communicationDraftId) {
-          const leadSource = Array.isArray(action.get("sourceReferences"))
-            ? (action.get("sourceReferences") as unknown[])
-                .map(record)
-                .find((source) => source.entityType === "lead")
-            : null;
-          batch.set(
-            db.doc(`communicationDrafts/${communicationDraftId}`),
-            {
-              id: communicationDraftId,
-              tenantId: parsed.tenantId,
-              projectId,
-              leadId: leadSource ? text(leadSource.entityId) : null,
-              contactId: text(structuredOutput.contactId) || null,
-              recipient: structuredOutput.recipientEmail ?? null,
-              recipientName: structuredOutput.recipientName ?? null,
-              projectName: structuredOutput.projectName ?? null,
-              subject: structuredOutput.subject,
-              body: structuredOutput.body,
-              category: communicationCategory,
-              actionLabel: null,
-              actionUrl: null,
-              scheduledFor: null,
-              status: communicationDispatch?.draftStatus ?? "approved_unsent",
-              requestedBy: identity.uid,
-              approvedBy: identity.uid,
-              approvedAt: now,
-              aiActionId: actionId,
-              createdAt: now,
-              updatedAt: now,
-              createdBy: identity.uid,
-              updatedBy: identity.uid,
-            },
-            { merge: true },
-          );
-          if (communicationDispatch?.emailJob) {
-            batch.set(
-              db.doc(`emailJobs/${communicationDispatch.emailJob.id}`),
-              communicationDispatch.emailJob,
-              { merge: false },
-            );
-          }
-        }
-        batch.create(db.doc(`actionReceipts/${receiptId}`), receipt({
-          id: receiptId,
-          tenantId: parsed.tenantId,
-          projectId,
-          actorId: identity.uid,
-          title: `${decision === "approved" ? "Approved" : decision === "rejected" ? "Rejected" : "Dismissed"} ${text(action.get("capability")).replaceAll("_", " ")}`,
-          summary: consequence,
-          status: "completed",
-          affectedEntityType: "aiAction",
-          affectedEntityId: actionId,
-          providerEvidence: downstream,
-          reversible: decision === "dismissed",
-          retryable: false,
-          now,
-        }));
+        const leadSource = Array.isArray(action.get("sourceReferences"))
+          ? (action.get("sourceReferences") as unknown[])
+              .map(record)
+              .find((source) => source.entityType === "lead")
+          : null;
         const eventName =
           decision === "approved"
             ? Object.keys(editDelta).length
@@ -353,17 +318,126 @@ export const aiActionCommand = onRequest(
             editedFieldCount: Object.keys(editDelta).length,
           },
         });
-        batch.create(db.doc(`productEvents/${event.id}`), event);
-        batch.create(executionReference, {
-          id: executionId,
-          tenantId: parsed.tenantId,
-          type: parsed.type,
-          status: "succeeded",
-          result,
-          createdAt: now,
-          updatedAt: now,
-        });
-        await batch.commit();
+        // One transaction, with the status read again inside it: two presses
+        // that both read `review_required` above cannot both get here, and the
+        // email job is created — never overwritten — so a second approval
+        // could not re-queue a sent email even if they did.
+        let raced = false;
+        try {
+          raced = await db.runTransaction(async (transaction) => {
+            const fresh = await transaction.get(actionReference);
+            if (decisionGate(text(fresh.get("status")), decision) !== "proceed")
+              return true;
+            transaction.update(actionReference, {
+              status: decision,
+              structuredOutput,
+              decision: {
+                actorId: identity.uid,
+                action: decision,
+                decidedAt: now,
+                note,
+                editDelta:
+                  Object.keys(editDelta).length > 0 ? editDelta : null,
+                // What the approval actually sent. The trust dial counts only
+                // approvals that queued an email, so an approval that saved an
+                // unsendable draft is not evidence the message can go alone.
+                emailJobId,
+              },
+              decisionResult: result,
+              validation:
+                decision === "approved"
+                  ? {
+                      status: "passed",
+                      issues: validationIssues.map((issue) =>
+                        issue.code === "LOW_CONFIDENCE"
+                          ? {
+                              ...issue,
+                              severity: "info",
+                              message:
+                                "Low-confidence fields were confirmed by the reviewer.",
+                            }
+                          : issue,
+                      ),
+                    }
+                  : action.get("validation"),
+              snoozedUntil: null,
+              updatedAt: now,
+              updatedBy: identity.uid,
+            });
+            if (communicationDraftId) {
+              transaction.set(
+                db.doc(`communicationDrafts/${communicationDraftId}`),
+                {
+                  id: communicationDraftId,
+                  tenantId: parsed.tenantId,
+                  projectId,
+                  leadId: leadSource
+                    ? text(leadSource.entityId)
+                    : text(structuredOutput.leadId) || null,
+                  contactId: text(structuredOutput.contactId) || null,
+                  recipient: structuredOutput.recipientEmail ?? null,
+                  recipientName: structuredOutput.recipientName ?? null,
+                  projectName: structuredOutput.projectName ?? null,
+                  subject: structuredOutput.subject,
+                  body: structuredOutput.body,
+                  category: communicationCategory,
+                  actionLabel: null,
+                  actionUrl: null,
+                  scheduledFor: null,
+                  status: communicationDispatch?.draftStatus ?? "approved_unsent",
+                  requestedBy: identity.uid,
+                  approvedBy: identity.uid,
+                  approvedAt: now,
+                  aiActionId: actionId,
+                  createdAt: now,
+                  updatedAt: now,
+                  createdBy: identity.uid,
+                  updatedBy: identity.uid,
+                },
+                { merge: true },
+              );
+              if (communicationDispatch?.emailJob) {
+                transaction.create(
+                  db.doc(`emailJobs/${communicationDispatch.emailJob.id}`),
+                  communicationDispatch.emailJob,
+                );
+              }
+            }
+            transaction.create(db.doc(`actionReceipts/${receiptId}`), receipt({
+              id: receiptId,
+              tenantId: parsed.tenantId,
+              projectId,
+              actorId: identity.uid,
+              title: `${decision === "approved" ? "Approved" : decision === "rejected" ? "Rejected" : "Dismissed"} ${capability.replaceAll("_", " ")}`,
+              summary: consequence,
+              status: "completed",
+              affectedEntityType: "aiAction",
+              affectedEntityId: actionId,
+              providerEvidence: emailJobId ? { ...downstream, emailJobId } : downstream,
+              reversible: decision === "dismissed",
+              retryable: false,
+              now,
+            }));
+            transaction.create(db.doc(`productEvents/${event.id}`), event);
+            transaction.create(executionReference, {
+              id: executionId,
+              tenantId: parsed.tenantId,
+              type: parsed.type,
+              status: "succeeded",
+              result,
+              createdAt: now,
+              updatedAt: now,
+            });
+            return false;
+          });
+        } catch (caught: unknown) {
+          // ALREADY_EXISTS: the email job (or this very command) is already
+          // there, which only a concurrent decision can cause.
+          if ((caught as { code?: unknown }).code === 6)
+            throw new Error("AI_ACTION_ALREADY_DECIDED");
+          throw caught;
+        }
+        if (raced) throw new Error("AI_ACTION_ALREADY_DECIDED");
         response.status(200).json(result);
         return;
       }
@@ -601,7 +675,13 @@ export const aiActionCommand = onRequest(
               ? 404
               : 400,
         )
-        .json({ error: code.split(":")[0] });
+        .json({
+          // The one code whose detail is copy, not plumbing: *why* the job
+          // may not be written to (put away, paused, cancelled).
+          error: /^CLIENT_OUTREACH_STOPPED:[a-z_]+$/.test(code)
+            ? code
+            : code.split(":")[0],
+        });
     }
   },
 );
