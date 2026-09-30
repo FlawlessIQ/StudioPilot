@@ -512,6 +512,9 @@
 .amendment-check{display:flex!important;gap:8px;align-items:center;font-size:13px;font-weight:500}
 .amendment-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .amendment-hint{margin:0;font-size:12px;color:var(--muted,#6b7570)}
+/* "Withdraw" and "Record their signature" ask once more, saying what follows. */
+.amendment-confirm{display:grid;gap:10px;padding:12px;border:1px solid var(--line,#dfe3df);border-radius:10px}
+.amendment-confirm label{display:grid;gap:4px;font-size:13px;font-weight:600}
 
 /* Settling a final balance (components/booking/final-balance-actions.tsx). */
 .final-balance-actions{display:grid;gap:8px}

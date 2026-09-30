@@ -68,9 +68,19 @@ import {
   draftAmendmentInput,
   recordAmendmentSigned,
   recordAmendmentSignedInput,
+  resendAmendment,
+  resendAmendmentInput,
+  retryAmendmentApply,
+  retryAmendmentApplyInput,
   sendAmendment,
   sendAmendmentInput,
 } from "../contracts/amendments.js";
+import {
+  resendContract,
+  resendContractInput,
+  retrySignedCopy,
+  retrySignedCopyInput,
+} from "../contracts/follow-ups.js";
 
 const commandSchema = z.discriminatedUnion("type", [
   // StudioCue's own contracts — see ../contracts/commands.ts.
@@ -122,6 +132,31 @@ const commandSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: cancelAmendmentInput,
+  }),
+  z.object({
+    type: z.literal("resendAmendment"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: resendAmendmentInput,
+  }),
+  z.object({
+    type: z.literal("retryAmendmentApply"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: retryAmendmentApplyInput,
+  }),
+  // After a contract went out — see ../contracts/follow-ups.ts.
+  z.object({
+    type: z.literal("resendContract"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: resendContractInput,
+  }),
+  z.object({
+    type: z.literal("retrySignedCopy"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: retrySignedCopyInput,
   }),
   // One send, two signatures — see ../contracts/combined-commands.ts.
   z.object({
@@ -1295,6 +1330,30 @@ export const bookingCommand = onRequest(
             updatedAt: timestamp,
             updatedBy: identity.uid,
           });
+          // The couple was holding this one, with a "Review and sign" email in
+          // their inbox and reminders still to come. Recording their signature
+          // retired it without a word to them, so they could reasonably think
+          // they still had something to sign. Tell them they don't.
+          const outstandingSigners = Array.isArray(outstanding.get("signers"))
+            ? (outstanding.get("signers") as Array<Record<string, unknown>>)
+            : [];
+          const outstandingClient = outstandingSigners.find((signer) => signer.role === "primary_client");
+          if (typeof outstandingClient?.email === "string" && outstandingClient.email) {
+            batch.set(firestore.doc(`emailJobs/contract_superseded_${outstanding.id}`), {
+              id: `contract_superseded_${outstanding.id}`,
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              contractId: outstanding.id,
+              type: "contract_superseded",
+              recipient: outstandingClient.email,
+              recipientName:
+                typeof outstandingClient.name === "string" ? outstandingClient.name : null,
+              status: "queued",
+              attempts: 0,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            });
+          }
         }
         if (signedCopyPath) {
           const document = signedCopyDocument({
@@ -1355,6 +1414,10 @@ export const bookingCommand = onRequest(
         batch.update(firestore.doc(`projects/${command.input.projectId}`), {
           state: "RETAINER_PENDING",
           stateVersion: priorStateVersion + 1,
+          // As the couple's own signature sets it (server/contracts/
+          // client-signing.ts); left alone it still said "Waiting for the
+          // client to sign the agreement" on a signed job.
+          nextAction: "Collect the retainer",
           updatedAt: timestamp,
           updatedBy: identity.uid,
         });
@@ -2569,7 +2632,11 @@ export const bookingCommand = onRequest(
         command.type === "draftAmendment" ||
         command.type === "sendAmendment" ||
         command.type === "recordAmendmentSigned" ||
-        command.type === "cancelAmendment"
+        command.type === "cancelAmendment" ||
+        command.type === "resendAmendment" ||
+        command.type === "retryAmendmentApply" ||
+        command.type === "resendContract" ||
+        command.type === "retrySignedCopy"
       ) {
         const contractContext = {
           tenantId: command.tenantId,
@@ -2619,6 +2686,14 @@ export const bookingCommand = onRequest(
           result = await recordAmendmentSigned(contractContext, command.input);
         else if (command.type === "cancelAmendment")
           result = await cancelAmendment(contractContext, command.input);
+        else if (command.type === "resendAmendment")
+          result = await resendAmendment(contractContext, command.input);
+        else if (command.type === "retryAmendmentApply")
+          result = await retryAmendmentApply(contractContext, command.input);
+        else if (command.type === "resendContract")
+          result = await resendContract(contractContext, command.input);
+        else if (command.type === "retrySignedCopy")
+          result = await retrySignedCopy(contractContext, command.input);
         else result = await voidContract(contractContext, command.input);
       } else if (command.type === "previewExistingBookings") {
         result = await previewExistingBookings({

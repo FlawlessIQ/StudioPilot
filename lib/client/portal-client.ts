@@ -391,6 +391,8 @@ export function signClientCombinedAgreement(input: {
 export type ClientBookingChange = {
   id: string;
   status: string;
+  /** Set when the studio withdrew a change it had sent (status "cancelled"). */
+  withdrawnAt?: string | null;
   changes: string[];
   document: unknown;
   documentHash: string | null;

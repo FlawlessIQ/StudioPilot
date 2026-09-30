@@ -1048,6 +1048,13 @@ export function StudioProposalComposer() {
 
   async function removeExtraPackage(projectIdToEdit: string, packageSnapshotId: string) {
     if (!workspace.tenantId) return;
+    const extra = selectedFor(projectIdToEdit)?.extraSnapshots.find((item) => String(item.id) === packageSnapshotId);
+    if (
+      !window.confirm(
+        `Take ${text(extra?.packageName, "this package")} off the job? Adding it back later starts it at today's price.`,
+      )
+    )
+      return;
     setLockingPackageId(packageSnapshotId);
     setError("");
     try {
@@ -1063,6 +1070,19 @@ export function StudioProposalComposer() {
 
   async function lockPackage(packageId: string, mode: "replace" | "add" = "replace") {
     if (!packagePickerFor || !workspace.tenantId) return;
+    // "Start over with this one" replaces every package on the job, extras
+    // and all. It used to drop the ones added alongside without a word.
+    const current = selectedFor(packagePickerFor.id);
+    if (mode === "replace" && current) {
+      const losing = [current.packageSnapshot, ...current.extraSnapshots].map((item) => text(objectValue(item).packageName, "a package"));
+      const chosen = text((activePackages ?? []).find((item) => item.id === packageId)?.name, "this package");
+      if (
+        !window.confirm(
+          `Start over with ${chosen}? This takes ${losing.join(" and ")} off the job, with any extras and discount on ${losing.length > 1 ? "them" : "it"}.`,
+        )
+      )
+        return;
+    }
     // A blank field is no discount, not a zero-value one, and anything that is
     // not a number is treated the same way rather than sent as NaN.
     const parsedDiscount = Number.parseFloat(discountDollars.replace(/[^0-9.]/g, ""));

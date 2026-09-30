@@ -162,9 +162,9 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
         // `discount` is required by the command schema — there is no default.
         // Cue's picker omitted it, so every package selection from the chat
         // came back 400 INVALID_COMMAND:discount and no package was ever
-        // applied. The proposal workspace and booking autopilot, the two
-        // callers that work, both send exactly this.
-        discount: { type: "none" as const },
+        // applied. "keep" is none for a new or added package, and on a swap
+        // carries the replaced package's discount rather than dropping it.
+        discount: { type: "keep" as const },
       });
       if (!response.persisted) {
         setNotice("Preview: the package would be selected from here.");

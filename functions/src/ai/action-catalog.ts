@@ -65,8 +65,10 @@ export const STUDIO_ACTIONS: readonly ServerActionSpec[] = [
   // Packages and proposals
   { id: "add_package", scope: "project", flow: "select_package", when: "choose a package, or add another package to a job (they want video too) — package name in `subject`" },
   { id: "change_booking", scope: "project", when: "change a booking the couple already signed or booked: move the wedding date, add or remove a package — date in `date`, package in `subject`" },
+  { id: "resend_booking_change", scope: "project", ownerAdminOnly: true, when: "send a booking change (amendment) that is waiting for the couple's signature to them again / remind them to sign it" },
   { id: "swap_package", scope: "project", when: "replace a job's main package with a different one — package name in `subject`" },
   { id: "remove_package", scope: "project", when: "take a package off a job — package name in `subject`" },
+  { id: "set_package_discount", scope: "project", when: "give, change or remove a discount on a job's package before the agreement goes out (10% off, $250 off) — package name in `subject`" },
   { id: "approve_package_request", scope: "project", when: "approve a couple's request (from their portal) to add a package" },
   { id: "decline_package_request", scope: "project", when: "decline a couple's request to add a package" },
   { id: "draft_proposal", scope: "project", when: "prepare an unsent proposal draft (a cover note in `text`)" },
@@ -84,6 +86,7 @@ export const STUDIO_ACTIONS: readonly ServerActionSpec[] = [
   { id: "sign_and_send_contract", scope: "project", when: "the owner signs the contract and sends it to the couple — the owner signs on the card" },
   { id: "send_contract", scope: "project", when: "send the prepared contract to the couple for signature" },
   { id: "void_contract", scope: "project", when: "void / cancel a contract that went out (to change the packages, or it was wrong)" },
+  { id: "resend_contract", scope: "project", ownerAdminOnly: true, when: "send the contract to the couple again / remind them to sign it now (they lost the email, it went to spam)" },
   { id: "share_signed_copy", scope: "project", when: "share the signed contract with the couple in their portal, or stop sharing it" },
   { id: "record_signed_contract", scope: "project", when: "the couple signed a paper or outside contract and the studio records the signature" },
   // Money

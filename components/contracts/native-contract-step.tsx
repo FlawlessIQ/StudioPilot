@@ -21,6 +21,8 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import {
   prepareContract,
+  resendContract,
+  retrySignedCopy,
   sendContract,
   signedCopyUrl,
   voidContract,
@@ -87,6 +89,18 @@ export function NativeContractStep({
     ? contract
     : null;
   const status = String(live?.status ?? "");
+  // Signing for the studio, withdrawing, sending again and remaking the
+  // signed copy are owner/admin commands (functions/src/contracts). A
+  // coordinator was offered all of them and refused by the server.
+  const ownerOrAdmin = workspace.role === "studio_owner" || workspace.role === "studio_admin";
+  /**
+   * The signed copy's job (pdfJobs/contract_seal_{id}), read when the copy
+   * hasn't appeared. When it gave up, this page said "it usually takes a
+   * minute" for good. null: not read (or not readable — coordinators can't).
+   */
+  const [sealStatus, setSealStatus] = useState<string | null>(null);
+  const awaitingCopy =
+    Boolean(live) && status === "completed" && !FILE_BEARING.contracts(live!).length && !live!.amendmentId;
 
   const loadDraft = useCallback(async () => {
     if (!dataIsLive) return;
@@ -134,6 +148,22 @@ export function NativeContractStep({
     // The fetch lives in the effect; every setState lands after an await.
     void Promise.resolve().then(loadDraft);
   }, [loadDraft, reload]);
+
+  const liveId = live?.id ?? null;
+  const loadSeal = useCallback(async () => {
+    if (!dataIsLive || !liveId || !awaitingCopy || !ownerOrAdmin) return;
+    try {
+      const { firestore } = getFirebaseClient();
+      const job = await getDoc(doc(firestore, "pdfJobs", `contract_seal_${liveId}`));
+      setSealStatus(job.exists() ? String(job.get("status") ?? "") : "missing");
+    } catch {
+      setSealStatus(null);
+    }
+  }, [awaitingCopy, liveId, ownerOrAdmin]);
+
+  useEffect(() => {
+    void Promise.resolve().then(loadSeal);
+  }, [loadSeal, reload]);
 
   /**
    * Pre-filled only when the account's name reads as a person's. It is often
@@ -230,7 +260,11 @@ export function NativeContractStep({
     try {
       window.open(await signedCopyUrl(path), "_blank", "noopener,noreferrer");
     } catch {
-      setError("The signed copy isn't ready yet. It usually takes a minute after signing.");
+      setError(
+        sealStatus && ["dead_letter", "failed", "missing"].includes(sealStatus)
+          ? "The signed copy wasn't made. Use Make the signed copy again."
+          : "The signed copy isn't ready yet. It usually takes a minute after signing.",
+      );
     }
   }
 
@@ -238,6 +272,7 @@ export function NativeContractStep({
     ? (live!.signatures as Array<{ role: string; typedName: string; signedAt: string }>)
     : [];
   const clientSignature = signatures.find((signature) => signature.role === "client");
+  const sealing = busy === "seal";
   const studioSignature = signatures.find((signature) => signature.role === "studio");
 
   if (loadingDraft) {
@@ -269,7 +304,20 @@ export function NativeContractStep({
           )}
           {status !== "completed" ? (
             <p className="native-contract-note">
-              They sign in their portal. A reminder goes out at 3 and 7 days if it&rsquo;s still unsigned.
+              {`They sign in their portal. A reminder goes out at 3 and 7 days if it’s still unsigned${
+                live.lastResentAt ? `; you sent it again ${formatSignedAt(live.lastResentAt)}` : ""
+              }.${ownerOrAdmin ? "" : " An owner or admin can send it again or withdraw it."}`}
+            </p>
+          ) : null}
+          {awaitingCopy && sealStatus && ["dead_letter", "failed", "missing"].includes(sealStatus) ? (
+            <p className="native-contract-note" role="status">
+              <strong>The signed copy wasn&rsquo;t made.</strong>{" "}
+              The agreement is signed and complete; only the PDF copy (and the email that carries it to them) is
+              missing. Make it again.
+            </p>
+          ) : awaitingCopy && sealStatus && sealStatus !== "succeeded" ? (
+            <p className="native-contract-note" role="status">
+              The signed copy is being made. It&rsquo;s emailed to them when it&rsquo;s ready.
             </p>
           ) : null}
         </div>
@@ -283,10 +331,44 @@ export function NativeContractStep({
               <Download aria-hidden size={15} /> Signed copy
             </button>
           ) : null}
+          {awaitingCopy && ownerOrAdmin && sealStatus && ["dead_letter", "failed", "missing"].includes(sealStatus) ? (
+            <button
+              className="button button-light"
+              disabled={busy !== null}
+              onClick={() =>
+                void run(
+                  "seal",
+                  () => retrySignedCopy({ contractId: live.id }),
+                  "Making the signed copy again. It's emailed to them when it's ready.",
+                )
+              }
+              type="button"
+            >
+              <RotateCw aria-hidden size={15} className={sealing ? "spin" : undefined} />
+              {sealing ? "Starting…" : "Make the signed copy again"}
+            </button>
+          ) : null}
           <button className="button button-light" onClick={() => setShowText((value) => !value)} type="button">
             {showText ? "Hide the agreement" : "Read the agreement"}
           </button>
-          {status !== "completed" ? (
+          {status !== "completed" && ownerOrAdmin ? (
+            <button
+              className="button button-light"
+              disabled={busy !== null}
+              onClick={() =>
+                void run(
+                  "resend",
+                  () => resendContract({ projectId, contractId: live.id }),
+                  "Sent to them again.",
+                )
+              }
+              type="button"
+            >
+              <Send aria-hidden size={15} />
+              {busy === "resend" ? "Sending…" : "Send it again"}
+            </button>
+          ) : null}
+          {status !== "completed" && ownerOrAdmin ? (
             <button className="button button-light" onClick={() => setVoiding((value) => !value)} type="button">
               Withdraw it
             </button>
@@ -419,6 +501,11 @@ export function NativeContractStep({
           <ContractDocumentView document={parsed} missing={missing} showFields />
         </div>
       ) : null}
+      {!ownerOrAdmin ? (
+        <p className="native-contract-note">
+          A studio owner or admin signs the contract for the studio and sends it to {draft.clientName || "the client"}.
+        </p>
+      ) : (
       <div className="native-contract-send">
         <label>
           Sign for the studio — type your full name
@@ -454,6 +541,7 @@ export function NativeContractStep({
           )}
         </div>
       </div>
+      )}
       {error ? <p className="client-contract-error" role="alert">{error}</p> : null}
     </div>
   );

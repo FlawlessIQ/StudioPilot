@@ -131,6 +131,16 @@ export async function voidContract(input: {
   return persisted(sendBookingCommand({ type: "voidContract", idempotencyKey: key(), input }));
 }
 
+/** Email the couple the agreement to sign again, now (functions/src/contracts/follow-ups.ts). */
+export async function resendContract(input: { projectId: string; contractId: string }) {
+  return persisted(sendBookingCommand({ type: "resendContract", idempotencyKey: key(), input }));
+}
+
+/** Make the signed copy again when making it gave up. */
+export async function retrySignedCopy(input: { contractId: string }) {
+  return persisted(sendBookingCommand({ type: "retrySignedCopy", idempotencyKey: key(), input }));
+}
+
 /** Whether the couple sees a contract signed on paper (see SignedCopySharing). */
 export async function setSignedCopyShared(input: { contractId: string; shared: boolean }) {
   return persisted(sendBookingCommand({ type: "setSignedCopyShared", idempotencyKey: key(), input }));

@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { FileCheck2 } from "lucide-react";
 import { recordSignedAgreement } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { useWorkspace } from "@/features/auth/workspace-context";
 
 /**
  * Recording an agreement signed outside StudioCue.
@@ -30,6 +31,7 @@ export function RecordSignedAgreement({
   primary = false,
   projectId,
   proposalId,
+  supersedes = false,
 }: {
   /** Called with the confirmation to show; the parent owns it, because this
    * control is often unmounted by the reload that follows. */
@@ -38,12 +40,33 @@ export function RecordSignedAgreement({
   primary?: boolean;
   projectId: string;
   proposalId: string;
+  /** A StudioCue agreement is out with the couple, and recording retires it. */
+  supersedes?: boolean;
 }) {
+  const workspace = useWorkspace();
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // Recording moves the job on for good and, when an agreement is out, takes
+  // it back from the couple. It asks once more, saying so; it used to act on
+  // the first tap.
+  const [confirming, setConfirming] = useState(false);
+
+  // The server allows owners and admins only (bookingCommand
+  // recordSignedAgreement); offering it to a coordinator produced a refusal.
+  if (workspace.role !== "studio_owner" && workspace.role !== "studio_admin") {
+    return (
+      <p className="native-contract-note">
+        Signed outside StudioCue? A studio owner or admin records the signature.
+      </p>
+    );
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!confirming) {
+      setConfirming(true);
+      return;
+    }
     // Held before the await: React nulls currentTarget once this yields.
     const form = event.currentTarget;
     const data = new FormData(form);
@@ -64,6 +87,7 @@ export function RecordSignedAgreement({
         return;
       }
       form.reset();
+      setConfirming(false);
       /**
        * Say what happened.
        *
@@ -75,7 +99,9 @@ export function RecordSignedAgreement({
        * whether it landed.
        */
       onRecorded(
-        "Signature recorded against your name. The retainer is the next step.",
+        supersedes
+          ? "Signature recorded against your name. The agreement you sent is retired and the couple is being told there's nothing more to sign. The retainer is the next step."
+          : "Signature recorded against your name. The retainer is the next step.",
       );
     } catch (caught: unknown) {
       setNotice(
@@ -130,9 +156,27 @@ export function RecordSignedAgreement({
             type="file"
           />
         </label>
-        <button className="button" disabled={busy} type="submit">
-          {busy ? "Recording…" : "Record the signature"}
-        </button>
+        {confirming ? (
+          <div className="form-notice" role="group" aria-label="Confirm the signature">
+            <p>
+              {`Record it? The job moves on to the retainer now, and this can’t be undone here — it stands as signed on your word.${
+                supersedes
+                  ? " The agreement you sent them to sign in StudioCue is retired: they can no longer sign it, and they're emailed that there's nothing more to sign."
+                  : ""
+              }`}
+            </p>
+            <button className="button button-light" disabled={busy} onClick={() => setConfirming(false)} type="button">
+              Not yet
+            </button>{" "}
+            <button className="button" disabled={busy} type="submit">
+              {busy ? "Recording…" : "Record it"}
+            </button>
+          </div>
+        ) : (
+          <button className="button" disabled={busy} type="submit">
+            Record the signature
+          </button>
+        )}
         {notice ? (
           <p className="form-notice" role="status">
             {notice}

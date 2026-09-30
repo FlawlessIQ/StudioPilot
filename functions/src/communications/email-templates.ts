@@ -45,6 +45,11 @@ export const emailTemplateKeys = [
   "contract_reminder",
   "contract_signed",
   "contract_voided",
+  // The studio recorded the couple's signature on an agreement signed another
+  // way, which retired the one out for signature here: nothing left to sign.
+  "contract_superseded",
+  // The studio withdrew a booking change the couple had been sent to sign.
+  "amendment_withdrawn",
   // Studio-facing: the couple signed.
   "studio_contract_signed",
   "retainer_invoice",
@@ -813,6 +818,41 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           "We'll send an updated agreement shortly. If you have questions in the meantime, just reply to this email.",
         ],
       };
+    case "contract_superseded":
+      return {
+        subject: `Nothing more to sign for ${brand.studioName}`,
+        preheader: "We have your signed agreement, so the copy we sent you to sign online isn't needed.",
+        eyebrow: "Agreement recorded",
+        heading: "You're all signed",
+        paragraphs: [
+          greeting,
+          `We've recorded your signature on the agreement${project} you signed with us another way, so the copy we sent you to sign online is no longer needed. There's nothing more for you to sign.`,
+          "The next step is your retainer, and we'll be in touch about it. Questions? Just reply to this email.",
+        ],
+        action: portalUrl ? { label: "Open your client portal", url: portalUrl } : undefined,
+      };
+    case "amendment_withdrawn": {
+      const changes = Array.isArray(values.changes)
+        ? values.changes.filter((line): line is string => typeof line === "string" && line.trim() !== "")
+        : [];
+      return {
+        subject: `${brand.studioName} withdrew the change to your booking`,
+        preheader: "Your booking stands exactly as it was, and there's nothing to sign.",
+        eyebrow: "Change withdrawn",
+        heading: "The change to your booking was withdrawn",
+        paragraphs: [
+          greeting,
+          changes.length
+            ? `We've withdrawn the change to your booking${project} that we sent you to sign:`
+            : `We've withdrawn the change to your booking${project} that we sent you to sign.`,
+          // Its own paragraph, so it renders as a list (paragraphHtml).
+          ...(changes.length ? [changes.map((line) => `• ${line}`).join("\n")] : []),
+          "Your booking stands exactly as it was, and there's nothing for you to sign. If anything needs to change later, we'll send it to you fresh.",
+          "Questions? Just reply to this email.",
+        ],
+        action: portalUrl ? { label: "Open your client portal", url: portalUrl } : undefined,
+      };
+    }
     case "studio_contract_signed": {
       const clientName = stringValue(values, "clientName") || "Your client";
       return {

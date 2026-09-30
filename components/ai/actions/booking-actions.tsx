@@ -31,6 +31,7 @@ import { bookingBlockerLabel } from "@/features/booking/blocker-label";
 import { useZoomConnected } from "@/components/integrations/use-capability";
 import { defaultConsultationMode } from "@/features/consultations/meeting-mode";
 import { useNativeSigning } from "@/components/contracts/use-native-signing";
+import { packageChangeAlreadyApplied, proposalAlreadyRevised } from "@/features/proposals/workspace-guards";
 import {
   ActionShell,
   Actions,
@@ -340,7 +341,8 @@ export function ChangePackagesCard({ action }: ActionCardProps) {
   const snapshots = useRecords("packageSnapshots");
   const runner = useRunner();
   const removing = action.action === "remove_package";
-  const title = `${removing ? "Remove a package from" : "Swap the package on"} ${jobName(job)}`;
+  const discounting = action.action === "set_package_discount";
+  const title = `${removing ? "Remove a package from" : discounting ? "Change the discount on" : "Swap the package on"} ${jobName(job)}`;
   if (loading || !proposals || !contacts || !snapshots) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
   if (signedBookingChange(job))
@@ -352,7 +354,9 @@ export function ChangePackagesCard({ action }: ActionCardProps) {
         detail={
           str(proposal.status) === "accepted"
             ? "They've accepted. A change makes a revised proposal for them to accept; the accepted one stays in the history."
-            : "The proposal is priced again when you change it."
+            : discounting
+              ? "Use Discount beside the package: percent or amount off. The proposal is priced again."
+              : "The proposal is priced again when you change it."
         }
         icon={<PackageOpen size={15} />}
         title={title}
@@ -373,6 +377,12 @@ export function ChangePackagesCard({ action }: ActionCardProps) {
   const onTheJob = snapshots.filter((snapshot) => ids.includes(snapshot.id));
   if (!onTheJob.length)
     return <ActionShell title={title}><Blocked>{`${jobName(job)} has no package yet. Ask me to choose one.`}</Blocked></ActionShell>;
+  if (discounting)
+    return (
+      <ActionShell title={title}>
+        <Blocked>{`The discount is set on the proposal's packages, and ${jobName(job)} has no proposal yet. Ask me to draft one, then change the discount.`}</Blocked>
+      </ActionShell>
+    );
   if (!removing)
     return (
       <ActionShell title={title}>
@@ -500,21 +510,29 @@ export function PackageRequestCard({ action }: ActionCardProps) {
                 await runCrmCommand("decidePackageRequest", { requestId: request.id, decision: "declined", resultProposalId: null });
                 return "Declined. They'll see you couldn't add it this time.";
               }
+              // The same retry-safe steps as Today's Add (features/proposals/
+              // workspace-guards.ts): a second tap after the first re-priced
+              // the proposal and only closing the request failed used to stop
+              // on the revise, which refused the now-superseded version.
               try {
                 await runCrmCommand("selectPackage", {
                   projectId: job.id,
                   packageId: str(request.packageId),
                   selectedAddOns: [],
                   mode: "add",
-                  discount: { type: "none" },
+                  discount: { type: "keep" },
                 });
               } catch (caught: unknown) {
-                if (!String(caught instanceof Error ? caught.message : caught).includes("PACKAGE_ALREADY_ON_JOB")) throw caught;
+                if (!packageChangeAlreadyApplied(caught)) throw caught;
               }
               let resultProposalId: string | null = null;
               if (proposal) {
-                const revised = await runProposalCommand("revise_packages", { proposalId: proposal.id });
-                resultProposalId = str(revised.result.proposalId) || proposal.id;
+                try {
+                  const revised = await runProposalCommand("revise_packages", { proposalId: proposal.id });
+                  resultProposalId = str(revised.result.proposalId) || proposal.id;
+                } catch (caught: unknown) {
+                  if (!proposalAlreadyRevised(caught)) throw caught;
+                }
               }
               await runCrmCommand("decidePackageRequest", { requestId: request.id, decision: "approved", resultProposalId });
               return resultProposalId
@@ -896,6 +914,7 @@ export function ContractCard({ action }: ActionCardProps) {
     sign_and_send_contract: "Sign and send the contract",
     send_contract: "Send the contract",
     void_contract: "Void the contract",
+    resend_contract: "Send the contract again",
   };
   const title = `${titles[action.action]} · ${jobName(job)}`;
   if (loading || !proposals || !contracts || native.loading) return <ActionShell title={title}><Loading /></ActionShell>;
@@ -923,7 +942,9 @@ export function ContractCard({ action }: ActionCardProps) {
       detail={
         action.action === "void_contract"
           ? "Voiding tells them the contract is withdrawn. A signed contract can't be voided."
-          : "You read it, then sign and send it; they sign in their portal. The retainer follows their signature."
+          : action.action === "resend_contract"
+            ? "Send it again emails them the same contract to sign, now — at most once an hour. The 3- and 7-day reminders still go."
+            : "You read it, then sign and send it; they sign in their portal. The retainer follows their signature."
       }
       icon={<FileSignature size={15} />}
       title={title}
@@ -1334,12 +1355,17 @@ export function SignedCopyCard({ action }: ActionCardProps) {
  */
 export function ChangeBookingCard({ action }: ActionCardProps) {
   const { job, loading } = useJob(action.projectId);
-  const title = `Change the booking · ${jobName(job)}`;
+  const resending = action.action === "resend_booking_change";
+  const title = `${resending ? "Send the booking change again" : "Change the booking"} · ${jobName(job)}`;
   if (loading) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
   return (
     <ActionShell
-      detail="The couple signs the change; their current agreement stands until they do, and the job keeps its stage."
+      detail={
+        resending
+          ? "Send it again emails them the change to sign, now — at most once an hour."
+          : "The couple signs the change; their current agreement stands until they do, and the job keeps its stage."
+      }
       icon={<CalendarClock size={15} />}
       title={title}
     >

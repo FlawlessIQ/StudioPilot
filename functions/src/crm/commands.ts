@@ -11,7 +11,8 @@ import { afterConversion, convertInquiryToJob } from "../intake/convert.js";
 import { forwarderKey } from "../intake/short-address.js";
 import { senderProtection, senderProtectionReason } from "../intake/ignorable-sender.js";
 import { studioMailboxes } from "../communications/inbound.js";
-import { pricePackage } from "../pricing/package-price.js";
+import { pricePackage, type PackageDiscount } from "../pricing/package-price.js";
+import { selectionDiscount, snapshotDiscountRule } from "../pricing/discount-rule.js";
 import { packageChangeNeedsApprover } from "../booking/proposal-domain.js";
 import { holdResumeStates } from "./hold-resume.js";
 import {
@@ -703,6 +704,31 @@ const commandSchema = z.discriminatedUnion("type", [
           type: z.literal("percentage"),
           basisPoints: z.number().int().min(0).max(10000),
         }),
+        // On a swap, the replaced package's discount carries over; otherwise
+        // none. What the Packages panel, Cue and Today send, so a swap no
+        // longer quietly drops a discount the couple was promised
+        // (../pricing/discount-rule.ts).
+        z.object({ type: z.literal("keep") }),
+      ]),
+    }),
+  }),
+  z.object({
+    /**
+     * The discount on one package on a job, changed after it was chosen: 10%
+     * off, $250 off, or none. The snapshot is immutable, so the package is
+     * priced again into a new one, as setJobAddOns does, and the proposal is
+     * then revised from the job's packages.
+     */
+    type: z.literal("setPackageDiscount"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      packageSnapshotId: z.string().min(1),
+      discount: z.discriminatedUnion("type", [
+        z.object({ type: z.literal("none") }),
+        z.object({ type: z.literal("fixed"), amountCents: z.number().int().positive().safe() }),
+        z.object({ type: z.literal("percentage"), basisPoints: z.number().int().min(1).max(10000) }),
       ]),
     }),
   }),
@@ -812,7 +838,15 @@ async function assertPackagesEditable(
       .where("tenantId", "==", input.tenantId)
       .where("projectId", "==", input.projectId),
   );
-  if (contracts.docs.some((contract) => AGREEMENT_OUT_STATUSES.includes(String(contract.get("status"))))) {
+  const out = contracts.docs.filter((contract) => AGREEMENT_OUT_STATUSES.includes(String(contract.get("status"))));
+  if (out.length) {
+    // The remedy depends on which: a signed agreement can't be withdrawn, and
+    // one out through a signing app is withdrawn there, not on the Booking tab.
+    // The copy used to say "void it on the Booking tab" to all three.
+    const signed = out.some((contract) => contract.get("status") === "completed");
+    const provider = out.some((contract) => contract.get("provider") && contract.get("provider") !== "studiocue");
+    if (signed) throw new Error("AGREEMENT_ALREADY_SENT:signed");
+    if (provider) throw new Error("AGREEMENT_ALREADY_SENT:provider");
     throw new Error("AGREEMENT_ALREADY_SENT");
   }
   // A bill raised against the old total would contradict the new one.
@@ -825,6 +859,38 @@ async function assertPackagesEditable(
   if (invoices.docs.some((invoice) => !["voided", "void", "cancelled"].includes(String(invoice.get("status"))))) {
     throw new Error("INVOICE_ALREADY_RAISED");
   }
+}
+
+/**
+ * A package on a job, priced again from what the couple was already quoted:
+ * the snapshot's own base price, with these extras and this discount. A
+ * percentage retainer follows the new total; a fixed or per-crew one stays the
+ * amount it was — an existing retainer is never re-derived from today's
+ * package. Shared by setJobAddOns and setPackageDiscount.
+ */
+function repriceSnapshot(
+  previous: FirebaseFirestore.DocumentSnapshot,
+  packageDocument: FirebaseFirestore.DocumentSnapshot,
+  addOns: ReadonlyArray<{ unitPriceCents: number; quantity: number; taxable: boolean }>,
+  discount: PackageDiscount,
+) {
+  const rule = packageDocument.get("retainerRule") as { type?: string; basisPoints?: number } | undefined;
+  return pricePackage({
+    basePriceCents: Number(previous.get("basePriceCents") ?? 0),
+    addOns,
+    discount,
+    // Untaxed as quoted stays untaxed — unless it was untaxed only because a
+    // full discount left nothing to tax, which says nothing about the rate.
+    taxRateBasisPoints:
+      Number(previous.get("taxCents") ?? 0) === 0 && Number(previous.get("subtotalCents") ?? 0) > 0
+        ? 0
+        : Number(packageDocument.get("taxRateBasisPoints") ?? 0),
+    retainerRule:
+      rule?.type === "percentage"
+        ? { type: "percentage", basisPoints: Number(rule.basisPoints ?? 0) }
+        : { type: "fixed", amountCents: Number(previous.get("retainerCents") ?? 0) },
+    billedCrew: 1,
+  });
 }
 
 const managerRoles = ["studio_owner", "studio_admin"];
@@ -1829,33 +1895,16 @@ export const crmCommand = onRequest(
               taxable: item.taxable ?? true,
             };
           });
-          /**
-           * Priced from what the couple was already quoted: the snapshot's own
-           * base price and discount. A percentage retainer follows the new
-           * total; a fixed or per-crew one stays the amount it was — an
-           * existing retainer is never re-derived from today's package.
-           */
-          const rule = packageDocument.get("retainerRule") as { type?: string; basisPoints?: number } | undefined;
-          const priced = pricePackage({
-            basePriceCents: Number(previous.get("basePriceCents") ?? 0),
-            addOns: lines,
-            discount:
-              Number(previous.get("discountCents") ?? 0) > 0
-                ? { type: "fixed", amountCents: Number(previous.get("discountCents")) }
-                : { type: "none" },
-            taxRateBasisPoints:
-              Number(previous.get("taxCents") ?? 0) === 0 ? 0 : Number(packageDocument.get("taxRateBasisPoints") ?? 0),
-            retainerRule:
-              rule?.type === "percentage"
-                ? { type: "percentage", basisPoints: Number(rule.basisPoints ?? 0) }
-                : { type: "fixed", amountCents: Number(previous.get("retainerCents") ?? 0) },
-            billedCrew: 1,
-          });
+          // The discount as its rule: a percentage stays a percentage of the
+          // new total. This used to freeze it into its old amount.
+          const discountRule = snapshotDiscountRule(previous.data());
+          const priced = repriceSnapshot(previous, packageDocument, lines, discountRule);
           const snapshotId = randomUUID();
           transaction.create(db.doc(`packageSnapshots/${snapshotId}`), {
             ...previous.data(),
             id: snapshotId,
             addOns: lines,
+            discountRule,
             discountCents: priced.discountCents,
             subtotalCents: priced.subtotalCents,
             taxCents: priced.taxCents,
@@ -1904,6 +1953,91 @@ export const crmCommand = onRequest(
             providerEventId: null,
           });
           const output = { packageSnapshotId: snapshotId, replaced: target, totalCents: priced.totalCents };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        if (command.type === "setPackageDiscount") {
+          const projectReference = db.doc(`projects/${command.input.projectId}`);
+          const projectDocument = await transaction.get(projectReference);
+          if (!projectDocument.exists || projectDocument.get("tenantId") !== command.tenantId) {
+            throw new Error("PROJECT_NOT_FOUND");
+          }
+          if (!hasProjectAccess(membershipData, command.input.projectId)) {
+            throw new Error("PROJECT_NOT_PERMITTED");
+          }
+          await assertPackagesEditable(transaction, {
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            state: String(projectDocument.get("state")),
+            role: String(membershipData.role),
+          });
+          const primary = String(projectDocument.get("packageSnapshotId") ?? "");
+          const additional = Array.isArray(projectDocument.get("additionalPackageSnapshotIds"))
+            ? (projectDocument.get("additionalPackageSnapshotIds") as unknown[]).map(String)
+            : [];
+          const target = command.input.packageSnapshotId;
+          if (target !== primary && !additional.includes(target)) throw new Error("PACKAGE_NOT_ON_JOB");
+          const previous = await transaction.get(db.doc(`packageSnapshots/${target}`));
+          if (!previous.exists || previous.get("tenantId") !== command.tenantId) {
+            throw new Error("PACKAGE_SNAPSHOT_INVALID");
+          }
+          const packageDocument = await transaction.get(db.doc(`packages/${String(previous.get("packageId"))}`));
+          const lines = (Array.isArray(previous.get("addOns")) ? (previous.get("addOns") as Array<Record<string, unknown>>) : []).map(
+            (line) => ({
+              unitPriceCents: Number(line.unitPriceCents ?? 0),
+              quantity: Number(line.quantity ?? 1),
+              taxable: line.taxable !== false,
+            }),
+          );
+          const discountRule: PackageDiscount = command.input.discount;
+          const priced = repriceSnapshot(previous, packageDocument, lines, discountRule);
+          const snapshotId = randomUUID();
+          transaction.create(db.doc(`packageSnapshots/${snapshotId}`), {
+            ...previous.data(),
+            id: snapshotId,
+            discountRule,
+            discountCents: priced.discountCents,
+            subtotalCents: priced.subtotalCents,
+            taxCents: priced.taxCents,
+            retainerCents: priced.retainerCents,
+            totalCents: priced.totalCents,
+            supersedesSnapshotId: target,
+            selectionDate: timestamp,
+            selectedBy: identity.uid,
+            createdAt: timestamp,
+            createdBy: identity.uid,
+          });
+          const next =
+            target === primary
+              ? { packageSnapshotId: snapshotId }
+              : { additionalPackageSnapshotIds: additional.map((id) => (id === target ? snapshotId : id)) };
+          transaction.update(projectReference, { ...next, updatedAt: timestamp, updatedBy: identity.uid });
+          const discountAuditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${discountAuditId}`), {
+            id: discountAuditId,
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "package.discount_set",
+            entityType: "packageSnapshot",
+            entityId: snapshotId,
+            timestamp,
+            before: { packageSnapshotId: target, discount: snapshotDiscountRule(previous.data()), totalCents: previous.get("totalCents") ?? null },
+            after: { packageSnapshotId: snapshotId, discount: discountRule, totalCents: priced.totalCents },
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          const output = { packageSnapshotId: snapshotId, replaced: target, totalCents: priced.totalCents, discountCents: priced.discountCents };
           transaction.create(commandReference, {
             tenantId: command.tenantId,
             idempotencyKey: command.idempotencyKey,
@@ -2064,6 +2198,20 @@ export const crmCommand = onRequest(
               }
             }
           }
+          // A swap carries the replaced package's discount when asked to
+          // ("keep"); read here, before any write in this transaction.
+          const replacing = command.input.mode !== "add" && Boolean(project.packageSnapshotId);
+          const replacedSnapshot =
+            replacing && command.input.discount.type === "keep"
+              ? await transaction.get(db.doc(`packageSnapshots/${String(project.packageSnapshotId)}`))
+              : null;
+          const discount = selectionDiscount(command.input.discount, {
+            replacing,
+            replacedSnapshot:
+              replacedSnapshot?.exists && replacedSnapshot.get("tenantId") === command.tenantId
+                ? (replacedSnapshot.data() ?? null)
+                : null,
+          });
           if (
             !studioPackage ||
             studioPackage.tenantId !== command.tenantId ||
@@ -2094,7 +2242,7 @@ export const crmCommand = onRequest(
           const { discountCents, subtotalCents, taxCents, totalCents, retainerCents } = pricePackage({
             basePriceCents: studioPackage.basePriceCents,
             addOns: selectedLines,
-            discount: command.input.discount,
+            discount,
             taxRateBasisPoints: studioPackage.taxRateBasisPoints,
             retainerRule: studioPackage.retainerRule,
             billedCrew:
@@ -2114,6 +2262,8 @@ export const crmCommand = onRequest(
             currency: studioPackage.currency,
             basePriceCents: studioPackage.basePriceCents,
             addOns: selectedLines,
+            // The rule, not only its amount, so a later re-price keeps it.
+            discountRule: discount,
             discountCents,
             subtotalCents,
             taxCents,

@@ -1444,7 +1444,7 @@ function PackageRequestActions({
           packageId: action.packageId,
           selectedAddOns: [],
           mode: "add",
-          discount: { type: "none" },
+          discount: { type: "keep" },
         });
       } catch (caught: unknown) {
         // Added already — from the proposal, Cue, or this button's first
