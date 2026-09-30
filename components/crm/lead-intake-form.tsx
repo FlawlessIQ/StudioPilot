@@ -30,6 +30,7 @@ import {
   type CapturedPlace,
 } from "@/features/places/schema";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { useEmbedFrame } from "@/components/crm/use-embed-frame";
 
 type PublicLeadIntakeInput = z.input<typeof publicLeadIntakeSchema>;
 
@@ -133,6 +134,7 @@ export function LeadIntakeForm({
   brandName,
   studio,
   preview = false,
+  embedded = false,
 }: {
   tenantSlug: string;
   brandName: string;
@@ -146,7 +148,14 @@ export function LeadIntakeForm({
    * studio testing its form was told capture was done.
    */
   preview?: boolean;
+  /**
+   * Framed in the studio's own website (`?embed=1`, H10). No studio bar — the
+   * studio's page is the brand around it — no full-screen height, and the
+   * frame is told its height (use-embed-frame.ts).
+   */
+  embedded?: boolean;
 }) {
+  const frameRef = useRef<HTMLDivElement>(null);
   const hydrated = useSyncExternalStore(
     () => () => undefined,
     () => true,
@@ -182,6 +191,8 @@ export function LeadIntakeForm({
     resolver: zodResolver(publicLeadIntakeSchema),
   });
   const brand: Studio = studio ?? { name: brandName };
+  useEmbedFrame(embedded, frameRef, result ? "done" : String(step));
+  const kitClass = embedded ? "is-embedded" : undefined;
   // Only the two chip groups follow these; the rest of the form stays put.
   const eventType = useWatch({ control, name: "eventType" }) ?? "wedding";
   const budget = useWatch({ control, name: "budgetRange" });
@@ -314,9 +325,10 @@ export function LeadIntakeForm({
 
   if (result) {
     return (
-      <KitRoot studio={brand}>
+      <div ref={frameRef}>
+      <KitRoot className={kitClass} studio={brand}>
         <Screen>
-          <AppBar studio={brand} />
+          {embedded ? null : <AppBar studio={brand} />}
           <Main label="Inquiry sent">
             <section className="kit-stack" aria-live="polite">
               <Note icon={CheckCircle2} tone="accent">
@@ -348,6 +360,7 @@ export function LeadIntakeForm({
           </Main>
         </Screen>
       </KitRoot>
+      </div>
     );
   }
 
@@ -355,14 +368,17 @@ export function LeadIntakeForm({
   const missingCount = Object.keys(errors).length;
 
   return (
-    <KitRoot studio={brand}>
+    <div ref={frameRef}>
+    <KitRoot className={kitClass} studio={brand}>
       <Screen>
-        <AppBar
-          back={
-            preview ? { href: "/studio/setup", label: "Back to Studio setup" } : undefined
-          }
-          studio={brand}
-        />
+        {embedded ? null : (
+          <AppBar
+            back={
+              preview ? { href: "/studio/setup", label: "Back to Studio setup" } : undefined
+            }
+            studio={brand}
+          />
+        )}
         <form
           noValidate
           onFocusCapture={prewarmAppCheck}
@@ -613,5 +629,6 @@ export function LeadIntakeForm({
         </form>
       </Screen>
     </KitRoot>
+    </div>
   );
 }

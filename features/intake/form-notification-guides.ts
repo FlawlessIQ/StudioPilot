@@ -22,6 +22,7 @@ export type NotificationGuideKey =
   | "wpforms"
   | "gravity_forms"
   | "jotform"
+  | "123formbuilder"
   | "squarespace"
   | "showit"
   | "pixieset"
@@ -68,7 +69,7 @@ export const NOTIFICATION_GUIDES: ReadonlyArray<NotificationGuide> = [
         text: "Tick **StudioCue inquiries** — keep yourself ticked too — then **Apply** and **Save** the automation.",
       },
     ],
-    note: "Wix can only email your contacts, which is why the address goes in as a contact first.",
+    note: "Wix can only email your contacts, which is why the address goes in as a contact first. Is your form from 123FormBuilder or Jotform, sitting inside your Wix page? Choose that one instead — Wix's settings don't reach it.",
   },
   {
     key: "wordpress_cf7",
@@ -128,6 +129,23 @@ export const NOTIFICATION_GUIDES: ReadonlyArray<NotificationGuide> = [
       { text: "Click **Save**." },
     ],
     note: "Adding a second recipient needs a paid Jotform plan. On the free plan, use your inbox instead.",
+  },
+  {
+    // Gabe's form (2026-09-30): a 123FormBuilder form inside his Wix site.
+    // He followed the Wix steps, which can't reach it, and nothing arrived.
+    // Checked against 123FormBuilder's "How to set up email notifications".
+    key: "123formbuilder",
+    label: "123FormBuilder",
+    supported: true,
+    steps: [
+      { text: "Sign in to **123FormBuilder**, open your inquiry form and go to its **Emails** section." },
+      {
+        text: "In the notification email that comes to you, find **Send to**. Leave **My email** there and add your StudioCue address after it.",
+        action: "copy",
+      },
+      { text: "**Save** your changes." },
+    ],
+    note: "If your 123FormBuilder form sits inside a Wix page, this is the one to set up — Wix's own settings don't reach it.",
   },
   {
     key: "squarespace",

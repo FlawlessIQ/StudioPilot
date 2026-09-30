@@ -20454,6 +20454,18 @@ label {
   overflow-wrap: anywhere;
 }
 
+/* Code to paste into a website: small, monospaced, and scrolled rather than
+   filling the sheet — the Copy button is what gets used, not the text. */
+.capture-paste.is-code code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  max-height: 7.5em;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
 /* A click path in the other app: chips joined by chevrons. */
 .capture-path {
   align-items: center;

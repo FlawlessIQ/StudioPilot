@@ -63,6 +63,18 @@
   margin: 0 auto;
   background: var(--kit-ivory);
 }
+/* Framed in a studio's own website (?embed=1): as tall as its content, so
+   the frame can be sized to it, and nothing pinned to a viewport that is only
+   the frame. */
+.kit.is-embedded .kit-screen {
+  min-height: 0;
+}
+.kit.is-embedded .kit-actions {
+  position: static;
+  padding-bottom: 14px;
+  border-top: 0;
+  background: transparent;
+}
 .kit-main {
   flex: 1;
   display: flex;

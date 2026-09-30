@@ -80,20 +80,38 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { studio = "" } = await searchParams;
   const tenant = await studioForSlug(studio);
+  if (!tenant) {
+    return {
+      title: "Photography inquiry",
+      description: "Request photography availability from a StudioCue studio.",
+    };
+  }
+  /**
+   * The card a couple sees when the studio texts or posts this link. It was
+   * StudioCue's own — "StudioCue · From inquiry to gallery." with our banner —
+   * so a studio sending its form to a couple looked like it was sending an ad
+   * for software (Gabe, 2026-09-30: "Just sent them this???"). It is the
+   * studio's now: its name, and its logo when it has one. Replacing
+   * `openGraph` and `twitter` whole is deliberate, so none of the site-wide
+   * StudioCue card leaks through.
+   */
+  const title = `${tenant.name} · Check availability`;
+  const description = `Tell ${tenant.name} about your day and check their availability. It takes about two minutes.`;
+  const images = tenant.brand.logoUrl ? [{ url: tenant.brand.logoUrl, alt: tenant.name }] : [];
   return {
-    title: tenant ? `Photography inquiry · ${tenant.name}` : "Photography inquiry",
-    description: tenant
-      ? `Tell ${tenant.name} about your event and request photography availability.`
-      : "Request photography availability from a StudioCue studio.",
+    title: `Photography inquiry · ${tenant.name}`,
+    description,
+    openGraph: { type: "website", siteName: tenant.name, title, description, images },
+    twitter: { card: "summary", title, description, images: images.map((image) => image.url) },
   };
 }
 
 export default async function InquiryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ studio?: string; preview?: string }>;
+  searchParams: Promise<{ studio?: string; preview?: string; embed?: string }>;
 }) {
-  const { studio = "", preview = "" } = await searchParams;
+  const { studio = "", preview = "", embed = "" } = await searchParams;
   const backLink =
     preview === "studio"
       ? { href: "/studio/setup", label: "Back to Studio setup" }
@@ -118,6 +136,7 @@ export default async function InquiryPage({
     // intro column it replaced pushed the form below the fold on a phone.
     <LeadIntakeForm
       brandName={tenant.name}
+      embedded={embed === "1"}
       preview={preview === "studio"}
       studio={{
         name: tenant.name,

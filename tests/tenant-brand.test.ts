@@ -112,5 +112,6 @@ test("the inquiry page is headed by the studio, not StudioCue", () => {
   assert.match(found, /studio=\{\{\s*name: tenant\.name,\s*color: tenant\.brand\.primaryColor,\s*logoUrl: tenant\.brand\.logoUrl,/);
   const form = source("components/crm/lead-intake-form.tsx");
   assert.match(form, /<AppBar\s+back=\{\s*preview \? \{ href: "\/studio\/setup"/);
-  assert.match(form, /<KitRoot studio=\{brand\}>/);
+  // Embedded in a studio's website (H10) it takes a class, still in the studio's brand.
+  assert.match(form, /<KitRoot(?: className=\{kitClass\})? studio=\{brand\}>/);
 });

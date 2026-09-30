@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState, type ComponentType, type Rea
 import {
   Check,
   ChevronRight,
+  Code2,
+  ExternalLink,
   FlaskConical,
   Forward,
   Inbox,
@@ -29,15 +31,28 @@ import {
   type FormSource,
 } from "@/features/intake/forwarding-filters";
 import { NOTIFICATION_GUIDES, type NotificationGuide } from "@/features/intake/form-notification-guides";
+import {
+  EMBED_GUIDES,
+  buttonSnippet,
+  embedSnippet,
+  embedUrl,
+  inquiryUrl,
+  type EmbedBuilder,
+} from "@/features/intake/website-embed";
 
 /**
  * Studio settings → Inquiry capture.
  *
- * Three ways an inquiry reaches StudioCue, offered side by side because
- * studios differ in what they will touch:
- *  - the website form emails StudioCue directly (one field in the builder);
- *  - the studio's inbox forwards form emails on (a Gmail filter or Outlook rule);
- *  - the studio forwards one by hand, whenever it likes.
+ * Four ways an inquiry reaches StudioCue, easiest first:
+ *  - StudioCue's own form, pasted into the studio's website — no forwarding
+ *    at all (H10). First because every other route asks the studio to
+ *    configure somebody else's product, and Gabe, "pretty tech savvy", got
+ *    none of them working (2026-09-30);
+ *  - the studio's own website form emails StudioCue directly (one field in
+ *    the builder);
+ *  - the studio forwards one by hand, whenever it likes;
+ *  - the studio's inbox forwards form emails on (a Gmail filter or Outlook
+ *    rule) — kept, but marked advanced.
  *
  * The panel itself is a status line, the address, and three rows. Every
  * instruction lives in a sheet, one step per screen, so the settings page
@@ -74,7 +89,7 @@ export type LeadCaptureActions = {
   saveMapping: (mapping: Record<string, string>) => Promise<void>;
 };
 
-type SheetKey = "form" | "inbox" | "manual" | "test";
+type SheetKey = "website" | "form" | "inbox" | "manual" | "test";
 
 const FIELD_CHOICES: Array<[string, string]> = [
   ["fullName", "Name"],
@@ -296,19 +311,19 @@ const ROUTES: Array<{
   badge?: string;
 }> = [
   {
-    key: "form",
-    icon: LayoutTemplate,
-    title: "From your website form",
-    short: "Website form",
-    subtitle: "Wix, WordPress or paid Jotform",
+    key: "website",
+    icon: Code2,
+    title: "Put your inquiry form on your website",
+    short: "On your website",
+    subtitle: "Paste it into Wix, Squarespace, WordPress — no forwarding",
     badge: "Easiest",
   },
   {
-    key: "inbox",
-    icon: MailPlus,
-    title: "From your inbox",
-    short: "Your inbox",
-    subtitle: "A Gmail filter or Outlook rule",
+    key: "form",
+    icon: LayoutTemplate,
+    title: "Keep your own website form",
+    short: "Your own form",
+    subtitle: "It emails StudioCue a copy — Wix, 123FormBuilder, WordPress",
   },
   {
     key: "manual",
@@ -316,6 +331,14 @@ const ROUTES: Array<{
     title: "Forward by hand",
     short: "Forward by hand",
     subtitle: "Any email, one at a time",
+  },
+  {
+    key: "inbox",
+    icon: MailPlus,
+    title: "Forward automatically from your inbox",
+    short: "Inbox rules",
+    subtitle: "A Gmail filter or Outlook rule — takes a few minutes",
+    badge: "Advanced",
   },
 ];
 
@@ -391,7 +414,9 @@ export function LeadCaptureView({
         {ROUTES.map((route) => (
           <button
             className="settings-row capture-route"
-            disabled={!address}
+            // The website route needs no forwarding address, so it stays open
+            // even when that address can't be loaded.
+            disabled={!address && route.key !== "website"}
             key={route.key}
             onClick={() => setSheet(route.key)}
             type="button"
@@ -413,7 +438,11 @@ export function LeadCaptureView({
 
       {setup && address ? (
         <CaptureSheets actions={actions} address={address} onChange={setSheet} setup={setup} sheet={sheet} />
-      ) : null}
+      ) : (
+        <SheetDialog label="Put your inquiry form on your website" onClose={() => setSheet(null)} open={sheet === "website"}>
+          <WebsiteRoute onDone={() => setSheet(null)} />
+        </SheetDialog>
+      )}
     </section>
   );
 }
@@ -448,12 +477,16 @@ function CaptureSheets({
   const setSheet = onChange;
   return (
     <>
+      <SheetDialog label="Put your inquiry form on your website" onClose={close} open={sheet === "website"}>
+        <WebsiteRoute onDone={finishRoute} />
+      </SheetDialog>
       <SheetDialog label="From your website form" onClose={close} open={sheet === "form"}>
         <FormRoute
           actions={actions}
           address={address}
           onDone={finishRoute}
           onUseInbox={() => setSheet("inbox")}
+          onUseWebsite={() => setSheet("website")}
           setup={setup}
         />
       </SheetDialog>
@@ -530,9 +563,9 @@ function Steps({ eyebrow, steps, onDone }: { eyebrow: string; steps: Step[]; onD
   );
 }
 
-function Pasteable({ value, label }: { value: string; label: string }) {
+function Pasteable({ value, label, code = false }: { value: string; label: string; code?: boolean }) {
   return (
-    <div className="capture-paste">
+    <div className={code ? "capture-paste is-code" : "capture-paste"}>
       <code>{value}</code>
       <Copyable label={label} value={value} />
     </div>
@@ -571,6 +604,96 @@ function Chips<T extends string>({
   );
 }
 
+/* ── Route 0: StudioCue's form, on the studio's own website ───────────── */
+
+/**
+ * Paste the form into the website. The only route that asks nothing of the
+ * studio's email: couples fill in StudioCue's form where they already are,
+ * and it lands in Today with nothing to forward.
+ */
+function WebsiteRoute({ onDone }: { onDone: () => void }) {
+  const workspace = useWorkspace();
+  const [builder, setBuilder] = useState<EmbedBuilder | null>(null);
+  const guide = EMBED_GUIDES.find((item) => item.key === builder) ?? null;
+  const origin = typeof window === "undefined" ? "https://studio-cue.com" : window.location.origin;
+  const slug = workspace.tenantSlug;
+  const name = workspace.tenantBrand?.brandName || workspace.tenantName;
+  const color = workspace.tenantBrand?.primaryColor ?? null;
+  const link = inquiryUrl(origin, slug);
+
+  return (
+    <Steps
+      eyebrow="On your website"
+      onDone={onDone}
+      steps={[
+        {
+          title: "Where's your website?",
+          intro:
+            "Couples fill in your StudioCue form right on your site, and each inquiry lands in Today — nothing to forward, no email settings.",
+          ready: Boolean(guide),
+          body: (
+            <Chips
+              label="Website builder"
+              onToggle={(key) => setBuilder(key)}
+              options={EMBED_GUIDES}
+              selected={builder ? [builder] : []}
+            />
+          ),
+        },
+        {
+          title: guide ? `Paste it into ${guide.label}` : "Paste it into your site",
+          intro:
+            guide?.paste === "url"
+              ? "Wix embeds it from its address, so there's no code — just this link."
+              : "One paste. The form sizes itself to each step.",
+          body: guide ? (
+            <>
+              <ol className="capture-howto">
+                {guide.steps.map((step) => (
+                  <li key={step}>
+                    <span>
+                      <Rich text={step} />
+                    </span>
+                  </li>
+                ))}
+              </ol>
+              {guide.paste === "url" ? (
+                <Pasteable label="Copy address" value={embedUrl(origin, slug)} />
+              ) : (
+                <Pasteable code label="Copy code" value={embedSnippet({ origin, slug, studioName: name })} />
+              )}
+              <Tip>
+                Keeping your old contact form too? Remove it, or set it up under
+                &ldquo;Keep your own website form&rdquo; so both reach StudioCue.
+              </Tip>
+            </>
+          ) : null,
+        },
+        {
+          title: "Check it, or use a button",
+          intro: "Open your page and fill it in the way a couple would. It arrives in Today within a minute.",
+          body: (
+            <>
+              <p className="capture-lead">
+                <a className="button button-light button-sm" href={`${link}&preview=studio`} rel="noreferrer" target="_blank">
+                  <ExternalLink size={14} /> Preview your form
+                </a>
+              </p>
+              <p className="capture-lead">
+                No room for a form, or no code block on your plan? Paste this button
+                instead — it opens your form in a new tab.
+              </p>
+              <Pasteable code label="Copy button" value={buttonSnippet({ origin, slug, color })} />
+              <p className="capture-lead">Or link any button, Instagram bio or email signature to:</p>
+              <Pasteable label="Copy link" value={link} />
+            </>
+          ),
+        },
+      ]}
+    />
+  );
+}
+
 /* ── Route 1: the website form emails StudioCue ───────────────────────── */
 
 function FormRoute({
@@ -579,12 +702,14 @@ function FormRoute({
   actions,
   onDone,
   onUseInbox,
+  onUseWebsite,
 }: {
   setup: LeadCaptureSetupState;
   address: string;
   actions: LeadCaptureActions;
   onDone: () => void;
   onUseInbox: () => void;
+  onUseWebsite: () => void;
 }) {
   const [builder, setBuilder] = useState<NotificationGuide["key"] | null>(null);
   const guide = NOTIFICATION_GUIDES.find((item) => item.key === builder) ?? null;
@@ -642,15 +767,22 @@ function FormRoute({
           how,
           pick,
           {
-            title: guide.key === "other" ? "Use your inbox instead" : `${guide.label} can't send a copy`,
+            title: guide.key === "other" ? "Two other ways in" : `${guide.label} can't send a copy`,
             intro: guide.note,
             body: (
               <>
                 <p className="capture-lead">
-                  Your form already emails you. A filter in your inbox can pass those
-                  emails on to StudioCue instead — same result, set up in Gmail or Outlook.
+                  Easiest: put your StudioCue inquiry form on your website in place of
+                  this one. One paste, and inquiries arrive with nothing to forward.
                 </p>
-                <button className="button button-dark button-sm" onClick={onUseInbox} type="button">
+                <button className="button button-dark button-sm" onClick={onUseWebsite} type="button">
+                  <Code2 size={14} /> Put the form on your website
+                </button>
+                <p className="capture-lead">
+                  Or keep this form: it already emails you, and a filter in Gmail or
+                  Outlook can pass those emails on to StudioCue.
+                </p>
+                <button className="button button-light button-sm" onClick={onUseInbox} type="button">
                   <MailPlus size={14} /> Set it up from your inbox
                 </button>
               </>

@@ -377,10 +377,11 @@ function HostedFormLink({ slug }: { slug: string }) {
   return (
     <section className="setup-aside">
       <div>
-        <strong>No website form? Use StudioCue&apos;s.</strong>
+        <strong>Or use StudioCue&apos;s own inquiry form.</strong>
         <p>
-          It&apos;s already live. Link to it from your website or Instagram and
-          inquiries arrive in Today, read and ready to reply to.
+          It&apos;s already live. Paste it into your website (&ldquo;On your
+          website&rdquo;, under inquiry capture, has the code) or link to it from
+          Instagram, and inquiries arrive in Today with nothing to forward.
         </p>
       </div>
       <div className="setup-aside-actions">
