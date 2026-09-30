@@ -138,3 +138,10 @@ test("the sealed PDF groups each signature under the part it signs", () => {
   assert.match(renderer, /section_hash: str \| None = Field\(default=None/);
   assert.match(renderer, /\["Part fingerprint \(SHA-256\)", signature\.section_hash or "—"\]/);
 });
+
+test("Part 2 dates its payments as Part 1 does", () => {
+  const { document, sections } = buildCombinedAgreement(terms, coverage);
+  const part2 = JSON.stringify(sectionDocument(document, sections[1]!).blocks);
+  assert.match(part2, /May 29, 2027/);
+  assert.doesNotMatch(part2, /2027-05-29/);
+});

@@ -21430,3 +21430,9 @@ label {
     padding: 20px 16px;
   }
 }
+/* In the reading overlay the agreement is read in one scroll, not a box
+   scrolling inside a scrolling page. */
+.combined-agreement-overlay .native-contract-preview {
+  max-height: none;
+  overflow: visible;
+}

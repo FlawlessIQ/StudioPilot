@@ -1,4 +1,4 @@
-import { formatMoney, undatedPaymentDue, type ContractBlock, type ContractDocument } from "./document.js";
+import { formatContractDate, formatMoney, undatedPaymentDue, type ContractBlock, type ContractDocument } from "./document.js";
 
 /**
  * The mirror of features/contracts/combined.ts — the studio's terms and the
@@ -67,7 +67,8 @@ function coverageBlocks(coverage: CoverageInput): ContractBlock[] {
       rows: coverage.paymentSchedule.map((row) => ({
         label: row.label,
         amount: money(row.amountCents),
-        due: row.dueDate ?? undatedPaymentDue(row.label),
+        // Dated as Part 1 dates it ("July 3, 2027"), never "2027-07-03".
+        due: row.dueDate ? formatContractDate(row.dueDate) : undatedPaymentDue(row.label),
       })),
     });
   }
