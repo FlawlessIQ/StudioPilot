@@ -1209,7 +1209,21 @@ export const planningCommand = onRequest(
             .doc(`emailJobs/coi_request_${parsed.input.requestId}`)
             .get();
           const replyAddress = original.get("replyAddress");
+          // An agent handles many clients' certificates; the correction has
+          // to say which event it is about, as the request did.
+          const correctionRequirement = reviewed.requirementId
+            ? await db.doc(`insuranceRequirements/${String(reviewed.requirementId)}`).get()
+            : null;
           await db.doc(`emailJobs/coi_correction_${parsed.input.requestId}`).set({
+            ...(correctionRequirement?.exists
+              ? {
+                  requirement: {
+                    venueLegalName: correctionRequirement.get("venueLegalName") ?? null,
+                    eventDate: correctionRequirement.get("eventDate") ?? null,
+                    certificateHolder: correctionRequirement.get("certificateHolder") ?? null,
+                  },
+                }
+              : {}),
             id: `coi_correction_${parsed.input.requestId}`,
             tenantId: parsed.tenantId,
             projectId: parsed.input.projectId,
@@ -1313,6 +1327,7 @@ export const planningCommand = onRequest(
           documentId: current.get("documentId"),
           recipient: requirement.get("submissionEmail"),
           venueName: requirement.get("venueLegalName"),
+          eventDate: requirement.get("eventDate") ?? null,
           status: "queued",
           attempts: 0,
           createdAt: now,

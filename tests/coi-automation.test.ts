@@ -213,3 +213,27 @@ test("the agent gets everything the certificate needs, not just the holder's nam
   assert.doesNotMatch(rendered.text, /noncontributory/);
   assert.match(rendered.text, /Policy HX-12345\./);
 });
+
+test("the agent's correction and the venue's copy never greet the couple, and name the event", async () => {
+  const { renderEmailTemplate } = await import("../functions/src/communications/email-templates");
+  const brand = { studioName: "FlawlessIQ", productName: "StudioCue", accentColor: "#35664a", logoUrl: null, contactEmail: null };
+  const correction = renderEmailTemplate({
+    key: "coi_correction",
+    brand,
+    recipientName: "Harper Lane",
+    values: {
+      reason: "State the each-occurrence limit.",
+      requirement: { venueLegalName: "Arnold Arboretum", eventDate: "2027-06-12" },
+    },
+  });
+  assert.doesNotMatch(correction.text, /Harper/);
+  assert.match(correction.text, /certificate you sent for Arnold Arboretum on June 12, 2027/);
+  const venue = renderEmailTemplate({
+    key: "coi_venue_delivery",
+    brand,
+    recipientName: "Harper Lane",
+    values: { venueName: "Arnold Arboretum", eventDate: "2027-06-12" },
+  });
+  assert.doesNotMatch(venue.text, /Harper/);
+  assert.match(venue.text, /for Arnold Arboretum, for the event on June 12, 2027\./);
+});

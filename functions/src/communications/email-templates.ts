@@ -850,8 +850,10 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         eyebrow: "Correction requested",
         heading: "Please revise the certificate",
         paragraphs: [
-          greeting,
-          `We reviewed the submitted certificate and need a correction.`,
+          // To the insurance agent, not the couple: `greeting` opened it
+          // "Hi Harper," (walked 2026-09-30), as the request once did.
+          "Hello,",
+          `We reviewed the certificate you sent${requirement.venueLegalName ? ` for ${String(requirement.venueLegalName)}` : ""}${requirement.eventDate ? ` on ${humanDate(String(requirement.eventDate))}` : ""} and need a correction.`,
           `Studio review note: ${stringValue(values, "reason") || "Please contact the studio for the requested correction."}`,
           "Reply to this email with one corrected PDF attachment.",
         ],
@@ -863,8 +865,9 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         eyebrow: "Certificate delivery",
         heading: "Approved certificate attached",
         paragraphs: [
-          greeting,
-          `We reviewed and approved the attached certificate for ${stringValue(values, "venueName") || "the upcoming event venue"}.`,
+          // To the venue: the project greeting would name the couple.
+          "Hello,",
+          `We reviewed and approved the attached certificate of insurance for ${stringValue(values, "venueName") || "your venue"}${stringValue(values, "eventDate") ? `, for the event on ${humanDate(stringValue(values, "eventDate"))}` : ""}.`,
         ],
       };
     case "crew_reminder":
