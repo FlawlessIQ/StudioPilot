@@ -1,6 +1,7 @@
 "use client";
 
 import { deliverableDueDate, deliveryProgress, expectedDeliverables } from "@/features/post-event/deliverables";
+import { currentFinalInvoice } from "@/features/booking/final-balance-due";
 import { coverageCount, resolveCoverage } from "@/features/packages/coverage";
 import { useState } from "react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
@@ -213,10 +214,10 @@ export function useTodayInbox(): {
           ) || null,
         finalInvoiceStatus:
           text(
-            projectInvoices.find((invoice) => invoice.kind === "final")?.status,
+            currentFinalInvoice(projectInvoices)?.status,
           ) || null,
         finalInvoiceOverdue: invoiceIsOverdue(
-          projectInvoices.find((invoice) => invoice.kind === "final"),
+          currentFinalInvoice(projectInvoices),
           today,
         ),
         questionnaireStatus:

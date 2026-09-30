@@ -17,6 +17,8 @@ import { RecordProposalAcceptance } from "@/components/booking/record-proposal-a
 import { RecordSignedAgreement } from "@/components/booking/record-signed-agreement";
 import { RecordRetainerPayment } from "@/components/booking/record-retainer-payment";
 import { RecordFinalPayment } from "@/components/booking/record-final-payment";
+import { FinalBalanceActions } from "@/components/booking/final-balance-actions";
+import { outstandingFinalBalance } from "@/features/booking/final-balance-due";
 import { BookWithoutRetainer } from "@/components/booking/book-without-retainer";
 import { ImportedBookingBanner } from "@/components/imports/imported-booking-banner";
 import { ExistingBookingForm } from "@/components/imports/existing-booking-form";
@@ -1038,6 +1040,38 @@ export function RecordPaymentCard({ action }: ActionCardProps) {
           />
         )}
       </Embedded>
+    </ActionShell>
+  );
+}
+
+/** The final balance, billed now: the same two actions as Today and Invoices. */
+export function SendFinalBalanceCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const proposals = useRecords("proposals");
+  const invoices = useRecords("invoiceReferences");
+  const ownerOrAdmin = useIsOwnerOrAdmin();
+  const [message, setMessage] = useState<string | null>(null);
+  const title = `Send the final bill · ${jobName(job)}`;
+  if (!ownerOrAdmin) return <OwnerOnly title={title} />;
+  if (loading || !proposals || !invoices) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return notFound(title);
+  if (message) return <ActionShell title={title}><Done>{message}</Done></ActionShell>;
+  const due = outstandingFinalBalance({ projectId: job.id, proposals, invoices });
+  if (due.finalStanding)
+    return <ActionShell title={title}><Done>{`${jobName(job)}'s final bill is already out. Open Invoices to see where it is.`}</Done></ActionShell>;
+  if (!due.cents) return <ActionShell title={title}><Done>{`Nothing is left to pay on ${jobName(job)}.`}</Done></ActionShell>;
+  return (
+    <ActionShell
+      detail="The amount is what they agreed less everything already paid. It goes through your invoicing provider, which emails it to them."
+      icon={<HandCoins size={15} />}
+      title={title}
+    >
+      <FinalBalanceActions
+        balanceLabel={dollars(due.cents)}
+        onDone={setMessage}
+        packageSnapshotId={str(job.packageSnapshotId) || null}
+        projectId={job.id}
+      />
     </ActionShell>
   );
 }

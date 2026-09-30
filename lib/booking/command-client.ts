@@ -233,6 +233,19 @@ export async function recordFinalPayment(input: {
   });
 }
 
+/**
+ * "Send the final bill": raise the final invoice now, through the studio's
+ * invoicing provider. The amount is the server's — the accepted proposal's
+ * total less everything paid (functions/src/booking/send-final-balance.ts).
+ */
+export async function sendFinalBalance(projectId: string) {
+  return sendBookingCommand({
+    type: "sendFinalBalance",
+    idempotencyKey: `final_${projectId}_${crypto.randomUUID()}`,
+    input: { projectId },
+  });
+}
+
 /* ---------------------------------------------------------------------------
  * Importing bookings a studio already has.
  *

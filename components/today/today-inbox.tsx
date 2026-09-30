@@ -20,6 +20,9 @@ import {
 import { KindGlyph } from "@/components/library/kind-glyph";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { BookingAmendmentPanel } from "@/components/booking/booking-amendment";
+import { RecordFinalPayment } from "@/components/booking/record-final-payment";
+import { sendFinalBalance } from "@/lib/booking/command-client";
+import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { AiQueueCard, AutomationApprovalCard } from "@/components/ai/ai-approval-queue";
 import { countdownPhrase } from "@/lib/format/event-date";
 import { formatCents } from "@/lib/format/money";
@@ -126,6 +129,10 @@ export function TodayInbox() {
   // Held here, not in the card: Today unmounts its cards while it refreshes,
   // and the draft the sheet writes is exactly such a refresh.
   const [changing, setChanging] = useState<PackageRequestAction | null>(null);
+  // "Paid another way" on a final balance: a form, so held here for the same
+  // reason as the booking change — a refresh unmounts the card it came from.
+  const [settling, setSettling] = useState<FinalBalanceAction | null>(null);
+  const [settledNotice, setSettledNotice] = useState<string | null>(null);
   // Opened from an inquiry card's "Edit": the review sheet starts in the editor.
   const [reviewEditing, setReviewEditing] = useState(false);
   const isPhone = useIsPhone();
@@ -396,6 +403,10 @@ export function TodayInbox() {
                   }}
                   variant="hero"
                 />
+              ) : !loading && lead?.action.kind === "final_balance" ? (
+                <span className="today-inquiry-buttons">
+                  <FinalBalanceCardActions action={lead.action} onCleared={() => clear(lead.id)} onSettle={setSettling} />
+                </span>
               ) : !loading && lead?.action.kind === "close_inquiry" ? (
                 <span className="today-inquiry-buttons">
                   <CloseInquiryActions action={lead.action} onCleared={() => clear(lead.id)} />
@@ -620,6 +631,7 @@ export function TodayInbox() {
                         key={item.id}
                         onCleared={() => clear(item.id)}
                         onChangeBooking={setChanging}
+                        onSettleBalance={setSettling}
                         onEdit={(actionId) => {
                           setReviewEditing(true);
                           setReviewingId(actionId);
@@ -719,6 +731,32 @@ export function TodayInbox() {
           />
         ) : null}
       </SheetDialog>
+      <SheetDialog label="Record the final balance" onClose={() => setSettling(null)} open={settling != null}>
+        {settling && settling.packageSnapshotId ? (
+          <div className="record-sheet">
+            <header>
+              <p className="eyebrow">Final balance</p>
+              <h3>Paid another way</h3>
+              <p>For a balance that arrived by transfer, cheque or cash. The amount is the one they agreed to.</p>
+            </header>
+            <RecordFinalPayment
+              balanceLabel={settling.balanceCents ? formatCents(settling.balanceCents) : null}
+              onRecorded={(message) => {
+                setSettledNotice(message);
+                refreshTenantRecords("invoiceReferences", "projects", "checkpoints");
+                setSettling(null);
+              }}
+              packageSnapshotId={settling.packageSnapshotId}
+              projectId={settling.projectId}
+            />
+          </div>
+        ) : null}
+      </SheetDialog>
+      {settledNotice ? (
+        <p className="today-card-notice" role="status">
+          {settledNotice}
+        </p>
+      ) : null}
       <SheetDialog label="Change the booking" onClose={() => setChanging(null)} open={changing != null}>
         {changing ? (
           <div className="record-sheet">
@@ -858,11 +896,14 @@ function TodayCard({
   onReviewApproval,
   onEdit,
   onChangeBooking,
+  onSettleBalance,
   showEvidence = true,
 }: {
   item: TodayItem;
   /** Opens the booking-change sheet for a couple's request on a signed job. */
   onChangeBooking?: (action: PackageRequestAction) => void;
+  /** Opens "paid another way" for a final balance. */
+  onSettleBalance?: (action: FinalBalanceAction) => void;
   tone: "act" | "approve" | "fyi";
   onCleared?: () => void;
   /** Opens the full review sheet for this prepared action, in context. */
@@ -985,6 +1026,8 @@ function TodayCard({
               Review
             </button>
           </>
+        ) : item.action.kind === "final_balance" ? (
+          <FinalBalanceCardActions action={item.action} onCleared={onCleared} onSettle={onSettleBalance} />
         ) : item.action.kind === "package_request" ? (
           <PackageRequestActions action={item.action} onChangeBooking={onChangeBooking} onCleared={onCleared} />
         ) : item.action.kind === "close_inquiry" ? (
@@ -1267,6 +1310,58 @@ function CloseInquiryActions({ action, onCleared }: { action: CloseInquiryAction
 }
 
 type PackageRequestAction = Extract<TodayItem["action"], { kind: "package_request" }>;
+type FinalBalanceAction = Extract<TodayItem["action"], { kind: "final_balance" }>;
+
+/**
+ * A final balance nothing has billed. "Send the final bill" raises it through
+ * the studio's invoicing provider (bookingCommand sendFinalBalance); "Paid
+ * another way" opens the page-level sheet to record it.
+ */
+function FinalBalanceCardActions({
+  action,
+  onCleared,
+  onSettle,
+}: {
+  action: FinalBalanceAction;
+  onCleared?: () => void;
+  onSettle?: (action: FinalBalanceAction) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  async function send() {
+    setBusy(true);
+    setNotice(null);
+    try {
+      await sendFinalBalance(action.projectId);
+      refreshTenantRecords("invoiceReferences", "providerJobs", "projects");
+      onCleared?.();
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "The final bill couldn't be sent. Open the job to check."));
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <button className="today-card-primary" disabled={busy} onClick={() => void send()} type="button">
+        {busy ? <LoaderCircle className="spin" size={14} /> : <Send size={14} />}
+        {busy ? "Sending…" : action.label}
+      </button>
+      {action.packageSnapshotId ? (
+        <button className="today-card-secondary" disabled={busy} onClick={() => onSettle?.(action)} type="button">
+          Paid another way
+        </button>
+      ) : null}
+      <Link className="today-card-secondary" href={`/studio/projects/${action.projectId}`}>
+        Open the job
+      </Link>
+      {notice ? (
+        <span className="today-card-notice" role="status">
+          {notice}
+        </span>
+      ) : null}
+    </>
+  );
+}
 
 /**
  * A couple asked, in their portal, to add a package. "Add and revise" does

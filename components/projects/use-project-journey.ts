@@ -1,5 +1,6 @@
 "use client";
 
+import { currentFinalInvoice } from "@/features/booking/final-balance-due";
 import {
   resolveCoverage,
   totalCoverageCount,
@@ -91,9 +92,8 @@ export function useProjectJourney({
   const retainerInvoice = projectInvoices.find(
     (invoice) => invoice.kind === "retainer",
   );
-  const finalInvoice = projectInvoices.find(
-    (invoice) => invoice.kind === "final",
-  );
+  // The bill that stands, not whichever final came first (booking changes).
+  const finalInvoice = currentFinalInvoice(projectInvoices);
   const dayBeforeAction = forProject(aiActions.records).find(
     (action) =>
       text(record(action.structuredOutput).trigger) === "day_before_checklist",

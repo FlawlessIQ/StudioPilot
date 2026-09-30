@@ -86,6 +86,7 @@ export const STUDIO_ACTIONS: readonly ServerActionSpec[] = [
   // Money
   { id: "create_retainer_invoice", scope: "project", when: "raise / send the retainer (deposit) invoice" },
   { id: "record_retainer_payment", scope: "project", when: "the couple paid the retainer/deposit outside StudioCue (check, cash, Venmo) — the operator types the amount" },
+  { id: "send_final_balance", scope: "project", when: "send / raise the final balance invoice (the rest of what they owe) now, through QuickBooks or Stripe" },
   { id: "record_final_payment", scope: "project", when: "the couple paid the balance/final payment outside StudioCue — the operator types the amount" },
   { id: "approve_retainer_exception", scope: "project", when: "let a job book before the retainer is paid (an agreed exception)" },
   { id: "find_quickbooks_payments", scope: "project", when: "look up the couple's payments in QuickBooks" },

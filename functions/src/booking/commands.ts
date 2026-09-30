@@ -22,6 +22,7 @@ import {
 import { bookingGateRequirements } from "./gate-requirements.js";
 import { consultationBookingAdvancesTo } from "./consultation-advance.js";
 import { isStandingInvoice } from "./invoice-standing.js";
+import { sendFinalBalance, sendFinalBalanceInput } from "./send-final-balance.js";
 import { planRetainerAttestation } from "./retainer-attestation.js";
 import {
   attachImportedSignedCopy,
@@ -337,6 +338,13 @@ const commandSchema = z.discriminatedUnion("type", [
       // cannot quietly mean a different number than the one quoted.
       attestation: z.literal(true),
     }),
+  }),
+  // "Send the final bill", asked for by a person — see ./send-final-balance.ts.
+  z.object({
+    type: z.literal("sendFinalBalance"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: sendFinalBalanceInput,
   }),
   z.object({
     /**
@@ -1612,6 +1620,14 @@ export const bookingCommand = onRequest(
           settled: "attested_invoice",
         };
         }
+      } else if (command.type === "sendFinalBalance") {
+        result = await sendFinalBalance(firestore, {
+          tenantId: command.tenantId,
+          projectId: command.input.projectId,
+          role: String(membership.role),
+          actorId: identity.uid,
+          mockMode,
+        });
       } else if (command.type === "recordFinalPayment") {
         /**
          * The balance, vouched for by a person.

@@ -36,6 +36,7 @@ import {
 } from "@/features/today/provider-failure";
 import { countdownPhrase, formatDueDate } from "@/lib/format/event-date";
 import { isAmendable } from "@/features/booking/amendable";
+import { outstandingFinalBalance } from "@/features/booking/final-balance-due";
 import { providerName as readable } from "@/lib/format/provider-name";
 import { taskIsSettled } from "@/features/tasks/schema";
 import type { OutsideStepReminder } from "@/features/outside-steps/registry";
@@ -58,6 +59,17 @@ export type TodayAction =
    * A couple asked, in their portal, to add a package. Approving adds it and
    * revises their proposal; "Not now" tells them the studio will be in touch.
    */
+  | {
+      /**
+       * A final balance due and not yet billed: send it now, or record it
+       * paid another way (components/booking/final-balance-actions.tsx).
+       */
+      kind: "final_balance";
+      label: string;
+      projectId: string;
+      packageSnapshotId: string | null;
+      balanceCents: number | null;
+    }
   | {
       kind: "package_request";
       label: string;
@@ -1089,7 +1101,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
       balance <= 0 ||
       !due ||
       due >= today ||
-      ["voided", "refunded", "paid"].includes(text(invoice.status))
+      // A superseded or failed bill is not owed: a booking change replaced
+      // it, or it never reached the provider.
+      ["voided", "void", "refunded", "paid", "superseded", "failed", "cancelled"].includes(text(invoice.status))
     )
       continue;
     exception({
@@ -1231,6 +1245,14 @@ export function todayInbox(input: TodayInput): TodayInbox {
       .filter((gap) => gap.blocking && gap.blockedProjectName)
       .map((gap) => gap.blockedProjectName as string),
   );
+  const outstandingBalance = (projectId: string) => ({
+    ...outstandingFinalBalance({
+      projectId,
+      proposals: rows(input.proposals) as Array<Record<string, unknown> & { id: string }>,
+      invoices: rows(input.invoiceReferences) as Array<Record<string, unknown> & { id: string }>,
+    }),
+    packageSnapshotId: text(inquiryJobById.get(projectId)?.packageSnapshotId) || null,
+  });
   let inMotion = 0;
   for (const position of input.journeys ?? []) {
     // The inquiry card is this couple's Today item while they are one.
@@ -1260,6 +1282,16 @@ export function todayInbox(input: TodayInput): TodayInbox {
     ) {
       continue;
     }
+    // "Send final invoice" used to link to Invoices, which cannot send one:
+    // the scheduler raises a final only 28 days out, and only when the
+    // retainer carries an invoicing customer. The card sends it, or records
+    // it paid another way.
+    const due =
+      position.stepKey === "final_balance" && position.actionLabel === "Send final invoice"
+        ? outstandingBalance(position.projectId)
+        : null;
+    // A bill already standing (in review, say) keeps the plain link to it.
+    const finalBalance = due && !due.finalStanding ? due : null;
     act.push({
       id: `journey-${position.projectId}`,
       lane: "act",
@@ -1270,13 +1302,38 @@ export function todayInbox(input: TodayInput): TodayInbox {
       // delivered", "Crew confirmed") — correct on the journey rail beside a
       // tick, but read as an announcement that the thing is already done
       // when they head a to-do. The action is what is actually outstanding.
-      title: `${position.projectName} — ${(position.actionLabel ?? position.stepTitle).toLowerCase()}`,
-      detail: position.stepDetail,
+      title: finalBalance
+        ? `Bill ${position.projectName.replace(/\s+wedding$/i, "")}'s final balance${
+            // To the cent: this is the figure the bill will carry.
+            finalBalance.cents
+              ? ` · ${new Intl.NumberFormat("en-US", {
+                  style: "currency",
+                  currency: "USD",
+                  minimumFractionDigits: finalBalance.cents % 100 ? 2 : 0,
+                }).format(finalBalance.cents / 100)}`
+              : ""
+          }`
+        : `${position.projectName} — ${(position.actionLabel ?? position.stepTitle).toLowerCase()}`,
+      detail: finalBalance
+        ? [
+            finalBalance.dueDate ? `Due ${formatDueDate(finalBalance.dueDate)}.` : null,
+            "Nothing has billed it yet. Send it from here, or record it if they paid another way.",
+          ]
+            .filter(Boolean)
+            .join(" ")
+        : position.stepDetail,
       evidence: null,
       projectId: position.projectId,
       projectName: position.projectName,
-      action:
-        position.actionHref && position.actionLabel
+      action: finalBalance
+        ? {
+            kind: "final_balance",
+            label: "Send the final bill",
+            projectId: position.projectId,
+            packageSnapshotId: finalBalance.packageSnapshotId,
+            balanceCents: finalBalance.cents,
+          }
+        : position.actionHref && position.actionLabel
           ? {
               kind: "link",
               label: position.actionLabel,

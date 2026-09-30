@@ -32,6 +32,7 @@ import {
   QuickBooksLookupCard,
   RecordAcceptanceCard,
   RecordPaymentCard,
+  SendFinalBalanceCard,
   RecordSignedContractCard,
   RetainerExceptionCard,
   RetainerInvoiceCard,
@@ -127,6 +128,7 @@ export const ACTION_CARDS: Record<string, ComponentType<ActionCardProps>> = {
   create_retainer_invoice: RetainerInvoiceCard,
   record_retainer_payment: RecordPaymentCard,
   record_final_payment: RecordPaymentCard,
+  send_final_balance: SendFinalBalanceCard,
   approve_retainer_exception: RetainerExceptionCard,
   find_quickbooks_payments: QuickBooksLookupCard,
   // Booking

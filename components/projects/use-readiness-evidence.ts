@@ -4,6 +4,7 @@ import {
   resolveCoverage,
   totalCoverageCount,
 } from "@/features/packages/coverage";
+import { currentFinalInvoice } from "@/features/booking/final-balance-due";
 import { crewRequiredFromCoverage } from "@/features/crew/staffing-plan";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import {
@@ -71,7 +72,7 @@ export function useReadinessEvidence(projectId: string): ReadinessEvidence {
       text(projectInvoices.find((invoice) => invoice.kind === "retainer")?.status) ||
       null,
     finalInvoiceStatus:
-      text(projectInvoices.find((invoice) => invoice.kind === "final")?.status) ||
+      text(currentFinalInvoice(projectInvoices)?.status) ||
       null,
     questionnaireStatus: text(questionnaire?.status) || null,
     questionnaireAnswers: questionnaire?.answers,

@@ -1,7 +1,11 @@
 "use client";
 
 import { Calculator, CheckCircle2, CircleAlert, ShieldCheck } from "lucide-react";
+import { useState } from "react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
+import { FinalBalanceActions } from "@/components/booking/final-balance-actions";
+import { outstandingFinalBalance } from "@/features/booking/final-balance-due";
+import { balanceMayBeAttested } from "@/features/booking/agreed-final-balance";
 import { StatusBadge } from "@/components/ui/status-badge";
 
 const record = (value: unknown): Record<string, unknown> =>
@@ -17,6 +21,18 @@ const money = (value: unknown, currency: unknown) =>
 
 export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }) {
   const { records, loading } = useTenantDocuments("invoiceReferences");
+  const { records: projects } = useTenantDocuments("projects");
+  const { records: proposals } = useTenantDocuments("proposals");
+  const [settled, setSettled] = useState<string | null>(null);
+  // Arrived from one job whose balance nothing has billed: the actions, not a
+  // note that the scheduler will get to it (it may never — see
+  // components/booking/final-balance-actions.tsx).
+  const project = projectId ? projects?.find((candidate) => candidate.id === projectId) : undefined;
+  const due =
+    project && balanceMayBeAttested(String(project.state ?? "")) && !project.archivedAt
+      ? outstandingFinalBalance({ projectId: project.id, proposals, invoices: records })
+      : null;
+  const unbilled = due && !due.finalStanding && due.cents ? due : null;
   const finalInvoices =
     records?.filter(
       (invoice) =>
@@ -38,7 +54,30 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
         <Calculator aria-hidden="true" />
       </header>
       {loading ? <p className="panel">Loading the final invoice…</p> : null}
-      {!loading && !finalInvoices.length ? (
+      {!loading && unbilled && project ? (
+        <article className="panel final-invoice-unbilled">
+          <span>
+            <strong>{`${String(project.name ?? "This job")}'s final balance hasn't been billed`}</strong>
+            <small>
+              {`${money(unbilled.cents, "USD")} is left to pay${
+                unbilled.dueDate ? `, due ${new Date(`${unbilled.dueDate}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}` : ""
+              }. Send the bill, or record it if they paid another way.`}
+            </small>
+          </span>
+          <FinalBalanceActions
+            balanceLabel={money(unbilled.cents, "USD")}
+            onDone={setSettled}
+            packageSnapshotId={typeof project.packageSnapshotId === "string" ? project.packageSnapshotId : null}
+            projectId={project.id}
+          />
+        </article>
+      ) : null}
+      {settled && !unbilled ? (
+        <p className="form-notice" role="status">
+          {settled}
+        </p>
+      ) : null}
+      {!loading && !finalInvoices.length && !unbilled ? (
         <article className="panel final-invoice-empty">
           <ShieldCheck />
           <span>

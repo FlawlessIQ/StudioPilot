@@ -989,6 +989,8 @@ async function enqueueRetainerEmail(input:{
   invoiceId:string;
   invoiceUrl:string|null;
   email:string;
+  /** The invoice's kind. A final bill went out titled "Retainer" until this. */
+  kind?:string;
 }):Promise<{alreadyDelivered:boolean}>{
   if(!input.email)return {alreadyDelivered:false};
   // Never mail a client twice for one invoice.
@@ -1012,7 +1014,7 @@ async function enqueueRetainerEmail(input:{
     tenantId:input.tenantId,
     projectId:input.projectId,
     invoiceId:input.invoiceId,
-    type:"retainer_invoice",
+    type:input.kind==="final"?"final_invoice":"retainer_invoice",
     recipient:input.email,
     // The provider's own pay page when there is one, the portal when there
     // is not. Never nothing: an invoice email with no way to pay is a
@@ -1074,7 +1076,7 @@ export async function createQuickBooksInvoice(job:DocumentSnapshot){const db=get
     // the email.
     if(providerInvoiceId){
       hostedUrl=await quickBooksInvoiceLink(base,realmId,credential,providerInvoiceId);
-      const delivery=await enqueueRetainerEmail({db,tenantId,projectId:String(invoice.get("projectId")),invoiceId,invoiceUrl:hostedUrl,email:await clientEmailFor(db,tenantId,String(invoice.get("projectId")))});alreadyDelivered=delivery.alreadyDelivered;
+      const delivery=await enqueueRetainerEmail({db,tenantId,projectId:String(invoice.get("projectId")),invoiceId,invoiceUrl:hostedUrl,kind:String(invoice.get("kind")??""),email:await clientEmailFor(db,tenantId,String(invoice.get("projectId")))});alreadyDelivered=delivery.alreadyDelivered;
     }
   }
   if(!providerInvoiceId)throw new Error("QUICKBOOKS_INVOICE_ID_MISSING");const now=new Date().toISOString();

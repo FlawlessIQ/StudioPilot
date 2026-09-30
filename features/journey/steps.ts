@@ -875,7 +875,9 @@ export function projectJourney(input: JourneyInput): {
   // and certificate steps honour theirs: the studio recorded the decision.
   const finalDone =
     input.finalInvoiceStatus === "paid" || settled("final-balance");
-  const finalWaiting = ["sent", "viewed", "partially_paid", "overdue"].includes(
+  // Raised and on its way (drafted, or created and waiting for the email)
+  // is not "send final invoice" any more: sending it again would be refused.
+  const finalWaiting = ["draft", "awaiting_delivery", "sent", "viewed", "partially_paid", "overdue"].includes(
     input.finalInvoiceStatus ?? "",
   );
   const finalDue = days !== null && days <= 45 && days >= 0;

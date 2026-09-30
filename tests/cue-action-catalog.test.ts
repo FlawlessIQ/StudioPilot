@@ -103,7 +103,7 @@ const REACHED: Record<string, string> = {
   saveAgreementTemplate: "AgreementEditor", agreementDraftFromImport: "AgreementEditor", setContractAutoSend: "AgreementEditor",
   setSignedCopyShared: "SignedCopySharing", recordSignedAgreement: "RecordSignedAgreement",
   createRetainerInvoice: "\"createRetainerInvoice\"", recordRetainerPayment: "RecordRetainerPayment",
-  recordFinalPayment: "RecordFinalPayment", approveRetainerException: "BookWithoutRetainer",
+  recordFinalPayment: "RecordFinalPayment", sendFinalBalance: "FinalBalanceActions", approveRetainerException: "BookWithoutRetainer",
   lookupQuickBooksPayments: "lookupQuickBooksPayments", runBookingGate: "\"runBookingGate\"",
   previewExistingBookings: "ExistingBookingForm", importExistingBooking: "ExistingBookingForm",
   attachImportedSignedCopy: "ExistingBookingForm", bringImportedBookingLive: "ImportedBookingBanner",

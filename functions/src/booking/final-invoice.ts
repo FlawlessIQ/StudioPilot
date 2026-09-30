@@ -33,7 +33,21 @@ export async function raiseFinalInvoice(
   db: Firestore,
   transaction: Transaction,
   project: DocumentSnapshot,
-  options: { invoiceId: string; actor: string; now: string },
+  options: {
+    invoiceId: string;
+    actor: string;
+    now: string;
+    /** The studio's invoicing provider, for a retainer that names none. */
+    provider?: "quickbooks" | "stripe";
+    /**
+     * A person asked for this bill (sendFinalBalance), so a retainer with no
+     * provider customer — recorded by hand, or paid another way — is no reason
+     * to stop: the provider worker finds or creates the couple from their
+     * contact email, as it does for a retainer. The daily scheduler never sets
+     * this, so nothing new is billed without somebody choosing to.
+     */
+    resolveCustomer?: boolean;
+  },
 ): Promise<FinalInvoiceOutcome> {
   const tenantId = String(project.get("tenantId") ?? "");
   const invoiceReference = db.doc(`invoiceReferences/${options.invoiceId}`);
@@ -57,8 +71,20 @@ export async function raiseFinalInvoice(
     return { raised: false, reason: "final_outstanding" };
   const retainer = standing.find((invoice) => invoice.get("kind") === "retainer");
   if (!retainer) return { raised: false, reason: "no_retainer" };
-  const customerId = retainer.get("providerCustomerId");
-  if (typeof customerId !== "string") return { raised: false, reason: "no_quickbooks_customer" };
+  // Billed by whoever billed the retainer; a retainer recorded by hand names
+  // no provider, and then the studio's invoicing provider decides. Before
+  // this, every final went to QuickBooks — a Stripe studio's final carried a
+  // Stripe customer id into QuickBooks and failed there.
+  const retainerProvider = String(retainer.get("provider") ?? "");
+  const provider: "quickbooks" | "stripe" =
+    retainerProvider === "stripe" || retainerProvider === "quickbooks"
+      ? retainerProvider
+      : (options.provider ?? "quickbooks");
+  const retainerCustomer = retainer.get("providerCustomerId");
+  let customerId: string;
+  if (typeof retainerCustomer === "string" && retainerCustomer && retainerProvider === provider) customerId = retainerCustomer;
+  else if (options.resolveCustomer) customerId = `pending_${project.id}`;
+  else return { raised: false, reason: "no_provider_customer" };
 
   // What the couple agreed to is the accepted proposal: every package on the
   // job, and the retainer as scheduled (H2, M2/M3).
@@ -115,7 +141,7 @@ export async function raiseFinalInvoice(
     retainerPaidCents,
     expectedBalanceCents: amountCents,
     discrepancies,
-    authority: "quickbooks",
+    authority: provider,
     requiresHumanReview: true,
     calculatedAt: options.now,
   };
@@ -124,7 +150,7 @@ export async function raiseFinalInvoice(
     tenantId,
     projectId: project.id,
     kind: "final",
-    provider: "quickbooks",
+    provider,
     providerInvoiceId: readyForProviderDraft ? `pending_${options.invoiceId}` : null,
     providerCustomerId: customerId,
     status: readyForProviderDraft ? "draft" : "review_required",
@@ -148,7 +174,7 @@ export async function raiseFinalInvoice(
       id: `invoice_${options.invoiceId}`,
       tenantId,
       projectId: project.id,
-      type: "create_quickbooks_invoice",
+      type: provider === "stripe" ? "create_stripe_invoice" : "create_quickbooks_invoice",
       invoiceId: options.invoiceId,
       idempotencyKey: `final-invoice-${options.invoiceId}`,
       status: "queued",

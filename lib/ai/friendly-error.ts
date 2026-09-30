@@ -82,6 +82,15 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   PACKAGE_ALREADY_ON_JOB: "That package is already on this job.",
   PACKAGE_REQUEST_NOT_AVAILABLE:
     "Your booking can't take another package right now — your agreement may already be on its way. Please message your studio.",
+  // Sending the final bill by hand (bookingCommand sendFinalBalance).
+  FINAL_INVOICE_ALREADY_OUT: "A final bill is already out for this job. Open Invoices to see where it is.",
+  NOTHING_OWED: "Nothing is left to pay on this job, so there's no final bill to send.",
+  FINAL_NEEDS_RETAINER_RECORD:
+    "The retainer isn't recorded yet, so the balance can't be worked out. Record the retainer first, then send the final bill.",
+  FINAL_NO_PACKAGE: "This job has no package, so there's no total to bill against.",
+  INVOICING_NOT_CONNECTED:
+    "Connect QuickBooks or Stripe in Integrations to send the bill from StudioCue, or record the balance as paid another way.",
+  FINAL_INVOICE_NOT_RAISED: "The final bill couldn't be raised. Open the job's invoices to check what's outstanding.",
   DATE_IN_PAST: "That date has already passed. Choose a date that's still to come.",
   PACKAGE_REQUEST_NOT_FOUND: "That request isn't there any more. Refresh and try again.",
   PACKAGE_LIMIT_REACHED: "A job can hold four packages at most. Remove one before adding another.",
