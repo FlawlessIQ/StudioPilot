@@ -12,7 +12,9 @@ import {
 } from "../functions/src/booking/amendment-core";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { AMENDABLE_STATES as SERVER_AMENDABLE } from "../functions/src/booking/amendment-core";
-import { AMENDABLE_STATES as APP_AMENDABLE } from "@/features/booking/amendable";
+import { AMENDABLE_STATES as APP_AMENDABLE, shiftInZone as appShiftInZone } from "@/features/booking/amendable";
+import { consultationWhen, rangesOverlap, shiftInZone } from "../functions/src/booking/amendment-core";
+import { assignmentCalendarUid, assignmentIcs } from "../functions/src/crew/calendar-ics";
 import { todayInbox } from "@/features/today/inbox";
 
 /**
@@ -109,7 +111,7 @@ test("a signed job points the studio at the change, never at a dead end", () => 
   assert.match(friendlyError(new Error("PACKAGES_LOCKED_AFTER_SIGNING")), /Change the booking/);
   assert.match(friendlyError(new Error("DATE_TAKEN:Smith & Jones")), /^Smith & Jones already has that date/);
   assert.match(read("functions/src/ai/action-catalog.ts"), /change_booking/);
-  assert.match(read("components/ai/flow-runner.tsx"), /signedBooking \? <BookingAmendmentPanel/);
+  assert.match(read("components/ai/flow-runner.tsx"), /<BookingAmendmentPanel prefill=\{\{ addPackageIds: namedId \? \[namedId\] : \[\] \}\}/);
   assert.match(read("components/projects/live-project-detail.tsx"), /<BookingAmendment\b/);
 });
 
@@ -165,4 +167,68 @@ test("the portal takes a date request as a request, and a signed change settles 
   assert.match(apply, /resultAmendmentId: amendmentId/);
   // Today holds the sheet itself, so a refresh can't close it mid-change.
   assert.match(read("components/today/today-inbox.tsx"), /const \[changing, setChanging\] = useState<PackageRequestAction \| null>/);
+});
+
+test("a moved call keeps its local time across a daylight-saving change", () => {
+  // 2:00 PM in New York on Wed Mar 10, 2027 (EST) → Wed Mar 17 (EDT), still 2:00 PM.
+  assert.equal(shiftInZone("2027-03-10T19:00:00.000Z", 7, "America/New_York"), "2027-03-17T18:00:00.000Z");
+  assert.equal(appShiftInZone("2027-03-10T19:00:00.000Z", 7, "America/New_York"), "2027-03-17T18:00:00.000Z");
+  // And back again in November.
+  assert.equal(shiftInZone("2027-10-30T18:00:00.000Z", 7, "America/New_York"), "2027-11-06T18:00:00.000Z");
+  assert.equal(shiftInZone("2027-10-31T18:00:00.000Z", 7, "America/New_York"), "2027-11-07T19:00:00.000Z");
+  // No zone: whole days. Nothing to move: unchanged.
+  assert.equal(shiftInZone("2027-03-10T19:00:00.000Z", 7, null), "2027-03-17T19:00:00.000Z");
+  assert.equal(shiftInZone("2027-03-10T19:00:00.000Z", 0, "America/New_York"), "2027-03-10T19:00:00.000Z");
+  assert.equal(consultationWhen("2027-03-17T18:00:00.000Z", "America/New_York"), "Wednesday, March 17 at 2:00 PM");
+  assert.ok(rangesOverlap("2027-03-17T18:00:00Z", "2027-03-17T19:00:00Z", "2027-03-17T18:30:00Z", "2027-03-17T20:00:00Z"));
+  assert.ok(!rangesOverlap("2027-03-17T18:00:00Z", "2027-03-17T19:00:00Z", "2027-03-17T19:00:00Z", "2027-03-17T20:00:00Z"));
+});
+
+test("the couple reads which calls move with the date", () => {
+  const lines = amendmentChangeLines({
+    previousDate: "2027-06-12",
+    newDate: "2027-06-19",
+    keptPackages: ["Full Day"],
+    addedPackages: [],
+    removedPackages: [],
+    money: amendmentMoney({ previousTotalCents: 600_000, newTotalCents: 600_000, agreedRetainerCents: 150_000, paidCents: 0 }),
+    movedCalls: [{ label: "Zoom call", from: "Saturday, May 29 at 3:00 PM", to: "Saturday, June 5 at 3:00 PM" }],
+  });
+  assert.equal(lines[1], "Your Zoom call on Saturday, May 29 at 3:00 PM moves to Saturday, June 5 at 3:00 PM.");
+  // The studio picks; the server checks each call and moves it only if nobody moved it since.
+  const amendments = read("functions/src/contracts/amendments.ts");
+  assert.match(amendments, /moveConsultationIds: z\.array\(z\.string\(\)\.min\(1\)\)\.max\(10\)\.default\(\[\]\)/);
+  assert.match(amendments, /getCalendarBusyIntervals\(tenantId, windowStart, windowEnd\)/);
+  const apply = read("functions/src/booking/amendment-apply.ts");
+  assert.match(apply, /text\(consultation\.get\("startsAt"\)\) !== move\.fromStartsAt/);
+  assert.match(apply, /type: "reschedule_consultation_resources"/);
+  assert.match(read("components/booking/booking-amendment.tsx"), /moveConsultationIds: shiftDays \?/);
+});
+
+test("a crew member's own calendar copy moves: same event, next version, attached to the email", () => {
+  const ics = assignmentIcs({
+    assignmentId: "a1",
+    startsAt: "2027-06-19T17:00:00.000Z",
+    endsAt: "2027-06-20T01:00:00.000Z",
+    projectName: "Nora & Quill",
+    role: "Second shooter",
+    location: "The Foundry, 42 9th St",
+    sequence: 2,
+    stampedAt: "2026-09-30T12:00:00.000Z",
+  });
+  assert.match(ics, /UID:a1@studiocue\r\nSEQUENCE:2\r\n/);
+  assert.match(ics, /DTSTART:20270619T170000Z/);
+  assert.match(ics, /LOCATION:The Foundry\\, 42 9th St/);
+  assert.equal(assignmentCalendarUid("a1"), "a1@studiocue");
+  // The in-app download is the same event.
+  const download = read("lib/crew/calendar-file.ts");
+  assert.match(download, /`UID:\$\{input\.assignmentId\}@studiocue`/);
+  assert.match(download, /`SEQUENCE:\$\{/);
+  for (const screen of ["components/crew/kit/crew-offer.tsx", "components/crew/kit/crew-day-sheet.tsx"])
+    assert.match(read(screen), /sequence: typeof \w+\.calendarSequence === "number"/, screen);
+  // A date move bumps the version and attaches it to accepted crew's email.
+  const apply = read("functions/src/booking/amendment-apply.ts");
+  assert.match(apply, /const calendarSequence = num\(assignment\.get\("calendarSequence"\)\) \+ 1;/);
+  assert.match(apply, /calendarAttachment:\s*status === "accepted"/);
+  assert.match(read("functions/src/operations/jobs.ts"), /type: "text\/calendar"/);
 });

@@ -498,9 +498,14 @@ function inlines(
     let cursor = 0;
     for (const match of inner.matchAll(TOKEN)) {
       const index = match.index ?? 0;
-      push({ text: inner.slice(cursor, index), ...(bold ? { bold: true as const } : {}) });
       const key = normaliseTokenKey(match[1]!);
       const value = valueFor(key);
+      // "the {{package.name}}" with a package called "The Signature
+      // Collection" read "the The Signature Collection" in a couple's
+      // agreement. A value that brings its own article drops the template's.
+      let before = inner.slice(cursor, index);
+      if (value && /^(the|a|an)\s/i.test(value)) before = before.replace(/\b(the|a|an)\s+$/i, "");
+      push({ text: before, ...(bold ? { bold: true as const } : {}) });
       push({
         text: value ?? `[${key}]`,
         field: key,

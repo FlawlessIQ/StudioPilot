@@ -415,6 +415,7 @@ function LiveDaySheet({
                 endsAt: text(assignment.departureAt),
                 projectName: name,
                 role: text(assignment.role, "Crew"),
+                sequence: typeof assignment.calendarSequence === "number" ? assignment.calendarSequence : 0,
                 location: assignmentPlace(assignment, project),
               });
               void crewCommand("acknowledgeCalendar", {

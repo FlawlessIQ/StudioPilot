@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AMENDABLE_STATES } from "@/features/booking/amendable";
+import { AMENDABLE_STATES, shiftInZone } from "@/features/booking/amendable";
 import { CalendarClock, LoaderCircle, PackagePlus } from "lucide-react";
 import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
@@ -36,6 +36,30 @@ const money = (cents: unknown, currency = "USD") =>
     maximumFractionDigits: 2,
   }).format(num(cents) / 100);
 
+const DAY = 86_400_000;
+const daysFrom = (from: string, to: string) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to)
+    ? Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY)
+    : 0;
+/** As it reads mid-sentence: "Move the Zoom call…", "Move the meeting…". */
+const callLabel = (mode: unknown) =>
+  mode === "zoom" ? "Zoom call" : mode === "phone" ? "phone call" : mode === "in_person" ? "meeting" : "consultation";
+/** "Tue, Jun 8 · 3:00 PM" in the call's own timezone. */
+function callWhen(iso: string, timezone: string) {
+  const at = new Date(iso);
+  if (Number.isNaN(at.valueOf())) return iso;
+  let zone = "UTC";
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: timezone });
+    zone = timezone;
+  } catch {
+    // An unknown zone reads in UTC rather than failing the form.
+  }
+  return `${at.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: zone })} · ${at.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: zone })}`;
+}
+/** Calls this close to the wedding usually belong to it; earlier ones don't. */
+const CLOSE_TO_WEDDING_DAYS = 56;
+
 function run(type: string, input: Record<string, unknown>) {
   return sendBookingCommand({ type, idempotencyKey: `${type}_${crypto.randomUUID()}`, input });
 }
@@ -56,6 +80,7 @@ export function BookingAmendmentPanel({
   const { records: snapshots } = useTenantDocuments("packageSnapshots");
   const { records: packages } = useTenantDocuments("packages");
   const { records: amendments } = useTenantDocuments("bookingAmendments");
+  const { records: consultationRecords } = useTenantDocuments("consultations");
   const project = (projects as Rec[] | null)?.find((item) => item.id === projectId) ?? null;
   const onJobIds = useMemo(
     () =>
@@ -86,6 +111,10 @@ export function BookingAmendmentPanel({
   const [error, setError] = useState<string | null>(null);
   // Back to the choices from a draft; writing it up again replaces the draft.
   const [editing, setEditing] = useState(false);
+  // Which upcoming calls move with the date; null until the studio touches one.
+  const [moveCalls, setMoveCalls] = useState<string[] | null>(null);
+  // "Upcoming" as of opening the form, not re-read on every render.
+  const [openedAt] = useState(() => Date.now());
 
   if (!project) return <p className="cue-action-note">Loading the job…</p>;
   if (!AMENDABLE_STATES.includes(str(project.state)))
@@ -100,6 +129,18 @@ export function BookingAmendmentPanel({
     (item) => item.active === true && !onJob.some((snapshot) => str(snapshot.packageId) === item.id && keptIds.includes(snapshot.id)),
   );
   const newDate = date ?? str(project.eventDate);
+  const shiftDays = daysFrom(str(project.eventDate), newDate);
+  const upcomingCalls = ((consultationRecords as Rec[] | null) ?? [])
+    .filter(
+      (call) => call.projectId === projectId && call.status === "scheduled" && Date.parse(str(call.startsAt)) > openedAt,
+    )
+    .sort((a, b) => str(a.startsAt).localeCompare(str(b.startsAt)));
+  const eventAt = Date.parse(`${str(project.eventDate)}T12:00:00Z`);
+  const movingCalls =
+    moveCalls ??
+    upcomingCalls
+      .filter((call) => (eventAt - Date.parse(str(call.startsAt))) / DAY <= CLOSE_TO_WEDDING_DAYS)
+      .map((call) => call.id);
 
   async function draft() {
     setBusy(true);
@@ -112,6 +153,7 @@ export function BookingAmendmentPanel({
         keepPackageSnapshotIds: keptIds,
         addPackageIds: add,
         allowDateClash: allowClash,
+        moveConsultationIds: shiftDays ? movingCalls.filter((id) => upcomingCalls.some((call) => call.id === id)) : [],
         note: note.trim() || null,
       });
       refreshTenantRecords("bookingAmendments", "projects", "proposals", "packageSnapshots");
@@ -154,6 +196,13 @@ export function BookingAmendmentPanel({
             <li key={line}>{line}</li>
           ))}
         </ul>
+        {(Array.isArray(pending.consultationMoves) ? (pending.consultationMoves as Array<Record<string, unknown>>) : [])
+          .filter((move) => str(move.clash))
+          .map((move) => (
+            <p className="form-notice" key={str(move.consultationId)} role="status">
+              {`${str(move.label).charAt(0).toUpperCase()}${str(move.label).slice(1)} ${callWhen(str(move.toStartsAt), str(move.timezone) || "UTC")}: ${str(move.clash)} Change it, or move the call yourself after they sign.`}
+            </p>
+          ))}
         <p className="amendment-money">
           {`New total ${money(moneyInfo.newTotalCents, currency)} · paid ${money(moneyInfo.paidCents, currency)} · `}
           {num(moneyInfo.refundCents) > 0
@@ -299,6 +348,30 @@ export function BookingAmendmentPanel({
             </label>
           ))}
         </fieldset>
+        {shiftDays && upcomingCalls.length ? (
+          <fieldset className="is-wide amendment-packages">
+            <legend>Calls with the couple</legend>
+            {upcomingCalls.map((call) => {
+              const timezone = str(call.timezone) || "UTC";
+              const to = String(shiftInZone(str(call.startsAt), shiftDays, timezone));
+              return (
+                <label className="amendment-check" key={call.id}>
+                  <input
+                    checked={movingCalls.includes(call.id)}
+                    onChange={(event) =>
+                      setMoveCalls(
+                        event.target.checked ? [...movingCalls, call.id] : movingCalls.filter((id) => id !== call.id),
+                      )
+                    }
+                    type="checkbox"
+                  />
+                  {`Move the ${callLabel(call.mode)} ${callWhen(str(call.startsAt), timezone)} → ${callWhen(to, timezone)}`}
+                </label>
+              );
+            })}
+            <p className="amendment-hint">Ticked calls move when the couple signs; their invitation updates.</p>
+          </fieldset>
+        ) : null}
         <label className="is-wide">
           A note for the couple (optional)
           <textarea onChange={(event) => setNote(event.target.value)} rows={2} value={note} />

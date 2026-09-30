@@ -351,3 +351,25 @@ test("every contract document can be stored in Firestore", () => {
   assert.equal(firestoreStorable(everything.fields), true);
   assert.equal(firestoreStorable({ a: [[1]] }), false, "the check itself catches the bad shape");
 });
+
+test("a package that brings its own article isn't given a second one", async () => {
+  // Walked 2026-09-29: "The Studio will provide the The Signature Collection".
+  const { STARTER_AGREEMENT, sampleContractSources } = await import("@/features/contracts/sample");
+  const sources = sampleContractSources("Alder & Muse", "2026-09-30");
+  sources.package = { ...sources.package, name: "The Signature Collection" };
+  const { document } = resolveContractDocument({
+    template: { title: "Agreement", body: STARTER_AGREEMENT, customFields: [] },
+    sources,
+    overrides: {},
+  });
+  const text = JSON.stringify(document).replace(/"\},\{"text":"/g, "");
+  assert.doesNotMatch(text, /the The /i);
+  assert.match(text, /provide The Signature Collection/);
+  // An ordinary name keeps the template's article.
+  const plain = resolveContractDocument({
+    template: { title: "Agreement", body: "We provide the {{package.name}}.", customFields: [] },
+    sources: sampleContractSources("Alder & Muse", "2026-09-30"),
+    overrides: {},
+  });
+  assert.match(JSON.stringify(plain.document).replace(/"\},\{"text":"/g, ""), /provide the Full Day Collection/);
+});

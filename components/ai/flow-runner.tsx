@@ -245,7 +245,10 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
               : invoiceRaised
                 ? `An invoice has been raised for ${jobName}'s current total. Void it first, then add the package.`
                 : `${jobName}'s packages can't change right now.`}
-          {signedBooking ? <BookingAmendmentPanel projectId={projectId} /> : null}
+          {signedBooking ? (
+            // The package they named, already ticked: asked for once, not twice.
+            <BookingAmendmentPanel prefill={{ addPackageIds: namedId ? [namedId] : [] }} projectId={projectId} />
+          ) : null}
         </div>
       ) : options.length === 0 ? (
         <p role="status">{adding ? "No other active packages to add." : "No active packages to choose from yet."}</p>

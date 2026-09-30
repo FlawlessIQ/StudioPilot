@@ -833,6 +833,32 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
       },
     ];
   }
+  // A calendar update carried by the email itself — a crew member's
+  // "your date moved" (booking/amendment-apply.ts). Text, written by the
+  // server, so it is attached as-is rather than fetched from storage.
+  const calendarAttachment = document.get("calendarAttachment") as
+    | { filename?: unknown; content?: unknown }
+    | null
+    | undefined;
+  if (
+    !payload.attachments &&
+    calendarAttachment &&
+    typeof calendarAttachment.content === "string" &&
+    calendarAttachment.content.startsWith("BEGIN:VCALENDAR") &&
+    calendarAttachment.content.length < 20_000
+  ) {
+    payload.attachments = [
+      {
+        content: Buffer.from(calendarAttachment.content, "utf8").toString("base64"),
+        type: "text/calendar",
+        filename:
+          typeof calendarAttachment.filename === "string" && /^[\w.-]{1,80}\.ics$/.test(calendarAttachment.filename)
+            ? calendarAttachment.filename
+            : "studiocue.ics",
+        disposition: "attachment",
+      },
+    ];
+  }
   const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
     method: "POST",
     headers: {

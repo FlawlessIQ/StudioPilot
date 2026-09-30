@@ -15,11 +15,16 @@ import { isStandingInvoice } from "../booking/invoice-standing.js";
 import {
   amendmentChangeLines,
   amendmentMoney,
+  consultationLabel,
+  consultationWhen,
   daysBetween,
   isAmendableState,
   ISO_DATE,
+  rangesOverlap,
   shiftDate,
+  shiftInZone,
 } from "../booking/amendment-core.js";
+import { getCalendarBusyIntervals } from "../operations/provider-runtime.js";
 import {
   nativeSigningEnabled,
   requireOwnerOrAdmin,
@@ -59,6 +64,8 @@ export const draftAmendmentInput = z.object({
   addPackageIds: z.array(z.string().min(1)).max(3).default([]),
   /** The studio covers two weddings that day on purpose. */
   allowDateClash: z.boolean().default(false),
+  /** Upcoming consultations to move by the same number of days as the date. */
+  moveConsultationIds: z.array(z.string().min(1)).max(10).default([]),
   note: z.string().trim().max(1000).nullable().default(null),
 });
 
@@ -87,6 +94,72 @@ function longSignedDate(value: string): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(value)
     ? new Date(`${value}T12:00:00Z`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })
     : value;
+}
+
+export type ConsultationMove = {
+  consultationId: string;
+  label: string;
+  timezone: string;
+  fromStartsAt: string;
+  fromEndsAt: string;
+  toStartsAt: string;
+  toEndsAt: string;
+  /** Why the new time may not work, for the studio to see before sending. */
+  clash: string | null;
+};
+
+async function plannedConsultationMoves(
+  db: Firestore,
+  tenantId: string,
+  projectId: string,
+  ids: string[],
+  shift: number,
+): Promise<ConsultationMove[]> {
+  if (!ids.length || !shift) return [];
+  const now = Date.now();
+  const docs = await Promise.all([...new Set(ids)].map((id) => db.doc(`consultations/${id}`).get()));
+  const moves: ConsultationMove[] = [];
+  for (const consultation of docs) {
+    if (
+      !consultation.exists ||
+      consultation.get("tenantId") !== tenantId ||
+      consultation.get("projectId") !== projectId ||
+      consultation.get("status") !== "scheduled"
+    )
+      throw new Error("CONSULTATION_NOT_RESCHEDULABLE");
+    const fromStartsAt = text(consultation.get("startsAt"));
+    const fromEndsAt = text(consultation.get("endsAt"));
+    if (Date.parse(fromStartsAt) <= now) throw new Error("CONSULTATION_NOT_RESCHEDULABLE");
+    const timezone = text(consultation.get("timezone"), "UTC");
+    moves.push({
+      consultationId: consultation.id,
+      label: consultationLabel(consultation.get("mode")),
+      timezone,
+      fromStartsAt,
+      fromEndsAt,
+      toStartsAt: String(shiftInZone(fromStartsAt, shift, timezone)),
+      toEndsAt: String(shiftInZone(fromEndsAt, shift, timezone)),
+      clash: null,
+    });
+  }
+  if (!moves.length) return moves;
+  const windowStart = moves.map((move) => move.toStartsAt).sort()[0]!;
+  const windowEnd = moves.map((move) => move.toEndsAt).sort().at(-1)!;
+  const [busy, others] = await Promise.all([
+    getCalendarBusyIntervals(tenantId, windowStart, windowEnd),
+    db.collection("consultations").where("tenantId", "==", tenantId).where("status", "==", "scheduled").limit(300).get(),
+  ]);
+  for (const move of moves) {
+    const other = others.docs.find(
+      (candidate) =>
+        !moves.some((each) => each.consultationId === candidate.id) &&
+        rangesOverlap(move.toStartsAt, move.toEndsAt, text(candidate.get("startsAt")), text(candidate.get("endsAt"))),
+    );
+    if (other) move.clash = "Another consultation is booked at that time.";
+    else if (busy.ok && busy.busy.some((interval) => rangesOverlap(move.toStartsAt, move.toEndsAt, interval.start, interval.end)))
+      move.clash = "Your calendar is busy then.";
+  }
+  return moves;
 }
 
 const LIVE_AMENDMENT = new Set(["draft", "sent"]);
@@ -362,7 +435,19 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
     },
   ];
 
+  // Calls the studio chose to move with the date: same time of day, the same
+  // number of days on. Checked against the studio's calendar and its other
+  // consultations; a clash is shown, not refused — the studio decides.
+  const consultationMoves = dateChanged
+    ? await plannedConsultationMoves(db, context.tenantId, input.projectId, input.moveConsultationIds, shift)
+    : [];
+
   const changes = amendmentChangeLines({
+    movedCalls: consultationMoves.map((move) => ({
+      label: move.label,
+      from: consultationWhen(move.fromStartsAt, move.timezone),
+      to: consultationWhen(move.toStartsAt, move.timezone),
+    })),
     previousDate,
     newDate,
     keptPackages: keptSnapshots.map((snapshot) => text(snapshot.get("packageName"), "Package")),
@@ -488,6 +573,7 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
     dateChanged,
     dateShiftDays: shift,
     dateClashes: clashes,
+    consultationMoves,
     addedPackageSnapshotIds: created.map((entry) => entry.id),
     removedPackageSnapshotIds: removed.map((snapshot) => snapshot.id),
     money,

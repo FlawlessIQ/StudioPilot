@@ -57,6 +57,43 @@ export function shiftTimestamp(value: unknown, days: number): unknown {
   return new Date(parsed + days * 86_400_000).toISOString();
 }
 
+/** Minutes a zone is ahead of UTC at one instant (e.g. -240 for New York in summer). */
+function zoneOffsetMinutes(ms: number, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(new Date(ms));
+  const part = (type: string) => Number(parts.find((entry) => entry.type === type)?.value ?? 0);
+  const asUtc = Date.UTC(part("year"), part("month") - 1, part("day"), part("hour"), part("minute"), part("second"));
+  return Math.round((asUtc - Math.floor(ms / 1000) * 1000) / 60000);
+}
+
+/**
+ * An ISO timestamp moved by whole days, keeping its local clock time in
+ * `timeZone` — a 3 PM call stays at 3 PM across a daylight-saving change,
+ * where adding 24-hour days would land it at 2 or 4. An unknown zone falls
+ * back to whole UTC days.
+ */
+export function shiftInZone(value: unknown, days: number, timeZone: string | null | undefined): unknown {
+  if (typeof value !== "string" || !days) return value;
+  const ms = Date.parse(value);
+  if (Number.isNaN(ms)) return value;
+  const moved = ms + days * 86_400_000;
+  if (!timeZone) return new Date(moved).toISOString();
+  try {
+    const delta = zoneOffsetMinutes(ms, timeZone) - zoneOffsetMinutes(moved, timeZone);
+    return new Date(moved + delta * 60_000).toISOString();
+  } catch {
+    return new Date(moved).toISOString();
+  }
+}
+
 export type AmendmentMoney = {
   previousTotalCents: number;
   newTotalCents: number;
@@ -99,7 +136,8 @@ const dollars = (cents: number, currency = "USD") =>
     maximumFractionDigits: 2,
   }).format(cents / 100);
 
-const longDate = (value: string) =>
+/** "Saturday, June 12, 2027". */
+export const longDate = (value: string) =>
   ISO_DATE.test(value)
     ? new Date(`${value}T12:00:00Z`).toLocaleDateString("en-US", {
         weekday: "long",
@@ -110,6 +148,37 @@ const longDate = (value: string) =>
       })
     : value;
 
+/** What a consultation is called in a sentence to the couple. */
+export function consultationLabel(mode: unknown): string {
+  return mode === "zoom" ? "Zoom call" : mode === "phone" ? "phone call" : mode === "in_person" ? "meeting" : "consultation";
+}
+
+/** "Tuesday, June 8 at 3:00 PM", in the consultation's own timezone. */
+export function consultationWhen(startsAt: string, timezone: string): string {
+  const date = new Date(startsAt);
+  if (Number.isNaN(date.valueOf())) return startsAt;
+  const zone = (() => {
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: timezone });
+      return timezone;
+    } catch {
+      return "UTC";
+    }
+  })();
+  const day = date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: zone });
+  const time = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: zone });
+  return `${day} at ${time}`;
+}
+
+/** Whether two time ranges share any moment (touching ends don't count). */
+export function rangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string): boolean {
+  const [a0, a1, b0, b1] = [aStart, aEnd, bStart, bEnd].map((value) => Date.parse(value));
+  if ([a0, a1, b0, b1].some((value) => Number.isNaN(value))) return false;
+  return a0! < b1! && b0! < a1!;
+}
+
+export type MovedCall = { label: string; from: string; to: string };
+
 /** What changes, in the words the couple and the studio both read. */
 export function amendmentChangeLines(input: {
   previousDate: string;
@@ -119,11 +188,14 @@ export function amendmentChangeLines(input: {
   removedPackages: string[];
   money: AmendmentMoney;
   currency?: string;
+  /** Consultations the studio is moving with the date. */
+  movedCalls?: MovedCall[];
 }): string[] {
   const lines: string[] = [];
   const currency = input.currency ?? "USD";
   if (input.newDate && input.newDate !== input.previousDate)
     lines.push(`The wedding date moves from ${longDate(input.previousDate)} to ${longDate(input.newDate)}.`);
+  for (const call of input.movedCalls ?? []) lines.push(`Your ${call.label} on ${call.from} moves to ${call.to}.`);
   for (const name of input.addedPackages) lines.push(`${name} is added.`);
   for (const name of input.removedPackages) lines.push(`${name} is removed.`);
   if (input.money.newTotalCents !== input.money.previousTotalCents)

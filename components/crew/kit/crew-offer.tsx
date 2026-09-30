@@ -215,6 +215,7 @@ function OfferDetail({ data, offer, now }: { data: CrewData; offer: Value; now: 
                     endsAt: text(offer.departureAt),
                     projectName: name,
                     role: text(offer.role, "Crew"),
+                    sequence: typeof offer.calendarSequence === "number" ? offer.calendarSequence : 0,
                     location: place,
                   });
                   void crewCommand("acknowledgeCalendar", { projectId: text(offer.projectId), assignmentId: offer.id }).catch(

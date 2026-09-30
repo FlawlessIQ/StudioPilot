@@ -3,7 +3,8 @@ import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { logger } from "firebase-functions";
 import { isStandingInvoice } from "./invoice-standing.js";
 import { raiseFinalInvoice } from "./final-invoice.js";
-import { amendmentMoney, shiftDate, shiftTimestamp } from "./amendment-core.js";
+import { amendmentMoney, longDate, shiftDate, shiftInZone } from "./amendment-core.js";
+import { assignmentIcs, assignmentPlace } from "../crew/calendar-ics.js";
 import { studioNotificationAddress } from "../communications/notify-address.js";
 import { reconcileProjectReadiness } from "../workflow/readiness-triggers.js";
 
@@ -314,9 +315,19 @@ export async function applyAmendment(db: Firestore, amendmentId: string) {
       clientEmail: text(amendment.get("clientEmail")),
       clientName: text(amendment.get("clientName")),
       projectName: text(project.get("name")),
+      timezone: text(project.get("timezone")) || null,
       state: text(project.get("state")),
       contactId: strings(project.get("clientContactIds"))[0] ?? null,
       hadPaidFinal: standing.some((invoice) => invoice.get("kind") === "final" && invoice.get("status") === "paid"),
+      consultationMoves: (Array.isArray(amendment.get("consultationMoves"))
+        ? (amendment.get("consultationMoves") as Array<Record<string, unknown>>)
+        : []
+      ).map((move) => ({
+        consultationId: text(move.consultationId),
+        fromStartsAt: text(move.fromStartsAt),
+        toStartsAt: text(move.toStartsAt),
+        toEndsAt: text(move.toEndsAt),
+      })),
     };
   });
   if (!core) return { applied: false };
@@ -348,6 +359,10 @@ export async function applyAmendment(db: Firestore, amendmentId: string) {
   if (core.dateChanged) await moveDate(db, core, amendmentId).catch((caught) =>
     logger.error("amendmentDateMoveFailed", { amendmentId, message: String(caught).slice(0, 200) }),
   );
+  if (core.consultationMoves.length)
+    await moveConsultations(db, core, amendmentId).catch((caught) =>
+      logger.error("amendmentConsultationMoveFailed", { amendmentId, message: String(caught).slice(0, 200) }),
+    );
   await reconcileProjectReadiness(db, core.tenantId, core.projectId).catch(() => undefined);
   await settleCoupleRequests(db, core, amendmentId).catch((caught) =>
     logger.error("amendmentRequestSettleFailed", { amendmentId, message: String(caught).slice(0, 200) }),
@@ -400,10 +415,12 @@ export async function applyAmendment(db: Firestore, amendmentId: string) {
 /** Every stamped copy of the old date follows the new one. */
 async function moveDate(
   db: Firestore,
-  core: { tenantId: string; projectId: string; newDate: string; shift: number; projectName: string },
+  core: { tenantId: string; projectId: string; newDate: string; shift: number; projectName: string; timezone: string | null },
   amendmentId: string,
 ) {
   const { tenantId, projectId, shift } = core;
+  // Times keep their local clock across a daylight-saving change.
+  const shiftTimestamp = (value: unknown, days: number) => shiftInZone(value, days, core.timezone);
   const now = new Date().toISOString();
   const scoped = (collection: string) =>
     db.collection(collection).where("tenantId", "==", tenantId).where("projectId", "==", projectId).limit(60).get();
@@ -423,12 +440,20 @@ async function moveDate(
 
   // Crew: their times move, and anyone who had said yes is asked again — a
   // new day is a new question. A no releases the role to be staffed.
+  const newDateLong = longDate(core.newDate);
   for (const assignment of assignments.docs) {
     const status = text(assignment.get("status"));
     if (!["invited", "viewed", "accepted"].includes(status)) continue;
+    const arrivalAt = shiftTimestamp(assignment.get("arrivalAt"), shift);
+    const departureAt = shiftTimestamp(assignment.get("departureAt"), shift);
+    // A crew member's own calendar copy (downloaded from the crew app) is out
+    // of StudioCue's reach; the next version of the same event, attached to
+    // the email below, is what moves it.
+    const calendarSequence = num(assignment.get("calendarSequence")) + 1;
     batch.update(assignment.ref, {
-      arrivalAt: shiftTimestamp(assignment.get("arrivalAt"), shift),
-      departureAt: shiftTimestamp(assignment.get("departureAt"), shift),
+      arrivalAt,
+      departureAt,
+      calendarSequence,
       ...(status === "accepted"
         ? { status: "invited", reconfirmForDateChange: true, previouslyAcceptedAt: assignment.get("respondedAt") ?? now }
         : {}),
@@ -450,10 +475,31 @@ async function moveDate(
         recipientName: text(profile?.get("name")) || null,
         projectName: core.projectName,
         type: "manual_message",
-        customSubject: `${core.projectName} moved to ${core.newDate}`,
-        customBody: `${core.projectName} has moved to ${core.newDate}. ${
+        customSubject: `${core.projectName} moved to ${newDateLong}`,
+        customBody: `${core.projectName} has moved to ${newDateLong}. ${
           status === "accepted" ? "Please confirm you can still do it" : "Your offer is for the new day"
-        } in your crew app; if you can't, decline it there and the studio will find cover.`,
+        } in your crew app; if you can't, decline it there and the studio will find cover.${
+          status === "accepted" && typeof arrivalAt === "string" && typeof departureAt === "string"
+            ? " If you added it to your calendar, open the attached calendar file and it moves to the new day."
+            : ""
+        }`,
+        // Only someone who had said yes can have the old day in their calendar.
+        calendarAttachment:
+          status === "accepted" && typeof arrivalAt === "string" && typeof departureAt === "string"
+            ? {
+                filename: "studiocue-assignment.ics",
+                content: assignmentIcs({
+                  assignmentId: assignment.id,
+                  startsAt: arrivalAt,
+                  endsAt: departureAt,
+                  projectName: core.projectName,
+                  role: text(assignment.get("role"), "Crew"),
+                  location: assignmentPlace(assignment.get("locations")),
+                  sequence: calendarSequence,
+                  stampedAt: now,
+                }),
+              }
+            : null,
         actionLabel: "Open the crew app",
         actionUrl: `${appUrl}/crew`,
         status: "queued",
@@ -522,6 +568,58 @@ async function moveDate(
     updatedAt: now,
   });
   await batch.commit();
+}
+
+/**
+ * The consultations the studio chose to move with the date. Each moves in
+ * place — its id, and so its calendar event and Zoom meeting, stay the same —
+ * and the same provider job as rescheduleConsultation updates both, which
+ * sends the couple the updated invitation. A call rescheduled some other way
+ * after the change was written up is left where it now is.
+ */
+async function moveConsultations(
+  db: Firestore,
+  core: {
+    tenantId: string;
+    projectId: string;
+    consultationMoves: Array<{ consultationId: string; fromStartsAt: string; toStartsAt: string; toEndsAt: string }>;
+  },
+  amendmentId: string,
+) {
+  const now = new Date().toISOString();
+  for (const move of core.consultationMoves) {
+    const reference = db.doc(`consultations/${move.consultationId}`);
+    const moved = await db.runTransaction(async (transaction) => {
+      const consultation = await transaction.get(reference);
+      if (
+        !consultation.exists ||
+        consultation.get("tenantId") !== core.tenantId ||
+        consultation.get("projectId") !== core.projectId ||
+        consultation.get("status") !== "scheduled" ||
+        text(consultation.get("startsAt")) !== move.fromStartsAt
+      )
+        return false;
+      transaction.update(reference, {
+        startsAt: move.toStartsAt,
+        endsAt: move.toEndsAt,
+        rescheduledAt: now,
+        rescheduledByAmendmentId: amendmentId,
+        updatedAt: now,
+        updatedBy: ACTOR,
+      });
+      transaction.set(db.doc(`providerJobs/consultresched_${amendmentId}_${move.consultationId}`), {
+        tenantId: core.tenantId,
+        projectId: core.projectId,
+        consultationId: move.consultationId,
+        type: "reschedule_consultation_resources",
+        idempotencyKey: `amendment_${amendmentId}_${move.consultationId}`,
+        status: "queued",
+        createdAt: now,
+      });
+      return true;
+    });
+    if (!moved) logger.info("amendmentConsultationSkipped", { amendmentId, consultationId: move.consultationId });
+  }
 }
 
 /**
