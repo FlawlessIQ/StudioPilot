@@ -247,6 +247,8 @@ export async function approveAndSendCoi(
     documentId,
     recipient: submissionEmail,
     venueName: requirement.get("venueLegalName"),
+    // So the venue can tell which event it is for (walked 2026-09-30).
+    eventDate: requirement.get("eventDate") ?? null,
     ...(replyAddress ? { replyAddress } : {}),
     status: "queued",
     attempts: 0,

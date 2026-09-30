@@ -242,3 +242,13 @@ test("a certificate decision refreshes the list above the card", () => {
   const source = readFileSync("components/planning/coi-request-actions.tsx", "utf8");
   assert.match(source, /if \(outcome\.persisted\) refreshTenantRecords\("insuranceRequests"/);
 });
+
+test("both paths that send a certificate to the venue carry the event date", () => {
+  const commands = readFileSync("functions/src/planning/commands.ts", "utf8");
+  const actions = readFileSync("functions/src/coi/actions.ts", "utf8");
+  for (const source of [commands, actions]) {
+    const at = source.indexOf('type: "coi_venue_delivery"');
+    assert.ok(at > 0);
+    assert.match(source.slice(at, at + 600), /eventDate: requirement\.get\("eventDate"\) \?\? null/);
+  }
+});
