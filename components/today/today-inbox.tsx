@@ -22,7 +22,9 @@ import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { BookingAmendmentPanel } from "@/components/booking/booking-amendment";
 import { RecordFinalPayment } from "@/components/booking/record-final-payment";
 import { sendFinalBalance } from "@/lib/booking/command-client";
-import { refreshTenantRecords } from "@/components/live/tenant-records";
+import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
+import { ConfirmStep } from "@/components/ui/confirm-step";
+import { jobClientRecipient, recipientLabel } from "@/features/projects/client-recipient";
 import { AiQueueCard, AutomationApprovalCard } from "@/components/ai/ai-approval-queue";
 import { countdownPhrase } from "@/lib/format/event-date";
 import { formatCents } from "@/lib/format/money";
@@ -1313,8 +1315,23 @@ type EmailProblemAction = Extract<TodayItem["action"], { kind: "email_problem" }
  * offers the place the address lives instead. Leave it clears the card.
  */
 function EmailProblemActions({ action, onCleared }: { action: EmailProblemAction; onCleared?: () => void }) {
+  const workspace = useWorkspace();
   const [busy, setBusy] = useState<"retry" | "dismiss" | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Retry and Leave it are owner/admin on the server (APPROVAL_PERMISSION_
+  // REQUIRED); a coordinator was offered both and refused (wave 3).
+  if (!ownerOrAdmin(workspace.role)) {
+    return (
+      <>
+        {action.fixHref ? (
+          <Link className="today-card-primary" href={action.fixHref}>
+            Fix the address
+          </Link>
+        ) : null}
+        <span className="today-card-notice">An owner or admin can send it again or clear it.</span>
+      </>
+    );
+  }
   async function run(type: "retryEmailJob" | "dismissEmailProblem") {
     setBusy(type === "retryEmailJob" ? "retry" : "dismiss");
     setNotice(null);
@@ -1378,8 +1395,23 @@ function FinalBalanceCardActions({
   onCleared?: () => void;
   onSettle?: (action: FinalBalanceAction) => void;
 }) {
+  const workspace = useWorkspace();
+  const { records: projects } = useTenantDocuments("projects");
+  const { records: contacts } = useTenantDocuments("contacts");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  /**
+   * "Send the final bill" emailed the couple a bill on one tap, without the
+   * amount or who it goes to (wave 3). The step names both.
+   */
+  const [confirming, setConfirming] = useState(false);
+  const recipient = recipientLabel(
+    jobClientRecipient(
+      projects?.find((project) => project.id === action.projectId),
+      contacts,
+    ),
+  );
+  const amount = typeof action.balanceCents === "number" ? formatCents(action.balanceCents) : null;
   async function send() {
     setBusy(true);
     setNotice(null);
@@ -1389,14 +1421,43 @@ function FinalBalanceCardActions({
       onCleared?.();
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "The final bill couldn't be sent. Open the job to check."));
+      setConfirming(false);
       setBusy(false);
     }
   }
+  // sendFinalBalance is owner/admin only (BALANCE_ATTESTATION_PERMISSION_REQUIRED).
+  if (!ownerOrAdmin(workspace.role)) {
+    return (
+      <>
+        <Link className="today-card-primary" href={`/studio/projects/${action.projectId}`}>
+          Open the job <ArrowRight size={14} />
+        </Link>
+        <span className="today-card-notice">An owner or admin sends the final bill.</span>
+      </>
+    );
+  }
+  if (confirming) {
+    return (
+      <ConfirmStep
+        busy={busy}
+        cancelClassName="today-card-secondary"
+        cancelLabel="Not now"
+        className="today-confirm-step"
+        confirmClassName="today-card-primary"
+        confirmLabel={amount ? `Send the ${amount} bill` : "Send the bill"}
+        label="Send the final bill?"
+        onCancel={() => setConfirming(false)}
+        onConfirm={() => void send()}
+      >
+        {`${amount ? `A ${amount}` : "The"} final bill goes to ${recipient ?? "the couple"} by email from your invoicing app. Once it's out it can be voided, not unsent.`}
+      </ConfirmStep>
+    );
+  }
   return (
     <>
-      <button className="today-card-primary" disabled={busy} onClick={() => void send()} type="button">
+      <button className="today-card-primary" disabled={busy} onClick={() => setConfirming(true)} type="button">
         {busy ? <LoaderCircle className="spin" size={14} /> : <Send size={14} />}
-        {busy ? "Sending…" : action.label}
+        {busy ? "Sending…" : amount ? `${action.label} · ${amount}` : action.label}
       </button>
       {action.packageSnapshotId ? (
         <button className="today-card-secondary" disabled={busy} onClick={() => onSettle?.(action)} type="button">
@@ -1431,8 +1492,18 @@ function PackageRequestActions({
   onChangeBooking?: (action: PackageRequestAction) => void;
 }) {
   const router = useRouter();
+  const workspace = useWorkspace();
   const [busy, setBusy] = useState<"add" | "decline" | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /**
+   * "Not now" answered the couple for good on one tap — their portal says the
+   * studio couldn't do it — and "Add" superseded a proposal they'd already
+   * been sent without the Packages panel's warning (wave 3).
+   */
+  const [confirming, setConfirming] = useState<"add" | "decline" | null>(null);
+  const proposalOut = ["sent", "viewed", "accepted"].includes(action.proposalStatus ?? "");
+  // Adding re-prices the proposal (revise_packages), which is owner/admin.
+  const mayAdd = !action.proposalId || ownerOrAdmin(workspace.role);
 
   async function add() {
     setBusy("add");
@@ -1473,6 +1544,7 @@ function PackageRequestActions({
       router.push(resultProposalId ? `/studio/proposals/${resultProposalId}` : `/studio/projects/${action.projectId}`);
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, `${action.packageName} couldn't be added. Open the job to check.`));
+      setConfirming(null);
       setBusy(null);
     }
   }
@@ -1489,8 +1561,33 @@ function PackageRequestActions({
       onCleared?.();
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "That didn't go through. Try again."));
+      setConfirming(null);
       setBusy(null);
     }
+  }
+
+  if (confirming) {
+    return (
+      <ConfirmStep
+        busy={busy !== null}
+        cancelClassName="today-card-secondary"
+        cancelLabel="Go back"
+        className="today-confirm-step"
+        confirmClassName="today-card-primary"
+        confirmLabel={confirming === "decline" ? "Yes, not now" : "Add and revise"}
+        label={confirming === "decline" ? "Say not now?" : "Revise their proposal?"}
+        onCancel={() => setConfirming(null)}
+        onConfirm={() => void (confirming === "decline" ? decline() : add())}
+      >
+        {confirming === "decline"
+          ? action.requestKind === "date_change"
+            ? "Their portal will say you couldn't move their date and that you'll be in touch — this can't be undone, so tell them why yourself."
+            : `Their portal will say you couldn't add ${action.packageName} and that you'll be in touch — this can't be undone, so tell them why yourself.`
+          : action.proposalStatus === "accepted"
+            ? `They've accepted their proposal. Adding ${action.packageName} makes a revised proposal for them to accept — the accepted one stays in the version history, and the agreement waits for the new one.`
+            : `They've already been sent their proposal. Adding ${action.packageName} makes a revised version for you to check and send; the one they have can no longer be accepted.`}
+      </ConfirmStep>
+    );
   }
 
   return (
@@ -1505,13 +1602,20 @@ function PackageRequestActions({
         <Link className="today-card-primary" href={`/studio/projects/${action.projectId}`}>
           {action.label} <ArrowRight size={14} />
         </Link>
-      ) : (
-        <button className="today-card-primary" disabled={busy !== null} onClick={() => void add()} type="button">
+      ) : mayAdd ? (
+        <button
+          className="today-card-primary"
+          disabled={busy !== null}
+          onClick={() => (proposalOut ? setConfirming("add") : void add())}
+          type="button"
+        >
           {busy === "add" ? <LoaderCircle className="spin" size={14} /> : <Check size={14} />}
           {busy === "add" ? "Adding…" : action.label}
         </button>
+      ) : (
+        <span className="today-card-notice">An owner or admin adds it — their proposal is priced again.</span>
       )}
-      <button className="today-card-secondary" disabled={busy !== null} onClick={() => void decline()} type="button">
+      <button className="today-card-secondary" disabled={busy !== null} onClick={() => setConfirming("decline")} type="button">
         Not now
       </button>
       {action.requestKind === "date_change" && !action.amend ? null : (
@@ -1526,4 +1630,13 @@ function PackageRequestActions({
       ) : null}
     </>
   );
+}
+
+/**
+ * The roles the server lets send a bill, retry an email or re-price a
+ * proposal. Display only — the server decides — but a button it will refuse
+ * is a dead end, so it isn't offered (wave 3).
+ */
+function ownerOrAdmin(role: string | null | undefined): boolean {
+  return role === "studio_owner" || role === "studio_admin";
 }

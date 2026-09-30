@@ -164,7 +164,10 @@ export const STUDIO_ACTIONS: readonly ServerActionSpec[] = [
   { id: "edit_questionnaire_template", scope: "studio", ownerAdminOnly: true, when: "create or change a planning questionnaire template" },
   { id: "edit_email_template", scope: "studio", ownerAdminOnly: true, when: "change one of the studio's automatic email templates" },
   { id: "set_consultation_availability", scope: "studio", ownerAdminOnly: true, when: "change when consultations can be booked, their length, Zoom or in person" },
-  { id: "set_automatic_emails", scope: "studio", ownerAdminOnly: true, when: "turn automatic client emails (reminders, follow-ups, review requests) on or off" },
+  // Governs the three lifecycle messages only (components/communications/
+  // lifecycle-pack-panel.tsx). It promised reminders, follow-ups and review
+  // requests, which this setting has never controlled (wave 3).
+  { id: "set_automatic_emails", scope: "studio", ownerAdminOnly: true, when: "turn the schedule confirmation, final balance summary or day-before checklist on or off, or let them send without review — not review asks (skip_review_requests) or inquiry follow-ups" },
   { id: "set_contract_auto_send", scope: "studio", ownerAdminOnly: true, when: "choose whether contracts go out automatically after a proposal is accepted" },
   { id: "connect_integration", scope: "studio", ownerAdminOnly: true, when: "connect Google Calendar, Zoom, Dropbox, QuickBooks, Stripe or another app — which in `subject`" },
   { id: "set_autopay", scope: "studio", ownerAdminOnly: true, when: "turn automatic card payments for balances on or off" },

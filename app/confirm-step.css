@@ -1,0 +1,57 @@
+/*
+ * The shared confirm step (components/ui/confirm-step.tsx): one sentence
+ * saying what happens and whether it can be undone, then the act and the
+ * way back. Wave 3 safety sweep, 2026-09-30.
+ */
+.confirm-step {
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 14px;
+}
+
+.confirm-step > p {
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.confirm-step-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Inside a Today card or the hero: the card is the frame, so no second box;
+   it takes the row so the sentence isn't squeezed beside other buttons. */
+.today-confirm-step {
+  border: 0;
+  flex: 1 1 100%;
+  padding: 0;
+}
+
+.today-confirm-step > p {
+  color: var(--ink, #1d2420);
+  font-weight: 600;
+}
+
+.today-hero .today-confirm-step > p {
+  color: #fff;
+}
+
+/* The AI queue card's footer styles its own buttons; the step sits in it. */
+.ai-queue-confirm-step {
+  border: 0;
+  flex: 1 1 100%;
+  padding: 0;
+}
+
+/* A receipt's Cancel / Retry refusal, under the whole row. */
+.ai-receipt > .ai-queue-notice {
+  grid-column: 1 / -1;
+  margin: 0;
+}

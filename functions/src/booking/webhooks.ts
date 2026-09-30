@@ -5,6 +5,7 @@ import { onRequest, type Request } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { signatureValid } from "../saas/stripe.js";
 import { providerReportedInvoice } from "./invoice-standing.js";
+import { stripePaymentFailureFields } from "./payment-failure.js";
 import {
   normalizeDocusignWebhook,
   normalizeDropboxSignWebhook,
@@ -518,6 +519,15 @@ export const stripeConnectWebhook = onRequest(
         ...(decided.keptReason
           ? { providerReportKept: { reason: decided.keptReason, at: now } }
           : {}),
+        // A declined charge is recorded beside the status, not as `sent`
+        // with nothing said: Today raises it (./payment-failure.ts).
+        ...stripePaymentFailureFields({
+          eventType: event.type,
+          eventId: event.id,
+          decidedStatus: String(decided.status),
+          object,
+          now,
+        }),
         lastProviderEventId: event.id,
         lastSyncedAt: now,
         updatedAt: now,

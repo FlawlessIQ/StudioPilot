@@ -93,6 +93,11 @@ export type TodayAction =
       packageName: string;
       /** The proposal the addition revises — the newest still in play. */
       proposalId: string | null;
+      /**
+       * That proposal's status. Adding to one the couple has been sent makes
+       * a new version and retires theirs, so the card confirms first (wave 3).
+       */
+      proposalStatus: string | null;
     }
   /**
    * Approve AI-prepared work in place. `preview` is the drafted content
@@ -968,6 +973,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
         packageId: text(request.packageId),
         packageName: text(request.packageName) || "the package",
         proposalId: proposal?.id ?? null,
+        proposalStatus: text(proposal?.status) || null,
       },
       jobHref: `/studio/projects/${projectId}`,
       facts: [waitingFact(changedAt(request), now)].filter((fact): fact is string => Boolean(fact)),
@@ -1140,6 +1146,48 @@ export function todayInbox(input: TodayInput): TodayInbox {
     // A missing due date is not an overdue date.
     const due = text(invoice.dueDate).slice(0, 10);
     const balance = Number(invoice.balanceCents ?? 0);
+    const provider = text(invoice.provider) === "stripe" ? "Stripe" : "QuickBooks";
+    /**
+     * Where chasing this bill can actually happen: the job's booking page for
+     * a retainer (record it paid, open the invoice), the job's invoices for
+     * anything else (send, record or void the final bill). "Chase payment"
+     * linked to every invoice in the studio, unfiltered, where none of that
+     * was on offer (wave 3).
+     */
+    const chaseHref = text(invoice.projectId)
+      ? text(invoice.kind) === "retainer"
+        ? `/studio/booking?project=${text(invoice.projectId)}`
+        : `/studio/invoices?project=${text(invoice.projectId)}`
+      : "/studio/invoices";
+    /**
+     * The card was declined. Stripe's `invoice.payment_failed` used to fall
+     * through to `sent`, so a failed charge looked like a bill still waiting
+     * and nobody was told (functions/src/booking/webhooks.ts, wave 3). It is
+     * its own card, ahead of any overdue one for the same bill.
+     */
+    if (
+      text(invoice.paymentFailedAt) &&
+      balance > 0 &&
+      !["voided", "void", "refunded", "paid", "superseded", "failed", "cancelled"].includes(text(invoice.status))
+    ) {
+      exception({
+        id: `invoice-payment-failed-${invoice.id}`,
+        kind: "invoice",
+        title: `${currency(balance)} payment failed`,
+        detail: nameFor(invoice.projectId) ?? "Client balance",
+        dueDate: due || null,
+        extraFacts: [`${provider} couldn't take the payment`],
+        href: chaseHref,
+        projectId: text(invoice.projectId) || null,
+        projectName: nameFor(invoice.projectId),
+        eventDate: eventFor(invoice.projectId),
+        updatedAt: text(invoice.paymentFailedAt),
+        amountCents: balance,
+        label: "Open the invoice",
+      });
+      if (text(invoice.projectId)) overdueInvoiceProjectIds.add(text(invoice.projectId));
+      continue;
+    }
     if (
       balance <= 0 ||
       !due ||
@@ -1158,8 +1206,10 @@ export function todayInbox(input: TodayInput): TodayInbox {
       title: `${currency(balance)} overdue`,
       detail: nameFor(invoice.projectId) ?? "Client balance",
       dueDate: due,
-      extraFacts: [`due ${formatDueDate(due)}`],
-      href: "/studio/invoices",
+      // No resend command exists for an invoice that did go out: the
+      // provider's own reminder is the way, so the card says where.
+      extraFacts: [`due ${formatDueDate(due)}`, `resend it from ${provider}`],
+      href: chaseHref,
       projectId: text(invoice.projectId) || null,
       projectName: nameFor(invoice.projectId),
       eventDate: eventFor(invoice.projectId),

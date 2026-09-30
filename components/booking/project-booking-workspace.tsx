@@ -46,7 +46,12 @@ import {
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
 import { retainerFromSchedule } from "@/features/booking/agreed-retainer";
 import { CorrectPayment, VoidInvoice } from "@/components/booking/invoice-corrections";
-import { friendlyError as friendlySharedError } from "@/lib/ai/friendly-error";
+import {
+  friendlyError as friendlySharedError,
+  isVersionConflict,
+} from "@/lib/ai/friendly-error";
+import { ConfirmStep } from "@/components/ui/confirm-step";
+import { sendCommunicationsCommand } from "@/lib/communications/command-client";
 import {
   addCalendarDays,
   formatDueDate,
@@ -133,6 +138,26 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /**
+   * The last refusal was the job's version guard. Every booking action can
+   * hit it, and the page is still holding the old job, so pressing the same
+   * button again is refused again: the notice offers Refresh (wave 3).
+   */
+  const [staleJob, setStaleJob] = useState(false);
+  /**
+   * The invoicing app that raises this job's bills, by name. The retainer
+   * step said "QuickBooks" to every studio, Stripe ones included (wave 3).
+   */
+  const [invoicingProvider, setInvoicingProvider] = useState<string | null>(null);
+  /**
+   * The email that carries the retainer invoice, when it has not reached the
+   * couple ("awaiting_delivery"). A failed one can be sent again from here
+   * (communicationsCommand retryEmailJob, owner/admin) — the warning used to
+   * say "try again" with no button to try with.
+   */
+  const [invoiceEmailJob, setInvoiceEmailJob] = useState<{ id: string; status: string } | null>(null);
+  /** "create" or "retry": the retainer invoice waiting on its confirm step. */
+  const [confirmingRetainer, setConfirmingRetainer] = useState<"create" | "retry" | null>(null);
   const [gateBlockers, setGateBlockers] = useState<string[]>([]);
   /**
    * A studio that writes its agreement in StudioCue sends from here: prepare,
@@ -144,6 +169,8 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
 
   const load = useCallback(async () => {
     if (!workspace.tenantId) return;
+    // Re-read: whatever changed under the last action is now in hand.
+    setStaleJob(false);
     setLoading(true);
     try {
       // See booking-autopilot-workspace: constructing the client outside the
@@ -364,12 +391,58 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
       setTemplateConfigured(Boolean(configuredTemplate));
       setSigningProvider(resolvedSigningProvider);
       setSigningTestMode(signingConnection?.get("testMode") === true);
+      const invoicingResolution = resolveActiveProvider({
+        capability: "invoicing",
+        routing: routing?.exists()
+          ? {
+              selections:
+                (routing.get("selections") as Record<string, "quickbooks" | "stripe" | null>) ?? {},
+            }
+          : null,
+        connections: connections.docs.map((item) => ({
+          provider: item.get("provider"),
+          status: item.get("status"),
+          archivedAt: item.get("archivedAt") ?? null,
+        })),
+      });
+      // The invoice's own provider first: it is what actually raised it.
+      setInvoicingProvider(
+        typeof invoiceValue?.provider === "string" && invoiceValue.provider
+          ? invoiceValue.provider
+          : invoicingResolution.outcome === "resolved"
+            ? invoicingResolution.provider
+            : null,
+      );
+      // Email jobs are readable by owners and admins (firestore.rules); a
+      // coordinator's read would be refused, and couldn't retry it anyway.
+      if (
+        invoiceValue?.status === "awaiting_delivery" &&
+        ["studio_owner", "studio_admin"].includes(workspace.role ?? "")
+      ) {
+        const jobs = await getDocs(
+          query(
+            collection(firestore, "emailJobs"),
+            where("tenantId", "==", workspace.tenantId),
+            where("invoiceId", "==", invoiceValue.id),
+          ),
+        ).catch(() => null);
+        const newest = (jobs?.docs ?? [])
+          .map((item) => ({
+            id: item.id,
+            status: String(item.get("status") ?? ""),
+            at: String(item.get("updatedAt") ?? item.get("createdAt") ?? ""),
+          }))
+          .sort((left, right) => right.at.localeCompare(left.at))[0];
+        setInvoiceEmailJob(newest ? { id: newest.id, status: newest.status } : null);
+      } else {
+        setInvoiceEmailJob(null);
+      }
     } catch (error: unknown) {
       setNotice(friendlyError(error));
     } finally {
       setLoading(false);
     }
-  }, [projectId, workspace.tenantId]);
+  }, [projectId, workspace.role, workspace.tenantId]);
 
   useEffect(() => {
     if (!workspace.loading && workspace.tenantId) {
@@ -488,6 +561,15 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   const nativeActive =
     nativeSigning.enabled &&
     (Boolean(nativeSigning.agreementTemplateId) || contract?.provider === "studiocue");
+  // "your invoicing app" when none resolves, rather than naming one the
+  // studio may not have.
+  const invoicingName = invoicingProvider ? providerName(invoicingProvider) : "your invoicing app";
+  const recipient =
+    typeof contact?.email === "string" && contact.email.includes("@")
+      ? typeof contact.displayName === "string" && contact.displayName
+        ? `${contact.displayName} (${contact.email})`
+        : contact.email
+      : null;
   const signingProviderLabel =
     signingProvider === "dropbox_sign"
       ? "Dropbox Sign"
@@ -638,6 +720,31 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
       await load();
     } catch (error: unknown) {
       setNotice(friendlyError(error));
+      setStaleJob(isVersionConflict(error));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** Send the retainer email again after it failed (see `invoiceEmailJob`). */
+  async function resendInvoiceEmail() {
+    if (!invoiceEmailJob) return;
+    setBusy("invoice_email");
+    setNotice(null);
+    try {
+      const result = await sendCommunicationsCommand({
+        type: "retryEmailJob",
+        idempotencyKey: `retryEmailJob_${invoiceEmailJob.id}_${Date.now()}`,
+        input: { emailJobId: invoiceEmailJob.id },
+      });
+      setNotice(
+        result.mode === "preview"
+          ? "Preview mode — nothing was sent."
+          : `The invoice email is on its way to ${recipient ?? "the couple"} again.`,
+      );
+      setInvoiceEmailJob({ ...invoiceEmailJob, status: "queued" });
+    } catch (error: unknown) {
+      setNotice(friendlyError(error));
     } finally {
       setBusy(null);
     }
@@ -659,7 +766,9 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
         },
       });
       setNotice(
-        "QuickBooks customer matching and retainer creation are queued.",
+        `The retainer invoice is being raised in ${invoicingName}; ${
+          recipient ?? "the couple"
+        } gets it by email.`,
       );
       // Refresh the shared tenant store too, so the project badge in the
       // context bar, the autopilot hero, and the readiness gauge reflect the
@@ -675,6 +784,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
       await load();
     } catch (error: unknown) {
       setNotice(friendlyError(error));
+      setStaleJob(isVersionConflict(error));
     } finally {
       setBusy(null);
     }
@@ -747,6 +857,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
       await load();
     } catch (error: unknown) {
       setNotice(friendlyError(error));
+      setStaleJob(isVersionConflict(error));
     } finally {
       setBusy(null);
     }
@@ -792,7 +903,9 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   : "No due date set"}
             </small>
           </span>
-          <Link className="button button-dark" href="/studio/invoices">
+          {/* This job's invoices, where the final bill can be sent or
+              recorded — not the whole studio's list (wave 3). */}
+          <Link className="button button-dark" href={`/studio/invoices?project=${projectId}`}>
             Chase payment <ArrowRight size={15} />
           </Link>
         </aside>
@@ -1293,8 +1406,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               </StatusBadge>
             </div>
             <p>
-              StudioCue matches or creates the QuickBooks customer, then tracks
-              the provider-hosted invoice without handling card details.
+              {`StudioCue matches or creates the customer in ${invoicingName}, then tracks the invoice there without handling card details.`}
             </p>
             {invoiceFailed ? (
               // A refused invoice is not a retainer waiting to be paid, and
@@ -1305,28 +1417,42 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 <p role="alert">
                   <CircleAlert aria-hidden="true" size={15} />
                   <span>
-                    <strong>QuickBooks refused this invoice</strong>
+                    <strong>{`${invoicingName} refused this invoice`}</strong>
                     <small>
                       {providerFailureHint(
                         String(
                           (invoice?.providerError as { message?: string })
                             ?.message ?? "",
                         ),
-                        "QuickBooks",
+                        invoicingName,
                         false,
+                        "billing",
                       )}
                     </small>
                   </span>
                 </p>
-                <button
-                  className="button"
-                  disabled={busy !== null}
-                  onClick={() => void createRetainer()}
-                  type="button"
-                >
-                  {busy === "retainer" ? "Sending…" : "Try again"}
-                  <ArrowRight size={15} />
-                </button>
+                {confirmingRetainer === "retry" ? (
+                  <ConfirmStep
+                    busy={busy === "retainer"}
+                    cancelLabel="Not now"
+                    confirmLabel={`Send the ${currency(agreedRetainerCents, packageSnapshot?.currency)} invoice`}
+                    label="Send the retainer invoice again?"
+                    onCancel={() => setConfirmingRetainer(null)}
+                    onConfirm={() => void createRetainer().then(() => setConfirmingRetainer(null))}
+                  >
+                    {`${invoicingName} raises a ${currency(agreedRetainerCents, packageSnapshot?.currency)} retainer invoice, due ${formatDueDate(dueDate)}, and ${recipient ?? "the couple"} is emailed it. Once it's out it can only be voided, not unsent.`}
+                  </ConfirmStep>
+                ) : (
+                  <button
+                    className="button"
+                    disabled={busy !== null}
+                    onClick={() => setConfirmingRetainer("retry")}
+                    type="button"
+                  >
+                    {`Try again · ${currency(agreedRetainerCents, packageSnapshot?.currency)}`}
+                    <ArrowRight size={15} />
+                  </button>
+                )}
                 {packageSnapshot ? (
                   <RecordRetainerPayment
                     onRecorded={(message) => {
@@ -1394,7 +1520,10 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     rel="noreferrer"
                     target="_blank"
                   >
-                    Open QuickBooks invoice <ArrowRight size={13} />
+                    {`Open the ${providerName(
+                      typeof invoice.provider === "string" && invoice.provider ? invoice.provider : invoicingProvider ?? "quickbooks",
+                    )} invoice`}{" "}
+                    <ArrowRight size={13} />
                   </Link>
                 ) : null}
                 {/*
@@ -1407,12 +1536,25 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   <p className="booking-delivery-warning" role="status">
                     <CircleAlert aria-hidden="true" size={14} />
                     <span>
-                      The invoice exists in QuickBooks but the client was not
-                      emailed
-                      {" "}{invoice.deliveryError === "NO_CLIENT_EMAIL"
-                        ? " \u2014 this job has no client email address."
-                        : ". Send it from QuickBooks, or fix the connection and try again."}
+                      {`The invoice exists in ${invoicingName} but ${recipient ?? "the client"} hasn't been emailed it`}
+                      {invoice.deliveryError === "NO_CLIENT_EMAIL"
+                        ? " \u2014 this job has no client email address. Add one to the client, then send it from here."
+                        : invoiceEmailJob && ["queued", "running", "retry_scheduled"].includes(invoiceEmailJob.status)
+                          ? " yet \u2014 the email is on its way."
+                          : invoiceEmailJob && ["failed", "dead_letter"].includes(invoiceEmailJob.status)
+                            ? " \u2014 the email didn't go through."
+                            : `. Send it from ${invoicingName}.`}
                     </span>
+                    {invoiceEmailJob && ["failed", "dead_letter"].includes(invoiceEmailJob.status) ? (
+                      <button
+                        className="button button-light button-sm"
+                        disabled={busy !== null}
+                        onClick={() => void resendInvoiceEmail()}
+                        type="button"
+                      >
+                        {busy === "invoice_email" ? "Sending\u2026" : "Send the email again"}
+                      </button>
+                    ) : null}
                   </p>
                 ) : null}
                 {/*
@@ -1517,21 +1659,32 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 {/* Moved from the contract step, where it described a step
                     that had not started. */}
                 <CapabilityNote capability="invoicing" />
-                <button
-                  className="button"
-                  disabled={
-                    busy !== null ||
-                    projectState !== "RETAINER_PENDING" ||
-                    !contractComplete
-                  }
-                  onClick={() => void createRetainer()}
-                  type="button"
-                >
-                  {busy === "retainer"
-                    ? "Creating…"
-                    : "Create retainer invoice"}
-                  <ArrowRight size={15} />
-                </button>
+                {confirmingRetainer === "create" && projectState === "RETAINER_PENDING" && contractComplete ? (
+                  <ConfirmStep
+                    busy={busy === "retainer"}
+                    cancelLabel="Not now"
+                    confirmLabel={`Send the ${currency(agreedRetainerCents, packageSnapshot?.currency)} invoice`}
+                    label="Send the retainer invoice?"
+                    onCancel={() => setConfirmingRetainer(null)}
+                    onConfirm={() => void createRetainer().then(() => setConfirmingRetainer(null))}
+                  >
+                    {`${invoicingName} raises a ${currency(agreedRetainerCents, packageSnapshot?.currency)} retainer invoice, due ${formatDueDate(dueDate)}, and ${recipient ?? "the couple"} is emailed it. Once it's out it can only be voided, not unsent.`}
+                  </ConfirmStep>
+                ) : (
+                  <button
+                    className="button"
+                    disabled={
+                      busy !== null ||
+                      projectState !== "RETAINER_PENDING" ||
+                      !contractComplete
+                    }
+                    onClick={() => setConfirmingRetainer("create")}
+                    type="button"
+                  >
+                    {`Create retainer invoice · ${currency(agreedRetainerCents, packageSnapshot?.currency)}`}
+                    <ArrowRight size={15} />
+                  </button>
+                )}
                 {!contractComplete ? (
                   <small>
                     This unlocks once the signature is confirmed.
@@ -1697,6 +1850,24 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
       {notice ? (
         <p className="booking-workspace-notice" role="status">
           {notice}
+          {staleJob ? (
+            <>
+              {" "}
+              <button
+                className="button button-light button-sm"
+                disabled={loading}
+                onClick={() => {
+                  setStaleJob(false);
+                  setNotice(null);
+                  refreshTenantRecords("projects", "contracts", "invoiceReferences");
+                  void load();
+                }}
+                type="button"
+              >
+                Refresh
+              </button>
+            </>
+          ) : null}
         </p>
       ) : null}
     </section>

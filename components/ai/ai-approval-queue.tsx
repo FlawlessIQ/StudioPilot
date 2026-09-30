@@ -44,6 +44,7 @@ import { sendCommunicationsCommand } from "@/lib/communications/command-client";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { PreparedCompactRow } from "@/components/ai/prepared-compact-row";
 import { TrustDialOffers } from "@/components/communications/trust-dial-offers";
+import { ConfirmStep } from "@/components/ui/confirm-step";
 
 type RecordValue = Record<string, unknown> & { id: string };
 
@@ -103,6 +104,12 @@ export function AiQueueCard({
    */
   const [rejectedActionId, setRejectedActionId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  /**
+   * Reject and Dismiss put the draft away for good — decideAiAction has no
+   * undo — and sat one tap from "Approve" (wave 3). One short sentence first,
+   * in the footer where the buttons were; the reason is still asked after.
+   */
+  const [confirmingNo, setConfirmingNo] = useState<"rejected" | "dismissed" | null>(null);
   // A proposed studio command that was approved but whose command run failed —
   // keep the card so the owner can retry, rather than losing it with a stale
   // "approved" state and no effect.
@@ -514,6 +521,24 @@ export function AiQueueCard({
             Dismiss
           </button>
         </footer>
+      ) : confirmingNo ? (
+        <footer>
+          <ConfirmStep
+            busy={busy === confirmingNo}
+            cancelClassName=""
+            cancelLabel="Keep it"
+            className="ai-queue-confirm-step"
+            confirmClassName="is-primary"
+            confirmLabel={confirmingNo === "rejected" ? "Reject it" : "Dismiss it"}
+            label={confirmingNo === "rejected" ? "Reject this draft?" : "Dismiss this draft?"}
+            onCancel={() => setConfirmingNo(null)}
+            onConfirm={() => void decide(confirmingNo).then(() => setConfirmingNo(null))}
+          >
+            {confirmingNo === "rejected"
+              ? "Reject it as wrong? It's put away for good and nothing is sent — StudioCue learns from it."
+              : "Dismiss it? It's put away for good and nothing is sent. Snooze instead to see it again tomorrow."}
+          </ConfirmStep>
+        </footer>
       ) : (
       <footer>
         <button
@@ -541,10 +566,11 @@ export function AiQueueCard({
             from; a dismissal means "not now" and carries no signal. The
             titles say so, and a rejection asks what was wrong afterwards
             rather than before — friction on the button that carries the
-            signal would just reduce the signal. */}
+            signal would just reduce the signal. Both still get one line of
+            confirm (above), because neither can be undone. */}
         <button
           disabled={Boolean(busy)}
-          onClick={() => void decide("rejected")}
+          onClick={() => setConfirmingNo("rejected")}
           title="This suggestion was wrong. StudioCue learns from this."
           type="button"
         >
@@ -559,7 +585,7 @@ export function AiQueueCard({
         </button>
         <button
           disabled={Boolean(busy)}
-          onClick={() => void decide("dismissed")}
+          onClick={() => setConfirmingNo("dismissed")}
           title="Fine, just not now. Nothing is learned from this."
           type="button"
         >
@@ -672,14 +698,25 @@ export function AutomationApprovalCard({
 function ReceiptCard({ receipt }: { receipt: RecordValue }) {
   const [status, setStatus] = useState(text(receipt.status));
   const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  // A refusal used to vanish: no catch, so the button just re-enabled and the
+  // studio pressed it again for the same answer (wave 3). Say why instead.
   async function update(type: "cancelReceipt" | "retryReceipt") {
     setBusy(true);
+    setNotice(null);
     try {
       const result = await runAiQueueCommand({
         type,
         input: { receiptId: receipt.id },
       });
       setStatus(text(result.status));
+    } catch (caught: unknown) {
+      setNotice(
+        friendlyError(
+          caught,
+          type === "cancelReceipt" ? "That couldn't be cancelled." : "That couldn't be run again.",
+        ),
+      );
     } finally {
       setBusy(false);
     }
@@ -702,6 +739,7 @@ function ReceiptCard({ receipt }: { receipt: RecordValue }) {
       {receipt.canRetry === true && ["failed", "cancelled"].includes(status) ? (
         <button disabled={busy} onClick={() => void update("retryReceipt")} type="button"><RotateCcw /> Retry</button>
       ) : null}
+      {notice ? <p className="ai-queue-notice" role="status">{notice}</p> : null}
     </article>
   );
 }

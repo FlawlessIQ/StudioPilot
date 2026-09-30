@@ -13,6 +13,7 @@ import {
   type ClientAutopayStatus,
 } from "@/lib/client/portal-client";
 import { InfoHint } from "@/components/ui/info-hint";
+import { ConfirmStep } from "@/components/ui/confirm-step";
 
 const money = (cents: number, currency: string) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
@@ -57,6 +58,9 @@ export function ClientAutopay() {
   const [notice, setNotice] = useState<string | null>(null);
   const [agreed, setAgreed] = useState(false);
   const [card, setCard] = useState({ name: "", number: "", expMonth: "", expYear: "", cvc: "", postalCode: "" });
+  // "Remove card" undid the couple's autopay on one tap, next to the line
+  // promising the charge (wave 3). Say what stops, and how to pay instead.
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
 
   const load = useCallback(async () => {
     if (!dataIsLive || !workspace.tenantId || !workspace.projectId) return;
@@ -163,16 +167,29 @@ export function ClientAutopay() {
         </p>
       ) : null}
 
-      {method?.status === "active" ? (
+      {method?.status === "active" && confirmingRemove ? (
+        <ConfirmStep
+          busy={busy}
+          cancelLabel="Keep my card"
+          confirmLabel="Remove card"
+          label="Remove your saved card?"
+          onCancel={() => setConfirmingRemove(false)}
+          onConfirm={() => void remove().then(() => setConfirmingRemove(false))}
+        >
+          {`${money(status.amountCents, status.currency)} won't be charged on ${longDate(status.dueDate)}; you'll pay with the invoice link instead.${
+            status.available ? " You can save a card again before then." : ""
+          }`}
+        </ConfirmStep>
+      ) : method?.status === "active" ? (
         <div className="client-autopay-actions">
           <span className="client-autopay-state">
             <CheckCircle2 size={15} /> Card saved
           </span>
-          <button className="button button-light" disabled={busy} onClick={() => void remove()} type="button">
+          <button className="button button-light" disabled={busy} onClick={() => setConfirmingRemove(true)} type="button">
             Remove card
           </button>
         </div>
-      ) : status.available && !open && method?.status !== "saving" ? (
+      ) :status.available && !open && method?.status !== "saving" ? (
         <button className="button button-dark" onClick={() => setOpen(true)} type="button">
           Save a card
         </button>

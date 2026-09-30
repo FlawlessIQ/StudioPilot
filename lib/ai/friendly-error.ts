@@ -19,7 +19,10 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   INVITATION_NOT_REVOCABLE: "That invitation can't be withdrawn — it has already been accepted, expired or withdrawn.",
   CLIENT_NOT_ASSOCIATED_WITH_PROJECT: "That client isn't on this job. Add them to the job first.",
   CLIENT_OR_PROJECT_NOT_FOUND: "That client or job isn't there any more. Refresh and try again.",
-  PROJECT_VERSION_CONFLICT: "The job changed a moment ago. Try again — it will use the latest.",
+  // Every booking action can hit this (optimistic concurrency on the job).
+  // The page is holding the old version, so "try again" alone repeats the
+  // refusal; the booking page offers Refresh beside it (wave 3).
+  PROJECT_VERSION_CONFLICT: "Someone changed this job a moment ago — refresh and try again.",
   PROPOSAL_PDF_NOT_READY: "The proposal's PDF isn't ready yet. Open the proposal to make it, then send.",
   PROPOSAL_PDF_INVALID: "The proposal's PDF didn't come out right. Open the proposal and make it again.",
   OPEN_PROPOSAL_EXISTS: "This job already has a proposal in progress. Open it instead of starting another.",
@@ -30,7 +33,11 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   SEND_PERMISSION_REQUIRED: "Only the studio's owners and admins can send a proposal.",
   PROJECT_NOT_IN_CONSULTATION: "Consultation notes are recorded while the job is at the consultation stage.",
   INVALID_BOOKING_STATE: "This job isn't waiting to be booked.",
-  RETAINER_AMOUNT_NOT_FOUND: "The retainer amount couldn't be found on the job's package. Check the package, then try again.",
+  // Thrown when the accepted proposal and its package both ask for no
+  // retainer. "Check the package" pointed at something locked once the
+  // agreement is out; the way through is to waive it (wave 3).
+  RETAINER_AMOUNT_NOT_FOUND:
+    "This booking has no retainer to record — the accepted proposal asks for none. If you're booking without one, use \"Booking without a retainer? Waive it\" on the booking page.",
   TASK_NOT_FOUND: "That task isn't there any more. Refresh and try again.",
   REVIEW_REQUEST_NOT_FOUND: "That review request isn't there any more. Refresh and try again.",
   CONVERSATION_NOT_FOUND: "That conversation isn't there any more. Refresh and try again.",
@@ -151,6 +158,10 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   // server refuses rather than send the couple the same email twice.
   AI_ACTION_ALREADY_DECIDED:
     "Already done — this was approved or put away a moment ago, so nothing was sent again.",
+  // Cancel / Retry on a receipt in the AI queue (aiQueueCommand).
+  ACTION_RECEIPT_NOT_FOUND: "That receipt isn't there any more. Refresh to see the latest.",
+  ACTION_RECEIPT_NOT_CANCELLABLE: "That has already run or been cancelled, so there's nothing to cancel.",
+  ACTION_RECEIPT_NOT_RETRYABLE: "That can't be run again from here. Open the job to do it by hand.",
   // Retry / Leave it on Today's "An email did not send" card.
   EMAIL_JOB_NOT_FOUND: "That email isn't there any more. Refresh and try again.",
   EMAIL_JOB_NOT_RETRYABLE:
@@ -742,6 +753,16 @@ export function errorCodeHasCopy(code: string): boolean {
   if (Object.hasOwn(DETAILED_BY_CODE, code)) return true;
   if (Object.hasOwn(FRIENDLY_BY_CODE, code)) return true;
   return PREFIX_FALLBACKS.some(([pattern]) => pattern.test(code));
+}
+
+/**
+ * Whether a refusal was the job's version guard: the page is holding a job
+ * that changed since it loaded, so the fix is a refresh, not a retry.
+ */
+export function isVersionConflict(caught: unknown): boolean {
+  const message = caught instanceof Error ? caught.message : String(caught ?? "");
+  const code = message.split(":")[0]?.trim() ?? "";
+  return code === "PROJECT_VERSION_CONFLICT" || code === "VERSION_CONFLICT";
 }
 
 /**
