@@ -24,7 +24,16 @@ export type Action =
   | { scrollTo: Target }
   | { scrollBy: number }
   | { type: { into: Target; text: string } }
+  /** Sets a value at once — for date pickers and selects, where typing is fiddly. */
+  | { fill: { into: Target; value: string } }
   | { key: string }
+  | { reload: true }
+  /**
+   * Runs the actions, then removes the time they took from the video — for
+   * waits nobody should have to watch, like a PDF being made. The last frame
+   * of the cut is kept, so the video jumps straight to the result.
+   */
+  | { cut: Action[] }
   | { waitFor: Target; timeoutMs?: number }
   | { wait: number }
   | { card: { eyebrow?: string; title: string; subtitle?: string } };
@@ -46,7 +55,8 @@ export type HowToScript = {
   id: string;
   title: string;
   /** Who is signed in, and at what size. */
-  start: { as: "owner" | "client" | "crew"; viewport: "desktop" | "phone" };
+  /** A seeded role ("owner", "client", "crew"), or any seeded account's email. */
+  start: { as: "owner" | "client" | "crew" | `${string}@studiohub.test`; viewport: "desktop" | "phone" };
   steps: Step[];
 };
 

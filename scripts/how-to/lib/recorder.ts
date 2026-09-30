@@ -32,7 +32,8 @@ export const VIEWPORTS = {
 
 export type Frame = { t: number; file: string };
 export type Mark = { step: number; t: number };
-export type Recording = { frames: Frame[]; marks: Mark[]; endT: number };
+export type Cut = { from: number; to: number };
+export type Recording = { frames: Frame[]; marks: Mark[]; cuts: Cut[]; endT: number };
 
 const overlay = (touch: boolean) => `
 (() => {
@@ -78,7 +79,7 @@ const overlay = (touch: boolean) => `
 
 export function card(eyebrow: string | undefined, title: string, subtitle: string | undefined) {
   const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
-  return `<!doctype html><html><head><style>
+  return `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>
     html,body{margin:0;height:100%;background:#1E2521;color:#F4F1EA;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif}
     main{height:100%;display:grid;place-content:center;gap:18px;padding:0 9vw;text-align:left;animation:in .6s ease-out both}
     @keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
@@ -87,6 +88,7 @@ export function card(eyebrow: string | undefined, title: string, subtitle: strin
     p{margin:0;font-size:clamp(16px,1.8vw,24px);color:#C9D2CB;max-width:34ch;line-height:1.4}
     .m{position:fixed;left:9vw;bottom:7vh;font-size:clamp(14px,1.4vw,20px);letter-spacing:.02em;color:#9CC6AA}
     .m b{color:#F4F1EA;font-weight:600}
+    @media (max-width:600px){main{padding:0 30px;gap:14px}.e{font-size:15px}h1{font-size:44px;line-height:1.08}p{font-size:19px}.m{left:30px;font-size:17px}}
   </style></head><body><main>${eyebrow ? `<div class="e">${esc(eyebrow)}</div>` : ""}<h1>${esc(title)}</h1>${
     subtitle ? `<p>${esc(subtitle)}</p>` : ""
   }</main><div class="m"><b>Studio</b>Cue</div></body></html>`;
@@ -130,8 +132,22 @@ async function center(locator: Locator) {
   return { box, x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
-async function run(page: Page, pointer: Pointer, action: Action, still: (page: Page) => Promise<void>) {
-  if ("goto" in action) {
+async function run(
+  page: Page,
+  pointer: Pointer,
+  action: Action,
+  still: (page: Page) => Promise<void>,
+  cut: (from: number, to: number) => void,
+) {
+  if ("cut" in action) {
+    const from = Date.now() / 1000;
+    for (const inner of action.cut) await run(page, pointer, inner, still, cut);
+    await page.waitForTimeout(300);
+    cut(from, Date.now() / 1000);
+  } else if ("reload" in action) {
+    await page.reload({ waitUntil: "load" });
+    await page.waitForTimeout(900);
+  } else if ("goto" in action) {
     await page.goto(`${APP}${action.goto}`, { waitUntil: "load" });
     await page.waitForTimeout(600);
   } else if ("card" in action) {
@@ -173,6 +189,14 @@ async function run(page: Page, pointer: Pointer, action: Action, still: (page: P
     await pointer.glide(x, y);
     await page.mouse.click(x, y);
     await page.keyboard.type(action.type.text, { delay: 45 });
+  } else if ("fill" in action) {
+    const target = locate(page, action.fill.into);
+    const { x, y } = await center(target);
+    await pointer.glide(x, y);
+    const tag = await target.evaluate((el) => el.tagName);
+    if (tag === "SELECT") await target.selectOption(action.fill.value);
+    else await target.fill(action.fill.value);
+    await page.waitForTimeout(400);
   } else if ("key" in action) {
     await page.keyboard.press(action.key);
     await page.waitForTimeout(300);
@@ -183,11 +207,11 @@ async function run(page: Page, pointer: Pointer, action: Action, still: (page: P
   }
 }
 
-async function signIn(page: Page, as: keyof typeof ACCOUNTS) {
+async function signIn(page: Page, as: string) {
   const password = process.env.SEED_DEMO_PASSWORD;
   if (!password) throw new Error("SEED_DEMO_PASSWORD is not set (it's in .env.local).");
   await page.goto(`${APP}/auth/login`);
-  await page.locator('input[type="email"]').fill(ACCOUNTS[as]);
+  await page.locator('input[type="email"]').fill(ACCOUNTS[as as keyof typeof ACCOUNTS] ?? as);
   await page.locator('input[type="password"]').fill(password);
   await page.locator('button[type="submit"]').click();
   await page.waitForURL((url) => !url.pathname.startsWith("/auth"), { timeout: 45000 });
@@ -253,12 +277,17 @@ export async function record(
       frames.sort((a, b) => a.t - b.t);
     };
 
+    const cuts: { from: number; to: number }[] = [];
     for (const [index, step] of script.steps.entries()) {
       const started = Date.now() / 1000;
+      let cutInStep = 0;
       marks.push({ step: index, t: started });
       for (const action of step.do) {
         try {
-          await run(page, pointer, action, still);
+          await run(page, pointer, action, still, (from, to) => {
+            cuts.push({ from, to });
+            cutInStep += to - from;
+          });
         } catch (error) {
           const shot = path.join(outDir, `failed-step-${index}.png`);
           mkdirSync(outDir, { recursive: true });
@@ -267,13 +296,14 @@ export async function record(
         }
       }
       if (!dryRun) {
-        const remaining = started + holdFor(index) - Date.now() / 1000;
+        // Time cut out of the video doesn't count towards the narration.
+        const remaining = started + holdFor(index) + cutInStep - Date.now() / 1000;
         if (remaining > 0) await page.waitForTimeout(Math.round(remaining * 1000));
       }
     }
     const endT = Date.now() / 1000;
     if (cdp) await cdp.send("Page.stopScreencast");
-    return { frames, marks, endT };
+    return { frames, marks, cuts, endT };
   } finally {
     await browser.close();
   }

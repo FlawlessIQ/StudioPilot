@@ -99,6 +99,16 @@ seed() {
   (cd $APP && firebase emulators:export $SNAP --project studiohub-dev --force > $LOGS/export.log 2>&1)
 }
 
+# The PDF service (cloud-run/pdf) on :8090, where functions/.env.local points
+# PDF_SERVICE_URL. Without it every proposal shows "PDF generation failed".
+pdf_up() {
+  lsof -ti :8090 >/dev/null 2>&1 && return 0
+  [ -d $H/pdf-venv ] || { python3 -m venv $H/pdf-venv && $H/pdf-venv/bin/pip install -q -r $ROOT/cloud-run/pdf/requirements.txt; }
+  (cd $APP/cloud-run/pdf && nohup $H/pdf-venv/bin/uvicorn main:app --port 8090 > $LOGS/pdf.log 2>&1 &)
+  for i in $(seq 1 30); do curl -s localhost:8090/health >/dev/null && return 0; sleep 1; done
+  echo "PDF service did not start; see $LOGS/pdf.log" && return 1
+}
+
 app_up() {
   lsof -ti :$PORT >/dev/null 2>&1 && return 0
   (cd $APP && nohup npx next start -p $PORT > $LOGS/app.log 2>&1 &)
@@ -111,6 +121,7 @@ case ${1:-up} in
     prepare
     lsof -ti :$FIRESTORE >/dev/null 2>&1 || emulators_up
     [ -d $SNAP ] || seed
+    pdf_up
     app_up
     echo "How-to stack ready: http://localhost:$PORT (owner@studiohub.test)"
     ;;
@@ -123,6 +134,7 @@ case ${1:-up} in
   down)
     emulators_down
     kill $(lsof -ti :$PORT) 2>/dev/null || true
+    kill $(lsof -ti :8090) 2>/dev/null || true
     echo "Stopped."
     ;;
   *) echo "usage: $0 up|reset|reseed|down" && exit 2 ;;

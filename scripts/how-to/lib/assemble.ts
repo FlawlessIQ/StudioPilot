@@ -61,13 +61,42 @@ export function captions(placed: Placed[]): string {
   return `WEBVTT\n\n${cues.join("\n\n")}\n`;
 }
 
+/**
+ * Removes the cut intervals from the recording's timeline. Frames inside a
+ * cut are dropped except the last, which moves to the cut's end, so the video
+ * jumps from the moment before the wait straight to its result.
+ */
+function cutOut(recording: Recording): Recording {
+  const cuts = [...recording.cuts].sort((a, b) => a.from - b.from);
+  if (!cuts.length) return recording;
+  const shift = (t: number) =>
+    t - cuts.reduce((sum, c) => sum + (t >= c.to ? c.to - c.from : t > c.from ? t - c.from : 0), 0);
+  const kept = recording.frames.filter((frame, i, all) => {
+    const inside = cuts.find((c) => frame.t >= c.from && frame.t < c.to);
+    if (!inside) return true;
+    const next = all[i + 1];
+    return !next || next.t >= inside.to;
+  });
+  const frames = kept.map((frame) => {
+    const inside = cuts.find((c) => frame.t >= c.from && frame.t < c.to);
+    return { ...frame, t: shift(inside ? inside.to : frame.t) };
+  });
+  return {
+    frames,
+    marks: recording.marks.map((mark) => ({ ...mark, t: shift(mark.t) })),
+    cuts: [],
+    endT: shift(recording.endT),
+  };
+}
+
 export function assemble(
   script: HowToScript,
   recording: Recording,
   lines: Map<number, Line>,
   outDir: string,
 ): { file: string; poster: string; captions: string; meta: string; durationSec: number } {
-  const { frames, marks } = recording;
+  const cut = cutOut(recording);
+  const { frames, marks } = cut;
   if (!frames.length) throw new Error("No frames were captured.");
   const t0 = frames[0]!.t;
   const placed: Placed[] = [...lines.entries()].map(([step, line]) => ({
@@ -76,7 +105,7 @@ export function assemble(
     at: marks.find((mark) => mark.step === step)!.t - t0,
   }));
   const audioEnd = Math.max(0, ...placed.map((p) => p.at + p.line.durationSec));
-  const duration = Math.max(recording.endT - t0, audioEnd + 0.6);
+  const duration = Math.max(cut.endT - t0, audioEnd + 0.6);
 
   // Frames → a constant 30 fps video, each frame held until the next arrived.
   const list = frames

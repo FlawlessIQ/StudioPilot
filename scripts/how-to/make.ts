@@ -65,5 +65,8 @@ for (const id of ids) {
   console.log(`Recording ${id}…`);
   const recording = await record(script, holdFor, outDir);
   const result = assemble(script, recording, lines, outDir);
+  // Raw frames run to hundreds of megabytes a take; the video is what's kept.
+  rmSync(path.join(outDir, "frames"), { recursive: true, force: true });
+  rmSync(path.join(outDir, "frames.txt"), { force: true });
   console.log(`✓ ${id}: ${result.durationSec.toFixed(1)}s → ${result.file}`);
 }

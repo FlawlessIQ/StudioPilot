@@ -47,6 +47,7 @@ await page.goto(`${APP}${route}`);
 await page.waitForTimeout(3500);
 if (click) {
   await page.getByText(click, { exact: true }).first().click({ force: true });
+  await page.waitForLoadState("load");
   await page.waitForTimeout(2500);
 }
 const shot = path.join(HOW_TO_HOME, "probe.png");
