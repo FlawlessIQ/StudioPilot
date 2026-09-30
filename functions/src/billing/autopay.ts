@@ -1,4 +1,4 @@
-import { clientAutomationsPaused } from "../imports/existing-booking.js";
+import { clientOutreachStop } from "../post-event/client-outreach.js";
 import { createHash } from "node:crypto";
 import { FieldValue, getFirestore, type DocumentSnapshot } from "firebase-admin/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
@@ -11,6 +11,8 @@ import {
 import { productEvent } from "../operations/product-events.js";
 import {
   autopayChargeDue,
+  autopayInvoiceUnchargeable,
+  autopayProjectUnchargeable,
   hasPaymentsScope,
   lastFour,
   paymentsAmount,
@@ -214,6 +216,21 @@ export async function chargeSavedCard(job: DocumentSnapshot) {
     return { status: "skipped" };
   }
   if (!(amountCents > 0)) return { status: "skipped" };
+  // Read again as the charge goes, not only when the scheduler queued it: a
+  // payment recorded by hand, a cancellation or a hold can land in between,
+  // and a card charged for any of those is money taken that was not owed.
+  // A charge already made is past this point and only needs recording.
+  if (!text(existing.get("providerChargeId"))) {
+    const project = await db.doc(`projects/${projectId}`).get();
+    const projectData = project.exists && project.get("tenantId") === tenantId ? project.data() : null;
+    const refused =
+      autopayInvoiceUnchargeable(invoice.data() as Parameters<typeof autopayInvoiceUnchargeable>[0]) ??
+      autopayProjectUnchargeable(projectData, clientOutreachStop(projectData));
+    if (refused) {
+      await record({ status: "skipped", failureCode: refused.toUpperCase(), createdAt: existing.get("createdAt") ?? now });
+      return { status: "skipped", reason: refused };
+    }
+  }
 
   const provider = await paymentsConnection(tenantId);
   let chargeId = text(existing.get("providerChargeId"));
@@ -365,9 +382,11 @@ export const autopayScheduler = onSchedule(
       const projectId = text(method.get("projectId"));
       const tenant = await db.doc(`tenants/${tenantId}`).get();
       if (asRecord(tenant.get("autopay")).enabled !== true) continue;
-      // Never charge a card on a booking the studio hasn't brought in yet.
+      // Never charge a card on a booking the studio hasn't brought in yet, or
+      // on one that is cancelled, on hold, archived or not booked.
       const project = await db.doc(`projects/${projectId}`).get();
-      if (clientAutomationsPaused(project.data())) continue;
+      if (project.get("tenantId") !== tenantId) continue;
+      if (autopayProjectUnchargeable(project.data(), clientOutreachStop(project.data()))) continue;
       const invoices = await db
         .collection("invoiceReferences")
         .where("tenantId", "==", tenantId)

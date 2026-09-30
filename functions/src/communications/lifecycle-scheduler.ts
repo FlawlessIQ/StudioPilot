@@ -1,6 +1,7 @@
 import { getFirestore } from "firebase-admin/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { productEvent } from "../operations/product-events.js";
+import { clientOutreachStop } from "../post-event/client-outreach.js";
 import {
   dueLifecycleMessages,
   renderLifecycleDraft,
@@ -48,6 +49,11 @@ export const lifecycleMessageScheduler = onSchedule(
     for (const project of projects.docs) {
       const tenantId = text(project.get("tenantId"));
       if (!tenantId) continue;
+      // Archived, cancelled, lost or on hold: no "final balance summary" or
+      // day-before checklist for a wedding that isn't going ahead as booked.
+      // dueLifecycleMessages reads the state and the quiet flag but never
+      // `archivedAt`, so an archived job in a booked state was still drafted.
+      if (clientOutreachStop(project.data())) continue;
       let tenantEntry = tenantSettings.get(tenantId);
       if (!tenantEntry) {
         const tenant = await db.doc(`tenants/${tenantId}`).get();

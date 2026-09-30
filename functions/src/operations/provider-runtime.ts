@@ -17,6 +17,11 @@ import {
 import { consumeAiQuota } from "../saas/usage.js";
 import { autoInstantiateWorkflow } from "../workflow/commands.js";
 import { productEvent } from "./product-events.js";
+import {
+  invoiceClosedToProviderWork,
+  providerReportedInvoice,
+} from "../booking/invoice-standing.js";
+import { voidInvoiceTask } from "../booking/stopped-billing.js";
 
 export type Provider="google_calendar"|"zoom"|"dropbox"|"docusign"|"dropbox_sign"|"quickbooks"|"stripe";
 export type Credential={
@@ -853,8 +858,48 @@ async function stripeCustomerId(
   return customerId;
 }
 
+/**
+ * A create job for an invoice StudioCue has already finished with.
+ *
+ * The studio recorded the payment by hand, a booking change replaced the
+ * bill, or the job was called off — all while this job sat queued or waiting
+ * to retry. Creating it now would email the couple a bill for money they have
+ * paid (or no longer owe) and write `sent` over the record. The job succeeds
+ * with nothing done, and the invoice says why.
+ */
+async function skipClosedInvoice(reference:FirebaseFirestore.DocumentReference,invoice:DocumentSnapshot,job:DocumentSnapshot){
+  const now=new Date().toISOString();const reason=`invoice_${String(invoice.get("status"))}`;
+  await reference.update({providerSkip:{reason,jobId:job.id,at:now},...(invoice.get("providerState")==="completed"?{}:{providerState:"skipped"}),updatedAt:now,updatedBy:"provider-worker"});
+  return{invoiceId:invoice.id,skipped:reason};
+}
+
+/**
+ * Write what the provider created — unless the invoice closed while we were
+ * creating it.
+ *
+ * The read at the top of a create worker is seconds to minutes older than
+ * this write (customer lookups, item lookups, the create itself). A payment
+ * recorded in that window used to be overwritten here. Now the provider's ids
+ * are still kept — the invoice does exist there — but status and balance stay
+ * as the studio left them, and the studio gets a task to void the stray.
+ */
+async function landProviderInvoice(reference:FirebaseFirestore.DocumentReference,fields:Record<string,unknown>,owed:{status:string;balanceCents?:number}){
+  const db=getFirestore();
+  return db.runTransaction(async(transaction)=>{
+    const current=await transaction.get(reference);
+    if(!invoiceClosedToProviderWork(current.get("status"))){transaction.update(reference,{...fields,...owed});return{closedMeanwhile:false}}
+    const now=String(fields.updatedAt??new Date().toISOString());
+    transaction.update(reference,{...fields,providerSkip:{reason:`closed_while_creating_${String(current.get("status"))}`,at:now}});
+    const tenantId=String(current.get("tenantId")??"");const projectId=String(current.get("projectId")??"");
+    const task=voidInvoiceTask({invoice:current,tenantId,projectId,why:"This invoice was created at the provider just after it was settled or closed in StudioCue.",now,actor:"provider-worker"});
+    transaction.set(db.doc(`tasks/${task.id}`),task,{merge:true});
+    return{closedMeanwhile:true};
+  });
+}
+
 export async function createStripeInvoice(job:DocumentSnapshot){const db=getFirestore();const invoiceId=String(job.get("invoiceId"));const reference=db.doc(`invoiceReferences/${invoiceId}`);const invoice=await reference.get();if(!invoice.exists)throw new Error("INVOICE_NOT_FOUND");
   if(invoice.get("providerState")==="completed")return{invoiceId,providerInvoiceId:invoice.get("providerInvoiceId")};
+  if(invoiceClosedToProviderWork(invoice.get("status")))return skipClosedInvoice(reference,invoice,job);
   const tenantId=String(job.get("tenantId"));const idempotencyKey=String(job.get("idempotencyKey")??job.id);const provider=await connection(tenantId,"stripe");let providerInvoiceId:string;let hostedUrl:string|null;let providerCustomerId=text(invoice.get("providerCustomerId"));
   if(provider.mock){providerInvoiceId=mockId("stripe_invoice",job.id);providerCustomerId=providerCustomerId.startsWith("pending_")?mockId("stripe_customer",String(invoice.get("projectId"))):providerCustomerId;hostedUrl=`https://invoice.example.test/${providerInvoiceId}`}
   else{
@@ -866,7 +911,7 @@ export async function createStripeInvoice(job:DocumentSnapshot){const db=getFire
     const finalized=await providerJson(`https://api.stripe.com/v1/invoices/${encodeURIComponent(text(created.id))}/finalize`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/x-www-form-urlencoded"}},"STRIPE_INVOICE_FINALIZE_FAILED");
     providerInvoiceId=text(finalized.id);hostedUrl=text(finalized.hosted_invoice_url)||null;
   }
-  if(!providerInvoiceId)throw new Error("STRIPE_INVOICE_ID_MISSING");const now=new Date().toISOString();await reference.update({providerInvoiceId,providerCustomerId,hostedUrl,status:"sent",providerState:"completed",lastSyncedAt:now,updatedAt:now,updatedBy:"provider-worker"});return{invoiceId,providerInvoiceId}}
+  if(!providerInvoiceId)throw new Error("STRIPE_INVOICE_ID_MISSING");const now=new Date().toISOString();const landed=await landProviderInvoice(reference,{providerInvoiceId,providerCustomerId,hostedUrl,providerState:"completed",lastSyncedAt:now,updatedAt:now,updatedBy:"provider-worker"},{status:"sent"});return{invoiceId,providerInvoiceId,...landed}}
 
 /** The client address a provider invoice should be delivered to. */
 async function clientEmailFor(
@@ -1093,6 +1138,7 @@ async function adoptQuickBooksInvoice(
 
 export async function createQuickBooksInvoice(job:DocumentSnapshot){const db=getFirestore();const invoiceId=String(job.get("invoiceId"));const reference=db.doc(`invoiceReferences/${invoiceId}`);const invoice=await reference.get();if(!invoice.exists)throw new Error("INVOICE_NOT_FOUND");
   if(invoice.get("providerState")==="completed")return{invoiceId,providerInvoiceId:invoice.get("providerInvoiceId")};
+  if(invoiceClosedToProviderWork(invoice.get("status")))return skipClosedInvoice(reference,invoice,job);
   const tenantId=String(job.get("tenantId"));const provider=await connection(tenantId,"quickbooks");let providerInvoiceId:string;let providerCustomerId=text(invoice.get("providerCustomerId"));let balanceCents=Number(invoice.get("balanceCents"));let hostedUrl:string|null=null;let docNumber:string|null=null;let alreadyDelivered=false;if(provider.mock){providerInvoiceId=mockId("qbo_invoice",job.id);providerCustomerId=providerCustomerId.startsWith("pending_")?mockId("qbo_customer",String(invoice.get("projectId"))):providerCustomerId}else{const credential=provider.credential;const realmId=credential?.realmId??String(provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");providerCustomerId=await quickBooksCustomerId(tenantId,String(invoice.get("projectId")),invoice,credential,realmId,String(job.get("idempotencyKey")??job.id));const base=quickBooksApiBaseUrl(credential.baseUrl);const supplyNumber=await quickBooksCustomTxnNumbers(base,realmId,credential);const ourNumber=supplyNumber?studioCueDocNumber(invoiceId):null;const already=await adoptQuickBooksInvoice(base,realmId,credential,text(invoice.get("providerInvoiceId")))??(ourNumber?await findQuickBooksInvoiceByDocNumber(base,realmId,credential,ourNumber):null);if(already){providerInvoiceId=already.id;balanceCents=already.balanceCents;docNumber=already.docNumber}else{const itemRef=await quickBooksItemRef(base,realmId,credential,String(job.get("idempotencyKey")??job.id));const value=await providerJson(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}/invoice?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json","content-type":"application/json","request-id":String(job.get("idempotencyKey")??job.id)},body:JSON.stringify({...(ourNumber?{DocNumber:ourNumber}:{}),CustomerRef:{value:providerCustomerId},DueDate:invoice.get("dueDate"),PrivateNote:`StudioCue ${invoiceId}`,Line:[{Amount:Number(invoice.get("amountCents"))/100,DetailType:"SalesItemLineDetail",Description:String(invoice.get("kind")),SalesItemLineDetail:{ItemRef:itemRef,Qty:1,UnitPrice:Number(invoice.get("amountCents"))/100}}]})},"QUICKBOOKS_CREATE_FAILED");const created=asRecord(value.Invoice);providerInvoiceId=text(created.Id);balanceCents=Math.round(number(created.Balance)*100);docNumber=text(created.DocNumber)||null}
     // One place for both paths: whether the invoice was just made or
     // adopted from an earlier attempt, the client still needs the link and
@@ -1106,12 +1152,16 @@ export async function createQuickBooksInvoice(job:DocumentSnapshot){const db=get
   // The invoice exists at the provider; the client has not been mailed yet.
   // `awaiting_delivery` until the email job reports otherwise, because
   // "sent" is a claim about what reached the client and nothing has yet.
-  await reference.update({providerInvoiceId,providerCustomerId,balanceCents,status:provider.mock||alreadyDelivered?"sent":"awaiting_delivery",providerState:"completed",...(hostedUrl?{hostedUrl}:{}),providerDocNumber:docNumber,lastSyncedAt:now,updatedAt:now,updatedBy:"provider-worker"});
-  return{invoiceId,providerInvoiceId,hostedUrl}}
+  const landed=await landProviderInvoice(reference,{providerInvoiceId,providerCustomerId,providerState:"completed",...(hostedUrl?{hostedUrl}:{}),providerDocNumber:docNumber,lastSyncedAt:now,updatedAt:now,updatedBy:"provider-worker"},{balanceCents,status:provider.mock||alreadyDelivered?"sent":"awaiting_delivery"});
+  return{invoiceId,providerInvoiceId,hostedUrl,...landed}}
 
 export async function reconcileQuickBooksInvoice(job:DocumentSnapshot){const db=getFirestore();const invoiceId=String(job.get("invoiceId"));const reference=db.doc(`invoiceReferences/${invoiceId}`);const invoice=await reference.get();if(!invoice.exists)throw new Error("INVOICE_NOT_FOUND");const providerInvoiceId=String(job.get("providerInvoiceId")??invoice.get("providerInvoiceId")??"");if(!providerInvoiceId)throw new Error("QUICKBOOKS_INVOICE_ID_MISSING");const operation=String(job.get("operation")??"").toLowerCase();let status:string;let balanceCents:number;
   if(["delete","deleted","void","voided"].includes(operation)){status="voided";balanceCents=0}else{const provider=await connection(String(job.get("tenantId")),"quickbooks");if(provider.mock){status=String(invoice.get("status")??"sent");balanceCents=Number(invoice.get("balanceCents")??0)}else{const credential=provider.credential;const realmId=credential?.realmId??String(job.get("realmId")??provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");const value=await providerJson(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}/invoice/${encodeURIComponent(providerInvoiceId)}?minorversion=75`,{headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json","content-type":"application/json"}},"QUICKBOOKS_INVOICE_READ_FAILED");const current=asRecord(value.Invoice);balanceCents=Math.max(0,Math.round(number(current.Balance)*100));const totalCents=Math.max(0,Math.round(number(current.TotalAmt)*100));status=balanceCents===0?"paid":balanceCents<totalCents?"partially_paid":"sent"}}
-  const now=new Date().toISOString();const batch=db.batch();batch.update(reference,{status,balanceCents,lastProviderEventId:String(job.get("idempotencyKey")??job.id),lastSyncedAt:String(job.get("occurredAt")??now),providerState:"completed",updatedAt:now,updatedBy:"quickbooks-reconciliation"});const webhookEventId=String(job.get("webhookEventId")??"");if(webhookEventId)batch.update(db.doc(`webhookEvents/${webhookEventId}`),{status:"processed",processedAt:now});await batch.commit();return{invoiceId,providerInvoiceId,status,balanceCents}}
+  // A payment the studio recorded by hand, or a bill StudioCue closed, is not
+  // undone by QuickBooks re-reading a balance it never saw paid. Only its own
+  // paid or voided wins (invoice-standing.ts, providerReportedInvoice).
+  const decided=providerReportedInvoice({current:{status:invoice.get("status"),completionAuthority:invoice.get("completionAuthority"),balanceCents:invoice.get("balanceCents")},reported:{status,balanceCents}});status=decided.status;balanceCents=decided.balanceCents;
+  const now=new Date().toISOString();const batch=db.batch();batch.update(reference,{status,balanceCents,...(decided.keptReason?{providerReportKept:{reason:decided.keptReason,at:now}}:{}),lastProviderEventId:String(job.get("idempotencyKey")??job.id),lastSyncedAt:String(job.get("occurredAt")??now),providerState:"completed",updatedAt:now,updatedBy:"quickbooks-reconciliation"});const webhookEventId=String(job.get("webhookEventId")??"");if(webhookEventId)batch.update(db.doc(`webhookEvents/${webhookEventId}`),{status:"processed",processedAt:now});await batch.commit();return{invoiceId,providerInvoiceId,status,balanceCents}}
 
 async function dropboxFolder(accessToken:string,path:string){
   const create=await fetch("https://api.dropboxapi.com/2/files/create_folder_v2",{method:"POST",headers:{authorization:`Bearer ${accessToken}`,"content-type":"application/json"},body:JSON.stringify({path,autorename:false})});

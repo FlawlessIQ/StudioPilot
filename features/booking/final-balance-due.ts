@@ -5,6 +5,12 @@
  * the same arithmetic functions/src/booking/final-invoice.ts bills by. Display
  * only: sendFinalBalance works the amount out again on the server, so this can
  * never set what a couple is charged.
+ *
+ * A job booked on an approved retainer exception has no retainer invoice, and
+ * counts as nothing paid here — which is also what the server bills by since
+ * the money audit of 2026-09-30. Before that the server refused with "record
+ * the retainer first" while this offered Send, pushing studios to record
+ * money they never received.
  */
 
 type Row = Record<string, unknown> & { id: string };

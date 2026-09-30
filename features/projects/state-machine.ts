@@ -35,7 +35,9 @@ export const allowedProjectTransitions: Readonly<
   REVIEW_REQUESTED: ["CLOSED"],
   CLOSED: ["ARCHIVED"],
   CANCELLED: ["ARCHIVED"],
-  POSTPONED: ["CONSULTATION", "BOOKED", "PLANNING", "CANCELLED"],
+  // Back to where it was held from — see hold-resume.ts, which narrows this
+  // to the one stage a given hold may return to.
+  POSTPONED: ["CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING", "BOOKED", "PLANNING", "CANCELLED"],
   ARCHIVED: [],
   // Reopened to where it closed from, or put away.
   LOST: ["LEAD", "CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING", "ARCHIVED"],

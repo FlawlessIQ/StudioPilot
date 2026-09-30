@@ -92,8 +92,10 @@ import {
   interruptionReasonIsUsable,
   interruptionsFor,
   MINIMUM_INTERRUPTION_REASON,
+  resumeTargetFor,
   type Interruption,
 } from "@/features/projects/interruptions";
+import type { HoldRecord } from "@/features/projects/hold-resume";
 
 // The job page collapses its three overlapping "what's left" sections — the
 // prepared-decisions queue, "everything outstanding by who owes it", and the
@@ -143,10 +145,9 @@ const emptyRelatedRecords: RelatedRecords = {
 
 const forwardStage: Partial<Record<ProjectState, ProjectState>> = {
   LEAD: "CONSULTATION",
-  // A held job's way back. The signature and retainer are already on file and
-  // the booking gate re-checks them against the new date. Without this a
-  // postponed project showed no stage card at all.
-  POSTPONED: "BOOKED",
+  // A held job's way back is not in this table: it depends on where the job
+  // was held from (resumeTargetFor). A booked job returns through the booking
+  // gate; one held at PROPOSAL returns to PROPOSAL, never into PLANNING.
   CONSULTATION: "PROPOSAL",
   PROPOSAL: "CONTRACT_PENDING",
   CONTRACT_PENDING: "RETAINER_PENDING",
@@ -238,6 +239,7 @@ function ProjectStageControl({
   stateVersion,
   onTransition,
   journeyAdvance,
+  hold,
 }: {
   projectId: string;
   state: ProjectState;
@@ -258,8 +260,11 @@ function ProjectStageControl({
    * agreement if it weren't.
    */
   bookingAgreementOut?: boolean;
+  /** Where a held job was held from; see features/projects/hold-resume.ts. */
+  hold?: HoldRecord;
 }) {
-  const target = forwardStage[state];
+  const target =
+    state === "POSTPONED" ? resumeTargetFor(state, hold ?? {}) : forwardStage[state];
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -623,10 +628,16 @@ function ProjectLifecycleLanes({
           <div>
             <p className="eyebrow">Reference</p>
             <h2>{cancelled ? "This job is cancelled" : "This job is on hold"}</h2>
+            {/*
+              Says only what the server now makes true (money audit,
+              2026-09-30). This read "Nothing is outstanding for the studio"
+              while a cancelled job's retainer was still owed, the booking plan
+              still waiting on it, and autopay still due to charge the card.
+            */}
             <p>
-              Everything on it stays on file. Nothing is outstanding for the
-              studio, the client, or crew while it is{" "}
-              {cancelled ? "cancelled" : "on hold"}.
+              {cancelled
+                ? "Everything on it stays on file. StudioCue won't bill, charge or remind the client about it again. If an invoice is still open in your invoicing app, or the couple has already paid, it's on the job's tasks for you to void or settle."
+                : "Everything on it stays on file. While it's on hold StudioCue won't bill, charge or remind the client."}
               {" "}{reason ? ` Reason: ${reason}` : ""}
             </p>
           </div>
@@ -1072,6 +1083,10 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
             }
           : null
       }
+      hold={{
+        postponedFromState: project.postponedFromState,
+        bookingCompletedAt: project.bookingCompletedAt,
+      }}
       onTransition={onTransition}
       projectId={projectId}
       state={state}

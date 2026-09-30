@@ -57,6 +57,75 @@ export type AutopayAttempt = {
   createdAt: string;
 };
 
+export type AutopayInvoice = {
+  kind: unknown;
+  status: unknown;
+  balanceCents: unknown;
+  dueDate: unknown;
+  provider: unknown;
+  providerState?: unknown;
+  providerInvoiceId?: unknown;
+};
+
+/**
+ * Why this invoice can't be charged at all, whatever the date — or null.
+ *
+ * Read by the scheduler and again by the charge worker as it charges, since
+ * a payment recorded by hand can land in between.
+ *
+ * The provider checks are the money audit of 2026-09-30. A final bill raised
+ * for review (`draft` / `review_required`) was swept to `overdue` by the
+ * invoice scheduler, `overdue` counts as unpaid, and nothing here asked
+ * whether QuickBooks had ever been sent the invoice. So autopay could charge a
+ * couple's card for a balance nobody had billed them, and the payment it then
+ * records against the QuickBooks invoice would point at one that does not
+ * exist. Only an invoice QuickBooks has actually created is charged.
+ */
+export function autopayInvoiceUnchargeable(invoice: AutopayInvoice): string | null {
+  if (invoice.provider !== "quickbooks") return "not_quickbooks";
+  if (!AUTOPAY_INVOICE_KINDS.includes(String(invoice.kind))) return "not_final";
+  if (!UNPAID.has(String(invoice.status))) return "not_unpaid";
+  if (!(Number(invoice.balanceCents) > 0)) return "no_balance";
+  if (invoice.providerState !== "completed") return "not_at_provider";
+  const providerInvoiceId = typeof invoice.providerInvoiceId === "string" ? invoice.providerInvoiceId : "";
+  if (!providerInvoiceId || providerInvoiceId.startsWith("pending_")) return "no_provider_invoice";
+  return null;
+}
+
+/**
+ * The job stages a card may be charged in: booked, and not yet closed.
+ *
+ * Autopay read only the quiet flag, so a cancelled, on-hold or archived
+ * wedding's card was still charged on the due date (money audit, 2026-09-30).
+ */
+const AUTOPAY_PROJECT_STATES = new Set([
+  "BOOKED",
+  "PLANNING",
+  "READY",
+  "EVENT_COMPLETE",
+  "POST_PRODUCTION",
+  "DELIVERED",
+  "REVIEW_REQUESTED",
+]);
+
+/**
+ * Why this job's card can't be charged — or null.
+ *
+ * `outreachStop` is `clientOutreachStop(project)` from
+ * post-event/client-outreach.ts, passed in so this file stays pure: archived,
+ * quiet, called off or on hold all stop a charge, exactly as they stop an
+ * email.
+ */
+export function autopayProjectUnchargeable(
+  project: { state?: unknown } | null | undefined,
+  outreachStop: string | null,
+): string | null {
+  if (!project) return "no_project";
+  if (outreachStop) return `project_${outreachStop}`;
+  if (!AUTOPAY_PROJECT_STATES.has(String(project.state ?? ""))) return "project_not_active";
+  return null;
+}
+
 /**
  * Whether an invoice should be charged today, and which attempt it is.
  *
@@ -65,15 +134,13 @@ export type AutopayAttempt = {
  * a card that keeps declining needs a person, not a loop.
  */
 export function autopayChargeDue(input: {
-  invoice: { kind: unknown; status: unknown; balanceCents: unknown; dueDate: unknown; provider: unknown };
+  invoice: AutopayInvoice;
   attempts: AutopayAttempt[];
   today: string;
 }): { due: false; reason: string } | { due: true; attempt: number } {
   const { invoice, attempts, today } = input;
-  if (invoice.provider !== "quickbooks") return { due: false, reason: "not_quickbooks" };
-  if (!AUTOPAY_INVOICE_KINDS.includes(String(invoice.kind))) return { due: false, reason: "not_final" };
-  if (!UNPAID.has(String(invoice.status))) return { due: false, reason: "not_unpaid" };
-  if (!(Number(invoice.balanceCents) > 0)) return { due: false, reason: "no_balance" };
+  const unchargeable = autopayInvoiceUnchargeable(invoice);
+  if (unchargeable) return { due: false, reason: unchargeable };
   const dueDate = typeof invoice.dueDate === "string" ? invoice.dueDate.slice(0, 10) : "";
   if (!dueDate || dueDate > today) return { due: false, reason: "not_yet_due" };
   if (attempts.some((attempt) => attempt.status !== "failed")) return { due: false, reason: "already_charged_or_pending" };

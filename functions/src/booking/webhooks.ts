@@ -4,6 +4,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { onRequest, type Request } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { signatureValid } from "../saas/stripe.js";
+import { providerReportedInvoice } from "./invoice-standing.js";
 import {
   normalizeDocusignWebhook,
   normalizeDropboxSignWebhook,
@@ -480,6 +481,7 @@ export const stripeConnectWebhook = onRequest(
     const invoice = invoices?.docs[0];
     await firestore.runTransaction(async (transaction) => {
       if ((await transaction.get(eventReference)).exists) return;
+      const current = invoice ? await transaction.get(invoice.ref) : null;
       const now = new Date().toISOString();
       transaction.create(eventReference, {
         tenantId,
@@ -492,16 +494,30 @@ export const stripeConnectWebhook = onRequest(
       if (!invoice) return;
       const amountRemaining = Number(object.amount_remaining ?? 0);
       const amountPaid = Number(object.amount_paid ?? 0);
-      const status = event.type === "invoice.voided"
+      const reported = event.type === "invoice.voided"
         ? "voided"
         : amountRemaining === 0
           ? "paid"
           : amountPaid > 0
             ? "partially_paid"
             : "sent";
+      // A payment the studio recorded by hand, or a bill StudioCue closed, is
+      // not reopened by a `payment_failed` on an invoice Stripe never saw
+      // paid. Only Stripe's own paid or voided wins (invoice-standing.ts).
+      const decided = providerReportedInvoice({
+        current: {
+          status: current?.get("status"),
+          completionAuthority: current?.get("completionAuthority"),
+          balanceCents: current?.get("balanceCents"),
+        },
+        reported: { status: reported, balanceCents: Math.max(0, amountRemaining) },
+      });
       transaction.update(invoice.ref, {
-        status,
-        balanceCents: Math.max(0, amountRemaining),
+        status: decided.status,
+        balanceCents: decided.balanceCents,
+        ...(decided.keptReason
+          ? { providerReportKept: { reason: decided.keptReason, at: now } }
+          : {}),
         lastProviderEventId: event.id,
         lastSyncedAt: now,
         updatedAt: now,

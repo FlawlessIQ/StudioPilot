@@ -449,7 +449,7 @@ function ThreadNextMove({
             </p>
             <strong>
               {held
-                ? "This job is on hold, so nothing is being chased."
+                ? "This job is on hold, so the client isn't billed, charged or reminded."
                 : "This job was cancelled. Everything on it is still on file."}
             </strong>
             <small>

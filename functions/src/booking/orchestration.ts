@@ -6,6 +6,7 @@ import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { logger } from "firebase-functions/v2";
 import { agreedRetainerCents } from "./agreed-retainer.js";
 import { isStandingInvoice } from "./invoice-standing.js";
+import { jobCalledOff, refundOrKeepTask } from "./stopped-billing.js";
 import { bookingGateRequirements } from "./gate-requirements.js";
 import {
   requireProviderForTenant,
@@ -373,6 +374,10 @@ export const bookingContractCompleted = onDocumentWritten(
       plan.get("policy.createRetainerAfterSignature") !== true
     ) return;
     if (!project.exists || project.get("tenantId") !== tenantId) return;
+    // A signature that lands after the job was called off raises no retainer.
+    // Cancelling now closes the plan (stopped-billing.ts); a plan left active
+    // by a cancellation before that would otherwise bill the couple here.
+    if (jobCalledOff(project.data())) return;
     // A refused or superseded attempt is not a retainer, and pointing the
     // plan at one would park it on `wait_for_payment` against an invoice
     // the client never received.
@@ -564,6 +569,50 @@ export const bookingRetainerPaid = onDocumentWritten(
       )
     )
       return;
+    /**
+     * Paid after the job was called off.
+     *
+     * The couple paid a retainer invoice that was still out when the studio
+     * cancelled the job or closed the inquiry as lost. This used to run on to
+     * the transaction below and throw INVALID_BOOKING_STATE inside a trigger
+     * with no retry — the plan stayed "active" for ever and nobody was told
+     * that money had arrived for a wedding that is not happening (money
+     * audit, 2026-09-30). There is nothing to book; the studio has a decision
+     * to make about the money, so it gets a task, and the plan is closed.
+     */
+    if (project.exists && jobCalledOff(project.data())) {
+      const paidCents = Math.max(
+        0,
+        Number(invoice.get("amountCents") ?? 0) - Number(invoice.get("balanceCents") ?? 0),
+      );
+      await db.runTransaction(async (transaction) => {
+        const [currentPlan, refundTask] = await Promise.all([
+          transaction.get(planReference),
+          transaction.get(db.doc(`tasks/refund_or_keep_${projectId}`)),
+        ]);
+        const now = new Date().toISOString();
+        if (currentPlan.exists && ["active", "needs_attention"].includes(String(currentPlan.get("status"))))
+          transaction.update(planReference, {
+            status: "cancelled",
+            currentStep: "cancelled",
+            cancelledAt: now,
+            cancelledReason: "project_called_off",
+            updatedAt: now,
+          });
+        if (!refundTask.exists && paidCents > 0) {
+          const task = refundOrKeepTask({
+            tenantId,
+            projectId,
+            paidCents,
+            currency: String(invoice.get("currency") ?? "USD"),
+            now,
+            actor: "booking-orchestrator",
+          });
+          transaction.set(db.doc(`tasks/${task.id}`), task);
+        }
+      });
+      return;
+    }
     const declineReason = !plan.exists
       ? "no_plan"
       : plan.get("status") !== "active"
@@ -686,6 +735,25 @@ export const bookingRetainerPaid = onDocumentWritten(
       ]);
       if (!currentPlan.exists || currentPlan.get("status") !== "active") return;
       if (!currentProject.exists || currentProject.get("tenantId") !== tenantId) return;
+      /**
+       * Only RETAINER_PENDING books. Checked before anything is written: this
+       * used to throw after the gate run and a "completed automatically"
+       * event were staged, inside a trigger with no retry, so a job put on
+       * hold (or called off) between the read above and this one failed
+       * noisily and for ever. A held job is re-booked through the gate when
+       * it comes back.
+       */
+      if (currentProject.get("state") !== "RETAINER_PENDING") {
+        logger.error("bookingRetainerPaidDeclined", {
+          studiocueOperationalError: true,
+          code: "BOOKING_AUTOMATION_STALLED",
+          reason: `project_${String(currentProject.get("state"))}`,
+          tenantId,
+          projectId,
+          invoiceId: invoice.id,
+        });
+        return;
+      }
       transaction.set(db.doc(`bookingGateRuns/${gateId}`), {
         id: gateId,
         tenantId,
@@ -742,8 +810,6 @@ export const bookingRetainerPaid = onDocumentWritten(
         }, { merge: true });
         return;
       }
-      if (currentProject.get("state") !== "RETAINER_PENDING")
-        throw new Error("INVALID_BOOKING_STATE");
       const priorVersion = Number(currentProject.get("stateVersion") ?? 0);
       transaction.update(projectReference, {
         state: "BOOKED",

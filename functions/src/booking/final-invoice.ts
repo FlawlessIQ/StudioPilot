@@ -69,18 +69,39 @@ export async function raiseFinalInvoice(
   // Another final is still owed: one bill for one balance.
   if (standing.some((invoice) => invoice.get("kind") === "final" && Number(invoice.get("balanceCents") ?? 0) > 0))
     return { raised: false, reason: "final_outstanding" };
-  const retainer = standing.find((invoice) => invoice.get("kind") === "retainer");
-  if (!retainer) return { raised: false, reason: "no_retainer" };
+  const retainer = standing.find((invoice) => invoice.get("kind") === "retainer") ?? null;
+  /**
+   * A retainer the studio waived is a retainer satisfied, with nothing paid.
+   *
+   * Booking on an approved retainer exception leaves no retainer invoice, so
+   * this refused with `no_retainer` and the studio was told to "record the
+   * retainer first" — money that was never received — while Today and
+   * Invoices offered Send (money audit, 2026-09-30). The exception is the
+   * studio's recorded decision; the balance is then the whole agreed total.
+   */
+  const waiver = retainer
+    ? null
+    : (
+        await transaction.get(
+          db
+            .collection("bookingExceptions")
+            .where("tenantId", "==", tenantId)
+            .where("projectId", "==", project.id)
+            .where("type", "==", "retainer")
+            .limit(5),
+        )
+      ).docs.find((exception) => exception.get("status") === "approved") ?? null;
+  if (!retainer && !waiver) return { raised: false, reason: "no_retainer" };
   // Billed by whoever billed the retainer; a retainer recorded by hand names
   // no provider, and then the studio's invoicing provider decides. Before
   // this, every final went to QuickBooks — a Stripe studio's final carried a
   // Stripe customer id into QuickBooks and failed there.
-  const retainerProvider = String(retainer.get("provider") ?? "");
+  const retainerProvider = String(retainer?.get("provider") ?? "");
   const provider: "quickbooks" | "stripe" =
     retainerProvider === "stripe" || retainerProvider === "quickbooks"
       ? retainerProvider
       : (options.provider ?? "quickbooks");
-  const retainerCustomer = retainer.get("providerCustomerId");
+  const retainerCustomer = retainer?.get("providerCustomerId");
   let customerId: string;
   if (typeof retainerCustomer === "string" && retainerCustomer && retainerProvider === provider) customerId = retainerCustomer;
   else if (options.resolveCustomer) customerId = `pending_${project.id}`;
@@ -106,11 +127,14 @@ export async function raiseFinalInvoice(
   const taxCents = fromProposal
     ? Number(agreedPricing?.taxCents ?? 0)
     : Number(packageSnapshot.get("taxCents") ?? 0);
-  const retainerExpectedCents = retainerFromSchedule(
-    accepted?.get("paymentSchedule"),
-    Number(packageSnapshot.get("retainerCents") ?? 0),
-  );
-  const retainerPaidCents = paidOf(retainer);
+  // Waived: nothing was expected, so nothing paid is not a discrepancy.
+  const retainerExpectedCents = retainer
+    ? retainerFromSchedule(
+        accepted?.get("paymentSchedule"),
+        Number(packageSnapshot.get("retainerCents") ?? 0),
+      )
+    : 0;
+  const retainerPaidCents = retainer ? paidOf(retainer) : 0;
   const earlierFinalsPaidCents = standing
     .filter((invoice) => invoice.get("kind") === "final")
     .reduce((sum, invoice) => sum + paidOf(invoice), 0);
@@ -127,11 +151,17 @@ export async function raiseFinalInvoice(
     lines: [
       { label: "Approved package and add-ons", amountCents: totalCents - taxCents, source },
       { label: "Approved tax", amountCents: taxCents, source },
-      {
-        label: "Retainer payment received",
-        amountCents: -retainerPaidCents,
-        source: `invoiceReferences/${retainer.id}`,
-      },
+      retainer
+        ? {
+            label: "Retainer payment received",
+            amountCents: -retainerPaidCents,
+            source: `invoiceReferences/${retainer.id}`,
+          }
+        : {
+            label: "Retainer waived by the studio",
+            amountCents: 0,
+            source: `bookingExceptions/${waiver!.id}`,
+          },
       ...(earlierFinalsPaidCents
         ? [{ label: "Earlier balance payments received", amountCents: -earlierFinalsPaidCents, source: "invoiceReferences" }]
         : []),
