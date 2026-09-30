@@ -166,3 +166,16 @@ test("the sent proposal's panel is rendered once", () => {
   // it appeared twice on the page.
   assert.equal(workspace.split('className="proposal-delivery-state"').length - 1, 1);
 });
+
+test("the couple's portal is sent what the booking agreement screens check", () => {
+  // Walked on prod 2026-09-30: without these the couple got the one-signature
+  // form, which is refused while the job is at PROPOSAL.
+  const route = readFileSync("app/api/client/portal/route.ts", "utf8");
+  const contracts = route.slice(route.indexOf("  contracts: ["), route.indexOf("  invoiceReferences: ["));
+  for (const field of ['"mode"', '"sections"', '"proposalId"']) assert.ok(contracts.includes(field), field);
+  const proposals = route.slice(route.indexOf("  proposals: ["), route.indexOf("  packageSnapshots: ["));
+  assert.ok(proposals.includes('"combinedContractId"'));
+  // And the signing screen branches on exactly those.
+  const signing = readFileSync("components/client/contract-signing.tsx", "utf8");
+  assert.match(signing, /contract\.mode === "combined" && Array\.isArray\(contract\.sections\)/);
+});

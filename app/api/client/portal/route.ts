@@ -296,6 +296,10 @@ const clientRecordFields = {
     "declinedAt",
     "declineReason",
     "updatedAt",
+    // Sent inside a booking agreement (H2): the couple's proposal page points
+    // to the agreement instead of offering "Accept". Missing from this list,
+    // the page never knew, and offered Accept.
+    "combinedContractId",
   ],
   packageSnapshots: [
     "packageName",
@@ -328,6 +332,13 @@ const clientRecordFields = {
     // hash of exactly what they were shown.
     "document",
     "documentHash",
+    // A booking agreement (H2) is signed part by part. Without these the
+    // couple's page showed the one-signature form, whose command refuses a
+    // job still at PROPOSAL: "This agreement isn't waiting for a signature
+    // right now" (walked on prod by Conor, 2026-09-30).
+    "mode",
+    "sections",
+    "proposalId",
     "signatures",
     "sentAt",
     "viewedAt",

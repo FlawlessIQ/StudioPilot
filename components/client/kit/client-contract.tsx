@@ -96,7 +96,9 @@ export function ClientContract() {
               ? "Signed by you and your studio."
               : contractStatus === "voided"
                 ? "This version was withdrawn."
-                : "Read it through, then tap Review & sign. It’s written from the proposal you accepted."}
+                : contract.mode === "combined"
+                  ? "Your terms and your coverage and price, in two parts. Read both, then tap Review & sign — you sign each part, and that books it."
+                  : "Read it through, then tap Review & sign. It’s written from the proposal you accepted."}
           </p>
         </div>
         <ClientContractSigning
