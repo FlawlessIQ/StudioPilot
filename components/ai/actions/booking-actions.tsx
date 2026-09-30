@@ -21,6 +21,7 @@ import { BookWithoutRetainer } from "@/components/booking/book-without-retainer"
 import { ImportedBookingBanner } from "@/components/imports/imported-booking-banner";
 import { ExistingBookingForm } from "@/components/imports/existing-booking-form";
 import { NativeContractStep } from "@/components/contracts/native-contract-step";
+import { retainerFromSchedule } from "@/features/booking/agreed-retainer";
 import { AMENDABLE_STATES, BookingAmendmentPanel } from "@/components/booking/booking-amendment";
 import { SignedCopySharing } from "@/components/contracts/signed-copy-sharing";
 import { FILE_BEARING } from "@/features/documents/file-ref";
@@ -960,7 +961,7 @@ export function RetainerInvoiceCard({ action }: ActionCardProps) {
   const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(agreed) ? agreed : addCalendarDays(todayLocalIso(), 7);
   return (
     <ActionShell
-      detail={`${dollars(snapshot.retainerCents)}, due ${dueDate}. Your invoicing app creates it and sends it to them.`}
+      detail={`${dollars(retainerFromSchedule(proposal?.paymentSchedule, Number(snapshot.retainerCents ?? 0)))}, due ${dueDate}. Your invoicing app creates it and sends it to them.`}
       icon={<Receipt size={15} />}
       title={title}
     >

@@ -6,6 +6,7 @@ import {
   type ContractSources,
   type ContractTemplateInput,
 } from "./document.js";
+import { retainerFromSchedule } from "../booking/agreed-retainer.js";
 
 /**
  * Everything a StudioCue contract is resolved from, read from records.
@@ -195,7 +196,11 @@ export async function loadContractSources(
       pricing: {
         currency: text(pricing.currency) || text(tenant.get("currency")) || "USD",
         totalCents: cents(pricing.totalCents),
-        retainerCents: cents(pricing.retainerCents),
+        // The schedule's retainer, as the invoice bills it. A fixed retainer
+        // lives only in the schedule, so the snapshot's percentage put
+        // "Retainer: $1,079.70" above a table saying $1,000.00 in the same
+        // agreement (walked 2026-09-30).
+        retainerCents: retainerFromSchedule(proposal.get("paymentSchedule"), cents(pricing.retainerCents)),
       },
       packages,
       formAnswers,

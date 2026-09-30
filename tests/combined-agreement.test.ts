@@ -247,3 +247,10 @@ test("a live booking agreement can be withdrawn from the Booking tab and from Cu
   const hero = readFileSync("components/booking/booking-autopilot-workspace.tsx", "utf8");
   assert.match(hero, /The booking agreement is with the client\./);
 });
+
+test("the agreement states the retainer the schedule bills, not the package's percentage", () => {
+  const sources = readFileSync("functions/src/contracts/sources.ts", "utf8");
+  assert.match(sources, /retainerCents: retainerFromSchedule\(proposal\.get\("paymentSchedule"\), cents\(pricing\.retainerCents\)\)/);
+  const cue = readFileSync("components/ai/actions/booking-actions.tsx", "utf8");
+  assert.match(cue, /dollars\(retainerFromSchedule\(proposal\?\.paymentSchedule/);
+});
