@@ -21396,8 +21396,9 @@ label {
 .coi-request-collapsed small {
   color: var(--muted);
 }
-/* The booking agreement, read at reading width over the proposal (H2). */
-.combined-agreement-overlay {
+/* The booking agreement, read at reading width over the proposal (H2).
+   Portalled to the body with its own .ds-root, so these outrank .ds-root. */
+.ds-root.combined-agreement-overlay {
   background: rgba(20, 24, 21, 0.45);
   display: grid;
   inset: 0;
@@ -21405,7 +21406,8 @@ label {
   overflow-y: auto;
   padding: 32px 16px;
   position: fixed;
-  z-index: 80;
+  /* Above the app's top bar and navigation, like the other dialogs. */
+  z-index: 1000;
 }
 .combined-agreement-overlay > .combined-agreement-sheet {
   align-self: start;
@@ -21419,7 +21421,7 @@ label {
   width: 100%;
 }
 @media (max-width: 640px) {
-  .combined-agreement-overlay {
+  .ds-root.combined-agreement-overlay {
     padding: 0;
   }
   .combined-agreement-overlay > .combined-agreement-sheet {

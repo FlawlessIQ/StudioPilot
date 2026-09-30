@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { FileSignature, LoaderCircle, Send } from "lucide-react";
 import { ContractDocumentView } from "@/components/contracts/contract-document-view";
@@ -125,11 +126,15 @@ export function CombinedAgreementSend({
     : false;
   // A whole agreement is read at reading width, not in the proposal's side
   // column (walked 2026-09-29: it rendered as a thin scrolling strip).
-  return (
+  // Portalled to the body: inside the proposal's side column it sat in that
+  // column's stacking context, under the app's top bar.
+  return createPortal(
     <div
       aria-label="Booking agreement"
       aria-modal="true"
-      className="combined-agreement-overlay"
+      // Outside the app's .ds-root once portalled, so it carries its own.
+      className="ds-root combined-agreement-overlay"
+      data-ds-theme="emerald"
       onKeyDown={(event) => {
         if (event.key === "Escape" && busy === null) setPreview(null);
       }}
@@ -205,6 +210,7 @@ export function CombinedAgreementSend({
       </div>
       {error ? <p className="client-contract-error" role="alert">{error}</p> : null}
     </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
