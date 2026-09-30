@@ -109,14 +109,46 @@ export function CombinedAgreementSend({
   }
 
   const missing = preview.unresolved;
+  // The studio's own agreement may state the price too (the details section
+  // an import adds does). Same figures, from the same proposal — but said
+  // twice, so the studio is told how to say it once.
+  const terms = preview.sections.find((section) => section.key === "terms");
+  const termsStatePrice = terms
+    ? preview.document.blocks.slice(terms.start, terms.end).some(
+        (block) =>
+          block.type === "payment_schedule" ||
+          ("content" in block &&
+            (block.content ?? []).some((piece) => piece.field?.startsWith("price.") || piece.field === "payment.schedule")) ||
+          (block.type === "list" &&
+            block.items.some((item) => item.content.some((piece) => piece.field?.startsWith("price.")))),
+      )
+    : false;
+  // A whole agreement is read at reading width, not in the proposal's side
+  // column (walked 2026-09-29: it rendered as a thin scrolling strip).
   return (
-    <div className="combined-agreement-send">
+    <div
+      aria-label="Booking agreement"
+      aria-modal="true"
+      className="combined-agreement-overlay"
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && busy === null) setPreview(null);
+      }}
+      role="dialog"
+    >
+    <div className="combined-agreement-send combined-agreement-sheet">
       <p className="eyebrow">Booking agreement</p>
       <p className="native-contract-note">
         Part 1 is your agreement (version {preview.templateVersion}); Part 2 is this proposal&rsquo;s packages,
         extras, total and payment schedule. The couple signs each part. Highlighted text came from the job&rsquo;s
         records.
       </p>
+      {termsStatePrice ? (
+        <p className="native-contract-note">
+          Your agreement (Part 1) also states the price and schedule. They&rsquo;re the same figures as Part 2, from
+          this proposal. To state them once, remove the price and schedule fields from{" "}
+          <Link href="/studio/contracts/agreement">your agreement</Link>.
+        </p>
+      ) : null}
       {missing.length ? (
         <p className="client-contract-error" role="alert">
           {missing.length} detail{missing.length === 1 ? "" : "s"} still to fill in:{" "}
@@ -172,6 +204,7 @@ export function CombinedAgreementSend({
         </div>
       </div>
       {error ? <p className="client-contract-error" role="alert">{error}</p> : null}
+    </div>
     </div>
   );
 }
