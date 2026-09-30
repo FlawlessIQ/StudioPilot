@@ -17,7 +17,7 @@ export function outstandingFinalBalance(input: {
   projectId: string;
   proposals: readonly Row[] | null | undefined;
   invoices: readonly Row[] | null | undefined;
-}): { cents: number | null; dueDate: string | null; finalStanding: boolean } {
+}): { cents: number | null; dueDate: string | null; finalStanding: boolean; lastFailure: string | null } {
   const accepted = (input.proposals ?? [])
     .filter((proposal) => proposal.projectId === input.projectId && proposal.status === "accepted")
     .sort((left, right) => Number(right.version ?? 0) - Number(left.version ?? 0))[0];
@@ -39,7 +39,33 @@ export function outstandingFinalBalance(input: {
     dueDate: text(schedule[1]?.dueDate) || null,
     // A final bill out with the couple (or paid): nothing new to send.
     finalStanding: standing.some((invoice) => invoice.kind === "final"),
+    lastFailure: finalBillFailure(
+      (input.invoices ?? []).filter((invoice) => invoice.projectId === input.projectId),
+    ),
   };
+}
+
+/**
+ * Why the last final bill didn't reach the provider, in words to act on — or
+ * null when it did. Walked on production: FlawlessIQ's "Send the final bill"
+ * failed because its QuickBooks subscription had ended, and the card came
+ * straight back saying "Nothing has billed it yet".
+ */
+export function finalBillFailure(invoices: readonly Record<string, unknown>[]): string | null {
+  const failed = invoices
+    .filter((invoice) => invoice.kind === "final" && invoice.status === "failed")
+    .sort((left, right) => text(right.updatedAt).localeCompare(text(left.updatedAt)))[0];
+  if (!failed) return null;
+  const provider = failed.provider === "stripe" ? "Stripe" : "QuickBooks";
+  const error = (failed.providerError ?? {}) as Record<string, unknown>;
+  const message = text(error.message);
+  if (/subscription period has ended|trial or subscription|billing problem/i.test(message))
+    return `${provider} won't accept new invoices: its subscription has ended or has a billing problem. Sort that out in ${provider}, then send it again.`;
+  if (/:40[13]:/.test(message) || /invalid_grant|unauthori[sz]ed/i.test(message))
+    return `${provider} rejected the connection. Reconnect it in Integrations, then send it again.`;
+  if (/CUSTOMER_(CONTACT|DETAILS)_MISSING/.test(message))
+    return `The couple has no email on file, so ${provider} can't be told who to bill. Add it to the job, then send it again.`;
+  return `${provider} couldn't create it. Check the connection in Integrations, then send it again.`;
 }
 
 /**

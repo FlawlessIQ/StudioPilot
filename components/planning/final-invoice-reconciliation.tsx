@@ -63,6 +63,9 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
                 unbilled.dueDate ? `, due ${new Date(`${unbilled.dueDate}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}` : ""
               }. Send the bill, or record it if they paid another way.`}
             </small>
+            {unbilled.lastFailure ? (
+              <small className="form-error" role="alert">{`The last try didn't go through. ${unbilled.lastFailure}`}</small>
+            ) : null}
           </span>
           <FinalBalanceActions
             balanceLabel={money(unbilled.cents, "USD")}

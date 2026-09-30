@@ -1279,7 +1279,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
       title: `Bill ${text(job.name).replace(/\s+wedding$/i, "").trim() || "the couple"}'s final balance · ${amount}`,
       detail: [
         due.dueDate ? `Due ${formatDueDate(due.dueDate)}.` : null,
-        "Nothing has billed it yet. Send it from here, or record it if they paid another way.",
+        due.lastFailure
+          ? `The last try didn't go through. ${due.lastFailure}`
+          : "Nothing has billed it yet. Send it from here, or record it if they paid another way.",
       ]
         .filter(Boolean)
         .join(" "),
@@ -1288,7 +1290,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
       projectName: text(job.name) || null,
       action: {
         kind: "final_balance",
-        label: "Send the final bill",
+        label: due.lastFailure ? "Send it again" : "Send the final bill",
         projectId: job.id,
         packageSnapshotId: text(job.packageSnapshotId) || null,
         balanceCents: due.cents,

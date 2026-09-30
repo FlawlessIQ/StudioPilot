@@ -40,7 +40,7 @@ const rivera = {
 
 test("what's left is the agreed total less what was paid on bills still standing", () => {
   const due = outstandingFinalBalance({ projectId: "p1", ...rivera });
-  assert.deepEqual(due, { cents: 621_930, dueDate: "2026-10-08", finalStanding: false });
+  assert.deepEqual(due, { cents: 621_930, dueDate: "2026-10-08", finalStanding: false, lastFailure: null });
   const billed = outstandingFinalBalance({
     projectId: "p1",
     proposals: rivera.proposals,
@@ -165,4 +165,34 @@ test("a raised bill is in flight, and the bill that stands is the one read", () 
   assert.match(steps, /\["draft", "awaiting_delivery", "sent", "viewed", "partially_paid", "overdue"\]/);
   for (const reader of ["components/today/use-today-inbox.ts", "components/projects/use-project-journey.ts", "components/projects/use-readiness-evidence.ts"])
     assert.doesNotMatch(read(reader), /find\(\(invoice\) => invoice\.kind === "final"\)/, reader);
+});
+
+test("a bill the provider refused says why, and offers to send it again", () => {
+  // Walked on production: FlawlessIQ's QuickBooks subscription had ended.
+  const refused = {
+    id: "final_p1",
+    projectId: "p1",
+    kind: "final",
+    provider: "quickbooks",
+    status: "failed",
+    amountCents: 621_930,
+    balanceCents: 621_930,
+    updatedAt: "2026-09-30T13:10:00Z",
+    providerError: {
+      code: "QUICKBOOKS_CUSTOMER_CREATE_FAILED",
+      message:
+        "QUICKBOOKS_CUSTOMER_CREATE_FAILED:400:Subscription period has ended or canceled or there was a billing problem : You can't add data to QuickBooks Online Plus",
+    },
+  };
+  const inbox = todayInbox({
+    now: "2026-09-30T14:00:00Z",
+    projects: [{ id: "p1", name: "Alex & Sam Rivera wedding", state: "BOOKED", eventDate: "2026-10-22", packageSnapshotId: "snap1", archivedAt: null }],
+    proposals: rivera.proposals,
+    invoiceReferences: [...rivera.invoices, refused],
+  });
+  const card = inbox.act.find((item) => item.id === "final-balance-p1")!;
+  assert.match(card.detail, /The last try didn't go through\. QuickBooks won't accept new invoices: its subscription has ended/);
+  assert.equal(card.action.kind === "final_balance" ? card.action.label : "", "Send it again");
+  // Still $6,219.30: a refused bill paid nothing.
+  assert.match(card.title, /\$6,219\.30$/);
 });
